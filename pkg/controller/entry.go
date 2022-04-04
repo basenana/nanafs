@@ -71,6 +71,10 @@ func (c *controller) ListEntryChildren(ctx context.Context, entry *dentry.Entry)
 	}
 	result := make([]*dentry.Entry, 0)
 	for it.HasNext() {
+		next := it.Next()
+		if next.ID == next.ParentID {
+			continue
+		}
 		result = append(result, it.Next())
 	}
 	return result, nil

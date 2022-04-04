@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	NoErr = 0
+	NoErr = syscall.Errno(0)
 )
 
 func Error2FuseSysError(err error) syscall.Errno {

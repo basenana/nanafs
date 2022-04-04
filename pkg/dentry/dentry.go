@@ -33,7 +33,7 @@ func InitNewEntry(parent *Entry, attr EntryAttr) (*Entry, error) {
 		Metadata: object.NewMetadata(attr.Name, attr.Kind),
 	}
 	if parent != nil {
-		newEntry.ParentID = parent.ParentID
+		newEntry.ParentID = parent.ID
 	}
 	return newEntry, nil
 }

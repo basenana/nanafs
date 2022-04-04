@@ -18,17 +18,6 @@ type NanaNode struct {
 
 var _ nodeOperation = &NanaNode{}
 
-func (n *NanaNode) OnAdd(ctx context.Context) {
-	children, err := n.R.ListEntryChildren(ctx, n.entry)
-	if err == nil {
-		for i := range children {
-			entry := children[i]
-			node, _ := n.R.newFsNode(ctx, n, entry)
-			n.AddChild(entry.Name, node.EmbeddedInode(), false)
-		}
-	}
-}
-
 func (n *NanaNode) Access(ctx context.Context, mask uint32) syscall.Errno {
 	return Error2FuseSysError(utils.IsAccess(n.entry.Access, mask))
 }
@@ -200,9 +189,11 @@ func (n *NanaNode) Rmdir(ctx context.Context, name string) syscall.Errno {
 	}
 
 	ch := chNode.Operations().(*NanaNode)
-	_, parNode := chNode.Parent()
-	parNode.RmChild(name)
-	return Error2FuseSysError(ch.R.DestroyEntry(ctx, n.entry))
+	if err := n.R.DestroyEntry(ctx, ch.entry); err != nil {
+		return Error2FuseSysError(err)
+	}
+	n.RmChild(name)
+	return NoErr
 }
 
 func (n *NanaNode) Rename(ctx context.Context, name string, newParent fs.InodeEmbedder, newName string, flags uint32) syscall.Errno {
@@ -215,6 +206,17 @@ func (n *NanaNode) Rename(ctx context.Context, name string, newParent fs.InodeEm
 	}
 
 	return Error2FuseSysError(n.R.ChangeEntryParent(ctx, ch.entry, newNode.entry, newName))
+}
+
+func (n *NanaNode) OnAdd(ctx context.Context) {
+	children, err := n.R.ListEntryChildren(ctx, n.entry)
+	if err == nil {
+		for i := range children {
+			entry := children[i]
+			node, _ := n.R.newFsNode(ctx, n, entry)
+			n.AddChild(entry.Name, node.EmbeddedInode(), false)
+		}
+	}
 }
 
 func (n *NanaNode) Release(ctx context.Context, f fs.FileHandle) (err syscall.Errno) {

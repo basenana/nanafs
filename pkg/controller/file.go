@@ -17,12 +17,11 @@ type OpenOption struct {
 
 func (c *controller) OpenFile(ctx context.Context, entry *dentry.Entry, attr files.Attr) (*files.File, error) {
 	attr.Storage = c.storage
-	attr.Meta = c.meta
 	return files.Open(ctx, entry, attr)
 }
 
 func (c *controller) CloseFile(ctx context.Context, file *files.File) error {
-	return files.Close(ctx, file)
+	return file.Close(ctx)
 }
 
 func (c *controller) DeleteFileData(ctx context.Context, entry *dentry.Entry) error {

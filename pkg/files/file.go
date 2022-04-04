@@ -10,9 +10,10 @@ import (
 type File struct {
 	object.Object
 
-	ref    int
-	size   int64
-	offset int64
+	ref       int
+	size      int64
+	offset    int64
+	chunkSize int64
 
 	reader *reader
 	writer *writer
@@ -28,7 +29,7 @@ func (f *File) Write(ctx context.Context, data []byte, offset int64) (n int64, e
 	f.mux.Lock()
 	defer f.mux.Unlock()
 	if f.writer == nil {
-		f.writer = &writer{f: f}
+		f.writer = initFileWriter(f)
 	}
 
 	n, err = f.writer.write(ctx, data, offset)
@@ -49,7 +50,7 @@ func (f *File) Read(ctx context.Context, data []byte, offset int64) (int, error)
 	f.mux.Lock()
 	defer f.mux.Unlock()
 	if f.reader == nil {
-		f.reader = &reader{f: f}
+		f.reader = initFileReader(f)
 	}
 
 	return f.reader.read(ctx, data, offset)
@@ -89,7 +90,6 @@ type Attr struct {
 	Write   bool
 	Create  bool
 	Storage storage.Storage
-	Meta    storage.MetaStore
 }
 
 func Open(ctx context.Context, obj object.Object, attr Attr) (*File, error) {
@@ -107,10 +107,8 @@ func Open(ctx context.Context, obj object.Object, attr Attr) (*File, error) {
 		ref:    1,
 		size:   f.Size,
 		attr:   attr,
+
+		chunkSize: defaultChunkSize,
 	}
 	return file, nil
-}
-
-func Close(ctx context.Context, file *File) error {
-	return file.Close(ctx)
 }

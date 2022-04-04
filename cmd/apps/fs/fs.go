@@ -82,7 +82,7 @@ func (n *NanaFS) newFsNode(ctx context.Context, parent *NanaNode, entry *dentry.
 			R:     n,
 		}
 		if parent != nil {
-			node.Inode = *parent.NewInode(ctx, node, fs.StableAttr{})
+			parent.NewInode(ctx, node, idFromStat(n.Dev, nanaNode2Stat(node)))
 		}
 		n.nodes[entry.ID] = node
 	}
