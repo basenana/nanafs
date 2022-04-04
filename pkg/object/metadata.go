@@ -23,8 +23,8 @@ type Metadata struct {
 	CustomColumn *CustomColumn `json:"custom_column"`
 }
 
-func (d *Metadata) GetObjectMeta() Metadata {
-	return *d
+func (d *Metadata) GetObjectMeta() *Metadata {
+	return d
 }
 
 type Labels struct {

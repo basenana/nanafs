@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/basenana/nanafs/pkg/files"
 	"github.com/hanwen/go-fuse/v2/fuse"
+	"io"
 	"syscall"
 )
 
@@ -15,12 +16,15 @@ type File struct {
 var _ fileOperation = &File{}
 
 func (f *File) Read(ctx context.Context, dest []byte, off int64) (fuse.ReadResult, syscall.Errno) {
-	_, err := f.file.Read(ctx, dest, off)
-	return fuse.ReadResultData(dest), Error2FuseSysError(err)
+	n, err := f.file.Read(ctx, dest, off)
+	if err != nil && err != io.EOF {
+		return fuse.ReadResultData(dest), Error2FuseSysError(err)
+	}
+	return fuse.ReadResultData(dest[:n]), NoErr
 }
 
 func (f *File) Write(ctx context.Context, data []byte, off int64) (written uint32, errno syscall.Errno) {
-	cnt, err := f.file.Write(ctx, data, off)
+	cnt, err := f.node.R.WriteFile(ctx, f.file, data, off)
 	return uint32(cnt), Error2FuseSysError(err)
 }
 

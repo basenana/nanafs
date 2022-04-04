@@ -8,6 +8,7 @@ type nodeOperation interface {
 	fs.NodeAccesser
 	fs.NodeStatfser
 	fs.NodeGetattrer
+	fs.NodeSetattrer
 	fs.NodeOpener
 	fs.NodeLookuper
 	fs.NodeCreater

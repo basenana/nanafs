@@ -32,6 +32,10 @@ func (n *NanaNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrO
 	return NoErr
 }
 
+func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAttrIn, out *fuse.AttrOut) syscall.Errno {
+	return n.Getattr(ctx, f, out)
+}
+
 func (n *NanaNode) Open(ctx context.Context, flags uint32) (fh fs.FileHandle, fuseFlags uint32, errno syscall.Errno) {
 	if n.entry.IsGroup() {
 		return nil, 0, Error2FuseSysError(object.ErrIsGroup)
@@ -58,8 +62,8 @@ func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode u
 	if err != nil {
 		return nil, nil, 0, Error2FuseSysError(err)
 	}
-	f, err := n.R.Controller.OpenFile(ctx, n.entry, openFileAttr(flags))
-	return node.EmbeddedInode(), f, mode, Error2FuseSysError(err)
+	f, err := n.R.Controller.OpenFile(ctx, entry, openFileAttr(flags))
+	return node.EmbeddedInode(), &File{node: n, file: f}, mode, Error2FuseSysError(err)
 }
 
 func (n *NanaNode) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
@@ -174,9 +178,8 @@ func (n *NanaNode) Unlink(ctx context.Context, name string) syscall.Errno {
 		return Error2FuseSysError(object.ErrNotFound)
 	}
 	ch := chNode.Operations().(*NanaNode)
-	_, parNode := chNode.Parent()
-	parNode.RmChild(name)
-	return Error2FuseSysError(ch.R.DestroyEntry(ctx, n.entry))
+	n.RmChild(name)
+	return Error2FuseSysError(ch.R.DestroyEntry(ctx, ch.entry))
 }
 
 func (n *NanaNode) Rmdir(ctx context.Context, name string) syscall.Errno {

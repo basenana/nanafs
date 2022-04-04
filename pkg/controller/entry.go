@@ -75,7 +75,7 @@ func (c *controller) ListEntryChildren(ctx context.Context, entry *dentry.Entry)
 		if next.ID == next.ParentID {
 			continue
 		}
-		result = append(result, it.Next())
+		result = append(result, next)
 	}
 	return result, nil
 }

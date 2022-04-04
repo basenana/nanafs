@@ -3,6 +3,7 @@ package files
 import (
 	"bytes"
 	"context"
+	"github.com/basenana/nanafs/pkg/object"
 	"github.com/basenana/nanafs/pkg/storage"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -29,7 +30,9 @@ var _ = Describe("TestFileIO", func() {
 	Describe("test file open", func() {
 		Context("open a file", func() {
 			It("should be ok", func() {
-				f, err := Open(context.Background(), fileObject{ID: key}, Attr{Read: true, Storage: s})
+				meta := object.NewMetadata(key, object.RawKind)
+				meta.ID = key
+				f, err := Open(context.Background(), &fileObject{meta: meta}, Attr{Read: true, Storage: s})
 				Expect(err).Should(BeNil())
 				Expect(f.Close(context.Background())).Should(BeNil())
 				f.chunkSize = testChunkSize
@@ -37,7 +40,9 @@ var _ = Describe("TestFileIO", func() {
 		})
 		Context("open not found file", func() {
 			It("should be ok", func() {
-				_, err := Open(context.Background(), fileObject{ID: "not-found-file"}, Attr{Read: true, Storage: s})
+				meta := object.NewMetadata("not-found-file", object.RawKind)
+				meta.ID = "not-found-file"
+				_, err := Open(context.Background(), &fileObject{meta: meta}, Attr{Read: true, Storage: s})
 				Expect(err).ShouldNot(BeNil())
 			})
 		})
@@ -49,7 +54,9 @@ var _ = Describe("TestFileIO", func() {
 			err error
 		)
 		BeforeEach(func() {
-			f, err = Open(context.Background(), fileObject{ID: key}, Attr{Read: true, Storage: s})
+			meta := object.NewMetadata(key, object.RawKind)
+			meta.ID = key
+			f, err = Open(context.Background(), &fileObject{meta}, Attr{Read: true, Storage: s})
 			Expect(err).Should(BeNil())
 			f.chunkSize = testChunkSize
 		})
@@ -63,8 +70,11 @@ var _ = Describe("TestFileIO", func() {
 		})
 		Context("read file failed", func() {
 			It("should be no perm", func() {
+				meta := object.NewMetadata(key, object.RawKind)
+				meta.ID = key
+
 				buf := make([]byte, 1024)
-				f, err = Open(context.Background(), fileObject{ID: key}, Attr{Write: true, Storage: s})
+				f, err = Open(context.Background(), &fileObject{meta}, Attr{Write: true, Storage: s})
 				Expect(err).Should(BeNil())
 				_, err = f.Read(context.Background(), buf, 0)
 				Expect(err).ShouldNot(BeNil())
@@ -79,7 +89,9 @@ var _ = Describe("TestFileIO", func() {
 			err  error
 		)
 		BeforeEach(func() {
-			f, err = Open(context.Background(), fileObject{ID: key}, Attr{Write: true, Storage: s})
+			meta := object.NewMetadata(key, object.RawKind)
+			meta.ID = key
+			f, err = Open(context.Background(), &fileObject{meta}, Attr{Write: true, Storage: s})
 			Expect(err).Should(BeNil())
 			f.chunkSize = testChunkSize
 		})
@@ -93,7 +105,10 @@ var _ = Describe("TestFileIO", func() {
 				Expect(f.Close(context.Background())).Should(BeNil())
 
 				Context("read file content", func() {
-					f, err = Open(context.Background(), fileObject{ID: key}, Attr{Read: true, Storage: s})
+					meta := object.NewMetadata(key, object.RawKind)
+					meta.ID = key
+
+					f, err = Open(context.Background(), &fileObject{meta}, Attr{Read: true, Storage: s})
 					Expect(err).Should(BeNil())
 					f.chunkSize = testChunkSize
 
@@ -106,7 +121,10 @@ var _ = Describe("TestFileIO", func() {
 		})
 		Context("write a file without perm", func() {
 			It("should be no perm", func() {
-				f, err = Open(context.Background(), fileObject{ID: key}, Attr{Read: true, Storage: s})
+				meta := object.NewMetadata(key, object.RawKind)
+				meta.ID = key
+
+				f, err = Open(context.Background(), &fileObject{meta}, Attr{Read: true, Storage: s})
 				Expect(err).Should(BeNil())
 				_, err = f.Write(context.Background(), data, 0)
 				Expect(err).ShouldNot(BeNil())
@@ -120,16 +138,20 @@ var _ = Describe("TestFileIO", func() {
 			f    *File
 			err  error
 		)
+
+		meta := object.NewMetadata("test-create-new-file", object.RawKind)
+		meta.ID = "test-create-new-file"
 		Context("create and write a new file", func() {
 			It("should be ok", func() {
-				f, err = Open(context.Background(), fileObject{ID: "test-create-new-file"}, Attr{Write: true, Create: true, Storage: s})
+
+				f, err = Open(context.Background(), &fileObject{meta}, Attr{Write: true, Create: true, Storage: s})
 				Expect(err).Should(BeNil())
 				_, err = f.Write(context.Background(), data, 0)
 				Expect(err).Should(BeNil())
 				Expect(f.Close(context.Background())).Should(BeNil())
 
 				Context("read new file", func() {
-					f, err = Open(context.Background(), fileObject{ID: "test-create-new-file"}, Attr{Read: true, Storage: s})
+					f, err = Open(context.Background(), &fileObject{meta}, Attr{Read: true, Storage: s})
 					Expect(err).Should(BeNil())
 					buf := make([]byte, 1024)
 					n, err := f.Read(context.Background(), buf, 0)
@@ -140,7 +162,7 @@ var _ = Describe("TestFileIO", func() {
 		})
 		Context("write a new file without perm", func() {
 			It("should be no perm", func() {
-				f, err = Open(context.Background(), fileObject{ID: "test-create-new-file"}, Attr{Write: true, Storage: s})
+				f, err = Open(context.Background(), &fileObject{meta}, Attr{Write: true, Storage: s})
 				Expect(err).ShouldNot(BeNil())
 			})
 		})
