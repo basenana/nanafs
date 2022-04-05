@@ -6,8 +6,10 @@ import (
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/utils/logger"
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
+	"go.uber.org/zap"
 	"sync"
 	"syscall"
 	"time"
@@ -25,9 +27,10 @@ type NanaFS struct {
 	Dev     uint64
 	Display string
 
-	nodes map[string]*NanaNode
-	debug bool
-	mux   sync.Mutex
+	nodes  map[string]*NanaNode
+	logger *zap.SugaredLogger
+	debug  bool
+	mux    sync.Mutex
 }
 
 func (n *NanaFS) Start(stopCh chan struct{}) error {
@@ -45,18 +48,17 @@ func (n *NanaFS) Start(stopCh chan struct{}) error {
 			AllowOther: true,
 			FsName:     fsName,
 			Name:       fsName,
-			Debug:      n.debug,
 			Options:    []string{fmt.Sprintf("volname=%s", n.Display)},
 		},
 		EntryTimeout: &entryTimeout,
 		AttrTimeout:  &attrTimeout,
-		Logger:       nil,
+		Logger:       logger.NewFuseLogger(),
 	}
 	server, err := fs.Mount(n.Path, root, opt)
 	if err != nil {
 		return err
 	}
-	server.SetDebug(n.debug)
+	//server.SetDebug(n.debug)
 	go func() {
 		<-stopCh
 		_ = server.Unmount()
@@ -81,8 +83,9 @@ func (n *NanaFS) newFsNode(ctx context.Context, parent *NanaNode, entry *dentry.
 	node, ok := n.nodes[entry.ID]
 	if !ok {
 		node = &NanaNode{
-			entry: entry,
-			R:     n,
+			entry:  entry,
+			R:      n,
+			logger: n.logger.With(zap.String("obj", entry.ID)),
 		}
 		if parent != nil {
 			parent.NewInode(ctx, node, idFromStat(n.Dev, nanaNode2Stat(node)))
@@ -120,6 +123,7 @@ func NewNanaFsRoot(cfg config.Fs, controller controller.Controller) (*NanaFS, er
 		Display:    cfg.DisplayName,
 		Dev:        uint64(st.Dev),
 		nodes:      map[string]*NanaNode{},
+		logger:     logger.NewLogger("fs"),
 	}
 
 	return root, nil

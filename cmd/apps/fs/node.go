@@ -7,13 +7,15 @@ import (
 	"github.com/basenana/nanafs/utils"
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
+	"go.uber.org/zap"
 	"syscall"
 )
 
 type NanaNode struct {
 	fs.Inode
-	entry *dentry.Entry
-	R     *NanaFS
+	entry  *dentry.Entry
+	R      *NanaFS
+	logger *zap.SugaredLogger
 }
 
 var _ nodeOperation = &NanaNode{}

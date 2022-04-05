@@ -18,6 +18,7 @@ type OpenOption struct {
 }
 
 func (c *controller) OpenFile(ctx context.Context, entry *dentry.Entry, attr files.Attr) (*files.File, error) {
+	c.logger.Infow("open file", "entry", entry.Name, "attr", attr)
 	attr.Storage = c.storage
 	if entry.IsGroup() {
 		return nil, object.ErrIsGroup
@@ -26,6 +27,8 @@ func (c *controller) OpenFile(ctx context.Context, entry *dentry.Entry, attr fil
 }
 
 func (c *controller) WriteFile(ctx context.Context, file *files.File, data []byte, offset int64) (n int64, err error) {
+	meta := file.GetObjectMeta()
+	c.logger.Infow("write file", "file", meta.Name)
 	n, err = file.Write(ctx, data, offset)
 	if err != nil {
 		return n, err
@@ -35,9 +38,12 @@ func (c *controller) WriteFile(ctx context.Context, file *files.File, data []byt
 }
 
 func (c *controller) CloseFile(ctx context.Context, file *files.File) error {
+	meta := file.GetObjectMeta()
+	c.logger.Infow("close file", "file", meta.Name)
 	return file.Close(ctx)
 }
 
 func (c *controller) DeleteFileData(ctx context.Context, entry *dentry.Entry) error {
+	c.logger.Infow("delete file", "file", entry.Name)
 	return c.storage.Delete(ctx, entry.ID)
 }

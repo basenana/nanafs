@@ -7,6 +7,7 @@ import (
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils"
+	"github.com/basenana/nanafs/utils/logger"
 	"time"
 )
 
@@ -16,6 +17,8 @@ func init() {
 
 func main() {
 	flag.Parse()
+	logger.InitLogger()
+	defer logger.Sync()
 
 	loader := config.NewConfigLoader()
 	cfg, err := loader.GetConfig()

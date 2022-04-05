@@ -18,6 +18,7 @@ type EntryController interface {
 }
 
 func (c *controller) LoadRootEntry(ctx context.Context) (*dentry.Entry, error) {
+	c.logger.Info("init root entry")
 	root, err := c.meta.GetEntry(ctx, dentry.RootEntryID)
 	if err != nil {
 		if err == object.ErrNotFound {
@@ -30,6 +31,7 @@ func (c *controller) LoadRootEntry(ctx context.Context) (*dentry.Entry, error) {
 }
 
 func (c *controller) FindEntry(ctx context.Context, parent *dentry.Entry, name string) (*dentry.Entry, error) {
+	c.logger.Infow("finding child entry", "name", name)
 	children, err := c.ListEntryChildren(ctx, parent)
 	if err != nil {
 		return nil, err
@@ -45,6 +47,7 @@ func (c *controller) FindEntry(ctx context.Context, parent *dentry.Entry, name s
 }
 
 func (c *controller) CreateEntry(ctx context.Context, parent *dentry.Entry, attr dentry.EntryAttr) (*dentry.Entry, error) {
+	c.logger.Infow("creating new entry", "name", attr.Name, "kind", attr.Kind)
 	entry, err := dentry.InitNewEntry(parent, attr)
 	if err != nil {
 		return nil, err
@@ -53,18 +56,22 @@ func (c *controller) CreateEntry(ctx context.Context, parent *dentry.Entry, attr
 }
 
 func (c *controller) SaveEntry(ctx context.Context, entry *dentry.Entry) error {
+	c.logger.Infow("save entry", "name", entry.Name)
 	return c.meta.SaveEntry(ctx, entry)
 }
 
 func (c *controller) DestroyEntry(ctx context.Context, entry *dentry.Entry) error {
+	c.logger.Infow("destroy entry", "name", entry.Name)
 	return c.meta.DestroyEntry(ctx, entry)
 }
 
 func (c *controller) MirrorEntry(ctx context.Context, src, dstParent *dentry.Entry, attr dentry.EntryAttr) (*dentry.Entry, error) {
+	c.logger.Infow("mirror entry", "src", src.Name, "dstParent", dstParent.Name)
 	return nil, nil
 }
 
 func (c *controller) ListEntryChildren(ctx context.Context, entry *dentry.Entry) ([]*dentry.Entry, error) {
+	c.logger.Infow("list children entry", "name", entry.Name)
 	it, err := c.meta.ListChildren(ctx, entry.ID)
 	if err != nil {
 		return nil, err
@@ -81,6 +88,7 @@ func (c *controller) ListEntryChildren(ctx context.Context, entry *dentry.Entry)
 }
 
 func (c *controller) ChangeEntryParent(ctx context.Context, old, newParent *dentry.Entry, newName string) error {
+	c.logger.Infow("change entry parent", "old", old.Name, "newParent", newParent.Name, "newName", newName)
 	old.Name = newName
 	return c.meta.ChangeParent(ctx, old, newParent)
 }
