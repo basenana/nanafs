@@ -2,6 +2,8 @@ package fs
 
 import (
 	"context"
+	"fmt"
+	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/hanwen/go-fuse/v2/fs"
@@ -19,8 +21,9 @@ const (
 type NanaFS struct {
 	controller.Controller
 
-	Path string
-	Dev  uint64
+	Path    string
+	Dev     uint64
+	Display string
 
 	nodes map[string]*NanaNode
 	debug bool
@@ -43,7 +46,7 @@ func (n *NanaFS) Start(stopCh chan struct{}) error {
 			FsName:     fsName,
 			Name:       fsName,
 			Debug:      n.debug,
-			//Options:    []string{"default_permissions"},
+			Options:    []string{fmt.Sprintf("volname=%s", n.Display)},
 		},
 		EntryTimeout: &entryTimeout,
 		AttrTimeout:  &attrTimeout,
@@ -100,16 +103,21 @@ func (n *NanaFS) releaseFsNode(ctx context.Context, entry *dentry.Entry) {
 	n.mux.Unlock()
 }
 
-func NewNanaFsRoot(rootPath string, controller controller.Controller) (*NanaFS, error) {
+func NewNanaFsRoot(cfg config.Fs, controller controller.Controller) (*NanaFS, error) {
 	var st syscall.Stat_t
-	err := syscall.Stat(rootPath, &st)
+	err := syscall.Stat(cfg.RootPath, &st)
 	if err != nil {
 		return nil, err
 	}
 
+	if cfg.DisplayName == "" {
+		cfg.DisplayName = fsName
+	}
+
 	root := &NanaFS{
 		Controller: controller,
-		Path:       rootPath,
+		Path:       cfg.RootPath,
+		Display:    cfg.DisplayName,
 		Dev:        uint64(st.Dev),
 		nodes:      map[string]*NanaNode{},
 	}

@@ -27,6 +27,7 @@ type Api struct {
 }
 
 type Fs struct {
-	Enable   bool   `json:"enable"`
-	RootPath string `json:"root_path"`
+	Enable      bool   `json:"enable"`
+	RootPath    string `json:"root_path"`
+	DisplayName string `json:"display_name"`
 }

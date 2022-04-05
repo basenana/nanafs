@@ -7,6 +7,7 @@ import (
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils"
+	"time"
 )
 
 func init() {
@@ -42,8 +43,15 @@ func main() {
 }
 
 func run(ctrl controller.Controller, cfg config.Config, stopCh chan struct{}) {
+	shutdown := make(chan struct{})
+	go func() {
+		<-stopCh
+		time.Sleep(time.Second * 5)
+		close(shutdown)
+	}()
+
 	if cfg.FsConfig.Enable {
-		fsServer, err := fs.NewNanaFsRoot(cfg.FsConfig.RootPath, ctrl)
+		fsServer, err := fs.NewNanaFsRoot(cfg.FsConfig, ctrl)
 		if err != nil {
 			panic(err)
 		}
@@ -53,5 +61,5 @@ func run(ctrl controller.Controller, cfg config.Config, stopCh chan struct{}) {
 			panic(err)
 		}
 	}
-	<-stopCh
+	<-shutdown
 }

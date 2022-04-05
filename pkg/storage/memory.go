@@ -17,8 +17,9 @@ const (
 )
 
 type memoryMetaStore struct {
-	objects map[string]*dentry.Entry
-	mux     sync.Mutex
+	objects    map[string]*dentry.Entry
+	inodeCount uint64
+	mux        sync.Mutex
 }
 
 var _ MetaStore = &memoryMetaStore{}
@@ -48,6 +49,10 @@ func (m *memoryMetaStore) ListEntries(ctx context.Context, filter Filter) ([]*de
 
 func (m *memoryMetaStore) SaveEntry(ctx context.Context, obj *dentry.Entry) error {
 	m.mux.Lock()
+	if obj.Inode == 0 {
+		m.inodeCount++
+		obj.Inode = m.inodeCount
+	}
 	m.objects[obj.GetObjectMeta().ID] = obj
 	m.mux.Unlock()
 	return nil
