@@ -1,3 +1,29 @@
+# github.com/basenana/go-flow v0.0.0-20220322140457-971dcb315a41
+github.com/basenana/go-flow/controller
+github.com/basenana/go-flow/flow
+github.com/basenana/go-flow/fsm
+github.com/basenana/go-flow/log
+github.com/basenana/go-flow/storage
+# github.com/coreos/etcd v2.3.8+incompatible
+github.com/coreos/etcd/Godeps/_workspace/src/github.com/gogo/protobuf/proto
+github.com/coreos/etcd/Godeps/_workspace/src/github.com/golang/protobuf/proto
+github.com/coreos/etcd/Godeps/_workspace/src/golang.org/x/net/context
+github.com/coreos/etcd/Godeps/_workspace/src/golang.org/x/net/http2
+github.com/coreos/etcd/Godeps/_workspace/src/golang.org/x/net/http2/hpack
+github.com/coreos/etcd/Godeps/_workspace/src/golang.org/x/net/internal/timeseries
+github.com/coreos/etcd/Godeps/_workspace/src/golang.org/x/net/trace
+github.com/coreos/etcd/Godeps/_workspace/src/google.golang.org/grpc
+github.com/coreos/etcd/Godeps/_workspace/src/google.golang.org/grpc/codes
+github.com/coreos/etcd/Godeps/_workspace/src/google.golang.org/grpc/credentials
+github.com/coreos/etcd/Godeps/_workspace/src/google.golang.org/grpc/grpclog
+github.com/coreos/etcd/Godeps/_workspace/src/google.golang.org/grpc/metadata
+github.com/coreos/etcd/Godeps/_workspace/src/google.golang.org/grpc/naming
+github.com/coreos/etcd/Godeps/_workspace/src/google.golang.org/grpc/peer
+github.com/coreos/etcd/Godeps/_workspace/src/google.golang.org/grpc/transport
+github.com/coreos/etcd/clientv3
+github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes
+github.com/coreos/etcd/etcdserver/etcdserverpb
+github.com/coreos/etcd/storage/storagepb
 # github.com/fsnotify/fsnotify v1.4.9
 github.com/fsnotify/fsnotify
 # github.com/google/uuid v1.3.0
@@ -48,14 +74,14 @@ github.com/onsi/gomega/matchers/support/goraph/edge
 github.com/onsi/gomega/matchers/support/goraph/node
 github.com/onsi/gomega/matchers/support/goraph/util
 github.com/onsi/gomega/types
-# golang.org/x/net v0.0.0-20201021035429-f5854403a974
+# golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4
 golang.org/x/net/html
 golang.org/x/net/html/atom
 golang.org/x/net/html/charset
-# golang.org/x/sys v0.0.0-20210510120138-977fb7262007
+# golang.org/x/sys v0.0.0-20210603081109-ebe580a85c40
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix
-# golang.org/x/text v0.3.3
+# golang.org/x/text v0.3.5
 golang.org/x/text/encoding
 golang.org/x/text/encoding/charmap
 golang.org/x/text/encoding/htmlindex
@@ -78,5 +104,5 @@ golang.org/x/xerrors
 golang.org/x/xerrors/internal
 # gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7
 gopkg.in/tomb.v1
-# gopkg.in/yaml.v2 v2.3.0
+# gopkg.in/yaml.v2 v2.4.0
 gopkg.in/yaml.v2
