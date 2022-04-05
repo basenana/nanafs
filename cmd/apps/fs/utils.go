@@ -18,9 +18,7 @@ func idFromStat(dev uint64, st *syscall.Stat_t) fs.StableAttr {
 	return fs.StableAttr{
 		Mode: uint32(st.Mode),
 		Gen:  1,
-		// This should work well for traditional backing FSes,
-		// not so much for other go-fuse FS-es
-		Ino: (swapped ^ swappedRootDev) ^ st.Ino,
+		Ino:  (swapped ^ swappedRootDev) ^ st.Ino,
 	}
 }
 
@@ -47,6 +45,7 @@ func nanaNode2Stat(node *NanaNode) *syscall.Stat_t {
 		Mtimespec: syscall.Timespec{Sec: mTime.Sec, Nsec: mTime.Nsec},
 		Ctimespec: syscall.Timespec{Sec: cTime.Sec, Nsec: cTime.Nsec},
 		Mode:      mode,
+		Ino:       node.entry.Inode,
 		Nlink:     0,
 		Uid:       0,
 		Gid:       0,

@@ -10,12 +10,12 @@ type Entry struct {
 
 var _ object.Object = &Entry{}
 
-func (e *Entry) GetExtendData() object.ExtendData {
-	return object.ExtendData{}
+func (e *Entry) GetExtendData() *object.ExtendData {
+	return &object.ExtendData{}
 }
 
-func (e *Entry) GetCustomColumn() object.CustomColumn {
-	return object.CustomColumn{}
+func (e *Entry) GetCustomColumn() *object.CustomColumn {
+	return &object.CustomColumn{}
 }
 
 func (e *Entry) IsGroup() bool {

@@ -1,7 +1,7 @@
 package object
 
 type Object interface {
-	GetObjectMeta() Metadata
-	GetExtendData() ExtendData
-	GetCustomColumn() CustomColumn
+	GetObjectMeta() *Metadata
+	GetExtendData() *ExtendData
+	GetCustomColumn() *CustomColumn
 }

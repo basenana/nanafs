@@ -20,7 +20,6 @@ func Error2FuseSysError(err error) syscall.Errno {
 		return syscall.Errno(20)
 	case object.ErrIsGroup:
 		return syscall.EISDIR
-
 	}
 	return syscall.EIO
 }

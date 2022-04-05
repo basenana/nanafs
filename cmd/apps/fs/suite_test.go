@@ -19,6 +19,8 @@ type MockController struct {
 	mux     sync.Mutex
 }
 
+var _ controller.Controller = &MockController{}
+
 func (m *MockController) LoadRootEntry(ctx context.Context) (*dentry.Entry, error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
@@ -104,6 +106,11 @@ func (m *MockController) ChangeEntryParent(ctx context.Context, old, newParent *
 
 func (m *MockController) OpenFile(ctx context.Context, entry *dentry.Entry, attr files.Attr) (*files.File, error) {
 	return &files.File{}, nil
+}
+
+func (m *MockController) WriteFile(ctx context.Context, file *files.File, data []byte, offset int64) (n int64, err error) {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (m *MockController) CloseFile(ctx context.Context, file *files.File) error {

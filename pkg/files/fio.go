@@ -16,9 +16,13 @@ type reader struct {
 func (r *reader) read(ctx context.Context, data []byte, offset int64) (int, error) {
 	meta := r.f.GetObjectMeta()
 
+	if offset > meta.Size {
+		return 0, io.EOF
+	}
+
 	limit := offset + int64(len(data))
-	if limit > r.f.size {
-		limit = r.f.size
+	if limit > meta.Size {
+		limit = meta.Size
 	}
 
 	off := offset
@@ -29,6 +33,10 @@ func (r *reader) read(ctx context.Context, data []byte, offset int64) (int, erro
 		cr := &cRange{key: meta.ID, index: cID, offset: pos, limit: r.chunkSize - pos}
 		if off+cr.limit > limit {
 			cr.limit = limit - off
+		}
+
+		if cr.limit <= cr.offset {
+			break
 		}
 
 		tID, err := r.p.dispatch(ctx, cr)
@@ -59,7 +67,7 @@ func (r *reader) read(ctx context.Context, data []byte, offset int64) (int, erro
 		}
 		readTotal += copy(data[readTotal:], buf[:n])
 	}
-	if limit == r.f.size {
+	if limit == meta.Size {
 		return readTotal, io.EOF
 	}
 	return readTotal, nil

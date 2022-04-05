@@ -14,6 +14,7 @@ type Metadata struct {
 	Kind         Kind          `json:"kind"`
 	Hash         string        `json:"hash"`
 	Size         int64         `json:"size"`
+	Inode        uint64        `json:"inode"`
 	Namespace    string        `json:"namespace"`
 	CreatedAt    time.Time     `json:"created_at"`
 	AddedAt      time.Time     `json:"added_at"`
@@ -23,8 +24,8 @@ type Metadata struct {
 	CustomColumn *CustomColumn `json:"custom_column"`
 }
 
-func (d *Metadata) GetObjectMeta() Metadata {
-	return *d
+func (d *Metadata) GetObjectMeta() *Metadata {
+	return d
 }
 
 type Labels struct {

@@ -8,6 +8,10 @@ import (
 	"io"
 )
 
+const (
+	defaultChunkSize = 1 << 22 // 4MB
+)
+
 type Info struct {
 	Key  string
 	Size int64
@@ -26,7 +30,8 @@ func NewStorage(storageID string, cfg config.Storage) (Storage, error) {
 	switch storageID {
 	case localStorageID:
 		return newLocalStorage(cfg.LocalDir), nil
-
+	case memoryStorageID:
+		return newMemoryStorage(), nil
 	default:
 		return nil, fmt.Errorf("unknow storage id: %s", storageID)
 	}
