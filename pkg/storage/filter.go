@@ -1,21 +1,23 @@
 package storage
 
-import "github.com/basenana/nanafs/pkg/object"
+import (
+	"github.com/basenana/nanafs/pkg/types"
+)
 
 type Filter struct {
 	ID        string
 	ParentID  string
-	Kind      object.Kind
+	Kind      types.Kind
 	Namespace string
 	Label     LabelMatch
 }
 
 type LabelMatch struct {
-	Include []object.Label
-	Exclude []object.Label
+	Include []types.Label
+	Exclude []types.Label
 }
 
-func isObjectFiltered(obj object.Object, filter Filter) bool {
+func isObjectFiltered(obj *types.Object, filter Filter) bool {
 	md := obj.GetObjectMeta()
 	if filter.ID != "" {
 		return md.ID == filter.ID

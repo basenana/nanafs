@@ -1,17 +1,17 @@
 package storage
 
 import (
-	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/types"
 	"sync"
 )
 
 type Iterator interface {
 	HasNext() bool
-	Next() *dentry.Entry
+	Next() *types.Object
 }
 
 type iterator struct {
-	objects []*dentry.Entry
+	objects []*types.Object
 	mux     sync.Mutex
 }
 
@@ -21,7 +21,7 @@ func (i *iterator) HasNext() bool {
 	return len(i.objects) > 0
 }
 
-func (i *iterator) Next() *dentry.Entry {
+func (i *iterator) Next() *types.Object {
 	i.mux.Lock()
 	defer i.mux.Unlock()
 	obj := i.objects[0]

@@ -1,4 +1,4 @@
-package object
+package types
 
 // Kind of Object
 type Kind string

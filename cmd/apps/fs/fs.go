@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
-	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
@@ -70,7 +70,7 @@ func (n *NanaFS) SetDebug(debug bool) {
 	n.debug = debug
 }
 
-func (n *NanaFS) newFsNode(ctx context.Context, parent *NanaNode, entry *dentry.Entry) (*NanaNode, error) {
+func (n *NanaFS) newFsNode(ctx context.Context, parent *NanaNode, entry *types.Object) (*NanaNode, error) {
 	if parent == nil {
 		var err error
 		entry, err = n.LoadRootEntry(ctx)
@@ -97,7 +97,7 @@ func (n *NanaFS) newFsNode(ctx context.Context, parent *NanaNode, entry *dentry.
 	return node, nil
 }
 
-func (n *NanaFS) releaseFsNode(ctx context.Context, entry *dentry.Entry) {
+func (n *NanaFS) releaseFsNode(ctx context.Context, entry *types.Object) {
 	n.mux.Lock()
 	_, ok := n.nodes[entry.ID]
 	if ok {

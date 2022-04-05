@@ -3,7 +3,7 @@ package fs
 import (
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/files"
-	"github.com/basenana/nanafs/pkg/object"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
@@ -29,7 +29,7 @@ func nanaNode2Stat(node *NanaNode) *syscall.Stat_t {
 
 	var mode uint16
 	switch node.entry.Kind {
-	case object.GroupKind:
+	case types.GroupKind:
 		mode |= syscall.S_IFDIR
 	default:
 		mode |= syscall.S_IFREG

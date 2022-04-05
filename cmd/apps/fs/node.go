@@ -2,8 +2,7 @@ package fs
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/object"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
@@ -13,7 +12,7 @@ import (
 
 type NanaNode struct {
 	fs.Inode
-	entry  *dentry.Entry
+	entry  *types.Object
 	R      *NanaFS
 	logger *zap.SugaredLogger
 }
@@ -40,7 +39,7 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 
 func (n *NanaNode) Open(ctx context.Context, flags uint32) (fh fs.FileHandle, fuseFlags uint32, errno syscall.Errno) {
 	if n.entry.IsGroup() {
-		return nil, 0, Error2FuseSysError(object.ErrIsGroup)
+		return nil, 0, Error2FuseSysError(types.ErrIsGroup)
 	}
 	f, err := n.R.Controller.OpenFile(ctx, n.entry, openFileAttr(flags))
 	return &File{node: n, file: f}, flags, Error2FuseSysError(err)
@@ -48,16 +47,16 @@ func (n *NanaNode) Open(ctx context.Context, flags uint32) (fh fs.FileHandle, fu
 
 func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode uint32, out *fuse.EntryOut) (*fs.Inode, fs.FileHandle, uint32, syscall.Errno) {
 	ch, err := n.R.FindEntry(ctx, n.entry, name)
-	if err != nil && err != object.ErrNotFound {
+	if err != nil && err != types.ErrNotFound {
 		return nil, nil, 0, Error2FuseSysError(err)
 	}
 	if ch != nil {
 		return nil, nil, 0, syscall.EEXIST
 	}
-	entry, err := n.R.CreateEntry(ctx, n.entry, dentry.EntryAttr{
+	entry, err := n.R.CreateEntry(ctx, n.entry, types.ObjectAttr{
 		Name: name,
 		Mode: mode,
-		Kind: object.RawKind,
+		Kind: types.RawKind,
 	})
 	if err != nil {
 		return nil, nil, 0, Error2FuseSysError(err)
@@ -94,7 +93,7 @@ func (n *NanaNode) Readdir(ctx context.Context) (fs.DirStream, syscall.Errno) {
 		result := make([]fuse.DirEntry, 0)
 		entries, err := n.R.ListEntryChildren(ctx, n.entry)
 		if err != nil {
-			return nil, Error2FuseSysError(object.ErrNoGroup)
+			return nil, Error2FuseSysError(types.ErrNoGroup)
 		}
 
 		for i := range entries {
@@ -110,21 +109,21 @@ func (n *NanaNode) Readdir(ctx context.Context) (fs.DirStream, syscall.Errno) {
 		}
 		return fs.NewListDirStream(result), NoErr
 	}
-	return nil, Error2FuseSysError(object.ErrNoGroup)
+	return nil, Error2FuseSysError(types.ErrNoGroup)
 }
 
 func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
 	ch, err := n.R.FindEntry(ctx, n.entry, name)
-	if err != nil && err != object.ErrNotFound {
+	if err != nil && err != types.ErrNotFound {
 		return nil, Error2FuseSysError(err)
 	}
 	if ch != nil {
 		return nil, syscall.EEXIST
 	}
-	entry, err := n.R.CreateEntry(ctx, n.entry, dentry.EntryAttr{
+	entry, err := n.R.CreateEntry(ctx, n.entry, types.ObjectAttr{
 		Name: name,
 		Mode: mode,
-		Kind: object.GroupKind,
+		Kind: types.GroupKind,
 	})
 	if err != nil {
 		return nil, Error2FuseSysError(err)
@@ -140,17 +139,17 @@ func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fus
 
 func (n *NanaNode) Mknod(ctx context.Context, name string, mode uint32, dev uint32, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
 	ch, err := n.R.FindEntry(ctx, n.entry, name)
-	if err != nil && err != object.ErrNotFound {
+	if err != nil && err != types.ErrNotFound {
 		return nil, Error2FuseSysError(err)
 	}
 	if ch != nil {
 		return nil, syscall.EEXIST
 	}
 
-	entry, err := n.R.CreateEntry(ctx, n.entry, dentry.EntryAttr{
+	entry, err := n.R.CreateEntry(ctx, n.entry, types.ObjectAttr{
 		Name: name,
 		Mode: mode,
-		Kind: object.RawKind,
+		Kind: types.RawKind,
 	})
 	if err != nil {
 		return nil, Error2FuseSysError(err)
@@ -170,7 +169,7 @@ func (n *NanaNode) Link(ctx context.Context, target fs.InodeEmbedder, name strin
 		return nil, syscall.EIO
 	}
 
-	entry, err := n.R.MirrorEntry(ctx, targetNode.entry, n.entry, dentry.EntryAttr{Name: name})
+	entry, err := n.R.MirrorEntry(ctx, targetNode.entry, n.entry, types.ObjectAttr{Name: name})
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
@@ -202,7 +201,7 @@ func (n *NanaNode) Rmdir(ctx context.Context, name string) syscall.Errno {
 		return Error2FuseSysError(err)
 	}
 	if !ch.IsGroup() {
-		return Error2FuseSysError(object.ErrNoGroup)
+		return Error2FuseSysError(types.ErrNoGroup)
 	}
 
 	if err = n.R.DestroyEntry(ctx, ch); err != nil {

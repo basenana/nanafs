@@ -3,8 +3,7 @@ package fs
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/controller"
-	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/object"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
 	. "github.com/onsi/ginkgo"
@@ -29,10 +28,10 @@ var _ = Describe("TestAccess", func() {
 		}
 		root = initFsBridge(nfs)
 
-		entry, err := nfs.CreateEntry(context.Background(), root.entry, dentry.EntryAttr{
+		entry, err := nfs.CreateEntry(context.Background(), root.entry, types.ObjectAttr{
 			Name: "file.txt",
 			Mode: 0655,
-			Kind: object.RawKind,
+			Kind: types.RawKind,
 		})
 		Expect(err).Should(BeNil())
 
@@ -71,10 +70,10 @@ var _ = Describe("TestGetattr", func() {
 		}
 		root = initFsBridge(nfs)
 
-		entry, err := nfs.CreateEntry(context.Background(), root.entry, dentry.EntryAttr{
+		entry, err := nfs.CreateEntry(context.Background(), root.entry, types.ObjectAttr{
 			Name: "file.txt",
 			Mode: 0655,
-			Kind: object.RawKind,
+			Kind: types.RawKind,
 		})
 		Expect(err).Should(BeNil())
 
@@ -109,10 +108,10 @@ var _ = Describe("TestOpen", func() {
 		}
 		root = initFsBridge(nfs)
 
-		entry, err := nfs.CreateEntry(context.Background(), root.entry, dentry.EntryAttr{
+		entry, err := nfs.CreateEntry(context.Background(), root.entry, types.ObjectAttr{
 			Name: "file.txt",
 			Mode: 0655,
-			Kind: object.RawKind,
+			Kind: types.RawKind,
 		})
 		Expect(err).Should(BeNil())
 
@@ -200,10 +199,10 @@ var _ = Describe("TestLookup", func() {
 		}
 		root = initFsBridge(nfs)
 
-		entry, err := nfs.CreateEntry(context.Background(), root.entry, dentry.EntryAttr{
+		entry, err := nfs.CreateEntry(context.Background(), root.entry, types.ObjectAttr{
 			Name: fileName,
 			Mode: 0655,
-			Kind: object.RawKind,
+			Kind: types.RawKind,
 		})
 		Expect(err).Should(BeNil())
 
@@ -247,17 +246,17 @@ var _ = Describe("TestOpendir", func() {
 		}
 		root = initFsBridge(nfs)
 
-		fileEntry, err := nfs.CreateEntry(context.Background(), root.entry, dentry.EntryAttr{
+		fileEntry, err := nfs.CreateEntry(context.Background(), root.entry, types.ObjectAttr{
 			Name: "file.txt",
 			Mode: 0655,
-			Kind: object.RawKind,
+			Kind: types.RawKind,
 		})
 		Expect(err).Should(BeNil())
 
-		dirEntry, err := nfs.CreateEntry(context.Background(), root.entry, dentry.EntryAttr{
+		dirEntry, err := nfs.CreateEntry(context.Background(), root.entry, types.ObjectAttr{
 			Name: "dir",
 			Mode: 0655,
-			Kind: object.GroupKind,
+			Kind: types.GroupKind,
 		})
 		Expect(err).Should(BeNil())
 
@@ -302,10 +301,10 @@ var _ = Describe("TestReaddir", func() {
 		}
 		root = initFsBridge(nfs)
 
-		entry, err := nfs.CreateEntry(context.Background(), root.entry, dentry.EntryAttr{
+		entry, err := nfs.CreateEntry(context.Background(), root.entry, types.ObjectAttr{
 			Name: "files",
 			Mode: 0655,
-			Kind: object.GroupKind,
+			Kind: types.GroupKind,
 		})
 		Expect(err).Should(BeNil())
 
@@ -324,10 +323,10 @@ var _ = Describe("TestReaddir", func() {
 				ds.Close()
 			})
 			Context("add file to dir", func() {
-				newEntry, err := nfs.CreateEntry(context.Background(), node.entry, dentry.EntryAttr{
+				newEntry, err := nfs.CreateEntry(context.Background(), node.entry, types.ObjectAttr{
 					Name: addFileName,
 					Mode: 0655,
-					Kind: object.RawKind,
+					Kind: types.RawKind,
 				})
 				Expect(err).Should(BeNil())
 
@@ -433,10 +432,10 @@ var _ = Describe("TestLink", func() {
 		}
 		root = initFsBridge(nfs)
 
-		entry, err := nfs.CreateEntry(context.Background(), root.entry, dentry.EntryAttr{
+		entry, err := nfs.CreateEntry(context.Background(), root.entry, types.ObjectAttr{
 			Name: "file.txt",
 			Mode: 0655,
-			Kind: object.RawKind,
+			Kind: types.RawKind,
 		})
 		Expect(err).Should(BeNil())
 
@@ -474,10 +473,10 @@ var _ = Describe("TestRmdir", func() {
 		}
 		root = initFsBridge(nfs)
 
-		entry, err := nfs.CreateEntry(context.Background(), root.entry, dentry.EntryAttr{
+		entry, err := nfs.CreateEntry(context.Background(), root.entry, types.ObjectAttr{
 			Name: dirName,
 			Mode: 0655,
-			Kind: object.GroupKind,
+			Kind: types.GroupKind,
 		})
 		Expect(err).Should(BeNil())
 
@@ -524,10 +523,10 @@ var _ = Describe("TestRename", func() {
 		}
 		root = initFsBridge(nfs)
 
-		entry, err := nfs.CreateEntry(context.Background(), root.entry, dentry.EntryAttr{
+		entry, err := nfs.CreateEntry(context.Background(), root.entry, types.ObjectAttr{
 			Name: "file.txt",
 			Mode: 0655,
-			Kind: object.RawKind,
+			Kind: types.RawKind,
 		})
 		Expect(err).Should(BeNil())
 

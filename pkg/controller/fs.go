@@ -2,8 +2,8 @@ package controller
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/object"
 	"github.com/basenana/nanafs/pkg/storage"
+	"github.com/basenana/nanafs/pkg/types"
 	"math"
 )
 
@@ -37,7 +37,7 @@ func (c *controller) FsInfo(ctx context.Context) Info {
 	for _, obj := range objects {
 		meta := obj.GetObjectMeta()
 		switch meta.Kind {
-		case object.GroupKind:
+		case types.GroupKind:
 		default:
 			info.FileCount += 1
 		}
