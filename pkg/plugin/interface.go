@@ -1,13 +1,13 @@
 package plugin
 
 import (
-	"github.com/basenana/nanafs/pkg/object"
+	"github.com/basenana/nanafs/pkg/types"
 	goplugin "plugin"
 )
 
 type Plugin interface {
 	Name() string
-	Run(object object.Object) error
+	Run(object *types.Object) error
 }
 
 func NewPlugin(pluginPath string) (Plugin, error) {

@@ -4,8 +4,8 @@ import (
 	"github.com/basenana/go-flow/controller"
 	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/go-flow/fsm"
-	"github.com/basenana/nanafs/pkg/object"
 	"github.com/basenana/nanafs/pkg/plugin"
+	"github.com/basenana/nanafs/pkg/types"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"time"
@@ -18,7 +18,7 @@ func (f fakePlugin) Name() string {
 	return "fake"
 }
 
-func (f fakePlugin) Run(object object.Object) error {
+func (f fakePlugin) Run(object *types.Object) error {
 	return nil
 }
 
@@ -44,10 +44,10 @@ var _ = Describe("TestWorkflow", func() {
 	Describe("test job", func() {
 		Context("job trigger", func() {
 			It("should be ok", func() {
-				rule := object.Rule{Logic: "", Rules: nil, Operation: nil}
-				f := fileObject{}
+				rule := types.Rule{Logic: "", Rules: nil, Operation: nil}
+				f := types.Object{}
 				w := NewWorkflow("test", rule, []plugin.Plugin{fakePlugin})
-				j := NewJob(w, f)
+				j := NewJob(w, &f)
 				err := j.Run()
 				Expect(err).Should(BeNil())
 				Eventually(func() []byte {
@@ -61,24 +61,4 @@ var _ = Describe("TestWorkflow", func() {
 
 func status2Bytes(status fsm.Status) []byte {
 	return []byte(status)
-}
-
-type fileObject struct {
-	ID string
-}
-
-func (f fileObject) GetObjectMeta() object.Metadata {
-	return object.Metadata{
-		ID: f.ID,
-	}
-}
-
-func (f fileObject) GetExtendData() object.ExtendData {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (f fileObject) GetCustomColumn() object.CustomColumn {
-	//TODO implement me
-	panic("implement me")
 }

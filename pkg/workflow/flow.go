@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/go-flow/fsm"
-	"github.com/basenana/nanafs/pkg/object"
 	"github.com/basenana/nanafs/pkg/plugin"
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 type NanaFlow struct {
@@ -76,7 +76,7 @@ type NanaTask struct {
 	name    flow.TName
 	message string
 	status  fsm.Status
-	object  object.Object
+	object  *types.Object
 
 	plugin plugin.Plugin
 }

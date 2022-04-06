@@ -7,6 +7,7 @@ import (
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils"
+	"github.com/basenana/nanafs/utils/logger"
 	"time"
 )
 
@@ -16,6 +17,8 @@ func init() {
 
 func main() {
 	flag.Parse()
+	logger.InitLogger()
+	defer logger.Sync()
 
 	loader := config.NewConfigLoader()
 	cfg, err := loader.GetConfig()
@@ -43,11 +46,15 @@ func main() {
 }
 
 func run(ctrl controller.Controller, cfg config.Config, stopCh chan struct{}) {
+	log := logger.NewLogger("fs")
+	log.Info("starting")
 	shutdown := make(chan struct{})
 	go func() {
 		<-stopCh
+		log.Info("shutdown after 5s")
 		time.Sleep(time.Second * 5)
 		close(shutdown)
+		log.Info("stopped")
 	}()
 
 	if cfg.FsConfig.Enable {
@@ -61,5 +68,6 @@ func run(ctrl controller.Controller, cfg config.Config, stopCh chan struct{}) {
 			panic(err)
 		}
 	}
+	log.Info("started")
 	<-shutdown
 }

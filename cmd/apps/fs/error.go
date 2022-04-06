@@ -1,7 +1,7 @@
 package fs
 
 import (
-	"github.com/basenana/nanafs/pkg/object"
+	"github.com/basenana/nanafs/pkg/types"
 	"syscall"
 )
 
@@ -14,11 +14,11 @@ func Error2FuseSysError(err error) syscall.Errno {
 		return NoErr
 	}
 	switch err {
-	case object.ErrNotFound:
+	case types.ErrNotFound:
 		return syscall.ENOENT
-	case object.ErrNoGroup:
+	case types.ErrNoGroup:
 		return syscall.Errno(20)
-	case object.ErrIsGroup:
+	case types.ErrIsGroup:
 		return syscall.EISDIR
 	}
 	return syscall.EIO

@@ -3,14 +3,14 @@ package workflow
 import (
 	"context"
 	goflow "github.com/basenana/go-flow/flow"
-	"github.com/basenana/nanafs/pkg/object"
 	"github.com/basenana/nanafs/pkg/plugin"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/google/uuid"
 )
 
 type Workflow struct {
 	Name    string
-	Rule    object.Rule
+	Rule    types.Rule
 	Plugins []plugin.Plugin
 }
 
@@ -18,11 +18,11 @@ type Job struct {
 	Id       string
 	workflow *Workflow
 	Plugins  []plugin.Plugin
-	object   object.Object
+	object   *types.Object
 	flow     *NanaFlow
 }
 
-func NewWorkflow(name string, rule object.Rule, plugins []plugin.Plugin) *Workflow {
+func NewWorkflow(name string, rule types.Rule, plugins []plugin.Plugin) *Workflow {
 	return &Workflow{
 		Name:    name,
 		Rule:    rule,
@@ -30,7 +30,7 @@ func NewWorkflow(name string, rule object.Rule, plugins []plugin.Plugin) *Workfl
 	}
 }
 
-func NewJob(workflow *Workflow, value object.Object) *Job {
+func NewJob(workflow *Workflow, value *types.Object) *Job {
 	JobId := uuid.New().String()
 	tasks := []*NanaTask{}
 	for _, p := range workflow.Plugins {

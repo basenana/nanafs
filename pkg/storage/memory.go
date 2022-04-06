@@ -4,8 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/object"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"io"
 	"sync"
@@ -17,27 +16,27 @@ const (
 )
 
 type memoryMetaStore struct {
-	objects    map[string]*dentry.Entry
+	objects    map[string]*types.Object
 	inodeCount uint64
 	mux        sync.Mutex
 }
 
 var _ MetaStore = &memoryMetaStore{}
 
-func (m *memoryMetaStore) GetEntry(ctx context.Context, id string) (*dentry.Entry, error) {
+func (m *memoryMetaStore) GetObject(ctx context.Context, id string) (*types.Object, error) {
 	m.mux.Lock()
 	result, ok := m.objects[id]
 	if !ok {
 		m.mux.Unlock()
-		return nil, object.ErrNotFound
+		return nil, types.ErrNotFound
 	}
 	m.mux.Unlock()
 	return result, nil
 }
 
-func (m *memoryMetaStore) ListEntries(ctx context.Context, filter Filter) ([]*dentry.Entry, error) {
+func (m *memoryMetaStore) ListObjects(ctx context.Context, filter Filter) ([]*types.Object, error) {
 	m.mux.Lock()
-	result := make([]*dentry.Entry, 0)
+	result := make([]*types.Object, 0)
 	for oID, obj := range m.objects {
 		if isObjectFiltered(obj, filter) {
 			result = append(result, m.objects[oID])
@@ -47,31 +46,31 @@ func (m *memoryMetaStore) ListEntries(ctx context.Context, filter Filter) ([]*de
 	return result, nil
 }
 
-func (m *memoryMetaStore) SaveEntry(ctx context.Context, obj *dentry.Entry) error {
+func (m *memoryMetaStore) SaveObject(ctx context.Context, obj *types.Object) error {
 	m.mux.Lock()
 	if obj.Inode == 0 {
 		m.inodeCount++
 		obj.Inode = m.inodeCount
 	}
-	m.objects[obj.GetObjectMeta().ID] = obj
+	m.objects[obj.ID] = obj
 	m.mux.Unlock()
 	return nil
 }
 
-func (m *memoryMetaStore) DestroyEntry(ctx context.Context, obj *dentry.Entry) error {
+func (m *memoryMetaStore) DestroyObject(ctx context.Context, obj *types.Object) error {
 	m.mux.Lock()
-	_, ok := m.objects[obj.GetObjectMeta().ID]
+	_, ok := m.objects[obj.ID]
 	if !ok {
 		m.mux.Unlock()
-		return object.ErrNotFound
+		return types.ErrNotFound
 	}
-	delete(m.objects, obj.GetObjectMeta().ID)
+	delete(m.objects, obj.ID)
 	m.mux.Unlock()
 	return nil
 }
 
 func (m *memoryMetaStore) ListChildren(ctx context.Context, id string) (Iterator, error) {
-	children, err := m.ListEntries(ctx, Filter{ParentID: id})
+	children, err := m.ListObjects(ctx, Filter{ParentID: id})
 	if err != nil {
 		return nil, err
 	}
@@ -79,13 +78,14 @@ func (m *memoryMetaStore) ListChildren(ctx context.Context, id string) (Iterator
 	return &iterator{objects: children}, nil
 }
 
-func (m *memoryMetaStore) ChangeParent(ctx context.Context, old *dentry.Entry, parent *dentry.Entry) error {
-	return nil
+func (m *memoryMetaStore) ChangeParent(ctx context.Context, old *types.Object, parent *types.Object) error {
+	old.ParentID = parent.ID
+	return m.SaveObject(ctx, old)
 }
 
 func newMemoryMetaStore() MetaStore {
 	return &memoryMetaStore{
-		objects: map[string]*dentry.Entry{},
+		objects: map[string]*types.Object{},
 	}
 }
 
@@ -159,7 +159,7 @@ func (m *memoryStorage) Delete(ctx context.Context, key string) error {
 
 	_, ok := m.storage[key]
 	if !ok {
-		return object.ErrNotFound
+		return types.ErrNotFound
 	}
 	delete(m.storage, key)
 	return nil
@@ -189,7 +189,7 @@ func (m *memoryStorage) getChunks(ctx context.Context, key string) ([]chunk, err
 	defer m.mux.Unlock()
 	chunks, ok := m.storage[key]
 	if !ok {
-		return nil, object.ErrNotFound
+		return nil, types.ErrNotFound
 	}
 	return chunks, nil
 }

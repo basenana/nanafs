@@ -2,13 +2,13 @@ package files
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/object"
 	"github.com/basenana/nanafs/pkg/storage"
+	"github.com/basenana/nanafs/pkg/types"
 	"sync"
 )
 
 type File struct {
-	object.Object
+	*types.Object
 
 	ref       int
 	offset    int64
@@ -22,10 +22,9 @@ type File struct {
 
 func (f *File) Write(ctx context.Context, data []byte, offset int64) (n int64, err error) {
 	if !f.attr.Write {
-		return 0, object.ErrUnsupported
+		return 0, types.ErrUnsupported
 	}
 
-	meta := f.GetObjectMeta()
 	f.mux.Lock()
 	defer f.mux.Unlock()
 	if f.writer == nil {
@@ -36,15 +35,15 @@ func (f *File) Write(ctx context.Context, data []byte, offset int64) (n int64, e
 	if err != nil {
 		return
 	}
-	if offset+n > meta.Size {
-		meta.Size = offset + n
+	if offset+n > f.Object.Size {
+		f.Object.Size = offset + n
 	}
 	return
 }
 
 func (f *File) Read(ctx context.Context, data []byte, offset int64) (int, error) {
 	if !f.attr.Read {
-		return 0, object.ErrUnsupported
+		return 0, types.ErrUnsupported
 	}
 
 	f.mux.Lock()
@@ -58,7 +57,7 @@ func (f *File) Read(ctx context.Context, data []byte, offset int64) (int, error)
 
 func (f *File) Fsync(ctx context.Context) error {
 	if !f.attr.Write {
-		return object.ErrUnsupported
+		return types.ErrUnsupported
 	}
 	if f.writer == nil {
 		return nil
@@ -92,18 +91,17 @@ type Attr struct {
 	Storage storage.Storage
 }
 
-func Open(ctx context.Context, obj object.Object, attr Attr) (*File, error) {
-	f, err := attr.Storage.Head(ctx, obj.GetObjectMeta().ID)
-	if err != nil && err != object.ErrNotFound {
+func Open(ctx context.Context, obj *types.Object, attr Attr) (*File, error) {
+	f, err := attr.Storage.Head(ctx, obj.ID)
+	if err != nil && err != types.ErrNotFound {
 		return nil, err
 	}
 
-	if err == object.ErrNotFound && !attr.Create {
+	if err == types.ErrNotFound && !attr.Create {
 		return nil, err
 	}
 
-	meta := obj.GetObjectMeta()
-	meta.Size = f.Size
+	obj.Size = f.Size
 
 	file := &File{
 		Object: obj,

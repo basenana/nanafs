@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/types"
 	"io"
 )
 
@@ -38,13 +38,13 @@ func NewStorage(storageID string, cfg config.Storage) (Storage, error) {
 }
 
 type MetaStore interface {
-	GetEntry(ctx context.Context, id string) (*dentry.Entry, error)
-	ListEntries(ctx context.Context, filter Filter) ([]*dentry.Entry, error)
-	SaveEntry(ctx context.Context, entry *dentry.Entry) error
-	DestroyEntry(ctx context.Context, entry *dentry.Entry) error
+	GetObject(ctx context.Context, id string) (*types.Object, error)
+	ListObjects(ctx context.Context, filter Filter) ([]*types.Object, error)
+	SaveObject(ctx context.Context, obj *types.Object) error
+	DestroyObject(ctx context.Context, obj *types.Object) error
 
 	ListChildren(ctx context.Context, id string) (Iterator, error)
-	ChangeParent(ctx context.Context, old *dentry.Entry, parent *dentry.Entry) error
+	ChangeParent(ctx context.Context, old *types.Object, parent *types.Object) error
 }
 
 func NewMetaStorage(metaType string, meta config.Meta) (MetaStore, error) {

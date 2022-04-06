@@ -1,8 +1,10 @@
 package group
 
-import "github.com/basenana/nanafs/pkg/object"
+import (
+	"github.com/basenana/nanafs/pkg/types"
+)
 
 type Group struct {
-	object.Object
+	types.Object
 	Rule Rule
 }

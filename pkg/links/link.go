@@ -1,9 +1,11 @@
 package links
 
-import "github.com/basenana/nanafs/pkg/object"
+import (
+	"github.com/basenana/nanafs/pkg/types"
+)
 
 type Link struct {
-	object.Object
-	Refs     []object.Object
-	Incoming []object.Object
+	types.Object
+	Refs     []types.Object
+	Incoming []types.Object
 }

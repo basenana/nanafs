@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
-	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils/logger"
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
+	"go.uber.org/zap"
 	"sync"
 	"syscall"
 	"time"
@@ -25,9 +27,10 @@ type NanaFS struct {
 	Dev     uint64
 	Display string
 
-	nodes map[string]*NanaNode
-	debug bool
-	mux   sync.Mutex
+	nodes  map[string]*NanaNode
+	logger *zap.SugaredLogger
+	debug  bool
+	mux    sync.Mutex
 }
 
 func (n *NanaFS) Start(stopCh chan struct{}) error {
@@ -45,12 +48,11 @@ func (n *NanaFS) Start(stopCh chan struct{}) error {
 			AllowOther: true,
 			FsName:     fsName,
 			Name:       fsName,
-			Debug:      n.debug,
 			Options:    []string{fmt.Sprintf("volname=%s", n.Display)},
 		},
 		EntryTimeout: &entryTimeout,
 		AttrTimeout:  &attrTimeout,
-		Logger:       nil,
+		Logger:       logger.NewFuseLogger(),
 	}
 	server, err := fs.Mount(n.Path, root, opt)
 	if err != nil {
@@ -68,37 +70,38 @@ func (n *NanaFS) SetDebug(debug bool) {
 	n.debug = debug
 }
 
-func (n *NanaFS) newFsNode(ctx context.Context, parent *NanaNode, entry *dentry.Entry) (*NanaNode, error) {
+func (n *NanaFS) newFsNode(ctx context.Context, parent *NanaNode, obj *types.Object) (*NanaNode, error) {
 	if parent == nil {
 		var err error
-		entry, err = n.LoadRootEntry(ctx)
+		obj, err = n.LoadRootObject(ctx)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	n.mux.Lock()
-	node, ok := n.nodes[entry.ID]
+	node, ok := n.nodes[obj.ID]
 	if !ok {
 		node = &NanaNode{
-			entry: entry,
-			R:     n,
+			obj:    obj,
+			R:      n,
+			logger: n.logger.With(zap.String("obj", obj.ID)),
 		}
 		if parent != nil {
 			parent.NewInode(ctx, node, idFromStat(n.Dev, nanaNode2Stat(node)))
 		}
-		n.nodes[entry.ID] = node
+		n.nodes[obj.ID] = node
 	}
 	n.mux.Unlock()
 
 	return node, nil
 }
 
-func (n *NanaFS) releaseFsNode(ctx context.Context, entry *dentry.Entry) {
+func (n *NanaFS) releaseFsNode(ctx context.Context, obj *types.Object) {
 	n.mux.Lock()
-	_, ok := n.nodes[entry.ID]
+	_, ok := n.nodes[obj.ID]
 	if ok {
-		delete(n.nodes, entry.ID)
+		delete(n.nodes, obj.ID)
 	}
 	n.mux.Unlock()
 }
@@ -120,6 +123,7 @@ func NewNanaFsRoot(cfg config.Fs, controller controller.Controller) (*NanaFS, er
 		Display:    cfg.DisplayName,
 		Dev:        uint64(st.Dev),
 		nodes:      map[string]*NanaNode{},
+		logger:     logger.NewLogger("fs"),
 	}
 
 	return root, nil

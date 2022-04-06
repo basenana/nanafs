@@ -3,7 +3,7 @@ package storage
 import (
 	"bufio"
 	"context"
-	"github.com/basenana/nanafs/pkg/object"
+	"github.com/basenana/nanafs/pkg/types"
 	"io"
 	"os"
 	"path"
@@ -68,7 +68,7 @@ func (l *local) Head(ctx context.Context, key string) (Info, error) {
 		return Info{}, err
 	}
 	if os.IsNotExist(err) {
-		return Info{}, object.ErrNotFound
+		return Info{}, types.ErrNotFound
 	}
 	return Info{
 		Key:  info.Name(),
@@ -91,7 +91,7 @@ func (l *local) openLocalFile(path string, flag int) (*os.File, error) {
 	}
 
 	if info.IsDir() {
-		return nil, object.ErrIsGroup
+		return nil, types.ErrIsGroup
 	}
 
 	return os.OpenFile(path, flag, defaultLocalMode)

@@ -2,8 +2,8 @@ package workflow
 
 import (
 	"github.com/basenana/go-flow/fsm"
-	"github.com/basenana/nanafs/pkg/object"
 	"github.com/basenana/nanafs/pkg/plugin"
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 type Manager struct {
@@ -18,13 +18,13 @@ func NewManager() *Manager {
 	}
 }
 
-func (m *Manager) CreateWorkFlow(name string, rule object.Rule, plugins []plugin.Plugin) *Workflow {
+func (m *Manager) CreateWorkFlow(name string, rule types.Rule, plugins []plugin.Plugin) *Workflow {
 	w := NewWorkflow(name, rule, plugins)
 	m.workflows[name] = w
 	return w
 }
 
-func (m *Manager) UpdateWorkFlow(name string, rule object.Rule, plugins []plugin.Plugin) *Workflow {
+func (m *Manager) UpdateWorkFlow(name string, rule types.Rule, plugins []plugin.Plugin) *Workflow {
 	w, ok := m.workflows[name]
 	if !ok {
 		return m.CreateWorkFlow(name, rule, plugins)
@@ -56,7 +56,7 @@ func (m *Manager) GetJobs() map[fsm.Status]*Job {
 	return jobs
 }
 
-func (m *Manager) Trigger(o object.Object) {
+func (m *Manager) Trigger(o *types.Object) {
 	for _, workflow := range m.workflows {
 		if !workflow.Rule.Apply(o) {
 			continue
