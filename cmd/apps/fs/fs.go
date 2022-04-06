@@ -70,38 +70,38 @@ func (n *NanaFS) SetDebug(debug bool) {
 	n.debug = debug
 }
 
-func (n *NanaFS) newFsNode(ctx context.Context, parent *NanaNode, entry *types.Object) (*NanaNode, error) {
+func (n *NanaFS) newFsNode(ctx context.Context, parent *NanaNode, obj *types.Object) (*NanaNode, error) {
 	if parent == nil {
 		var err error
-		entry, err = n.LoadRootEntry(ctx)
+		obj, err = n.LoadRootObject(ctx)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	n.mux.Lock()
-	node, ok := n.nodes[entry.ID]
+	node, ok := n.nodes[obj.ID]
 	if !ok {
 		node = &NanaNode{
-			entry:  entry,
+			obj:    obj,
 			R:      n,
-			logger: n.logger.With(zap.String("obj", entry.ID)),
+			logger: n.logger.With(zap.String("obj", obj.ID)),
 		}
 		if parent != nil {
 			parent.NewInode(ctx, node, idFromStat(n.Dev, nanaNode2Stat(node)))
 		}
-		n.nodes[entry.ID] = node
+		n.nodes[obj.ID] = node
 	}
 	n.mux.Unlock()
 
 	return node, nil
 }
 
-func (n *NanaFS) releaseFsNode(ctx context.Context, entry *types.Object) {
+func (n *NanaFS) releaseFsNode(ctx context.Context, obj *types.Object) {
 	n.mux.Lock()
-	_, ok := n.nodes[entry.ID]
+	_, ok := n.nodes[obj.ID]
 	if ok {
-		delete(n.nodes, entry.ID)
+		delete(n.nodes, obj.ID)
 	}
 	n.mux.Unlock()
 }

@@ -29,7 +29,7 @@ func (c *controller) FsInfo(ctx context.Context) Info {
 		MaxSize:     defaultFsMaxSize,
 	}
 
-	objects, err := c.meta.ListEntries(ctx, storage.Filter{})
+	objects, err := c.meta.ListObjects(ctx, storage.Filter{})
 	if err != nil {
 		return info
 	}

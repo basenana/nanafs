@@ -28,16 +28,16 @@ var _ = Describe("TestAccess", func() {
 		}
 		root = initFsBridge(nfs)
 
-		entry, err := nfs.CreateEntry(context.Background(), root.entry, types.ObjectAttr{
+		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
 			Name: "file.txt",
 			Mode: 0655,
 			Kind: types.RawKind,
 		})
 		Expect(err).Should(BeNil())
 
-		node, err = nfs.newFsNode(context.Background(), root, entry)
+		node, err = nfs.newFsNode(context.Background(), root, obj)
 		Expect(err).Should(BeNil())
-		root.AddChild(entry.Name, node.EmbeddedInode(), false)
+		root.AddChild(obj.Name, node.EmbeddedInode(), false)
 	})
 
 	Describe("", func() {
@@ -70,16 +70,16 @@ var _ = Describe("TestGetattr", func() {
 		}
 		root = initFsBridge(nfs)
 
-		entry, err := nfs.CreateEntry(context.Background(), root.entry, types.ObjectAttr{
+		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
 			Name: "file.txt",
 			Mode: 0655,
 			Kind: types.RawKind,
 		})
 		Expect(err).Should(BeNil())
 
-		node, err = nfs.newFsNode(context.Background(), root, entry)
+		node, err = nfs.newFsNode(context.Background(), root, obj)
 		Expect(err).Should(BeNil())
-		root.AddChild(entry.Name, node.EmbeddedInode(), false)
+		root.AddChild(obj.Name, node.EmbeddedInode(), false)
 	})
 
 	Describe("", func() {
@@ -108,16 +108,16 @@ var _ = Describe("TestOpen", func() {
 		}
 		root = initFsBridge(nfs)
 
-		entry, err := nfs.CreateEntry(context.Background(), root.entry, types.ObjectAttr{
+		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
 			Name: "file.txt",
 			Mode: 0655,
 			Kind: types.RawKind,
 		})
 		Expect(err).Should(BeNil())
 
-		node, err = nfs.newFsNode(context.Background(), root, entry)
+		node, err = nfs.newFsNode(context.Background(), root, obj)
 		Expect(err).Should(BeNil())
-		root.AddChild(entry.Name, node.EmbeddedInode(), false)
+		root.AddChild(obj.Name, node.EmbeddedInode(), false)
 	})
 
 	Describe("", func() {
@@ -160,7 +160,7 @@ var _ = Describe("TestCreate", func() {
 				inode, _, _, errNo := root.Create(context.Background(), newFileName, 0, 0755, out)
 				Expect(errNo).To(Equal(syscall.Errno(0)))
 				root.AddChild(newFileName, inode, false)
-				children, err := ctl.ListEntryChildren(context.Background(), root.entry)
+				children, err := ctl.ListObjectChildren(context.Background(), root.obj)
 				Expect(err).To(BeNil())
 
 				found := false
@@ -199,16 +199,16 @@ var _ = Describe("TestLookup", func() {
 		}
 		root = initFsBridge(nfs)
 
-		entry, err := nfs.CreateEntry(context.Background(), root.entry, types.ObjectAttr{
+		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
 			Name: fileName,
 			Mode: 0655,
 			Kind: types.RawKind,
 		})
 		Expect(err).Should(BeNil())
 
-		node, err = nfs.newFsNode(context.Background(), root, entry)
+		node, err = nfs.newFsNode(context.Background(), root, obj)
 		Expect(err).Should(BeNil())
-		root.AddChild(entry.Name, node.EmbeddedInode(), false)
+		root.AddChild(obj.Name, node.EmbeddedInode(), false)
 	})
 
 	Describe("", func() {
@@ -246,28 +246,28 @@ var _ = Describe("TestOpendir", func() {
 		}
 		root = initFsBridge(nfs)
 
-		fileEntry, err := nfs.CreateEntry(context.Background(), root.entry, types.ObjectAttr{
+		fileObj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
 			Name: "file.txt",
 			Mode: 0655,
 			Kind: types.RawKind,
 		})
 		Expect(err).Should(BeNil())
 
-		dirEntry, err := nfs.CreateEntry(context.Background(), root.entry, types.ObjectAttr{
+		dirObj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
 			Name: "dir",
 			Mode: 0655,
 			Kind: types.GroupKind,
 		})
 		Expect(err).Should(BeNil())
 
-		fileNode, err = nfs.newFsNode(context.Background(), root, fileEntry)
+		fileNode, err = nfs.newFsNode(context.Background(), root, fileObj)
 		Expect(err).Should(BeNil())
 
-		dirNode, err = nfs.newFsNode(context.Background(), root, dirEntry)
+		dirNode, err = nfs.newFsNode(context.Background(), root, dirObj)
 		Expect(err).Should(BeNil())
 
-		root.AddChild(fileEntry.Name, fileNode.EmbeddedInode(), false)
-		root.AddChild(dirEntry.Name, dirNode.EmbeddedInode(), false)
+		root.AddChild(fileObj.Name, fileNode.EmbeddedInode(), false)
+		root.AddChild(dirObj.Name, dirNode.EmbeddedInode(), false)
 	})
 
 	Describe("", func() {
@@ -301,16 +301,16 @@ var _ = Describe("TestReaddir", func() {
 		}
 		root = initFsBridge(nfs)
 
-		entry, err := nfs.CreateEntry(context.Background(), root.entry, types.ObjectAttr{
+		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
 			Name: "files",
 			Mode: 0655,
 			Kind: types.GroupKind,
 		})
 		Expect(err).Should(BeNil())
 
-		node, err = nfs.newFsNode(context.Background(), root, entry)
+		node, err = nfs.newFsNode(context.Background(), root, obj)
 		Expect(err).Should(BeNil())
-		root.AddChild(entry.Name, node.EmbeddedInode(), false)
+		root.AddChild(obj.Name, node.EmbeddedInode(), false)
 	})
 
 	Describe("", func() {
@@ -323,7 +323,7 @@ var _ = Describe("TestReaddir", func() {
 				ds.Close()
 			})
 			Context("add file to dir", func() {
-				newEntry, err := nfs.CreateEntry(context.Background(), node.entry, types.ObjectAttr{
+				newObj, err := nfs.CreateObject(context.Background(), node.obj, types.ObjectAttr{
 					Name: addFileName,
 					Mode: 0655,
 					Kind: types.RawKind,
@@ -331,7 +331,7 @@ var _ = Describe("TestReaddir", func() {
 				Expect(err).Should(BeNil())
 
 				var newNode *NanaNode
-				newNode, err = nfs.newFsNode(context.Background(), node, newEntry)
+				newNode, err = nfs.newFsNode(context.Background(), node, newObj)
 				Expect(err).Should(BeNil())
 				node.AddChild(addFileName, newNode.EmbeddedInode(), false)
 			})
@@ -432,16 +432,16 @@ var _ = Describe("TestLink", func() {
 		}
 		root = initFsBridge(nfs)
 
-		entry, err := nfs.CreateEntry(context.Background(), root.entry, types.ObjectAttr{
+		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
 			Name: "file.txt",
 			Mode: 0655,
 			Kind: types.RawKind,
 		})
 		Expect(err).Should(BeNil())
 
-		node, err = nfs.newFsNode(context.Background(), root, entry)
+		node, err = nfs.newFsNode(context.Background(), root, obj)
 		Expect(err).Should(BeNil())
-		root.AddChild(entry.Name, node.EmbeddedInode(), false)
+		root.AddChild(obj.Name, node.EmbeddedInode(), false)
 	})
 
 	Describe("", func() {
@@ -473,16 +473,16 @@ var _ = Describe("TestRmdir", func() {
 		}
 		root = initFsBridge(nfs)
 
-		entry, err := nfs.CreateEntry(context.Background(), root.entry, types.ObjectAttr{
+		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
 			Name: dirName,
 			Mode: 0655,
 			Kind: types.GroupKind,
 		})
 		Expect(err).Should(BeNil())
 
-		node, err = nfs.newFsNode(context.Background(), root, entry)
+		node, err = nfs.newFsNode(context.Background(), root, obj)
 		Expect(err).Should(BeNil())
-		root.AddChild(entry.Name, node.EmbeddedInode(), false)
+		root.AddChild(obj.Name, node.EmbeddedInode(), false)
 	})
 
 	Describe("", func() {
@@ -523,16 +523,16 @@ var _ = Describe("TestRename", func() {
 		}
 		root = initFsBridge(nfs)
 
-		entry, err := nfs.CreateEntry(context.Background(), root.entry, types.ObjectAttr{
+		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
 			Name: "file.txt",
 			Mode: 0655,
 			Kind: types.RawKind,
 		})
 		Expect(err).Should(BeNil())
 
-		node, err = nfs.newFsNode(context.Background(), root, entry)
+		node, err = nfs.newFsNode(context.Background(), root, obj)
 		Expect(err).Should(BeNil())
-		root.AddChild(entry.Name, node.EmbeddedInode(), false)
+		root.AddChild(obj.Name, node.EmbeddedInode(), false)
 	})
 
 	Describe("", func() {

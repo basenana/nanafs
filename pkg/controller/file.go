@@ -7,22 +7,22 @@ import (
 )
 
 type FileController interface {
-	OpenFile(ctx context.Context, entry *types.Object, attr files.Attr) (*files.File, error)
+	OpenFile(ctx context.Context, obj *types.Object, attr files.Attr) (*files.File, error)
 	WriteFile(ctx context.Context, file *files.File, data []byte, offset int64) (n int64, err error)
 	CloseFile(ctx context.Context, file *files.File) error
-	DeleteFileData(ctx context.Context, entry *types.Object) error
+	DeleteFileData(ctx context.Context, obj *types.Object) error
 }
 
 type OpenOption struct {
 }
 
-func (c *controller) OpenFile(ctx context.Context, entry *types.Object, attr files.Attr) (*files.File, error) {
-	c.logger.Infow("open file", "entry", entry.Name, "attr", attr)
+func (c *controller) OpenFile(ctx context.Context, obj *types.Object, attr files.Attr) (*files.File, error) {
+	c.logger.Infow("open file", "obj", obj.Name, "attr", attr)
 	attr.Storage = c.storage
-	if entry.IsGroup() {
+	if obj.IsGroup() {
 		return nil, types.ErrIsGroup
 	}
-	return files.Open(ctx, entry, attr)
+	return files.Open(ctx, obj, attr)
 }
 
 func (c *controller) WriteFile(ctx context.Context, file *files.File, data []byte, offset int64) (n int64, err error) {
@@ -32,8 +32,8 @@ func (c *controller) WriteFile(ctx context.Context, file *files.File, data []byt
 	if err != nil {
 		return n, err
 	}
-	entry := file.Object
-	return n, c.SaveEntry(ctx, entry)
+	obj := file.Object
+	return n, c.SaveObject(ctx, obj)
 }
 
 func (c *controller) CloseFile(ctx context.Context, file *files.File) error {
@@ -42,7 +42,7 @@ func (c *controller) CloseFile(ctx context.Context, file *files.File) error {
 	return file.Close(ctx)
 }
 
-func (c *controller) DeleteFileData(ctx context.Context, entry *types.Object) error {
-	c.logger.Infow("delete file", "file", entry.Name)
-	return c.storage.Delete(ctx, entry.ID)
+func (c *controller) DeleteFileData(ctx context.Context, obj *types.Object) error {
+	c.logger.Infow("delete file", "file", obj.Name)
+	return c.storage.Delete(ctx, obj.ID)
 }

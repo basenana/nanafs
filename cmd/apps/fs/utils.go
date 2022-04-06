@@ -23,29 +23,29 @@ func idFromStat(dev uint64, st *syscall.Stat_t) fs.StableAttr {
 }
 
 func nanaNode2Stat(node *NanaNode) *syscall.Stat_t {
-	aTime, _ := unix.TimeToTimespec(node.entry.AddedAt)
-	mTime, _ := unix.TimeToTimespec(node.entry.ModifiedAt)
-	cTime, _ := unix.TimeToTimespec(node.entry.CreatedAt)
+	aTime, _ := unix.TimeToTimespec(node.obj.AddedAt)
+	mTime, _ := unix.TimeToTimespec(node.obj.ModifiedAt)
+	cTime, _ := unix.TimeToTimespec(node.obj.CreatedAt)
 
 	var mode uint16
-	switch node.entry.Kind {
+	switch node.obj.Kind {
 	case types.GroupKind:
 		mode |= syscall.S_IFDIR
 	default:
 		mode |= syscall.S_IFREG
 	}
 
-	accMod := utils.Access2Mode(node.entry.Access)
+	accMod := utils.Access2Mode(node.obj.Access)
 	mode |= uint16(accMod)
 
 	return &syscall.Stat_t{
-		Size:      node.entry.Size,
+		Size:      node.obj.Size,
 		Blocks:    1,
 		Atimespec: syscall.Timespec{Sec: aTime.Sec, Nsec: aTime.Nsec},
 		Mtimespec: syscall.Timespec{Sec: mTime.Sec, Nsec: mTime.Nsec},
 		Ctimespec: syscall.Timespec{Sec: cTime.Sec, Nsec: cTime.Nsec},
 		Mode:      mode,
-		Ino:       node.entry.Inode,
+		Ino:       node.obj.Inode,
 		Nlink:     0,
 		Uid:       0,
 		Gid:       0,

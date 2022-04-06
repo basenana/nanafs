@@ -23,7 +23,7 @@ type memoryMetaStore struct {
 
 var _ MetaStore = &memoryMetaStore{}
 
-func (m *memoryMetaStore) GetEntry(ctx context.Context, id string) (*types.Object, error) {
+func (m *memoryMetaStore) GetObject(ctx context.Context, id string) (*types.Object, error) {
 	m.mux.Lock()
 	result, ok := m.objects[id]
 	if !ok {
@@ -34,7 +34,7 @@ func (m *memoryMetaStore) GetEntry(ctx context.Context, id string) (*types.Objec
 	return result, nil
 }
 
-func (m *memoryMetaStore) ListEntries(ctx context.Context, filter Filter) ([]*types.Object, error) {
+func (m *memoryMetaStore) ListObjects(ctx context.Context, filter Filter) ([]*types.Object, error) {
 	m.mux.Lock()
 	result := make([]*types.Object, 0)
 	for oID, obj := range m.objects {
@@ -46,7 +46,7 @@ func (m *memoryMetaStore) ListEntries(ctx context.Context, filter Filter) ([]*ty
 	return result, nil
 }
 
-func (m *memoryMetaStore) SaveEntry(ctx context.Context, obj *types.Object) error {
+func (m *memoryMetaStore) SaveObject(ctx context.Context, obj *types.Object) error {
 	m.mux.Lock()
 	if obj.Inode == 0 {
 		m.inodeCount++
@@ -57,7 +57,7 @@ func (m *memoryMetaStore) SaveEntry(ctx context.Context, obj *types.Object) erro
 	return nil
 }
 
-func (m *memoryMetaStore) DestroyEntry(ctx context.Context, obj *types.Object) error {
+func (m *memoryMetaStore) DestroyObject(ctx context.Context, obj *types.Object) error {
 	m.mux.Lock()
 	_, ok := m.objects[obj.GetObjectMeta().ID]
 	if !ok {
@@ -70,7 +70,7 @@ func (m *memoryMetaStore) DestroyEntry(ctx context.Context, obj *types.Object) e
 }
 
 func (m *memoryMetaStore) ListChildren(ctx context.Context, id string) (Iterator, error) {
-	children, err := m.ListEntries(ctx, Filter{ParentID: id})
+	children, err := m.ListObjects(ctx, Filter{ParentID: id})
 	if err != nil {
 		return nil, err
 	}

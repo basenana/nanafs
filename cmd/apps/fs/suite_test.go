@@ -15,37 +15,37 @@ import (
 )
 
 type MockController struct {
-	entries map[string]*types.Object
+	objects map[string]*types.Object
 	mux     sync.Mutex
 }
 
 var _ controller.Controller = &MockController{}
 
-func (m *MockController) LoadRootEntry(ctx context.Context) (*types.Object, error) {
+func (m *MockController) LoadRootObject(ctx context.Context) (*types.Object, error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
-	entry, ok := m.entries[types.RootEntryID]
+	obj, ok := m.objects[types.RootObjectID]
 	if ok {
-		return entry, nil
+		return obj, nil
 	}
 
-	root := types.InitRootEntry()
-	m.entries[types.RootEntryID] = root
+	root := types.InitRootObject()
+	m.objects[types.RootObjectID] = root
 	return root, nil
 }
 
-func (m *MockController) FindEntry(ctx context.Context, parent *types.Object, name string) (*types.Object, error) {
+func (m *MockController) FindObject(ctx context.Context, parent *types.Object, name string) (*types.Object, error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
 	var result *types.Object
-	for oid, entry := range m.entries {
-		if entry.ParentID != parent.ID {
+	for oid, obj := range m.objects {
+		if obj.ParentID != parent.ID {
 			continue
 		}
-		if entry.Name == name {
-			result = m.entries[oid]
+		if obj.Name == name {
+			result = m.objects[oid]
 			break
 		}
 	}
@@ -57,54 +57,54 @@ func (m *MockController) FindEntry(ctx context.Context, parent *types.Object, na
 	return result, nil
 }
 
-func (m *MockController) CreateEntry(ctx context.Context, parent *types.Object, attr types.ObjectAttr) (*types.Object, error) {
-	entry, err := types.InitNewEntry(parent, attr)
+func (m *MockController) CreateObject(ctx context.Context, parent *types.Object, attr types.ObjectAttr) (*types.Object, error) {
+	obj, err := types.InitNewObject(parent, attr)
 	if err != nil {
 		return nil, err
 	}
 
-	return entry, m.SaveEntry(ctx, entry)
+	return obj, m.SaveObject(ctx, obj)
 }
 
-func (m *MockController) SaveEntry(ctx context.Context, entry *types.Object) error {
+func (m *MockController) SaveObject(ctx context.Context, obj *types.Object) error {
 	m.mux.Lock()
 	defer m.mux.Unlock()
-	m.entries[entry.ID] = entry
+	m.objects[obj.ID] = obj
 	return nil
 }
 
-func (m *MockController) DestroyEntry(ctx context.Context, entry *types.Object) error {
+func (m *MockController) DestroyObject(ctx context.Context, obj *types.Object) error {
 	m.mux.Lock()
 	defer m.mux.Unlock()
-	delete(m.entries, entry.ID)
+	delete(m.objects, obj.ID)
 	return nil
 }
 
-func (m *MockController) MirrorEntry(ctx context.Context, src, dstParent *types.Object, attr types.ObjectAttr) (*types.Object, error) {
+func (m *MockController) MirrorObject(ctx context.Context, src, dstParent *types.Object, attr types.ObjectAttr) (*types.Object, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (m *MockController) ListEntryChildren(ctx context.Context, entry *types.Object) ([]*types.Object, error) {
+func (m *MockController) ListObjectChildren(ctx context.Context, obj *types.Object) ([]*types.Object, error) {
 	result := make([]*types.Object, 0)
-	for oid, e := range m.entries {
-		if e.ParentID != entry.ID {
+	for oid, e := range m.objects {
+		if e.ParentID != obj.ID {
 			continue
 		}
 		if e.ID == e.ParentID {
 			continue
 		}
-		result = append(result, m.entries[oid])
+		result = append(result, m.objects[oid])
 	}
 	return result, nil
 }
 
-func (m *MockController) ChangeEntryParent(ctx context.Context, old, newParent *types.Object, newName string) error {
+func (m *MockController) ChangeObjectParent(ctx context.Context, old, newParent *types.Object, newName string) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (m *MockController) OpenFile(ctx context.Context, entry *types.Object, attr files.Attr) (*files.File, error) {
+func (m *MockController) OpenFile(ctx context.Context, obj *types.Object, attr files.Attr) (*files.File, error) {
 	return &files.File{}, nil
 }
 
@@ -118,7 +118,7 @@ func (m *MockController) CloseFile(ctx context.Context, file *files.File) error 
 	panic("implement me")
 }
 
-func (m *MockController) DeleteFileData(ctx context.Context, entry *types.Object) error {
+func (m *MockController) DeleteFileData(ctx context.Context, obj *types.Object) error {
 	//TODO implement me
 	panic("implement me")
 }
@@ -129,7 +129,7 @@ func (m *MockController) FsInfo(ctx context.Context) controller.Info {
 
 func NewMockController() controller.Controller {
 	return &MockController{
-		entries: map[string]*types.Object{},
+		objects: map[string]*types.Object{},
 	}
 }
 

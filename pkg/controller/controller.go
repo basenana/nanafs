@@ -8,7 +8,7 @@ import (
 )
 
 type Controller interface {
-	EntryController
+	ObjectController
 	FileController
 	FsController
 }

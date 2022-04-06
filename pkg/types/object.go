@@ -22,23 +22,23 @@ type ObjectAttr struct {
 	Kind Kind
 }
 
-func InitNewEntry(parent *Object, attr ObjectAttr) (*Object, error) {
-	newEntry := &Object{
+func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {
+	newObj := &Object{
 		Metadata: NewMetadata(attr.Name, attr.Kind),
 	}
 	if parent != nil {
-		newEntry.ParentID = parent.ID
+		newObj.ParentID = parent.ID
 	}
-	return newEntry, nil
+	return newObj, nil
 }
 
 const (
-	RootEntryID = "root"
+	RootObjectID = "root"
 )
 
-func InitRootEntry() *Object {
-	root, _ := InitNewEntry(nil, ObjectAttr{Name: RootEntryID, Kind: GroupKind})
-	root.ID = RootEntryID
+func InitRootObject() *Object {
+	root, _ := InitNewObject(nil, ObjectAttr{Name: RootObjectID, Kind: GroupKind})
+	root.ID = RootObjectID
 	root.ParentID = root.ID
 	return root
 }
