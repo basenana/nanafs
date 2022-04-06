@@ -52,19 +52,19 @@ func (m *memoryMetaStore) SaveObject(ctx context.Context, obj *types.Object) err
 		m.inodeCount++
 		obj.Inode = m.inodeCount
 	}
-	m.objects[obj.GetObjectMeta().ID] = obj
+	m.objects[obj.ID] = obj
 	m.mux.Unlock()
 	return nil
 }
 
 func (m *memoryMetaStore) DestroyObject(ctx context.Context, obj *types.Object) error {
 	m.mux.Lock()
-	_, ok := m.objects[obj.GetObjectMeta().ID]
+	_, ok := m.objects[obj.ID]
 	if !ok {
 		m.mux.Unlock()
 		return types.ErrNotFound
 	}
-	delete(m.objects, obj.GetObjectMeta().ID)
+	delete(m.objects, obj.ID)
 	m.mux.Unlock()
 	return nil
 }
@@ -79,7 +79,8 @@ func (m *memoryMetaStore) ListChildren(ctx context.Context, id string) (Iterator
 }
 
 func (m *memoryMetaStore) ChangeParent(ctx context.Context, old *types.Object, parent *types.Object) error {
-	return nil
+	old.ParentID = parent.ID
+	return m.SaveObject(ctx, old)
 }
 
 func newMemoryMetaStore() MetaStore {

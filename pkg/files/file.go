@@ -25,7 +25,6 @@ func (f *File) Write(ctx context.Context, data []byte, offset int64) (n int64, e
 		return 0, types.ErrUnsupported
 	}
 
-	meta := f.GetObjectMeta()
 	f.mux.Lock()
 	defer f.mux.Unlock()
 	if f.writer == nil {
@@ -36,8 +35,8 @@ func (f *File) Write(ctx context.Context, data []byte, offset int64) (n int64, e
 	if err != nil {
 		return
 	}
-	if offset+n > meta.Size {
-		meta.Size = offset + n
+	if offset+n > f.Object.Size {
+		f.Object.Size = offset + n
 	}
 	return
 }
@@ -93,7 +92,7 @@ type Attr struct {
 }
 
 func Open(ctx context.Context, obj *types.Object, attr Attr) (*File, error) {
-	f, err := attr.Storage.Head(ctx, obj.GetObjectMeta().ID)
+	f, err := attr.Storage.Head(ctx, obj.ID)
 	if err != nil && err != types.ErrNotFound {
 		return nil, err
 	}
@@ -102,8 +101,7 @@ func Open(ctx context.Context, obj *types.Object, attr Attr) (*File, error) {
 		return nil, err
 	}
 
-	meta := obj.GetObjectMeta()
-	meta.Size = f.Size
+	obj.Size = f.Size
 
 	file := &File{
 		Object: obj,

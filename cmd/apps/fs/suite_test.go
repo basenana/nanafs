@@ -3,6 +3,7 @@ package fs
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/controller"
+	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
@@ -25,13 +26,13 @@ func (m *MockController) LoadRootObject(ctx context.Context) (*types.Object, err
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
-	obj, ok := m.objects[types.RootObjectID]
+	obj, ok := m.objects[dentry.RootObjectID]
 	if ok {
 		return obj, nil
 	}
 
-	root := types.InitRootObject()
-	m.objects[types.RootObjectID] = root
+	root := dentry.InitRootObject()
+	m.objects[dentry.RootObjectID] = root
 	return root, nil
 }
 

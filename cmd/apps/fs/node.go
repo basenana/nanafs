@@ -2,6 +2,7 @@ package fs
 
 import (
 	"context"
+	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/hanwen/go-fuse/v2/fs"
@@ -173,7 +174,6 @@ func (n *NanaNode) Link(ctx context.Context, target fs.InodeEmbedder, name strin
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
-	obj.RefID = targetNode.obj.ID
 
 	node, err := n.R.newFsNode(ctx, n, obj)
 	if err != nil {
@@ -220,7 +220,18 @@ func (n *NanaNode) Rename(ctx context.Context, name string, newParent fs.InodeEm
 	if !ok {
 		return syscall.EIO
 	}
-	return Error2FuseSysError(n.R.ChangeObjectParent(ctx, oldObject, newNode.obj, newName))
+	opt := controller.ChangeParentOpt{Replace: true}
+	if flags&RENAME_EXCHANGE > 0 {
+		opt.Exchange = true
+	}
+	if flags&RENAME_NOREPLACE > 0 {
+		opt.Replace = false
+	}
+	if err = n.R.ChangeObjectParent(ctx, oldObject, newNode.obj, newName, opt); err != nil {
+		return Error2FuseSysError(err)
+	}
+	n.RmChild(name)
+	return NoErr
 }
 
 func (n *NanaNode) OnAdd(ctx context.Context) {

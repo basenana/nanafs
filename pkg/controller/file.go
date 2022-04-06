@@ -26,8 +26,7 @@ func (c *controller) OpenFile(ctx context.Context, obj *types.Object, attr files
 }
 
 func (c *controller) WriteFile(ctx context.Context, file *files.File, data []byte, offset int64) (n int64, err error) {
-	meta := file.GetObjectMeta()
-	c.logger.Infow("write file", "file", meta.Name)
+	c.logger.Infow("write file", "file", file.Object.Name)
 	n, err = file.Write(ctx, data, offset)
 	if err != nil {
 		return n, err
@@ -37,8 +36,7 @@ func (c *controller) WriteFile(ctx context.Context, file *files.File, data []byt
 }
 
 func (c *controller) CloseFile(ctx context.Context, file *files.File) error {
-	meta := file.GetObjectMeta()
-	c.logger.Infow("close file", "file", meta.Name)
+	c.logger.Infow("close file", "file", file.Object.Name)
 	return file.Close(ctx)
 }
 

@@ -14,15 +14,13 @@ type reader struct {
 }
 
 func (r *reader) read(ctx context.Context, data []byte, offset int64) (int, error) {
-	meta := r.f.GetObjectMeta()
-
-	if offset > meta.Size {
+	if offset > r.f.Size {
 		return 0, io.EOF
 	}
 
 	limit := offset + int64(len(data))
-	if limit > meta.Size {
-		limit = meta.Size
+	if limit > r.f.Size {
+		limit = r.f.Size
 	}
 
 	off := offset
@@ -30,7 +28,7 @@ func (r *reader) read(ctx context.Context, data []byte, offset int64) (int, erro
 	for {
 		cID, pos := computeChunkIndex(off, r.chunkSize)
 
-		cr := &cRange{key: meta.ID, index: cID, offset: pos, limit: r.chunkSize - pos}
+		cr := &cRange{key: r.f.ID, index: cID, offset: pos, limit: r.chunkSize - pos}
 		if off+cr.limit > limit {
 			cr.limit = limit - off
 		}
@@ -67,7 +65,7 @@ func (r *reader) read(ctx context.Context, data []byte, offset int64) (int, erro
 		}
 		readTotal += copy(data[readTotal:], buf[:n])
 	}
-	if limit == meta.Size {
+	if limit == r.f.Size {
 		return readTotal, io.EOF
 	}
 	return readTotal, nil
@@ -93,15 +91,13 @@ type writer struct {
 }
 
 func (w *writer) write(ctx context.Context, data []byte, offset int64) (int64, error) {
-	meta := w.f.GetObjectMeta()
-
 	limit := int64(len(data)) + offset
 	off := offset
 	readTask := make([]int, 0, 1)
 
 	for {
 		cID, pos := computeChunkIndex(off, w.chunkSize)
-		cr := &cRange{key: meta.ID, index: cID, offset: pos, limit: w.chunkSize - pos}
+		cr := &cRange{key: w.f.ID, index: cID, offset: pos, limit: w.chunkSize - pos}
 		if int(cr.limit-cr.offset) > len(data) {
 			cr.limit = int64(len(data)) + pos
 		}

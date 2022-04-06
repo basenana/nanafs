@@ -1,0 +1,5 @@
+package fs
+
+const RENAME_NOREPLACE = 0x1
+const RENAME_EXCHANGE = 0x2
+const RENAME_WHITEOUT = 0x4

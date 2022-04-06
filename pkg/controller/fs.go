@@ -35,14 +35,13 @@ func (c *controller) FsInfo(ctx context.Context) Info {
 	}
 
 	for _, obj := range objects {
-		meta := obj.GetObjectMeta()
-		switch meta.Kind {
+		switch obj.Kind {
 		case types.GroupKind:
 		default:
 			info.FileCount += 1
 		}
 		info.Objects += 1
-		info.UsageSize += uint64(meta.Size)
+		info.UsageSize += uint64(obj.Size)
 	}
 	return info
 }

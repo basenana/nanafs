@@ -58,7 +58,7 @@ func (n *NanaFS) Start(stopCh chan struct{}) error {
 	if err != nil {
 		return err
 	}
-	//server.SetDebug(n.debug)
+	server.SetDebug(n.debug)
 	go func() {
 		<-stopCh
 		_ = server.Unmount()
