@@ -53,6 +53,7 @@ func (c *controller) CreateObject(ctx context.Context, parent *types.Object, att
 	if err != nil {
 		return nil, err
 	}
+	obj.Access.Permissions = attr.Permissions
 	return obj, c.SaveObject(ctx, obj)
 }
 

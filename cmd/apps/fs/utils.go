@@ -2,6 +2,7 @@ package fs
 
 import (
 	"github.com/basenana/nanafs/pkg/controller"
+	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/hanwen/go-fuse/v2/fs"
@@ -34,7 +35,7 @@ func nanaNode2Stat(node *NanaNode) *syscall.Stat_t {
 		mode |= syscall.S_IFREG
 	}
 
-	accMod := Access2Mode(node.obj.Access)
+	accMod := dentry.Access2Mode(node.obj.Access)
 	mode |= uint16(accMod)
 
 	return &syscall.Stat_t{

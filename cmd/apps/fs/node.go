@@ -21,7 +21,7 @@ type NanaNode struct {
 var _ nodeOperation = &NanaNode{}
 
 func (n *NanaNode) Access(ctx context.Context, mask uint32) syscall.Errno {
-	return Error2FuseSysError(IsAccess(n.obj.Access, mask))
+	return Error2FuseSysError(dentry.IsAccess(n.obj.Access, mask))
 }
 
 func (n *NanaNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut) syscall.Errno {
@@ -76,10 +76,13 @@ func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode u
 	if ch != nil {
 		return nil, nil, 0, syscall.EEXIST
 	}
+
+	acc := &types.Access{}
+	dentry.UpdateAccessWithMode(acc, mode)
 	obj, err := n.R.CreateObject(ctx, n.obj, types.ObjectAttr{
-		Name: name,
-		Mode: mode,
-		Kind: types.RawKind,
+		Name:        name,
+		Kind:        types.RawKind,
+		Permissions: acc.Permissions,
 	})
 	if err != nil {
 		return nil, nil, 0, Error2FuseSysError(err)
@@ -89,7 +92,7 @@ func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode u
 		return nil, nil, 0, Error2FuseSysError(err)
 	}
 	f, err := n.R.Controller.OpenFile(ctx, obj, openFileAttr(flags))
-	return node.EmbeddedInode(), &File{node: n, file: f}, mode, Error2FuseSysError(err)
+	return node.EmbeddedInode(), &File{node: n, file: f}, dentry.Access2Mode(obj.Access), Error2FuseSysError(err)
 }
 
 func (n *NanaNode) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
@@ -143,10 +146,12 @@ func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fus
 	if ch != nil {
 		return nil, syscall.EEXIST
 	}
+	acc := &types.Access{}
+	dentry.UpdateAccessWithMode(acc, mode)
 	obj, err := n.R.CreateObject(ctx, n.obj, types.ObjectAttr{
-		Name: name,
-		Mode: mode,
-		Kind: types.GroupKind,
+		Name:        name,
+		Kind:        types.GroupKind,
+		Permissions: acc.Permissions,
 	})
 	if err != nil {
 		return nil, Error2FuseSysError(err)
@@ -169,10 +174,12 @@ func (n *NanaNode) Mknod(ctx context.Context, name string, mode uint32, dev uint
 		return nil, syscall.EEXIST
 	}
 
+	acc := &types.Access{}
+	dentry.UpdateAccessWithMode(acc, mode)
 	obj, err := n.R.CreateObject(ctx, n.obj, types.ObjectAttr{
-		Name: name,
-		Mode: mode,
-		Kind: types.RawKind,
+		Name:        name,
+		Kind:        types.RawKind,
+		Permissions: acc.Permissions,
 	})
 	if err != nil {
 		return nil, Error2FuseSysError(err)
