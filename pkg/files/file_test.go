@@ -9,10 +9,6 @@ import (
 	"io"
 )
 
-const (
-	testChunkSize = 10
-)
-
 var _ = Describe("TestFileIO", func() {
 	var (
 		s   storage.Storage
@@ -32,7 +28,6 @@ var _ = Describe("TestFileIO", func() {
 				f, err := Open(context.Background(), newMockObject(key), Attr{Read: true, Storage: s})
 				Expect(err).Should(BeNil())
 				Expect(f.Close(context.Background())).Should(BeNil())
-				f.chunkSize = testChunkSize
 			})
 		})
 		Context("open not found file", func() {
@@ -51,7 +46,6 @@ var _ = Describe("TestFileIO", func() {
 		BeforeEach(func() {
 			f, err = Open(context.Background(), newMockObject(key), Attr{Read: true, Storage: s})
 			Expect(err).Should(BeNil())
-			f.chunkSize = testChunkSize
 		})
 		Context("read file succeed", func() {
 			It("should be ok", func() {
@@ -81,7 +75,6 @@ var _ = Describe("TestFileIO", func() {
 		BeforeEach(func() {
 			f, err = Open(context.Background(), newMockObject(key), Attr{Write: true, Storage: s})
 			Expect(err).Should(BeNil())
-			f.chunkSize = testChunkSize
 		})
 		AfterEach(func() {
 			Expect(f.Close(context.Background())).Should(BeNil())
@@ -95,7 +88,6 @@ var _ = Describe("TestFileIO", func() {
 				Context("read file content", func() {
 					f, err = Open(context.Background(), newMockObject(key), Attr{Read: true, Storage: s})
 					Expect(err).Should(BeNil())
-					f.chunkSize = testChunkSize
 
 					buf := make([]byte, 1024)
 					n, err := f.Read(context.Background(), buf, 0)

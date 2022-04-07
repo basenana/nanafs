@@ -73,7 +73,7 @@ func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode u
 	if err != nil && err != types.ErrNotFound {
 		return nil, nil, 0, Error2FuseSysError(err)
 	}
-	if ch != nil {
+	if ch != nil && flags|syscall.O_EXCL > 0 {
 		return nil, nil, 0, syscall.EEXIST
 	}
 

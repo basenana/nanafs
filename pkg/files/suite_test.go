@@ -16,12 +16,20 @@ func NewMockStorage() storage.Storage {
 	return s
 }
 
-func newMockObject(key string) types.Object {
+func newMockObject(key string) *types.Object {
 	meta := types.NewMetadata(key, types.RawKind)
 	meta.ID = key
-	return types.Object{
+	return &types.Object{
 		Metadata: meta,
 	}
+}
+
+const (
+	testChunkSize = 10
+)
+
+func init() {
+	fileChunkSize = testChunkSize
 }
 
 func TestFile(t *testing.T) {

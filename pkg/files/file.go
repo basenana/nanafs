@@ -107,8 +107,6 @@ func Open(ctx context.Context, obj *types.Object, attr Attr) (*File, error) {
 		Object: obj,
 		ref:    1,
 		attr:   attr,
-
-		chunkSize: defaultChunkSize,
 	}
 	return file, nil
 }
