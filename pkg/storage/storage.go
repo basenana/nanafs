@@ -45,6 +45,10 @@ type MetaStore interface {
 
 	ListChildren(ctx context.Context, id string) (Iterator, error)
 	ChangeParent(ctx context.Context, old *types.Object, parent *types.Object) error
+
+	SaveContent(ctx context.Context, obj *types.Object, cType, version string, content interface{}) error
+	LoadContent(ctx context.Context, obj *types.Object, cType, version string, content interface{}) error
+	DeleteContent(ctx context.Context, obj *types.Object, cType, version string) error
 }
 
 func NewMetaStorage(metaType string, meta config.Meta) (MetaStore, error) {

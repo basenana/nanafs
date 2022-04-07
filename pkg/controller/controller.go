@@ -11,6 +11,7 @@ type Controller interface {
 	ObjectController
 	FileController
 	FsController
+	WorkflowController
 }
 
 type controller struct {
