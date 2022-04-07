@@ -4,7 +4,6 @@ import (
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
 	"golang.org/x/sys/unix"
@@ -35,7 +34,7 @@ func nanaNode2Stat(node *NanaNode) *syscall.Stat_t {
 		mode |= syscall.S_IFREG
 	}
 
-	accMod := utils.Access2Mode(node.obj.Access)
+	accMod := Access2Mode(node.obj.Access)
 	mode |= uint16(accMod)
 
 	return &syscall.Stat_t{

@@ -63,7 +63,7 @@ type Annotation struct {
 	Details     string
 }
 
-func (a *Annotation) add(newA *AnnotationItem) {
+func (a *Annotation) Add(newA *AnnotationItem) {
 	for i, ann := range a.Annotations {
 		if ann.Type != newA.Type {
 			continue
@@ -74,10 +74,26 @@ func (a *Annotation) add(newA *AnnotationItem) {
 	a.Annotations = append(a.Annotations, *newA)
 }
 
-func (a *Annotation) remove(oldA *AnnotationItem) {
+func (a *Annotation) Get(key string, withInternal bool) *AnnotationItem {
+	for i := range a.Annotations {
+		ann := a.Annotations[i]
+		if ann.Type != key {
+			continue
+		}
+		if ann.IsInternal {
+			if !withInternal {
+				return nil
+			}
+		}
+		return &ann
+	}
+	return nil
+}
+
+func (a *Annotation) Remove(key string) {
 	needDel := -1
 	for i, ann := range a.Annotations {
-		if ann.Type != oldA.Type {
+		if ann.Type != key {
 			continue
 		}
 		needDel = i
@@ -89,8 +105,10 @@ func (a *Annotation) remove(oldA *AnnotationItem) {
 }
 
 type AnnotationItem struct {
-	Type    string
-	Content string
+	Type       string
+	Content    string
+	IsInternal bool
+	Encode     bool
 }
 
 type CustomColumn struct {
@@ -124,6 +142,10 @@ type ObjectAttr struct {
 func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {
 	newObj := &Object{
 		Metadata: NewMetadata(attr.Name, attr.Kind),
+		ExtendData: ExtendData{
+			Properties: &Properties{},
+			Annotation: &Annotation{},
+		},
 	}
 	if parent != nil {
 		newObj.ParentID = parent.ID

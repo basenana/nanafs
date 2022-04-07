@@ -3,8 +3,8 @@ package fs
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/controller"
+	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
 	"go.uber.org/zap"
@@ -21,7 +21,7 @@ type NanaNode struct {
 var _ nodeOperation = &NanaNode{}
 
 func (n *NanaNode) Access(ctx context.Context, mask uint32) syscall.Errno {
-	return Error2FuseSysError(utils.IsAccess(n.obj.Access, mask))
+	return Error2FuseSysError(IsAccess(n.obj.Access, mask))
 }
 
 func (n *NanaNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut) syscall.Errno {
@@ -36,6 +36,28 @@ func (n *NanaNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrO
 
 func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAttrIn, out *fuse.AttrOut) syscall.Errno {
 	return n.Getattr(ctx, f, out)
+}
+
+func (n *NanaNode) Getxattr(ctx context.Context, attr string, dest []byte) (uint32, syscall.Errno) {
+	ann := dentry.GetInternalAnnotation(n.obj, attr)
+	if ann == nil {
+		return 0, syscall.ENOATTR
+	}
+	raw, err := dentry.AnnotationContent2RawData(ann)
+	if err != nil {
+		return 0, Error2FuseSysError(err)
+	}
+	if len(raw) > len(dest) {
+		return uint32(len(raw)), syscall.ERANGE
+	}
+
+	copy(dest, raw)
+	return uint32(len(raw)), NoErr
+}
+
+func (n *NanaNode) Setxattr(ctx context.Context, attr string, data []byte, flags uint32) syscall.Errno {
+	dentry.AddInternalAnnotation(n.obj, attr, dentry.RawData2AnnotationContent(data), true)
+	return Error2FuseSysError(n.R.SaveObject(ctx, n.obj))
 }
 
 func (n *NanaNode) Open(ctx context.Context, flags uint32) (fh fs.FileHandle, fuseFlags uint32, errno syscall.Errno) {
