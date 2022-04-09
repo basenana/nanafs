@@ -100,7 +100,7 @@ func (m *MockController) ListObjectChildren(ctx context.Context, obj *types.Obje
 	return result, nil
 }
 
-func (m *MockController) ChangeObjectParent(ctx context.Context, old, newParent *types.Object, newName string) error {
+func (m *MockController) ChangeObjectParent(ctx context.Context, old, newParent *types.Object, newName string, opt controller.ChangeParentOpt) error {
 	//TODO implement me
 	panic("implement me")
 }
