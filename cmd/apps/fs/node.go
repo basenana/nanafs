@@ -35,6 +35,10 @@ func (n *NanaNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrO
 }
 
 func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAttrIn, out *fuse.AttrOut) syscall.Errno {
+	updateNanaNodeWithAttr(in, n)
+	if err := n.R.SaveObject(ctx, n.obj); err != nil {
+		return Error2FuseSysError(err)
+	}
 	return n.Getattr(ctx, f, out)
 }
 
