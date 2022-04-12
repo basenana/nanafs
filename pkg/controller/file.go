@@ -2,8 +2,10 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/hyponet/eventbus/bus"
 )
 
 type FileController interface {
@@ -22,7 +24,12 @@ func (c *controller) OpenFile(ctx context.Context, obj *types.Object, attr files
 	if obj.IsGroup() {
 		return nil, types.ErrIsGroup
 	}
-	return files.Open(ctx, obj, attr)
+	file, err := files.Open(ctx, obj, attr)
+	if err != nil {
+		return nil, err
+	}
+	bus.Publish(fmt.Sprintf("object.file.%s.open", obj.ID), obj)
+	return file, nil
 }
 
 func (c *controller) WriteFile(ctx context.Context, file *files.File, data []byte, offset int64) (n int64, err error) {
@@ -35,12 +42,20 @@ func (c *controller) WriteFile(ctx context.Context, file *files.File, data []byt
 	return n, c.SaveObject(ctx, obj)
 }
 
-func (c *controller) CloseFile(ctx context.Context, file *files.File) error {
+func (c *controller) CloseFile(ctx context.Context, file *files.File) (err error) {
 	c.logger.Infow("close file", "file", file.Object.Name)
-	return file.Close(ctx)
+	err = file.Close(ctx)
+	if err == nil {
+		bus.Publish(fmt.Sprintf("object.file.%s.close", file.ID), file.Object)
+	}
+	return err
 }
 
-func (c *controller) DeleteFileData(ctx context.Context, obj *types.Object) error {
+func (c *controller) DeleteFileData(ctx context.Context, obj *types.Object) (err error) {
 	c.logger.Infow("delete file", "file", obj.Name)
-	return c.storage.Delete(ctx, obj.ID)
+	err = c.storage.Delete(ctx, obj.ID)
+	if err == nil {
+		bus.Publish(fmt.Sprintf("object.file.%s.delete", obj.ID), obj)
+	}
+	return err
 }
