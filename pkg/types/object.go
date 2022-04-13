@@ -18,8 +18,9 @@ type Metadata struct {
 	Inode        uint64        `json:"inode"`
 	Namespace    string        `json:"namespace"`
 	CreatedAt    time.Time     `json:"created_at"`
-	AddedAt      time.Time     `json:"added_at"`
+	ChangedAt    time.Time     `json:"changed_at"`
 	ModifiedAt   time.Time     `json:"modified_at"`
+	AccessAt     time.Time     `json:"access_at"`
 	Labels       Labels        `json:"labels"`
 	Access       Access        `json:"access"`
 	CustomColumn *CustomColumn `json:"custom_column"`
@@ -31,7 +32,8 @@ func NewMetadata(name string, kind Kind) Metadata {
 		Name:       name,
 		Kind:       kind,
 		CreatedAt:  time.Now(),
-		AddedAt:    time.Now(),
+		AccessAt:   time.Now(),
+		ChangedAt:  time.Now(),
 		ModifiedAt: time.Now(),
 		Labels:     Labels{},
 	}

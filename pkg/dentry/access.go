@@ -32,9 +32,11 @@ func Access2Mode(access types.Access) (mode uint32) {
 }
 
 func UpdateAccessWithMode(access *types.Access, mode uint32) {
+	var permissions []types.Permission
 	for perm, m := range perm2Mode {
 		if m&mode > 0 {
-			access.Permissions = append(access.Permissions, perm)
+			permissions = append(permissions, perm)
 		}
 	}
+	access.Permissions = permissions
 }

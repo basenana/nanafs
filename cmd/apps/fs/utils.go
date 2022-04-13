@@ -10,6 +10,7 @@ import (
 	"golang.org/x/sys/unix"
 	"os"
 	"syscall"
+	"time"
 )
 
 func idFromStat(dev uint64, st *syscall.Stat_t) fs.StableAttr {
@@ -22,10 +23,23 @@ func idFromStat(dev uint64, st *syscall.Stat_t) fs.StableAttr {
 	}
 }
 
+func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, node *NanaNode) {
+	dentry.UpdateAccessWithMode(&node.obj.Access, attr.Mode)
+	if attr.Atime != 0 {
+		node.obj.AccessAt = time.Unix(int64(attr.Atime), int64(attr.Atimensec))
+	}
+	if attr.Ctime != 0 {
+		node.obj.ChangedAt = time.Unix(int64(attr.Ctime), int64(attr.Ctimensec))
+	}
+	if attr.Mtime != 0 {
+		node.obj.ModifiedAt = time.Unix(int64(attr.Mtime), int64(attr.Mtimensec))
+	}
+}
+
 func nanaNode2Stat(node *NanaNode) *syscall.Stat_t {
-	aTime, _ := unix.TimeToTimespec(node.obj.AddedAt)
+	aTime, _ := unix.TimeToTimespec(node.obj.AccessAt)
 	mTime, _ := unix.TimeToTimespec(node.obj.ModifiedAt)
-	cTime, _ := unix.TimeToTimespec(node.obj.CreatedAt)
+	cTime, _ := unix.TimeToTimespec(node.obj.ChangedAt)
 
 	var mode uint16
 	switch node.obj.Kind {
