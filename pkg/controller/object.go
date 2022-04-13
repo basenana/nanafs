@@ -26,15 +26,17 @@ func (c *controller) LoadRootObject(ctx context.Context) (*types.Object, error) 
 	if err != nil {
 		if err == types.ErrNotFound {
 			root = dentry.InitRootObject()
+			c.logger.Infow("init root object", "root", root.ID)
 			return root, c.SaveObject(ctx, root)
 		}
+		c.logger.Errorw("load root object error", "err", err.Error())
 		return nil, err
 	}
 	return root, nil
 }
 
 func (c *controller) FindObject(ctx context.Context, parent *types.Object, name string) (*types.Object, error) {
-	c.logger.Infow("finding child object", "name", name)
+	c.logger.Infow("finding child object", "parent", parent.ID, "name", name)
 	children, err := c.ListObjectChildren(ctx, parent)
 	if err != nil {
 		return nil, err
@@ -50,9 +52,10 @@ func (c *controller) FindObject(ctx context.Context, parent *types.Object, name 
 }
 
 func (c *controller) CreateObject(ctx context.Context, parent *types.Object, attr types.ObjectAttr) (*types.Object, error) {
-	c.logger.Infow("creating new obj", "name", attr.Name, "kind", attr.Kind)
+	c.logger.Infow("create new obj", "parent", parent.ID, "name", attr.Name, "kind", attr.Kind)
 	obj, err := types.InitNewObject(parent, attr)
 	if err != nil {
+		c.logger.Errorw("create new object error", "parent", parent.ID, "name", attr.Name, "err", err.Error())
 		return nil, err
 	}
 	obj.Access.Permissions = attr.Permissions
@@ -64,9 +67,10 @@ func (c *controller) CreateObject(ctx context.Context, parent *types.Object, att
 }
 
 func (c *controller) SaveObject(ctx context.Context, obj *types.Object) error {
-	c.logger.Infow("save obj", "name", obj.Name)
+	c.logger.Infow("save obj", "obj", obj.ID)
 	err := c.meta.SaveObject(ctx, obj)
 	if err != nil {
+		c.logger.Errorw("save object error", "obj", obj.ID, "err", err.Error())
 		return err
 	}
 	bus.Publish(fmt.Sprintf("object.entry.%s.update", obj.ID), obj)
@@ -74,7 +78,7 @@ func (c *controller) SaveObject(ctx context.Context, obj *types.Object) error {
 }
 
 func (c *controller) DestroyObject(ctx context.Context, obj *types.Object) (err error) {
-	c.logger.Infow("destroy obj", "name", obj.Name)
+	c.logger.Infow("destroy obj", "obj", obj.ID)
 
 	defer func() {
 		if err == nil {
@@ -84,61 +88,78 @@ func (c *controller) DestroyObject(ctx context.Context, obj *types.Object) (err 
 
 	var objects []*types.Object
 	if dentry.IsMirrorObject(obj) {
+		c.logger.Infow("object is mirrored, delete ref count", "obj", obj.ID, "ref", obj.RefID)
 		var srcObj *types.Object
 		srcObj, err = c.meta.GetObject(ctx, obj.RefID)
 		if err != nil {
+			c.logger.Errorw("query source object from meta server error", "obj", obj.ID, "ref", obj.RefID, "err", err.Error())
 			return err
 		}
 		if err = c.destroyObject(ctx, obj); err != nil {
+			c.logger.Errorw("delete mirrored object from meta server error", "obj", obj.ID, "err", err.Error())
 			return err
 		}
 
 		if srcObj.ParentID == "" {
+			c.logger.Infow("source object has no parent", "obj", obj.ID, "ref", obj.RefID)
 			objects, err = c.meta.ListObjects(ctx, storage.Filter{RefID: srcObj.ID})
 			if err != nil {
+				c.logger.Errorw("query source object mirrors from meta server error", "srcObj", srcObj.ID, "err", err.Error())
 				return err
 			}
 			if len(objects) == 0 {
+				c.logger.Infow("source object has no mirrors any more, destroy source", "srcObj", srcObj.ID)
 				err = c.destroyObject(ctx, srcObj)
 			}
 		}
 		return
 	}
 
-	objects, err = c.meta.ListObjects(ctx, storage.Filter{RefID: obj.ID})
-	if err != nil {
-		return err
-	}
-	if len(objects) == 0 {
-		err = c.destroyObject(ctx, obj)
-		return
+	if obj.ID != "" {
+		objects, err = c.meta.ListObjects(ctx, storage.Filter{RefID: obj.ID})
+		if err != nil {
+			c.logger.Errorw("query object mirrors from meta server error", "obj", obj.ID, "err", err.Error())
+			return err
+		}
+		if len(objects) != 0 {
+			c.logger.Infow("object has mirrors, remove parent id", "obj", obj.ID)
+			obj.ParentID = ""
+			err = c.meta.SaveObject(ctx, obj)
+			return
+		}
 	}
 
-	obj.ParentID = ""
-	err = c.meta.SaveObject(ctx, obj)
+	err = c.destroyObject(ctx, obj)
 	return
 }
 
 func (c *controller) destroyObject(ctx context.Context, obj *types.Object) (err error) {
 	if err = c.meta.DestroyObject(ctx, obj); err != nil {
+		c.logger.Errorw("destroy object from meta server error", "obj", obj.ID, "err", err.Error())
 		return err
 	}
-	return c.storage.Delete(ctx, obj.ID)
+	if err = c.storage.Delete(ctx, obj.ID); err != nil {
+		c.logger.Errorw("destroy object from storage server error", "obj", obj.ID, "err", err.Error())
+	}
+	return nil
 }
 
 func (c *controller) MirrorObject(ctx context.Context, src, dstParent *types.Object, attr types.ObjectAttr) (*types.Object, error) {
-	c.logger.Infow("mirror obj", "src", src.Name, "dstParent", dstParent.Name)
+	c.logger.Infow("mirror obj", "srcObj", src.ID, "dstParent", dstParent.ID)
 
 	var err error
 	for dentry.IsMirrorObject(src) {
 		src, err = c.meta.GetObject(ctx, src.RefID)
 		if err != nil {
+			c.logger.Errorw("query source object error", "obj", src.ID, "srcObj", src.RefID, "err", err.Error())
 			return nil, err
 		}
+		c.logger.Infow("replace source object", "srcObj", src.ID)
 	}
 
 	obj, err := dentry.CreateMirrorObject(src, dstParent, attr)
 	if err != nil {
+		c.logger.Errorw("create mirror object error", "srcObj", src.ID, "dstParent", dstParent.ID, "err", err.Error())
 		return nil, err
 	}
 	bus.Publish(fmt.Sprintf("object.entry.%s.mirror", obj.ID), obj)
@@ -146,9 +167,10 @@ func (c *controller) MirrorObject(ctx context.Context, src, dstParent *types.Obj
 }
 
 func (c *controller) ListObjectChildren(ctx context.Context, obj *types.Object) ([]*types.Object, error) {
-	c.logger.Infow("list children obj", "name", obj.Name)
+	c.logger.Infow("list children obj", "obj", obj.ID)
 	it, err := c.meta.ListChildren(ctx, obj.ID)
 	if err != nil {
+		c.logger.Errorw("load object children error", "obj", obj.ID, "err", err.Error())
 		return nil, err
 	}
 	result := make([]*types.Object, 0)
@@ -168,10 +190,11 @@ type ChangeParentOpt struct {
 }
 
 func (c *controller) ChangeObjectParent(ctx context.Context, obj, newParent *types.Object, newName string, opt ChangeParentOpt) error {
-	c.logger.Infow("change obj parent", "old", obj.Name, "newParent", newParent.Name, "newName", newName)
+	c.logger.Infow("change obj parent", "old", obj.ID, "newParent", newParent.ID, "newName", newName)
 	old, err := c.FindObject(ctx, newParent, newName)
 	if err != nil {
 		if err != types.ErrNotFound {
+			c.logger.Errorw("new name verify failed", "old", obj.ID, "newParent", newParent.ID, "newName", newName, "err", err.Error())
 			return err
 		}
 	}
@@ -198,6 +221,7 @@ func (c *controller) ChangeObjectParent(ctx context.Context, obj, newParent *typ
 	obj.Name = newName
 	err = c.meta.ChangeParent(ctx, obj, newParent)
 	if err != nil {
+		c.logger.Errorw("change object parent failed", "old", obj.ID, "newParent", newParent.ID, "newName", newName, "err", err.Error())
 		return err
 	}
 	bus.Publish(fmt.Sprintf("object.entry.%s.mv", obj.ID), obj)

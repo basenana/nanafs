@@ -116,7 +116,7 @@ func newWorkerPool(s storage.Storage, isRead, isWrite bool) *pool {
 	for i := 0; i < defaultWorkerPoolSize; i += 1 {
 		workers[i] = initWorker(s, isRead, isWrite)
 	}
-	return &pool{s: s, workers: workers}
+	return &pool{s: s, workers: workers, read: isRead, write: isWrite}
 }
 
 const (

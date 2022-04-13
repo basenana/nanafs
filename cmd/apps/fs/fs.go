@@ -48,7 +48,7 @@ func (n *NanaFS) Start(stopCh chan struct{}) error {
 			AllowOther: true,
 			FsName:     fsName,
 			Name:       fsName,
-			Options:    []string{fmt.Sprintf("volname=%s", n.Display)},
+			Options:    []string{fmt.Sprintf("volname=%s", n.Display), "force"},
 		},
 		EntryTimeout: &entryTimeout,
 		AttrTimeout:  &attrTimeout,
@@ -58,7 +58,7 @@ func (n *NanaFS) Start(stopCh chan struct{}) error {
 	if err != nil {
 		return err
 	}
-	server.SetDebug(n.debug)
+	//server.SetDebug(n.debug)
 	go func() {
 		<-stopCh
 		_ = server.Unmount()
