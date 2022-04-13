@@ -26,9 +26,9 @@ func (r *reader) read(ctx context.Context, data []byte, offset int64) (int, erro
 	off := offset
 	readTask := make([]int, 0, 1)
 	for {
-		cID, pos := computeChunkIndex(off, r.chunkSize)
+		cID, pos := computeChunkIndex(off, fileChunkSize)
 
-		cr := &cRange{key: r.f.ID, index: cID, offset: pos, limit: r.chunkSize - pos}
+		cr := &cRange{key: r.f.ID, index: cID, offset: pos, limit: fileChunkSize - pos}
 		if off+cr.limit > limit {
 			cr.limit = limit - off
 		}
@@ -51,7 +51,7 @@ func (r *reader) read(ctx context.Context, data []byte, offset int64) (int, erro
 
 	var (
 		readTotal = 0
-		buf       = make([]byte, r.chunkSize)
+		buf       = make([]byte, fileChunkSize)
 	)
 	for tID := range readTask {
 		cr, err := r.p.wait(ctx, tID)
@@ -77,17 +77,14 @@ func (r *reader) close(ctx context.Context) error {
 
 func initFileReader(f *file) *reader {
 	return &reader{
-		f:         f,
-		p:         newReadWorkerPool(f.attr.Storage),
-		chunkSize: f.chunkSize,
+		f: f,
+		p: newReadWorkerPool(f.attr.Storage),
 	}
 }
 
 type writer struct {
 	f *file
 	p *pool
-
-	chunkSize int64
 }
 
 func (w *writer) write(ctx context.Context, data []byte, offset int64) (int64, error) {
@@ -96,8 +93,8 @@ func (w *writer) write(ctx context.Context, data []byte, offset int64) (int64, e
 	readTask := make([]int, 0, 1)
 
 	for {
-		cID, pos := computeChunkIndex(off, w.chunkSize)
-		cr := &cRange{key: w.f.ID, index: cID, offset: pos, limit: w.chunkSize - pos}
+		cID, pos := computeChunkIndex(off, fileChunkSize)
+		cr := &cRange{key: w.f.ID, index: cID, offset: pos, limit: fileChunkSize - pos}
 		if int(cr.limit-cr.offset) > len(data) {
 			cr.limit = int64(len(data)) + pos
 		}
@@ -138,8 +135,7 @@ func (w *writer) close(ctx context.Context) error {
 
 func initFileWriter(f *file) *writer {
 	return &writer{
-		f:         f,
-		p:         newWriteWorkerPool(f.attr.Storage),
-		chunkSize: f.chunkSize,
+		f: f,
+		p: newWriteWorkerPool(f.attr.Storage),
 	}
 }

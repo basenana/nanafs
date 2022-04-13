@@ -3,6 +3,7 @@ package fs
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/controller"
+	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
@@ -18,6 +19,9 @@ var _ = Describe("TestAccess", func() {
 		root *NanaNode
 	)
 
+	acc := types.Access{}
+	dentry.UpdateAccessWithMode(&acc, 0655)
+
 	BeforeEach(func() {
 		var err error
 		ctl := NewMockController()
@@ -29,9 +33,9 @@ var _ = Describe("TestAccess", func() {
 		root = initFsBridge(nfs)
 
 		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
-			Name: "file.txt",
-			Mode: 0655,
-			Kind: types.RawKind,
+			Name:        "file.txt",
+			Kind:        types.RawKind,
+			Permissions: acc.Permissions,
 		})
 		Expect(err).Should(BeNil())
 
@@ -60,6 +64,9 @@ var _ = Describe("TestGetattr", func() {
 		root *NanaNode
 	)
 
+	acc := types.Access{}
+	dentry.UpdateAccessWithMode(&acc, 0655)
+
 	BeforeEach(func() {
 		var err error
 		ctl := NewMockController()
@@ -71,9 +78,9 @@ var _ = Describe("TestGetattr", func() {
 		root = initFsBridge(nfs)
 
 		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
-			Name: "file.txt",
-			Mode: 0655,
-			Kind: types.RawKind,
+			Name:        "file.txt",
+			Kind:        types.RawKind,
+			Permissions: acc.Permissions,
 		})
 		Expect(err).Should(BeNil())
 
@@ -98,6 +105,9 @@ var _ = Describe("TestOpen", func() {
 		root *NanaNode
 	)
 
+	acc := types.Access{}
+	dentry.UpdateAccessWithMode(&acc, 0655)
+
 	BeforeEach(func() {
 		var err error
 		ctl := NewMockController()
@@ -109,9 +119,9 @@ var _ = Describe("TestOpen", func() {
 		root = initFsBridge(nfs)
 
 		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
-			Name: "file.txt",
-			Mode: 0655,
-			Kind: types.RawKind,
+			Name:        "file.txt",
+			Kind:        types.RawKind,
+			Permissions: acc.Permissions,
 		})
 		Expect(err).Should(BeNil())
 
@@ -189,6 +199,9 @@ var _ = Describe("TestLookup", func() {
 		fileName = "file.txt"
 	)
 
+	acc := types.Access{}
+	dentry.UpdateAccessWithMode(&acc, 0655)
+
 	BeforeEach(func() {
 		var err error
 		ctl := NewMockController()
@@ -200,9 +213,9 @@ var _ = Describe("TestLookup", func() {
 		root = initFsBridge(nfs)
 
 		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
-			Name: fileName,
-			Mode: 0655,
-			Kind: types.RawKind,
+			Name:        fileName,
+			Kind:        types.RawKind,
+			Permissions: acc.Permissions,
 		})
 		Expect(err).Should(BeNil())
 
@@ -236,6 +249,9 @@ var _ = Describe("TestOpendir", func() {
 		root     *NanaNode
 	)
 
+	acc := types.Access{}
+	dentry.UpdateAccessWithMode(&acc, 0655)
+
 	BeforeEach(func() {
 		var err error
 		ctl := NewMockController()
@@ -247,16 +263,16 @@ var _ = Describe("TestOpendir", func() {
 		root = initFsBridge(nfs)
 
 		fileObj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
-			Name: "file.txt",
-			Mode: 0655,
-			Kind: types.RawKind,
+			Name:        "file.txt",
+			Kind:        types.RawKind,
+			Permissions: acc.Permissions,
 		})
 		Expect(err).Should(BeNil())
 
 		dirObj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
-			Name: "dir",
-			Mode: 0655,
-			Kind: types.GroupKind,
+			Name:        "dir",
+			Kind:        types.GroupKind,
+			Permissions: acc.Permissions,
 		})
 		Expect(err).Should(BeNil())
 
@@ -291,6 +307,9 @@ var _ = Describe("TestReaddir", func() {
 		nfs  *NanaFS
 	)
 
+	acc := types.Access{}
+	dentry.UpdateAccessWithMode(&acc, 0655)
+
 	BeforeEach(func() {
 		var err error
 		ctl := NewMockController()
@@ -302,9 +321,9 @@ var _ = Describe("TestReaddir", func() {
 		root = initFsBridge(nfs)
 
 		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
-			Name: "files",
-			Mode: 0655,
-			Kind: types.GroupKind,
+			Name:        "files",
+			Kind:        types.GroupKind,
+			Permissions: acc.Permissions,
 		})
 		Expect(err).Should(BeNil())
 
@@ -324,9 +343,9 @@ var _ = Describe("TestReaddir", func() {
 			})
 			Context("add file to dir", func() {
 				newObj, err := nfs.CreateObject(context.Background(), node.obj, types.ObjectAttr{
-					Name: addFileName,
-					Mode: 0655,
-					Kind: types.RawKind,
+					Name:        addFileName,
+					Kind:        types.RawKind,
+					Permissions: acc.Permissions,
 				})
 				Expect(err).Should(BeNil())
 
@@ -422,6 +441,9 @@ var _ = Describe("TestLink", func() {
 		root *NanaNode
 	)
 
+	acc := types.Access{}
+	dentry.UpdateAccessWithMode(&acc, 0655)
+
 	BeforeEach(func() {
 		var err error
 		ctl := NewMockController()
@@ -433,9 +455,9 @@ var _ = Describe("TestLink", func() {
 		root = initFsBridge(nfs)
 
 		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
-			Name: "file.txt",
-			Mode: 0655,
-			Kind: types.RawKind,
+			Name:        "file.txt",
+			Kind:        types.RawKind,
+			Permissions: acc.Permissions,
 		})
 		Expect(err).Should(BeNil())
 
@@ -463,6 +485,9 @@ var _ = Describe("TestRmdir", func() {
 		dirName = "files"
 	)
 
+	acc := types.Access{}
+	dentry.UpdateAccessWithMode(&acc, 0655)
+
 	BeforeEach(func() {
 		var err error
 		ctl := NewMockController()
@@ -474,9 +499,9 @@ var _ = Describe("TestRmdir", func() {
 		root = initFsBridge(nfs)
 
 		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
-			Name: dirName,
-			Mode: 0655,
-			Kind: types.GroupKind,
+			Name:        dirName,
+			Kind:        types.GroupKind,
+			Permissions: acc.Permissions,
 		})
 		Expect(err).Should(BeNil())
 
@@ -513,6 +538,9 @@ var _ = Describe("TestRename", func() {
 		root *NanaNode
 	)
 
+	acc := types.Access{}
+	dentry.UpdateAccessWithMode(&acc, 0655)
+
 	BeforeEach(func() {
 		var err error
 		ctl := NewMockController()
@@ -524,9 +552,9 @@ var _ = Describe("TestRename", func() {
 		root = initFsBridge(nfs)
 
 		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
-			Name: "file.txt",
-			Mode: 0655,
-			Kind: types.RawKind,
+			Name:        "file.txt",
+			Kind:        types.RawKind,
+			Permissions: acc.Permissions,
 		})
 		Expect(err).Should(BeNil())
 

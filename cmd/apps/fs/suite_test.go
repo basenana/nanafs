@@ -22,6 +22,11 @@ type MockController struct {
 	mux     sync.Mutex
 }
 
+func (m *MockController) ReadFile(ctx context.Context, file files.File, data []byte, offset int64) (n int, err error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (m *MockController) OpenFile(ctx context.Context, obj *types.Object, attr files.Attr) (files.File, error) {
 	//TODO implement me
 	panic("implement me")

@@ -18,8 +18,9 @@ type Metadata struct {
 	Inode        uint64        `json:"inode"`
 	Namespace    string        `json:"namespace"`
 	CreatedAt    time.Time     `json:"created_at"`
-	AddedAt      time.Time     `json:"added_at"`
+	ChangedAt    time.Time     `json:"changed_at"`
 	ModifiedAt   time.Time     `json:"modified_at"`
+	AccessAt     time.Time     `json:"access_at"`
 	Labels       Labels        `json:"labels"`
 	Access       Access        `json:"access"`
 	CustomColumn *CustomColumn `json:"custom_column"`
@@ -31,7 +32,8 @@ func NewMetadata(name string, kind Kind) Metadata {
 		Name:       name,
 		Kind:       kind,
 		CreatedAt:  time.Now(),
-		AddedAt:    time.Now(),
+		AccessAt:   time.Now(),
+		ChangedAt:  time.Now(),
 		ModifiedAt: time.Now(),
 		Labels:     Labels{},
 	}
@@ -63,7 +65,7 @@ type Annotation struct {
 	Details     string
 }
 
-func (a *Annotation) add(newA *AnnotationItem) {
+func (a *Annotation) Add(newA *AnnotationItem) {
 	for i, ann := range a.Annotations {
 		if ann.Type != newA.Type {
 			continue
@@ -74,10 +76,26 @@ func (a *Annotation) add(newA *AnnotationItem) {
 	a.Annotations = append(a.Annotations, *newA)
 }
 
-func (a *Annotation) remove(oldA *AnnotationItem) {
+func (a *Annotation) Get(key string, withInternal bool) *AnnotationItem {
+	for i := range a.Annotations {
+		ann := a.Annotations[i]
+		if ann.Type != key {
+			continue
+		}
+		if ann.IsInternal {
+			if !withInternal {
+				return nil
+			}
+		}
+		return &ann
+	}
+	return nil
+}
+
+func (a *Annotation) Remove(key string) {
 	needDel := -1
 	for i, ann := range a.Annotations {
-		if ann.Type != oldA.Type {
+		if ann.Type != key {
 			continue
 		}
 		needDel = i
@@ -89,8 +107,10 @@ func (a *Annotation) remove(oldA *AnnotationItem) {
 }
 
 type AnnotationItem struct {
-	Type    string
-	Content string
+	Type       string
+	Content    string
+	IsInternal bool
+	Encode     bool
 }
 
 type CustomColumn struct {
@@ -116,14 +136,18 @@ func (o *Object) IsGroup() bool {
 }
 
 type ObjectAttr struct {
-	Name string
-	Mode uint32
-	Kind Kind
+	Name        string
+	Kind        Kind
+	Permissions []Permission
 }
 
 func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {
 	newObj := &Object{
 		Metadata: NewMetadata(attr.Name, attr.Kind),
+		ExtendData: ExtendData{
+			Properties: &Properties{},
+			Annotation: &Annotation{},
+		},
 	}
 	if parent != nil {
 		newObj.ParentID = parent.ID

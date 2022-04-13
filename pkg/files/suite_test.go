@@ -24,6 +24,14 @@ func newMockObject(key string) *types.Object {
 	}
 }
 
+const (
+	testChunkSize = 10
+)
+
+func init() {
+	fileChunkSize = testChunkSize
+}
+
 func TestFile(t *testing.T) {
 	logger.InitLogger()
 	defer logger.Sync()

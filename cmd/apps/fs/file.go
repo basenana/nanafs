@@ -16,7 +16,7 @@ type File struct {
 var _ fileOperation = &File{}
 
 func (f *File) Read(ctx context.Context, dest []byte, off int64) (fuse.ReadResult, syscall.Errno) {
-	n, err := f.file.Read(ctx, dest, off)
+	n, err := f.node.R.ReadFile(ctx, f.file, dest, off)
 	if err != nil && err != io.EOF {
 		return fuse.ReadResultData(dest), Error2FuseSysError(err)
 	}

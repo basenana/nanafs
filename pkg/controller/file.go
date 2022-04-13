@@ -2,14 +2,18 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/hyponet/eventbus/bus"
+	"time"
 )
 
 type FileController interface {
 	OpenFile(ctx context.Context, obj *types.Object, attr files.Attr) (files.File, error)
 	WriteFile(ctx context.Context, file files.File, data []byte, offset int64) (n int64, err error)
 	CloseFile(ctx context.Context, file files.File) error
+	ReadFile(ctx context.Context, file files.File, data []byte, offset int64) (n int, err error)
 	DeleteFileData(ctx context.Context, obj *types.Object) error
 }
 
@@ -44,7 +48,24 @@ func (c *controller) CloseFile(ctx context.Context, file files.File) error {
 	return file.Close(ctx)
 }
 
-func (c *controller) DeleteFileData(ctx context.Context, obj *types.Object) error {
+func (c *controller) DeleteFileData(ctx context.Context, obj *types.Object) (err error) {
 	c.logger.Infow("delete file", "file", obj.Name)
-	return c.storage.Delete(ctx, obj.ID)
+	err = c.storage.Delete(ctx, obj.ID)
+	if err != nil {
+		c.logger.Errorw("delete file error", "file", obj.ID, "err", err.Error())
+		return err
+	}
+	bus.Publish(fmt.Sprintf("object.file.%s.delete", obj.ID), obj)
+	return nil
+}
+
+func (c *controller) ReadFile(ctx context.Context, file files.File, data []byte, offset int64) (n int, err error) {
+	c.logger.Infow("read file", "file", file.GetObject().ID, "data", len(data), "offset", offset)
+	n, err = file.Read(ctx, data, offset)
+	if err != nil {
+		return n, err
+	}
+	obj := file.GetObject()
+	obj.AccessAt = time.Now()
+	return n, c.SaveObject(ctx, obj)
 }
