@@ -10,7 +10,7 @@ import (
 
 type File struct {
 	node *NanaNode
-	file *files.File
+	file files.File
 }
 
 var _ fileOperation = &File{}

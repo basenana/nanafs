@@ -43,12 +43,13 @@ type MetaStore interface {
 	SaveObject(ctx context.Context, obj *types.Object) error
 	DestroyObject(ctx context.Context, obj *types.Object) error
 
-	ListChildren(ctx context.Context, id string) (Iterator, error)
+	ListChildren(ctx context.Context, obj *types.Object) (Iterator, error)
+	//ListStructuredChildren(ctx context.Context, id string,cType types.Kind, version string) ([]*types.Object, error)
 	ChangeParent(ctx context.Context, old *types.Object, parent *types.Object) error
 
-	SaveContent(ctx context.Context, obj *types.Object, cType, version string, content interface{}) error
-	LoadContent(ctx context.Context, obj *types.Object, cType, version string, content interface{}) error
-	DeleteContent(ctx context.Context, obj *types.Object, cType, version string) error
+	SaveContent(ctx context.Context, obj *types.Object, cType types.Kind, version string, content interface{}) error
+	LoadContent(ctx context.Context, obj *types.Object, cType types.Kind, version string, content interface{}) error
+	DeleteContent(ctx context.Context, obj *types.Object, cType types.Kind, version string) error
 }
 
 func NewMetaStorage(metaType string, meta config.Meta) (MetaStore, error) {

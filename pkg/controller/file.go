@@ -7,36 +7,40 @@ import (
 )
 
 type FileController interface {
-	OpenFile(ctx context.Context, obj *types.Object, attr files.Attr) (*files.File, error)
-	WriteFile(ctx context.Context, file *files.File, data []byte, offset int64) (n int64, err error)
-	CloseFile(ctx context.Context, file *files.File) error
+	OpenFile(ctx context.Context, obj *types.Object, attr files.Attr) (files.File, error)
+	WriteFile(ctx context.Context, file files.File, data []byte, offset int64) (n int64, err error)
+	CloseFile(ctx context.Context, file files.File) error
 	DeleteFileData(ctx context.Context, obj *types.Object) error
 }
 
 type OpenOption struct {
 }
 
-func (c *controller) OpenFile(ctx context.Context, obj *types.Object, attr files.Attr) (*files.File, error) {
+func (c *controller) OpenFile(ctx context.Context, obj *types.Object, attr files.Attr) (files.File, error) {
 	c.logger.Infow("open file", "obj", obj.Name, "attr", attr)
 	attr.Storage = c.storage
+	attr.Meta = c.meta
 	if obj.IsGroup() {
 		return nil, types.ErrIsGroup
+	}
+	if s := c.registry.GetSchema(obj.Kind); s != nil {
+		return c.OpenStructuredObject(ctx, obj, s, attr)
 	}
 	return files.Open(ctx, obj, attr)
 }
 
-func (c *controller) WriteFile(ctx context.Context, file *files.File, data []byte, offset int64) (n int64, err error) {
-	c.logger.Infow("write file", "file", file.Object.Name)
+func (c *controller) WriteFile(ctx context.Context, file files.File, data []byte, offset int64) (n int64, err error) {
+	c.logger.Infow("write file", "file", file.GetObject().Name)
 	n, err = file.Write(ctx, data, offset)
 	if err != nil {
 		return n, err
 	}
-	obj := file.Object
+	obj := file.GetObject()
 	return n, c.SaveObject(ctx, obj)
 }
 
-func (c *controller) CloseFile(ctx context.Context, file *files.File) error {
-	c.logger.Infow("close file", "file", file.Object.Name)
+func (c *controller) CloseFile(ctx context.Context, file files.File) error {
+	c.logger.Infow("close file", "file", file.GetObject().Name)
 	return file.Close(ctx)
 }
 

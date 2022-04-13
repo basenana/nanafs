@@ -5,13 +5,13 @@ import (
 	goflow "github.com/basenana/go-flow/flow"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/google/uuid"
 )
 
 type Workflow struct {
-	Name    string
-	Rule    types.Rule
-	Plugins []plugin.Plugin
+	Name     string
+	ObjectId string
+	Rule     types.Rule
+	Plugins  []plugin.Plugin
 }
 
 type Job struct {
@@ -19,7 +19,7 @@ type Job struct {
 	workflow *Workflow
 	Plugins  []plugin.Plugin
 	object   *types.Object
-	flow     *NanaFlow
+	Flow     *NanaFlow
 }
 
 func NewWorkflow(name string, rule types.Rule, plugins []plugin.Plugin) *Workflow {
@@ -31,7 +31,6 @@ func NewWorkflow(name string, rule types.Rule, plugins []plugin.Plugin) *Workflo
 }
 
 func NewJob(workflow *Workflow, value *types.Object) *Job {
-	JobId := uuid.New().String()
 	tasks := []*NanaTask{}
 	for _, p := range workflow.Plugins {
 		tasks = append(tasks, &NanaTask{
@@ -52,16 +51,15 @@ func NewJob(workflow *Workflow, value *types.Object) *Job {
 		panic(err)
 	}
 	return &Job{
-		Id:       JobId,
 		workflow: workflow,
 		Plugins:  workflow.Plugins,
 		object:   value,
-		flow:     &f,
+		Flow:     &f,
 	}
 }
 
 func (w *Job) Run() error {
-	if err := FlowCtl.TriggerFlow(context.TODO(), w.flow.ID()); err != nil {
+	if err := FlowCtl.TriggerFlow(context.TODO(), w.Flow.ID()); err != nil {
 		return err
 	}
 	return nil

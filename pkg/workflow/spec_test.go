@@ -51,7 +51,7 @@ var _ = Describe("TestWorkflow", func() {
 				err := j.Run()
 				Expect(err).Should(BeNil())
 				Eventually(func() []byte {
-					return status2Bytes(j.flow.GetStatus())
+					return status2Bytes(j.Flow.GetStatus())
 				}, time.Minute*3, time.Second).Should(Equal(status2Bytes(flow.SucceedStatus)))
 			})
 		})

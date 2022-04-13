@@ -7,7 +7,7 @@ import (
 )
 
 type reader struct {
-	f *File
+	f *file
 	p *pool
 
 	chunkSize int64
@@ -75,7 +75,7 @@ func (r *reader) close(ctx context.Context) error {
 	return r.p.close(ctx)
 }
 
-func initFileReader(f *File) *reader {
+func initFileReader(f *file) *reader {
 	return &reader{
 		f:         f,
 		p:         newReadWorkerPool(f.attr.Storage),
@@ -84,7 +84,7 @@ func initFileReader(f *File) *reader {
 }
 
 type writer struct {
-	f *File
+	f *file
 	p *pool
 
 	chunkSize int64
@@ -136,7 +136,7 @@ func (w *writer) close(ctx context.Context) error {
 	return w.p.close(ctx)
 }
 
-func initFileWriter(f *File) *writer {
+func initFileWriter(f *file) *writer {
 	return &writer{
 		f:         f,
 		p:         newWriteWorkerPool(f.attr.Storage),

@@ -20,7 +20,7 @@ var (
 
 func init() {
 	logger = log.NewLogger("plugin")
-	go parsePlugins()
+	//go parsePlugins()
 }
 
 func parsePlugins() {

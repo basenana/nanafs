@@ -6,7 +6,6 @@ import (
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/files"
-	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow"
 	"github.com/basenana/nanafs/utils/logger"
@@ -23,32 +22,52 @@ type MockController struct {
 	mux     sync.Mutex
 }
 
+func (m *MockController) OpenFile(ctx context.Context, obj *types.Object, attr files.Attr) (files.File, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockController) WriteFile(ctx context.Context, file files.File, data []byte, offset int64) (n int64, err error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockController) CloseFile(ctx context.Context, file files.File) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockController) GetJobs(ctx context.Context) map[fsm.Status]*workflow.Job {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockController) ListStructuredObject(ctx context.Context, cType types.Kind, version string) ([]*types.Object, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockController) OpenStructuredObject(ctx context.Context, obj *types.Object, spec interface{}, attr files.Attr) (files.File, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockController) CleanStructuredObject(ctx context.Context, obj *types.Object) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockController) CreateStructuredObject(ctx context.Context, parent *types.Object, attr types.ObjectAttr, cType types.Kind, version string) (*types.Object, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockController) Trigger(ctx context.Context, o *types.Object) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (m *MockController) ChangeObjectParent(ctx context.Context, old, newParent *types.Object, newName string, opt controller.ChangeParentOpt) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *MockController) SaveWorkflow(name string, rule types.Rule, plugins []plugin.Plugin) *workflow.Workflow {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *MockController) DeleteWorkFlow(name string) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *MockController) GetWorkflows() []*workflow.Workflow {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *MockController) Trigger(o types.Object) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *MockController) GetJobs() map[fsm.Status]*workflow.Job {
 	//TODO implement me
 	panic("implement me")
 }
@@ -131,20 +150,6 @@ func (m *MockController) ListObjectChildren(ctx context.Context, obj *types.Obje
 		result = append(result, m.objects[oid])
 	}
 	return result, nil
-}
-
-func (m *MockController) OpenFile(ctx context.Context, obj *types.Object, attr files.Attr) (*files.File, error) {
-	return &files.File{}, nil
-}
-
-func (m *MockController) WriteFile(ctx context.Context, file *files.File, data []byte, offset int64) (n int64, err error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *MockController) CloseFile(ctx context.Context, file *files.File) error {
-	//TODO implement me
-	panic("implement me")
 }
 
 func (m *MockController) DeleteFileData(ctx context.Context, obj *types.Object) error {
