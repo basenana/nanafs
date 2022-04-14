@@ -8,10 +8,11 @@ import (
 
 type structured struct {
 	*types.Object
-	parent *types.Object
-	raw    []byte
-	attr   Attr
-	spec   interface{}
+	cType   types.Kind
+	version string
+	raw     []byte
+	attr    Attr
+	spec    interface{}
 }
 
 func (s *structured) GetObject() *types.Object {
@@ -26,7 +27,9 @@ func (s *structured) Write(ctx context.Context, data []byte, offset int64) (n in
 	}
 	newBuf := make([]byte, offset+dl-rl)
 	s.raw = append(s.raw, newBuf...)
-	return int64(copy(s.raw[offset:], data)), nil
+	n = int64(copy(s.raw[offset:], data))
+	s.Size = int64(len(s.raw))
+	return
 }
 
 func (s *structured) Read(ctx context.Context, data []byte, offset int64) (int, error) {
@@ -42,14 +45,11 @@ func (s *structured) Flush(ctx context.Context) (err error) {
 }
 
 func (s *structured) Close(ctx context.Context) (err error) {
-	//if s.Object.Name != "test" {
-	//	return nil
-	//}
 	err = json.Unmarshal(s.raw, s.spec)
 	if err != nil {
 		return err
 	}
-	return s.attr.Meta.SaveContent(ctx, s.Object, types.Kind(s.parent.Labels.Get(types.VersionKey).Value), s.parent.Labels.Get(types.VersionKey).Value, s.spec)
+	return s.attr.Meta.SaveContent(ctx, s.Object, s.cType, s.version, s.spec)
 }
 
 func openStructuredFile(ctx context.Context, obj *types.Object, spec interface{}, attr Attr) (*structured, error) {
@@ -61,16 +61,14 @@ func openStructuredFile(ctx context.Context, obj *types.Object, spec interface{}
 	if err != nil {
 		return nil, err
 	}
-	parent, err := attr.Meta.GetObject(ctx, obj.ParentID)
-	if err != nil {
-		return nil, err
-	}
+	obj.Size = int64(len(raw))
 	return &structured{
-		Object: obj,
-		parent: parent,
-		raw:    raw,
-		attr:   attr,
-		spec:   spec,
+		Object:  obj,
+		cType:   obj.Kind,
+		version: obj.Labels.Get(types.VersionKey).Value,
+		raw:     raw,
+		attr:    attr,
+		spec:    spec,
 	}, nil
 }
 

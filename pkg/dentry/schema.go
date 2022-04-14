@@ -1,6 +1,9 @@
 package dentry
 
-import "github.com/basenana/nanafs/pkg/types"
+import (
+	"github.com/basenana/nanafs/pkg/types"
+	"reflect"
+)
 
 type SchemaRegistry struct {
 	schemas     []Schema
@@ -10,7 +13,7 @@ type SchemaRegistry struct {
 type Schema struct {
 	CType   types.Kind
 	Version string
-	Spec    interface{}
+	Spec    reflect.Type
 }
 
 var Registry = &SchemaRegistry{schemas: []Schema{}, schemaTypes: []types.Kind{}}
@@ -19,7 +22,7 @@ func (s *SchemaRegistry) Register(cType types.Kind, version string, spec interfa
 	s.schemas = append(s.schemas, Schema{
 		CType:   cType,
 		Version: version,
-		Spec:    spec,
+		Spec:    reflect.TypeOf(spec),
 	})
 	s.schemaTypes = append(s.schemaTypes, cType)
 }
@@ -31,7 +34,7 @@ func (s *SchemaRegistry) GetSchemas() []Schema {
 func (s *SchemaRegistry) GetSchema(cType types.Kind) interface{} {
 	for _, c := range s.schemas {
 		if c.CType == cType {
-			return c.Spec
+			return reflect.New(c.Spec).Interface()
 		}
 	}
 	return nil
