@@ -5,6 +5,7 @@ import (
 	"github.com/basenana/nanafs/cmd/apps/fs"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
+	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
@@ -39,6 +40,8 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	files.InitLocalCache(cfg, sto)
 
 	ctrl := controller.New(loader, meta, sto)
 	stop := utils.HandleTerminalSignal()
