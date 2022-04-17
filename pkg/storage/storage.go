@@ -19,11 +19,10 @@ type Info struct {
 
 type Storage interface {
 	ID() string
-	Get(ctx context.Context, key string, idx, off, limit int64) (io.ReadCloser, error)
-	Put(ctx context.Context, key string, in io.Reader, idx, off int64) error
-	Delete(ctx context.Context, key string) error
-	Fsync(ctx context.Context, key string) error
-	Head(ctx context.Context, key string) (Info, error)
+	Get(ctx context.Context, key string, idx int64) (io.ReadCloser, error)
+	Put(ctx context.Context, key string, in io.Reader, idx int64) error
+	Delete(ctx context.Context, key string, idx int64) error
+	Head(ctx context.Context, key string, idx int64) (Info, error)
 }
 
 func NewStorage(storageID string, cfg config.Storage) (Storage, error) {

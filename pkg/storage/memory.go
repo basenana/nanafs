@@ -90,7 +90,7 @@ func newMemoryMetaStore() MetaStore {
 }
 
 type memoryStorage struct {
-	storage map[string][]chunk
+	storage map[string]chunk
 	mux     sync.Mutex
 }
 
@@ -98,65 +98,41 @@ func (m *memoryStorage) ID() string {
 	return memoryStorageID
 }
 
-func (m *memoryStorage) Get(ctx context.Context, key string, idx, off, limit int64) (io.ReadCloser, error) {
-	chunks, err := m.getChunks(ctx, key)
+func (m *memoryStorage) Get(ctx context.Context, key string, idx int64) (io.ReadCloser, error) {
+	ck, err := m.getChunk(ctx, m.chunkKey(key, idx))
 	if err != nil {
 		return nil, err
 	}
-
-	if idx > int64(len(chunks)) {
-		return nil, fmt.Errorf("out of range")
-	}
-
-	c := chunks[idx]
-	if int64(len(c.data)) < limit {
-		limit = int64(len(c.data))
-	}
-	return utils.NewDateReader(bytes.NewReader(c.data[off:limit])), nil
+	return utils.NewDateReader(bytes.NewReader(ck.data)), nil
 }
 
-func (m *memoryStorage) Put(ctx context.Context, key string, in io.Reader, idx, off int64) error {
-	chunks, err := m.getChunks(ctx, key)
+func (m *memoryStorage) Put(ctx context.Context, key string, in io.Reader, idx int64) error {
+	ck, err := m.getChunk(ctx, m.chunkKey(key, idx))
 	if err != nil {
-		chunks = make([]chunk, 0)
-	}
-
-	nowIdx := len(chunks)
-	if idx+1 > int64(nowIdx) {
-		sub := int(idx + 1 - int64(nowIdx))
-		for sub > 0 {
-			chunks = append(chunks, chunk{data: []byte{}})
-			sub--
-		}
+		ck = &chunk{}
 	}
 
 	var (
-		c   = chunks[idx]
-		buf = make([]byte, defaultChunkSize)
+		buf = make([]byte, 1024)
+		n   int
 	)
-	for {
-		n, err := in.Read(buf)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return err
-		}
-		canRead := int(defaultChunkSize - off)
-		if n > canRead {
-			return fmt.Errorf("out of range")
-		}
 
-		c.data = append(c.data[:off], buf[:n]...)
+	for {
+		n, err = in.Read(buf)
+		if err == io.EOF {
+			break
+		}
+		ck.data = append(ck.data, buf[:n]...)
 	}
-	chunks[idx] = c
-	return m.saveChunks(ctx, key, chunks)
+
+	return m.saveChunk(ctx, key, *ck)
 }
 
-func (m *memoryStorage) Delete(ctx context.Context, key string) error {
+func (m *memoryStorage) Delete(ctx context.Context, key string, idx int64) error {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
+	key = m.chunkKey(key, idx)
 	_, ok := m.storage[key]
 	if !ok {
 		return types.ErrNotFound
@@ -165,49 +141,44 @@ func (m *memoryStorage) Delete(ctx context.Context, key string) error {
 	return nil
 }
 
-func (m *memoryStorage) Fsync(ctx context.Context, key string) error {
-	m.mux.Lock()
-	defer m.mux.Unlock()
-	return nil
-}
-
-func (m *memoryStorage) Head(ctx context.Context, key string) (Info, error) {
+func (m *memoryStorage) Head(ctx context.Context, key string, idx int64) (Info, error) {
 	result := Info{Key: key}
-	chunks, err := m.getChunks(ctx, key)
+	ck, err := m.getChunk(ctx, m.chunkKey(key, idx))
 	if err != nil {
 		return result, err
 	}
 
-	for _, c := range chunks {
-		result.Size += int64(len(c.data))
-	}
+	result.Size = int64(len(ck.data))
 	return result, nil
 }
 
-func (m *memoryStorage) getChunks(ctx context.Context, key string) ([]chunk, error) {
+func (m *memoryStorage) chunkKey(key string, idx int64) string {
+	return fmt.Sprintf("%s_%d", key, idx)
+}
+
+func (m *memoryStorage) getChunk(ctx context.Context, key string) (*chunk, error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
-	chunks, ok := m.storage[key]
+	chunk, ok := m.storage[key]
 	if !ok {
 		return nil, types.ErrNotFound
 	}
-	return chunks, nil
+	return &chunk, nil
 }
 
-func (m *memoryStorage) saveChunks(ctx context.Context, key string, chunks []chunk) error {
+func (m *memoryStorage) saveChunk(ctx context.Context, key string, chunk chunk) error {
 	m.mux.Lock()
-	m.storage[key] = chunks
+	m.storage[key] = chunk
 	m.mux.Unlock()
 	return nil
 }
 
 func newMemoryStorage() Storage {
 	return &memoryStorage{
-		storage: map[string][]chunk{},
+		storage: map[string]chunk{},
 	}
 }
 
 type chunk struct {
-	data   []byte
-	offset int64
+	data []byte
 }
