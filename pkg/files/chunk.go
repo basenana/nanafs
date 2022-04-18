@@ -1,6 +1,7 @@
 package files
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -19,7 +20,7 @@ import (
 const (
 	defaultChunkSize = 1 << 22 // 4MB
 	pageSize         = 1 << 12 // 4k
-	pageCacheLimit   = 1 << 22 // 4MB
+	pageCacheLimit   = 1 << 24 // 16MB
 	bufQueueLen      = 256
 )
 
@@ -47,33 +48,130 @@ type cRange struct {
 }
 
 const (
-	pageModeDirty = 1
-	pageTreeShift = 6
-	pageTreeSize  = 1 << pageTreeShift
-	pageTreeMask  = pageTreeShift - 1
+	pageModeDirty    = 1
+	pageModeInternal = 1 << 1
+	pageModeData     = 1 << 2
+	pageTreeShift    = 6
+	pageTreeSize     = 1 << pageTreeShift
+	pageTreeMask     = pageTreeShift - 1
 )
 
+type pageRoot struct {
+	rootNode   *pageNode
+	totalCount int
+	dirtyCount int
+}
+
 type pageNode struct {
-	offsetPrefix int
-
-	date []byte
-	len  int
-	mode int8
-
-	child *pageNode
-	next  *pageNode
+	index  int64
+	slots  []*pageNode
+	parent *pageNode
+	length int64
+	data   []byte
+	mode   int8
+	shift  int
 }
 
-func insertPage(root *pageNode, pageIdx, off int64, data []byte) *pageNode {
+func insertPage(root *pageRoot, pageIdx int64, data []byte) *pageNode {
+	if root.rootNode == nil {
+		root.rootNode = newPage(0, pageModeData)
+	}
+
+	if (pageTreeSize<<root.rootNode.shift)-1 < pageIdx {
+		extendPageTree(root, pageIdx)
+	}
+
+	var (
+		node  = root.rootNode
+		shift = root.rootNode.shift
+		slot  int64
+	)
+	for shift >= 0 {
+		slot = pageIdx >> node.shift & pageTreeMask
+		next := node.slots[slot]
+		if next == nil {
+			var mode int8 = pageModeInternal
+			if shift == 0 {
+				mode = pageModeData | pageModeDirty
+			}
+			next = newPage(shift, mode)
+			node.slots[slot] = next
+		}
+		node = next
+		shift -= pageTreeShift
+	}
+	node.data = data
+	node.length = int64(len(data))
+	node.mode |= pageModeDirty
+	root.totalCount += 1
+	root.dirtyCount += 1
+	return node
+}
+
+func findPage(root *pageRoot, pageIdx int64) *pageNode {
+	if root.rootNode == nil {
+		return nil
+	}
+
+	if (pageTreeSize<<root.rootNode.shift)-1 < pageIdx {
+		return nil
+	}
+
+	var (
+		node  = root.rootNode
+		shift = node.shift
+		slot  int64
+	)
+
+	for shift > 0 {
+		slot = pageIdx >> node.shift & pageTreeMask
+		next := node.slots[slot]
+		if next == nil {
+			return nil
+		}
+		node = next
+		shift -= pageTreeShift
+	}
+
+	if node.mode&pageModeData > 0 {
+		return node
+	}
+
 	return nil
 }
 
-func findPage(root *pageNode, pageIdx int64) *pageNode {
+func extendPageTree(root *pageRoot, index int64) {
+	var (
+		node  = root.rootNode
+		shift = node.shift
+	)
+
+	// how max shift to extend
+	maxShift := shift
+	for index > (pageTreeSize<<maxShift)-1 {
+		maxShift += pageTreeShift
+	}
+	for shift <= maxShift {
+		shift += pageTreeShift
+		parent := newPage(shift, pageModeInternal)
+		node.parent = parent
+		parent.slots[0] = node
+
+		node = parent
+	}
+	root.rootNode = node
+}
+
+func commitDirtyPage(root *pageRoot) error {
 	return nil
 }
 
-func commitDirtyPage(root *pageNode) error {
-	return nil
+// TODO: need a page pool
+func newPage(shift int, mode int8) *pageNode {
+	return &pageNode{
+		shift: shift,
+		mode:  mode,
+	}
 }
 
 var local *localCache
@@ -90,18 +188,23 @@ type localCache struct {
 	buf       *buf
 	mapping   map[string]cacheInfo
 	storage   storage.Storage
+	direct    bool // TODO: Delete this
 	mux       sync.RWMutex
 	logger    *zap.SugaredLogger
 }
 
-func (l *localCache) writeAt(key string, chunkIdx int64, off int64, data []byte) (err error) {
+func (l *localCache) writeAt(ctx context.Context, key string, chunkIdx int64, off int64, data []byte) (err error) {
+	if l.direct {
+		return l.writeThroughAt(ctx, key, chunkIdx, off, data)
+	}
+
 	l.mux.Lock()
 	defer l.mux.Unlock()
 	cacheKey := l.cachePath(key, chunkIdx)
 	cInfo, ok := l.mapping[cacheKey]
 	if !ok {
 		cInfo = cacheInfo{key: key, idx: chunkIdx, updateAt: time.Now().UnixNano()}
-		if err = l.fetchChunkWithLock(cInfo); err != nil {
+		if err = l.fetchChunkWithLock(ctx, cInfo); err != nil {
 			return err
 		}
 		l.mapping[cacheKey] = cInfo
@@ -126,15 +229,18 @@ func (l *localCache) writeAt(key string, chunkIdx int64, off int64, data []byte)
 	return nil
 }
 
-func (l *localCache) readAt(key string, chunkIdx, off int64, data []byte) (err error) {
+func (l *localCache) readAt(ctx context.Context, key string, chunkIdx, off int64, data []byte) (n int, err error) {
+	if l.direct {
+		return l.readThroughAt(ctx, key, chunkIdx, off, data)
+	}
 	l.mux.RLock()
 	defer l.mux.RUnlock()
 	cacheKey := l.cachePath(key, chunkIdx)
 	cInfo, ok := l.mapping[cacheKey]
 	if !ok {
 		cInfo = cacheInfo{key: key, idx: chunkIdx, updateAt: time.Now().UnixNano()}
-		if err = l.fetchChunkWithLock(cInfo); err != nil {
-			return err
+		if err = l.fetchChunkWithLock(ctx, cInfo); err != nil {
+			return
 		}
 		l.mapping[cacheKey] = cInfo
 	}
@@ -143,26 +249,25 @@ func (l *localCache) readAt(key string, chunkIdx, off int64, data []byte) (err e
 	f, err := os.OpenFile(cacheFilePath, os.O_RDONLY, 0655)
 	if err != nil {
 		l.logger.Errorw("open cache file to read error", "key", cInfo.key, "file", cacheFilePath, "err", err.Error())
-		return err
+		return
 	}
 	defer f.Close()
 
-	var n int
 	n, err = f.ReadAt(data, off)
 	if err != nil {
 		if err != io.EOF {
 			l.logger.Errorw("read cached file error", "key", cInfo.key, "file", cacheFilePath, "err", err.Error())
-			return err
+			return
 		}
 	}
 
 	l.logger.Debugw("read cached file", "key", cInfo.key, "file", cacheFilePath, "count", n)
-	return nil
+	return
 }
 
-func (l *localCache) fetchChunkWithLock(cInfo cacheInfo) error {
+func (l *localCache) fetchChunkWithLock(ctx context.Context, cInfo cacheInfo) error {
 	cacheFilePath := l.cachePath(cInfo.key, cInfo.idx)
-	rc, err := l.storage.Get(context.Background(), cInfo.key, cInfo.idx)
+	rc, err := l.storage.Get(ctx, cInfo.key, cInfo.idx, 0)
 	if err != nil {
 		l.logger.Errorw("fetch chunk error", "key", cInfo.key, "chunkIndex", cInfo.idx, "err", err.Error())
 		return err
@@ -185,7 +290,7 @@ func (l *localCache) fetchChunkWithLock(cInfo cacheInfo) error {
 	return nil
 }
 
-func (l *localCache) uploadChunkWithLock(cInfo cacheInfo) (err error) {
+func (l *localCache) uploadChunkWithLock(ctx context.Context, cInfo cacheInfo) (err error) {
 	cacheFilePath := l.cachePath(cInfo.key, cInfo.idx)
 
 	var f *os.File
@@ -196,11 +301,46 @@ func (l *localCache) uploadChunkWithLock(cInfo cacheInfo) (err error) {
 	}
 	defer f.Close()
 
-	if err = l.storage.Put(context.Background(), cInfo.key, f, cInfo.idx); err != nil {
+	if err = l.storage.Put(ctx, cInfo.key, cInfo.idx, 0, f); err != nil {
 		l.logger.Errorw("upload chunk file error", "key", cInfo.key, "file", cacheFilePath, "err", err.Error())
 		return err
 	}
 	return nil
+}
+
+func (l *localCache) writeThroughAt(ctx context.Context, key string, chunkIdx int64, off int64, data []byte) error {
+	chunkDataReader, err := l.storage.Get(ctx, key, chunkIdx, 0)
+	if err != nil {
+		l.logger.Errorw("write through error", "key", key, "index", chunkIdx, "err", err.Error())
+		return err
+	}
+
+	chunkData := make([]byte, fileChunkSize)
+	_, err = chunkDataReader.Read(chunkData)
+	if err != nil {
+		return err
+	}
+
+	copy(chunkData[off:], data)
+	err = l.storage.Put(ctx, key, chunkIdx, 0, bytes.NewBuffer(chunkData))
+	return err
+}
+
+func (l *localCache) readThroughAt(ctx context.Context, key string, chunkIdx int64, off int64, data []byte) (int, error) {
+	chunkDataReader, err := l.storage.Get(ctx, key, chunkIdx, 0)
+	if err != nil {
+		l.logger.Errorw("write through error", "key", key, "index", chunkIdx, "err", err.Error())
+		return 0, err
+	}
+
+	chunkData := make([]byte, fileChunkSize)
+	size, err := chunkDataReader.Read(chunkData)
+	if err != nil {
+		return 0, err
+	}
+
+	n := copy(data, chunkData[off:size])
+	return n, err
 }
 
 func (l *localCache) cacheKey(key string, off int64) string {
@@ -211,13 +351,19 @@ func (l *localCache) cachePath(key string, off int64) string {
 	return path.Join(l.path, fmt.Sprintf("%s/%d", key, off))
 }
 
-func InitLocalCache(cfg config.Config, storage storage.Storage) {
+func InitLocalCache(cfg config.Config, sto storage.Storage) {
 	local = &localCache{
 		path:      cfg.CacheDir,
 		sizeLimit: cfg.CacheSize,
 		buf:       newBuf(),
-		storage:   storage,
+		storage:   sto,
 		logger:    logger.NewLogger("LocalCache"),
+	}
+
+	// TODO: optimize for local storage
+	switch sto.ID() {
+	case storage.MemoryStorage, storage.LocalStorage:
+		local.direct = true
 	}
 }
 

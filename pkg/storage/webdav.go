@@ -14,17 +14,17 @@ func (w webdav) ID() string {
 	panic("implement me")
 }
 
-func (w webdav) Get(ctx context.Context, key string, idx int64) (io.ReadCloser, error) {
+func (w webdav) Get(ctx context.Context, key string, idx, offset int64) (io.ReadCloser, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (w webdav) Put(ctx context.Context, key string, in io.Reader, idx int64) error {
+func (w webdav) Put(ctx context.Context, key string, idx, offset int64, in io.Reader) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (w webdav) Delete(ctx context.Context, key string, idx int64) error {
+func (w webdav) Delete(ctx context.Context, key string) error {
 	//TODO implement me
 	panic("implement me")
 }

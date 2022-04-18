@@ -7,12 +7,13 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"io"
+	"strings"
 	"sync"
 )
 
 const (
-	metaStoreMemory = "memory"
-	memoryStorageID = "memory"
+	MemoryMeta    = "memory"
+	MemoryStorage = "memory"
 )
 
 type memoryMetaStore struct {
@@ -95,10 +96,10 @@ type memoryStorage struct {
 }
 
 func (m *memoryStorage) ID() string {
-	return memoryStorageID
+	return MemoryStorage
 }
 
-func (m *memoryStorage) Get(ctx context.Context, key string, idx int64) (io.ReadCloser, error) {
+func (m *memoryStorage) Get(ctx context.Context, key string, idx, offset int64) (io.ReadCloser, error) {
 	ck, err := m.getChunk(ctx, m.chunkKey(key, idx))
 	if err != nil {
 		return nil, err
@@ -106,7 +107,7 @@ func (m *memoryStorage) Get(ctx context.Context, key string, idx int64) (io.Read
 	return utils.NewDateReader(bytes.NewReader(ck.data)), nil
 }
 
-func (m *memoryStorage) Put(ctx context.Context, key string, in io.Reader, idx int64) error {
+func (m *memoryStorage) Put(ctx context.Context, key string, idx, offset int64, in io.Reader) error {
 	ck, err := m.getChunk(ctx, m.chunkKey(key, idx))
 	if err != nil {
 		ck = &chunk{}
@@ -128,16 +129,14 @@ func (m *memoryStorage) Put(ctx context.Context, key string, in io.Reader, idx i
 	return m.saveChunk(ctx, key, *ck)
 }
 
-func (m *memoryStorage) Delete(ctx context.Context, key string, idx int64) error {
+func (m *memoryStorage) Delete(ctx context.Context, key string) error {
 	m.mux.Lock()
 	defer m.mux.Unlock()
-
-	key = m.chunkKey(key, idx)
-	_, ok := m.storage[key]
-	if !ok {
-		return types.ErrNotFound
+	for k := range m.storage {
+		if strings.HasPrefix(k, key) {
+			delete(m.storage, key)
+		}
 	}
-	delete(m.storage, key)
 	return nil
 }
 

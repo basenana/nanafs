@@ -16,24 +16,18 @@ var _ = Describe("TestFileIO", func() {
 	)
 	BeforeEach(func() {
 		s = NewMockStorage()
-		_ = s.Put(context.Background(), key, bytes.NewReader([]byte("testdata-1")), 0, 0)
-		_ = s.Put(context.Background(), key, bytes.NewReader([]byte("          ")), 1, 0)
-		_ = s.Put(context.Background(), key, bytes.NewReader([]byte("testdata-2")), 2, 0)
-		_ = s.Put(context.Background(), key, bytes.NewReader([]byte("     ")), 3, 0)
+		_ = s.Put(context.Background(), key, 0, 0, bytes.NewReader([]byte("testdata-1")))
+		_ = s.Put(context.Background(), key, 1, 0, bytes.NewReader([]byte("          ")))
+		_ = s.Put(context.Background(), key, 2, 0, bytes.NewReader([]byte("testdata-2")))
+		_ = s.Put(context.Background(), key, 3, 0, bytes.NewReader([]byte("     ")))
 	})
 
 	Describe("test file open", func() {
 		Context("open a file", func() {
 			It("should be ok", func() {
-				f, err := Open(context.Background(), newMockObject(key), Attr{Read: true, Storage: s})
+				f, err := Open(context.Background(), newMockObject(key), Attr{Read: true})
 				Expect(err).Should(BeNil())
 				Expect(f.Close(context.Background())).Should(BeNil())
-			})
-		})
-		Context("open not found file", func() {
-			It("should be ok", func() {
-				_, err := Open(context.Background(), newMockObject("not-found-file"), Attr{Read: true, Storage: s})
-				Expect(err).ShouldNot(BeNil())
 			})
 		})
 	})
@@ -44,7 +38,7 @@ var _ = Describe("TestFileIO", func() {
 			err error
 		)
 		BeforeEach(func() {
-			f, err = Open(context.Background(), newMockObject(key), Attr{Read: true, Storage: s})
+			f, err = Open(context.Background(), newMockObject(key), Attr{Read: true})
 			Expect(err).Should(BeNil())
 		})
 		Context("read file succeed", func() {
@@ -58,7 +52,7 @@ var _ = Describe("TestFileIO", func() {
 		Context("read file failed", func() {
 			It("should be no perm", func() {
 				buf := make([]byte, 1024)
-				f, err = Open(context.Background(), newMockObject(key), Attr{Write: true, Storage: s})
+				f, err = Open(context.Background(), newMockObject(key), Attr{Write: true})
 				Expect(err).Should(BeNil())
 				_, err = f.Read(context.Background(), buf, 0)
 				Expect(err).ShouldNot(BeNil())
@@ -73,7 +67,7 @@ var _ = Describe("TestFileIO", func() {
 			err  error
 		)
 		BeforeEach(func() {
-			f, err = Open(context.Background(), newMockObject(key), Attr{Write: true, Storage: s})
+			f, err = Open(context.Background(), newMockObject(key), Attr{Write: true})
 			Expect(err).Should(BeNil())
 		})
 		AfterEach(func() {
@@ -86,7 +80,7 @@ var _ = Describe("TestFileIO", func() {
 				Expect(f.Close(context.Background())).Should(BeNil())
 
 				Context("read file content", func() {
-					f, err = Open(context.Background(), newMockObject(key), Attr{Read: true, Storage: s})
+					f, err = Open(context.Background(), newMockObject(key), Attr{Read: true})
 					Expect(err).Should(BeNil())
 
 					buf := make([]byte, 1024)
@@ -98,7 +92,7 @@ var _ = Describe("TestFileIO", func() {
 		})
 		Context("write a file without perm", func() {
 			It("should be no perm", func() {
-				f, err = Open(context.Background(), newMockObject(key), Attr{Read: true, Storage: s})
+				f, err = Open(context.Background(), newMockObject(key), Attr{Read: true})
 				Expect(err).Should(BeNil())
 				_, err = f.Write(context.Background(), data, 0)
 				Expect(err).ShouldNot(BeNil())
@@ -115,14 +109,14 @@ var _ = Describe("TestFileIO", func() {
 
 		Context("create and write a new file", func() {
 			It("should be ok", func() {
-				f, err = Open(context.Background(), newMockObject("test-create-new-file"), Attr{Write: true, Create: true, Storage: s})
+				f, err = Open(context.Background(), newMockObject("test-create-new-file"), Attr{Write: true, Create: true})
 				Expect(err).Should(BeNil())
 				_, err = f.Write(context.Background(), data, 0)
 				Expect(err).Should(BeNil())
 				Expect(f.Close(context.Background())).Should(BeNil())
 
 				Context("read new file", func() {
-					f, err = Open(context.Background(), newMockObject("test-create-new-file"), Attr{Read: true, Storage: s})
+					f, err = Open(context.Background(), newMockObject("test-create-new-file"), Attr{Read: true})
 					Expect(err).Should(BeNil())
 					buf := make([]byte, 1024)
 					n, err := f.Read(context.Background(), buf, 0)
@@ -133,7 +127,7 @@ var _ = Describe("TestFileIO", func() {
 		})
 		Context("write a new file without perm", func() {
 			It("should be no perm", func() {
-				f, err = Open(context.Background(), newMockObject("test-create-new-file"), Attr{Write: true, Storage: s})
+				f, err = Open(context.Background(), newMockObject("test-create-new-file"), Attr{Write: true})
 				Expect(err).ShouldNot(BeNil())
 			})
 		})

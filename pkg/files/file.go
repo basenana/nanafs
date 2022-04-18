@@ -9,7 +9,7 @@ import (
 type File struct {
 	*types.Object
 
-	pageCache *pageNode
+	pageCache *pageRoot
 
 	attr Attr
 	mux  sync.Mutex
@@ -31,11 +31,19 @@ func (f *File) Write(ctx context.Context, data []byte, offset int64) (n int64, e
 			pageEnd = int64(len(data))
 		}
 
-		_ = insertPage(f.pageCache, idx, pos, data[pageStart:pageEnd])
+		page := findPage(f.pageCache, idx)
+		if page == nil {
+			page, err = f.readUncachedData(ctx, pageStart)
+			if err != nil {
+				return
+			}
+		}
+
+		copy(page.data[pos:], data[pageStart+pos:pageEnd])
+		page.mode |= pageModeDirty
+		f.pageCache.dirtyCount += 1
 		n += int64(len(data[pageStart:pageEnd]))
-
 		pageStart = pageEnd
-
 		if n == int64(len(data)) {
 			break
 		}
@@ -64,8 +72,14 @@ func (f *File) Read(ctx context.Context, data []byte, offset int64) (n int, err 
 			pageEnd = int64(len(data))
 		}
 		page = findPage(f.pageCache, idx)
+		if page == nil {
+			page, err = f.readUncachedData(ctx, idx*pageSize)
+			if err != nil {
+				return
+			}
+		}
 
-		n += copy(data[n:], page.date[pos:])
+		n += copy(data[n:], page.data[pos:])
 		if n == len(data) {
 			break
 		}
@@ -94,6 +108,21 @@ func (f *File) Close(ctx context.Context) (err error) {
 	return
 }
 
+func (f *File) readUncachedData(ctx context.Context, off int64) (page *pageNode, err error) {
+	var (
+		data = make([]byte, pageSize)
+		n    int
+	)
+	chunkID, chunkPos := computeChunkIndex(off, fileChunkSize)
+	n, err = local.readAt(ctx, f.ID, chunkID, chunkPos, data)
+	if err != nil {
+		return
+	}
+
+	page = insertPage(f.pageCache, off, data[:n])
+	return
+}
+
 type Attr struct {
 	Read   bool
 	Write  bool
@@ -102,8 +131,9 @@ type Attr struct {
 
 func Open(ctx context.Context, obj *types.Object, attr Attr) (*File, error) {
 	file := &File{
-		Object: obj,
-		attr:   attr,
+		Object:    obj,
+		pageCache: &pageRoot{},
+		attr:      attr,
 	}
 	return file, nil
 }

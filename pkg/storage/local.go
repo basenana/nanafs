@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	localStorageID   = "local"
+	LocalStorage     = "local"
 	defaultLocalMode = 0755
 )
 
@@ -22,10 +22,10 @@ type local struct {
 var _ Storage = &local{}
 
 func (l *local) ID() string {
-	return localStorageID
+	return LocalStorage
 }
 
-func (l *local) Get(ctx context.Context, key string, idx int64) (io.ReadCloser, error) {
+func (l *local) Get(ctx context.Context, key string, idx, offset int64) (io.ReadCloser, error) {
 	file, err := l.openLocalFile(l.key2LocalPath(key, idx), os.O_RDONLY)
 	if err != nil {
 		return nil, err
@@ -33,7 +33,7 @@ func (l *local) Get(ctx context.Context, key string, idx int64) (io.ReadCloser, 
 	return file, nil
 }
 
-func (l *local) Put(ctx context.Context, key string, in io.Reader, idx int64) error {
+func (l *local) Put(ctx context.Context, key string, idx, offset int64, in io.Reader) error {
 	file, err := l.openLocalFile(l.key2LocalPath(key, idx), os.O_CREATE|os.O_WRONLY)
 	if err != nil {
 		return err
@@ -45,13 +45,14 @@ func (l *local) Put(ctx context.Context, key string, in io.Reader, idx int64) er
 	return err
 }
 
-func (l *local) Delete(ctx context.Context, key string, idx int64) error {
-	_, err := os.Stat(l.key2LocalPath(key, idx))
+func (l *local) Delete(ctx context.Context, key string) error {
+	p := path.Join(l.dir, key)
+	_, err := os.Stat(p)
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
 
-	return os.Remove(l.key2LocalPath(key, idx))
+	return os.Remove(p)
 }
 
 func (l *local) Head(ctx context.Context, key string, idx int64) (Info, error) {

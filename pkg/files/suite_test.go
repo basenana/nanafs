@@ -13,6 +13,7 @@ import (
 
 func NewMockStorage() storage.Storage {
 	s, _ := storage.NewStorage("memory", config.Storage{})
+	InitLocalCache(config.Config{}, s)
 	return s
 }
 
