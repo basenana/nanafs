@@ -108,6 +108,7 @@ func (m *memoryStorage) Get(ctx context.Context, key string, idx, offset int64) 
 }
 
 func (m *memoryStorage) Put(ctx context.Context, key string, idx, offset int64, in io.Reader) error {
+	cKey := m.chunkKey(key, idx)
 	ck, err := m.getChunk(ctx, m.chunkKey(key, idx))
 	if err != nil {
 		ck = &chunk{}
@@ -126,7 +127,7 @@ func (m *memoryStorage) Put(ctx context.Context, key string, idx, offset int64, 
 		ck.data = append(ck.data, buf[:n]...)
 	}
 
-	return m.saveChunk(ctx, key, *ck)
+	return m.saveChunk(ctx, cKey, *ck)
 }
 
 func (m *memoryStorage) Delete(ctx context.Context, key string) error {

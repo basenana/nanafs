@@ -18,13 +18,11 @@ import (
 )
 
 const (
-	defaultChunkSize = 1 << 22 // 4MB
-	pageSize         = 1 << 12 // 4k
-	pageCacheLimit   = 1 << 24 // 16MB
-	bufQueueLen      = 256
+	fileChunkSize  = 1 << 22 // 4MB
+	pageSize       = 1 << 12 // 4k
+	pageCacheLimit = 1 << 24 // 16MB
+	bufQueueLen    = 256
 )
-
-var fileChunkSize int64 = defaultChunkSize
 
 func computeChunkIndex(off, chunkSize int64) (idx int64, pos int64) {
 	idx = off / chunkSize
@@ -53,7 +51,7 @@ const (
 	pageModeData     = 1 << 2
 	pageTreeShift    = 6
 	pageTreeSize     = 1 << pageTreeShift
-	pageTreeMask     = pageTreeShift - 1
+	pageTreeMask     = pageTreeSize - 1
 )
 
 type pageRoot struct {
@@ -74,7 +72,7 @@ type pageNode struct {
 
 func insertPage(root *pageRoot, pageIdx int64, data []byte) *pageNode {
 	if root.rootNode == nil {
-		root.rootNode = newPage(0, pageModeData)
+		root.rootNode = newPage(0, pageModeInternal)
 	}
 
 	if (pageTreeSize<<root.rootNode.shift)-1 < pageIdx {
@@ -86,26 +84,28 @@ func insertPage(root *pageRoot, pageIdx int64, data []byte) *pageNode {
 		shift = root.rootNode.shift
 		slot  int64
 	)
-	for shift >= 0 {
+	for shift > 0 {
 		slot = pageIdx >> node.shift & pageTreeMask
 		next := node.slots[slot]
 		if next == nil {
-			var mode int8 = pageModeInternal
-			if shift == 0 {
-				mode = pageModeData | pageModeDirty
-			}
-			next = newPage(shift, mode)
+			next = newPage(shift-pageTreeShift, pageModeInternal)
 			node.slots[slot] = next
 		}
 		node = next
 		shift -= pageTreeShift
 	}
-	node.data = data
-	node.length = int64(len(data))
-	node.mode |= pageModeDirty
+
+	dataNode := newPage(0, pageModeData)
+	dataNode.data = data
+	dataNode.length = int64(len(data))
+	dataNode.mode |= pageModeDirty
+
+	slot = pageIdx & pageTreeMask
+	node.slots[slot] = dataNode
+
 	root.totalCount += 1
 	root.dirtyCount += 1
-	return node
+	return dataNode
 }
 
 func findPage(root *pageRoot, pageIdx int64) *pageNode {
@@ -123,7 +123,7 @@ func findPage(root *pageRoot, pageIdx int64) *pageNode {
 		slot  int64
 	)
 
-	for shift > 0 {
+	for shift >= 0 {
 		slot = pageIdx >> node.shift & pageTreeMask
 		next := node.slots[slot]
 		if next == nil {
@@ -154,9 +154,10 @@ func extendPageTree(root *pageRoot, index int64) {
 	for shift <= maxShift {
 		shift += pageTreeShift
 		parent := newPage(shift, pageModeInternal)
-		node.parent = parent
+		parent.shift = shift
 		parent.slots[0] = node
 
+		node.parent = parent
 		node = parent
 	}
 	root.rootNode = node
@@ -168,10 +169,17 @@ func commitDirtyPage(root *pageRoot) error {
 
 // TODO: need a page pool
 func newPage(shift int, mode int8) *pageNode {
-	return &pageNode{
+	p := &pageNode{
 		shift: shift,
 		mode:  mode,
 	}
+	switch {
+	case p.mode&pageModeData > 0:
+		p.data = make([]byte, pageSize)
+	case p.mode&pageModeInternal > 0:
+		p.slots = make([]*pageNode, pageTreeSize)
+	}
+	return p
 }
 
 var local *localCache

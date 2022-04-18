@@ -23,15 +23,19 @@ func (f *File) Write(ctx context.Context, data []byte, offset int64) (n int64, e
 	f.mux.Lock()
 	defer f.mux.Unlock()
 
-	pageStart := offset
+	var (
+		pageStart = offset
+		bufSize   = int64(len(data))
+	)
+
 	for {
-		idx, pos := computePageIndex(pageStart)
-		pageEnd := pageSize * (idx + 1)
-		if pageEnd > int64(len(data)) {
-			pageEnd = int64(len(data))
+		pageIndex, pos := computePageIndex(pageStart)
+		pageEnd := pageStart + pageSize
+		if pageEnd-pageStart > bufSize-n {
+			pageEnd = pageStart + bufSize - n
 		}
 
-		page := findPage(f.pageCache, idx)
+		page := findPage(f.pageCache, pageIndex)
 		if page == nil {
 			page, err = f.readUncachedData(ctx, pageStart)
 			if err != nil {
@@ -43,10 +47,10 @@ func (f *File) Write(ctx context.Context, data []byte, offset int64) (n int64, e
 		page.mode |= pageModeDirty
 		f.pageCache.dirtyCount += 1
 		n += int64(len(data[pageStart:pageEnd]))
-		pageStart = pageEnd
 		if n == int64(len(data)) {
 			break
 		}
+		pageStart = pageEnd
 	}
 
 	if offset+n > f.Object.Size {
@@ -62,28 +66,28 @@ func (f *File) Read(ctx context.Context, data []byte, offset int64) (n int, err 
 
 	var (
 		pageStart = offset
+		bufSize   = len(data)
 		page      *pageNode
 	)
 	f.mux.Lock()
 	for {
-		idx, pos := computePageIndex(pageStart)
-		pageEnd := pageSize * (idx + 1)
-		if pageEnd > int64(len(data)) {
-			pageEnd = int64(len(data))
+		pageIndex, pos := computePageIndex(pageStart)
+		pageEnd := pageStart + pageSize
+		if pageEnd-pageStart > int64(bufSize-n) {
+			pageEnd = pageStart + int64(bufSize-n)
 		}
-		page = findPage(f.pageCache, idx)
+		page = findPage(f.pageCache, pageIndex)
 		if page == nil {
-			page, err = f.readUncachedData(ctx, idx*pageSize)
+			page, err = f.readUncachedData(ctx, pageStart)
 			if err != nil {
 				return
 			}
 		}
 
-		n += copy(data[n:], page.data[pos:])
+		n += copy(data[n:], page.data[pos:pageEnd-pageStart])
 		if n == len(data) {
 			break
 		}
-
 		pageStart = pageEnd
 	}
 	f.mux.Unlock()
@@ -119,7 +123,7 @@ func (f *File) readUncachedData(ctx context.Context, off int64) (page *pageNode,
 		return
 	}
 
-	page = insertPage(f.pageCache, off, data[:n])
+	page = insertPage(f.pageCache, off/pageSize, data[:n])
 	return
 }
 
