@@ -64,7 +64,7 @@ type pageNode struct {
 	index  int64
 	slots  []*pageNode
 	parent *pageNode
-	length int64
+	length int
 	data   []byte
 	mode   int8
 	shift  int
@@ -96,8 +96,7 @@ func insertPage(root *pageRoot, pageIdx int64, data []byte) *pageNode {
 	}
 
 	dataNode := newPage(0, pageModeData)
-	dataNode.data = data
-	dataNode.length = int64(len(data))
+	dataNode.length = copy(dataNode.data, data)
 	dataNode.mode |= pageModeDirty
 
 	slot = pageIdx & pageTreeMask
@@ -342,7 +341,7 @@ func (l *localCache) writeThroughAt(ctx context.Context, key string, chunkIdx in
 func (l *localCache) readThroughAt(ctx context.Context, key string, chunkIdx int64, off int64, data []byte) (int, error) {
 	chunkDataReader, err := l.storage.Get(ctx, key, chunkIdx, 0)
 	if err != nil {
-		l.logger.Errorw("write through error", "key", key, "index", chunkIdx, "err", err.Error())
+		l.logger.Errorw("read through error", "key", key, "index", chunkIdx, "err", err.Error())
 		return 0, err
 	}
 

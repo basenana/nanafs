@@ -120,7 +120,7 @@ func (m *memoryStorage) Put(ctx context.Context, key string, idx, offset int64, 
 
 	for {
 		n, err = in.Read(ck.data[offset:])
-		if err == io.EOF {
+		if err == io.EOF || n == 0 {
 			break
 		}
 		offset += int64(n)

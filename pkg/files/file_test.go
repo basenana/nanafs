@@ -6,7 +6,6 @@ import (
 	"github.com/basenana/nanafs/pkg/storage"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"io"
 	"time"
 )
 
@@ -124,14 +123,14 @@ var _ = Describe("TestFileIO", func() {
 				_, err = f.Write(context.Background(), data, 0)
 				Expect(err).Should(BeNil())
 				Expect(f.Close(context.Background())).Should(BeNil())
-
+				time.Sleep(time.Second)
 				Context("read new file", func() {
 					f, err = Open(context.Background(), newMockObject("test-create-new-file"), Attr{Read: true})
 					Expect(err).Should(BeNil())
-					buf := make([]byte, 1024)
+					buf := make([]byte, 10)
 					n, err := f.Read(context.Background(), buf, 0)
-					Expect(err).Should(Equal(io.EOF))
-					Expect(buf[:n]).Should(Equal(data))
+					Expect(err).Should(BeNil())
+					Expect(buf[:n]).Should(Equal(data[:10]))
 				})
 			})
 		})

@@ -121,12 +121,12 @@ func (f *File) readUncachedData(ctx context.Context, off int64) (page *pageNode,
 	)
 	chunkID, chunkPos := computeChunkIndex(off, fileChunkSize)
 	n, err = local.readAt(ctx, f.ID, chunkID, chunkPos, data)
-	if err != nil {
+	if err != nil && err != types.ErrNotFound {
 		return
 	}
 
 	page = insertPage(f.pageCache, off/pageSize, data[:n])
-	return
+	return page, nil
 }
 
 type Attr struct {
