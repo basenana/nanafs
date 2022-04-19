@@ -44,8 +44,11 @@ func (f *File) Write(ctx context.Context, data []byte, offset int64) (n int64, e
 		}
 
 		copy(page.data[pos:], data[pageStart+pos:pageEnd])
-		page.mode |= pageModeDirty
-		f.pageCache.dirtyCount += 1
+		if page.mode&pageModeDirty == 0 {
+			page.mode |= pageModeDirty
+			f.pageCache.dirtyCount += 1
+		}
+		commitDirtyPage(f.ID, pageStart, page)
 		n += int64(len(data[pageStart:pageEnd]))
 		if n == int64(len(data)) {
 			break
@@ -94,7 +97,7 @@ func (f *File) Read(ctx context.Context, data []byte, offset int64) (n int, err 
 	return
 }
 
-func (f *File) Fsync(ctx context.Context) error {
+func (f *File) Fsync(ctx context.Context) (err error) {
 	if !f.attr.Write {
 		return types.ErrUnsupported
 	}
@@ -104,7 +107,6 @@ func (f *File) Fsync(ctx context.Context) error {
 }
 
 func (f *File) Flush(ctx context.Context) (err error) {
-	err = commitDirtyPage(f.pageCache)
 	return
 }
 

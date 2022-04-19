@@ -41,10 +41,9 @@ func main() {
 		panic(err)
 	}
 
-	files.InitLocalCache(cfg, sto)
-
 	ctrl := controller.New(loader, meta, sto)
 	stop := utils.HandleTerminalSignal()
+	files.InitLocalCache(cfg, sto, stop)
 	run(ctrl, cfg, stop)
 }
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/storage"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"io"
@@ -40,9 +41,7 @@ type cRange struct {
 	key    string
 	index  int64
 	offset int64
-	limit  int64
-	data   []byte
-	errCh  chan error
+	page   *pageNode
 }
 
 const (
@@ -56,6 +55,7 @@ const (
 
 type pageRoot struct {
 	rootNode   *pageNode
+	key        string
 	totalCount int
 	dirtyCount int
 }
@@ -163,8 +163,11 @@ func extendPageTree(root *pageRoot, index int64) {
 	root.rootNode = node
 }
 
-func commitDirtyPage(root *pageRoot) error {
-	return nil
+func commitDirtyPage(key string, offset int64, node *pageNode) {
+	if node.mode&pageModeData == 0 || node.mode&pageModeDirty == 0 {
+		return
+	}
+	_ = local.buf.put(key, offset, node)
 }
 
 // TODO: need a page pool
@@ -318,15 +321,17 @@ func (l *localCache) uploadChunkWithLock(ctx context.Context, cInfo cacheInfo) (
 
 func (l *localCache) writeThroughAt(ctx context.Context, key string, chunkIdx int64, off int64, data []byte) error {
 	chunkDataReader, err := l.storage.Get(ctx, key, chunkIdx, 0)
-	if err != nil {
+	if err != nil && err != types.ErrNotFound {
 		l.logger.Errorw("write through error", "key", key, "index", chunkIdx, "err", err.Error())
 		return err
 	}
 
 	chunkData := make([]byte, fileChunkSize)
-	_, err = chunkDataReader.Read(chunkData)
-	if err != nil {
-		return err
+	if chunkDataReader != nil {
+		_, err = chunkDataReader.Read(chunkData)
+		if err != nil {
+			return err
+		}
 	}
 
 	copy(chunkData[off:], data)
@@ -351,6 +356,27 @@ func (l *localCache) readThroughAt(ctx context.Context, key string, chunkIdx int
 	return n, err
 }
 
+func (l *localCache) sync(stopCh chan struct{}) {
+	t := time.NewTicker(time.Millisecond * 100)
+	for {
+		select {
+		case <-stopCh:
+			t.Stop()
+			return
+		case <-t.C:
+			cr, err := l.buf.pop()
+			if err != nil {
+				continue
+			}
+
+			err = l.writeAt(context.Background(), cr.key, cr.index, cr.offset, cr.page.data)
+			if err != nil {
+				l.logger.Errorw("sync data error", "err", err.Error())
+			}
+		}
+	}
+}
+
 func (l *localCache) cacheKey(key string, off int64) string {
 	return fmt.Sprintf("%s_%d", key, off)
 }
@@ -359,7 +385,7 @@ func (l *localCache) cachePath(key string, off int64) string {
 	return path.Join(l.path, fmt.Sprintf("%s/%d", key, off))
 }
 
-func InitLocalCache(cfg config.Config, sto storage.Storage) {
+func InitLocalCache(cfg config.Config, sto storage.Storage, stopCh chan struct{}) {
 	local = &localCache{
 		path:      cfg.CacheDir,
 		sizeLimit: cfg.CacheSize,
@@ -373,6 +399,7 @@ func InitLocalCache(cfg config.Config, sto storage.Storage) {
 	case storage.MemoryStorage, storage.LocalStorage:
 		local.direct = true
 	}
+	go local.sync(stopCh)
 }
 
 var (
@@ -387,7 +414,7 @@ type buf struct {
 	mask  uint32
 }
 
-func (b *buf) put(key string, index int64, offset int64, limit int64, data []byte) error {
+func (b *buf) put(key string, offset int64, page *pageNode) error {
 	var tail, head, next uint32
 	for {
 		tail = atomic.LoadUint32(&b.tail)
@@ -402,11 +429,10 @@ func (b *buf) put(key string, index int64, offset int64, limit int64, data []byt
 			break
 		}
 	}
+
 	b.queue[next].key = key
-	b.queue[next].index = index
-	b.queue[next].offset = offset
-	b.queue[next].limit = limit
-	b.queue[next].data = data
+	b.queue[next].index, b.queue[next].offset = computeChunkIndex(offset, fileChunkSize)
+	b.queue[next].page = page
 	return nil
 }
 
@@ -419,7 +445,7 @@ func (b *buf) pop() (cRange, error) {
 			return cRange{}, bufIsEmptyErr
 		}
 
-		next = (head - 1) & b.mask
+		next = (head + 1) & b.mask
 		if atomic.CompareAndSwapUint32(&b.head, head, next) {
 			break
 		}

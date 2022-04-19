@@ -111,20 +111,19 @@ func (m *memoryStorage) Put(ctx context.Context, key string, idx, offset int64, 
 	cKey := m.chunkKey(key, idx)
 	ck, err := m.getChunk(ctx, m.chunkKey(key, idx))
 	if err != nil {
-		ck = &chunk{}
+		ck = &chunk{data: make([]byte, 1<<22)}
 	}
 
 	var (
-		buf = make([]byte, 1024)
-		n   int
+		n int
 	)
 
 	for {
-		n, err = in.Read(buf)
+		n, err = in.Read(ck.data[offset:])
 		if err == io.EOF {
 			break
 		}
-		ck.data = append(ck.data, buf[:n]...)
+		offset += int64(n)
 	}
 
 	return m.saveChunk(ctx, cKey, *ck)

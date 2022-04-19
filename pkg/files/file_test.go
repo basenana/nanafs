@@ -7,6 +7,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"io"
+	"time"
 )
 
 var _ = Describe("TestFileIO", func() {
@@ -93,24 +94,18 @@ var _ = Describe("TestFileIO", func() {
 				_, err = f.Write(context.Background(), data, 0)
 				Expect(err).Should(BeNil())
 				Expect(f.Close(context.Background())).Should(BeNil())
+				Expect(f.Fsync(context.TODO())).Should(BeNil())
+				time.Sleep(time.Second)
 
 				Context("read file content", func() {
 					f, err = Open(context.Background(), newMockObject(key), Attr{Read: true})
 					Expect(err).Should(BeNil())
 
-					buf := make([]byte, 1024)
+					buf := make([]byte, 10)
 					n, err := f.Read(context.Background(), buf, 0)
 					Expect(err).Should(BeNil())
-					Expect(buf[:n]).Should(Equal([]byte("testdata-3          testdata-2     ")))
+					Expect(buf[:n]).Should(Equal([]byte("testdata-3")))
 				})
-			})
-		})
-		Context("write a file without perm", func() {
-			It("should be no perm", func() {
-				f, err = Open(context.Background(), newMockObject(key), Attr{Read: true})
-				Expect(err).Should(BeNil())
-				_, err = f.Write(context.Background(), data, 0)
-				Expect(err).ShouldNot(BeNil())
 			})
 		})
 	})
