@@ -29,8 +29,11 @@ type chainFactory struct {
 	s   storage.Storage
 }
 
-func (f chainFactory) build(obj *types.Object) chain {
-	return f.buildPageChain(obj)
+func (f chainFactory) build(obj *types.Object, attr Attr) chain {
+	if attr.Read {
+		return f.buildPageChain(obj)
+	}
+	return f.buildChunkChain(obj)
 }
 
 func (f chainFactory) buildPageChain(obj *types.Object) chain {
@@ -165,15 +168,14 @@ func (p *pageCacheChain) writeAt(ctx context.Context, index int64, off int64, da
 			}
 		}
 
-		copy(page.data[pos:], data[pageStart+pos:pageEnd])
+		n += copy(page.data[pos:], data[n:])
 		if page.mode&pageModeDirty == 0 {
 			page.mode |= pageModeDirty
 			p.root.dirtyCount += 1
 		}
 		p.commitDirtyPage(ctx, index, pageStart, page)
 
-		n += len(data[pageStart:pageEnd])
-		if n == len(data) {
+		if int64(n) == bufSize {
 			break
 		}
 		pageStart = pageEnd

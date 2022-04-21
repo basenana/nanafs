@@ -93,7 +93,7 @@ type Attr struct {
 func Open(ctx context.Context, obj *types.Object, attr Attr) (*File, error) {
 	file := &File{
 		Object:    obj,
-		dataChain: factory.build(obj),
+		dataChain: factory.build(obj, attr),
 		attr:      attr,
 	}
 	return file, nil
