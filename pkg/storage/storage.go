@@ -44,7 +44,6 @@ type MetaStore interface {
 	DestroyObject(ctx context.Context, obj *types.Object) error
 
 	ListChildren(ctx context.Context, obj *types.Object) (Iterator, error)
-	//ListStructuredChildren(ctx context.Context, id string,cType types.Kind, version string) ([]*types.Object, error)
 	ChangeParent(ctx context.Context, old *types.Object, parent *types.Object) error
 
 	SaveContent(ctx context.Context, obj *types.Object, cType types.Kind, version string, content interface{}) error

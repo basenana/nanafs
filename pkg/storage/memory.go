@@ -109,7 +109,7 @@ func (m *memoryMetaStore) LoadContent(ctx context.Context, obj *types.Object, cT
 	raw, ok := m.content[m.contentKey(obj, cType, version)]
 	m.mux.Unlock()
 	if !ok {
-		return nil
+		return types.ErrNotFound
 	}
 	return json.Unmarshal(raw, content)
 }
@@ -129,21 +129,6 @@ func (m *memoryMetaStore) DeleteContent(ctx context.Context, obj *types.Object, 
 
 func (m *memoryMetaStore) contentKey(obj *types.Object, cType types.Kind, version string) string {
 	return fmt.Sprintf("%s_%s_%s", obj.ID, cType, version)
-}
-
-func (m *memoryMetaStore) ListStructured(ctx context.Context, cType types.Kind, version string) ([]*types.Object, error) {
-	children, err := m.ListObjects(ctx, Filter{
-		Kind: cType,
-		Label: LabelMatch{Include: []types.Label{{
-			types.VersionKey,
-			version,
-		}}},
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return children, nil
 }
 
 func newMemoryMetaStore() MetaStore {

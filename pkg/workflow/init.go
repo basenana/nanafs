@@ -8,7 +8,6 @@ import (
 var (
 	FlowCtl     *controller.FlowController
 	FlowStorage storage.Interface
-	FlowManager *Manager
 )
 
 func init() {
@@ -24,5 +23,4 @@ func init() {
 	if err := FlowCtl.Register(&NanaFlow{}); err != nil {
 		panic(err)
 	}
-	FlowManager = NewManager()
 }

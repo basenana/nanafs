@@ -53,14 +53,18 @@ func (s *structured) Close(ctx context.Context) (err error) {
 }
 
 func openStructuredFile(ctx context.Context, obj *types.Object, spec interface{}, attr Attr) (*structured, error) {
+	var raw []byte
 	err := attr.Meta.LoadContent(ctx, obj, obj.Kind, obj.Labels.Get(types.VersionKey).Value, spec)
-	if err != nil {
+	if err != nil && err != types.ErrNotFound {
 		return nil, err
 	}
-	raw, err := json.Marshal(spec)
-	if err != nil {
-		return nil, err
+	if err == nil {
+		raw, err = json.Marshal(spec)
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	obj.Size = int64(len(raw))
 	return &structured{
 		Object:  obj,
