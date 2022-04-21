@@ -32,6 +32,12 @@ const (
 	WebArchiveKind = "web"
 
 	/*
+		workflow kind
+	*/
+	WorkflowKind = "workflow"
+	JobKind      = "job"
+
+	/*
 		time management system object kind
 	*/
 	TodoActionItemKind = "tdaction"

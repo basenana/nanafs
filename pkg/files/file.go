@@ -2,11 +2,21 @@ package files
 
 import (
 	"context"
+	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"sync"
 )
 
-type File struct {
+type File interface {
+	GetObject() *types.Object
+	Write(ctx context.Context, data []byte, offset int64) (n int64, err error)
+	Read(ctx context.Context, data []byte, offset int64) (int, error)
+	Fsync(ctx context.Context) error
+	Flush(ctx context.Context) (err error)
+	Close(ctx context.Context) (err error)
+}
+
+type file struct {
 	*types.Object
 
 	dataChain chain
@@ -15,7 +25,11 @@ type File struct {
 	mux  sync.Mutex
 }
 
-func (f *File) Write(ctx context.Context, data []byte, offset int64) (n int64, err error) {
+func (f *file) GetObject() *types.Object {
+	return f.Object
+}
+
+func (f *file) Write(ctx context.Context, data []byte, offset int64) (n int64, err error) {
 	if !f.attr.Write {
 		return 0, types.ErrUnsupported
 	}
@@ -43,7 +57,7 @@ func (f *File) Write(ctx context.Context, data []byte, offset int64) (n int64, e
 	return
 }
 
-func (f *File) Read(ctx context.Context, data []byte, offset int64) (n int, err error) {
+func (f *file) Read(ctx context.Context, data []byte, offset int64) (n int, err error) {
 	if !f.attr.Read {
 		return 0, types.ErrUnsupported
 	}
@@ -67,7 +81,7 @@ func (f *File) Read(ctx context.Context, data []byte, offset int64) (n int, err 
 	return
 }
 
-func (f *File) Fsync(ctx context.Context) (err error) {
+func (f *file) Fsync(ctx context.Context) (err error) {
 	if !f.attr.Write {
 		return types.ErrUnsupported
 	}
@@ -76,11 +90,11 @@ func (f *File) Fsync(ctx context.Context) (err error) {
 	return nil
 }
 
-func (f *File) Flush(ctx context.Context) (err error) {
+func (f *file) Flush(ctx context.Context) (err error) {
 	return
 }
 
-func (f *File) Close(ctx context.Context) (err error) {
+func (f *file) Close(ctx context.Context) (err error) {
 	return f.dataChain.close(ctx)
 }
 
@@ -88,13 +102,18 @@ type Attr struct {
 	Read   bool
 	Write  bool
 	Create bool
+	Meta   storage.MetaStore
 }
 
-func Open(ctx context.Context, obj *types.Object, attr Attr) (*File, error) {
-	file := &File{
+func openFile(ctx context.Context, obj *types.Object, attr Attr) (*file, error) {
+	file := &file{
 		Object:    obj,
 		dataChain: factory.build(obj, attr),
 		attr:      attr,
 	}
 	return file, nil
+}
+
+func Open(ctx context.Context, obj *types.Object, attr Attr) (File, error) {
+	return openFile(ctx, obj, attr)
 }

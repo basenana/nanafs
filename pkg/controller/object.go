@@ -26,8 +26,10 @@ func (c *controller) LoadRootObject(ctx context.Context) (*types.Object, error) 
 	if err != nil {
 		if err == types.ErrNotFound {
 			root = dentry.InitRootObject()
-			c.logger.Infow("init root object", "root", root.ID)
-			return root, c.SaveObject(ctx, root)
+			if err := c.SaveObject(ctx, root); err != nil {
+				return nil, err
+			}
+			return root, c.setup(ctx)
 		}
 		c.logger.Errorw("load root object error", "err", err.Error())
 		return nil, err
@@ -52,7 +54,10 @@ func (c *controller) FindObject(ctx context.Context, parent *types.Object, name 
 }
 
 func (c *controller) CreateObject(ctx context.Context, parent *types.Object, attr types.ObjectAttr) (*types.Object, error) {
-	c.logger.Infow("create new obj", "parent", parent.ID, "name", attr.Name, "kind", attr.Kind)
+	c.logger.Infow("creating new obj", "name", attr.Name, "kind", attr.Kind)
+	if parent.Labels.Get(types.KindKey) != nil && parent.Labels.Get(types.KindKey).Value != "" {
+		return c.CreateStructuredObject(ctx, parent, attr, types.Kind(parent.Labels.Get(types.KindKey).Value), parent.Labels.Get(types.VersionKey).Value)
+	}
 	obj, err := types.InitNewObject(parent, attr)
 	if err != nil {
 		c.logger.Errorw("create new object error", "parent", parent.ID, "name", attr.Name, "err", err.Error())
@@ -167,13 +172,13 @@ func (c *controller) MirrorObject(ctx context.Context, src, dstParent *types.Obj
 }
 
 func (c *controller) ListObjectChildren(ctx context.Context, obj *types.Object) ([]*types.Object, error) {
-	c.logger.Infow("list children obj", "obj", obj.ID)
-	it, err := c.meta.ListChildren(ctx, obj.ID)
+	c.logger.Infow("list children obj", "name", obj.Name)
+	result := make([]*types.Object, 0)
+	it, err := c.meta.ListChildren(ctx, obj)
 	if err != nil {
 		c.logger.Errorw("load object children error", "obj", obj.ID, "err", err.Error())
 		return nil, err
 	}
-	result := make([]*types.Object, 0)
 	for it.HasNext() {
 		next := it.Next()
 		if next.ID == next.ParentID {

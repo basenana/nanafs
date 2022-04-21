@@ -3,6 +3,7 @@ package storage
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
@@ -18,6 +19,7 @@ const (
 
 type memoryMetaStore struct {
 	objects    map[string]*types.Object
+	content    map[string][]byte
 	inodeCount uint64
 	mux        sync.Mutex
 }
@@ -70,8 +72,16 @@ func (m *memoryMetaStore) DestroyObject(ctx context.Context, obj *types.Object) 
 	return nil
 }
 
-func (m *memoryMetaStore) ListChildren(ctx context.Context, id string) (Iterator, error) {
-	children, err := m.ListObjects(ctx, Filter{ParentID: id})
+func (m *memoryMetaStore) ListChildren(ctx context.Context, obj *types.Object) (Iterator, error) {
+	f := Filter{ParentID: obj.ID}
+	if obj.Labels.Get(types.KindKey) != nil && obj.Labels.Get(types.KindKey).Value != "" {
+		f.Kind = types.Kind(obj.Labels.Get(types.KindKey).Value)
+		f.Label = LabelMatch{Include: []types.Label{{
+			types.VersionKey,
+			obj.Labels.Get(types.VersionKey).Value,
+		}}}
+	}
+	children, err := m.ListObjects(ctx, Filter{ParentID: obj.ID})
 	if err != nil {
 		return nil, err
 	}
@@ -84,9 +94,48 @@ func (m *memoryMetaStore) ChangeParent(ctx context.Context, old *types.Object, p
 	return m.SaveObject(ctx, old)
 }
 
+func (m *memoryMetaStore) SaveContent(ctx context.Context, obj *types.Object, cType types.Kind, version string, content interface{}) error {
+	raw, err := json.Marshal(content)
+	if err != nil {
+		return err
+	}
+	m.mux.Lock()
+	m.content[m.contentKey(obj, cType, version)] = raw
+	m.mux.Unlock()
+	return nil
+}
+
+func (m *memoryMetaStore) LoadContent(ctx context.Context, obj *types.Object, cType types.Kind, version string, content interface{}) error {
+	m.mux.Lock()
+	raw, ok := m.content[m.contentKey(obj, cType, version)]
+	m.mux.Unlock()
+	if !ok {
+		return types.ErrNotFound
+	}
+	return json.Unmarshal(raw, content)
+}
+
+func (m *memoryMetaStore) DeleteContent(ctx context.Context, obj *types.Object, cType types.Kind, version string) error {
+	m.mux.Lock()
+	cKey := m.contentKey(obj, cType, version)
+	_, ok := m.content[cKey]
+	if !ok {
+		m.mux.Unlock()
+		return types.ErrNotFound
+	}
+	delete(m.content, cKey)
+	m.mux.Unlock()
+	return nil
+}
+
+func (m *memoryMetaStore) contentKey(obj *types.Object, cType types.Kind, version string) string {
+	return fmt.Sprintf("%s_%s_%s", obj.ID, cType, version)
+}
+
 func newMemoryMetaStore() MetaStore {
 	return &memoryMetaStore{
 		objects: map[string]*types.Object{},
+		content: map[string][]byte{},
 	}
 }
 
