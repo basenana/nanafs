@@ -9,7 +9,7 @@ import (
 type File struct {
 	*types.Object
 
-	pageCache *pageRoot
+	dataChain chain
 
 	attr Attr
 	mux  sync.Mutex
@@ -20,41 +20,22 @@ func (f *File) Write(ctx context.Context, data []byte, offset int64) (n int64, e
 		return 0, types.ErrUnsupported
 	}
 
+	leftSize := int64(len(data))
 	f.mux.Lock()
-	defer f.mux.Unlock()
-
-	var (
-		pageStart = offset
-		bufSize   = int64(len(data))
-	)
-
 	for {
-		pageIndex, pos := computePageIndex(pageStart)
-		pageEnd := pageStart + pageSize
-		if pageEnd-pageStart > bufSize-n {
-			pageEnd = pageStart + bufSize - n
+		var n1 int
+		index, pos := computeChunkIndex(offset, fileChunkSize)
+		n1, err = f.dataChain.writeAt(ctx, index, pos, data[n:])
+		if err != nil {
+			return
 		}
-
-		page := findPage(f.pageCache, pageIndex)
-		if page == nil {
-			page, err = f.readUncachedData(ctx, pageStart)
-			if err != nil {
-				return
-			}
-		}
-
-		copy(page.data[pos:], data[pageStart+pos:pageEnd])
-		if page.mode&pageModeDirty == 0 {
-			page.mode |= pageModeDirty
-			f.pageCache.dirtyCount += 1
-		}
-		commitDirtyPage(f.ID, pageStart, page)
-		n += int64(len(data[pageStart:pageEnd]))
-		if n == int64(len(data)) {
+		n += int64(n1)
+		if n == leftSize {
 			break
 		}
-		pageStart = pageEnd
+		offset += n
 	}
+	defer f.mux.Unlock()
 
 	if offset+n > f.Object.Size {
 		f.Object.Size = offset + n
@@ -67,31 +48,20 @@ func (f *File) Read(ctx context.Context, data []byte, offset int64) (n int, err 
 		return 0, types.ErrUnsupported
 	}
 
-	var (
-		pageStart = offset
-		bufSize   = len(data)
-		page      *pageNode
-	)
+	leftSize := len(data)
 	f.mux.Lock()
 	for {
-		pageIndex, pos := computePageIndex(pageStart)
-		pageEnd := pageStart + pageSize
-		if pageEnd-pageStart > int64(bufSize-n) {
-			pageEnd = pageStart + int64(bufSize-n)
+		var n1 int
+		index, pos := computeChunkIndex(offset, fileChunkSize)
+		n1, err = f.dataChain.readAt(ctx, index, pos, data[n:])
+		if err != nil {
+			return
 		}
-		page = findPage(f.pageCache, pageIndex)
-		if page == nil {
-			page, err = f.readUncachedData(ctx, pageStart)
-			if err != nil {
-				return
-			}
-		}
-
-		n += copy(data[n:], page.data[pos:pageEnd-pageStart])
-		if n == len(data) {
+		n += n1
+		if n == leftSize {
 			break
 		}
-		pageStart = pageEnd
+		offset += int64(n)
 	}
 	f.mux.Unlock()
 	return
@@ -111,22 +81,7 @@ func (f *File) Flush(ctx context.Context) (err error) {
 }
 
 func (f *File) Close(ctx context.Context) (err error) {
-	return
-}
-
-func (f *File) readUncachedData(ctx context.Context, off int64) (page *pageNode, err error) {
-	var (
-		data = make([]byte, pageSize)
-		n    int
-	)
-	chunkID, chunkPos := computeChunkIndex(off, fileChunkSize)
-	n, err = local.readAt(ctx, f.ID, chunkID, chunkPos, data)
-	if err != nil && err != types.ErrNotFound {
-		return
-	}
-
-	page = insertPage(f.pageCache, off/pageSize, data[:n])
-	return page, nil
+	return f.dataChain.close(ctx)
 }
 
 type Attr struct {
@@ -138,7 +93,7 @@ type Attr struct {
 func Open(ctx context.Context, obj *types.Object, attr Attr) (*File, error) {
 	file := &File{
 		Object:    obj,
-		pageCache: &pageRoot{},
+		dataChain: factory.build(obj),
 		attr:      attr,
 	}
 	return file, nil

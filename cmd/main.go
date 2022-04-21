@@ -43,7 +43,7 @@ func main() {
 
 	ctrl := controller.New(loader, meta, sto)
 	stop := utils.HandleTerminalSignal()
-	files.InitLocalCache(cfg, sto, stop)
+	files.InitFileIoChain(cfg, sto, stop)
 	run(ctrl, cfg, stop)
 }
 
