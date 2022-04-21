@@ -7,7 +7,16 @@ import (
 	"sync"
 )
 
-type File struct {
+type File interface {
+	GetObject() *types.Object
+	Write(ctx context.Context, data []byte, offset int64) (n int64, err error)
+	Read(ctx context.Context, data []byte, offset int64) (int, error)
+	Fsync(ctx context.Context) error
+	Flush(ctx context.Context) (err error)
+	Close(ctx context.Context) (err error)
+}
+
+type file struct {
 	*types.Object
 
 	ref       int
@@ -20,7 +29,11 @@ type File struct {
 	mux    sync.Mutex
 }
 
-func (f *File) Write(ctx context.Context, data []byte, offset int64) (n int64, err error) {
+func (f *file) GetObject() *types.Object {
+	return f.Object
+}
+
+func (f *file) Write(ctx context.Context, data []byte, offset int64) (n int64, err error) {
 	if !f.attr.Write {
 		return 0, types.ErrUnsupported
 	}
@@ -41,7 +54,7 @@ func (f *File) Write(ctx context.Context, data []byte, offset int64) (n int64, e
 	return
 }
 
-func (f *File) Read(ctx context.Context, data []byte, offset int64) (int, error) {
+func (f *file) Read(ctx context.Context, data []byte, offset int64) (int, error) {
 	if !f.attr.Read {
 		return 0, types.ErrUnsupported
 	}
@@ -55,7 +68,7 @@ func (f *File) Read(ctx context.Context, data []byte, offset int64) (int, error)
 	return f.reader.read(ctx, data, offset)
 }
 
-func (f *File) Fsync(ctx context.Context) error {
+func (f *file) Fsync(ctx context.Context) error {
 	if !f.attr.Write {
 		return types.ErrUnsupported
 	}
@@ -66,11 +79,11 @@ func (f *File) Fsync(ctx context.Context) error {
 	defer f.mux.Unlock()
 	return nil
 }
-func (f *File) Flush(ctx context.Context) (err error) {
+func (f *file) Flush(ctx context.Context) (err error) {
 	return
 }
 
-func (f *File) Close(ctx context.Context) (err error) {
+func (f *file) Close(ctx context.Context) (err error) {
 	if f.reader != nil {
 		err = f.reader.close(ctx)
 	}
@@ -89,9 +102,10 @@ type Attr struct {
 	Write   bool
 	Create  bool
 	Storage storage.Storage
+	Meta    storage.MetaStore
 }
 
-func Open(ctx context.Context, obj *types.Object, attr Attr) (*File, error) {
+func openFile(ctx context.Context, obj *types.Object, attr Attr) (*file, error) {
 	f, err := attr.Storage.Head(ctx, obj.ID)
 	if err != nil && err != types.ErrNotFound {
 		return nil, err
@@ -103,10 +117,15 @@ func Open(ctx context.Context, obj *types.Object, attr Attr) (*File, error) {
 
 	obj.Size = f.Size
 
-	file := &File{
+	return &file{
 		Object: obj,
 		ref:    1,
 		attr:   attr,
-	}
-	return file, nil
+
+		chunkSize: defaultChunkSize,
+	}, nil
+}
+
+func Open(ctx context.Context, obj *types.Object, attr Attr) (File, error) {
+	return openFile(ctx, obj, attr)
 }

@@ -10,7 +10,7 @@ import (
 
 type File struct {
 	node *NanaNode
-	file *files.File
+	file files.File
 }
 
 var _ fileOperation = &File{}
@@ -37,5 +37,5 @@ func (f *File) Fsync(ctx context.Context, flags uint32) syscall.Errno {
 }
 
 func (f *File) Release(ctx context.Context) syscall.Errno {
-	return Error2FuseSysError(f.file.Close(ctx))
+	return Error2FuseSysError(f.node.R.CloseFile(ctx, f.file))
 }
