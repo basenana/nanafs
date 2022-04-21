@@ -115,9 +115,6 @@ type pageCacheChain struct {
 var _ chain = &pageCacheChain{}
 
 func (p *pageCacheChain) readAt(ctx context.Context, index, off int64, data []byte) (n int, err error) {
-	p.mux.Lock()
-	p.mux.Unlock()
-
 	var (
 		pageStart = off
 		bufSize   = len(data)
@@ -125,7 +122,7 @@ func (p *pageCacheChain) readAt(ctx context.Context, index, off int64, data []by
 	)
 
 	for {
-		pageIndex, pos := computePageIndex(pageStart)
+		pageIndex, pos := computePageIndex(index, pageStart)
 		pageEnd := pageStart + pageSize
 		if pageEnd-pageStart > int64(bufSize-n) {
 			pageEnd = pageStart + int64(bufSize-n)
@@ -154,7 +151,7 @@ func (p *pageCacheChain) writeAt(ctx context.Context, index int64, off int64, da
 	)
 
 	for {
-		pageIndex, pos := computePageIndex(pageStart)
+		pageIndex, pos := computePageIndex(index, pageStart)
 		pageEnd := pageStart + pageSize
 		if pageEnd-pageStart > bufSize-int64(n) {
 			pageEnd = pageStart + bufSize - int64(n)
@@ -189,14 +186,16 @@ func (p *pageCacheChain) readUncachedData(ctx context.Context, index, offset int
 		data      = make([]byte, pageSize)
 		pageStart = offset
 		n         int
+		preRead   = 0 // TODO: need a pre read control
 	)
-	for pageStart < fileChunkSize {
+	for pageStart < fileChunkSize && preRead >= 0 {
 		n, err = p.data.readAt(ctx, index, pageStart, data)
 		if err != nil && err != types.ErrNotFound {
 			break
 		}
 		page = p.insertPage(pageStart, data[:n])
 		pageStart += pageSize
+		preRead -= 1
 	}
 	return page, nil
 }
@@ -276,6 +275,7 @@ func (p *pageCacheChain) findPage(pageIdx int64) *pageNode {
 		slot = pageIdx >> node.shift & pageTreeMask
 		next := node.slots[slot]
 		if next == nil {
+			p.mux.Unlock()
 			return nil
 		}
 		node = next

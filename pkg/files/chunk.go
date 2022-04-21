@@ -13,7 +13,8 @@ func computeChunkIndex(off, chunkSize int64) (idx int64, pos int64) {
 	return
 }
 
-func computePageIndex(off int64) (idx int64, pos int64) {
+func computePageIndex(chunkIndex, off int64) (idx int64, pos int64) {
+	off += chunkIndex * fileChunkSize
 	idx = off / pageSize
 	pos = off % pageSize
 	return
