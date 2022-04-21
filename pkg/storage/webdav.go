@@ -14,12 +14,12 @@ func (w webdav) ID() string {
 	panic("implement me")
 }
 
-func (w webdav) Get(ctx context.Context, key string, idx, off, limit int64) (io.ReadCloser, error) {
+func (w webdav) Get(ctx context.Context, key string, idx, offset int64) (io.ReadCloser, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (w webdav) Put(ctx context.Context, key string, in io.Reader, idx, off int64) error {
+func (w webdav) Put(ctx context.Context, key string, idx, offset int64, in io.Reader) error {
 	//TODO implement me
 	panic("implement me")
 }
@@ -29,12 +29,7 @@ func (w webdav) Delete(ctx context.Context, key string) error {
 	panic("implement me")
 }
 
-func (w webdav) Head(ctx context.Context, key string) (Info, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (w webdav) Fsync(ctx context.Context, key string) error {
+func (w webdav) Head(ctx context.Context, key string, idx int64) (Info, error) {
 	//TODO implement me
 	panic("implement me")
 }

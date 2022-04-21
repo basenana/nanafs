@@ -22,8 +22,6 @@ type OpenOption struct {
 
 func (c *controller) OpenFile(ctx context.Context, obj *types.Object, attr files.Attr) (files.File, error) {
 	c.logger.Infow("open file", "file", obj.ID, "name", obj.Name, "attr", attr)
-	attr.Storage = c.storage
-	attr.Meta = c.meta
 	if obj.IsGroup() {
 		return nil, types.ErrIsGroup
 	}

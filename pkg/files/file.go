@@ -19,14 +19,10 @@ type File interface {
 type file struct {
 	*types.Object
 
-	ref       int
-	offset    int64
-	chunkSize int64
+	dataChain chain
 
-	reader *reader
-	writer *writer
-	attr   Attr
-	mux    sync.Mutex
+	attr Attr
+	mux  sync.Mutex
 }
 
 func (f *file) GetObject() *types.Object {
@@ -38,92 +34,84 @@ func (f *file) Write(ctx context.Context, data []byte, offset int64) (n int64, e
 		return 0, types.ErrUnsupported
 	}
 
+	leftSize := int64(len(data))
 	f.mux.Lock()
+	for {
+		var n1 int
+		index, pos := computeChunkIndex(offset, fileChunkSize)
+		n1, err = f.dataChain.writeAt(ctx, index, pos, data[n:])
+		if err != nil {
+			return
+		}
+		n += int64(n1)
+		if n == leftSize {
+			break
+		}
+		offset += n
+	}
 	defer f.mux.Unlock()
-	if f.writer == nil {
-		f.writer = initFileWriter(f)
-	}
 
-	n, err = f.writer.write(ctx, data, offset)
-	if err != nil {
-		return
-	}
 	if offset+n > f.Object.Size {
 		f.Object.Size = offset + n
 	}
 	return
 }
 
-func (f *file) Read(ctx context.Context, data []byte, offset int64) (int, error) {
+func (f *file) Read(ctx context.Context, data []byte, offset int64) (n int, err error) {
 	if !f.attr.Read {
 		return 0, types.ErrUnsupported
 	}
 
+	leftSize := len(data)
 	f.mux.Lock()
-	defer f.mux.Unlock()
-	if f.reader == nil {
-		f.reader = initFileReader(f)
+	for {
+		var n1 int
+		index, pos := computeChunkIndex(offset, fileChunkSize)
+		n1, err = f.dataChain.readAt(ctx, index, pos, data[n:])
+		if err != nil {
+			return
+		}
+		n += n1
+		if n == leftSize {
+			break
+		}
+		offset += int64(n)
 	}
-
-	return f.reader.read(ctx, data, offset)
+	f.mux.Unlock()
+	return
 }
 
-func (f *file) Fsync(ctx context.Context) error {
+func (f *file) Fsync(ctx context.Context) (err error) {
 	if !f.attr.Write {
 		return types.ErrUnsupported
-	}
-	if f.writer == nil {
-		return nil
 	}
 	f.mux.Lock()
 	defer f.mux.Unlock()
 	return nil
 }
+
 func (f *file) Flush(ctx context.Context) (err error) {
 	return
 }
 
 func (f *file) Close(ctx context.Context) (err error) {
-	if f.reader != nil {
-		err = f.reader.close(ctx)
-	}
-	if f.writer != nil {
-		if err != nil {
-			_ = f.writer.close(ctx)
-		} else {
-			err = f.writer.close(ctx)
-		}
-	}
-	return
+	return f.dataChain.close(ctx)
 }
 
 type Attr struct {
-	Read    bool
-	Write   bool
-	Create  bool
-	Storage storage.Storage
-	Meta    storage.MetaStore
+	Read   bool
+	Write  bool
+	Create bool
+	Meta   storage.MetaStore
 }
 
 func openFile(ctx context.Context, obj *types.Object, attr Attr) (*file, error) {
-	f, err := attr.Storage.Head(ctx, obj.ID)
-	if err != nil && err != types.ErrNotFound {
-		return nil, err
+	file := &file{
+		Object:    obj,
+		dataChain: factory.build(obj, attr),
+		attr:      attr,
 	}
-
-	if err == types.ErrNotFound && !attr.Create {
-		return nil, err
-	}
-
-	obj.Size = f.Size
-
-	return &file{
-		Object: obj,
-		ref:    1,
-		attr:   attr,
-
-		chunkSize: defaultChunkSize,
-	}, nil
+	return file, nil
 }
 
 func Open(ctx context.Context, obj *types.Object, attr Attr) (File, error) {

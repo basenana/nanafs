@@ -1,9 +1,11 @@
 package config
 
 type Config struct {
-	Meta     Meta      `json:"meta"`
-	Storages []Storage `json:"storages"`
-	Debug    bool      `json:"debug"`
+	Meta      Meta      `json:"meta"`
+	Storages  []Storage `json:"storages"`
+	CacheDir  string    `json:"cache_dir"`
+	CacheSize int64     `json:"cache_size"`
+	Debug     bool      `json:"debug"`
 
 	ApiConfig Api `json:"api"`
 	FsConfig  Fs  `json:"fs"`

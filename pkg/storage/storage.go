@@ -19,18 +19,17 @@ type Info struct {
 
 type Storage interface {
 	ID() string
-	Get(ctx context.Context, key string, idx, off, limit int64) (io.ReadCloser, error)
-	Put(ctx context.Context, key string, in io.Reader, idx, off int64) error
+	Get(ctx context.Context, key string, idx, offset int64) (io.ReadCloser, error)
+	Put(ctx context.Context, key string, idx, offset int64, in io.Reader) error
 	Delete(ctx context.Context, key string) error
-	Fsync(ctx context.Context, key string) error
-	Head(ctx context.Context, key string) (Info, error)
+	Head(ctx context.Context, key string, idx int64) (Info, error)
 }
 
 func NewStorage(storageID string, cfg config.Storage) (Storage, error) {
 	switch storageID {
-	case localStorageID:
+	case LocalStorage:
 		return newLocalStorage(cfg.LocalDir), nil
-	case memoryStorageID:
+	case MemoryStorage:
 		return newMemoryStorage(), nil
 	default:
 		return nil, fmt.Errorf("unknow storage id: %s", storageID)
@@ -53,7 +52,7 @@ type MetaStore interface {
 
 func NewMetaStorage(metaType string, meta config.Meta) (MetaStore, error) {
 	switch metaType {
-	case metaStoreMemory:
+	case MemoryMeta:
 		return newMemoryMetaStore(), nil
 	default:
 		return nil, fmt.Errorf("unknow meta store type: %s", metaType)

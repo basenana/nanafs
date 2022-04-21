@@ -1,13 +1,27 @@
 package files
 
 const (
-	defaultChunkSize = 1 << 22 // 4MB
+	fileChunkSize  = 1 << 22 // 4MB
+	pageSize       = 1 << 12 // 4k
+	pageCacheLimit = 1 << 24 // 16MB
+	bufQueueLen    = 256
 )
-
-var fileChunkSize int64 = defaultChunkSize
 
 func computeChunkIndex(off, chunkSize int64) (idx int64, pos int64) {
 	idx = off / chunkSize
 	pos = off % chunkSize
 	return
+}
+
+func computePageIndex(chunkIndex, off int64) (idx int64, pos int64) {
+	off += chunkIndex * fileChunkSize
+	idx = off / pageSize
+	pos = off % pageSize
+	return
+}
+
+type cRange struct {
+	index  int64
+	offset int64
+	data   []byte
 }
