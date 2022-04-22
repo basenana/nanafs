@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"github.com/basenana/nanafs/cmd/apps/apis"
 	"github.com/basenana/nanafs/cmd/apps/fs"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
@@ -58,6 +59,12 @@ func run(ctrl controller.Controller, cfg config.Config, stopCh chan struct{}) {
 		close(shutdown)
 		log.Info("stopped")
 	}()
+
+	s, err := apis.NewServer(cfg.ApiConfig)
+	if err != nil {
+		log.Panicw("init http server failed", "err", err.Error())
+	}
+	s.Run(stopCh)
 
 	if cfg.FsConfig.Enable {
 		fsServer, err := fs.NewNanaFsRoot(cfg.FsConfig, ctrl)

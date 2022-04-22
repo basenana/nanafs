@@ -45,6 +45,15 @@ func (f chainFactory) buildPageChain(obj *types.Object) chain {
 }
 
 func (f chainFactory) buildChunkChain(obj *types.Object) chain {
+	switch f.s.ID() {
+	case storage.MemoryStorage, storage.LocalStorage:
+		return f.buildDirectChain(obj)
+	default:
+		return f.buildLocalCacheChain(obj)
+	}
+}
+
+func (f chainFactory) buildLocalCacheChain(obj *types.Object) chain {
 	c := &chunkCacheChain{
 		key:      obj.ID,
 		cacheDir: f.cfg.CacheDir,
@@ -54,11 +63,15 @@ func (f chainFactory) buildChunkChain(obj *types.Object) chain {
 		storage:  f.s,
 		logger:   logger.NewLogger("chunkChain").With(zap.String("key", obj.ID)),
 	}
-	switch f.s.ID() {
-	case storage.MemoryStorage, storage.LocalStorage:
-		c.mode |= chunkChainLocalMode
-	}
 	return c
+}
+
+func (f chainFactory) buildDirectChain(obj *types.Object) chain {
+	return &chunkDirectChain{
+		key:     obj.ID,
+		storage: f.s,
+		logger:  logger.NewLogger("chunkChain").With(zap.String("key", obj.ID)),
+	}
 }
 
 func InitFileIoChain(cfg config.Config, s storage.Storage, stopCh chan struct{}) {
@@ -207,12 +220,11 @@ func (p *pageCacheChain) commitDirtyPage(ctx context.Context, index, offset int6
 		return
 	}
 	p.root.dirtyCount -= 1
-	n, err := p.data.writeAt(ctx, index, offset, node.data)
+	_, err := p.data.writeAt(ctx, index, offset, node.data)
 	if err != nil {
 		p.logger.Errorw("commit dirty page error", "err", err.Error())
 		return
 	}
-	p.logger.Infow("commit dirty page finish", "count", n)
 }
 
 func (p *pageCacheChain) close(ctx context.Context) (err error) {
@@ -316,8 +328,7 @@ func (p *pageCacheChain) extendPageTree(index int64) {
 }
 
 const (
-	chunkChainLocalMode  = 1
-	chunkChainClosedMode = 1 << 1
+	chunkChainClosedMode = 1 << 0
 )
 
 type chunkCacheChain struct {
@@ -341,9 +352,6 @@ type cacheInfo struct {
 }
 
 func (l *chunkCacheChain) readAt(ctx context.Context, index, off int64, data []byte) (n int, err error) {
-	if l.mode&chunkChainLocalMode > 0 {
-		return l.readThroughAt(ctx, index, off, data)
-	}
 	l.mux.Lock()
 	cacheKey := l.cachePath(index)
 	cInfo, ok := l.mapping[cacheKey]
@@ -360,15 +368,10 @@ func (l *chunkCacheChain) readAt(ctx context.Context, index, off int64, data []b
 			return
 		}
 	}
-	l.logger.Debugw("read cached file", "count", n)
 	return
 }
 
 func (l *chunkCacheChain) writeAt(ctx context.Context, index int64, off int64, data []byte) (n int, err error) {
-	if l.mode&chunkChainLocalMode > 0 {
-		return l.writeThroughAt(ctx, index, off, data)
-	}
-
 	err = l.bufQ.put(index, off, data)
 	n = len(data)
 	return
@@ -392,7 +395,7 @@ func (l *chunkCacheChain) sync() {
 	for {
 		select {
 		case <-ticker.C:
-			if l.mode&chunkChainLocalMode > 0 {
+			if l.mode&chunkChainClosedMode > 0 {
 				return
 			}
 		}
@@ -410,14 +413,11 @@ func (l *chunkCacheChain) sync() {
 		}
 		l.mux.Unlock()
 
-		var n int
-		n, err = cInfo.f.WriteAt(r.data, r.offset)
+		_, err = cInfo.f.WriteAt(r.data, r.offset)
 		if err != nil {
 			l.logger.Errorw("write cached file error", "index", r.index, "err", err.Error())
 			return
 		}
-
-		l.logger.Debugw("write cached file", "index", r.index, "count", n)
 	}
 }
 
@@ -467,10 +467,43 @@ func (l *chunkCacheChain) uploadChunkWithLock(ctx context.Context, cInfo cacheIn
 	return nil
 }
 
-func (l *chunkCacheChain) writeThroughAt(ctx context.Context, chunkIdx int64, off int64, data []byte) (n int, err error) {
-	chunkDataReader, err := l.storage.Get(ctx, l.key, chunkIdx, 0)
+func (l *chunkCacheChain) cacheKey(key string, off int64) string {
+	return fmt.Sprintf("%s_%d", key, off)
+}
+
+func (l *chunkCacheChain) cachePath(off int64) string {
+	return path.Join(l.cacheDir, fmt.Sprintf("%s/%d", l.key, off))
+}
+
+type chunkDirectChain struct {
+	key     string
+	storage storage.Storage
+	logger  *zap.SugaredLogger
+}
+
+var _ chain = &chunkDirectChain{}
+
+func (d *chunkDirectChain) readAt(ctx context.Context, index, off int64, data []byte) (n int, err error) {
+	chunkDataReader, err := d.storage.Get(ctx, d.key, index, 0)
+	if err != nil {
+		d.logger.Errorw("read through error", "index", index, "err", err.Error())
+		return 0, err
+	}
+
+	chunkData := make([]byte, fileChunkSize)
+	size, err := chunkDataReader.Read(chunkData)
+	if err != nil {
+		return 0, err
+	}
+
+	n = copy(data, chunkData[off:size])
+	return n, err
+}
+
+func (d *chunkDirectChain) writeAt(ctx context.Context, index int64, off int64, data []byte) (n int, err error) {
+	chunkDataReader, err := d.storage.Get(ctx, d.key, index, 0)
 	if err != nil && err != types.ErrNotFound {
-		l.logger.Errorw("write through error", "index", chunkIdx, "err", err.Error())
+		d.logger.Errorw("write through error", "index", index, "err", err.Error())
 		return
 	}
 
@@ -482,32 +515,28 @@ func (l *chunkCacheChain) writeThroughAt(ctx context.Context, chunkIdx int64, of
 		}
 	}
 
-	copy(chunkData[off:], data)
-	err = l.storage.Put(ctx, l.key, chunkIdx, 0, bytes.NewBuffer(chunkData))
-	return len(chunkData), err
+	n += copy(chunkData[off:], data)
+	err = d.storage.Put(ctx, d.key, index, 0, bytes.NewReader(chunkData))
+	return
 }
 
-func (l *chunkCacheChain) readThroughAt(ctx context.Context, chunkIdx int64, off int64, data []byte) (int, error) {
-	chunkDataReader, err := l.storage.Get(ctx, l.key, chunkIdx, 0)
-	if err != nil {
-		l.logger.Errorw("read through error", "index", chunkIdx, "err", err.Error())
-		return 0, err
-	}
-
-	chunkData := make([]byte, fileChunkSize)
-	size, err := chunkDataReader.Read(chunkData)
-	if err != nil {
-		return 0, err
-	}
-
-	n := copy(data, chunkData[off:size])
-	return n, err
+func (d *chunkDirectChain) close(ctx context.Context) error {
+	return nil
 }
 
-func (l *chunkCacheChain) cacheKey(key string, off int64) string {
-	return fmt.Sprintf("%s_%d", key, off)
+type dummyChain struct {
 }
 
-func (l *chunkCacheChain) cachePath(off int64) string {
-	return path.Join(l.cacheDir, fmt.Sprintf("%s/%d", l.key, off))
+func (d dummyChain) readAt(ctx context.Context, index, off int64, data []byte) (n int, err error) {
+	return 0, nil
 }
+
+func (d dummyChain) writeAt(ctx context.Context, index int64, off int64, data []byte) (n int, err error) {
+	return len(data), nil
+}
+
+func (d dummyChain) close(ctx context.Context) error {
+	return nil
+}
+
+var _ chain = dummyChain{}
