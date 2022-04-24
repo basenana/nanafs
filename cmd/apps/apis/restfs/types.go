@@ -1,7 +1,8 @@
-package schema
+package restfs
 
 import (
 	"encoding/json"
+	"github.com/basenana/nanafs/cmd/apps/apis/common"
 	"net/http"
 )
 
@@ -79,18 +80,20 @@ func (r FsResponse) Json() []byte {
 }
 
 type ErrorResponse struct {
-	Code    ApiErrorCode `json:"code"`
-	Message string       `json:"message"`
+	Code    common.ApiErrorCode `json:"code"`
+	Message string              `json:"message"`
 }
 
 func NewFsResponse(data interface{}) FsResponse {
 	return FsResponse{
-		Data: data,
+		Status: http.StatusOK,
+		Data:   data,
 	}
 }
 
-func NewErrorResponse(code ApiErrorCode, err error) FsResponse {
+func NewErrorResponse(status int, code common.ApiErrorCode, err error) FsResponse {
 	return FsResponse{
+		Status: status,
 		Errors: []ErrorResponse{{
 			Code:    code,
 			Message: err.Error(),

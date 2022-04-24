@@ -484,39 +484,17 @@ type chunkDirectChain struct {
 var _ chain = &chunkDirectChain{}
 
 func (d *chunkDirectChain) readAt(ctx context.Context, index, off int64, data []byte) (n int, err error) {
-	chunkDataReader, err := d.storage.Get(ctx, d.key, index, 0)
+	chunkDataReader, err := d.storage.Get(ctx, d.key, index, off)
 	if err != nil {
 		d.logger.Errorw("read through error", "index", index, "err", err.Error())
 		return 0, err
 	}
 
-	chunkData := make([]byte, fileChunkSize)
-	size, err := chunkDataReader.Read(chunkData)
-	if err != nil {
-		return 0, err
-	}
-
-	n = copy(data, chunkData[off:size])
-	return n, err
+	return chunkDataReader.Read(data)
 }
 
 func (d *chunkDirectChain) writeAt(ctx context.Context, index int64, off int64, data []byte) (n int, err error) {
-	chunkDataReader, err := d.storage.Get(ctx, d.key, index, 0)
-	if err != nil && err != types.ErrNotFound {
-		d.logger.Errorw("write through error", "index", index, "err", err.Error())
-		return
-	}
-
-	chunkData := make([]byte, fileChunkSize)
-	if chunkDataReader != nil {
-		_, err = chunkDataReader.Read(chunkData)
-		if err != nil {
-			return
-		}
-	}
-
-	n += copy(chunkData[off:], data)
-	err = d.storage.Put(ctx, d.key, index, 0, bytes.NewReader(chunkData))
+	err = d.storage.Put(ctx, d.key, index, off, bytes.NewReader(data))
 	return
 }
 

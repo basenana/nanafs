@@ -1,4 +1,4 @@
-package schema
+package common
 
 type ApiErrorCode string
 
