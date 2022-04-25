@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/cmd/apps/apis/common"
 	"github.com/basenana/nanafs/pkg/controller"
+	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"net/http"
 )
@@ -29,17 +31,20 @@ type RestFS struct {
 }
 
 func (s *RestFS) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	s.logger.Debugw("", "path", request.URL.Path, "method", request.Method)
+	var (
+		response  FsResponse
+		ctx       = utils.NewApiContext(request)
+		apiLogger = utils.ContextLog(ctx, s.logger)
+	)
+	apiLogger.Debugw("", "path", request.URL.Path, "method", request.Method)
 
-	var response FsResponse
-	ctx := request.Context()
 	action := Action{}
 	if err := json.NewDecoder(request.Body).Decode(&action); err != nil {
-		s.logger.Errorw("decode request action error", "path", request.URL.Path, "err", err.Error())
+		apiLogger.Errorw("decode request action error", "path", request.URL.Path, "err", err.Error())
 	}
 	FillDefaultAction(request.Method, action)
 
-	obj, err := s.object(ctx, request.URL.Path)
+	parent, obj, err := s.object(ctx, request.URL.Path)
 	if err != nil {
 		if err == types.ErrNotFound {
 			response = NewErrorResponse(http.StatusMethodNotAllowed, common.ApiNotFoundError, err)
@@ -53,11 +58,21 @@ func (s *RestFS) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 
 	switch request.Method {
 	case http.MethodGet:
+		if action.Action == ActionRead && !obj.IsGroup() {
+			f, err := files.Open(ctx, obj, files.Attr{})
+			if err != nil {
+				response = NewErrorResponse(http.StatusInternalServerError, common.ApiInternalError, err)
+				s.response(ctx, writer, response)
+				return
+			}
+			http.ServeContent(writer, request, obj.Name, obj.ModifiedAt, &file{f: f})
+			return
+		}
 		response = s.get(ctx, obj, action)
 	case http.MethodPost:
 		response = s.post(ctx, obj, action)
 	case http.MethodPut:
-		response = s.put(ctx, obj, action)
+		response = s.put(ctx, parent, obj, action)
 	case http.MethodDelete:
 		response = s.delete(ctx, obj, action)
 	default:
@@ -92,8 +107,6 @@ func (s *RestFS) get(ctx context.Context, obj *types.Object, action Action) (res
 			result = NewFsResponse(children)
 			return
 		}
-
-		// TODO: return file raw data
 	}
 	return
 }
@@ -107,11 +120,35 @@ func (s *RestFS) post(ctx context.Context, obj *types.Object, action Action) (re
 	return
 }
 
-func (s *RestFS) put(ctx context.Context, obj *types.Object, action Action) (result FsResponse) {
+func (s *RestFS) put(ctx context.Context, parent, obj *types.Object, action Action) (result FsResponse) {
 	switch action.Action {
 	case ActionUpdate:
 	case ActionMove:
+		err := s.ctrl.ChangeObjectParent(ctx, obj, nil, "", controller.ChangeParentOpt{})
+		if err != nil {
+			result = NewErrorResponse(500, common.ApiInternalError, err)
+			return
+		}
+		result = NewFsResponse(obj)
 	case ActionRename:
+		oldObj, err := s.ctrl.FindObject(ctx, parent, action.Parameters.Name)
+		if err != nil {
+			if err == types.ErrNotFound {
+				obj.Name = action.Parameters.Name
+				if err = s.ctrl.SaveObject(ctx, oldObj); err != nil {
+					result = NewErrorResponse(500, common.ApiInternalError, err)
+					return
+				}
+				result = NewFsResponse(obj)
+				return
+			}
+			result = NewErrorResponse(500, common.ApiInternalError, err)
+			return
+		}
+		if oldObj != nil {
+			result = NewErrorResponse(400, common.ApiEntryExisted, fmt.Errorf("entry existed"))
+			return
+		}
 	}
 	return
 }
@@ -128,16 +165,17 @@ func (s *RestFS) delete(ctx context.Context, obj *types.Object, action Action) (
 	return
 }
 
-func (s *RestFS) object(ctx context.Context, path string) (obj *types.Object, err error) {
+func (s *RestFS) object(ctx context.Context, path string) (parent, obj *types.Object, err error) {
 	entries := pathEntries(path)
 	obj, err = s.ctrl.LoadRootObject(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for _, ent := range entries {
+		parent = obj
 		obj, err = s.ctrl.FindObject(ctx, obj, ent)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 	return
@@ -146,7 +184,7 @@ func (s *RestFS) object(ctx context.Context, path string) (obj *types.Object, er
 func (s *RestFS) response(ctx context.Context, writer http.ResponseWriter, response FsResponse) {
 	writer.WriteHeader(response.Status)
 	if _, err := writer.Write(response.Json()); err != nil {
-		s.logger.Errorw("write response back failed", "err", err.Error())
+		utils.ContextLog(ctx, s.logger).Errorw("write response back failed", "err", err.Error())
 	}
 }
 
