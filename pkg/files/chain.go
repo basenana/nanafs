@@ -139,10 +139,7 @@ func (p *pageCacheChain) readAt(ctx context.Context, index, off int64, data []by
 
 	for {
 		pageIndex, pos := computePageIndex(index, pageStart)
-		pageEnd := pageStart + pageSize
-		if pageEnd-pageStart > int64(bufSize-n) {
-			pageEnd = pageStart + int64(bufSize-n)
-		}
+		p.logger.Infow("read page cache", "pageIndex", pageIndex, "pos", pos)
 		page = p.findPage(pageIndex)
 		if page == nil {
 			page, err = p.readUncachedData(ctx, index, pageStart)
@@ -151,11 +148,11 @@ func (p *pageCacheChain) readAt(ctx context.Context, index, off int64, data []by
 			}
 		}
 
-		n += copy(data[n:], page.data[pos:pageEnd-pageStart])
-		if n == len(data) {
+		n += copy(data[n:], page.data[pos:])
+		if n == bufSize {
 			break
 		}
-		pageStart = pageEnd
+		pageStart = off + int64(n)
 	}
 	return
 }
