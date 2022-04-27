@@ -1,23 +1,36 @@
 package restfs
 
 import (
+	"context"
 	"github.com/basenana/nanafs/pkg/files"
+	"io"
 	"strings"
 )
 
 type file struct {
 	f      files.File
-	offset int
+	offset int64
 }
 
 func (f *file) Read(p []byte) (n int, err error) {
-	//TODO implement me
-	panic("implement me")
+	n, err = f.f.Read(context.Background(), p, f.offset)
+	f.offset += int64(n)
+	if f.offset == f.f.GetObject().Size {
+		err = io.EOF
+	}
+	return
 }
 
 func (f *file) Seek(offset int64, whence int) (int64, error) {
-	//TODO implement me
-	panic("implement me")
+	switch whence {
+	case io.SeekStart:
+		f.offset = offset
+	case io.SeekCurrent:
+		f.offset += offset
+	case io.SeekEnd:
+		f.offset = f.f.GetObject().Size + int64(whence)
+	}
+	return f.offset, nil
 }
 
 func pathEntries(path string) []string {

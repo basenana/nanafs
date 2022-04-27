@@ -30,7 +30,7 @@ type RestFS struct {
 
 func (s *RestFS) Get(gCtx *gin.Context) {
 	req := FsRequest{}
-	if err := gCtx.BindJSON(req); err != nil && err != io.EOF {
+	if err := gCtx.ShouldBindJSON(req); err != nil && err != io.EOF {
 		gCtx.JSON(http.StatusBadRequest, NewErrorResponse(common.ApiArgsError, err))
 		return
 	}
@@ -71,11 +71,13 @@ func (s *RestFS) Get(gCtx *gin.Context) {
 			return
 		}
 
-		f, err := files.Open(ctx, obj, files.Attr{})
+		f, err := files.Open(ctx, obj, files.Attr{Read: true})
+		defer f.Close(ctx)
 		if err != nil {
 			gCtx.JSON(http.StatusInternalServerError, NewErrorResponse(common.ApiInternalError, err))
 			return
 		}
+		gCtx.Writer.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", obj.Name))
 		http.ServeContent(gCtx.Writer, gCtx.Request, obj.Name, obj.ModifiedAt, &file{f: f})
 	}
 }
