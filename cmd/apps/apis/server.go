@@ -5,50 +5,59 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/cmd/apps/apis/restfs"
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/utils/logger"
+	"github.com/gin-contrib/pprof"
+	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"net/http"
 	"time"
 )
 
 const (
-	httpTimeout = time.Minute
-	headerSize  = 1 << 20
+	defaultHttpTimeout = time.Minute * 30
 )
 
 type Server struct {
-	httpHandler *http.ServeMux
-	cfg         config.Api
-	logger      *zap.SugaredLogger
+	engine *gin.Engine
+	cfg    config.Api
+	logger *zap.SugaredLogger
 }
 
 func (s *Server) Run(stopCh chan struct{}) {
+	addr := fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port)
+	s.logger.Infof("http server on %s", addr)
+
 	httpServer := &http.Server{
-		Addr:           fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port),
-		Handler:        s.httpHandler,
-		ReadTimeout:    httpTimeout,
-		WriteTimeout:   httpTimeout,
-		MaxHeaderBytes: headerSize,
+		Addr:         addr,
+		Handler:      s.engine,
+		ReadTimeout:  defaultHttpTimeout,
+		WriteTimeout: defaultHttpTimeout,
 	}
 
 	go func() {
 		if err := httpServer.ListenAndServe(); err != nil {
 			if err != http.ErrServerClosed {
-				s.logger.Panicw("http server failed", "err", err.Error())
+				s.logger.Panicw("api server down", "err", err.Error())
 			}
-			s.logger.Infow("http server shutdown")
+			s.logger.Infof("api server stopped")
 		}
 	}()
 
-	go func() {
-		<-stopCh
-		ctx, fn := context.WithTimeout(context.Background(), time.Second)
-		defer fn()
-		_ = httpServer.Shutdown(ctx)
-	}()
+	<-stopCh
+	shutdownCtx, canF := context.WithTimeout(context.TODO(), time.Second)
+	defer canF()
+	_ = httpServer.Shutdown(shutdownCtx)
 }
 
-func NewServer(cfg config.Api) (*Server, error) {
+func (s *Server) Ping(gCtx *gin.Context) {
+	gCtx.JSON(200, map[string]string{
+		"status": "ok",
+		"time":   time.Now().Format(time.RFC3339),
+	})
+}
+
+func NewApiServer(ctrl controller.Controller, cfg config.Api) (*Server, error) {
 	if cfg.Port == 0 {
 		return nil, fmt.Errorf("http port not set")
 	}
@@ -56,28 +65,20 @@ func NewServer(cfg config.Api) (*Server, error) {
 		cfg.Host = "127.0.0.1"
 	}
 
-	log := logger.NewLogger("http")
-	log.Infof("init http server on %s:%d", cfg.Host, cfg.Port)
-	var (
-		route = map[string]http.HandlerFunc{}
-		err   error
-	)
-
-	initMetric(cfg, route)
-	if err = restfs.InitRestFs(cfg, route); err != nil {
-		return nil, err
-	}
-
-	httpHandler := http.NewServeMux()
-	for path, handler := range route {
-		log.Infof("register api %s", path)
-		httpHandler.HandleFunc(path, handler)
-	}
-
 	s := &Server{
-		httpHandler: httpHandler,
-		cfg:         cfg,
-		logger:      log,
+		engine: gin.New(),
+		cfg:    cfg,
+		logger: logger.NewLogger("api"),
+	}
+	s.engine.GET("/_ping", s.Ping)
+	s.engine.Use()
+
+	if cfg.Pprof {
+		pprof.Register(s.engine)
+	}
+
+	if err := restfs.InitRestFs(ctrl, s.engine, cfg); err != nil {
+		return nil, fmt.Errorf("init restfs failed: %s", err.Error())
 	}
 	return s, nil
 }

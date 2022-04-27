@@ -6,15 +6,16 @@ import (
 )
 
 type file struct {
-	f files.File
+	f      files.File
+	offset int
 }
 
-func (f file) Read(p []byte) (n int, err error) {
+func (f *file) Read(p []byte) (n int, err error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (f file) Seek(offset int64, whence int) (int64, error) {
+func (f *file) Seek(offset int64, whence int) (int64, error) {
 	//TODO implement me
 	panic("implement me")
 }

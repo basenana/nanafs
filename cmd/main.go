@@ -57,14 +57,15 @@ func run(ctrl controller.Controller, cfg config.Config, stopCh chan struct{}) {
 		log.Info("shutdown after 5s")
 		time.Sleep(time.Second * 5)
 		close(shutdown)
-		log.Info("stopped")
 	}()
 
-	s, err := apis.NewServer(cfg.ApiConfig)
-	if err != nil {
-		log.Panicw("init http server failed", "err", err.Error())
+	if cfg.ApiConfig.Enable {
+		s, err := apis.NewApiServer(ctrl, cfg.ApiConfig)
+		if err != nil {
+			log.Panicw("init http server failed", "err", err.Error())
+		}
+		go s.Run(stopCh)
 	}
-	s.Run(stopCh)
 
 	if cfg.FsConfig.Enable {
 		fsServer, err := fs.NewNanaFsRoot(cfg.FsConfig, ctrl)
@@ -79,4 +80,5 @@ func run(ctrl controller.Controller, cfg config.Config, stopCh chan struct{}) {
 	}
 	log.Info("started")
 	<-shutdown
+	log.Info("stopped")
 }

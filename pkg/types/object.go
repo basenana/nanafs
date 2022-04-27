@@ -45,24 +45,24 @@ type ExtendData struct {
 }
 
 type Properties struct {
-	Author   string
-	Title    string
-	Subject  string
-	KeyWords []string
-	Comment  string
+	Author   string   `json:"author"`
+	Title    string   `json:"title"`
+	Subject  string   `json:"subject"`
+	Keywords []string `json:"keywords"`
+	Comment  string   `json:"comment"`
 }
 
 func (p *Properties) copy(newP *Properties) {
 	p.Author = newP.Author
 	p.Title = newP.Title
 	p.Subject = newP.Subject
-	p.KeyWords = newP.KeyWords
+	p.Keywords = newP.Keywords
 	p.Comment = newP.Comment
 }
 
 type Annotation struct {
-	Annotations []AnnotationItem
-	Details     string
+	Annotations []AnnotationItem `json:"annotations"`
+	Details     string           `json:"details"`
 }
 
 func (a *Annotation) Add(newA *AnnotationItem) {
@@ -107,10 +107,10 @@ func (a *Annotation) Remove(key string) {
 }
 
 type AnnotationItem struct {
-	Type       string
-	Content    string
-	IsInternal bool
-	Encode     bool
+	Type       string `json:"type"`
+	Content    string `json:"content"`
+	IsInternal bool   `json:"is_internal"`
+	Encode     bool   `json:"encode"`
 }
 
 type CustomColumn struct {

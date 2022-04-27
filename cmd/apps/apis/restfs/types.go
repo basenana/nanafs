@@ -43,7 +43,7 @@ type Action struct {
 	} `json:"parameters"`
 }
 
-func FillDefaultAction(method string, action Action) Action {
+func fillDefaultAction(method string, action Action) Action {
 	switch method {
 	case http.MethodGet:
 		if action.Action == "" {
@@ -70,7 +70,6 @@ func FillDefaultAction(method string, action Action) Action {
 }
 
 type FsResponse struct {
-	Status int             `json:"status"`
 	Data   interface{}     `json:"data,omitempty"`
 	Errors []ErrorResponse `json:"errors,omitempty"`
 }
@@ -87,14 +86,12 @@ type ErrorResponse struct {
 
 func NewFsResponse(data interface{}) FsResponse {
 	return FsResponse{
-		Status: http.StatusOK,
-		Data:   data,
+		Data: data,
 	}
 }
 
-func NewErrorResponse(status int, code common.ApiErrorCode, err error) FsResponse {
+func NewErrorResponse(code common.ApiErrorCode, err error) FsResponse {
 	return FsResponse{
-		Status: status,
 		Errors: []ErrorResponse{{
 			Code:    code,
 			Message: err.Error(),
