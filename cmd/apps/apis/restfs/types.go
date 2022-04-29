@@ -37,9 +37,10 @@ const (
 type Action struct {
 	Action     string `json:"action"`
 	Parameters struct {
-		Name   string   `json:"name"`
-		Flags  []string `json:"flags"`
-		Fields []string `json:"fields"`
+		Name    string   `json:"name"`
+		Content []byte   `json:"content"`
+		Flags   []string `json:"flags"`
+		Fields  []string `json:"fields"`
 	} `json:"parameters"`
 }
 

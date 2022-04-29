@@ -1,6 +1,7 @@
 package restfs
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"github.com/basenana/nanafs/cmd/apps/apis/common"
@@ -30,7 +31,7 @@ type RestFS struct {
 
 func (s *RestFS) Get(gCtx *gin.Context) {
 	req := FsRequest{}
-	if err := gCtx.ShouldBindJSON(req); err != nil && err != io.EOF {
+	if err := gCtx.ShouldBindJSON(&req); err != nil && err != io.EOF {
 		gCtx.JSON(http.StatusBadRequest, NewErrorResponse(common.ApiArgsError, err))
 		return
 	}
@@ -40,7 +41,7 @@ func (s *RestFS) Get(gCtx *gin.Context) {
 	_, obj, err := s.object(gCtx)
 	if err != nil {
 		if err == types.ErrNotFound {
-			gCtx.JSON(http.StatusMethodNotAllowed, NewErrorResponse(common.ApiNotFoundError, err))
+			gCtx.JSON(http.StatusNotFound, NewErrorResponse(common.ApiNotFoundError, err))
 			return
 		}
 		gCtx.JSON(http.StatusInternalServerError, NewErrorResponse(common.ApiInternalError, err))
@@ -72,11 +73,11 @@ func (s *RestFS) Get(gCtx *gin.Context) {
 		}
 
 		f, err := files.Open(ctx, obj, files.Attr{Read: true})
-		defer f.Close(ctx)
 		if err != nil {
 			gCtx.JSON(http.StatusInternalServerError, NewErrorResponse(common.ApiInternalError, err))
 			return
 		}
+		defer f.Close(ctx)
 		gCtx.Writer.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", obj.Name))
 		http.ServeContent(gCtx.Writer, gCtx.Request, obj.Name, obj.ModifiedAt, &file{f: f})
 	}
@@ -84,30 +85,107 @@ func (s *RestFS) Get(gCtx *gin.Context) {
 
 func (s *RestFS) Post(gCtx *gin.Context) {
 	req := FsRequest{}
-	if err := gCtx.BindJSON(req); err != nil {
+	if err := gCtx.BindJSON(&req); err != nil {
 		gCtx.JSON(http.StatusBadRequest, NewErrorResponse(common.ApiArgsError, err))
 		return
 	}
 	action := fillDefaultAction(http.MethodGet, req.Data)
-	_, _, err := s.object(gCtx)
-	if err != nil {
-		if err == types.ErrNotFound {
-			gCtx.JSON(http.StatusMethodNotAllowed, NewErrorResponse(common.ApiNotFoundError, err))
-			return
-		}
+	parent, obj, err := s.object(gCtx)
+	if err != nil && err != types.ErrNotFound {
 		gCtx.JSON(http.StatusInternalServerError, NewErrorResponse(common.ApiInternalError, err))
 		return
 	}
 	switch action.Action {
 	case ActionCreate:
+		if err != types.ErrNotFound {
+			gCtx.JSON(http.StatusBadRequest, NewErrorResponse(common.ApiEntryExisted, err))
+			return
+		}
+		s.newFile(gCtx, parent, action.Parameters.Name, bytes.NewReader(action.Parameters.Content))
+		return
 	case ActionBulk:
+		if !obj.IsGroup() {
+			gCtx.JSON(http.StatusBadRequest, NewErrorResponse(common.ApiNotGroupError, fmt.Errorf("%s not a group", gCtx.Param("path"))))
+			return
+		}
+
+		parts, err := gCtx.MultipartForm()
+		if err != nil {
+			gCtx.JSON(http.StatusBadRequest, NewErrorResponse(common.ApiArgsError, err))
+			return
+		}
+
+		for fName := range parts.File {
+			fH, err := gCtx.FormFile(fName)
+			if err != nil {
+				gCtx.JSON(http.StatusBadRequest, NewErrorResponse(common.ApiArgsError, err))
+				return
+			}
+
+			newF, err := fH.Open()
+			if err != nil {
+				gCtx.JSON(http.StatusBadRequest, NewErrorResponse(common.ApiArgsError, err))
+				return
+			}
+			s.newFile(gCtx, obj, fName, newF)
+			_ = newF.Close()
+		}
 	case ActionCopy:
+		gCtx.JSON(http.StatusBadRequest, NewErrorResponse(common.ApiArgsError, errors.New("search not support")))
+		return
 	}
+}
+
+func (s *RestFS) newFile(gCtx *gin.Context, parent *types.Object, name string, reader io.Reader) {
+	ctx := gCtx.Request.Context()
+	obj, err := s.ctrl.CreateObject(ctx, parent, types.ObjectAttr{
+		Name:        name,
+		Kind:        types.RawKind,
+		Permissions: defaultAccess(),
+	})
+	if err != nil {
+		gCtx.JSON(http.StatusInternalServerError, NewErrorResponse(common.ApiInternalError, err))
+		return
+	}
+	f, err := s.ctrl.OpenFile(ctx, obj, files.Attr{Write: true})
+	if err != nil {
+		gCtx.JSON(http.StatusInternalServerError, NewErrorResponse(common.ApiInternalError, err))
+		return
+	}
+	defer f.Close(ctx)
+
+	buf := make([]byte, 1024)
+
+	var total int64
+	for {
+		n, err := reader.Read(buf)
+		if err != nil && err != io.EOF {
+			gCtx.JSON(http.StatusInternalServerError, NewErrorResponse(common.ApiInternalError, err))
+			return
+		}
+
+		_, err = s.ctrl.WriteFile(ctx, f, buf[:n], total)
+		if err != nil && err != io.EOF {
+			gCtx.JSON(http.StatusInternalServerError, NewErrorResponse(common.ApiInternalError, err))
+			return
+		}
+		total += int64(n)
+
+		if n == 0 || err == io.EOF {
+			break
+		}
+	}
+
+	if err != nil {
+		gCtx.JSON(http.StatusInternalServerError, NewErrorResponse(common.ApiInternalError, err))
+		return
+	}
+	gCtx.JSON(http.StatusOK, NewFsResponse(obj))
 }
 
 func (s *RestFS) Put(gCtx *gin.Context) {
 	req := FsRequest{}
-	if err := gCtx.BindJSON(req); err != nil {
+	if err := gCtx.BindJSON(&req); err != nil {
 		gCtx.JSON(http.StatusBadRequest, NewErrorResponse(common.ApiArgsError, err))
 		return
 	}
@@ -116,7 +194,7 @@ func (s *RestFS) Put(gCtx *gin.Context) {
 	parent, obj, err := s.object(gCtx)
 	if err != nil {
 		if err == types.ErrNotFound {
-			gCtx.JSON(http.StatusMethodNotAllowed, NewErrorResponse(common.ApiNotFoundError, err))
+			gCtx.JSON(http.StatusNotFound, NewErrorResponse(common.ApiNotFoundError, err))
 			return
 		}
 		gCtx.JSON(http.StatusInternalServerError, NewErrorResponse(common.ApiInternalError, err))
@@ -125,6 +203,19 @@ func (s *RestFS) Put(gCtx *gin.Context) {
 
 	switch action.Action {
 	case ActionUpdate:
+		f, err := s.ctrl.OpenFile(ctx, obj, files.Attr{Write: true, Create: true, Trunc: true})
+		if err != nil {
+			gCtx.JSON(http.StatusInternalServerError, NewErrorResponse(common.ApiInternalError, err))
+			return
+		}
+		defer f.Close(ctx)
+		_, err = s.ctrl.WriteFile(ctx, f, action.Parameters.Content, 0)
+		if err != nil {
+			gCtx.JSON(http.StatusInternalServerError, NewErrorResponse(common.ApiInternalError, err))
+			return
+		}
+		gCtx.JSON(http.StatusOK, NewFsResponse(obj))
+		return
 	case ActionMove:
 		err := s.ctrl.ChangeObjectParent(ctx, obj, nil, "", controller.ChangeParentOpt{})
 		if err != nil {
@@ -160,7 +251,7 @@ func (s *RestFS) Delete(gCtx *gin.Context) {
 	_, obj, err := s.object(gCtx)
 	if err != nil {
 		if err == types.ErrNotFound {
-			gCtx.JSON(http.StatusMethodNotAllowed, NewErrorResponse(common.ApiNotFoundError, err))
+			gCtx.JSON(http.StatusNotFound, NewErrorResponse(common.ApiNotFoundError, err))
 			return
 		}
 		gCtx.JSON(http.StatusInternalServerError, NewErrorResponse(common.ApiInternalError, err))

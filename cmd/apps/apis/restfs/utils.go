@@ -3,6 +3,7 @@ package restfs
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/files"
+	"github.com/basenana/nanafs/pkg/types"
 	"io"
 	"strings"
 )
@@ -36,4 +37,14 @@ func (f *file) Seek(offset int64, whence int) (int64, error) {
 func pathEntries(path string) []string {
 	path = strings.Trim(path, "/fs/")
 	return strings.Split(path, "/")
+}
+
+func defaultAccess() []types.Permission {
+	return []types.Permission{
+		types.PermOwnerRead,
+		types.PermOwnerWrite,
+		types.PermGroupRead,
+		types.PermGroupWrite,
+		types.PermOthersRead,
+	}
 }
