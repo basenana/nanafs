@@ -38,23 +38,20 @@ func (c *controller) OpenFile(ctx context.Context, obj *types.Object, attr files
 		c.logger.Errorw("open file error", "obj", obj.ID, "err", err.Error())
 		return nil, err
 	}
+	obj.AccessAt = time.Now()
 	bus.Publish(fmt.Sprintf("object.file.%s.open", obj.ID), obj)
-	return file, nil
+	return file, c.SaveObject(ctx, obj)
 }
 
 func (c *controller) ReadFile(ctx context.Context, file files.File, data []byte, offset int64) (n int, err error) {
-	c.logger.Infow("read file", "file", file.GetObject().ID, "name", file.GetObject().Name, "data", len(data), "offset", offset)
 	n, err = file.Read(ctx, data, offset)
 	if err != nil {
 		return n, err
 	}
-	obj := file.GetObject()
-	obj.AccessAt = time.Now()
-	return n, c.SaveObject(ctx, obj)
+	return n, nil
 }
 
 func (c *controller) WriteFile(ctx context.Context, file files.File, data []byte, offset int64) (n int64, err error) {
-	c.logger.Infow("write file", "file", file.GetObject().ID, "name", file.GetObject().Name, "data", len(data), "offset", offset)
 	n, err = file.Write(ctx, data, offset)
 	if err != nil {
 		return n, err

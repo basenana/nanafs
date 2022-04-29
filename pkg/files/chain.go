@@ -30,10 +30,10 @@ type chainFactory struct {
 }
 
 func (f chainFactory) build(obj *types.Object, attr Attr) chain {
-	if attr.Read {
-		return f.buildPageChain(obj)
+	if attr.Direct {
+		return f.buildDirectChain(obj)
 	}
-	return f.buildChunkChain(obj)
+	return f.buildPageChain(obj)
 }
 
 func (f chainFactory) buildPageChain(obj *types.Object) chain {
@@ -114,7 +114,6 @@ func newPage(shift int, mode int8) *pageNode {
 	}
 	switch {
 	case p.mode&pageModeData > 0:
-		p.data = make([]byte, pageSize)
 	case p.mode&pageModeInternal > 0:
 		p.slots = make([]*pageNode, pageTreeSize)
 	}
@@ -132,84 +131,100 @@ var _ chain = &pageCacheChain{}
 
 func (p *pageCacheChain) readAt(ctx context.Context, index, off int64, data []byte) (n int, err error) {
 	var (
-		pageStart = off
-		bufSize   = len(data)
-		page      *pageNode
+		bufSize  = len(data)
+		readOnce int
+		page     *pageNode
 	)
 
 	for {
-		pageIndex, pos := computePageIndex(index, pageStart)
-		p.logger.Infow("read page cache", "pageIndex", pageIndex, "pos", pos)
+		pageIndex, pagePos := computePageIndex(index, off)
+		pageStart := (off / pageSize) * pageSize
+		if pageStart >= fileChunkSize {
+			break
+		}
 		page = p.findPage(pageIndex)
 		if page == nil {
-			page, err = p.readUncachedData(ctx, index, pageStart)
+			page, err = p.readUncachedData(ctx, index, pageIndex, pageStart)
 			if err != nil {
 				return
 			}
 		}
 
-		n += copy(data[n:], page.data[pos:])
+		readOnce = copy(data[n:], page.data[pagePos:page.length])
+		n += readOnce
 		if n == bufSize {
 			break
 		}
-		pageStart = off + int64(n)
+		off += int64(readOnce)
+		if off >= fileChunkSize {
+			break
+		}
 	}
 	return
 }
 
 func (p *pageCacheChain) writeAt(ctx context.Context, index int64, off int64, data []byte) (n int, err error) {
 	var (
-		pageStart = off
 		bufSize   = int64(len(data))
+		onceWrite int
 	)
 
 	for {
-		pageIndex, pos := computePageIndex(index, pageStart)
-		pageEnd := pageStart + pageSize
-		if pageEnd-pageStart > bufSize-int64(n) {
-			pageEnd = pageStart + bufSize - int64(n)
+		pageIndex, pagePos := computePageIndex(index, off)
+		pageStart := (off / pageSize) * pageSize
+		if pageStart >= fileChunkSize {
+			break
 		}
-
 		page := p.findPage(pageIndex)
 		if page == nil {
-			page, err = p.readUncachedData(ctx, index, pageStart)
+			page, err = p.readUncachedData(ctx, index, pageIndex, pageStart)
 			if err != nil {
 				return
 			}
 		}
 
-		n += copy(page.data[pos:], data[n:])
+		onceWrite = copy(page.data[pagePos:], data[n:])
 		if page.mode&pageModeDirty == 0 {
 			page.mode |= pageModeDirty
 			p.root.dirtyCount += 1
 		}
+		page.length = int(pagePos) + onceWrite
 		p.commitDirtyPage(ctx, index, pageStart, page)
+		n += onceWrite
 
 		if int64(n) == bufSize {
 			break
 		}
-		pageStart = pageEnd
+
+		off += int64(onceWrite)
 	}
 	return
 }
 
-func (p *pageCacheChain) readUncachedData(ctx context.Context, index, offset int64) (page *pageNode, err error) {
+func (p *pageCacheChain) readUncachedData(ctx context.Context, chunkIndex, pageIndex, pageStartOff int64) (result *pageNode, err error) {
 	var (
-		data      = make([]byte, pageSize)
-		pageStart = offset
-		n         int
-		preRead   = 0 // TODO: need a pre read control
+		n       int
+		page    *pageNode
+		preRead = 2 // TODO: need a pre read control
 	)
-	for pageStart < fileChunkSize && preRead >= 0 {
-		n, err = p.data.readAt(ctx, index, pageStart, data)
+	for preRead >= 0 {
+		data := make([]byte, pageSize)
+		n, err = p.data.readAt(ctx, chunkIndex, pageStartOff, data)
 		if err != nil && err != types.ErrNotFound {
 			break
 		}
-		page = p.insertPage(pageStart, data[:n])
-		pageStart += pageSize
+		page = p.insertPage(pageIndex, data, n)
+		if result == nil {
+			result = page
+		}
+		pageIndex += 1
+		pageStartOff += pageSize
+		if pageStartOff >= fileChunkSize {
+			break
+		}
 		preRead -= 1
 	}
-	return page, nil
+	return result, nil
 }
 
 func (p *pageCacheChain) commitDirtyPage(ctx context.Context, index, offset int64, node *pageNode) {
@@ -228,7 +243,7 @@ func (p *pageCacheChain) close(ctx context.Context) (err error) {
 	return p.data.close(ctx)
 }
 
-func (p *pageCacheChain) insertPage(pageIdx int64, data []byte) *pageNode {
+func (p *pageCacheChain) insertPage(pageIdx int64, data []byte, dataLen int) *pageNode {
 	p.mux.Lock()
 	if p.root.rootNode == nil {
 		p.root.rootNode = newPage(0, pageModeInternal)
@@ -255,7 +270,8 @@ func (p *pageCacheChain) insertPage(pageIdx int64, data []byte) *pageNode {
 	}
 
 	dataNode := newPage(0, pageModeData)
-	dataNode.length = copy(dataNode.data, data)
+	dataNode.data = data
+	dataNode.length = dataLen
 	dataNode.mode |= pageModeDirty
 
 	slot = pageIdx & pageTreeMask
@@ -483,7 +499,9 @@ var _ chain = &chunkDirectChain{}
 func (d *chunkDirectChain) readAt(ctx context.Context, index, off int64, data []byte) (n int, err error) {
 	chunkDataReader, err := d.storage.Get(ctx, d.key, index, off)
 	if err != nil {
-		d.logger.Errorw("read through error", "index", index, "err", err.Error())
+		if err != types.ErrNotFound {
+			d.logger.Errorw("read through error", "index", index, "err", err.Error())
+		}
 		return 0, err
 	}
 
@@ -491,6 +509,10 @@ func (d *chunkDirectChain) readAt(ctx context.Context, index, off int64, data []
 }
 
 func (d *chunkDirectChain) writeAt(ctx context.Context, index int64, off int64, data []byte) (n int, err error) {
+	n = len(data)
+	if n > fileChunkSize {
+		n = fileChunkSize
+	}
 	err = d.storage.Put(ctx, d.key, index, off, bytes.NewReader(data))
 	return
 }

@@ -15,5 +15,5 @@ const (
 )
 
 type Access struct {
-	Permissions []Permission `json:"permissions"`
+	Permissions []Permission `json:"permissions,omitempty"`
 }

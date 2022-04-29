@@ -80,20 +80,17 @@ func fsInfo2StatFs(info controller.Info, out *fuse.StatfsOut) {
 }
 
 func openFileAttr(flags uint32) files.Attr {
-	attr := files.Attr{}
-	if int(flags)|os.O_CREATE > 0 {
+	attr := files.Attr{
+		Read: true,
+	}
+	if int(flags)&os.O_CREATE > 0 {
 		attr.Create = true
 	}
-	if int(flags)|os.O_RDWR > 0 {
+	if int(flags)&os.O_TRUNC > 0 {
+		attr.Trunc = true
+	}
+	if int(flags)&os.O_RDWR > 0 || int(flags)&os.O_WRONLY > 0 {
 		attr.Write = true
-		attr.Read = true
-	} else {
-		if int(flags)|os.O_RDONLY > 0 {
-			attr.Read = true
-		}
-		if int(flags)|os.O_WRONLY > 0 {
-			attr.Write = true
-		}
 	}
 	return attr
 }

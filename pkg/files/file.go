@@ -34,16 +34,25 @@ func (f *file) Write(ctx context.Context, data []byte, offset int64) (n int64, e
 		return 0, types.ErrUnsupported
 	}
 
-	leftSize := int64(len(data))
+	var (
+		shift     = offset
+		leftSize  = int64(len(data))
+		onceWrite int
+	)
 	f.mux.Lock()
 	for {
-		var n1 int
 		index, pos := computeChunkIndex(offset, fileChunkSize)
-		n1, err = f.dataChain.writeAt(ctx, index, pos, data[n:])
+
+		chunkEnd := (index+1)*fileChunkSize - shift
+		if chunkEnd > int64(len(data)) {
+			chunkEnd = int64(len(data))
+		}
+
+		onceWrite, err = f.dataChain.writeAt(ctx, index, pos, data[n:chunkEnd])
 		if err != nil {
 			return
 		}
-		n += int64(n1)
+		n += int64(onceWrite)
 		if n == leftSize {
 			break
 		}
@@ -62,16 +71,32 @@ func (f *file) Read(ctx context.Context, data []byte, offset int64) (n int, err 
 		return 0, types.ErrUnsupported
 	}
 
+	var (
+		shift    = offset
+		onceRead int
+	)
+
 	leftSize := len(data)
 	f.mux.Lock()
 	for {
-		var n1 int
+		if offset >= f.Size {
+			break
+		}
+
 		index, pos := computeChunkIndex(offset, fileChunkSize)
-		n1, err = f.dataChain.readAt(ctx, index, pos, data[n:])
+		chunkEnd := (index+1)*fileChunkSize - shift
+		if chunkEnd > int64(len(data)) {
+			chunkEnd = int64(len(data))
+		}
+		if chunkEnd-int64(n) > f.Size-offset {
+			chunkEnd = int64(n) + (f.Size - offset)
+		}
+
+		onceRead, err = f.dataChain.readAt(ctx, index, pos, data[n:chunkEnd])
 		if err != nil {
 			return
 		}
-		n += n1
+		n += onceRead
 		if n == leftSize {
 			break
 		}
@@ -102,6 +127,8 @@ type Attr struct {
 	Read   bool
 	Write  bool
 	Create bool
+	Trunc  bool
+	Direct bool
 	Meta   storage.MetaStore
 }
 
@@ -115,5 +142,8 @@ func openFile(ctx context.Context, obj *types.Object, attr Attr) (*file, error) 
 }
 
 func Open(ctx context.Context, obj *types.Object, attr Attr) (File, error) {
+	if attr.Trunc {
+		obj.Size = 0
+	}
 	return openFile(ctx, obj, attr)
 }

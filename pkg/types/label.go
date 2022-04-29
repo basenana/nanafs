@@ -6,7 +6,7 @@ const (
 )
 
 type Labels struct {
-	Labels []Label `json:"labels"`
+	Labels []Label `json:"labels,omitempty"`
 }
 
 func (l Labels) Get(key string) *Label {

@@ -9,21 +9,21 @@ import (
 type Metadata struct {
 	ID           string        `json:"id"`
 	Name         string        `json:"name"`
-	Aliases      string        `json:"aliases"`
+	Aliases      string        `json:"aliases,omitempty"`
 	ParentID     string        `json:"parent_id"`
-	RefID        string        `json:"ref_id"`
+	RefID        string        `json:"ref_id,omitempty"`
 	Kind         Kind          `json:"kind"`
 	Hash         string        `json:"hash"`
 	Size         int64         `json:"size"`
 	Inode        uint64        `json:"inode"`
-	Namespace    string        `json:"namespace"`
+	Namespace    string        `json:"namespace,omitempty"`
 	CreatedAt    time.Time     `json:"created_at"`
 	ChangedAt    time.Time     `json:"changed_at"`
 	ModifiedAt   time.Time     `json:"modified_at"`
 	AccessAt     time.Time     `json:"access_at"`
 	Labels       Labels        `json:"labels"`
 	Access       Access        `json:"access"`
-	CustomColumn *CustomColumn `json:"custom_column"`
+	CustomColumn *CustomColumn `json:"custom_column,omitempty"`
 }
 
 func NewMetadata(name string, kind Kind) Metadata {
@@ -40,16 +40,16 @@ func NewMetadata(name string, kind Kind) Metadata {
 }
 
 type ExtendData struct {
-	Properties *Properties `json:"properties"`
-	Annotation *Annotation `json:"annotation"`
+	Properties *Properties `json:"properties,omitempty"`
+	Annotation *Annotation `json:"annotation,omitempty"`
 }
 
 type Properties struct {
-	Author   string   `json:"author"`
-	Title    string   `json:"title"`
-	Subject  string   `json:"subject"`
-	Keywords []string `json:"keywords"`
-	Comment  string   `json:"comment"`
+	Author   string   `json:"author,omitempty"`
+	Title    string   `json:"title,omitempty"`
+	Subject  string   `json:"subject,omitempty"`
+	Keywords []string `json:"keywords,omitempty"`
+	Comment  string   `json:"comment,omitempty"`
 }
 
 func (p *Properties) copy(newP *Properties) {
@@ -61,8 +61,8 @@ func (p *Properties) copy(newP *Properties) {
 }
 
 type Annotation struct {
-	Annotations []AnnotationItem `json:"annotations"`
-	Details     string           `json:"details"`
+	Annotations []AnnotationItem `json:"annotations,omitempty"`
+	Details     string           `json:"details,omitempty"`
 }
 
 func (a *Annotation) Add(newA *AnnotationItem) {
@@ -114,7 +114,7 @@ type AnnotationItem struct {
 }
 
 type CustomColumn struct {
-	Columns []CustomColumnItem `json:"columns"`
+	Columns []CustomColumnItem `json:"columns,omitempty"`
 }
 
 type CustomColumnItem struct {
