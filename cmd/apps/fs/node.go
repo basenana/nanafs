@@ -31,6 +31,10 @@ func (n *NanaNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrO
 	}
 	st := nanaNode2Stat(n)
 	out.FromStat(st)
+
+	// macos
+	out.Crtime_ = uint64(st.Ctimespec.Sec)
+	out.Crtimensec_ = uint32(st.Ctimespec.Nsec)
 	return NoErr
 }
 

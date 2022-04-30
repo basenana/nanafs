@@ -67,7 +67,7 @@ func (l *local) Delete(ctx context.Context, key string) error {
 		return err
 	}
 
-	return os.Remove(p)
+	return os.RemoveAll(p)
 }
 
 func (l *local) Head(ctx context.Context, key string, idx int64) (Info, error) {
