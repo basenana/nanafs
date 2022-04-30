@@ -70,6 +70,7 @@ func (f chainFactory) buildDirectChain(obj *types.Object) chain {
 	return &chunkDirectChain{
 		key:     obj.ID,
 		storage: f.s,
+		opens:   map[int64]io.ReadWriteSeeker{},
 		logger:  logger.NewLogger("chunkChain").With(zap.String("key", obj.ID)),
 	}
 }
@@ -210,7 +211,10 @@ func (p *pageCacheChain) readUncachedData(ctx context.Context, chunkIndex, pageI
 	for preRead >= 0 {
 		data := make([]byte, pageSize)
 		n, err = p.data.readAt(ctx, chunkIndex, pageStartOff, data)
-		if err != nil && err != types.ErrNotFound {
+		if err != nil && err != types.ErrNotFound && err != io.EOF {
+			if result == nil {
+				p.logger.Panicw("read uncached data failed", "err", err.Error())
+			}
 			break
 		}
 		page = p.insertPage(pageIndex, data, n)
@@ -490,13 +494,27 @@ func (l *chunkCacheChain) cachePath(off int64) string {
 
 type chunkDirectChain struct {
 	key     string
+	opens   map[int64]io.ReadWriteSeeker
 	storage storage.Storage
 	logger  *zap.SugaredLogger
+	mux     sync.Mutex
 }
 
 var _ chain = &chunkDirectChain{}
 
 func (d *chunkDirectChain) readAt(ctx context.Context, index, off int64, data []byte) (n int, err error) {
+	d.mux.Lock()
+	defer d.mux.Unlock()
+
+	cached, ok := d.opens[index]
+	if ok {
+		if _, err = cached.Seek(off, io.SeekStart); err != nil {
+			d.logger.Errorw("cached reader seed failed", "err", err.Error())
+			return
+		}
+		return cached.Read(data)
+	}
+
 	chunkDataReader, err := d.storage.Get(ctx, d.key, index, off)
 	if err != nil {
 		if err != types.ErrNotFound {
@@ -505,19 +523,39 @@ func (d *chunkDirectChain) readAt(ctx context.Context, index, off int64, data []
 		return 0, err
 	}
 
+	if seekCloser, needCache := chunkDataReader.(io.ReadWriteSeeker); needCache {
+		d.opens[index] = seekCloser
+	}
+
 	return chunkDataReader.Read(data)
 }
 
 func (d *chunkDirectChain) writeAt(ctx context.Context, index int64, off int64, data []byte) (n int, err error) {
+	d.mux.Lock()
+	defer d.mux.Unlock()
 	n = len(data)
 	if n > fileChunkSize {
 		n = fileChunkSize
 	}
-	err = d.storage.Put(ctx, d.key, index, off, bytes.NewReader(data))
+	cached, ok := d.opens[index]
+	if ok {
+		if _, err = cached.Seek(off, io.SeekStart); err != nil {
+			d.logger.Errorw("cached reader seed failed", "err", err.Error())
+			return
+		}
+		return cached.Write(data[:n])
+	}
+
+	err = d.storage.Put(ctx, d.key, index, off, bytes.NewReader(data[:n]))
 	return
 }
 
 func (d *chunkDirectChain) close(ctx context.Context) error {
+	for _, seeker := range d.opens {
+		if closer, ok := seeker.(io.Closer); ok {
+			_ = closer.Close()
+		}
+	}
 	return nil
 }
 
