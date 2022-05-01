@@ -72,12 +72,12 @@ func (s *RestFS) Get(gCtx *gin.Context) {
 			return
 		}
 
-		f, err := files.Open(ctx, obj, files.Attr{Read: true})
+		f, err := s.ctrl.OpenFile(ctx, obj, files.Attr{Read: true})
 		if err != nil {
 			gCtx.JSON(http.StatusInternalServerError, NewErrorResponse(common.ApiInternalError, err))
 			return
 		}
-		defer f.Close(ctx)
+		defer s.ctrl.CloseFile(ctx, f)
 		gCtx.Writer.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", obj.Name))
 		http.ServeContent(gCtx.Writer, gCtx.Request, obj.Name, obj.ModifiedAt, &file{f: f})
 	}
@@ -152,7 +152,7 @@ func (s *RestFS) newFile(gCtx *gin.Context, parent *types.Object, name string, r
 		gCtx.JSON(http.StatusInternalServerError, NewErrorResponse(common.ApiInternalError, err))
 		return
 	}
-	defer f.Close(ctx)
+	defer s.ctrl.CloseFile(ctx, f)
 
 	buf := make([]byte, 1024)
 
@@ -208,7 +208,7 @@ func (s *RestFS) Put(gCtx *gin.Context) {
 			gCtx.JSON(http.StatusInternalServerError, NewErrorResponse(common.ApiInternalError, err))
 			return
 		}
-		defer f.Close(ctx)
+		defer s.ctrl.CloseFile(ctx, f)
 		_, err = s.ctrl.WriteFile(ctx, f, action.Parameters.Content, 0)
 		if err != nil {
 			gCtx.JSON(http.StatusInternalServerError, NewErrorResponse(common.ApiInternalError, err))
@@ -217,12 +217,7 @@ func (s *RestFS) Put(gCtx *gin.Context) {
 		gCtx.JSON(http.StatusOK, NewFsResponse(obj))
 		return
 	case ActionMove:
-		err := s.ctrl.ChangeObjectParent(ctx, obj, nil, "", controller.ChangeParentOpt{})
-		if err != nil {
-			gCtx.JSON(http.StatusInternalServerError, NewErrorResponse(common.ApiInternalError, err))
-			return
-		}
-		gCtx.JSON(http.StatusOK, NewFsResponse(obj))
+		gCtx.JSON(http.StatusBadRequest, NewErrorResponse(common.ApiArgsError, errors.New("search not support")))
 		return
 	case ActionRename:
 		oldObj, err := s.ctrl.FindObject(ctx, parent, action.Parameters.Name)
