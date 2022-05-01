@@ -3,9 +3,11 @@ package fs
 import (
 	"context"
 	"github.com/basenana/go-flow/fsm"
+	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/files"
+	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow"
 	"github.com/basenana/nanafs/utils/logger"
@@ -28,8 +30,8 @@ func (m *MockController) ReadFile(ctx context.Context, file files.File, data []b
 }
 
 func (m *MockController) OpenFile(ctx context.Context, obj *types.Object, attr files.Attr) (files.File, error) {
-	//TODO implement me
-	panic("implement me")
+	obj.ModifiedAt = time.Now()
+	return files.Open(ctx, obj, attr)
 }
 
 func (m *MockController) WriteFile(ctx context.Context, file files.File, data []byte, offset int64) (n int64, err error) {
@@ -186,6 +188,9 @@ func initFsBridge(nfs *NanaFS) *NanaNode {
 func TestFs(t *testing.T) {
 	logger.InitLogger()
 	defer logger.Sync()
+
+	s, _ := storage.NewStorage("memory", config.Storage{})
+	files.InitFileIoChain(config.Config{}, s, make(chan struct{}))
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Fs Suite")
 }

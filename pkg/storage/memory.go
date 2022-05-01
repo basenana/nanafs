@@ -153,7 +153,7 @@ func (m *memoryStorage) Get(ctx context.Context, key string, idx, offset int64) 
 	if err != nil {
 		return nil, err
 	}
-	return utils.NewDateReader(bytes.NewReader(ck.data)), nil
+	return utils.NewDateReader(bytes.NewReader(ck.data[offset:])), nil
 }
 
 func (m *memoryStorage) Put(ctx context.Context, key string, idx, offset int64, in io.Reader) error {
@@ -164,15 +164,16 @@ func (m *memoryStorage) Put(ctx context.Context, key string, idx, offset int64, 
 	}
 
 	var (
-		n int
+		n   int
+		buf = make([]byte, 1024)
 	)
 
 	for {
-		n, err = in.Read(ck.data[offset:])
+		n, err = in.Read(buf)
 		if err == io.EOF || n == 0 {
 			break
 		}
-		offset += int64(n)
+		offset += int64(copy(ck.data[offset:], buf[:n]))
 	}
 
 	return m.saveChunk(ctx, cKey, *ck)

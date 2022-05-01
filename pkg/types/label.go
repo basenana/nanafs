@@ -6,7 +6,7 @@ const (
 )
 
 type Labels struct {
-	Labels []Label `json:"labels"`
+	Labels []Label `json:"labels,omitempty"`
 }
 
 func (l Labels) Get(key string) *Label {
@@ -19,6 +19,6 @@ func (l Labels) Get(key string) *Label {
 }
 
 type Label struct {
-	Key   string
-	Value string
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }

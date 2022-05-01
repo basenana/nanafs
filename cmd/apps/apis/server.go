@@ -1,56 +1,84 @@
 package apis
 
 import (
+	"context"
 	"fmt"
+	"github.com/basenana/nanafs/cmd/apps/apis/restfs"
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/utils/logger"
+	"github.com/gin-contrib/pprof"
+	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"net/http"
 	"time"
 )
 
 const (
-	httpTimeout = time.Minute
-	headerSize  = 1 << 20
+	defaultHttpTimeout = time.Minute * 30
 )
 
 type Server struct {
+	engine *gin.Engine
 	cfg    config.Api
 	logger *zap.SugaredLogger
 }
 
-func (s *Server) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	switch request.Method {
-	case http.MethodHead:
-		s.headHandler(writer, request)
-	case http.MethodGet:
-		s.getHandler(writer, request)
-	case http.MethodPost:
-		s.postHandler(writer, request)
-	case http.MethodPut:
-		s.putHandler(writer, request)
-	case http.MethodDelete:
-		s.deleteHandler(writer, request)
-	default:
-		writer.WriteHeader(http.StatusMethodNotAllowed)
-	}
-}
+func (s *Server) Run(stopCh chan struct{}) {
+	addr := fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port)
+	s.logger.Infof("http server on %s", addr)
 
-func (s *Server) Run() error {
 	httpServer := &http.Server{
-		Addr:           fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port),
-		Handler:        s,
-		ReadTimeout:    httpTimeout,
-		WriteTimeout:   httpTimeout,
-		MaxHeaderBytes: headerSize,
+		Addr:         addr,
+		Handler:      s.engine,
+		ReadTimeout:  defaultHttpTimeout,
+		WriteTimeout: defaultHttpTimeout,
 	}
-	return httpServer.ListenAndServe()
+
+	go func() {
+		if err := httpServer.ListenAndServe(); err != nil {
+			if err != http.ErrServerClosed {
+				s.logger.Panicw("api server down", "err", err.Error())
+			}
+			s.logger.Infof("api server stopped")
+		}
+	}()
+
+	<-stopCh
+	shutdownCtx, canF := context.WithTimeout(context.TODO(), time.Second)
+	defer canF()
+	_ = httpServer.Shutdown(shutdownCtx)
 }
 
-func NewServer(cfg config.Api) (*Server, error) {
-	server := &Server{
-		cfg:    cfg,
-		logger: logger.NewLogger("HttpServer"),
+func (s *Server) Ping(gCtx *gin.Context) {
+	gCtx.JSON(200, map[string]string{
+		"status": "ok",
+		"time":   time.Now().Format(time.RFC3339),
+	})
+}
+
+func NewApiServer(ctrl controller.Controller, cfg config.Api) (*Server, error) {
+	if cfg.Port == 0 {
+		return nil, fmt.Errorf("http port not set")
 	}
-	return server, nil
+	if cfg.Host == "" {
+		cfg.Host = "127.0.0.1"
+	}
+
+	s := &Server{
+		engine: gin.New(),
+		cfg:    cfg,
+		logger: logger.NewLogger("api"),
+	}
+	s.engine.GET("/_ping", s.Ping)
+	s.engine.Use()
+
+	if cfg.Pprof {
+		pprof.Register(s.engine)
+	}
+
+	if err := restfs.InitRestFs(ctrl, s.engine, cfg); err != nil {
+		return nil, fmt.Errorf("init restfs failed: %s", err.Error())
+	}
+	return s, nil
 }

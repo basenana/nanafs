@@ -134,11 +134,5 @@ var _ = Describe("TestFileIO", func() {
 				})
 			})
 		})
-		Context("write a new file without perm", func() {
-			It("should be no perm", func() {
-				f, err = openFile(context.Background(), newMockObject("test-create-new-file"), Attr{Write: true})
-				Expect(err).ShouldNot(BeNil())
-			})
-		})
 	})
 })
