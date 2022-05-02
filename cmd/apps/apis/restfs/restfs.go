@@ -9,6 +9,7 @@ import (
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
@@ -32,13 +33,14 @@ type RestFS struct {
 }
 
 func (s *RestFS) Get(gCtx *gin.Context) {
+	ctx := gCtx.Request.Context()
+	defer utils.TraceRegion(ctx, "restfs.get")()
 	req := FsRequest{}
 	if err := gCtx.ShouldBindJSON(&req); err != nil && err != io.EOF {
 		gCtx.JSON(http.StatusBadRequest, NewErrorResponse(common.ApiArgsError, err))
 		return
 	}
 
-	ctx := gCtx.Request.Context()
 	action := fillDefaultAction(http.MethodGet, req.Data)
 	_, obj, err := s.object(gCtx)
 	if err != nil {
@@ -93,7 +95,10 @@ const (
 func (s *RestFS) Post(gCtx *gin.Context) {
 	var (
 		req = FsRequest{}
+		ctx = gCtx.Request.Context()
 	)
+	defer utils.TraceRegion(ctx, "restfs.post")()
+
 	mf, err := gCtx.MultipartForm()
 	if err != nil {
 		if err = gCtx.BindJSON(&req); err != nil {
@@ -173,6 +178,7 @@ func (s *RestFS) Post(gCtx *gin.Context) {
 
 func (s *RestFS) newFile(gCtx *gin.Context, parent *types.Object, name string, reader io.Reader) (*types.Object, error) {
 	ctx := gCtx.Request.Context()
+	defer utils.TraceRegion(ctx, "restfs.newfile")()
 	obj, err := s.ctrl.CreateObject(ctx, parent, types.ObjectAttr{
 		Name:        name,
 		Kind:        types.RawKind,
@@ -214,12 +220,13 @@ func (s *RestFS) newFile(gCtx *gin.Context, parent *types.Object, name string, r
 }
 
 func (s *RestFS) Put(gCtx *gin.Context) {
+	ctx := gCtx.Request.Context()
+	defer utils.TraceRegion(ctx, "restfs.put")()
 	req := FsRequest{}
 	if err := gCtx.BindJSON(&req); err != nil {
 		gCtx.JSON(http.StatusBadRequest, NewErrorResponse(common.ApiArgsError, err))
 		return
 	}
-	ctx := gCtx.Request.Context()
 	action := fillDefaultAction(http.MethodPut, req.Data)
 	parent, obj, err := s.object(gCtx)
 	if err != nil {
@@ -273,6 +280,7 @@ func (s *RestFS) Put(gCtx *gin.Context) {
 
 func (s *RestFS) Delete(gCtx *gin.Context) {
 	ctx := gCtx.Request.Context()
+	defer utils.TraceRegion(ctx, "restfs.delete")()
 	_, obj, err := s.object(gCtx)
 	if err != nil {
 		if err == types.ErrNotFound {
@@ -292,8 +300,9 @@ func (s *RestFS) Delete(gCtx *gin.Context) {
 
 func (s *RestFS) object(gCtx *gin.Context) (parent, obj *types.Object, err error) {
 	ctx := gCtx.Request.Context()
-	path := gCtx.Param("path")
-	entries := pathEntries(path)
+	defer utils.TraceRegion(ctx, "restfs.findobject")()
+	pathStr := gCtx.Param("path")
+	entries := pathEntries(pathStr)
 	obj, err = s.ctrl.LoadRootObject(ctx)
 	if err != nil {
 		return nil, nil, err

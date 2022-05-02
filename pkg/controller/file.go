@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 	"github.com/hyponet/eventbus/bus"
 	"time"
 )
@@ -21,6 +22,7 @@ type OpenOption struct {
 }
 
 func (c *controller) OpenFile(ctx context.Context, obj *types.Object, attr files.Attr) (files.File, error) {
+	defer utils.TraceRegion(ctx, "controller.openfile")()
 	c.logger.Infow("open file", "file", obj.ID, "name", obj.Name, "attr", attr)
 	if obj.IsGroup() {
 		return nil, types.ErrIsGroup
@@ -44,6 +46,7 @@ func (c *controller) OpenFile(ctx context.Context, obj *types.Object, attr files
 }
 
 func (c *controller) ReadFile(ctx context.Context, file files.File, data []byte, offset int64) (n int, err error) {
+	defer utils.TraceRegion(ctx, "controller.readfile")()
 	n, err = file.Read(ctx, data, offset)
 	if err != nil {
 		return n, err
@@ -52,6 +55,7 @@ func (c *controller) ReadFile(ctx context.Context, file files.File, data []byte,
 }
 
 func (c *controller) WriteFile(ctx context.Context, file files.File, data []byte, offset int64) (n int64, err error) {
+	defer utils.TraceRegion(ctx, "controller.writefile")()
 	n, err = file.Write(ctx, data, offset)
 	if err != nil {
 		return n, err
@@ -62,6 +66,7 @@ func (c *controller) WriteFile(ctx context.Context, file files.File, data []byte
 }
 
 func (c *controller) CloseFile(ctx context.Context, file files.File) (err error) {
+	defer utils.TraceRegion(ctx, "controller.closefile")()
 	c.logger.Infow("close file", "file", file.GetObject().ID)
 	err = file.Close(ctx)
 	if err != nil {
@@ -73,6 +78,7 @@ func (c *controller) CloseFile(ctx context.Context, file files.File) (err error)
 }
 
 func (c *controller) DeleteFileData(ctx context.Context, obj *types.Object) (err error) {
+	defer utils.TraceRegion(ctx, "controller.cleanfile")()
 	c.logger.Infow("delete file", "file", obj.Name)
 	err = c.storage.Delete(ctx, obj.ID)
 	if err != nil {

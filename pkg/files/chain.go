@@ -7,6 +7,7 @@ import (
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"io"
@@ -136,6 +137,8 @@ func (p *pageCacheChain) readAt(ctx context.Context, index, off int64, data []by
 		readOnce int
 		page     *pageNode
 	)
+	ctx, endF := utils.TraceTask(ctx, "pagecache.read")
+	defer endF()
 
 	for {
 		pageIndex, pagePos := computePageIndex(index, off)
@@ -169,6 +172,8 @@ func (p *pageCacheChain) writeAt(ctx context.Context, index int64, off int64, da
 		bufSize   = int64(len(data))
 		onceWrite int
 	)
+	ctx, endF := utils.TraceTask(ctx, "pagecache.write")
+	defer endF()
 
 	for {
 		pageIndex, pagePos := computePageIndex(index, off)
@@ -232,6 +237,9 @@ func (p *pageCacheChain) readUncachedData(ctx context.Context, chunkIndex, pageI
 }
 
 func (p *pageCacheChain) commitDirtyPage(ctx context.Context, index, offset int64, node *pageNode) {
+	ctx, endF := utils.TraceTask(ctx, "pagecache.commit")
+	defer endF()
+
 	if node.mode&pageModeData == 0 || node.mode&pageModeDirty == 0 {
 		return
 	}
@@ -244,6 +252,9 @@ func (p *pageCacheChain) commitDirtyPage(ctx context.Context, index, offset int6
 }
 
 func (p *pageCacheChain) close(ctx context.Context) (err error) {
+	ctx, endF := utils.TraceTask(ctx, "pagecache.close")
+	defer endF()
+
 	return p.data.close(ctx)
 }
 
@@ -369,6 +380,8 @@ type cacheInfo struct {
 }
 
 func (l *chunkCacheChain) readAt(ctx context.Context, index, off int64, data []byte) (n int, err error) {
+	ctx, endF := utils.TraceTask(ctx, "cache.read")
+	defer endF()
 	l.mux.Lock()
 	cacheKey := l.cachePath(index)
 	cInfo, ok := l.mapping[cacheKey]
@@ -389,12 +402,17 @@ func (l *chunkCacheChain) readAt(ctx context.Context, index, off int64, data []b
 }
 
 func (l *chunkCacheChain) writeAt(ctx context.Context, index int64, off int64, data []byte) (n int, err error) {
+	ctx, endF := utils.TraceTask(ctx, "cache.write")
+	defer endF()
 	err = l.bufQ.put(index, off, data)
 	n = len(data)
 	return
 }
 
 func (l *chunkCacheChain) close(ctx context.Context) (err error) {
+	ctx, endF := utils.TraceTask(ctx, "cache.close")
+	defer endF()
+
 	l.mux.Lock()
 	l.mode |= chunkChainClosedMode
 	for _, cInfo := range l.mapping {
@@ -503,6 +521,9 @@ type chunkDirectChain struct {
 var _ chain = &chunkDirectChain{}
 
 func (d *chunkDirectChain) readAt(ctx context.Context, index, off int64, data []byte) (n int, err error) {
+	ctx, endF := utils.TraceTask(ctx, "direct.read")
+	defer endF()
+
 	d.mux.Lock()
 	defer d.mux.Unlock()
 
@@ -531,6 +552,9 @@ func (d *chunkDirectChain) readAt(ctx context.Context, index, off int64, data []
 }
 
 func (d *chunkDirectChain) writeAt(ctx context.Context, index int64, off int64, data []byte) (n int, err error) {
+	ctx, endF := utils.TraceTask(ctx, "direct.write")
+	defer endF()
+
 	d.mux.Lock()
 	defer d.mux.Unlock()
 	n = len(data)
@@ -551,6 +575,9 @@ func (d *chunkDirectChain) writeAt(ctx context.Context, index int64, off int64, 
 }
 
 func (d *chunkDirectChain) close(ctx context.Context) error {
+	ctx, endF := utils.TraceTask(ctx, "direct.close")
+	defer endF()
+
 	for _, seeker := range d.opens {
 		if closer, ok := seeker.(io.Closer); ok {
 			_ = closer.Close()
@@ -563,14 +590,23 @@ type dummyChain struct {
 }
 
 func (d dummyChain) readAt(ctx context.Context, index, off int64, data []byte) (n int, err error) {
+	ctx, endF := utils.TraceTask(ctx, "dummy.read")
+	defer endF()
+
 	return 0, nil
 }
 
 func (d dummyChain) writeAt(ctx context.Context, index int64, off int64, data []byte) (n int, err error) {
+	ctx, endF := utils.TraceTask(ctx, "dummy.write")
+	defer endF()
+
 	return len(data), nil
 }
 
 func (d dummyChain) close(ctx context.Context) error {
+	ctx, endF := utils.TraceTask(ctx, "dummy.close")
+	defer endF()
+
 	return nil
 }
 
