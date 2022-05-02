@@ -14,7 +14,7 @@ type Rule struct {
 }
 
 func (r Rule) Apply(value *Object) bool {
-	if len(r.Rules) == 0 {
+	if len(r.Rules) == 0 && r.Operation != nil {
 		return r.Operation.Apply(value)
 	}
 	if r.Logic == "all" {
@@ -33,7 +33,7 @@ func (r Rule) Apply(value *Object) bool {
 		}
 		return false
 	}
-	return true
+	return false
 }
 
 type Operation interface {
@@ -74,7 +74,11 @@ type Before struct {
 }
 
 func (b Before) Apply(value *Object) bool {
-	return Get(b.ColumnKey, value).(time.Time).Before(b.Content)
+	t, err := time.Parse("2006-01-02T15:04:05Z07:00", Get(b.ColumnKey, value).(string))
+	if err != nil {
+		return false
+	}
+	return t.Before(b.Content)
 }
 
 type After struct {
@@ -83,7 +87,11 @@ type After struct {
 }
 
 func (a After) Apply(value *Object) bool {
-	return Get(a.ColumnKey, value).(time.Time).After(a.Content)
+	t, err := time.Parse("2006-01-02T15:04:05Z07:00", Get(a.ColumnKey, value).(string))
+	if err != nil {
+		return false
+	}
+	return t.After(a.Content)
 }
 
 type In struct {

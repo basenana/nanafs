@@ -20,7 +20,7 @@ func init() {
 		panic(err)
 	}
 	FlowCtl = ctl
-	if err := FlowCtl.Register(&NanaFlow{}); err != nil {
+	if err := FlowCtl.Register(&NanaJob{}); err != nil {
 		panic(err)
 	}
 }

@@ -15,6 +15,7 @@ type FileController interface {
 	WriteFile(ctx context.Context, file files.File, data []byte, offset int64) (n int64, err error)
 	CloseFile(ctx context.Context, file files.File) error
 	DeleteFileData(ctx context.Context, obj *types.Object) error
+	IsStructured(obj *types.Object) bool
 }
 
 type OpenOption struct {
@@ -26,6 +27,7 @@ func (c *controller) OpenFile(ctx context.Context, obj *types.Object, attr files
 		return nil, types.ErrIsGroup
 	}
 	if s := c.registry.GetSchema(obj.Kind); s != nil {
+		attr.Meta = c.meta
 		file, err := c.OpenStructuredObject(ctx, obj, &s, attr)
 		if err != nil {
 			c.logger.Errorw("open structured object failed", "err", err.Error())
@@ -84,4 +86,11 @@ func (c *controller) DeleteFileData(ctx context.Context, obj *types.Object) (err
 	}
 	bus.Publish(fmt.Sprintf("object.file.%s.delete", obj.ID), obj)
 	return nil
+}
+
+func (c *controller) IsStructured(obj *types.Object) bool {
+	if s := c.registry.GetSchema(obj.Kind); s != nil {
+		return true
+	}
+	return false
 }

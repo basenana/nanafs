@@ -12,6 +12,24 @@ type StructuredController interface {
 	OpenStructuredObject(ctx context.Context, obj *types.Object, spec interface{}, attr files.Attr) (files.File, error)
 	CleanStructuredObject(ctx context.Context, obj *types.Object) error
 	CreateStructuredObject(ctx context.Context, parent *types.Object, attr types.ObjectAttr, cType types.Kind, version string) (*types.Object, error)
+	LoadStructureObject(ctx context.Context, obj *types.Object, spec interface{}) error
+	SaveStructureObject(ctx context.Context, obj *types.Object, spec interface{}) error
+}
+
+func (c *controller) LoadStructureObject(ctx context.Context, obj *types.Object, spec interface{}) error {
+	err := c.meta.LoadContent(ctx, obj, obj.Kind, obj.Labels.Get(types.VersionKey).Value, spec)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *controller) SaveStructureObject(ctx context.Context, obj *types.Object, spec interface{}) error {
+	err := c.meta.SaveContent(ctx, obj, obj.Kind, obj.Labels.Get(types.VersionKey).Value, spec)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *controller) ListStructuredObject(ctx context.Context, cType types.Kind, version string) ([]*types.Object, error) {

@@ -3,7 +3,9 @@ package files
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/hyponet/eventbus/bus"
 )
 
 type structured struct {
@@ -49,7 +51,12 @@ func (s *structured) Close(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	return s.attr.Meta.SaveContent(ctx, s.Object, s.cType, s.version, s.spec)
+	err = s.attr.Meta.SaveContent(ctx, s.Object, s.cType, s.version, s.spec)
+	if err != nil {
+		return err
+	}
+	bus.Publish(fmt.Sprintf("object.%s.%s.close", s.cType, s.ID), s.Object)
+	return nil
 }
 
 func openStructuredFile(ctx context.Context, obj *types.Object, spec interface{}, attr Attr) (*structured, error) {
