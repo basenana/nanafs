@@ -28,7 +28,6 @@ var _ = Describe("TestAccess", func() {
 		nfs := &NanaFS{
 			Controller: ctl,
 			Path:       "/tmp/test",
-			nodes:      map[string]*NanaNode{},
 		}
 		root = initFsBridge(nfs)
 
@@ -73,7 +72,6 @@ var _ = Describe("TestGetattr", func() {
 		nfs := &NanaFS{
 			Controller: ctl,
 			Path:       "/tmp/test",
-			nodes:      map[string]*NanaNode{},
 		}
 		root = initFsBridge(nfs)
 
@@ -114,7 +112,6 @@ var _ = Describe("TestOpen", func() {
 		nfs := &NanaFS{
 			Controller: ctl,
 			Path:       "/tmp/test",
-			nodes:      map[string]*NanaNode{},
 		}
 		root = initFsBridge(nfs)
 
@@ -158,7 +155,6 @@ var _ = Describe("TestCreate", func() {
 		nfs := &NanaFS{
 			Controller: ctl,
 			Path:       "/tmp/test",
-			nodes:      map[string]*NanaNode{},
 		}
 		root = initFsBridge(nfs)
 	})
@@ -208,7 +204,6 @@ var _ = Describe("TestLookup", func() {
 		nfs := &NanaFS{
 			Controller: ctl,
 			Path:       "/tmp/test",
-			nodes:      map[string]*NanaNode{},
 		}
 		root = initFsBridge(nfs)
 
@@ -258,7 +253,6 @@ var _ = Describe("TestOpendir", func() {
 		nfs := &NanaFS{
 			Controller: ctl,
 			Path:       "/tmp/test",
-			nodes:      map[string]*NanaNode{},
 		}
 		root = initFsBridge(nfs)
 
@@ -316,7 +310,6 @@ var _ = Describe("TestReaddir", func() {
 		nfs = &NanaFS{
 			Controller: ctl,
 			Path:       "/tmp/test",
-			nodes:      map[string]*NanaNode{},
 		}
 		root = initFsBridge(nfs)
 
@@ -378,7 +371,6 @@ var _ = Describe("TestMkdir", func() {
 		nfs := &NanaFS{
 			Controller: ctl,
 			Path:       "/tmp/test",
-			nodes:      map[string]*NanaNode{},
 		}
 		root = initFsBridge(nfs)
 	})
@@ -419,7 +411,6 @@ var _ = Describe("TestMknod", func() {
 		nfs := &NanaFS{
 			Controller: ctl,
 			Path:       "/tmp/test",
-			nodes:      map[string]*NanaNode{},
 		}
 		root = initFsBridge(nfs)
 	})
@@ -450,7 +441,6 @@ var _ = Describe("TestLink", func() {
 		nfs := &NanaFS{
 			Controller: ctl,
 			Path:       "/tmp/test",
-			nodes:      map[string]*NanaNode{},
 		}
 		root = initFsBridge(nfs)
 
@@ -494,7 +484,6 @@ var _ = Describe("TestRmdir", func() {
 		nfs := &NanaFS{
 			Controller: ctl,
 			Path:       "/tmp/test",
-			nodes:      map[string]*NanaNode{},
 		}
 		root = initFsBridge(nfs)
 
@@ -547,7 +536,6 @@ var _ = Describe("TestRename", func() {
 		nfs := &NanaFS{
 			Controller: ctl,
 			Path:       "/tmp/test",
-			nodes:      map[string]*NanaNode{},
 		}
 		root = initFsBridge(nfs)
 
@@ -581,7 +569,6 @@ var _ = Describe("TestStatfs", func() {
 		nfs := &NanaFS{
 			Controller: ctl,
 			Path:       "/tmp/test",
-			nodes:      map[string]*NanaNode{},
 		}
 		root = initFsBridge(nfs)
 	})

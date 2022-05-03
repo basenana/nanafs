@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"io"
@@ -29,6 +30,7 @@ func (l *local) ID() string {
 }
 
 func (l *local) Get(ctx context.Context, key string, idx, offset int64) (io.ReadCloser, error) {
+	defer utils.TraceRegion(ctx, "local.get")()
 	file, err := l.openLocalFile(l.key2LocalPath(key, idx), os.O_RDWR)
 	if err != nil {
 		return nil, err
@@ -43,6 +45,7 @@ func (l *local) Get(ctx context.Context, key string, idx, offset int64) (io.Read
 }
 
 func (l *local) Put(ctx context.Context, key string, idx, offset int64, in io.Reader) error {
+	defer utils.TraceRegion(ctx, "local.put")()
 	file, err := l.openLocalFile(l.key2LocalPath(key, idx), os.O_CREATE|os.O_RDWR)
 	if err != nil {
 		return err
@@ -60,6 +63,7 @@ func (l *local) Put(ctx context.Context, key string, idx, offset int64, in io.Re
 }
 
 func (l *local) Delete(ctx context.Context, key string) error {
+	defer utils.TraceRegion(ctx, "local.delete")()
 	p := path.Join(l.dir, key)
 	_, err := os.Stat(p)
 	if err != nil && !os.IsNotExist(err) {
@@ -71,6 +75,7 @@ func (l *local) Delete(ctx context.Context, key string) error {
 }
 
 func (l *local) Head(ctx context.Context, key string, idx int64) (Info, error) {
+	defer utils.TraceRegion(ctx, "local.head")()
 	info, err := os.Stat(l.key2LocalPath(key, idx))
 	if err != nil && !os.IsNotExist(err) {
 		return Info{}, err

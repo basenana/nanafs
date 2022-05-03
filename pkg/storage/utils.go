@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"database/sql"
 	"github.com/basenana/nanafs/pkg/types"
 	"sync"
 )
@@ -27,4 +28,14 @@ func (i *iterator) Next() *types.Object {
 	obj := i.objects[0]
 	i.objects = i.objects[1:]
 	return obj
+}
+
+func dbError2Error(err error) error {
+	switch err {
+	case sql.ErrNoRows:
+		return types.ErrNotFound
+
+	default:
+		return err
+	}
 }

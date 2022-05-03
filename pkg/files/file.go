@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 	"sync"
 )
 
@@ -30,6 +31,8 @@ func (f *file) GetObject() *types.Object {
 }
 
 func (f *file) Write(ctx context.Context, data []byte, offset int64) (n int64, err error) {
+	ctx, endF := utils.TraceTask(ctx, "file.write")
+	defer endF()
 	if !f.attr.Write {
 		return 0, types.ErrUnsupported
 	}
@@ -67,6 +70,8 @@ func (f *file) Write(ctx context.Context, data []byte, offset int64) (n int64, e
 }
 
 func (f *file) Read(ctx context.Context, data []byte, offset int64) (n int, err error) {
+	ctx, endF := utils.TraceTask(ctx, "file.read")
+	defer endF()
 	if !f.attr.Read {
 		return 0, types.ErrUnsupported
 	}
@@ -107,6 +112,7 @@ func (f *file) Read(ctx context.Context, data []byte, offset int64) (n int, err 
 }
 
 func (f *file) Fsync(ctx context.Context) (err error) {
+	defer utils.TraceRegion(ctx, "file.fsync")()
 	if !f.attr.Write {
 		return types.ErrUnsupported
 	}
@@ -116,10 +122,12 @@ func (f *file) Fsync(ctx context.Context) (err error) {
 }
 
 func (f *file) Flush(ctx context.Context) (err error) {
+	defer utils.TraceRegion(ctx, "file.flush")()
 	return
 }
 
 func (f *file) Close(ctx context.Context) (err error) {
+	defer utils.TraceRegion(ctx, "file.close")()
 	return f.dataChain.close(ctx)
 }
 
@@ -142,6 +150,7 @@ func openFile(ctx context.Context, obj *types.Object, attr Attr) (*file, error) 
 }
 
 func Open(ctx context.Context, obj *types.Object, attr Attr) (File, error) {
+	defer utils.TraceRegion(ctx, "file.open")()
 	if attr.Trunc {
 		obj.Size = 0
 	}

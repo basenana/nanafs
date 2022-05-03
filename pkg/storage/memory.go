@@ -27,6 +27,7 @@ type memoryMetaStore struct {
 var _ MetaStore = &memoryMetaStore{}
 
 func (m *memoryMetaStore) GetObject(ctx context.Context, id string) (*types.Object, error) {
+	defer utils.TraceRegion(ctx, "memory.getobject")()
 	m.mux.Lock()
 	result, ok := m.objects[id]
 	if !ok {
@@ -38,6 +39,7 @@ func (m *memoryMetaStore) GetObject(ctx context.Context, id string) (*types.Obje
 }
 
 func (m *memoryMetaStore) ListObjects(ctx context.Context, filter Filter) ([]*types.Object, error) {
+	defer utils.TraceRegion(ctx, "memory.listobject")()
 	m.mux.Lock()
 	result := make([]*types.Object, 0)
 	for oID, obj := range m.objects {
@@ -50,6 +52,7 @@ func (m *memoryMetaStore) ListObjects(ctx context.Context, filter Filter) ([]*ty
 }
 
 func (m *memoryMetaStore) SaveObject(ctx context.Context, obj *types.Object) error {
+	defer utils.TraceRegion(ctx, "memory.saveobject")()
 	m.mux.Lock()
 	if obj.Inode == 0 {
 		m.inodeCount++
@@ -61,6 +64,7 @@ func (m *memoryMetaStore) SaveObject(ctx context.Context, obj *types.Object) err
 }
 
 func (m *memoryMetaStore) DestroyObject(ctx context.Context, obj *types.Object) error {
+	defer utils.TraceRegion(ctx, "memory.destroyobject")()
 	m.mux.Lock()
 	_, ok := m.objects[obj.ID]
 	if !ok {
@@ -73,6 +77,7 @@ func (m *memoryMetaStore) DestroyObject(ctx context.Context, obj *types.Object) 
 }
 
 func (m *memoryMetaStore) ListChildren(ctx context.Context, obj *types.Object) (Iterator, error) {
+	defer utils.TraceRegion(ctx, "memory.listchildren")()
 	f := Filter{ParentID: obj.ID}
 	if obj.Labels.Get(types.KindKey) != nil && obj.Labels.Get(types.KindKey).Value != "" {
 		f.Kind = types.Kind(obj.Labels.Get(types.KindKey).Value)
@@ -90,11 +95,13 @@ func (m *memoryMetaStore) ListChildren(ctx context.Context, obj *types.Object) (
 }
 
 func (m *memoryMetaStore) ChangeParent(ctx context.Context, old *types.Object, parent *types.Object) error {
+	defer utils.TraceRegion(ctx, "memory.changeparent")()
 	old.ParentID = parent.ID
 	return m.SaveObject(ctx, old)
 }
 
 func (m *memoryMetaStore) SaveContent(ctx context.Context, obj *types.Object, cType types.Kind, version string, content interface{}) error {
+	defer utils.TraceRegion(ctx, "memory.savecontent")()
 	raw, err := json.Marshal(content)
 	if err != nil {
 		return err
@@ -108,6 +115,7 @@ func (m *memoryMetaStore) SaveContent(ctx context.Context, obj *types.Object, cT
 }
 
 func (m *memoryMetaStore) LoadContent(ctx context.Context, obj *types.Object, cType types.Kind, version string, content interface{}) error {
+	defer utils.TraceRegion(ctx, "memory.loadcontent")()
 	m.mux.Lock()
 	raw, ok := m.content[m.contentKey(obj, cType, version)]
 	m.mux.Unlock()
@@ -118,6 +126,7 @@ func (m *memoryMetaStore) LoadContent(ctx context.Context, obj *types.Object, cT
 }
 
 func (m *memoryMetaStore) DeleteContent(ctx context.Context, obj *types.Object, cType types.Kind, version string) error {
+	defer utils.TraceRegion(ctx, "memory.deletecontent")()
 	m.mux.Lock()
 	cKey := m.contentKey(obj, cType, version)
 	_, ok := m.content[cKey]
@@ -151,6 +160,7 @@ func (m *memoryStorage) ID() string {
 }
 
 func (m *memoryStorage) Get(ctx context.Context, key string, idx, offset int64) (io.ReadCloser, error) {
+	defer utils.TraceRegion(ctx, "memory.get")()
 	ck, err := m.getChunk(ctx, m.chunkKey(key, idx))
 	if err != nil {
 		return nil, err
@@ -159,6 +169,7 @@ func (m *memoryStorage) Get(ctx context.Context, key string, idx, offset int64) 
 }
 
 func (m *memoryStorage) Put(ctx context.Context, key string, idx, offset int64, in io.Reader) error {
+	defer utils.TraceRegion(ctx, "memory.put")()
 	cKey := m.chunkKey(key, idx)
 	ck, err := m.getChunk(ctx, m.chunkKey(key, idx))
 	if err != nil {
@@ -182,6 +193,7 @@ func (m *memoryStorage) Put(ctx context.Context, key string, idx, offset int64, 
 }
 
 func (m *memoryStorage) Delete(ctx context.Context, key string) error {
+	defer utils.TraceRegion(ctx, "memory.delete")()
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	for k := range m.storage {
@@ -193,6 +205,7 @@ func (m *memoryStorage) Delete(ctx context.Context, key string) error {
 }
 
 func (m *memoryStorage) Head(ctx context.Context, key string, idx int64) (Info, error) {
+	defer utils.TraceRegion(ctx, "memory.head")()
 	result := Info{Key: key}
 	ck, err := m.getChunk(ctx, m.chunkKey(key, idx))
 	if err != nil {

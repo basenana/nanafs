@@ -54,6 +54,8 @@ func NewMetaStorage(metaType string, meta config.Meta) (MetaStore, error) {
 	switch metaType {
 	case MemoryMeta:
 		return newMemoryMetaStore(), nil
+	case SqliteMeta:
+		return newSqliteMetaStore(meta)
 	default:
 		return nil, fmt.Errorf("unknow meta store type: %s", metaType)
 	}

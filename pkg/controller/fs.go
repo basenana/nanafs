@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 	"math"
 )
 
@@ -24,6 +25,8 @@ type Info struct {
 }
 
 func (c *controller) FsInfo(ctx context.Context) Info {
+	defer utils.TraceRegion(ctx, "controller.fsinfo")()
+
 	info := Info{
 		AvailInodes: math.MaxUint32,
 		MaxSize:     defaultFsMaxSize,

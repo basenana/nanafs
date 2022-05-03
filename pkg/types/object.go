@@ -7,23 +7,22 @@ import (
 )
 
 type Metadata struct {
-	ID           string        `json:"id"`
-	Name         string        `json:"name"`
-	Aliases      string        `json:"aliases,omitempty"`
-	ParentID     string        `json:"parent_id"`
-	RefID        string        `json:"ref_id,omitempty"`
-	Kind         Kind          `json:"kind"`
-	Hash         string        `json:"hash"`
-	Size         int64         `json:"size"`
-	Inode        uint64        `json:"inode"`
-	Namespace    string        `json:"namespace,omitempty"`
-	CreatedAt    time.Time     `json:"created_at"`
-	ChangedAt    time.Time     `json:"changed_at"`
-	ModifiedAt   time.Time     `json:"modified_at"`
-	AccessAt     time.Time     `json:"access_at"`
-	Labels       Labels        `json:"labels"`
-	Access       Access        `json:"access"`
-	CustomColumn *CustomColumn `json:"custom_column,omitempty"`
+	ID         string    `json:"id"`
+	Name       string    `json:"name"`
+	Aliases    string    `json:"aliases,omitempty"`
+	ParentID   string    `json:"parent_id"`
+	RefID      string    `json:"ref_id,omitempty"`
+	Kind       Kind      `json:"kind"`
+	Hash       string    `json:"hash"`
+	Size       int64     `json:"size"`
+	Inode      uint64    `json:"inode"`
+	Namespace  string    `json:"namespace,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
+	ChangedAt  time.Time `json:"changed_at"`
+	ModifiedAt time.Time `json:"modified_at"`
+	AccessAt   time.Time `json:"access_at"`
+	Labels     Labels    `json:"labels"`
+	Access     Access    `json:"access"`
 }
 
 func NewMetadata(name string, kind Kind) Metadata {

@@ -6,6 +6,7 @@ import (
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 	"github.com/hyponet/eventbus/bus"
 )
 
@@ -22,6 +23,7 @@ type ObjectController interface {
 }
 
 func (c *controller) LoadRootObject(ctx context.Context) (*types.Object, error) {
+	defer utils.TraceRegion(ctx, "controller.loadroot")()
 	c.logger.Info("init root object")
 	root, err := c.meta.GetObject(ctx, dentry.RootObjectID)
 	if err != nil {
@@ -39,7 +41,11 @@ func (c *controller) LoadRootObject(ctx context.Context) (*types.Object, error) 
 }
 
 func (c *controller) FindObject(ctx context.Context, parent *types.Object, name string) (*types.Object, error) {
+	defer utils.TraceRegion(ctx, "controller.findobject")()
 	c.logger.Infow("finding child object", "parent", parent.ID, "name", name)
+	if !parent.IsGroup() {
+		return nil, types.ErrNoGroup
+	}
 	children, err := c.ListObjectChildren(ctx, parent)
 	if err != nil {
 		return nil, err
@@ -65,6 +71,7 @@ func (c *controller) GetObject(ctx context.Context, id string) (*types.Object, e
 }
 
 func (c *controller) CreateObject(ctx context.Context, parent *types.Object, attr types.ObjectAttr) (*types.Object, error) {
+	defer utils.TraceRegion(ctx, "controller.createobject")()
 	c.logger.Infow("creating new obj", "name", attr.Name, "kind", attr.Kind)
 	if parent.Labels.Get(types.KindKey) != nil && parent.Labels.Get(types.KindKey).Value != "" {
 		return c.CreateStructuredObject(ctx, parent, attr, types.Kind(parent.Labels.Get(types.KindKey).Value), parent.Labels.Get(types.VersionKey).Value)
@@ -86,6 +93,7 @@ func (c *controller) CreateObject(ctx context.Context, parent *types.Object, att
 }
 
 func (c *controller) SaveObject(ctx context.Context, obj *types.Object) error {
+	defer utils.TraceRegion(ctx, "controller.saveobject")()
 	c.logger.Infow("save obj", "obj", obj.ID)
 	err := c.meta.SaveObject(ctx, obj)
 	if err != nil {
@@ -97,6 +105,7 @@ func (c *controller) SaveObject(ctx context.Context, obj *types.Object) error {
 }
 
 func (c *controller) DestroyObject(ctx context.Context, obj *types.Object) (err error) {
+	defer utils.TraceRegion(ctx, "controller.destroyobject")()
 	c.logger.Infow("destroy obj", "obj", obj.ID)
 
 	defer func() {
@@ -167,6 +176,7 @@ func (c *controller) destroyObject(ctx context.Context, obj *types.Object) (err 
 }
 
 func (c *controller) MirrorObject(ctx context.Context, src, dstParent *types.Object, attr types.ObjectAttr) (*types.Object, error) {
+	defer utils.TraceRegion(ctx, "controller.mirrorobject")()
 	c.logger.Infow("mirror obj", "srcObj", src.ID, "dstParent", dstParent.ID)
 
 	var err error
@@ -189,6 +199,10 @@ func (c *controller) MirrorObject(ctx context.Context, src, dstParent *types.Obj
 }
 
 func (c *controller) ListObjectChildren(ctx context.Context, obj *types.Object) ([]*types.Object, error) {
+	defer utils.TraceRegion(ctx, "controller.listchildren")()
+	if !obj.IsGroup() {
+		return nil, types.ErrNoGroup
+	}
 	c.logger.Infow("list children obj", "name", obj.Name)
 	result := make([]*types.Object, 0)
 	it, err := c.meta.ListChildren(ctx, obj)
@@ -212,6 +226,7 @@ type ChangeParentOpt struct {
 }
 
 func (c *controller) ChangeObjectParent(ctx context.Context, obj, newParent *types.Object, newName string, opt ChangeParentOpt) error {
+	defer utils.TraceRegion(ctx, "controller.changeparent")()
 	c.logger.Infow("change obj parent", "old", obj.ID, "newParent", newParent.ID, "newName", newName)
 	old, err := c.FindObject(ctx, newParent, newName)
 	if err != nil {
