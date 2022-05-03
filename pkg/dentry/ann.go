@@ -15,8 +15,11 @@ func AddInternalAnnotation(obj *types.Object, key, value string, encode bool) {
 }
 
 func GetInternalAnnotation(obj *types.Object, key string) *types.AnnotationItem {
-	item := obj.ExtendData.Annotation.Get(key, true)
-	return item
+	if obj.ExtendData.Annotation != nil {
+		item := obj.ExtendData.Annotation.Get(key, true)
+		return item
+	}
+	return nil
 }
 
 func DeleteAnnotation(obj *types.Object, key string) {

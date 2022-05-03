@@ -13,6 +13,7 @@ type Config struct {
 
 type Meta struct {
 	Type string `json:"type"`
+	Path string `json:"path"`
 }
 
 type Storage struct {

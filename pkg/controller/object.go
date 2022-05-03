@@ -42,6 +42,9 @@ func (c *controller) LoadRootObject(ctx context.Context) (*types.Object, error) 
 func (c *controller) FindObject(ctx context.Context, parent *types.Object, name string) (*types.Object, error) {
 	defer utils.TraceRegion(ctx, "controller.findobject")()
 	c.logger.Infow("finding child object", "parent", parent.ID, "name", name)
+	if !parent.IsGroup() {
+		return nil, types.ErrNoGroup
+	}
 	children, err := c.ListObjectChildren(ctx, parent)
 	if err != nil {
 		return nil, err
@@ -183,6 +186,9 @@ func (c *controller) MirrorObject(ctx context.Context, src, dstParent *types.Obj
 
 func (c *controller) ListObjectChildren(ctx context.Context, obj *types.Object) ([]*types.Object, error) {
 	defer utils.TraceRegion(ctx, "controller.listchildren")()
+	if !obj.IsGroup() {
+		return nil, types.ErrNoGroup
+	}
 	c.logger.Infow("list children obj", "name", obj.Name)
 	result := make([]*types.Object, 0)
 	it, err := c.meta.ListChildren(ctx, obj)

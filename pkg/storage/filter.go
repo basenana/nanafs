@@ -13,6 +13,26 @@ type Filter struct {
 	Label     LabelMatch
 }
 
+func filterMapper(f Filter) map[string]interface{} {
+	result := make(map[string]interface{})
+	if f.ID != "" {
+		result["id"] = f.ID
+	}
+	if f.ParentID != "" {
+		result["parent_id"] = f.ParentID
+	}
+	if f.RefID != "" {
+		result["ref_id"] = f.RefID
+	}
+	if f.Kind != "" {
+		result["kind"] = string(f.Kind)
+	}
+	if f.Namespace != "" {
+		result["namespace"] = string(f.Namespace)
+	}
+	return result
+}
+
 type LabelMatch struct {
 	Include []types.Label
 	Exclude []types.Label
