@@ -101,6 +101,8 @@ func (m *memoryMetaStore) SaveContent(ctx context.Context, obj *types.Object, cT
 	}
 	m.mux.Lock()
 	m.content[m.contentKey(obj, cType, version)] = raw
+	obj.Size = int64(len(raw))
+	m.objects[obj.ID] = obj
 	m.mux.Unlock()
 	return nil
 }

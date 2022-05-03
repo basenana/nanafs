@@ -12,6 +12,7 @@ import (
 type ObjectController interface {
 	LoadRootObject(ctx context.Context) (*types.Object, error)
 	FindObject(ctx context.Context, parent *types.Object, name string) (*types.Object, error)
+	GetObject(ctx context.Context, id string) (*types.Object, error)
 	CreateObject(ctx context.Context, parent *types.Object, attr types.ObjectAttr) (*types.Object, error)
 	SaveObject(ctx context.Context, obj *types.Object) error
 	DestroyObject(ctx context.Context, obj *types.Object) error
@@ -53,6 +54,16 @@ func (c *controller) FindObject(ctx context.Context, parent *types.Object, name 
 	return nil, types.ErrNotFound
 }
 
+func (c *controller) GetObject(ctx context.Context, id string) (*types.Object, error) {
+	c.logger.Infow("get object", "id", id)
+	obj, err := c.meta.GetObject(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return obj, nil
+}
+
 func (c *controller) CreateObject(ctx context.Context, parent *types.Object, attr types.ObjectAttr) (*types.Object, error) {
 	c.logger.Infow("creating new obj", "name", attr.Name, "kind", attr.Kind)
 	if parent.Labels.Get(types.KindKey) != nil && parent.Labels.Get(types.KindKey).Value != "" {
@@ -90,7 +101,10 @@ func (c *controller) DestroyObject(ctx context.Context, obj *types.Object) (err 
 
 	defer func() {
 		if err == nil {
-			bus.Publish(fmt.Sprintf("object.entry.%s.destory", obj.ID), obj)
+			bus.Publish(fmt.Sprintf("object.entry.%s.destroy", obj.ID), obj)
+			if c.IsStructured(obj) {
+				bus.Publish(fmt.Sprintf("object.%s.%s.destroy", obj.Kind, obj.ID), obj)
+			}
 		}
 	}()
 
