@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
@@ -10,6 +11,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"go.uber.org/zap"
 	"strings"
+	"sync"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -19,9 +21,11 @@ const (
 )
 
 type sqliteMetaStore struct {
-	db     *sqlx.DB
-	dbPath string
-	logger *zap.SugaredLogger
+	db        *sqlx.DB
+	dbPath    string
+	nextInode int64
+	mux       sync.Mutex
+	logger    *zap.SugaredLogger
 }
 
 var _ MetaStore = &sqliteMetaStore{}
@@ -38,6 +42,12 @@ func (s *sqliteMetaStore) ListObjects(ctx context.Context, filter Filter) ([]*ty
 
 func (s *sqliteMetaStore) SaveObject(ctx context.Context, obj *types.Object) error {
 	defer utils.TraceRegion(ctx, "sqlite.saveobject")()
+	if obj.Inode == 0 {
+		s.mux.Lock()
+		obj.Inode = uint64(s.nextInode)
+		s.nextInode += 1
+		s.mux.Unlock()
+	}
 	return saveObject(ctx, s.db, obj)
 }
 
@@ -67,12 +77,17 @@ func (s *sqliteMetaStore) SaveContent(ctx context.Context, obj *types.Object, cT
 	if err != nil {
 		return err
 	}
-	return updateObjectContent(ctx, s.db, Content{
+	obj.Size = int64(len(rawData))
+	err = updateObjectContent(ctx, s.db, Content{
 		ID:      obj.ID,
 		Kind:    string(cType),
 		Version: version,
 		Data:    rawData,
 	})
+	if err != nil {
+		return err
+	}
+	return saveObject(ctx, s.db, obj)
 }
 
 func (s *sqliteMetaStore) LoadContent(ctx context.Context, obj *types.Object, cType types.Kind, version string, content interface{}) error {
@@ -107,9 +122,15 @@ func newSqliteMetaStore(meta config.Meta) (*sqliteMetaStore, error) {
 		}
 	}
 
+	maxInode, err := currentMaxInode(context.Background(), db)
+	if err != nil {
+		return nil, fmt.Errorf("query inode failed: %s", err.Error())
+	}
+
 	return &sqliteMetaStore{
-		db:     db,
-		dbPath: meta.Path,
-		logger: logger.NewLogger("sqlite"),
+		db:        db,
+		dbPath:    meta.Path,
+		nextInode: maxInode + 1,
+		logger:    logger.NewLogger("sqlite"),
 	}, nil
 }

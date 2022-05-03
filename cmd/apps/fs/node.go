@@ -266,7 +266,7 @@ func (n *NanaNode) Rmdir(ctx context.Context, name string) syscall.Errno {
 
 func (n *NanaNode) Rename(ctx context.Context, name string, newParent fs.InodeEmbedder, newName string, flags uint32) syscall.Errno {
 	defer utils.TraceRegion(ctx, "node.rmname")()
-	oldObject, err := n.R.FindObject(ctx, n.obj, name)
+	oldObject, err := n.GetChild(ctx, name)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
@@ -290,14 +290,35 @@ func (n *NanaNode) Rename(ctx context.Context, name string, newParent fs.InodeEm
 
 func (n *NanaNode) OnAdd(ctx context.Context) {
 	defer utils.TraceRegion(ctx, "node.onadd")()
-	children, err := n.R.ListObjectChildren(ctx, n.obj)
-	if err == nil {
-		for i := range children {
-			obj := children[i]
-			node, _ := n.R.newFsNode(ctx, n, obj)
-			n.AddChild(obj.Name, node.EmbeddedInode(), false)
+	if n.obj.IsGroup() {
+		children, err := n.R.ListObjectChildren(ctx, n.obj)
+		if err == nil {
+			for i := range children {
+				obj := children[i]
+				node, _ := n.R.newFsNode(ctx, n, obj)
+				n.AddChild(obj.Name, node.EmbeddedInode(), false)
+			}
 		}
 	}
+}
+
+func (n *NanaNode) GetChild(ctx context.Context, name string) (*types.Object, error) {
+	inode := n.Inode.GetChild(name)
+	if inode != nil {
+		return inode.Operations().(*NanaNode).obj, nil
+	}
+
+	obj, err := n.R.FindObject(ctx, n.obj, name)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = n.R.newFsNode(ctx, n, obj)
+	if err != nil {
+		return nil, err
+	}
+
+	return obj, nil
 }
 
 func (n *NanaNode) Release(ctx context.Context, f fs.FileHandle) (err syscall.Errno) {

@@ -35,7 +35,7 @@ func filterMapper(f Filter) map[string]interface{} {
 
 type LabelMatch struct {
 	Include []types.Label
-	Exclude []types.Label
+	Exclude []string
 }
 
 func isObjectFiltered(obj *types.Object, filter Filter) bool {

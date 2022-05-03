@@ -10,7 +10,6 @@ import (
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
 	"go.uber.org/zap"
-	"sync"
 	"syscall"
 	"time"
 )
@@ -27,10 +26,8 @@ type NanaFS struct {
 	Dev     uint64
 	Display string
 
-	nodes  map[string]*NanaNode
 	logger *zap.SugaredLogger
 	debug  bool
-	mux    sync.Mutex
 }
 
 func (n *NanaFS) Start(stopCh chan struct{}) error {
@@ -54,16 +51,47 @@ func (n *NanaFS) Start(stopCh chan struct{}) error {
 		AttrTimeout:  &attrTimeout,
 		Logger:       logger.NewFuseLogger(),
 	}
-	server, err := fs.Mount(n.Path, root, opt)
+
+	rawFs := fs.NewNodeFS(root, opt)
+	server, err := fuse.NewServer(rawFs, n.Path, &opt.MountOptions)
 	if err != nil {
 		return err
 	}
 	//server.SetDebug(n.debug)
+
+	go server.Serve()
+
 	go func() {
 		<-stopCh
 		_ = server.Unmount()
 	}()
-	return server.WaitMount()
+
+	waitMount := func() error {
+		var (
+			timeout = time.NewTimer(time.Minute)
+			finish  = make(chan struct{})
+		)
+		defer timeout.Stop()
+		go func() {
+			n.logger.Infow("waiting mount finish")
+			select {
+			case <-timeout.C:
+				if err = server.Unmount(); err != nil {
+					n.logger.Errorw("mount timeout and clean mount point failed", "err", err.Error())
+				}
+				n.logger.Panicw("wait mount timeout")
+			case <-finish:
+				n.logger.Infow("fs mounted")
+				return
+			}
+		}()
+		if err := server.WaitMount(); err != nil {
+			return err
+		}
+		close(finish)
+		return nil
+	}
+	return waitMount()
 }
 
 func (n *NanaFS) SetDebug(debug bool) {
@@ -79,31 +107,19 @@ func (n *NanaFS) newFsNode(ctx context.Context, parent *NanaNode, obj *types.Obj
 		}
 	}
 
-	n.mux.Lock()
-	node, ok := n.nodes[obj.ID]
-	if !ok {
-		node = &NanaNode{
-			obj:    obj,
-			R:      n,
-			logger: n.logger.With(zap.String("obj", obj.ID)),
-		}
-		if parent != nil {
-			parent.NewInode(ctx, node, idFromStat(n.Dev, nanaNode2Stat(node)))
-		}
-		n.nodes[obj.ID] = node
+	node := &NanaNode{
+		obj:    obj,
+		R:      n,
+		logger: n.logger.With(zap.String("obj", obj.ID)),
 	}
-	n.mux.Unlock()
+	if parent != nil {
+		parent.NewInode(ctx, node, idFromStat(n.Dev, nanaNode2Stat(node)))
+	}
 
 	return node, nil
 }
 
 func (n *NanaFS) releaseFsNode(ctx context.Context, obj *types.Object) {
-	n.mux.Lock()
-	_, ok := n.nodes[obj.ID]
-	if ok {
-		delete(n.nodes, obj.ID)
-	}
-	n.mux.Unlock()
 }
 
 func NewNanaFsRoot(cfg config.Fs, controller controller.Controller) (*NanaFS, error) {
@@ -122,7 +138,6 @@ func NewNanaFsRoot(cfg config.Fs, controller controller.Controller) (*NanaFS, er
 		Path:       cfg.RootPath,
 		Display:    cfg.DisplayName,
 		Dev:        uint64(st.Dev),
-		nodes:      map[string]*NanaNode{},
 		logger:     logger.NewLogger("fs"),
 	}
 

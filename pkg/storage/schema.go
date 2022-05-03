@@ -27,14 +27,16 @@ CREATE TABLE object (
 	changed_at DATETIME,
 	modified_at DATETIME,
 	access_at DATETIME,
-	data BLOB
+	data BLOB,
+	PRIMARY KEY (id)
 );
 `
 	createObjectLabelTableSQL = `
 CREATE TABLE object_label (
     id VARCHAR(32),
     key VARCHAR(128),
-    value VARCHAR(512)
+    value VARCHAR(512),
+    CONSTRAINT pk_lid PRIMARY KEY (id,key)
 );
 `
 	createObjectContentTableSQL = `
@@ -42,7 +44,8 @@ CREATE TABLE object_content (
     id VARCHAR(32),
     kind VARCHAR(128),
     version VARCHAR(512),
-    data BLOB
+    data BLOB,
+    CONSTRAINT pk_cid PRIMARY KEY (id,kind,version)
 );
 `
 	insertObjectSQL = `
@@ -263,8 +266,40 @@ func listObject(ctx context.Context, db *sqlx.DB, filter Filter) ([]*types.Objec
 	return result, nil
 }
 
+func currentMaxInode(ctx context.Context, db *sqlx.DB) (inode int64, err error) {
+	var total int64
+	err = db.Get(&total, `SELECT count(*) FROM "object"`)
+	if err != nil {
+		return
+	}
+	if total == 0 {
+		return
+	}
+	query := `SELECT max(inode) FROM "object"`
+	err = db.Get(&inode, query)
+	return
+}
+
 func listObjectWithLabelMatcher(ctx context.Context, db *sqlx.DB, labelMatch LabelMatch) ([]*types.Object, error) {
-	return nil, nil
+	queryBuf := bytes.Buffer{}
+	queryBuf.WriteString("SELECT * FROM object WHERE ")
+
+	for i, inKey := range labelMatch.Include {
+		queryBuf.WriteString(fmt.Sprintf("id IN (SELECT id FROM object_lable WHERE key='%s' AND value='%s')", inKey.Key, inKey.Value))
+		if i < len(labelMatch.Include) {
+			queryBuf.WriteString(" AND ")
+		}
+	}
+	for i, exKey := range labelMatch.Exclude {
+		queryBuf.WriteString(fmt.Sprintf("id NOT IN (SELECT id FROM object_lable WHERE key='%s')", exKey))
+		if i < len(labelMatch.Exclude) {
+			queryBuf.WriteString(" AND ")
+		}
+	}
+
+	result := make([]*types.Object, 0)
+	err := db.Select(&result, queryBuf.String())
+	return result, err
 }
 
 type Content struct {
