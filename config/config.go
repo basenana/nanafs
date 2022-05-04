@@ -3,8 +3,8 @@ package config
 type Config struct {
 	Meta      Meta      `json:"meta"`
 	Storages  []Storage `json:"storages"`
-	CacheDir  string    `json:"cache_dir"`
-	CacheSize int64     `json:"cache_size"`
+	CacheDir  string    `json:"cache_dir,omitempty"`
+	CacheSize int64     `json:"cache_size,omitempty"`
 	Debug     bool      `json:"debug"`
 
 	ApiConfig Api `json:"api"`
@@ -18,9 +18,9 @@ type Meta struct {
 
 type Storage struct {
 	ID        string `json:"id"`
-	LocalDir  string `json:"local_dir"`
-	CacheDir  string `json:"cache_dir"`
-	CacheSize int64  `json:"cache_size"`
+	LocalDir  string `json:"local_dir,omitempty"`
+	CacheDir  string `json:"cache_dir,omitempty"`
+	CacheSize int64  `json:"cache_size,omitempty"`
 }
 
 type Api struct {
@@ -33,5 +33,5 @@ type Api struct {
 type Fs struct {
 	Enable      bool   `json:"enable"`
 	RootPath    string `json:"root_path"`
-	DisplayName string `json:"display_name"`
+	DisplayName string `json:"display_name,omitempty"`
 }

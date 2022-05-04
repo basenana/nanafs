@@ -62,6 +62,8 @@ github.com/hanwen/go-fuse/v2/splice
 # github.com/hyponet/eventbus v1.0.0
 ## explicit
 github.com/hyponet/eventbus/bus
+# github.com/inconshreveable/mousetrap v1.0.0
+github.com/inconshreveable/mousetrap
 # github.com/jmoiron/sqlx v1.3.5
 ## explicit
 github.com/jmoiron/sqlx
@@ -122,6 +124,11 @@ github.com/onsi/gomega/matchers/support/goraph/edge
 github.com/onsi/gomega/matchers/support/goraph/node
 github.com/onsi/gomega/matchers/support/goraph/util
 github.com/onsi/gomega/types
+# github.com/spf13/cobra v1.4.0
+## explicit
+github.com/spf13/cobra
+# github.com/spf13/pflag v1.0.5
+github.com/spf13/pflag
 # github.com/ugorji/go v1.2.7
 ## explicit
 # github.com/ugorji/go/codec v1.2.7

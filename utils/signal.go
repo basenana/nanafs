@@ -25,8 +25,9 @@ func HandleTerminalSignal() chan struct{} {
 
 	go func() {
 		<-terminalCh
-		close(terminalCh)
 		close(ch)
+		<-terminalCh
+		os.Exit(2)
 	}()
 
 	return ch
