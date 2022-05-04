@@ -29,20 +29,45 @@ func NewWorkflowManager(ctrl controller.Controller) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	wf, err := ctrl.FindObject(context.TODO(), root, ".workflow")
+	wfParent, err := ctrl.FindObject(context.TODO(), root, ".workflow")
 	if err != nil {
 		return nil, err
 	}
-	job, err := ctrl.FindObject(context.TODO(), root, ".job")
+	jobParent, err := ctrl.FindObject(context.TODO(), root, ".job")
 	if err != nil {
 		return nil, err
+	}
+	wfs, err := ctrl.ListObjectChildren(context.TODO(), wfParent)
+	if err != nil {
+		return nil, err
+	}
+
+	wfMaps := make(map[string]*Workflow)
+	for _, o := range wfs {
+		w := &types.Workflow{}
+		err = ctrl.LoadStructureObject(context.TODO(), o, w)
+		if err != nil {
+			return nil, err
+		}
+		plugins := make([]plugin.Plugin, 0)
+		for _, a := range w.Actions {
+			if p, ok := plugin.Plugins[a]; ok {
+				plugins = append(plugins, p)
+			}
+		}
+		wfMaps[o.ID] = &Workflow{
+			obj:     *o,
+			Name:    o.Name,
+			Rule:    w.Rule.ToRule(),
+			Plugins: plugins,
+		}
 	}
 	return &Manager{
 		ctrl:      ctrl,
 		logger:    logger.NewLogger("WorkflowManager"),
-		wfParent:  wf,
-		jobParent: job,
-		workflows: map[string]*Workflow{},
+		wfParent:  wfParent,
+		jobParent: jobParent,
+		workflows: wfMaps,
 	}, nil
 }
 
