@@ -3,6 +3,7 @@ package storage
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
@@ -91,7 +92,7 @@ INSERT INTO object_label (
 DELETE FROM object_label WHERE id=:id;
 `
 	insertObjectContentSQL = `
-INSERT INTO object_custom (
+INSERT INTO object_content (
 	id, kind, version, data
 ) VALUES (
 	:id, :kind, :version, :data
@@ -103,7 +104,6 @@ SET
 	data=:data
 WHERE
 	id=:id AND kind=:kind AND version=:version
-);
 `
 	deleteObjectContentSQL = `
 DELETE FROM object_custom WHERE id=:id;
@@ -311,14 +311,24 @@ type Content struct {
 
 func queryObjectContent(ctx context.Context, db *sqlx.DB, id, kind, version string) (Content, error) {
 	content := Content{}
-	if err := db.Get(&content, "SELECT * FROM object_content WHERE id=$1, kind=$2, version=$3", id, kind, version); err != nil {
+	if err := db.Get(&content, "SELECT * FROM object_content WHERE id=$1 AND kind=$2 AND version=$3", id, kind, version); err != nil {
 		return content, dbError2Error(err)
 	}
 	return content, nil
 }
 
 func updateObjectContent(ctx context.Context, db *sqlx.DB, content Content) error {
-	if _, err := db.NamedExec(updateObjectContentSQL, content); err != nil {
+	old := Content{}
+	execSql := updateObjectContentSQL
+	err := db.Get(&old, "SELECT * FROM object_content WHERE id=$1 AND kind=$2 AND version=$3", content.ID, content.Kind, content.Version)
+	if err == sql.ErrNoRows {
+		execSql = insertObjectContentSQL
+	} else {
+		if bytes.Equal(old.Data, content.Data) {
+			return nil
+		}
+	}
+	if _, err := db.NamedExec(execSql, content); err != nil {
 		return dbError2Error(err)
 	}
 	return nil
