@@ -15,7 +15,7 @@ Generate default local configuration:
 nanafs config init
 ```
 
-Edit local configuration:
+Edit local configuration file obtained in the previous step:
 ```json
 {
   "debug": false,
@@ -43,7 +43,7 @@ Edit local configuration:
 
 Run nanafs:
 ```bash
-nanafs serve --config=/your/config/path
+nanafs serve
 ```
 
 ## Architecture
