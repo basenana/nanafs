@@ -8,7 +8,6 @@ import (
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/storage"
-	"github.com/basenana/nanafs/pkg/workflow"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/spf13/cobra"
@@ -62,11 +61,11 @@ var daemonCmd = &cobra.Command{
 		}
 
 		ctrl := controller.New(loader, meta, sto)
-		wfMgr, err := workflow.NewWorkflowManager(ctrl)
-		if err != nil {
-			panic(err)
-		}
-		go wfMgr.Run()
+		//wfMgr, err := workflow.NewWorkflowManager(ctrl)
+		//if err != nil {
+		//	panic(err)
+		//}
+		//go wfMgr.Run()
 
 		stop := utils.HandleTerminalSignal()
 		files.InitFileIoChain(cfg, sto, stop)

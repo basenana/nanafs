@@ -2,14 +2,12 @@ package fs
 
 import (
 	"context"
-	"github.com/basenana/go-flow/fsm"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/pkg/workflow"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/hanwen/go-fuse/v2/fs"
 	. "github.com/onsi/ginkgo"
@@ -24,27 +22,12 @@ type MockController struct {
 	mux     sync.Mutex
 }
 
-func (m *MockController) ReadFile(ctx context.Context, file files.File, data []byte, offset int64) (n int, err error) {
+func (m *MockController) GetObject(ctx context.Context, id string) (*types.Object, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (m *MockController) OpenFile(ctx context.Context, obj *types.Object, attr files.Attr) (files.File, error) {
-	obj.ModifiedAt = time.Now()
-	return files.Open(ctx, obj, attr)
-}
-
-func (m *MockController) WriteFile(ctx context.Context, file files.File, data []byte, offset int64) (n int64, err error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *MockController) CloseFile(ctx context.Context, file files.File) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *MockController) GetJobs(ctx context.Context) map[fsm.Status]*workflow.Job {
+func (m *MockController) IsStructured(obj *types.Object) bool {
 	//TODO implement me
 	panic("implement me")
 }
@@ -65,6 +48,41 @@ func (m *MockController) CleanStructuredObject(ctx context.Context, obj *types.O
 }
 
 func (m *MockController) CreateStructuredObject(ctx context.Context, parent *types.Object, attr types.ObjectAttr, cType types.Kind, version string) (*types.Object, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockController) LoadStructureObject(ctx context.Context, obj *types.Object, spec interface{}) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockController) SaveStructureObject(ctx context.Context, obj *types.Object, spec interface{}) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockController) GetJobs(ctx context.Context) map[string]*types.Job {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockController) ReadFile(ctx context.Context, file files.File, data []byte, offset int64) (n int, err error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockController) OpenFile(ctx context.Context, obj *types.Object, attr files.Attr) (files.File, error) {
+	obj.ModifiedAt = time.Now()
+	return files.Open(ctx, obj, attr)
+}
+
+func (m *MockController) WriteFile(ctx context.Context, file files.File, data []byte, offset int64) (n int64, err error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockController) CloseFile(ctx context.Context, file files.File) error {
 	//TODO implement me
 	panic("implement me")
 }

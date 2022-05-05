@@ -36,8 +36,8 @@ func (c *controller) ListStructuredObject(ctx context.Context, cType types.Kind,
 	f := storage.Filter{
 		Kind: cType,
 		Label: storage.LabelMatch{Include: []types.Label{{
-			types.VersionKey,
-			version,
+			Key:   types.VersionKey,
+			Value: version,
 		}, {
 			Key:   types.KindKey,
 			Value: string(cType),

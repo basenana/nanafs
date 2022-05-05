@@ -9,12 +9,6 @@ import (
 	"os"
 )
 
-var WorkSpace string
-
-func init() {
-	initCmd.Flags().StringVar(&WorkSpace, "workspace", config.LocalUserPath(), "nanafs workspace")
-}
-
 var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "generate local configuration",
