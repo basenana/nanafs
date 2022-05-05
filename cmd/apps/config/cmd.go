@@ -8,8 +8,12 @@ import (
 	"os"
 )
 
+var WorkSpace string
+
 func init() {
 	RunCmd.AddCommand(initCmd)
+	RunCmd.AddCommand(setCmd)
+	RunCmd.PersistentFlags().StringVar(&WorkSpace, "workspace", config.LocalUserPath(), "nanafs workspace")
 }
 
 var RunCmd = &cobra.Command{
