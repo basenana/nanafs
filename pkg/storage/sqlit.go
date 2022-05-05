@@ -13,7 +13,7 @@ import (
 	"strings"
 	"sync"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 const (
@@ -105,7 +105,7 @@ func (s *sqliteMetaStore) DeleteContent(ctx context.Context, obj *types.Object, 
 }
 
 func newSqliteMetaStore(meta config.Meta) (*sqliteMetaStore, error) {
-	db, err := sqlx.Open("sqlite3", meta.Path)
+	db, err := sqlx.Open("sqlite", meta.Path)
 	if err != nil {
 		return nil, err
 	}

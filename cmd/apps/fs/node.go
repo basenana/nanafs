@@ -26,21 +26,6 @@ func (n *NanaNode) Access(ctx context.Context, mask uint32) syscall.Errno {
 	return Error2FuseSysError(dentry.IsAccess(n.obj.Access, mask))
 }
 
-func (n *NanaNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut) syscall.Errno {
-	defer utils.TraceRegion(ctx, "node.getattr")()
-	file, ok := f.(fs.FileGetattrer)
-	if ok {
-		return file.Getattr(ctx, out)
-	}
-	st := nanaNode2Stat(n)
-	out.FromStat(st)
-
-	// macos
-	out.Crtime_ = uint64(st.Ctimespec.Sec)
-	out.Crtimensec_ = uint32(st.Ctimespec.Nsec)
-	return NoErr
-}
-
 func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAttrIn, out *fuse.AttrOut) syscall.Errno {
 	defer utils.TraceRegion(ctx, "node.setattr")()
 	updateNanaNodeWithAttr(in, n)
@@ -54,7 +39,7 @@ func (n *NanaNode) Getxattr(ctx context.Context, attr string, dest []byte) (uint
 	defer utils.TraceRegion(ctx, "node.getxattr")()
 	ann := dentry.GetInternalAnnotation(n.obj, attr)
 	if ann == nil {
-		return 0, syscall.ENOATTR
+		return 0, syscall.Errno(0x5d)
 	}
 	raw, err := dentry.AnnotationContent2RawData(ann)
 	if err != nil {

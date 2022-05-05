@@ -82,8 +82,8 @@ func (m *memoryMetaStore) ListChildren(ctx context.Context, obj *types.Object) (
 	if obj.Labels.Get(types.KindKey) != nil && obj.Labels.Get(types.KindKey).Value != "" {
 		f.Kind = types.Kind(obj.Labels.Get(types.KindKey).Value)
 		f.Label = LabelMatch{Include: []types.Label{{
-			types.VersionKey,
-			obj.Labels.Get(types.VersionKey).Value,
+			Key:   types.VersionKey,
+			Value: obj.Labels.Get(types.VersionKey).Value,
 		}}}
 	}
 	children, err := m.ListObjects(ctx, Filter{ParentID: obj.ID})

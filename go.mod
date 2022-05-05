@@ -1,6 +1,6 @@
 module github.com/basenana/nanafs
 
-go 1.14
+go 1.16
 
 require (
 	github.com/basenana/go-flow v0.0.0-20220322140457-971dcb315a41
@@ -21,10 +21,10 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
-	github.com/mattn/go-sqlite3 v1.14.12
 	github.com/spf13/cobra v1.4.0
 	github.com/ugorji/go v1.2.7 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.8.0 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
+	modernc.org/sqlite v1.17.1
 )
