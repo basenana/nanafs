@@ -29,10 +29,7 @@ func (c *controller) LoadRootObject(ctx context.Context) (*types.Object, error) 
 	if err != nil {
 		if err == types.ErrNotFound {
 			root = dentry.InitRootObject()
-			if err := c.SaveObject(ctx, root); err != nil {
-				return nil, err
-			}
-			return root, c.setup(ctx)
+			return root, c.SaveObject(ctx, root)
 		}
 		c.logger.Errorw("load root object error", "err", err.Error())
 		return nil, err
