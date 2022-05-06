@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+const fileBlockSize = 1 << 12 // 4k
+
 func idFromStat(dev uint64, st *syscall.Stat_t) fs.StableAttr {
 	swapped := (uint64(st.Dev) << 32) | (uint64(st.Dev) >> 32)
 	swappedRootDev := (dev << 32) | (dev >> 32)

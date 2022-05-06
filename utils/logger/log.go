@@ -33,3 +33,11 @@ func Sync() {
 func NewLogger(name string) *zap.SugaredLogger {
 	return root.Named(name)
 }
+
+func SetDebug(enable bool) {
+	if enable {
+		atom.SetLevel(zap.DebugLevel)
+		return
+	}
+	atom.SetLevel(zap.InfoLevel)
+}

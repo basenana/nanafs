@@ -47,6 +47,10 @@ var daemonCmd = &cobra.Command{
 			panic(err)
 		}
 
+		if cfg.Debug {
+			logger.SetDebug(cfg.Debug)
+		}
+
 		meta, err := storage.NewMetaStorage(cfg.Meta.Type, cfg.Meta)
 		if err != nil {
 			panic(err)

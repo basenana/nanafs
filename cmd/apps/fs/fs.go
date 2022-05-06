@@ -2,7 +2,6 @@ package fs
 
 import (
 	"context"
-	"fmt"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/types"
@@ -22,12 +21,15 @@ const (
 type NanaFS struct {
 	controller.Controller
 
-	Path    string
-	Dev     uint64
-	Display string
+	Path      string
+	Dev       uint64
+	Display   string
+	MountOpts []string
 
 	logger *zap.SugaredLogger
-	debug  bool
+
+	// debug will enable debug log and SingleThreaded
+	debug bool
 }
 
 func (n *NanaFS) Start(stopCh chan struct{}) error {
@@ -42,10 +44,11 @@ func (n *NanaFS) Start(stopCh chan struct{}) error {
 	)
 	opt := &fs.Options{
 		MountOptions: fuse.MountOptions{
-			AllowOther: true,
-			FsName:     fsName,
-			Name:       fsName,
-			Options:    []string{fmt.Sprintf("volname=%s", n.Display), "force"},
+			AllowOther:     true,
+			FsName:         fsName,
+			Name:           fsName,
+			Options:        fsMountOptions(n.Display, n.MountOpts),
+			SingleThreaded: n.debug,
 		},
 		EntryTimeout: &entryTimeout,
 		AttrTimeout:  &attrTimeout,
@@ -57,7 +60,7 @@ func (n *NanaFS) Start(stopCh chan struct{}) error {
 	if err != nil {
 		return err
 	}
-	//server.SetDebug(n.debug)
+	server.SetDebug(n.debug)
 
 	go server.Serve()
 
@@ -95,6 +98,7 @@ func (n *NanaFS) Start(stopCh chan struct{}) error {
 }
 
 func (n *NanaFS) SetDebug(debug bool) {
+	n.logger.Warn("enable debug mode")
 	n.debug = debug
 }
 
@@ -137,6 +141,7 @@ func NewNanaFsRoot(cfg config.Fs, controller controller.Controller) (*NanaFS, er
 		Controller: controller,
 		Path:       cfg.RootPath,
 		Display:    cfg.DisplayName,
+		MountOpts:  cfg.MountOptions,
 		Dev:        uint64(st.Dev),
 		logger:     logger.NewLogger("fs"),
 	}
