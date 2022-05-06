@@ -106,6 +106,8 @@ func (n *NanaNode) Lookup(ctx context.Context, name string, out *fuse.EntryOut) 
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
+	st := nanaNode2Stat(node)
+	out.FromStat(st)
 	return node.EmbeddedInode(), NoErr
 }
 

@@ -31,7 +31,8 @@ type Api struct {
 }
 
 type Fs struct {
-	Enable      bool   `json:"enable"`
-	RootPath    string `json:"root_path"`
-	DisplayName string `json:"display_name,omitempty"`
+	Enable       bool     `json:"enable"`
+	RootPath     string   `json:"root_path"`
+	MountOptions []string `json:"mount_options,omitempty"`
+	DisplayName  string   `json:"display_name,omitempty"`
 }
