@@ -19,6 +19,8 @@ type nodeOperation interface {
 	fs.NodeMkdirer
 	fs.NodeMknoder
 	fs.NodeLinker
+	fs.NodeSymlinker
+	fs.NodeReadlinker
 	fs.NodeUnlinker
 	fs.NodeRmdirer
 	fs.NodeRenamer

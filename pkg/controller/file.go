@@ -37,12 +37,20 @@ func (c *controller) OpenFile(ctx context.Context, obj *types.Object, attr files
 		}
 		return file, c.SaveObject(ctx, file.GetObject())
 	}
+
+	if attr.Trunc {
+		// TODO clean old data
+		obj.Size = 0
+	}
+
 	file, err := files.Open(ctx, obj, attr)
 	if err != nil {
 		c.logger.Errorw("open file error", "obj", obj.ID, "err", err.Error())
 		return nil, err
 	}
 	obj.AccessAt = time.Now()
+	obj.ModifiedAt = time.Now()
+	obj.ChangedAt = time.Now()
 	bus.Publish(fmt.Sprintf("object.file.%s.open", obj.ID), obj)
 	return file, c.SaveObject(ctx, obj)
 }

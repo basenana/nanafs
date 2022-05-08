@@ -16,4 +16,6 @@ const (
 
 type Access struct {
 	Permissions []Permission `json:"permissions,omitempty"`
+	UID         int64        `json:"uid"`
+	GID         int64        `json:"gid"`
 }

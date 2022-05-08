@@ -7,7 +7,17 @@ const (
 )
 
 func InitRootObject() *types.Object {
-	root, _ := types.InitNewObject(nil, types.ObjectAttr{Name: RootObjectID, Kind: types.GroupKind})
+	acc := types.Access{
+		Permissions: []types.Permission{
+			types.PermOwnerRead,
+			types.PermOwnerWrite,
+			types.PermOwnerExec,
+			types.PermGroupRead,
+			types.PermGroupWrite,
+			types.PermOthersRead,
+		},
+	}
+	root, _ := types.InitNewObject(nil, types.ObjectAttr{Name: RootObjectID, Kind: types.GroupKind, Access: acc})
 	root.ID = RootObjectID
 	root.ParentID = root.ID
 	return root

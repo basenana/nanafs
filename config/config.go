@@ -3,6 +3,7 @@ package config
 type Config struct {
 	Meta      Meta      `json:"meta"`
 	Storages  []Storage `json:"storages"`
+	Owner     *FsOwner  `json:"owner,omitempty"`
 	CacheDir  string    `json:"cache_dir,omitempty"`
 	CacheSize int64     `json:"cache_size,omitempty"`
 	Debug     bool      `json:"debug"`

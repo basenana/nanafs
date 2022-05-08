@@ -3,6 +3,8 @@ package dentry
 import (
 	"github.com/basenana/nanafs/pkg/types"
 	"golang.org/x/sys/unix"
+	"os/user"
+	"strconv"
 )
 
 var (
@@ -19,8 +21,38 @@ var (
 	}
 )
 
-func IsAccess(access types.Access, mask uint32) error {
-	return nil
+func IsAccess(access types.Access, callerUid, callerGid, fileUid, fileGid int64, mask uint32) error {
+	if callerUid == 0 {
+		// root can do anything.
+		return nil
+	}
+	mask = mask & 7
+	if mask == 0 {
+		return nil
+	}
+
+	perm := Access2Mode(access)
+
+	// as owner
+	if callerUid == fileUid {
+		if perm&(mask<<6) == mask<<6 {
+			return nil
+		}
+		return types.ErrNoPerms
+	}
+
+	if callerGid == fileGid || matchUserGroup(callerUid, fileGid) {
+		if perm&(mask<<3) == mask<<3 {
+			return nil
+		}
+		return types.ErrNoPerms
+	}
+
+	if perm&mask == mask {
+		return nil
+	}
+
+	return types.ErrNoPerms
 }
 
 func Access2Mode(access types.Access) (mode uint32) {
@@ -39,4 +71,28 @@ func UpdateAccessWithMode(access *types.Access, mode uint32) {
 		}
 	}
 	access.Permissions = permissions
+}
+
+func UpdateAccessWithOwnID(access *types.Access, uid, gid int64) {
+	access.UID = uid
+	access.GID = gid
+}
+
+func matchUserGroup(callerUid, targetGid int64) bool {
+	u, err := user.LookupId(strconv.Itoa(int(callerUid)))
+	if err != nil {
+		return false
+	}
+	gs, err := u.GroupIds()
+	if err != nil {
+		return false
+	}
+
+	fileGidStr := strconv.Itoa(int(targetGid))
+	for _, gidStr := range gs {
+		if gidStr == fileGidStr {
+			return true
+		}
+	}
+	return false
 }

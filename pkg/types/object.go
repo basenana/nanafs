@@ -66,7 +66,7 @@ type Annotation struct {
 
 func (a *Annotation) Add(newA *AnnotationItem) {
 	for i, ann := range a.Annotations {
-		if ann.Type != newA.Type {
+		if ann.Key != newA.Key {
 			continue
 		}
 		a.Annotations[i].Content = newA.Content
@@ -78,7 +78,7 @@ func (a *Annotation) Add(newA *AnnotationItem) {
 func (a *Annotation) Get(key string, withInternal bool) *AnnotationItem {
 	for i := range a.Annotations {
 		ann := a.Annotations[i]
-		if ann.Type != key {
+		if ann.Key != key {
 			continue
 		}
 		if ann.IsInternal {
@@ -94,7 +94,7 @@ func (a *Annotation) Get(key string, withInternal bool) *AnnotationItem {
 func (a *Annotation) Remove(key string) {
 	needDel := -1
 	for i, ann := range a.Annotations {
-		if ann.Type != key {
+		if ann.Key != key {
 			continue
 		}
 		needDel = i
@@ -106,7 +106,7 @@ func (a *Annotation) Remove(key string) {
 }
 
 type AnnotationItem struct {
-	Type       string `json:"type"`
+	Key        string `json:"key"`
 	Content    string `json:"content"`
 	IsInternal bool   `json:"is_internal"`
 	Encode     bool   `json:"encode"`
@@ -135,14 +135,17 @@ func (o *Object) IsGroup() bool {
 }
 
 type ObjectAttr struct {
-	Name        string
-	Kind        Kind
-	Permissions []Permission
+	Name   string
+	Kind   Kind
+	Access Access
 }
 
 func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {
+	md := NewMetadata(attr.Name, attr.Kind)
+	md.Access = attr.Access
+
 	newObj := &Object{
-		Metadata: NewMetadata(attr.Name, attr.Kind),
+		Metadata: md,
 		ExtendData: ExtendData{
 			Properties: &Properties{},
 			Annotation: &Annotation{},

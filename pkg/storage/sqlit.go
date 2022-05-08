@@ -24,39 +24,47 @@ type sqliteMetaStore struct {
 	db        *sqlx.DB
 	dbPath    string
 	nextInode int64
-	mux       sync.Mutex
+	mux       sync.RWMutex
 	logger    *zap.SugaredLogger
 }
 
 var _ MetaStore = &sqliteMetaStore{}
 
 func (s *sqliteMetaStore) GetObject(ctx context.Context, id string) (*types.Object, error) {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
 	defer utils.TraceRegion(ctx, "sqlite.getobject")()
 	return queryObject(ctx, s.db, id)
 }
 
 func (s *sqliteMetaStore) ListObjects(ctx context.Context, filter Filter) ([]*types.Object, error) {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
 	defer utils.TraceRegion(ctx, "sqlite.listobject")()
 	return listObject(ctx, s.db, filter)
 }
 
 func (s *sqliteMetaStore) SaveObject(ctx context.Context, obj *types.Object) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	defer utils.TraceRegion(ctx, "sqlite.saveobject")()
 	if obj.Inode == 0 {
-		s.mux.Lock()
 		obj.Inode = uint64(s.nextInode)
 		s.nextInode += 1
-		s.mux.Unlock()
 	}
 	return saveObject(ctx, s.db, obj)
 }
 
 func (s *sqliteMetaStore) DestroyObject(ctx context.Context, obj *types.Object) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	defer utils.TraceRegion(ctx, "sqlite.destroyobject")()
 	return deleteObject(ctx, s.db, obj.ID)
 }
 
 func (s *sqliteMetaStore) ListChildren(ctx context.Context, obj *types.Object) (Iterator, error) {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
 	defer utils.TraceRegion(ctx, "sqlite.listchildren")()
 	children, err := listObject(ctx, s.db, Filter{ParentID: obj.ID})
 	if err != nil {
@@ -66,12 +74,16 @@ func (s *sqliteMetaStore) ListChildren(ctx context.Context, obj *types.Object) (
 }
 
 func (s *sqliteMetaStore) ChangeParent(ctx context.Context, old *types.Object, parent *types.Object) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	defer utils.TraceRegion(ctx, "sqlite.changeparent")()
 	old.ParentID = parent.ID
 	return saveObject(ctx, s.db, old)
 }
 
 func (s *sqliteMetaStore) SaveContent(ctx context.Context, obj *types.Object, cType types.Kind, version string, content interface{}) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	defer utils.TraceRegion(ctx, "sqlite.savecontent")()
 	rawData, err := json.Marshal(content)
 	if err != nil {
@@ -91,6 +103,8 @@ func (s *sqliteMetaStore) SaveContent(ctx context.Context, obj *types.Object, cT
 }
 
 func (s *sqliteMetaStore) LoadContent(ctx context.Context, obj *types.Object, cType types.Kind, version string, content interface{}) error {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
 	defer utils.TraceRegion(ctx, "sqlite.loadcontent")()
 	contentModel, err := queryObjectContent(ctx, s.db, obj.ID, string(cType), version)
 	if err != nil {
@@ -100,6 +114,8 @@ func (s *sqliteMetaStore) LoadContent(ctx context.Context, obj *types.Object, cT
 }
 
 func (s *sqliteMetaStore) DeleteContent(ctx context.Context, obj *types.Object, cType types.Kind, version string) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	defer utils.TraceRegion(ctx, "sqlite.deletecontent")()
 	return deleteObjectContent(ctx, s.db, obj.ID)
 }

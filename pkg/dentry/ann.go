@@ -7,7 +7,7 @@ import (
 
 func AddInternalAnnotation(obj *types.Object, key, value string, encode bool) {
 	obj.ExtendData.Annotation.Add(&types.AnnotationItem{
-		Type:       key,
+		Key:        key,
 		Content:    value,
 		IsInternal: true,
 		Encode:     encode,

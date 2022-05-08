@@ -36,6 +36,11 @@ func (l localLoader) GetConfig() (Config, error) {
 	if err = jd.Decode(&result); err != nil {
 		return result, fmt.Errorf("parse config failed: %s", err.Error())
 	}
+
+	if err = Verify(&result); err != nil {
+		return result, err
+	}
+
 	return result, nil
 }
 

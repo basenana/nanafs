@@ -140,19 +140,21 @@ type Attr struct {
 	Meta   storage.MetaStore
 }
 
-func openFile(ctx context.Context, obj *types.Object, attr Attr) (*file, error) {
-	file := &file{
-		Object:    obj,
-		dataChain: factory.build(obj, attr),
-		attr:      attr,
-	}
-	return file, nil
-}
-
 func Open(ctx context.Context, obj *types.Object, attr Attr) (File, error) {
 	defer utils.TraceRegion(ctx, "file.open")()
 	if attr.Trunc {
 		obj.Size = 0
 	}
-	return openFile(ctx, obj, attr)
+
+	switch obj.Kind {
+	case types.SymLinkKind:
+		return openSymlink(obj)
+	}
+
+	f := &file{
+		Object:    obj,
+		dataChain: factory.build(obj, attr),
+		attr:      attr,
+	}
+	return f, nil
 }

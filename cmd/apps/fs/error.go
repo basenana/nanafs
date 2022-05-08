@@ -20,6 +20,10 @@ func Error2FuseSysError(err error) syscall.Errno {
 		return syscall.Errno(20)
 	case types.ErrIsGroup:
 		return syscall.EISDIR
+	case types.ErrNoPerms:
+		return syscall.EACCES
+	case types.ErrNameTooLong:
+		return syscall.ENAMETOOLONG
 	}
 	return syscall.EIO
 }
