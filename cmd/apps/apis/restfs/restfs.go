@@ -137,7 +137,7 @@ func (s *RestFS) Post(gCtx *gin.Context) {
 	case ActionBulk:
 		if err != nil && err == types.ErrNotFound {
 			newDir := path.Base(gCtx.Param("path"))
-			obj, err = s.ctrl.CreateObject(gCtx.Request.Context(), parent, types.ObjectAttr{Name: newDir, Kind: types.GroupKind, Permissions: parent.Access.Permissions})
+			obj, err = s.ctrl.CreateObject(gCtx.Request.Context(), parent, types.ObjectAttr{Name: newDir, Kind: types.GroupKind, Access: parent.Access})
 			if err != nil {
 				gCtx.JSON(http.StatusBadRequest, NewErrorResponse(common.ApiNotGroupError, fmt.Errorf("create group failed: %s", err.Error())))
 			}
@@ -180,9 +180,9 @@ func (s *RestFS) newFile(gCtx *gin.Context, parent *types.Object, name string, r
 	ctx := gCtx.Request.Context()
 	defer utils.TraceRegion(ctx, "restfs.newfile")()
 	obj, err := s.ctrl.CreateObject(ctx, parent, types.ObjectAttr{
-		Name:        name,
-		Kind:        types.RawKind,
-		Permissions: parent.Access.Permissions,
+		Name:   name,
+		Kind:   types.RawKind,
+		Access: parent.Access,
 	})
 	if err != nil {
 		return nil, err

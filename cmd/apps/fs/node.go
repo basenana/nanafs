@@ -10,6 +10,7 @@ import (
 	"github.com/hanwen/go-fuse/v2/fuse"
 	"go.uber.org/zap"
 	"syscall"
+	"time"
 )
 
 type NanaNode struct {
@@ -80,10 +81,13 @@ func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode u
 
 	acc := &types.Access{}
 	dentry.UpdateAccessWithMode(acc, mode)
+	if fuseCtx, ok := ctx.(*fuse.Context); ok {
+		dentry.UpdateAccessWithOwnID(acc, int64(fuseCtx.Uid), int64(fuseCtx.Gid))
+	}
 	obj, err := n.R.CreateObject(ctx, n.obj, types.ObjectAttr{
-		Name:        name,
-		Kind:        types.RawKind,
-		Permissions: acc.Permissions,
+		Name:   name,
+		Kind:   types.RawKind,
+		Access: *acc,
 	})
 	if err != nil {
 		return nil, nil, 0, Error2FuseSysError(err)
@@ -92,6 +96,8 @@ func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode u
 	if err != nil {
 		return nil, nil, 0, Error2FuseSysError(err)
 	}
+	out.FromStat(nanaNode2Stat(node))
+
 	f, err := n.R.Controller.OpenFile(ctx, obj, openFileAttr(flags))
 	return node.EmbeddedInode(), &File{node: n, file: f}, dentry.Access2Mode(obj.Access), Error2FuseSysError(err)
 }
@@ -100,6 +106,12 @@ func (n *NanaNode) Lookup(ctx context.Context, name string, out *fuse.EntryOut) 
 	defer utils.TraceRegion(ctx, "node.lookup")()
 	ch, err := n.R.FindObject(ctx, n.obj, name)
 	if err != nil {
+		if err == types.ErrNotFound {
+			// Update parent directory ctime/mtime if file didn't exist
+			n.obj.ChangedAt = time.Now()
+			n.obj.ModifiedAt = time.Now()
+			_ = n.R.SaveObject(ctx, n.obj)
+		}
 		return nil, Error2FuseSysError(err)
 	}
 	node, err := n.R.newFsNode(ctx, n, ch)
@@ -155,10 +167,13 @@ func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fus
 	}
 	acc := &types.Access{}
 	dentry.UpdateAccessWithMode(acc, mode)
+	if fuseCtx, ok := ctx.(*fuse.Context); ok {
+		dentry.UpdateAccessWithOwnID(acc, int64(fuseCtx.Uid), int64(fuseCtx.Gid))
+	}
 	obj, err := n.R.CreateObject(ctx, n.obj, types.ObjectAttr{
-		Name:        name,
-		Kind:        types.GroupKind,
-		Permissions: acc.Permissions,
+		Name:   name,
+		Kind:   types.GroupKind,
+		Access: *acc,
 	})
 	if err != nil {
 		return nil, Error2FuseSysError(err)
@@ -185,9 +200,9 @@ func (n *NanaNode) Mknod(ctx context.Context, name string, mode uint32, dev uint
 	acc := &types.Access{}
 	dentry.UpdateAccessWithMode(acc, mode)
 	obj, err := n.R.CreateObject(ctx, n.obj, types.ObjectAttr{
-		Name:        name,
-		Kind:        types.RawKind,
-		Permissions: acc.Permissions,
+		Name:   name,
+		Kind:   types.RawKind,
+		Access: *acc,
 	})
 	if err != nil {
 		return nil, Error2FuseSysError(err)

@@ -8,7 +8,6 @@ import (
 	"github.com/hanwen/go-fuse/v2/fuse"
 	"os"
 	"syscall"
-	"time"
 )
 
 const fileBlockSize = 1 << 12 // 4k
@@ -24,15 +23,27 @@ func idFromStat(dev uint64, st *syscall.Stat_t) fs.StableAttr {
 }
 
 func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, node *NanaNode) {
-	dentry.UpdateAccessWithMode(&node.obj.Access, attr.Mode)
-	if attr.Atime != 0 {
-		node.obj.AccessAt = time.Unix(int64(attr.Atime), int64(attr.Atimensec))
+	if mode, ok := attr.GetMode(); ok {
+		dentry.UpdateAccessWithMode(&node.obj.Access, mode)
 	}
-	if attr.Ctime != 0 {
-		node.obj.ChangedAt = time.Unix(int64(attr.Ctime), int64(attr.Ctimensec))
+	if uid, ok := attr.GetUID(); ok {
+		dentry.UpdateAccessWithOwnID(&node.obj.Access, int64(uid), node.obj.Access.GID)
 	}
-	if attr.Mtime != 0 {
-		node.obj.ModifiedAt = time.Unix(int64(attr.Mtime), int64(attr.Mtimensec))
+	if gid, ok := attr.GetGID(); ok {
+		dentry.UpdateAccessWithOwnID(&node.obj.Access, node.obj.Access.UID, int64(gid))
+	}
+	if size, ok := attr.GetSize(); ok {
+		node.obj.Size = int64(size)
+	}
+
+	if mtime, ok := attr.GetMTime(); ok {
+		node.obj.ModifiedAt = mtime
+	}
+	if atime, ok := attr.GetATime(); ok {
+		node.obj.AccessAt = atime
+	}
+	if ctime, ok := attr.GetCTime(); ok {
+		node.obj.ChangedAt = ctime
 	}
 }
 

@@ -78,10 +78,7 @@ func (c *controller) CreateObject(ctx context.Context, parent *types.Object, att
 		c.logger.Errorw("create new object error", "parent", parent.ID, "name", attr.Name, "err", err.Error())
 		return nil, err
 	}
-	obj.Access.Permissions = parent.Access.Permissions
-	if len(attr.Permissions) > 0 {
-		obj.Access.Permissions = attr.Permissions
-	}
+	obj.Access = attr.Access
 	if err = c.SaveObject(ctx, obj); err != nil {
 		return nil, err
 	}

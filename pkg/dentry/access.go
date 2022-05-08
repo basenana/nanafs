@@ -40,3 +40,8 @@ func UpdateAccessWithMode(access *types.Access, mode uint32) {
 	}
 	access.Permissions = permissions
 }
+
+func UpdateAccessWithOwnID(access *types.Access, uid, gid int64) {
+	access.UID = uid
+	access.GID = gid
+}

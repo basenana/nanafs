@@ -32,9 +32,9 @@ var _ = Describe("TestAccess", func() {
 		root = initFsBridge(nfs)
 
 		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
-			Name:        "file.txt",
-			Kind:        types.RawKind,
-			Permissions: acc.Permissions,
+			Name:   "file.txt",
+			Kind:   types.RawKind,
+			Access: acc,
 		})
 		Expect(err).Should(BeNil())
 
@@ -76,9 +76,9 @@ var _ = Describe("TestGetattr", func() {
 		root = initFsBridge(nfs)
 
 		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
-			Name:        "file.txt",
-			Kind:        types.RawKind,
-			Permissions: acc.Permissions,
+			Name:   "file.txt",
+			Kind:   types.RawKind,
+			Access: acc,
 		})
 		Expect(err).Should(BeNil())
 
@@ -116,9 +116,9 @@ var _ = Describe("TestOpen", func() {
 		root = initFsBridge(nfs)
 
 		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
-			Name:        "file.txt",
-			Kind:        types.RawKind,
-			Permissions: acc.Permissions,
+			Name:   "file.txt",
+			Kind:   types.RawKind,
+			Access: acc,
 		})
 		Expect(err).Should(BeNil())
 
@@ -208,9 +208,9 @@ var _ = Describe("TestLookup", func() {
 		root = initFsBridge(nfs)
 
 		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
-			Name:        fileName,
-			Kind:        types.RawKind,
-			Permissions: acc.Permissions,
+			Name:   fileName,
+			Kind:   types.RawKind,
+			Access: acc,
 		})
 		Expect(err).Should(BeNil())
 
@@ -257,16 +257,16 @@ var _ = Describe("TestOpendir", func() {
 		root = initFsBridge(nfs)
 
 		fileObj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
-			Name:        "file.txt",
-			Kind:        types.RawKind,
-			Permissions: acc.Permissions,
+			Name:   "file.txt",
+			Kind:   types.RawKind,
+			Access: acc,
 		})
 		Expect(err).Should(BeNil())
 
 		dirObj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
-			Name:        "dir",
-			Kind:        types.GroupKind,
-			Permissions: acc.Permissions,
+			Name:   "dir",
+			Kind:   types.GroupKind,
+			Access: acc,
 		})
 		Expect(err).Should(BeNil())
 
@@ -314,9 +314,9 @@ var _ = Describe("TestReaddir", func() {
 		root = initFsBridge(nfs)
 
 		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
-			Name:        "files",
-			Kind:        types.GroupKind,
-			Permissions: acc.Permissions,
+			Name:   "files",
+			Kind:   types.GroupKind,
+			Access: acc,
 		})
 		Expect(err).Should(BeNil())
 
@@ -336,9 +336,9 @@ var _ = Describe("TestReaddir", func() {
 			})
 			Context("add file to dir", func() {
 				newObj, err := nfs.CreateObject(context.Background(), node.obj, types.ObjectAttr{
-					Name:        addFileName,
-					Kind:        types.RawKind,
-					Permissions: acc.Permissions,
+					Name:   addFileName,
+					Kind:   types.RawKind,
+					Access: acc,
 				})
 				Expect(err).Should(BeNil())
 
@@ -445,9 +445,9 @@ var _ = Describe("TestLink", func() {
 		root = initFsBridge(nfs)
 
 		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
-			Name:        "file.txt",
-			Kind:        types.RawKind,
-			Permissions: acc.Permissions,
+			Name:   "file.txt",
+			Kind:   types.RawKind,
+			Access: acc,
 		})
 		Expect(err).Should(BeNil())
 
@@ -488,9 +488,9 @@ var _ = Describe("TestRmdir", func() {
 		root = initFsBridge(nfs)
 
 		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
-			Name:        dirName,
-			Kind:        types.GroupKind,
-			Permissions: acc.Permissions,
+			Name:   dirName,
+			Kind:   types.GroupKind,
+			Access: acc,
 		})
 		Expect(err).Should(BeNil())
 
@@ -540,9 +540,9 @@ var _ = Describe("TestRename", func() {
 		root = initFsBridge(nfs)
 
 		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
-			Name:        "file.txt",
-			Kind:        types.RawKind,
-			Permissions: acc.Permissions,
+			Name:   "file.txt",
+			Kind:   types.RawKind,
+			Access: acc,
 		})
 		Expect(err).Should(BeNil())
 

@@ -135,9 +135,9 @@ func (o *Object) IsGroup() bool {
 }
 
 type ObjectAttr struct {
-	Name        string
-	Kind        Kind
-	Permissions []Permission
+	Name   string
+	Kind   Kind
+	Access Access
 }
 
 func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {
