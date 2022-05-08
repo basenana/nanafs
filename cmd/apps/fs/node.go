@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/hanwen/go-fuse/v2/fs"
@@ -31,6 +32,17 @@ func (n *NanaNode) Access(ctx context.Context, mask uint32) syscall.Errno {
 	}
 
 	return Error2FuseSysError(dentry.IsAccess(n.obj.Access, int64(uid), int64(gid), n.obj.Access.UID, n.obj.Access.GID, mask))
+}
+
+func (n *NanaNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut) syscall.Errno {
+	defer utils.TraceRegion(ctx, "node.getattr")()
+	file, ok := f.(fs.FileGetattrer)
+	if ok {
+		return file.Getattr(ctx, out)
+	}
+	st := nanaNode2Stat(n)
+	updateAttrOut(st, &out.Attr)
+	return NoErr
 }
 
 func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAttrIn, out *fuse.AttrOut) syscall.Errno {
@@ -102,7 +114,7 @@ func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode u
 	if err != nil {
 		return nil, nil, 0, Error2FuseSysError(err)
 	}
-	out.FromStat(nanaNode2Stat(node))
+	updateAttrOut(nanaNode2Stat(node), &out.Attr)
 
 	f, err := n.R.Controller.OpenFile(ctx, obj, openFileAttr(flags))
 	return node.EmbeddedInode(), &File{node: n, file: f}, dentry.Access2Mode(obj.Access), Error2FuseSysError(err)
@@ -124,8 +136,7 @@ func (n *NanaNode) Lookup(ctx context.Context, name string, out *fuse.EntryOut) 
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
-	st := nanaNode2Stat(node)
-	out.FromStat(st)
+	updateAttrOut(nanaNode2Stat(node), &out.Attr)
 	return node.EmbeddedInode(), NoErr
 }
 
@@ -188,8 +199,7 @@ func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fus
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
-	st := nanaNode2Stat(n)
-	out.FromStat(st)
+	updateAttrOut(nanaNode2Stat(node), &out.Attr)
 	return node.EmbeddedInode(), NoErr
 }
 
@@ -220,8 +230,7 @@ func (n *NanaNode) Mknod(ctx context.Context, name string, mode uint32, dev uint
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
-	st := nanaNode2Stat(n)
-	out.FromStat(st)
+	updateAttrOut(nanaNode2Stat(n), &out.Attr)
 	return node.EmbeddedInode(), NoErr
 }
 
@@ -243,6 +252,63 @@ func (n *NanaNode) Link(ctx context.Context, target fs.InodeEmbedder, name strin
 	}
 
 	return node.EmbeddedInode(), NoErr
+}
+
+func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.EntryOut) (node *fs.Inode, errno syscall.Errno) {
+	_, err := n.GetChild(ctx, name)
+	if err != nil {
+		if err != types.ErrNotFound {
+			return nil, Error2FuseSysError(err)
+		}
+	}
+
+	if err != types.ErrNotFound {
+		return nil, Error2FuseSysError(types.ErrIsExist)
+	}
+
+	obj, err := n.R.CreateObject(ctx, n.obj, types.ObjectAttr{
+		Name:   name,
+		Kind:   types.SymLinkKind,
+		Access: n.obj.Access,
+	})
+	if err != nil {
+		return nil, Error2FuseSysError(err)
+	}
+
+	n.logger.Debugw("create new symlink", "target", target)
+	f, err := n.R.OpenFile(ctx, obj, files.Attr{Write: true, Create: true, Trunc: true})
+	if err != nil {
+		return nil, Error2FuseSysError(err)
+	}
+	defer n.R.CloseFile(ctx, f)
+
+	_, err = n.R.WriteFile(ctx, f, []byte(target), 0)
+	if err != nil {
+		return nil, Error2FuseSysError(err)
+	}
+
+	newNode, err := n.R.newFsNode(ctx, n, obj)
+	if err != nil {
+		return nil, Error2FuseSysError(err)
+	}
+	st := nanaNode2Stat(newNode)
+	updateAttrOut(st, &out.Attr)
+	return newNode.EmbeddedInode(), NoErr
+}
+
+func (n *NanaNode) Readlink(ctx context.Context) ([]byte, syscall.Errno) {
+	f, err := n.R.OpenFile(ctx, n.obj, files.Attr{Read: true})
+	if err != nil {
+		return nil, Error2FuseSysError(err)
+	}
+	defer n.R.CloseFile(ctx, f)
+
+	buf := make([]byte, n.obj.Size)
+	_, err = n.R.ReadFile(ctx, f, buf, 0)
+	if err != nil {
+		return nil, Error2FuseSysError(err)
+	}
+	return buf, NoErr
 }
 
 func (n *NanaNode) Unlink(ctx context.Context, name string) syscall.Errno {
@@ -292,7 +358,7 @@ func (n *NanaNode) Rename(ctx context.Context, name string, newParent fs.InodeEm
 	if flags&RENAME_NOREPLACE > 0 {
 		opt.Replace = false
 	}
-	if err = n.R.ChangeObjectParent(ctx, oldObject, newNode.obj, newName, opt); err != nil {
+	if err = n.R.ChangeObjectParent(ctx, oldObject.obj, newNode.obj, newName, opt); err != nil {
 		return Error2FuseSysError(err)
 	}
 	n.RmChild(name)
@@ -313,10 +379,10 @@ func (n *NanaNode) OnAdd(ctx context.Context) {
 	}
 }
 
-func (n *NanaNode) GetChild(ctx context.Context, name string) (*types.Object, error) {
+func (n *NanaNode) GetChild(ctx context.Context, name string) (*NanaNode, error) {
 	inode := n.Inode.GetChild(name)
 	if inode != nil {
-		return inode.Operations().(*NanaNode).obj, nil
+		return inode.Operations().(*NanaNode), nil
 	}
 
 	obj, err := n.R.FindObject(ctx, n.obj, name)
@@ -324,12 +390,12 @@ func (n *NanaNode) GetChild(ctx context.Context, name string) (*types.Object, er
 		return nil, err
 	}
 
-	_, err = n.R.newFsNode(ctx, n, obj)
+	node, err := n.R.newFsNode(ctx, n, obj)
 	if err != nil {
 		return nil, err
 	}
 
-	return obj, nil
+	return node, nil
 }
 
 func (n *NanaNode) Release(ctx context.Context, f fs.FileHandle) (err syscall.Errno) {

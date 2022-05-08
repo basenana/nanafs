@@ -41,3 +41,9 @@ func nanaNode2Stat(node *NanaNode) *syscall.Stat_t {
 		Rdev:    0,
 	}
 }
+
+func updateOsSideFields(attr *fuse.SetAttrIn, node *NanaNode) {}
+
+func updateAttrOut(st *syscall.Stat_t, out *fuse.Attr) {
+	out.FromStat(st)
+}

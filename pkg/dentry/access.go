@@ -33,41 +33,25 @@ func IsAccess(access types.Access, callerUid, callerGid, fileUid, fileGid int64,
 
 	perm := Access2Mode(access)
 
+	// as owner
 	if callerUid == fileUid {
-		if perm&(mask<<6) != 0 {
+		if perm&(mask<<6) == mask<<6 {
 			return nil
 		}
+		return types.ErrNoPerms
 	}
-	if callerGid == fileGid {
-		if perm&(mask<<3) != 0 {
+
+	if callerGid == fileGid || matchUserGroup(callerUid, fileGid) {
+		if perm&(mask<<3) == mask<<3 {
 			return nil
 		}
+		return types.ErrNoPerms
 	}
-	if perm&mask != 0 {
+
+	if perm&mask == mask {
 		return nil
 	}
 
-	// Check other groups.
-	if perm&(mask<<3) == 0 {
-		// avoid expensive lookup if it's not allowed anyway
-		return types.ErrNoPerms
-	}
-
-	u, err := user.LookupId(strconv.Itoa(int(callerUid)))
-	if err != nil {
-		return types.ErrNoPerms
-	}
-	gs, err := u.GroupIds()
-	if err != nil {
-		return types.ErrNoPerms
-	}
-
-	fileGidStr := strconv.Itoa(int(fileGid))
-	for _, gidStr := range gs {
-		if gidStr == fileGidStr {
-			return nil
-		}
-	}
 	return types.ErrNoPerms
 }
 
@@ -92,4 +76,23 @@ func UpdateAccessWithMode(access *types.Access, mode uint32) {
 func UpdateAccessWithOwnID(access *types.Access, uid, gid int64) {
 	access.UID = uid
 	access.GID = gid
+}
+
+func matchUserGroup(callerUid, targetGid int64) bool {
+	u, err := user.LookupId(strconv.Itoa(int(callerUid)))
+	if err != nil {
+		return false
+	}
+	gs, err := u.GroupIds()
+	if err != nil {
+		return false
+	}
+
+	fileGidStr := strconv.Itoa(int(targetGid))
+	for _, gidStr := range gs {
+		if gidStr == fileGidStr {
+			return true
+		}
+	}
+	return false
 }

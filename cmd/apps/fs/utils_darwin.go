@@ -5,6 +5,7 @@ package fs
 import (
 	"fmt"
 	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/hanwen/go-fuse/v2/fuse"
 	"golang.org/x/sys/unix"
 	"syscall"
 )
@@ -40,4 +41,14 @@ func nanaNode2Stat(node *NanaNode) *syscall.Stat_t {
 		Gid:       uint32(node.obj.Access.GID),
 		Rdev:      0,
 	}
+}
+
+func updateOsSideFields(attr *fuse.SetAttrIn, node *NanaNode) {}
+
+func updateAttrOut(st *syscall.Stat_t, out *fuse.Attr) {
+	out.FromStat(st)
+
+	// macos
+	out.Crtime_ = uint64(st.Ctimespec.Sec)
+	out.Crtimensec_ = uint32(st.Ctimespec.Nsec)
 }

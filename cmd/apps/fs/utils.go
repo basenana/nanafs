@@ -46,6 +46,8 @@ func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, node *NanaNode) {
 	if ctime, ok := attr.GetCTime(); ok {
 		node.obj.ChangedAt = ctime
 	}
+
+	updateOsSideFields(attr, node)
 }
 
 func fsInfo2StatFs(info controller.Info, out *fuse.StatfsOut) {
