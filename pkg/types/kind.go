@@ -47,5 +47,10 @@ const (
 	/*
 		ungrouped files
 	*/
-	RawKind = "raw"
+	RawKind     = "raw"
+	FIFOKind    = "fifo"
+	SocketKind  = "socket"
+	SymLinkKind = "symlink"
+	BlkDevKind  = "blk"
+	CharDevKind = "chr"
 )

@@ -141,8 +141,11 @@ type ObjectAttr struct {
 }
 
 func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {
+	md := NewMetadata(attr.Name, attr.Kind)
+	md.Access = attr.Access
+
 	newObj := &Object{
-		Metadata: NewMetadata(attr.Name, attr.Kind),
+		Metadata: md,
 		ExtendData: ExtendData{
 			Properties: &Properties{},
 			Annotation: &Annotation{},

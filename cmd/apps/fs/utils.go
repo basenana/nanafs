@@ -4,6 +4,7 @@ import (
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/files"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
 	"os"
@@ -57,6 +58,48 @@ func fsInfo2StatFs(info controller.Info, out *fuse.StatfsOut) {
 	out.Ffree = info.AvailInodes - info.FileCount
 	out.Bsize = uint32(blockSize)
 	out.NameLen = 1024
+}
+
+func fileKindFromMode(mode uint32) types.Kind {
+	switch mode & syscall.S_IFMT {
+	case syscall.S_IFREG:
+		return types.RawKind
+	case syscall.S_IFDIR:
+		return types.GroupKind
+	case syscall.S_IFLNK:
+		return types.SymLinkKind
+	case syscall.S_IFIFO:
+		return types.FIFOKind
+	case syscall.S_IFSOCK:
+		return types.SocketKind
+	case syscall.S_IFBLK:
+		return types.BlkDevKind
+	case syscall.S_IFCHR:
+		return types.CharDevKind
+	default:
+		return types.RawKind
+	}
+}
+
+func modeFromFileKind(kind types.Kind) uint32 {
+	switch kind {
+	case types.RawKind:
+		return syscall.S_IFREG
+	case types.GroupKind:
+		return syscall.S_IFDIR
+	case types.SymLinkKind:
+		return syscall.S_IFLNK
+	case types.FIFOKind:
+		return syscall.S_IFIFO
+	case types.SocketKind:
+		return syscall.S_IFSOCK
+	case types.BlkDevKind:
+		return syscall.S_IFBLK
+	case types.CharDevKind:
+		return syscall.S_IFCHR
+	default:
+		return syscall.S_IFREG
+	}
 }
 
 func openFileAttr(flags uint32) files.Attr {

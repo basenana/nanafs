@@ -4,7 +4,6 @@ package fs
 
 import (
 	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/types"
 	"golang.org/x/sys/unix"
 	"syscall"
 )
@@ -22,13 +21,7 @@ func nanaNode2Stat(node *NanaNode) *syscall.Stat_t {
 	mTime, _ := unix.TimeToTimespec(node.obj.ModifiedAt)
 	cTime, _ := unix.TimeToTimespec(node.obj.ChangedAt)
 
-	var mode uint32
-	switch node.obj.Kind {
-	case types.GroupKind:
-		mode |= syscall.S_IFDIR
-	default:
-		mode |= syscall.S_IFREG
-	}
+	mode := modeFromFileKind(node.obj.Kind)
 
 	accMod := dentry.Access2Mode(node.obj.Access)
 	mode |= accMod
@@ -40,7 +33,7 @@ func nanaNode2Stat(node *NanaNode) *syscall.Stat_t {
 		Atim:    syscall.Timespec{Sec: aTime.Sec, Nsec: aTime.Nsec},
 		Mtim:    syscall.Timespec{Sec: mTime.Sec, Nsec: mTime.Nsec},
 		Ctim:    syscall.Timespec{Sec: cTime.Sec, Nsec: cTime.Nsec},
-		Mode:    mode,
+		Mode:    uint16(mode),
 		Ino:     node.obj.Inode,
 		Nlink:   0,
 		Uid:     uint32(node.obj.Access.UID),

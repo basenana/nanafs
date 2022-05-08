@@ -24,7 +24,13 @@ var _ nodeOperation = &NanaNode{}
 
 func (n *NanaNode) Access(ctx context.Context, mask uint32) syscall.Errno {
 	defer utils.TraceRegion(ctx, "node.access")()
-	return Error2FuseSysError(dentry.IsAccess(n.obj.Access, mask))
+
+	var uid, gid uint32
+	if fuseCtx, ok := ctx.(*fuse.Context); ok {
+		uid, gid = fuseCtx.Uid, fuseCtx.Gid
+	}
+
+	return Error2FuseSysError(dentry.IsAccess(n.obj.Access, int64(uid), int64(gid), n.obj.Access.UID, n.obj.Access.GID, mask))
 }
 
 func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAttrIn, out *fuse.AttrOut) syscall.Errno {
@@ -86,7 +92,7 @@ func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode u
 	}
 	obj, err := n.R.CreateObject(ctx, n.obj, types.ObjectAttr{
 		Name:   name,
-		Kind:   types.RawKind,
+		Kind:   fileKindFromMode(mode),
 		Access: *acc,
 	})
 	if err != nil {
@@ -172,7 +178,7 @@ func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fus
 	}
 	obj, err := n.R.CreateObject(ctx, n.obj, types.ObjectAttr{
 		Name:   name,
-		Kind:   types.GroupKind,
+		Kind:   fileKindFromMode(mode),
 		Access: *acc,
 	})
 	if err != nil {
@@ -199,9 +205,12 @@ func (n *NanaNode) Mknod(ctx context.Context, name string, mode uint32, dev uint
 
 	acc := &types.Access{}
 	dentry.UpdateAccessWithMode(acc, mode)
+	if fuseCtx, ok := ctx.(*fuse.Context); ok {
+		dentry.UpdateAccessWithOwnID(acc, int64(fuseCtx.Uid), int64(fuseCtx.Gid))
+	}
 	obj, err := n.R.CreateObject(ctx, n.obj, types.ObjectAttr{
 		Name:   name,
-		Kind:   types.RawKind,
+		Kind:   fileKindFromMode(mode),
 		Access: *acc,
 	})
 	if err != nil {

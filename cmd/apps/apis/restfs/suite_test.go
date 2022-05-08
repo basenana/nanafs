@@ -28,7 +28,9 @@ var (
 type mockConfig struct{}
 
 func (m mockConfig) GetConfig() (config.Config, error) {
-	return config.Config{ApiConfig: config.Api{Enable: true}}, nil
+	cfg := config.Config{ApiConfig: config.Api{Enable: true}}
+	_ = config.Verify(&cfg)
+	return cfg, nil
 }
 
 var _ config.Loader = mockConfig{}

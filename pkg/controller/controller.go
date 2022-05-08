@@ -27,6 +27,7 @@ type Controller interface {
 type controller struct {
 	meta      storage.MetaStore
 	storage   storage.Storage
+	cfg       config.Config
 	cfgLoader config.Loader
 	logger    *zap.SugaredLogger
 	registry  *dentry.SchemaRegistry
@@ -35,31 +36,49 @@ type controller struct {
 var _ Controller = &controller{}
 
 func New(loader config.Loader, meta storage.MetaStore, storage storage.Storage) Controller {
+	cfg, _ := loader.GetConfig()
 	ctl := &controller{
 		meta:      meta,
 		storage:   storage,
+		cfg:       cfg,
 		cfgLoader: loader,
 		logger:    logger.NewLogger("controller"),
 		registry:  dentry.Registry,
 	}
 	return ctl
 }
+
 func InitSchemas(ctrl Controller) error {
 	schemas := dentry.Registry.GetSchemas()
 	root, err := ctrl.LoadRootObject(context.TODO())
 	if err != nil {
 		return err
 	}
+
+	acc := types.Access{
+		Permissions: []types.Permission{
+			types.PermOwnerRead,
+			types.PermOwnerWrite,
+			types.PermOwnerExec,
+			types.PermGroupRead,
+			types.PermGroupWrite,
+			types.PermOthersRead,
+		},
+	}
+
 	for _, s := range schemas {
-		obj, _ := types.InitNewObject(nil, types.ObjectAttr{Name: fmt.Sprintf(".%s", string(s.CType)), Kind: types.GroupKind})
-		_, err = ctrl.FindObject(context.TODO(), root, obj.Name)
+		name := fmt.Sprintf(".%s", string(s.CType))
+		_, err = ctrl.FindObject(context.TODO(), root, name)
 		if err != nil && err != types.ErrNotFound {
 			return err
 		}
 		if err == nil {
 			continue
 		}
-		obj.ParentID = root.ID
+		obj, err := ctrl.CreateObject(context.Background(), root, types.ObjectAttr{Name: name, Kind: types.GroupKind, Access: acc})
+		if err != nil {
+			continue
+		}
 		obj.Labels = types.Labels{Labels: []types.Label{{
 			Key:   types.VersionKey,
 			Value: s.Version,
@@ -68,6 +87,7 @@ func InitSchemas(ctrl Controller) error {
 			Value: string(s.CType),
 		}}}
 		if err = ctrl.SaveObject(context.TODO(), obj); err != nil {
+			_ = ctrl.DestroyObject(context.Background(), obj)
 			return err
 		}
 	}

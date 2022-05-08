@@ -10,6 +10,10 @@ import (
 	"github.com/hyponet/eventbus/bus"
 )
 
+const (
+	objectNameMaxLength = 255
+)
+
 type ObjectController interface {
 	LoadRootObject(ctx context.Context) (*types.Object, error)
 	FindObject(ctx context.Context, parent *types.Object, name string) (*types.Object, error)
@@ -29,6 +33,7 @@ func (c *controller) LoadRootObject(ctx context.Context) (*types.Object, error) 
 	if err != nil {
 		if err == types.ErrNotFound {
 			root = dentry.InitRootObject()
+			root.Access = fileAccessWithFsOwner(root.Access, c.cfg.Owner)
 			return root, c.SaveObject(ctx, root)
 		}
 		c.logger.Errorw("load root object error", "err", err.Error())
@@ -69,16 +74,22 @@ func (c *controller) GetObject(ctx context.Context, id string) (*types.Object, e
 
 func (c *controller) CreateObject(ctx context.Context, parent *types.Object, attr types.ObjectAttr) (*types.Object, error) {
 	defer utils.TraceRegion(ctx, "controller.createobject")()
+
+	if len(attr.Name) > objectNameMaxLength {
+		return nil, types.ErrNameTooLong
+	}
+
 	c.logger.Infow("creating new obj", "name", attr.Name, "kind", attr.Kind)
 	if parent.Labels.Get(types.KindKey) != nil && parent.Labels.Get(types.KindKey).Value != "" {
 		return c.CreateStructuredObject(ctx, parent, attr, types.Kind(parent.Labels.Get(types.KindKey).Value), parent.Labels.Get(types.VersionKey).Value)
 	}
+
+	attr.Access = fileAccessWithFsOwner(attr.Access, c.cfg.Owner)
 	obj, err := types.InitNewObject(parent, attr)
 	if err != nil {
 		c.logger.Errorw("create new object error", "parent", parent.ID, "name", attr.Name, "err", err.Error())
 		return nil, err
 	}
-	obj.Access = attr.Access
 	if err = c.SaveObject(ctx, obj); err != nil {
 		return nil, err
 	}
