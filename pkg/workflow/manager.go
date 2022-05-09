@@ -138,8 +138,9 @@ func (m *Manager) FileSaveHandler(obj *types.Object) {
 			continue
 		}
 		attr := types.ObjectAttr{
-			Name: fmt.Sprintf("%s-%s-job-%s", obj.Name, w.Name, utils.RandStringRunes(6)),
-			Kind: types.JobKind,
+			Name:   fmt.Sprintf("%s-%s-job-%s", obj.Name, w.Name, utils.RandStringRunes(6)),
+			Kind:   types.JobKind,
+			Access: m.jobParent.Access,
 		}
 		jobObj, err := m.ctrl.CreateObject(context.TODO(), m.jobParent, attr)
 		if err != nil {

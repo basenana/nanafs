@@ -6,6 +6,7 @@ import (
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/storage"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/gin-gonic/gin"
 	"net/http"
@@ -23,6 +24,7 @@ const (
 var (
 	server *restFsServer
 	ctrl   controller.Controller
+	cfg    config.Config
 )
 
 type mockConfig struct{}
@@ -70,8 +72,16 @@ func (s *restFsServer) Shutdown() error {
 
 func newRestFsServer() *restFsServer {
 	engine := gin.New()
-	_ = InitRestFs(ctrl, engine, config.Api{Enable: true})
+	_ = InitRestFs(ctrl, engine, cfg)
 	return &restFsServer{engine: engine}
+}
+
+func defaultAccessForTest() types.Access {
+	return types.Access{
+		Permissions: defaultAccess(),
+		UID:         cfg.Owner.Uid,
+		GID:         cfg.Owner.Gid,
+	}
 }
 
 var _ = BeforeSuite(func() {
@@ -87,7 +97,10 @@ var _ = AfterSuite(func() {
 func TestFile(t *testing.T) {
 	logger.InitLogger()
 	defer logger.Sync()
-	RegisterFailHandler(Fail)
 
+	cfg = config.Config{ApiConfig: config.Api{Enable: true}}
+	_ = config.Verify(&cfg)
+
+	RegisterFailHandler(Fail)
 	RunSpecs(t, "RestFS Suite")
 }
