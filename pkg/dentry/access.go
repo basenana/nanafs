@@ -18,6 +18,9 @@ var (
 		types.PermOthersRead:  unix.S_IROTH,
 		types.PermOthersWrite: unix.S_IWOTH,
 		types.PermOthersExec:  unix.S_IXOTH,
+		types.PermSetUid:      unix.S_ISUID,
+		types.PermSetGid:      unix.S_ISGID,
+		types.PermSticky:      unix.S_ISVTX,
 	}
 )
 

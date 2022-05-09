@@ -23,8 +23,14 @@ func idFromStat(dev uint64, st *syscall.Stat_t) fs.StableAttr {
 	}
 }
 
-func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, node *NanaNode) {
+func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, node *NanaNode, crtUid, crtGid int64) {
 	if mode, ok := attr.GetMode(); ok {
+		if mode&syscall.S_ISUID > 0 && crtUid != 0 && crtUid != node.obj.Access.UID {
+			mode ^= syscall.S_ISUID
+		}
+		if mode&syscall.S_ISGID > 0 && crtUid != 0 && crtGid != node.obj.Access.GID {
+			mode ^= syscall.S_ISGID
+		}
 		dentry.UpdateAccessWithMode(&node.obj.Access, mode)
 	}
 	if uid, ok := attr.GetUID(); ok {

@@ -28,7 +28,7 @@ var _ = Describe("TestRestFsGet", func() {
 	Describe("test action read", func() {
 		Context("normal", func() {
 			It("create new file", func() {
-				newFile, err := ctrl.CreateObject(context.Background(), root, types.ObjectAttr{Name: "get-read-file1.txt", Kind: types.RawKind})
+				newFile, err := ctrl.CreateObject(context.Background(), root, types.ObjectAttr{Name: "get-read-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
 				Expect(err).Should(BeNil())
 
 				f, err := ctrl.OpenFile(context.Background(), newFile, files.Attr{Read: true, Write: true})
@@ -71,7 +71,7 @@ var _ = Describe("TestRestFsGet", func() {
 		var oid string
 		Context("normal", func() {
 			It("create new file", func() {
-				newFile, err := ctrl.CreateObject(context.Background(), root, types.ObjectAttr{Name: "get-alias-file1.txt", Kind: types.RawKind})
+				newFile, err := ctrl.CreateObject(context.Background(), root, types.ObjectAttr{Name: "get-alias-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
 				Expect(err).Should(BeNil())
 				oid = newFile.ID
 			})
@@ -258,7 +258,7 @@ var _ = Describe("TestRestFsPut", func() {
 	Describe("test action update", func() {
 		Context("normal", func() {
 			It("create new file", func() {
-				newFile, err := ctrl.CreateObject(context.Background(), root, types.ObjectAttr{Name: "put-update-file1.txt", Kind: types.RawKind})
+				newFile, err := ctrl.CreateObject(context.Background(), root, types.ObjectAttr{Name: "put-update-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
 				Expect(err).Should(BeNil())
 
 				f, err := ctrl.OpenFile(context.Background(), newFile, files.Attr{Read: true, Write: true})
@@ -316,7 +316,7 @@ var _ = Describe("TestRestFsPut", func() {
 	Describe("test action rename", func() {
 		Context("normal", func() {
 			It("create new file", func() {
-				newFile, err := ctrl.CreateObject(context.Background(), root, types.ObjectAttr{Name: "put-rename-old-file1.txt", Kind: types.RawKind})
+				newFile, err := ctrl.CreateObject(context.Background(), root, types.ObjectAttr{Name: "put-rename-old-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
 				Expect(err).Should(BeNil())
 
 				f, err := ctrl.OpenFile(context.Background(), newFile, files.Attr{Read: true, Write: true})
@@ -369,7 +369,7 @@ var _ = Describe("TestRestFsDelete", func() {
 	Describe("test action delete", func() {
 		Context("normal", func() {
 			It("create new file", func() {
-				newFile, err := ctrl.CreateObject(context.Background(), root, types.ObjectAttr{Name: "delete-delete-file1.txt", Kind: types.RawKind})
+				newFile, err := ctrl.CreateObject(context.Background(), root, types.ObjectAttr{Name: "delete-delete-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
 				Expect(err).Should(BeNil())
 
 				f, err := ctrl.OpenFile(context.Background(), newFile, files.Attr{Read: true, Write: true})

@@ -66,7 +66,7 @@ var daemonCmd = &cobra.Command{
 		}
 
 		ctrl := controller.New(loader, meta, sto)
-		if err := controller.InitSchemas(ctrl); err != nil {
+		if err := controller.InitSchemas(ctrl, cfg); err != nil {
 			panic(err)
 		}
 		stop := utils.HandleTerminalSignal()
@@ -87,7 +87,7 @@ func run(ctrl controller.Controller, cfg config.Config, stopCh chan struct{}) {
 	}()
 
 	if cfg.ApiConfig.Enable {
-		s, err := apis.NewApiServer(ctrl, cfg.ApiConfig)
+		s, err := apis.NewApiServer(ctrl, cfg)
 		if err != nil {
 			log.Panicw("init http server failed", "err", err.Error())
 		}

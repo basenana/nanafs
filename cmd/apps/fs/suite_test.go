@@ -17,6 +17,10 @@ import (
 	"time"
 )
 
+var (
+	cfg config.Config
+)
+
 type MockController struct {
 	objects map[string]*types.Object
 	mux     sync.Mutex
@@ -207,8 +211,11 @@ func TestFs(t *testing.T) {
 	logger.InitLogger()
 	defer logger.Sync()
 
+	cfg = config.Config{}
+	_ = config.Verify(&cfg)
+
 	s, _ := storage.NewStorage("memory", config.Storage{})
-	files.InitFileIoChain(config.Config{}, s, make(chan struct{}))
+	files.InitFileIoChain(cfg, s, make(chan struct{}))
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Fs Suite")
 }

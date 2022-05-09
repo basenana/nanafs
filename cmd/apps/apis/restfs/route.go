@@ -11,8 +11,8 @@ const (
 	restFsPath = "/fs/*path"
 )
 
-func InitRestFs(ctrl controller.Controller, engine *gin.Engine, cfg config.Api) error {
-	if !cfg.Enable {
+func InitRestFs(ctrl controller.Controller, engine *gin.Engine, cfg config.Config) error {
+	if !cfg.ApiConfig.Enable {
 		return nil
 	}
 	s := &RestFS{

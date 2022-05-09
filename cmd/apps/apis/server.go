@@ -20,12 +20,12 @@ const (
 
 type Server struct {
 	engine *gin.Engine
-	cfg    config.Api
+	cfg    config.Config
 	logger *zap.SugaredLogger
 }
 
 func (s *Server) Run(stopCh chan struct{}) {
-	addr := fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port)
+	addr := fmt.Sprintf("%s:%d", s.cfg.ApiConfig.Host, s.cfg.ApiConfig.Port)
 	s.logger.Infof("http server on %s", addr)
 
 	httpServer := &http.Server{
@@ -57,12 +57,12 @@ func (s *Server) Ping(gCtx *gin.Context) {
 	})
 }
 
-func NewApiServer(ctrl controller.Controller, cfg config.Api) (*Server, error) {
-	if cfg.Port == 0 {
+func NewApiServer(ctrl controller.Controller, cfg config.Config) (*Server, error) {
+	if cfg.ApiConfig.Port == 0 {
 		return nil, fmt.Errorf("http port not set")
 	}
-	if cfg.Host == "" {
-		cfg.Host = "127.0.0.1"
+	if cfg.ApiConfig.Host == "" {
+		cfg.ApiConfig.Host = "127.0.0.1"
 	}
 
 	s := &Server{
@@ -73,7 +73,7 @@ func NewApiServer(ctrl controller.Controller, cfg config.Api) (*Server, error) {
 	s.engine.GET("/_ping", s.Ping)
 	s.engine.Use()
 
-	if cfg.Pprof {
+	if cfg.ApiConfig.Pprof {
 		pprof.Register(s.engine)
 	}
 

@@ -47,7 +47,17 @@ func (n *NanaNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrO
 
 func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAttrIn, out *fuse.AttrOut) syscall.Errno {
 	defer utils.TraceRegion(ctx, "node.setattr")()
-	updateNanaNodeWithAttr(in, n)
+	var uid, gid uint32
+	if fuseCtx, ok := ctx.(*fuse.Context); ok {
+		uid, gid = fuseCtx.Uid, fuseCtx.Gid
+	}
+
+	if uid != 0 && int64(uid) != n.obj.Access.UID {
+		return syscall.EPERM
+	}
+
+	updateNanaNodeWithAttr(in, n, int64(uid), int64(gid))
+	n.obj.ChangedAt = time.Now()
 	if err := n.R.SaveObject(ctx, n.obj); err != nil {
 		return Error2FuseSysError(err)
 	}
@@ -75,6 +85,7 @@ func (n *NanaNode) Getxattr(ctx context.Context, attr string, dest []byte) (uint
 func (n *NanaNode) Setxattr(ctx context.Context, attr string, data []byte, flags uint32) syscall.Errno {
 	defer utils.TraceRegion(ctx, "node.setxattr")()
 	dentry.AddInternalAnnotation(n.obj, attr, dentry.RawData2AnnotationContent(data), true)
+	n.obj.ChangedAt = time.Now()
 	return Error2FuseSysError(n.R.SaveObject(ctx, n.obj))
 }
 

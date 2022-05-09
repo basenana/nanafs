@@ -48,7 +48,7 @@ func New(loader config.Loader, meta storage.MetaStore, storage storage.Storage) 
 	return ctl
 }
 
-func InitSchemas(ctrl Controller) error {
+func InitSchemas(ctrl Controller, cfg config.Config) error {
 	schemas := dentry.Registry.GetSchemas()
 	root, err := ctrl.LoadRootObject(context.TODO())
 	if err != nil {
@@ -64,6 +64,8 @@ func InitSchemas(ctrl Controller) error {
 			types.PermGroupWrite,
 			types.PermOthersRead,
 		},
+		UID: cfg.Owner.Uid,
+		GID: cfg.Owner.Gid,
 	}
 
 	for _, s := range schemas {

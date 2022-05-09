@@ -27,7 +27,7 @@ import (
 	the details can be found in https://github.com/Brinkbit/http-fs-api
 */
 type RestFS struct {
-	cfg    config.Api
+	cfg    config.Config
 	ctrl   controller.Controller
 	logger *zap.SugaredLogger
 }

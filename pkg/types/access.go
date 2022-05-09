@@ -12,6 +12,9 @@ const (
 	PermOthersRead  = "others_read"
 	PermOthersWrite = "others_write"
 	PermOthersExec  = "others_exec"
+	PermSetUid      = "set_uid"
+	PermSetGid      = "set_gid"
+	PermSticky      = "sticky"
 )
 
 type Access struct {
