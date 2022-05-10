@@ -123,15 +123,29 @@ func newPage(shift int, mode int8) *pageNode {
 }
 
 type pageCacheChain struct {
-	root   *pageRoot
-	data   chain
-	mux    sync.Mutex
-	logger *zap.SugaredLogger
+	enable   bool
+	root     *pageRoot
+	farthest int64
+	data     chain
+	mux      sync.Mutex
+	logger   *zap.SugaredLogger
 }
 
 var _ chain = &pageCacheChain{}
 
 func (p *pageCacheChain) readAt(ctx context.Context, index, off int64, data []byte) (n int, err error) {
+	if off > p.farthest {
+		p.farthest = off
+	}
+
+	if !p.enable && off < p.farthest {
+		p.enable = true
+	}
+
+	if !p.enable {
+		return p.data.readAt(ctx, index, off, data)
+	}
+
 	var (
 		bufSize  = len(data)
 		readOnce int
@@ -168,6 +182,10 @@ func (p *pageCacheChain) readAt(ctx context.Context, index, off int64, data []by
 }
 
 func (p *pageCacheChain) writeAt(ctx context.Context, index int64, off int64, data []byte) (n int, err error) {
+	if !p.enable {
+		return p.data.writeAt(ctx, index, off, data)
+	}
+
 	var (
 		bufSize   = int64(len(data))
 		onceWrite int

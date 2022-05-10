@@ -44,7 +44,7 @@ func IsAccess(access types.Access, callerUid, callerGid, fileUid, fileGid int64,
 		return types.ErrNoPerms
 	}
 
-	if callerGid == fileGid || matchUserGroup(callerUid, fileGid) {
+	if callerGid == fileGid || MatchUserGroup(callerUid, fileGid) {
 		if perm&(mask<<3) == mask<<3 {
 			return nil
 		}
@@ -81,7 +81,7 @@ func UpdateAccessWithOwnID(access *types.Access, uid, gid int64) {
 	access.GID = gid
 }
 
-func matchUserGroup(callerUid, targetGid int64) bool {
+func MatchUserGroup(callerUid, targetGid int64) bool {
 	u, err := user.LookupId(strconv.Itoa(int(callerUid)))
 	if err != nil {
 		return false
@@ -99,3 +99,4 @@ func matchUserGroup(callerUid, targetGid int64) bool {
 	}
 	return false
 }
+

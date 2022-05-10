@@ -22,3 +22,21 @@ type Access struct {
 	UID         int64        `json:"uid"`
 	GID         int64        `json:"gid"`
 }
+
+func (a *Access) AddPerm(p Permission) {
+	for _, old := range a.Permissions {
+		if old == p {
+			return
+		}
+	}
+	a.Permissions = append(a.Permissions, p)
+}
+
+func (a *Access) RemovePerm(p Permission) {
+	for i, old := range a.Permissions {
+		if old != p {
+			continue
+		}
+		a.Permissions = append(a.Permissions[0:i], a.Permissions[i+1:]...)
+	}
+}
