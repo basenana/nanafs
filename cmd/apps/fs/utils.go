@@ -23,7 +23,30 @@ func idFromStat(dev uint64, st *syscall.Stat_t) fs.StableAttr {
 	}
 }
 
-func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, node *NanaNode, crtUid, crtGid int64) {
+func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, node *NanaNode, crtUid, crtGid int64) error {
+	// do check
+	if gid, ok := attr.GetGID(); ok {
+		/*
+			Only a privileged process (Linux: one with the CAP_CHOWN
+			capability) may change the owner of a file.  The owner of a file
+			may change the group of the file to any group of which that owner
+			is a member.  A privileged process (Linux: with CAP_CHOWN) may
+			change the group arbitrarily.
+		*/
+		if crtUid != 0 && crtUid != node.obj.Access.UID {
+			return types.ErrNoPerms
+		}
+		if crtUid != 0 && int64(gid) != crtGid && !dentry.MatchUserGroup(crtUid, int64(gid)) {
+			return types.ErrNoPerms
+		}
+	}
+	if _, ok := attr.GetUID(); ok {
+		if crtUid != 0 && crtUid != node.obj.Access.UID {
+			return types.ErrNoPerms
+		}
+	}
+
+	// do update
 	if mode, ok := attr.GetMode(); ok {
 		if mode&syscall.S_ISUID > 0 && crtUid != 0 && crtUid != node.obj.Access.UID {
 			mode ^= syscall.S_ISUID
@@ -33,12 +56,31 @@ func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, node *NanaNode, crtUid, crtGid
 		}
 		dentry.UpdateAccessWithMode(&node.obj.Access, mode)
 	}
+
+	ownerUpdated := false
 	if uid, ok := attr.GetUID(); ok {
+		ownerUpdated = true
 		dentry.UpdateAccessWithOwnID(&node.obj.Access, int64(uid), node.obj.Access.GID)
 	}
 	if gid, ok := attr.GetGID(); ok {
+		ownerUpdated = true
 		dentry.UpdateAccessWithOwnID(&node.obj.Access, node.obj.Access.UID, int64(gid))
 	}
+	if ownerUpdated {
+		/*
+		   When the owner or group of an executable file is changed by an
+		   unprivileged user, the S_ISUID and S_ISGID mode bits are cleared.
+		   POSIX does not specify whether this also should happen when root
+		   does the chown(); the Linux behavior depends on the kernel
+		   version, and since Linux 2.2.13, root is treated like other
+		   users.  In case of a non-group-executable file (i.e., one for
+		   which the S_IXGRP bit is not set) the S_ISGID bit indicates
+		   mandatory locking, and is not cleared by a chown().
+		*/
+		(&node.obj.Access).RemovePerm(types.PermSetUid)
+		(&node.obj.Access).RemovePerm(types.PermSetGid)
+	}
+
 	if size, ok := attr.GetSize(); ok {
 		node.obj.Size = int64(size)
 	}
@@ -54,6 +96,7 @@ func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, node *NanaNode, crtUid, crtGid
 	}
 
 	updateOsSideFields(attr, node)
+	return nil
 }
 
 func fsInfo2StatFs(info controller.Info, out *fuse.StatfsOut) {

@@ -56,7 +56,10 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 		return syscall.EPERM
 	}
 
-	updateNanaNodeWithAttr(in, n, int64(uid), int64(gid))
+	if err := updateNanaNodeWithAttr(in, n, int64(uid), int64(gid)); err != nil {
+		return Error2FuseSysError(err)
+	}
+
 	n.obj.ChangedAt = time.Now()
 	if err := n.R.SaveObject(ctx, n.obj); err != nil {
 		return Error2FuseSysError(err)
