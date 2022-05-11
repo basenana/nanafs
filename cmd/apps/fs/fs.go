@@ -9,13 +9,14 @@ import (
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
 	"go.uber.org/zap"
+	"os/exec"
+	"runtime"
 	"syscall"
 	"time"
 )
 
 const (
-	fsName           = "nanafs"
-	defaultFsTimeout = time.Second
+	fsName = "nanafs"
 )
 
 type NanaFS struct {
@@ -26,6 +27,7 @@ type NanaFS struct {
 	Display   string
 	MountOpts []string
 
+	cfg    config.Fs
 	logger *zap.SugaredLogger
 
 	// debug will enable debug log and SingleThreaded
@@ -38,10 +40,6 @@ func (n *NanaFS) Start(stopCh chan struct{}) error {
 		return err
 	}
 
-	var (
-		entryTimeout = defaultFsTimeout
-		attrTimeout  = defaultFsTimeout
-	)
 	opt := &fs.Options{
 		MountOptions: fuse.MountOptions{
 			AllowOther:     true,
@@ -50,9 +48,16 @@ func (n *NanaFS) Start(stopCh chan struct{}) error {
 			Options:        fsMountOptions(n.Display, n.MountOpts),
 			SingleThreaded: n.debug,
 		},
-		EntryTimeout: &entryTimeout,
-		AttrTimeout:  &attrTimeout,
-		Logger:       logger.NewFuseLogger(),
+		Logger: logger.NewFuseLogger(),
+	}
+
+	if n.cfg.EntryTimeout != nil {
+		entryTimeout := time.Duration(*n.cfg.EntryTimeout) * time.Second
+		opt.EntryTimeout = &entryTimeout
+	}
+	if n.cfg.AttrTimeout != nil {
+		attrTimeout := time.Duration(*n.cfg.AttrTimeout) * time.Second
+		opt.EntryTimeout = &attrTimeout
 	}
 
 	rawFs := fs.NewNodeFS(root, opt)
@@ -66,7 +71,7 @@ func (n *NanaFS) Start(stopCh chan struct{}) error {
 
 	go func() {
 		<-stopCh
-		_ = server.Unmount()
+		n.umount(server)
 	}()
 
 	waitMount := func() error {
@@ -111,6 +116,10 @@ func (n *NanaFS) newFsNode(ctx context.Context, parent *NanaNode, obj *types.Obj
 		}
 	}
 
+	if obj.Dev == 0 {
+		obj.Dev = int64(n.Dev)
+	}
+
 	node := &NanaNode{
 		obj:    obj,
 		R:      n,
@@ -121,6 +130,24 @@ func (n *NanaFS) newFsNode(ctx context.Context, parent *NanaNode, obj *types.Obj
 	}
 
 	return node, nil
+}
+
+func (n *NanaFS) umount(server *fuse.Server) {
+	go func() {
+		_ = server.Unmount()
+	}()
+
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("umount", "-f", n.Path)
+	case "linux":
+		cmd = exec.Command("umount", "-l", n.Path)
+	}
+
+	if err := cmd.Run(); err != nil {
+		n.logger.Errorw("umount failed", "err", err.Error())
+	}
 }
 
 func (n *NanaFS) releaseFsNode(ctx context.Context, obj *types.Object) {
@@ -142,6 +169,7 @@ func NewNanaFsRoot(cfg config.Fs, controller controller.Controller) (*NanaFS, er
 		Path:       cfg.RootPath,
 		Display:    cfg.DisplayName,
 		MountOpts:  cfg.MountOptions,
+		cfg:        cfg,
 		Dev:        uint64(st.Dev),
 		logger:     logger.NewLogger("fs"),
 	}
