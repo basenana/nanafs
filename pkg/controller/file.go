@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
@@ -36,6 +37,16 @@ func (c *controller) OpenFile(ctx context.Context, obj *types.Object, attr files
 			return nil, err
 		}
 		return file, c.SaveObject(ctx, file.GetObject())
+	}
+
+	var err error
+	for dentry.IsMirrorObject(obj) {
+		obj, err = c.meta.GetObject(ctx, obj.RefID)
+		if err != nil {
+			c.logger.Errorw("query source object error", "obj", obj.ID, "srcObj", obj.RefID, "err", err.Error())
+			return nil, err
+		}
+		c.logger.Infow("replace source object", "srcObj", obj.ID)
 	}
 
 	if attr.Trunc {

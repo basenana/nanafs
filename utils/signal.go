@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"os/signal"
 	"runtime"
@@ -37,10 +38,16 @@ func handlerUserSignal() {
 	s := <-userCh
 	if s == syscall.SIGUSR1 {
 		var (
-			buf = make([]byte, 2048)
+			buf       []byte
+			stackSize int
+			startSize = math.MaxInt16
 		)
-		n := runtime.Stack(buf, true)
-		fmt.Println(string(buf[:n]))
+		for len(buf) == stackSize {
+			buf = make([]byte, startSize)
+			stackSize = runtime.Stack(buf, true)
+			startSize *= 2
+		}
+		fmt.Println(string(buf[:stackSize]))
 	}
 }
 
