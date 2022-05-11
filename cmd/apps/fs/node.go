@@ -129,6 +129,7 @@ func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode u
 		return nil, nil, 0, Error2FuseSysError(err)
 	}
 	updateAttrOut(nanaNode2Stat(node), &out.Attr)
+	n.AddChild(name, node.EmbeddedInode(), true)
 
 	f, err := n.R.Controller.OpenFile(ctx, obj, openFileAttr(flags))
 	return node.EmbeddedInode(), &File{node: n, file: f}, dentry.Access2Mode(obj.Access), Error2FuseSysError(err)
@@ -146,6 +147,15 @@ func (n *NanaNode) Lookup(ctx context.Context, name string, out *fuse.EntryOut) 
 		}
 		return nil, Error2FuseSysError(err)
 	}
+
+	if dentry.IsMirrorObject(ch) {
+		ch, err = n.R.GetObject(ctx, ch.RefID)
+		if err != nil {
+			n.logger.Errorw("query source object failed", "err", err.Error())
+			return nil, Error2FuseSysError(err)
+		}
+	}
+
 	node, err := n.R.newFsNode(ctx, n, ch)
 	if err != nil {
 		return nil, Error2FuseSysError(err)
@@ -214,6 +224,7 @@ func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fus
 		return nil, Error2FuseSysError(err)
 	}
 	updateAttrOut(nanaNode2Stat(node), &out.Attr)
+	n.AddChild(name, node.EmbeddedInode(), true)
 	return node.EmbeddedInode(), NoErr
 }
 
@@ -234,6 +245,7 @@ func (n *NanaNode) Mknod(ctx context.Context, name string, mode uint32, dev uint
 	}
 	obj, err := n.R.CreateObject(ctx, n.obj, types.ObjectAttr{
 		Name:   name,
+		Dev:    int64(dev),
 		Kind:   fileKindFromMode(mode),
 		Access: *acc,
 	})
@@ -245,6 +257,7 @@ func (n *NanaNode) Mknod(ctx context.Context, name string, mode uint32, dev uint
 		return nil, Error2FuseSysError(err)
 	}
 	updateAttrOut(nanaNode2Stat(n), &out.Attr)
+	n.AddChild(name, node.EmbeddedInode(), true)
 	return node.EmbeddedInode(), NoErr
 }
 
@@ -265,6 +278,8 @@ func (n *NanaNode) Link(ctx context.Context, target fs.InodeEmbedder, name strin
 		return nil, Error2FuseSysError(err)
 	}
 
+	updateAttrOut(nanaNode2Stat(n), &out.Attr)
+	n.AddChild(name, node.EmbeddedInode(), true)
 	return node.EmbeddedInode(), NoErr
 }
 

@@ -16,6 +16,7 @@ type Metadata struct {
 	Hash       string    `json:"hash"`
 	Size       int64     `json:"size"`
 	Inode      uint64    `json:"inode"`
+	Dev        int64     `json:"dev"`
 	Namespace  string    `json:"namespace,omitempty"`
 	CreatedAt  time.Time `json:"created_at"`
 	ChangedAt  time.Time `json:"changed_at"`
@@ -136,6 +137,7 @@ func (o *Object) IsGroup() bool {
 
 type ObjectAttr struct {
 	Name   string
+	Dev    int64
 	Kind   Kind
 	Access Access
 }
@@ -143,6 +145,7 @@ type ObjectAttr struct {
 func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {
 	md := NewMetadata(attr.Name, attr.Kind)
 	md.Access = attr.Access
+	md.Dev = attr.Dev
 
 	newObj := &Object{
 		Metadata: md,

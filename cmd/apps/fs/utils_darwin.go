@@ -39,7 +39,7 @@ func nanaNode2Stat(node *NanaNode) *syscall.Stat_t {
 		Nlink:     0,
 		Uid:       uint32(node.obj.Access.UID),
 		Gid:       uint32(node.obj.Access.GID),
-		Rdev:      0,
+		Rdev:      int32(node.obj.Dev),
 	}
 }
 

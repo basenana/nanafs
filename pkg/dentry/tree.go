@@ -1,6 +1,8 @@
 package dentry
 
-import "github.com/basenana/nanafs/pkg/types"
+import (
+	"github.com/basenana/nanafs/pkg/types"
+)
 
 const (
 	RootObjectID = "root"
@@ -29,11 +31,13 @@ func CreateMirrorObject(src, newParent *types.Object, attr types.ObjectAttr) (*t
 		return nil, err
 	}
 
-	obj.Metadata = src.Metadata
+	obj.Metadata.Kind = src.Kind
+	obj.Metadata.Inode = src.Inode
+	obj.Metadata.Namespace = src.Namespace
 	obj.RefID = src.ID
 	return obj, nil
 }
 
 func IsMirrorObject(obj *types.Object) bool {
-	return obj.RefID != ""
+	return obj.RefID != "" && obj.RefID != obj.ID
 }

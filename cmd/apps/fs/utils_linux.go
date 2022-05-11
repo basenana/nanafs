@@ -4,6 +4,7 @@ package fs
 
 import (
 	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/hanwen/go-fuse/v2/fuse"
 	"golang.org/x/sys/unix"
 	"syscall"
 )
@@ -33,12 +34,12 @@ func nanaNode2Stat(node *NanaNode) *syscall.Stat_t {
 		Atim:    syscall.Timespec{Sec: aTime.Sec, Nsec: aTime.Nsec},
 		Mtim:    syscall.Timespec{Sec: mTime.Sec, Nsec: mTime.Nsec},
 		Ctim:    syscall.Timespec{Sec: cTime.Sec, Nsec: cTime.Nsec},
-		Mode:    uint16(mode),
+		Mode:    mode,
 		Ino:     node.obj.Inode,
 		Nlink:   0,
 		Uid:     uint32(node.obj.Access.UID),
 		Gid:     uint32(node.obj.Access.GID),
-		Rdev:    0,
+		Rdev:    uint64(node.obj.Dev),
 	}
 }
 

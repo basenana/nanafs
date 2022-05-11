@@ -189,7 +189,15 @@ func (c *controller) MirrorObject(ctx context.Context, src, dstParent *types.Obj
 	defer utils.TraceRegion(ctx, "controller.mirrorobject")()
 	c.logger.Infow("mirror obj", "srcObj", src.ID, "dstParent", dstParent.ID)
 
-	var err error
+	oldEntry, err := c.FindObject(ctx, dstParent, attr.Name)
+	if err != nil && err != types.ErrNotFound {
+		c.logger.Errorw("check entry error", "obj", src.ID, "srcObj", src.RefID, "err", err.Error())
+		return nil, err
+	}
+	if oldEntry != nil {
+		return nil, types.ErrIsExist
+	}
+
 	for dentry.IsMirrorObject(src) {
 		src, err = c.meta.GetObject(ctx, src.RefID)
 		if err != nil {
@@ -202,6 +210,10 @@ func (c *controller) MirrorObject(ctx context.Context, src, dstParent *types.Obj
 	obj, err := dentry.CreateMirrorObject(src, dstParent, attr)
 	if err != nil {
 		c.logger.Errorw("create mirror object error", "srcObj", src.ID, "dstParent", dstParent.ID, "err", err.Error())
+		return nil, err
+	}
+	if err = c.SaveObject(ctx, obj); err != nil {
+		c.logger.Errorw("save mirror object error", "srcObj", src.ID, "dstParent", dstParent.ID, "err", err.Error())
 		return nil, err
 	}
 	bus.Publish(fmt.Sprintf("object.entry.%s.mirror", obj.ID), obj)
