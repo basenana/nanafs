@@ -100,6 +100,13 @@ func (c *controller) CreateObject(ctx context.Context, parent *types.Object, att
 		return nil, err
 	}
 	bus.Publish(fmt.Sprintf("object.entry.%s.create", obj.ID), obj)
+
+	parent.ChangedAt = time.Now()
+	parent.ModifiedAt = time.Now()
+	if err = c.SaveObject(ctx, parent); err != nil {
+		c.logger.Errorw("update parent object error", "parent", parent.ID, "name", attr.Name, "err", err.Error())
+		return nil, err
+	}
 	return obj, nil
 }
 

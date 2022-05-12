@@ -165,12 +165,6 @@ func (n *NanaNode) Lookup(ctx context.Context, name string, out *fuse.EntryOut) 
 	defer utils.TraceRegion(ctx, "node.lookup")()
 	ch, err := n.R.FindObject(ctx, n.obj, name)
 	if err != nil {
-		if err == types.ErrNotFound {
-			// Update parent directory ctime/mtime if file didn't exist
-			//n.obj.ChangedAt = time.Now()
-			//n.obj.ModifiedAt = time.Now()
-			//_ = n.R.SaveObject(ctx, n.obj)
-		}
 		return nil, Error2FuseSysError(err)
 	}
 
