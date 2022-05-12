@@ -12,6 +12,7 @@ type Metadata struct {
 	Aliases    string    `json:"aliases,omitempty"`
 	ParentID   string    `json:"parent_id"`
 	RefID      string    `json:"ref_id,omitempty"`
+	RefCount   int       `json:"ref_count,omitempty"`
 	Kind       Kind      `json:"kind"`
 	Hash       string    `json:"hash"`
 	Size       int64     `json:"size"`
@@ -31,6 +32,7 @@ func NewMetadata(name string, kind Kind) Metadata {
 		ID:         uuid.New().String(),
 		Name:       name,
 		Kind:       kind,
+		RefCount:   1,
 		CreatedAt:  time.Now(),
 		AccessAt:   time.Now(),
 		ChangedAt:  time.Now(),

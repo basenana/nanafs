@@ -31,6 +31,14 @@ func (n *NanaNode) Access(ctx context.Context, mask uint32) syscall.Errno {
 		uid, gid = fuseCtx.Uid, fuseCtx.Gid
 	}
 
+	obj, err := n.R.GetObject(ctx, n.obj.ID)
+	if err != nil {
+		n.RmAllChildren()
+		n.ForgetPersistent()
+		return Error2FuseSysError(err)
+	}
+	n.obj = obj
+
 	return Error2FuseSysError(dentry.IsAccess(n.obj.Access, int64(uid), int64(gid), n.obj.Access.UID, n.obj.Access.GID, mask))
 }
 
@@ -40,6 +48,15 @@ func (n *NanaNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrO
 	if ok {
 		return file.Getattr(ctx, out)
 	}
+
+	obj, err := n.R.GetObject(ctx, n.obj.ID)
+	if err != nil {
+		n.RmAllChildren()
+		n.ForgetPersistent()
+		return Error2FuseSysError(err)
+	}
+	n.obj = obj
+
 	st := nanaNode2Stat(n)
 	updateAttrOut(st, &out.Attr)
 	return NoErr
@@ -69,6 +86,15 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 
 func (n *NanaNode) Getxattr(ctx context.Context, attr string, dest []byte) (uint32, syscall.Errno) {
 	defer utils.TraceRegion(ctx, "node.getxattr")()
+
+	obj, err := n.R.GetObject(ctx, n.obj.ID)
+	if err != nil {
+		n.RmAllChildren()
+		n.ForgetPersistent()
+		return 0, Error2FuseSysError(err)
+	}
+	n.obj = obj
+
 	ann := dentry.GetInternalAnnotation(n.obj, attr)
 	if ann == nil {
 		return 0, syscall.Errno(0x5d)
@@ -141,9 +167,9 @@ func (n *NanaNode) Lookup(ctx context.Context, name string, out *fuse.EntryOut) 
 	if err != nil {
 		if err == types.ErrNotFound {
 			// Update parent directory ctime/mtime if file didn't exist
-			n.obj.ChangedAt = time.Now()
-			n.obj.ModifiedAt = time.Now()
-			_ = n.R.SaveObject(ctx, n.obj)
+			//n.obj.ChangedAt = time.Now()
+			//n.obj.ModifiedAt = time.Now()
+			//_ = n.R.SaveObject(ctx, n.obj)
 		}
 		return nil, Error2FuseSysError(err)
 	}
@@ -309,7 +335,6 @@ func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.E
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
-	defer n.R.CloseFile(ctx, f)
 
 	_, err = n.R.WriteFile(ctx, f, []byte(target), 0)
 	if err != nil {
