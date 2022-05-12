@@ -36,7 +36,7 @@ func nanaNode2Stat(node *NanaNode) *syscall.Stat_t {
 		Ctimespec: syscall.Timespec{Sec: cTime.Sec, Nsec: cTime.Nsec},
 		Mode:      uint16(mode),
 		Ino:       node.obj.Inode,
-		Nlink:     0,
+		Nlink:     uint16(node.obj.RefCount),
 		Uid:       uint32(node.obj.Access.UID),
 		Gid:       uint32(node.obj.Access.GID),
 		Rdev:      int32(node.obj.Dev),

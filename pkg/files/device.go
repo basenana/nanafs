@@ -31,6 +31,7 @@ func (s *Symlink) Write(ctx context.Context, data []byte, offset int64) (n int64
 
 	n = int64(copy(s.data[offset:], data))
 	s.obj.Size = size
+	_ = s.Flush(ctx)
 	return
 }
 

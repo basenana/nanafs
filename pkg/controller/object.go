@@ -8,6 +8,7 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/hyponet/eventbus/bus"
+	"time"
 )
 
 const (
@@ -99,6 +100,13 @@ func (c *controller) CreateObject(ctx context.Context, parent *types.Object, att
 		return nil, err
 	}
 	bus.Publish(fmt.Sprintf("object.entry.%s.create", obj.ID), obj)
+
+	parent.ChangedAt = time.Now()
+	parent.ModifiedAt = time.Now()
+	if err = c.SaveObject(ctx, parent); err != nil {
+		c.logger.Errorw("update parent object error", "parent", parent.ID, "name", attr.Name, "err", err.Error())
+		return nil, err
+	}
 	return obj, nil
 }
 
@@ -140,18 +148,22 @@ func (c *controller) DestroyObject(ctx context.Context, obj *types.Object) (err 
 			c.logger.Errorw("delete mirrored object from meta server error", "obj", obj.ID, "err", err.Error())
 			return err
 		}
+		srcObj.RefCount -= 1
 
-		if srcObj.ParentID == "" {
+		if srcObj.RefCount == 0 && srcObj.ParentID == "" {
 			c.logger.Infow("source object has no parent", "obj", obj.ID, "ref", obj.RefID)
 			objects, err = c.meta.ListObjects(ctx, storage.Filter{RefID: srcObj.ID})
 			if err != nil {
 				c.logger.Errorw("query source object mirrors from meta server error", "srcObj", srcObj.ID, "err", err.Error())
 				return err
 			}
+
 			if len(objects) == 0 {
 				c.logger.Infow("source object has no mirrors any more, destroy source", "srcObj", srcObj.ID)
 				err = c.destroyObject(ctx, srcObj)
 			}
+		} else {
+			err = c.SaveObject(ctx, srcObj)
 		}
 		return
 	}
@@ -165,6 +177,7 @@ func (c *controller) DestroyObject(ctx context.Context, obj *types.Object) (err 
 		if len(objects) != 0 {
 			c.logger.Infow("object has mirrors, remove parent id", "obj", obj.ID)
 			obj.ParentID = ""
+			obj.RefCount -= 1
 			err = c.meta.SaveObject(ctx, obj)
 			return
 		}
@@ -188,6 +201,10 @@ func (c *controller) destroyObject(ctx context.Context, obj *types.Object) (err 
 func (c *controller) MirrorObject(ctx context.Context, src, dstParent *types.Object, attr types.ObjectAttr) (*types.Object, error) {
 	defer utils.TraceRegion(ctx, "controller.mirrorobject")()
 	c.logger.Infow("mirror obj", "srcObj", src.ID, "dstParent", dstParent.ID)
+
+	if len(attr.Name) > objectNameMaxLength {
+		return nil, types.ErrNameTooLong
+	}
 
 	oldEntry, err := c.FindObject(ctx, dstParent, attr.Name)
 	if err != nil && err != types.ErrNotFound {
@@ -216,7 +233,22 @@ func (c *controller) MirrorObject(ctx context.Context, src, dstParent *types.Obj
 		c.logger.Errorw("save mirror object error", "srcObj", src.ID, "dstParent", dstParent.ID, "err", err.Error())
 		return nil, err
 	}
+
+	src.RefCount += 1
+	src.ChangedAt = time.Now()
+	if err = c.SaveObject(ctx, src); err != nil {
+		c.logger.Errorw("update src object ref count error", "srcObj", src.ID, "dstParent", dstParent.ID, "err", err.Error())
+		_ = c.DestroyObject(ctx, obj)
+		return nil, err
+	}
 	bus.Publish(fmt.Sprintf("object.entry.%s.mirror", obj.ID), obj)
+
+	dstParent.ChangedAt = time.Now()
+	dstParent.ModifiedAt = time.Now()
+	if err = c.SaveObject(ctx, dstParent); err != nil {
+		c.logger.Errorw("update dst parent object ref count error", "srcObj", src.ID, "dstParent", dstParent.ID, "err", err.Error())
+		return nil, err
+	}
 	return obj, nil
 }
 
