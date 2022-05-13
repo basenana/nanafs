@@ -23,6 +23,15 @@ type Access struct {
 	GID         int64        `json:"gid"`
 }
 
+func (a *Access) HasPerm(p Permission) bool {
+	for _, perm := range a.Permissions {
+		if perm == p {
+			return true
+		}
+	}
+	return false
+}
+
 func (a *Access) AddPerm(p Permission) {
 	for _, old := range a.Permissions {
 		if old == p {

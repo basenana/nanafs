@@ -25,6 +25,16 @@ func idFromStat(dev uint64, st *syscall.Stat_t) fs.StableAttr {
 
 func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, node *NanaNode, crtUid, crtGid int64) error {
 	// do check
+	if _, ok := attr.GetMode(); ok {
+		if crtUid != 0 && crtUid != node.obj.Access.UID {
+			return types.ErrNoPerm
+		}
+	}
+	if _, ok := attr.GetUID(); ok {
+		if crtUid != 0 && crtUid != node.obj.Access.UID {
+			return types.ErrNoPerm
+		}
+	}
 	if gid, ok := attr.GetGID(); ok {
 		/*
 			Only a privileged process (Linux: one with the CAP_CHOWN
@@ -34,16 +44,14 @@ func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, node *NanaNode, crtUid, crtGid
 			change the group arbitrarily.
 		*/
 		if crtUid != 0 && crtUid != node.obj.Access.UID {
-			return types.ErrNoPerms
+			return types.ErrNoPerm
 		}
 		if crtUid != 0 && int64(gid) != crtGid && !dentry.MatchUserGroup(crtUid, int64(gid)) {
-			return types.ErrNoPerms
+			return types.ErrNoAccess
 		}
 	}
-	if _, ok := attr.GetUID(); ok {
-		if crtUid != 0 && crtUid != node.obj.Access.UID {
-			return types.ErrNoPerms
-		}
+	if err := dentry.IsAccess(node.obj.Access, crtUid, crtGid, node.obj.Access.UID, node.obj.Access.GID, 0x2); err != nil {
+		return err
 	}
 
 	// do update

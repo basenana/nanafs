@@ -16,14 +16,22 @@ func Error2FuseSysError(err error) syscall.Errno {
 	switch err {
 	case types.ErrNotFound:
 		return syscall.ENOENT
+	case types.ErrIsExist:
+		return syscall.EEXIST
 	case types.ErrNoGroup:
 		return syscall.Errno(20)
+	case types.ErrNotEmpty:
+		return syscall.ENOTEMPTY
 	case types.ErrIsGroup:
 		return syscall.EISDIR
-	case types.ErrNoPerms:
+	case types.ErrNoAccess:
 		return syscall.EACCES
+	case types.ErrNoPerm:
+		return syscall.EPERM
 	case types.ErrNameTooLong:
 		return syscall.ENAMETOOLONG
+	case types.ErrOutOfFS:
+		return syscall.EXDEV
 	}
 	return syscall.EIO
 }
