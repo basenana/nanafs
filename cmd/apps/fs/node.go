@@ -51,6 +51,12 @@ func (n *NanaNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrO
 
 	obj, err := n.R.GetObject(ctx, n.obj.ID)
 	if err != nil {
+		if f != nil && err == types.ErrNotFound && n.obj != nil {
+			n.obj.RefCount = 0
+			st := nanaNode2Stat(n)
+			updateAttrOut(st, &out.Attr)
+			return NoErr
+		}
 		n.RmAllChildren()
 		n.ForgetPersistent()
 		return Error2FuseSysError(err)
@@ -67,10 +73,6 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 	var uid, gid uint32
 	if fuseCtx, ok := ctx.(*fuse.Context); ok {
 		uid, gid = fuseCtx.Uid, fuseCtx.Gid
-	}
-
-	if uid != 0 && int64(uid) != n.obj.Access.UID {
-		return syscall.EPERM
 	}
 
 	if err := updateNanaNodeWithAttr(in, n, int64(uid), int64(gid)); err != nil {
@@ -361,19 +363,54 @@ func (n *NanaNode) Readlink(ctx context.Context) ([]byte, syscall.Errno) {
 
 func (n *NanaNode) Unlink(ctx context.Context, name string) syscall.Errno {
 	defer utils.TraceRegion(ctx, "node.unlink")()
+
+	var uid, gid uint32
+	if fuseCtx, ok := ctx.(*fuse.Context); ok {
+		uid, gid = fuseCtx.Uid, fuseCtx.Gid
+	}
+
+	if err := dentry.IsAccess(n.obj.Access, int64(uid), int64(gid), n.obj.Access.UID, n.obj.Access.GID, 0x2); err != nil {
+		return Error2FuseSysError(err)
+	}
+
 	ch, err := n.R.FindObject(ctx, n.obj, name)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
+
+	if uid != 0 && int64(uid) != ch.Access.UID && int64(uid) != n.obj.Access.UID && n.obj.Access.HasPerm(types.PermSticky) {
+		return Error2FuseSysError(types.ErrNoAccess)
+	}
+
 	if err = n.R.DestroyObject(ctx, ch); err != nil {
 		return Error2FuseSysError(err)
 	}
 	n.RmChild(name)
+
+	n.obj.ChangedAt = time.Now()
+	n.obj.ModifiedAt = time.Now()
+	if err = n.R.SaveObject(ctx, n.obj); err != nil {
+		return Error2FuseSysError(types.ErrNoGroup)
+	}
 	return NoErr
 }
 
 func (n *NanaNode) Rmdir(ctx context.Context, name string) syscall.Errno {
 	defer utils.TraceRegion(ctx, "node.rmdir")()
+
+	if name == ".." {
+		return Error2FuseSysError(types.ErrIsExist)
+	}
+
+	var uid, gid uint32
+	if fuseCtx, ok := ctx.(*fuse.Context); ok {
+		uid, gid = fuseCtx.Uid, fuseCtx.Gid
+	}
+
+	if err := dentry.IsAccess(n.obj.Access, int64(uid), int64(gid), n.obj.Access.UID, n.obj.Access.GID, 0x2); err != nil {
+		return Error2FuseSysError(err)
+	}
+
 	ch, err := n.R.FindObject(ctx, n.obj, name)
 	if err != nil {
 		return Error2FuseSysError(err)
@@ -382,10 +419,28 @@ func (n *NanaNode) Rmdir(ctx context.Context, name string) syscall.Errno {
 		return Error2FuseSysError(types.ErrNoGroup)
 	}
 
+	if uid != 0 && int64(uid) != ch.Access.UID && int64(uid) != n.obj.Access.UID && n.obj.Access.HasPerm(types.PermSticky) {
+		return Error2FuseSysError(types.ErrNoAccess)
+	}
+
+	children, err := n.R.ListObjectChildren(ctx, ch)
+	if err != nil {
+		return Error2FuseSysError(err)
+	}
+	if len(children) > 0 {
+		return Error2FuseSysError(types.ErrNotEmpty)
+	}
+
 	if err = n.R.DestroyObject(ctx, ch); err != nil {
 		return Error2FuseSysError(err)
 	}
 	n.RmChild(name)
+
+	n.obj.ChangedAt = time.Now()
+	n.obj.ModifiedAt = time.Now()
+	if err = n.R.SaveObject(ctx, n.obj); err != nil {
+		return Error2FuseSysError(types.ErrNoGroup)
+	}
 	return NoErr
 }
 

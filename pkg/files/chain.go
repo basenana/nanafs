@@ -558,8 +558,10 @@ func (d *chunkDirectChain) readAt(ctx context.Context, index, off int64, data []
 	if err != nil {
 		if err != types.ErrNotFound {
 			d.logger.Errorw("read through error", "index", index, "err", err.Error())
+			return 0, err
 		}
-		return 0, err
+		// for truncate
+		return len(data), nil
 	}
 
 	if seekCloser, needCache := chunkDataReader.(io.ReadWriteSeeker); needCache {

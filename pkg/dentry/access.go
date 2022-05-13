@@ -41,21 +41,21 @@ func IsAccess(access types.Access, callerUid, callerGid, fileUid, fileGid int64,
 		if perm&(mask<<6) == mask<<6 {
 			return nil
 		}
-		return types.ErrNoPerms
+		return types.ErrNoAccess
 	}
 
 	if callerGid == fileGid || MatchUserGroup(callerUid, fileGid) {
 		if perm&(mask<<3) == mask<<3 {
 			return nil
 		}
-		return types.ErrNoPerms
+		return types.ErrNoAccess
 	}
 
 	if perm&mask == mask {
 		return nil
 	}
 
-	return types.ErrNoPerms
+	return types.ErrNoAccess
 }
 
 func Access2Mode(access types.Access) (mode uint32) {
@@ -99,4 +99,3 @@ func MatchUserGroup(callerUid, targetGid int64) bool {
 	}
 	return false
 }
-

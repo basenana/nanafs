@@ -163,6 +163,7 @@ func (c *controller) DestroyObject(ctx context.Context, obj *types.Object) (err 
 				err = c.destroyObject(ctx, srcObj)
 			}
 		} else {
+			srcObj.ChangedAt = time.Now()
 			err = c.SaveObject(ctx, srcObj)
 		}
 		return
