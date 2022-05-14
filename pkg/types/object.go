@@ -28,7 +28,7 @@ type Metadata struct {
 }
 
 func NewMetadata(name string, kind Kind) Metadata {
-	return Metadata{
+	result := Metadata{
 		ID:         uuid.New().String(),
 		Name:       name,
 		Kind:       kind,
@@ -39,6 +39,11 @@ func NewMetadata(name string, kind Kind) Metadata {
 		ModifiedAt: time.Now(),
 		Labels:     Labels{},
 	}
+
+	if kind == GroupKind {
+		result.RefCount = 2
+	}
+	return result
 }
 
 type ExtendData struct {
