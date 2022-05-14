@@ -24,7 +24,7 @@ type ObjectController interface {
 	DestroyObject(ctx context.Context, obj *types.Object) error
 	MirrorObject(ctx context.Context, src, dstParent *types.Object, attr types.ObjectAttr) (*types.Object, error)
 	ListObjectChildren(ctx context.Context, obj *types.Object) ([]*types.Object, error)
-	ChangeObjectParent(ctx context.Context, old, newParent *types.Object, newName string, opt ChangeParentOpt) error
+	ChangeObjectParent(ctx context.Context, old, oldParent, newParent *types.Object, newName string, opt ChangeParentOpt) error
 }
 
 func (c *controller) LoadRootObject(ctx context.Context) (*types.Object, error) {
@@ -179,6 +179,7 @@ func (c *controller) DestroyObject(ctx context.Context, obj *types.Object) (err 
 			c.logger.Infow("object has mirrors, remove parent id", "obj", obj.ID)
 			obj.ParentID = ""
 			obj.RefCount -= 1
+			obj.ChangedAt = time.Now()
 			err = c.meta.SaveObject(ctx, obj)
 			return
 		}
@@ -276,25 +277,59 @@ func (c *controller) ListObjectChildren(ctx context.Context, obj *types.Object) 
 }
 
 type ChangeParentOpt struct {
+	Uid      int64
+	Gid      int64
 	Replace  bool
 	Exchange bool
 }
 
-func (c *controller) ChangeObjectParent(ctx context.Context, obj, newParent *types.Object, newName string, opt ChangeParentOpt) error {
+func (c *controller) ChangeObjectParent(ctx context.Context, obj, oldParent, newParent *types.Object, newName string, opt ChangeParentOpt) (err error) {
 	defer utils.TraceRegion(ctx, "controller.changeparent")()
+
+	if len(newName) > objectNameMaxLength {
+		return types.ErrNameTooLong
+	}
+
 	c.logger.Infow("change obj parent", "old", obj.ID, "newParent", newParent.ID, "newName", newName)
-	old, err := c.FindObject(ctx, newParent, newName)
+	// need source dir WRITE
+	if err = dentry.IsAccess(oldParent.Access, opt.Uid, opt.Gid, 0x2); err != nil {
+		return err
+	}
+	// need dst dir WRITE
+	if err = dentry.IsAccess(newParent.Access, opt.Uid, opt.Gid, 0x2); err != nil {
+		return err
+	}
+
+	if opt.Uid != 0 && opt.Uid != oldParent.Access.UID && opt.Uid != obj.Access.UID && oldParent.Access.HasPerm(types.PermSticky) {
+		return types.ErrNoPerm
+	}
+
+	existObj, err := c.FindObject(ctx, newParent, newName)
 	if err != nil {
 		if err != types.ErrNotFound {
 			c.logger.Errorw("new name verify failed", "old", obj.ID, "newParent", newParent.ID, "newName", newName, "err", err.Error())
 			return err
 		}
 	}
-	if old != nil {
+	if existObj != nil {
+		if opt.Uid != 0 && opt.Uid != newParent.Access.UID && opt.Uid != existObj.Access.UID && newParent.Access.HasPerm(types.PermSticky) {
+			return types.ErrNoPerm
+		}
+
+		if existObj.IsGroup() {
+			children, err := c.ListObjectChildren(ctx, existObj)
+			if err != nil {
+				return err
+			}
+			if len(children) > 0 {
+				return types.ErrIsExist
+			}
+		}
+
 		if opt.Exchange {
-			old.Name = obj.Name
+			existObj.Name = obj.Name
 			obj.Name = newName
-			if err = c.SaveObject(ctx, old); err != nil {
+			if err = c.SaveObject(ctx, existObj); err != nil {
 				return err
 			}
 			if err = c.SaveObject(ctx, obj); err != nil {
@@ -306,16 +341,33 @@ func (c *controller) ChangeObjectParent(ctx context.Context, obj, newParent *typ
 		if !opt.Replace {
 			return types.ErrIsExist
 		}
-		if err = c.destroyObject(ctx, old); err != nil {
+		if err = c.DestroyObject(ctx, existObj); err != nil {
 			return err
 		}
 	}
+
 	obj.Name = newName
 	err = c.meta.ChangeParent(ctx, obj, newParent)
 	if err != nil {
 		c.logger.Errorw("change object parent failed", "old", obj.ID, "newParent", newParent.ID, "newName", newName, "err", err.Error())
 		return err
 	}
+
+	oldParent.ChangedAt = time.Now()
+	oldParent.ModifiedAt = time.Now()
+	newParent.ChangedAt = time.Now()
+	newParent.ModifiedAt = time.Now()
+	if obj.IsGroup() {
+		oldParent.RefCount -= 1
+		newParent.RefCount += 1
+	}
+	if err = c.SaveObject(ctx, oldParent); err != nil {
+		return err
+	}
+	if err = c.SaveObject(ctx, newParent); err != nil {
+		return err
+	}
+
 	bus.Publish(fmt.Sprintf("object.entry.%s.mv", obj.ID), obj)
 	return nil
 }

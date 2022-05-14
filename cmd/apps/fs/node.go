@@ -39,7 +39,7 @@ func (n *NanaNode) Access(ctx context.Context, mask uint32) syscall.Errno {
 	}
 	n.obj = obj
 
-	return Error2FuseSysError(dentry.IsAccess(n.obj.Access, int64(uid), int64(gid), n.obj.Access.UID, n.obj.Access.GID, mask))
+	return Error2FuseSysError(dentry.IsAccess(n.obj.Access, int64(uid), int64(gid), mask))
 }
 
 func (n *NanaNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut) syscall.Errno {
@@ -160,7 +160,7 @@ func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode u
 	n.AddChild(name, node.EmbeddedInode(), true)
 
 	f, err := n.R.Controller.OpenFile(ctx, obj, openFileAttr(flags))
-	return node.EmbeddedInode(), &File{node: n, file: f}, dentry.Access2Mode(obj.Access), Error2FuseSysError(err)
+	return node.EmbeddedInode(), &File{node: node, file: f}, dentry.Access2Mode(obj.Access), Error2FuseSysError(err)
 }
 
 func (n *NanaNode) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
@@ -241,6 +241,13 @@ func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fus
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
+
+	n.obj.RefCount += 1
+	err = n.R.SaveObject(ctx, n.obj)
+	if err != nil {
+		return nil, Error2FuseSysError(err)
+	}
+
 	node, err := n.R.newFsNode(ctx, n, obj)
 	if err != nil {
 		return nil, Error2FuseSysError(err)
@@ -369,7 +376,7 @@ func (n *NanaNode) Unlink(ctx context.Context, name string) syscall.Errno {
 		uid, gid = fuseCtx.Uid, fuseCtx.Gid
 	}
 
-	if err := dentry.IsAccess(n.obj.Access, int64(uid), int64(gid), n.obj.Access.UID, n.obj.Access.GID, 0x2); err != nil {
+	if err := dentry.IsAccess(n.obj.Access, int64(uid), int64(gid), 0x2); err != nil {
 		return Error2FuseSysError(err)
 	}
 
@@ -407,7 +414,7 @@ func (n *NanaNode) Rmdir(ctx context.Context, name string) syscall.Errno {
 		uid, gid = fuseCtx.Uid, fuseCtx.Gid
 	}
 
-	if err := dentry.IsAccess(n.obj.Access, int64(uid), int64(gid), n.obj.Access.UID, n.obj.Access.GID, 0x2); err != nil {
+	if err := dentry.IsAccess(n.obj.Access, int64(uid), int64(gid), 0x2); err != nil {
 		return Error2FuseSysError(err)
 	}
 
@@ -436,6 +443,7 @@ func (n *NanaNode) Rmdir(ctx context.Context, name string) syscall.Errno {
 	}
 	n.RmChild(name)
 
+	n.obj.RefCount -= 1
 	n.obj.ChangedAt = time.Now()
 	n.obj.ModifiedAt = time.Now()
 	if err = n.R.SaveObject(ctx, n.obj); err != nil {
@@ -454,14 +462,20 @@ func (n *NanaNode) Rename(ctx context.Context, name string, newParent fs.InodeEm
 	if !ok {
 		return syscall.EIO
 	}
-	opt := controller.ChangeParentOpt{Replace: true}
+
+	var uid, gid uint32
+	if fuseCtx, ok := ctx.(*fuse.Context); ok {
+		uid, gid = fuseCtx.Uid, fuseCtx.Gid
+	}
+	opt := controller.ChangeParentOpt{Uid: int64(uid), Gid: int64(gid), Replace: true}
 	if flags&RENAME_EXCHANGE > 0 {
 		opt.Exchange = true
 	}
 	if flags&RENAME_NOREPLACE > 0 {
 		opt.Replace = false
 	}
-	if err = n.R.ChangeObjectParent(ctx, oldObject.obj, newNode.obj, newName, opt); err != nil {
+
+	if err = n.R.ChangeObjectParent(ctx, oldObject.obj, n.obj, newNode.obj, newName, opt); err != nil {
 		return Error2FuseSysError(err)
 	}
 	n.RmChild(name)

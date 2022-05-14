@@ -50,8 +50,10 @@ func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, node *NanaNode, crtUid, crtGid
 			return types.ErrNoAccess
 		}
 	}
-	if err := dentry.IsAccess(node.obj.Access, crtUid, crtGid, node.obj.Access.UID, node.obj.Access.GID, 0x2); err != nil {
-		return err
+	if _, ok := attr.GetSize(); ok {
+		if err := dentry.IsAccess(node.obj.Access, crtUid, crtGid, 0x2); err != nil {
+			return err
+		}
 	}
 
 	// do update
