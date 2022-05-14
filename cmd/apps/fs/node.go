@@ -39,7 +39,7 @@ func (n *NanaNode) Access(ctx context.Context, mask uint32) syscall.Errno {
 	}
 	n.obj = obj
 
-	return Error2FuseSysError(dentry.IsAccess(n.obj.Access, int64(uid), int64(gid), n.obj.Access.UID, n.obj.Access.GID, mask))
+	return Error2FuseSysError(dentry.IsAccess(n.obj.Access, int64(uid), int64(gid), mask))
 }
 
 func (n *NanaNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut) syscall.Errno {
@@ -376,7 +376,7 @@ func (n *NanaNode) Unlink(ctx context.Context, name string) syscall.Errno {
 		uid, gid = fuseCtx.Uid, fuseCtx.Gid
 	}
 
-	if err := dentry.IsAccess(n.obj.Access, int64(uid), int64(gid), n.obj.Access.UID, n.obj.Access.GID, 0x2); err != nil {
+	if err := dentry.IsAccess(n.obj.Access, int64(uid), int64(gid), 0x2); err != nil {
 		return Error2FuseSysError(err)
 	}
 
@@ -414,7 +414,7 @@ func (n *NanaNode) Rmdir(ctx context.Context, name string) syscall.Errno {
 		uid, gid = fuseCtx.Uid, fuseCtx.Gid
 	}
 
-	if err := dentry.IsAccess(n.obj.Access, int64(uid), int64(gid), n.obj.Access.UID, n.obj.Access.GID, 0x2); err != nil {
+	if err := dentry.IsAccess(n.obj.Access, int64(uid), int64(gid), 0x2); err != nil {
 		return Error2FuseSysError(err)
 	}
 
@@ -462,34 +462,18 @@ func (n *NanaNode) Rename(ctx context.Context, name string, newParent fs.InodeEm
 	if !ok {
 		return syscall.EIO
 	}
-	opt := controller.ChangeParentOpt{Replace: true}
+
+	var uid, gid uint32
+	if fuseCtx, ok := ctx.(*fuse.Context); ok {
+		uid, gid = fuseCtx.Uid, fuseCtx.Gid
+	}
+	opt := controller.ChangeParentOpt{Uid: int64(uid), Gid: int64(gid), Replace: true}
 	if flags&RENAME_EXCHANGE > 0 {
 		opt.Exchange = true
 	}
 	if flags&RENAME_NOREPLACE > 0 {
 		opt.Replace = false
 	}
-
-	var uid, gid uint32
-	if fuseCtx, ok := ctx.(*fuse.Context); ok {
-		uid, gid = fuseCtx.Uid, fuseCtx.Gid
-	}
-
-	// need current dir WRITE
-	if err = dentry.IsAccess(n.obj.Access, int64(uid), int64(gid), n.obj.Access.UID, n.obj.Access.GID, 0x2); err != nil {
-		return Error2FuseSysError(err)
-	}
-	// need target dir WRITE
-	if err = dentry.IsAccess(newNode.obj.Access, int64(uid), int64(gid), newNode.obj.Access.UID, newNode.obj.Access.GID, 0x2); err != nil {
-		return Error2FuseSysError(err)
-	}
-
-	if uid != 0 && int64(uid) != n.obj.Access.UID && int64(uid) != oldObject.obj.Access.UID && n.obj.Access.HasPerm(types.PermSticky) {
-		return Error2FuseSysError(types.ErrNoPerm)
-	}
-	//if uid != 0 && int64(uid) != newNode.obj.Access.UID && int64(uid) != oldObject.obj.Access.UID && newNode.obj.Access.HasPerm(types.PermSticky) {
-	//	return Error2FuseSysError(types.ErrNoPerm)
-	//}
 
 	if err = n.R.ChangeObjectParent(ctx, oldObject.obj, n.obj, newNode.obj, newName, opt); err != nil {
 		return Error2FuseSysError(err)

@@ -41,6 +41,7 @@ func NewMetadata(name string, kind Kind) Metadata {
 	}
 
 	if kind == GroupKind {
+		// as dir, default has self and '..' two links
 		result.RefCount = 2
 	}
 	return result

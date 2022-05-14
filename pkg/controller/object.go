@@ -277,11 +277,13 @@ func (c *controller) ListObjectChildren(ctx context.Context, obj *types.Object) 
 }
 
 type ChangeParentOpt struct {
+	Uid      int64
+	Gid      int64
 	Replace  bool
 	Exchange bool
 }
 
-func (c *controller) ChangeObjectParent(ctx context.Context, obj, oldParent, newParent *types.Object, newName string, opt ChangeParentOpt) error {
+func (c *controller) ChangeObjectParent(ctx context.Context, obj, oldParent, newParent *types.Object, newName string, opt ChangeParentOpt) (err error) {
 	defer utils.TraceRegion(ctx, "controller.changeparent")()
 
 	if len(newName) > objectNameMaxLength {
@@ -289,6 +291,19 @@ func (c *controller) ChangeObjectParent(ctx context.Context, obj, oldParent, new
 	}
 
 	c.logger.Infow("change obj parent", "old", obj.ID, "newParent", newParent.ID, "newName", newName)
+	// need source dir WRITE
+	if err = dentry.IsAccess(oldParent.Access, opt.Uid, opt.Gid, 0x2); err != nil {
+		return err
+	}
+	// need dst dir WRITE
+	if err = dentry.IsAccess(newParent.Access, opt.Uid, opt.Gid, 0x2); err != nil {
+		return err
+	}
+
+	if opt.Uid != 0 && opt.Uid != oldParent.Access.UID && opt.Uid != obj.Access.UID && oldParent.Access.HasPerm(types.PermSticky) {
+		return types.ErrNoPerm
+	}
+
 	existObj, err := c.FindObject(ctx, newParent, newName)
 	if err != nil {
 		if err != types.ErrNotFound {
@@ -297,6 +312,10 @@ func (c *controller) ChangeObjectParent(ctx context.Context, obj, oldParent, new
 		}
 	}
 	if existObj != nil {
+		if opt.Uid != 0 && opt.Uid != newParent.Access.UID && opt.Uid != existObj.Access.UID && newParent.Access.HasPerm(types.PermSticky) {
+			return types.ErrNoPerm
+		}
+
 		if existObj.IsGroup() {
 			children, err := c.ListObjectChildren(ctx, existObj)
 			if err != nil {

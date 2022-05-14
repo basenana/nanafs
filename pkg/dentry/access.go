@@ -24,7 +24,7 @@ var (
 	}
 )
 
-func IsAccess(access types.Access, callerUid, callerGid, fileUid, fileGid int64, mask uint32) error {
+func IsAccess(access types.Access, callerUid, callerGid int64, mask uint32) error {
 	if callerUid == 0 {
 		// root can do anything.
 		return nil
@@ -37,14 +37,14 @@ func IsAccess(access types.Access, callerUid, callerGid, fileUid, fileGid int64,
 	perm := Access2Mode(access)
 
 	// as owner
-	if callerUid == fileUid {
+	if callerUid == access.UID {
 		if perm&(mask<<6) == mask<<6 {
 			return nil
 		}
 		return types.ErrNoAccess
 	}
 
-	if callerGid == fileGid || MatchUserGroup(callerUid, fileGid) {
+	if callerGid == access.GID || MatchUserGroup(callerUid, access.GID) {
 		if perm&(mask<<3) == mask<<3 {
 			return nil
 		}
