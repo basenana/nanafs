@@ -61,7 +61,6 @@ func (c *controller) OpenFile(ctx context.Context, obj *types.Object, attr files
 	}
 	obj.AccessAt = time.Now()
 	obj.ModifiedAt = time.Now()
-	obj.ChangedAt = time.Now()
 	bus.Publish(fmt.Sprintf("object.file.%s.open", obj.ID), obj)
 	return file, c.SaveObject(ctx, obj)
 }

@@ -75,7 +75,13 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 		uid, gid = fuseCtx.Uid, fuseCtx.Gid
 	}
 
-	if err := updateNanaNodeWithAttr(in, n, int64(uid), int64(gid)); err != nil {
+	var attr files.Attr
+	nanaFile, ok := f.(*File)
+	if ok {
+		attr = nanaFile.file.GetAttr()
+	}
+
+	if err := updateNanaNodeWithAttr(in, n, int64(uid), int64(gid), attr); err != nil {
 		return Error2FuseSysError(err)
 	}
 

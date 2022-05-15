@@ -21,6 +21,10 @@ func (s *structured) GetObject() *types.Object {
 	return s.Object
 }
 
+func (s *structured) GetAttr() Attr {
+	return s.attr
+}
+
 func (s *structured) Write(ctx context.Context, data []byte, offset int64) (n int64, err error) {
 	rl := int64(len(s.raw))
 	dl := int64(len(data))

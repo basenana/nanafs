@@ -14,10 +14,14 @@ const (
 type Symlink struct {
 	data []byte
 	obj  *types.Object
+	attr Attr
 }
 
 func (s *Symlink) GetObject() *types.Object {
 	return s.obj
+}
+func (s *Symlink) GetAttr() Attr {
+	return s.attr
 }
 
 func (s *Symlink) Write(ctx context.Context, data []byte, offset int64) (n int64, err error) {
@@ -56,7 +60,7 @@ func (s *Symlink) Close(ctx context.Context) (err error) {
 	return s.Flush(ctx)
 }
 
-func openSymlink(obj *types.Object) (*Symlink, error) {
+func openSymlink(obj *types.Object, attr Attr) (*Symlink, error) {
 	if obj.Kind != types.SymLinkKind {
 		return nil, fmt.Errorf("not symlink")
 	}
@@ -71,5 +75,5 @@ func openSymlink(obj *types.Object) (*Symlink, error) {
 		raw = make([]byte, 0, 512)
 	}
 
-	return &Symlink{obj: obj, data: raw}, nil
+	return &Symlink{obj: obj, data: raw, attr: attr}, nil
 }

@@ -10,6 +10,7 @@ import (
 
 type File interface {
 	GetObject() *types.Object
+	GetAttr() Attr
 	Write(ctx context.Context, data []byte, offset int64) (n int64, err error)
 	Read(ctx context.Context, data []byte, offset int64) (int, error)
 	Fsync(ctx context.Context) error
@@ -28,6 +29,10 @@ type file struct {
 
 func (f *file) GetObject() *types.Object {
 	return f.Object
+}
+
+func (f *file) GetAttr() Attr {
+	return f.attr
 }
 
 func (f *file) Write(ctx context.Context, data []byte, offset int64) (n int64, err error) {
@@ -148,7 +153,7 @@ func Open(ctx context.Context, obj *types.Object, attr Attr) (File, error) {
 
 	switch obj.Kind {
 	case types.SymLinkKind:
-		return openSymlink(obj)
+		return openSymlink(obj, attr)
 	}
 
 	f := &file{
