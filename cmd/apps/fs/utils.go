@@ -23,7 +23,7 @@ func idFromStat(dev uint64, st *syscall.Stat_t) fs.StableAttr {
 	}
 }
 
-func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, node *NanaNode, crtUid, crtGid int64) error {
+func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, node *NanaNode, crtUid, crtGid int64, fileOpenAttr files.Attr) error {
 	// do check
 	if _, ok := attr.GetMode(); ok {
 		if crtUid != 0 && crtUid != node.obj.Access.UID {
@@ -51,8 +51,10 @@ func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, node *NanaNode, crtUid, crtGid
 		}
 	}
 	if _, ok := attr.GetSize(); ok {
-		if err := dentry.IsAccess(node.obj.Access, crtUid, crtGid, 0x2); err != nil {
-			return err
+		if !fileOpenAttr.Create {
+			if err := dentry.IsAccess(node.obj.Access, crtUid, crtGid, 0x2); err != nil {
+				return err
+			}
 		}
 	}
 
