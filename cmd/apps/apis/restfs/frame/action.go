@@ -41,9 +41,9 @@ type Action struct {
 }
 
 func BuildAction(gCtx *gin.Context) Action {
-	action := gCtx.Param(UrlArgsActionKey)
-	flagsStr := gCtx.Param(UrlArgsFlagsKey)
-	fieldsStr := gCtx.Param(UrlArgsFieldsKey)
+	action := gCtx.Query(UrlArgsActionKey)
+	flagsStr := gCtx.Query(UrlArgsFlagsKey)
+	fieldsStr := gCtx.Query(UrlArgsFieldsKey)
 
 	if action == "" {
 		switch gCtx.Request.Method {

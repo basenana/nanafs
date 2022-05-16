@@ -11,3 +11,8 @@ const (
 	ApiMethodError   ApiErrorCode = "MethodNotAllowed"
 	ApiInternalError ApiErrorCode = "InternalError"
 )
+
+type Error struct {
+	Code    ApiErrorCode `json:"code"`
+	Message string       `json:"message"`
+}
