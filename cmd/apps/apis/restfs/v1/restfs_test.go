@@ -1,10 +1,11 @@
-package restfs
+package v1
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/basenana/nanafs/cmd/apps/apis/restfs/frame"
 	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/types"
 	. "github.com/onsi/ginkgo"
@@ -76,8 +77,8 @@ var _ = Describe("TestRestFsGet", func() {
 				oid = newFile.ID
 			})
 			It("read file by action alias", func() {
-				act := Action{Action: ActionAlias}
-				raw, _ := json.Marshal(FsRequest{Data: act})
+				act := frame.Action{Action: frame.ActionAlias}
+				raw, _ := json.Marshal(frame.FsRequest{Data: act})
 				r, err := http.NewRequest(http.MethodGet, "http://127.0.0.1:8001/fs/get-alias-file1.txt", bytes.NewReader(raw))
 				Expect(err).Should(BeNil())
 				resp, err := http.DefaultClient.Do(r)
@@ -131,8 +132,8 @@ var _ = Describe("TestRestFsPost", func() {
 		var oid string
 		Context("normal", func() {
 			It("create new file by action create", func() {
-				act := Action{
-					Action: ActionCreate,
+				act := frame.Action{
+					Action: frame.ActionCreate,
 					Parameters: struct {
 						Name    string   `json:"name"`
 						Content []byte   `json:"content"`
@@ -143,7 +144,7 @@ var _ = Describe("TestRestFsPost", func() {
 						Content: []byte("test"),
 					},
 				}
-				raw, _ := json.Marshal(FsRequest{Data: act})
+				raw, _ := json.Marshal(frame.FsRequest{Data: act})
 				r, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8001/fs/post-create-file1.txt", bytes.NewReader(raw))
 				Expect(err).Should(BeNil())
 				resp, err := http.DefaultClient.Do(r)
@@ -179,8 +180,8 @@ var _ = Describe("TestRestFsPost", func() {
 			It("create multi file by action bulk", func() {
 				body := &bytes.Buffer{}
 
-				act := Action{Action: ActionBulk}
-				raw, _ := json.Marshal(FsRequest{Data: act})
+				act := frame.Action{Action: frame.ActionBulk}
+				raw, _ := json.Marshal(frame.FsRequest{Data: act})
 
 				writer := multipart.NewWriter(body)
 				header := textproto.MIMEHeader{}
@@ -269,8 +270,8 @@ var _ = Describe("TestRestFsPut", func() {
 				Expect(f.Close(context.Background())).Should(BeNil())
 			})
 			It("do update file", func() {
-				act := Action{
-					Action: ActionUpdate,
+				act := frame.Action{
+					Action: frame.ActionUpdate,
 					Parameters: struct {
 						Name    string   `json:"name"`
 						Content []byte   `json:"content"`
@@ -280,7 +281,7 @@ var _ = Describe("TestRestFsPut", func() {
 						Content: []byte("hello"),
 					},
 				}
-				raw, _ := json.Marshal(FsRequest{Data: act})
+				raw, _ := json.Marshal(frame.FsRequest{Data: act})
 				r, err := http.NewRequest(http.MethodPut, "http://127.0.0.1:8001/fs/put-update-file1.txt", bytes.NewReader(raw))
 				Expect(err).Should(BeNil())
 				resp, err := http.DefaultClient.Do(r)
@@ -327,8 +328,8 @@ var _ = Describe("TestRestFsPut", func() {
 				Expect(f.Close(context.Background())).Should(BeNil())
 			})
 			It("do rename", func() {
-				act := Action{
-					Action: ActionRename,
+				act := frame.Action{
+					Action: frame.ActionRename,
 					Parameters: struct {
 						Name    string   `json:"name"`
 						Content []byte   `json:"content"`
@@ -338,7 +339,7 @@ var _ = Describe("TestRestFsPut", func() {
 						Name: "put-rename-new-file1.txt",
 					},
 				}
-				raw, _ := json.Marshal(FsRequest{Data: act})
+				raw, _ := json.Marshal(frame.FsRequest{Data: act})
 				r, err := http.NewRequest(http.MethodPut, "http://127.0.0.1:8001/fs/put-rename-old-file1.txt", bytes.NewReader(raw))
 				Expect(err).Should(BeNil())
 				resp, err := http.DefaultClient.Do(r)

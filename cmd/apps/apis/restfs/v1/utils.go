@@ -1,4 +1,4 @@
-package restfs
+package v1
 
 import (
 	"context"
