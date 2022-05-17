@@ -4,16 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/basenana/nanafs/cmd/apps/apis/restfs/frame"
 	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/types"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"mime"
 	"mime/multipart"
 	"net/http"
-	"net/textproto"
 )
 
 var _ = Describe("TestRestFsGet", func() {
@@ -40,7 +37,7 @@ var _ = Describe("TestRestFsGet", func() {
 				Expect(f.Close(context.Background())).Should(BeNil())
 			})
 			It("read file by default action read", func() {
-				r, err := http.NewRequest(http.MethodGet, "http://127.0.0.1:8001/fs/get-read-file1.txt", nil)
+				r, err := http.NewRequest(http.MethodGet, "http://127.0.0.1:8001/v1/fs/get-read-file1.txt", nil)
 				Expect(err).Should(BeNil())
 				resp, err := http.DefaultClient.Do(r)
 				Expect(err).Should(BeNil())
@@ -53,8 +50,11 @@ var _ = Describe("TestRestFsGet", func() {
 				Expect(buf[:n]).Should(Equal([]byte("test")))
 			})
 			It("read file by action read", func() {
-				r, err := http.NewRequest(http.MethodGet, "http://127.0.0.1:8001/fs/get-read-file1.txt", nil)
+				r, err := http.NewRequest(http.MethodGet, "http://127.0.0.1:8001/v1/fs/get-read-file1.txt", nil)
 				Expect(err).Should(BeNil())
+				q := r.URL.Query()
+				q.Add("action", "read")
+				r.URL.RawQuery = q.Encode()
 				resp, err := http.DefaultClient.Do(r)
 				Expect(err).Should(BeNil())
 				defer resp.Body.Close()
@@ -77,10 +77,11 @@ var _ = Describe("TestRestFsGet", func() {
 				oid = newFile.ID
 			})
 			It("read file by action alias", func() {
-				act := frame.Action{Action: frame.ActionAlias}
-				raw, _ := json.Marshal(frame.FsRequest{Data: act})
-				r, err := http.NewRequest(http.MethodGet, "http://127.0.0.1:8001/fs/get-alias-file1.txt", bytes.NewReader(raw))
+				r, err := http.NewRequest(http.MethodGet, "http://127.0.0.1:8001/v1/fs/get-alias-file1.txt", nil)
 				Expect(err).Should(BeNil())
+				q := r.URL.Query()
+				q.Add("action", "alias")
+				r.URL.RawQuery = q.Encode()
 				resp, err := http.DefaultClient.Do(r)
 				Expect(err).Should(BeNil())
 				defer resp.Body.Close()
@@ -132,20 +133,14 @@ var _ = Describe("TestRestFsPost", func() {
 		var oid string
 		Context("normal", func() {
 			It("create new file by action create", func() {
-				act := frame.Action{
-					Action: frame.ActionCreate,
-					Parameters: struct {
-						Name    string   `json:"name"`
-						Content []byte   `json:"content"`
-						Flags   []string `json:"flags"`
-						Fields  []string `json:"fields"`
-					}{
+				req := frame.RequestV1{
+					Parameters: frame.Parameters{
 						Name:    "post-create-file1.txt",
 						Content: []byte("test"),
 					},
 				}
-				raw, _ := json.Marshal(frame.FsRequest{Data: act})
-				r, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8001/fs/post-create-file1.txt", bytes.NewReader(raw))
+				raw, _ := json.Marshal(req)
+				r, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8001/v1/fs/post-create-file1.txt", bytes.NewReader(raw))
 				Expect(err).Should(BeNil())
 				resp, err := http.DefaultClient.Do(r)
 				Expect(err).Should(BeNil())
@@ -180,24 +175,18 @@ var _ = Describe("TestRestFsPost", func() {
 			It("create multi file by action bulk", func() {
 				body := &bytes.Buffer{}
 
-				act := frame.Action{Action: frame.ActionBulk}
-				raw, _ := json.Marshal(frame.FsRequest{Data: act})
-
 				writer := multipart.NewWriter(body)
-				header := textproto.MIMEHeader{}
-				header.Add("Content-Type", mime.FormatMediaType("application/json", map[string]string{"charset": "UTF-8"}))
-				header.Add("Content-Disposition", fmt.Sprintf("form-data; name=\"%s\"", bulkActionKey))
-				actWriter, _ := writer.CreatePart(header)
-				_, _ = actWriter.Write(raw)
-
-				part1, _ := writer.CreateFormFile(bulkFileKey, "post-bulk-file1.txt")
+				part1, _ := writer.CreateFormFile("files", "post-bulk-file1.txt")
 				_, _ = part1.Write([]byte("content1"))
-				part2, _ := writer.CreateFormFile(bulkFileKey, "post-bulk-file2.txt")
+				part2, _ := writer.CreateFormFile("files", "post-bulk-file2.txt")
 				_, _ = part2.Write([]byte("content2"))
 				_ = writer.Close()
 
-				r, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8001/fs/", body)
+				r, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8001/v1/fs/", body)
 				Expect(err).Should(BeNil())
+				q := r.URL.Query()
+				q.Add("action", "bulk")
+				r.URL.RawQuery = q.Encode()
 				r.Header.Add("Content-Type", writer.FormDataContentType())
 
 				resp, err := http.DefaultClient.Do(r)
@@ -270,20 +259,17 @@ var _ = Describe("TestRestFsPut", func() {
 				Expect(f.Close(context.Background())).Should(BeNil())
 			})
 			It("do update file", func() {
-				act := frame.Action{
-					Action: frame.ActionUpdate,
-					Parameters: struct {
-						Name    string   `json:"name"`
-						Content []byte   `json:"content"`
-						Flags   []string `json:"flags"`
-						Fields  []string `json:"fields"`
-					}{
+				req := frame.RequestV1{
+					Parameters: frame.Parameters{
 						Content: []byte("hello"),
 					},
 				}
-				raw, _ := json.Marshal(frame.FsRequest{Data: act})
-				r, err := http.NewRequest(http.MethodPut, "http://127.0.0.1:8001/fs/put-update-file1.txt", bytes.NewReader(raw))
+				raw, _ := json.Marshal(req)
+				r, err := http.NewRequest(http.MethodPut, "http://127.0.0.1:8001/v1/fs/put-update-file1.txt", bytes.NewReader(raw))
 				Expect(err).Should(BeNil())
+				q := r.URL.Query()
+				q.Add("action", "update")
+				r.URL.RawQuery = q.Encode()
 				resp, err := http.DefaultClient.Do(r)
 				Expect(err).Should(BeNil())
 				defer resp.Body.Close()
@@ -328,20 +314,18 @@ var _ = Describe("TestRestFsPut", func() {
 				Expect(f.Close(context.Background())).Should(BeNil())
 			})
 			It("do rename", func() {
-				act := frame.Action{
-					Action: frame.ActionRename,
-					Parameters: struct {
-						Name    string   `json:"name"`
-						Content []byte   `json:"content"`
-						Flags   []string `json:"flags"`
-						Fields  []string `json:"fields"`
-					}{
+				req := frame.RequestV1{
+					Parameters: frame.Parameters{
 						Name: "put-rename-new-file1.txt",
 					},
 				}
-				raw, _ := json.Marshal(frame.FsRequest{Data: act})
-				r, err := http.NewRequest(http.MethodPut, "http://127.0.0.1:8001/fs/put-rename-old-file1.txt", bytes.NewReader(raw))
+				raw, _ := json.Marshal(req)
+				r, err := http.NewRequest(http.MethodPut, "http://127.0.0.1:8001/v1/fs/put-rename-old-file1.txt", bytes.NewReader(raw))
 				Expect(err).Should(BeNil())
+				q := r.URL.Query()
+				q.Add("action", "rename")
+				r.URL.RawQuery = q.Encode()
+
 				resp, err := http.DefaultClient.Do(r)
 				Expect(err).Should(BeNil())
 				defer resp.Body.Close()
@@ -381,7 +365,7 @@ var _ = Describe("TestRestFsDelete", func() {
 				Expect(f.Close(context.Background())).Should(BeNil())
 			})
 			It("do delete", func() {
-				r, err := http.NewRequest(http.MethodDelete, "http://127.0.0.1:8001/fs/delete-delete-file1.txt", nil)
+				r, err := http.NewRequest(http.MethodDelete, "http://127.0.0.1:8001/v1/fs/delete-delete-file1.txt", nil)
 				Expect(err).Should(BeNil())
 				resp, err := http.DefaultClient.Do(r)
 				Expect(err).Should(BeNil())

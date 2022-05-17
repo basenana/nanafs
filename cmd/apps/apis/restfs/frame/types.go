@@ -5,8 +5,8 @@ import (
 	"github.com/basenana/nanafs/cmd/apps/apis/common"
 )
 
-type FsRequest struct {
-	Data Action `json:"data"`
+type RequestV1 struct {
+	Parameters Parameters `json:"parameters"`
 }
 
 type FsResponse struct {

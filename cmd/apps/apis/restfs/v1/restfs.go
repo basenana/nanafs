@@ -16,6 +16,7 @@ import (
 	"io"
 	"net/http"
 	"path"
+	"strings"
 	"time"
 )
 
@@ -57,21 +58,32 @@ func (s *RestFS) register() {
 func (s *RestFS) HttpHandle(gCtx *gin.Context) {
 	ctx := gCtx.Request.Context()
 	defer utils.TraceRegion(ctx, fmt.Sprintf("restfs.%s", gCtx.Request.Method))()
-	param := frame.Parameters{}
-	if err := gCtx.ShouldBindJSON(&param); err != nil && err != io.EOF {
-		common.ErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, err)
-		return
-	}
 
 	action := frame.BuildAction(gCtx)
 	parent, obj, err := frame.FindObject(ctx, s.ctrl, gCtx.Param("path"), action.Action)
 	if err != nil {
 		switch err {
 		case types.ErrNotFound:
-			common.ErrorResponse(gCtx, http.StatusBadRequest, common.ApiEntryExisted, fmt.Errorf("object existed"))
+			common.ErrorResponse(gCtx, http.StatusNotFound, common.ApiNotFoundError, fmt.Errorf("object %s not found", strings.Trim(gCtx.Param("path"), "/")))
 			return
 		default:
 			common.ErrorResponse(gCtx, http.StatusInternalServerError, common.ApiInternalError, err)
+			return
+		}
+	}
+
+	req := frame.RequestV1{}
+	switch gCtx.Request.Method {
+	case http.MethodPost:
+		if action.Action != frame.ActionBulk {
+			if err = gCtx.BindJSON(&req); err != nil && err != io.EOF {
+				common.ErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, err)
+				return
+			}
+		}
+	case http.MethodPut:
+		if err = gCtx.BindJSON(&req); err != nil && err != io.EOF {
+			common.ErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, err)
 			return
 		}
 	}
@@ -81,7 +93,7 @@ func (s *RestFS) HttpHandle(gCtx *gin.Context) {
 		common.ErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, fmt.Errorf("action %s not support", action.Action))
 	}
 
-	handler(gCtx, obj, parent, action, param)
+	handler(gCtx, obj, parent, action, req.Parameters)
 }
 
 func (s *RestFS) read(gCtx *gin.Context, obj, parent *types.Object, action frame.Action, param frame.Parameters) {
@@ -92,7 +104,7 @@ func (s *RestFS) read(gCtx *gin.Context, obj, parent *types.Object, action frame
 			common.ErrorResponse(gCtx, http.StatusInternalServerError, common.ApiInternalError, err)
 			return
 		}
-		common.JsonResponse(gCtx, http.StatusOK, children)
+		common.JsonResponse(gCtx, http.StatusOK, frame.BuildObjectList(children))
 		return
 	}
 
@@ -110,6 +122,7 @@ func (s *RestFS) alias(gCtx *gin.Context, obj, parent *types.Object, action fram
 	common.JsonResponse(gCtx, http.StatusOK, map[string]string{"id": obj.ID})
 }
 
+// TODO: search in fs
 func (s *RestFS) search(gCtx *gin.Context, obj, parent *types.Object, action frame.Action, param frame.Parameters) {
 	common.ErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, fmt.Errorf("search not support yet"))
 }
@@ -118,6 +131,7 @@ func (s *RestFS) inspect(gCtx *gin.Context, obj, parent *types.Object, action fr
 	common.JsonResponse(gCtx, http.StatusOK, obj)
 }
 
+// TODO: download single file or dir with zip
 func (s *RestFS) download(gCtx *gin.Context, obj, parent *types.Object, action frame.Action, param frame.Parameters) {
 	common.ErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, fmt.Errorf("download not support yet"))
 }
@@ -127,12 +141,12 @@ func (s *RestFS) create(gCtx *gin.Context, obj, parent *types.Object, action fra
 		common.ErrorResponse(gCtx, http.StatusBadRequest, common.ApiEntryExisted, fmt.Errorf("object existed"))
 		return
 	}
-	newObj, err := s.newFile(gCtx, parent, param.Name, bytes.NewReader(param.Content))
+	newObj, err := s.newFile(gCtx, parent, param.Name, action, bytes.NewReader(param.Content))
 	if err != nil {
 		common.ErrorResponse(gCtx, http.StatusInternalServerError, common.ApiInternalError, err)
 		return
 	}
-	gCtx.JSON(http.StatusOK, newObj)
+	common.JsonResponse(gCtx, http.StatusOK, newObj)
 	return
 }
 
@@ -156,9 +170,10 @@ func (s *RestFS) bulk(gCtx *gin.Context, obj, parent *types.Object, action frame
 	mf, err := gCtx.MultipartForm()
 	if err != nil {
 		common.ErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, err)
+		return
 	}
 	if mf == nil {
-		gCtx.JSON(http.StatusOK, results)
+		common.JsonResponse(gCtx, http.StatusOK, frame.BuildObjectList(results))
 		return
 	}
 
@@ -169,7 +184,7 @@ func (s *RestFS) bulk(gCtx *gin.Context, obj, parent *types.Object, action frame
 			return
 		}
 
-		newObj, err := s.newFile(gCtx, obj, fH.Filename, newF)
+		newObj, err := s.newFile(gCtx, obj, fH.Filename, action, newF)
 		if err != nil {
 			_ = newF.Close()
 			common.ErrorResponse(gCtx, http.StatusInternalServerError, common.ApiInternalError, err)
@@ -178,7 +193,7 @@ func (s *RestFS) bulk(gCtx *gin.Context, obj, parent *types.Object, action frame
 		_ = newF.Close()
 		results = append(results, newObj)
 	}
-	gCtx.JSON(http.StatusOK, results)
+	common.JsonResponse(gCtx, http.StatusOK, frame.BuildObjectList(results))
 }
 
 func (s *RestFS) copy(gCtx *gin.Context, obj, parent *types.Object, action frame.Action, param frame.Parameters) {
@@ -198,7 +213,7 @@ func (s *RestFS) update(gCtx *gin.Context, obj, parent *types.Object, action fra
 		common.ErrorResponse(gCtx, http.StatusInternalServerError, common.ApiInternalError, err)
 		return
 	}
-	gCtx.JSON(http.StatusOK, obj)
+	common.JsonResponse(gCtx, http.StatusOK, obj)
 	return
 }
 
@@ -217,7 +232,7 @@ func (s *RestFS) rename(gCtx *gin.Context, obj, parent *types.Object, action fra
 				common.ErrorResponse(gCtx, http.StatusInternalServerError, common.ApiInternalError, err)
 				return
 			}
-			gCtx.JSON(http.StatusOK, obj)
+			common.JsonResponse(gCtx, http.StatusOK, obj)
 			return
 		}
 		common.ErrorResponse(gCtx, http.StatusInternalServerError, common.ApiInternalError, err)
@@ -231,14 +246,14 @@ func (s *RestFS) rename(gCtx *gin.Context, obj, parent *types.Object, action fra
 
 func (s *RestFS) destroy(gCtx *gin.Context, obj, parent *types.Object, action frame.Action, param frame.Parameters) {
 	ctx := gCtx.Request.Context()
-	if err := s.ctrl.DestroyObject(ctx, obj); err != nil {
+	if err := s.ctrl.DestroyObject(ctx, parent, obj); err != nil {
 		common.ErrorResponse(gCtx, http.StatusInternalServerError, common.ApiInternalError, err)
 		return
 	}
 	common.JsonResponse(gCtx, http.StatusOK, obj)
 }
 
-func (s *RestFS) newFile(gCtx *gin.Context, parent *types.Object, name string, reader io.Reader) (*types.Object, error) {
+func (s *RestFS) newFile(gCtx *gin.Context, parent *types.Object, name string, action frame.Action, reader io.Reader) (*types.Object, error) {
 	ctx := gCtx.Request.Context()
 	defer utils.TraceRegion(ctx, "restfs.newfile")()
 

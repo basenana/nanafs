@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"github.com/basenana/nanafs/cmd/apps/apis/restfs"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/files"
@@ -73,13 +72,14 @@ func (s *restFsServer) Shutdown() error {
 
 func newRestFsServer() *restFsServer {
 	engine := gin.New()
-	_ = restfs.InitRestFs(ctrl, engine, cfg)
+	v1Handler := NewRestFs(ctrl, cfg)
+	engine.Any("/v1/fs/*path", v1Handler.HttpHandle)
 	return &restFsServer{engine: engine}
 }
 
 func defaultAccessForTest() types.Access {
 	return types.Access{
-		Permissions: restfs.defaultAccess(),
+		Permissions: defaultAccess(),
 		UID:         cfg.Owner.Uid,
 		GID:         cfg.Owner.Gid,
 	}
