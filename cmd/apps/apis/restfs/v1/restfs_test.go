@@ -226,10 +226,47 @@ var _ = Describe("TestRestFsPost", func() {
 
 	Describe("test action copy", func() {
 		Context("normal", func() {
-			It("create file by action copy", func() {
+			It("create new file", func() {
+				newFile, err := ctrl.CreateObject(context.Background(), root, types.ObjectAttr{Name: "post-copy-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
+				Expect(err).Should(BeNil())
+
+				f, err := ctrl.OpenFile(context.Background(), newFile, files.Attr{Read: true, Write: true})
+				Expect(err).Should(BeNil())
+
+				_, err = f.Write(context.Background(), []byte("test"), 0)
+				Expect(err).Should(BeNil())
+				Expect(f.Close(context.Background())).Should(BeNil())
 			})
-			It("create succeed", func() {
-				// do nothing
+			It("create file by action copy", func() {
+				req := frame.RequestV1{
+					Parameters: frame.Parameters{
+						Destination: "/post-copy-file2.txt",
+					},
+				}
+				raw, _ := json.Marshal(req)
+				r, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:8001/v1/fs/post-copy-file1.txt", bytes.NewReader(raw))
+				Expect(err).Should(BeNil())
+				q := r.URL.Query()
+				q.Add("action", "copy")
+				r.URL.RawQuery = q.Encode()
+
+				resp, err := http.DefaultClient.Do(r)
+				Expect(err).Should(BeNil())
+				defer resp.Body.Close()
+				Expect(resp.StatusCode).Should(Equal(http.StatusOK))
+			})
+			It("copy succeed", func() {
+				copyObj, err := ctrl.FindObject(context.TODO(), root, "post-copy-file2.txt")
+				Expect(err).Should(BeNil())
+
+				f, err := ctrl.OpenFile(context.Background(), copyObj, files.Attr{Read: true})
+				Expect(err).Should(BeNil())
+
+				buf := make([]byte, 1024)
+				n, err := f.Read(context.TODO(), buf, 0)
+				Expect(err).Should(BeNil())
+				Expect(buf[:n]).Should(Equal([]byte("test")))
+				Expect(ctrl.CloseFile(context.TODO(), f)).Should(BeNil())
 			})
 		})
 	})
@@ -284,6 +321,7 @@ var _ = Describe("TestRestFsPut", func() {
 				n, err := f.Read(context.Background(), buf, 0)
 				Expect(err).Should(BeNil())
 				Expect(buf[:n]).Should(Equal([]byte("hello")))
+				Expect(ctrl.CloseFile(context.TODO(), f)).Should(BeNil())
 			})
 		})
 	})

@@ -8,7 +8,17 @@ type Response struct {
 	Data   interface{} `json:"data,omitempty"`
 }
 
-func ErrorResponse(gCtx *gin.Context, status int, code ApiErrorCode, err error) {
+func ErrorResponse(gCtx *gin.Context, err error) {
+	status, code := Error2ApiErrorCode(err)
+	ApiErrorResponse(gCtx, status, code, err)
+}
+
+func HttpStatusResponse(gCtx *gin.Context, status int, err error) {
+	_, code := Error2ApiErrorCode(err)
+	ApiErrorResponse(gCtx, status, code, err)
+}
+
+func ApiErrorResponse(gCtx *gin.Context, status int, code ApiErrorCode, err error) {
 	resp := Response{
 		Status: status,
 		Error: &Error{

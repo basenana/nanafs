@@ -16,8 +16,6 @@ import (
 	"io"
 	"net/http"
 	"path"
-	"strings"
-	"time"
 )
 
 type handleF func(gCtx *gin.Context, obj, parent *types.Object, action frame.Action, param frame.Parameters)
@@ -62,14 +60,8 @@ func (s *RestFS) HttpHandle(gCtx *gin.Context) {
 	action := frame.BuildAction(gCtx)
 	parent, obj, err := frame.FindObject(ctx, s.ctrl, gCtx.Param("path"), action.Action)
 	if err != nil {
-		switch err {
-		case types.ErrNotFound:
-			common.ErrorResponse(gCtx, http.StatusNotFound, common.ApiNotFoundError, fmt.Errorf("object %s not found", strings.Trim(gCtx.Param("path"), "/")))
-			return
-		default:
-			common.ErrorResponse(gCtx, http.StatusInternalServerError, common.ApiInternalError, err)
-			return
-		}
+		common.ErrorResponse(gCtx, err)
+		return
 	}
 
 	req := frame.RequestV1{}
@@ -77,20 +69,20 @@ func (s *RestFS) HttpHandle(gCtx *gin.Context) {
 	case http.MethodPost:
 		if action.Action != frame.ActionBulk {
 			if err = gCtx.BindJSON(&req); err != nil && err != io.EOF {
-				common.ErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, err)
+				common.ApiErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, err)
 				return
 			}
 		}
 	case http.MethodPut:
 		if err = gCtx.BindJSON(&req); err != nil && err != io.EOF {
-			common.ErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, err)
+			common.ApiErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, err)
 			return
 		}
 	}
 
 	handler, ok := s.handlers[action.Action]
 	if !ok {
-		common.ErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, fmt.Errorf("action %s not support", action.Action))
+		common.ApiErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, fmt.Errorf("action %s not support", action.Action))
 	}
 
 	handler(gCtx, obj, parent, action, req.Parameters)
@@ -101,7 +93,7 @@ func (s *RestFS) read(gCtx *gin.Context, obj, parent *types.Object, action frame
 	if obj.IsGroup() {
 		children, err := s.ctrl.ListObjectChildren(ctx, obj)
 		if err != nil {
-			common.ErrorResponse(gCtx, http.StatusInternalServerError, common.ApiInternalError, err)
+			common.ErrorResponse(gCtx, err)
 			return
 		}
 		common.JsonResponse(gCtx, http.StatusOK, frame.BuildObjectList(children))
@@ -110,7 +102,7 @@ func (s *RestFS) read(gCtx *gin.Context, obj, parent *types.Object, action frame
 
 	f, err := s.ctrl.OpenFile(ctx, obj, files.Attr{Read: true})
 	if err != nil {
-		common.ErrorResponse(gCtx, http.StatusInternalServerError, common.ApiInternalError, err)
+		common.ErrorResponse(gCtx, err)
 		return
 	}
 	defer s.ctrl.CloseFile(ctx, f)
@@ -124,7 +116,7 @@ func (s *RestFS) alias(gCtx *gin.Context, obj, parent *types.Object, action fram
 
 // TODO: search in fs
 func (s *RestFS) search(gCtx *gin.Context, obj, parent *types.Object, action frame.Action, param frame.Parameters) {
-	common.ErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, fmt.Errorf("search not support yet"))
+	common.ApiErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, fmt.Errorf("search not support yet"))
 }
 
 func (s *RestFS) inspect(gCtx *gin.Context, obj, parent *types.Object, action frame.Action, param frame.Parameters) {
@@ -133,21 +125,30 @@ func (s *RestFS) inspect(gCtx *gin.Context, obj, parent *types.Object, action fr
 
 // TODO: download single file or dir with zip
 func (s *RestFS) download(gCtx *gin.Context, obj, parent *types.Object, action frame.Action, param frame.Parameters) {
-	common.ErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, fmt.Errorf("download not support yet"))
+	common.ApiErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, fmt.Errorf("download not support yet"))
 }
 
 func (s *RestFS) create(gCtx *gin.Context, obj, parent *types.Object, action frame.Action, param frame.Parameters) {
 	if obj != nil {
-		common.ErrorResponse(gCtx, http.StatusBadRequest, common.ApiEntryExisted, fmt.Errorf("object existed"))
+		common.ApiErrorResponse(gCtx, http.StatusBadRequest, common.ApiEntryExisted, fmt.Errorf("object existed"))
 		return
 	}
+	pathStr := gCtx.Param("path")
+	if param.Name == "" {
+		param.Name = path.Base(pathStr)
+	}
+
+	if param.Name == "" {
+		common.ApiErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, fmt.Errorf("object name [%s] invalid", param.Name))
+		return
+	}
+
 	newObj, err := s.newFile(gCtx, parent, param.Name, action, bytes.NewReader(param.Content))
 	if err != nil {
-		common.ErrorResponse(gCtx, http.StatusInternalServerError, common.ApiInternalError, err)
+		common.ErrorResponse(gCtx, err)
 		return
 	}
 	common.JsonResponse(gCtx, http.StatusOK, newObj)
-	return
 }
 
 func (s *RestFS) bulk(gCtx *gin.Context, obj, parent *types.Object, action frame.Action, param frame.Parameters) {
@@ -156,20 +157,21 @@ func (s *RestFS) bulk(gCtx *gin.Context, obj, parent *types.Object, action frame
 		newDir := path.Base(gCtx.Param("path"))
 		obj, err = s.ctrl.CreateObject(gCtx.Request.Context(), parent, types.ObjectAttr{Name: newDir, Kind: types.GroupKind, Access: parent.Access})
 		if err != nil {
-			common.ErrorResponse(gCtx, http.StatusInternalServerError, common.ApiInternalError, err)
+			common.ErrorResponse(gCtx, err)
+			return
 			return
 		}
 	}
 
 	if !obj.IsGroup() {
-		common.ErrorResponse(gCtx, http.StatusBadRequest, common.ApiNotGroupError, fmt.Errorf("%s not a group", gCtx.Param("path")))
+		common.HttpStatusResponse(gCtx, http.StatusBadRequest, types.ErrIsGroup)
 		return
 	}
 
 	results := make([]*types.Object, 0)
 	mf, err := gCtx.MultipartForm()
 	if err != nil {
-		common.ErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, err)
+		common.ApiErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, err)
 		return
 	}
 	if mf == nil {
@@ -180,14 +182,14 @@ func (s *RestFS) bulk(gCtx *gin.Context, obj, parent *types.Object, action frame
 	for _, fH := range mf.File["files"] {
 		newF, err := fH.Open()
 		if err != nil {
-			common.ErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, err)
+			common.ApiErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, err)
 			return
 		}
 
 		newObj, err := s.newFile(gCtx, obj, fH.Filename, action, newF)
 		if err != nil {
 			_ = newF.Close()
-			common.ErrorResponse(gCtx, http.StatusInternalServerError, common.ApiInternalError, err)
+			common.ErrorResponse(gCtx, err)
 			return
 		}
 		_ = newF.Close()
@@ -197,57 +199,73 @@ func (s *RestFS) bulk(gCtx *gin.Context, obj, parent *types.Object, action frame
 }
 
 func (s *RestFS) copy(gCtx *gin.Context, obj, parent *types.Object, action frame.Action, param frame.Parameters) {
-	common.ErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, fmt.Errorf("copy not support yet"))
+	ctx := gCtx.Request.Context()
+	dstParent, _, err := frame.FindObject(ctx, s.ctrl, param.Destination, frame.ActionCreate)
+	if err != nil {
+		common.ErrorResponse(gCtx, err)
+		return
+	}
+	newObjName := path.Base(param.Destination)
+	if newObjName == "" {
+		common.ApiErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, fmt.Errorf("object name [%s] invalid", newObjName))
+		return
+	}
+
+	f, err := s.ctrl.OpenFile(ctx, obj, files.Attr{Read: true})
+	if err != nil {
+		common.ErrorResponse(gCtx, err)
+		return
+	}
+	defer s.ctrl.CloseFile(ctx, f)
+
+	newObj, err := s.newFile(gCtx, dstParent, newObjName, action, &file{f: f})
+	if err != nil {
+		common.ErrorResponse(gCtx, err)
+		return
+	}
+	common.JsonResponse(gCtx, http.StatusOK, newObj)
 }
 
 func (s *RestFS) update(gCtx *gin.Context, obj, parent *types.Object, action frame.Action, param frame.Parameters) {
 	ctx := gCtx.Request.Context()
 	f, err := s.ctrl.OpenFile(ctx, obj, files.Attr{Write: true, Create: true, Trunc: true})
 	if err != nil {
-		common.ErrorResponse(gCtx, http.StatusInternalServerError, common.ApiInternalError, err)
+		common.ErrorResponse(gCtx, err)
 		return
 	}
 	defer s.ctrl.CloseFile(ctx, f)
 	_, err = s.ctrl.WriteFile(ctx, f, param.Content, 0)
 	if err != nil {
-		common.ErrorResponse(gCtx, http.StatusInternalServerError, common.ApiInternalError, err)
+		common.ErrorResponse(gCtx, err)
 		return
 	}
 	common.JsonResponse(gCtx, http.StatusOK, obj)
-	return
 }
 
 func (s *RestFS) move(gCtx *gin.Context, obj, parent *types.Object, action frame.Action, param frame.Parameters) {
-	common.ErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, fmt.Errorf("move not support yet"))
+	common.ApiErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, fmt.Errorf("move not support yet"))
 }
 
 func (s *RestFS) rename(gCtx *gin.Context, obj, parent *types.Object, action frame.Action, param frame.Parameters) {
 	ctx := gCtx.Request.Context()
-	oldObj, err := s.ctrl.FindObject(ctx, parent, param.Name)
+	err := s.ctrl.ChangeObjectParent(ctx, obj, parent, parent, param.Name, controller.ChangeParentOpt{})
 	if err != nil {
-		if err == types.ErrNotFound {
-			obj.Name = param.Name
-			obj.ChangedAt = time.Now()
-			if err = s.ctrl.SaveObject(ctx, obj); err != nil {
-				common.ErrorResponse(gCtx, http.StatusInternalServerError, common.ApiInternalError, err)
-				return
-			}
-			common.JsonResponse(gCtx, http.StatusOK, obj)
-			return
-		}
-		common.ErrorResponse(gCtx, http.StatusInternalServerError, common.ApiInternalError, err)
+		common.ErrorResponse(gCtx, err)
 		return
 	}
-	if oldObj != nil {
-		common.ErrorResponse(gCtx, http.StatusBadRequest, common.ApiEntryExisted, fmt.Errorf("entry existed"))
+
+	obj, err = s.ctrl.FindObject(ctx, parent, obj.Name)
+	if err != nil {
+		common.ErrorResponse(gCtx, err)
 		return
 	}
+	common.JsonResponse(gCtx, http.StatusOK, obj)
 }
 
 func (s *RestFS) destroy(gCtx *gin.Context, obj, parent *types.Object, action frame.Action, param frame.Parameters) {
 	ctx := gCtx.Request.Context()
 	if err := s.ctrl.DestroyObject(ctx, parent, obj); err != nil {
-		common.ErrorResponse(gCtx, http.StatusInternalServerError, common.ApiInternalError, err)
+		common.ErrorResponse(gCtx, err)
 		return
 	}
 	common.JsonResponse(gCtx, http.StatusOK, obj)
@@ -277,6 +295,7 @@ func (s *RestFS) newFile(gCtx *gin.Context, parent *types.Object, name string, a
 
 	buf := make([]byte, 1024)
 
+	// TODO: async task copy?
 	var total int64
 	for {
 		n, err := reader.Read(buf)
