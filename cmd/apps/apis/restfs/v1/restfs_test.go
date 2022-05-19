@@ -327,13 +327,57 @@ var _ = Describe("TestRestFsPut", func() {
 	})
 
 	Describe("test action move", func() {
+		var (
+			srcDir, dstDir *types.Object
+		)
 		Context("normal", func() {
 			It("create new file", func() {
+				srcDir, err = ctrl.CreateObject(context.Background(), root, types.ObjectAttr{Name: "put-move-src-dir", Kind: types.GroupKind, Access: defaultAccessForTest()})
+				Expect(err).Should(BeNil())
+				dstDir, err = ctrl.CreateObject(context.Background(), root, types.ObjectAttr{Name: "put-move-dst-dir", Kind: types.GroupKind, Access: defaultAccessForTest()})
+				Expect(err).Should(BeNil())
+
+				newFile, err := ctrl.CreateObject(context.Background(), srcDir, types.ObjectAttr{Name: "put-move-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
+				Expect(err).Should(BeNil())
+
+				f, err := ctrl.OpenFile(context.Background(), newFile, files.Attr{Read: true, Write: true})
+				Expect(err).Should(BeNil())
+
+				_, err = f.Write(context.Background(), []byte("test move file"), 0)
+				Expect(err).Should(BeNil())
+				Expect(f.Close(context.Background())).Should(BeNil())
 			})
 			It("do move action", func() {
-				// do nothing
+				req := frame.RequestV1{
+					Parameters: frame.Parameters{
+						Destination: "put-move-dst-dir",
+					},
+				}
+				raw, _ := json.Marshal(req)
+				r, err := http.NewRequest(http.MethodPut, "http://127.0.0.1:8001/v1/fs/put-move-src-dir/put-move-file1.txt", bytes.NewReader(raw))
+				Expect(err).Should(BeNil())
+				q := r.URL.Query()
+				q.Add("action", "move")
+				r.URL.RawQuery = q.Encode()
+				resp, err := http.DefaultClient.Do(r)
+				Expect(err).Should(BeNil())
+				defer resp.Body.Close()
+				Expect(resp.StatusCode).Should(Equal(http.StatusOK))
 			})
 			It("move succeed", func() {
+				_, err = ctrl.FindObject(context.Background(), srcDir, "put-move-file1.txt")
+				Expect(err).Should(Equal(types.ErrNotFound))
+
+				moved, err := ctrl.FindObject(context.Background(), dstDir, "put-move-file1.txt")
+				Expect(err).Should(BeNil())
+
+				f, err := ctrl.OpenFile(context.Background(), moved, files.Attr{Read: true})
+				Expect(err).Should(BeNil())
+				buf := make([]byte, 1024)
+				n, err := f.Read(context.Background(), buf, 0)
+				Expect(err).Should(BeNil())
+				Expect(buf[:n]).Should(Equal([]byte("test move file")))
+				Expect(ctrl.CloseFile(context.TODO(), f)).Should(BeNil())
 			})
 		})
 	})

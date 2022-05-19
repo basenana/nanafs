@@ -243,7 +243,39 @@ func (s *RestFS) update(gCtx *gin.Context, obj, parent *types.Object, action fra
 }
 
 func (s *RestFS) move(gCtx *gin.Context, obj, parent *types.Object, action frame.Action, param frame.Parameters) {
-	common.ApiErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, fmt.Errorf("move not support yet"))
+	ctx := gCtx.Request.Context()
+
+	if param.Destination == "" {
+		common.ApiErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, fmt.Errorf("destination is empty"))
+		return
+	}
+	if param.Name == "" {
+		param.Name = obj.Name
+	}
+
+	_, dstParent, err := frame.FindObject(ctx, s.ctrl, param.Destination, action.Action)
+	if err != nil {
+		common.ErrorResponse(gCtx, err)
+		return
+	}
+
+	if !dstParent.IsGroup() {
+		common.ApiErrorResponse(gCtx, http.StatusBadRequest, common.ApiArgsError, types.ErrNoGroup)
+		return
+	}
+
+	err = s.ctrl.ChangeObjectParent(ctx, obj, parent, dstParent, param.Name, controller.ChangeParentOpt{})
+	if err != nil {
+		common.ErrorResponse(gCtx, err)
+		return
+	}
+
+	obj, err = s.ctrl.FindObject(ctx, dstParent, param.Name)
+	if err != nil {
+		common.ErrorResponse(gCtx, err)
+		return
+	}
+	common.JsonResponse(gCtx, http.StatusOK, obj)
 }
 
 func (s *RestFS) rename(gCtx *gin.Context, obj, parent *types.Object, action frame.Action, param frame.Parameters) {
