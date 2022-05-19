@@ -248,12 +248,6 @@ func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fus
 		return nil, Error2FuseSysError(err)
 	}
 
-	n.obj.RefCount += 1
-	err = n.R.SaveObject(ctx, n.obj)
-	if err != nil {
-		return nil, Error2FuseSysError(err)
-	}
-
 	node, err := n.R.newFsNode(ctx, n, obj)
 	if err != nil {
 		return nil, Error2FuseSysError(err)
@@ -395,16 +389,10 @@ func (n *NanaNode) Unlink(ctx context.Context, name string) syscall.Errno {
 		return Error2FuseSysError(types.ErrNoAccess)
 	}
 
-	if err = n.R.DestroyObject(ctx, ch); err != nil {
+	if err = n.R.DestroyObject(ctx, n.obj, ch); err != nil {
 		return Error2FuseSysError(err)
 	}
 	n.RmChild(name)
-
-	n.obj.ChangedAt = time.Now()
-	n.obj.ModifiedAt = time.Now()
-	if err = n.R.SaveObject(ctx, n.obj); err != nil {
-		return Error2FuseSysError(types.ErrNoGroup)
-	}
 	return NoErr
 }
 
@@ -444,17 +432,10 @@ func (n *NanaNode) Rmdir(ctx context.Context, name string) syscall.Errno {
 		return Error2FuseSysError(types.ErrNotEmpty)
 	}
 
-	if err = n.R.DestroyObject(ctx, ch); err != nil {
+	if err = n.R.DestroyObject(ctx, n.obj, ch); err != nil {
 		return Error2FuseSysError(err)
 	}
 	n.RmChild(name)
-
-	n.obj.RefCount -= 1
-	n.obj.ChangedAt = time.Now()
-	n.obj.ModifiedAt = time.Now()
-	if err = n.R.SaveObject(ctx, n.obj); err != nil {
-		return Error2FuseSysError(types.ErrNoGroup)
-	}
 	return NoErr
 }
 

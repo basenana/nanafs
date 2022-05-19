@@ -1,11 +1,10 @@
-package restfs
+package v1
 
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/types"
 	"io"
-	"strings"
 )
 
 type file struct {
@@ -32,11 +31,6 @@ func (f *file) Seek(offset int64, whence int) (int64, error) {
 		f.offset = f.f.GetObject().Size + int64(whence)
 	}
 	return f.offset, nil
-}
-
-func pathEntries(path string) []string {
-	path = strings.Trim(path, "/fs/")
-	return strings.Split(path, "/")
 }
 
 func defaultAccess() []types.Permission {

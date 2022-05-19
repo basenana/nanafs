@@ -96,7 +96,7 @@ func (m *MockController) Trigger(ctx context.Context, o *types.Object) {
 	panic("implement me")
 }
 
-func (m *MockController) ChangeObjectParent(ctx context.Context, old, newParent *types.Object, newName string, opt controller.ChangeParentOpt) error {
+func (m *MockController) ChangeObjectParent(ctx context.Context, old, oldParent, newParent *types.Object, newName string, opt controller.ChangeParentOpt) error {
 	//TODO implement me
 	panic("implement me")
 }
@@ -155,7 +155,7 @@ func (m *MockController) SaveObject(ctx context.Context, obj *types.Object) erro
 	return nil
 }
 
-func (m *MockController) DestroyObject(ctx context.Context, obj *types.Object) error {
+func (m *MockController) DestroyObject(ctx context.Context, parent, obj *types.Object) error {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	delete(m.objects, obj.ID)

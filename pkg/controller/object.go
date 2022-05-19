@@ -21,7 +21,7 @@ type ObjectController interface {
 	GetObject(ctx context.Context, id string) (*types.Object, error)
 	CreateObject(ctx context.Context, parent *types.Object, attr types.ObjectAttr) (*types.Object, error)
 	SaveObject(ctx context.Context, obj *types.Object) error
-	DestroyObject(ctx context.Context, obj *types.Object) error
+	DestroyObject(ctx context.Context, parent, obj *types.Object) error
 	MirrorObject(ctx context.Context, src, dstParent *types.Object, attr types.ObjectAttr) (*types.Object, error)
 	ListObjectChildren(ctx context.Context, obj *types.Object) ([]*types.Object, error)
 	ChangeObjectParent(ctx context.Context, old, oldParent, newParent *types.Object, newName string, opt ChangeParentOpt) error
@@ -101,6 +101,9 @@ func (c *controller) CreateObject(ctx context.Context, parent *types.Object, att
 	}
 	bus.Publish(fmt.Sprintf("object.entry.%s.create", obj.ID), obj)
 
+	if obj.IsGroup() {
+		parent.RefCount += 1
+	}
 	parent.ChangedAt = time.Now()
 	parent.ModifiedAt = time.Now()
 	if err = c.SaveObject(ctx, parent); err != nil {
@@ -122,7 +125,7 @@ func (c *controller) SaveObject(ctx context.Context, obj *types.Object) error {
 	return nil
 }
 
-func (c *controller) DestroyObject(ctx context.Context, obj *types.Object) (err error) {
+func (c *controller) DestroyObject(ctx context.Context, parent, obj *types.Object) (err error) {
 	defer utils.TraceRegion(ctx, "controller.destroyobject")()
 	c.logger.Infow("destroy obj", "obj", obj.ID)
 
@@ -186,6 +189,20 @@ func (c *controller) DestroyObject(ctx context.Context, obj *types.Object) (err 
 	}
 
 	err = c.destroyObject(ctx, obj)
+	if err != nil {
+		c.logger.Errorw("destroy object error", "err", err.Error())
+		return err
+	}
+
+	if obj.IsGroup() {
+		parent.RefCount -= 1
+	}
+	parent.ChangedAt = time.Now()
+	parent.ModifiedAt = time.Now()
+	if err = c.SaveObject(ctx, parent); err != nil {
+		c.logger.Errorw("update deleted object parent meta error", "err", err.Error())
+		return err
+	}
 	return
 }
 
@@ -240,7 +257,6 @@ func (c *controller) MirrorObject(ctx context.Context, src, dstParent *types.Obj
 	src.ChangedAt = time.Now()
 	if err = c.SaveObject(ctx, src); err != nil {
 		c.logger.Errorw("update src object ref count error", "srcObj", src.ID, "dstParent", dstParent.ID, "err", err.Error())
-		_ = c.DestroyObject(ctx, obj)
 		return nil, err
 	}
 	bus.Publish(fmt.Sprintf("object.entry.%s.mirror", obj.ID), obj)
@@ -341,7 +357,7 @@ func (c *controller) ChangeObjectParent(ctx context.Context, obj, oldParent, new
 		if !opt.Replace {
 			return types.ErrIsExist
 		}
-		if err = c.DestroyObject(ctx, existObj); err != nil {
+		if err = c.DestroyObject(ctx, newParent, existObj); err != nil {
 			return err
 		}
 	}

@@ -1,4 +1,4 @@
-package restfs
+package v1
 
 import (
 	"context"
@@ -72,7 +72,8 @@ func (s *restFsServer) Shutdown() error {
 
 func newRestFsServer() *restFsServer {
 	engine := gin.New()
-	_ = InitRestFs(ctrl, engine, cfg)
+	v1Handler := NewRestFs(ctrl, cfg)
+	engine.Any("/v1/fs/*path", v1Handler.HttpHandle)
 	return &restFsServer{engine: engine}
 }
 
