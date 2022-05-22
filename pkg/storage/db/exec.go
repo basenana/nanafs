@@ -1,6 +1,9 @@
 package db
 
 const (
+	getObjectByIDSQL = `
+SELECT * FROM object WHERE id=$1
+`
 	insertObjectSQL = `
 INSERT INTO object (
 	id, name, aliases, parent_id, ref_id, kind, hash, size, inode, namespace,

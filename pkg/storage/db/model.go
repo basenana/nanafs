@@ -1,6 +1,10 @@
 package db
 
-import "time"
+import (
+	"encoding/json"
+	"github.com/basenana/nanafs/pkg/types"
+	"time"
+)
 
 type Object struct {
 	ID         string    `db:"id"`
@@ -18,6 +22,25 @@ type Object struct {
 	ModifiedAt time.Time `db:"modified_at"`
 	AccessAt   time.Time `db:"access_at"`
 	Data       []byte    `db:"data"`
+}
+
+func (o *Object) Update(obj *types.Object) {
+	o.ID = obj.ID
+	o.Name = obj.Name
+	o.Aliases = obj.Aliases
+	o.ParentID = obj.ParentID
+	o.RefID = obj.RefID
+	o.Kind = string(obj.Kind)
+	o.Hash = obj.Hash
+	o.Size = obj.Size
+	o.Inode = obj.Inode
+	o.Namespace = obj.Namespace
+	o.CreatedAt = obj.CreatedAt
+	o.ChangedAt = obj.ChangedAt
+	o.ModifiedAt = obj.ModifiedAt
+	o.AccessAt = obj.AccessAt
+
+	o.Data, _ = json.Marshal(obj)
 }
 
 type ObjectLabel struct {

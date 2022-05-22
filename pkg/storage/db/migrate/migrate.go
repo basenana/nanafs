@@ -13,13 +13,19 @@ const (
 )
 
 type Migrate struct {
-	db     *sqlx.DB
-	logger *zap.SugaredLogger
+	db        *sqlx.DB
+	logger    *zap.SugaredLogger
+	uncreated bool
 }
 
 func (m *Migrate) Current() (string, error) {
+	if m.uncreated {
+		return "", nil
+	}
+
 	_, tableCheck := m.db.Query(pingDbReversion)
 	if tableCheck != nil {
+		m.uncreated = true
 		m.logger.Warnf("check db reversion table not pass: %s", tableCheck.Error())
 		return "", nil
 	}
@@ -123,34 +129,34 @@ func (m *Migrate) exec(revList []string, reversion string, upgrade bool) error {
 		if upgrade && act.before != "" {
 			_, err = tx.Exec(act.before)
 			if err != nil {
-				return fmt.Errorf("run reversion %s/before failed: %s", revList[i], err.Error())
+				return fmt.Errorf("run reversion %s/before failed: %s, rollback: %v", revList[i], err.Error(), tx.Rollback())
 			}
 		}
 		if upgrade && act.upgrade != "" {
 			_, err = tx.Exec(act.upgrade)
 			if err != nil {
-				return fmt.Errorf("run reversion %s/upgrade failed: %s", revList[i], err.Error())
+				return fmt.Errorf("run reversion %s/upgrade failed: %s, rollback: %v", revList[i], err.Error(), tx.Rollback())
 			}
 		}
 		if !upgrade && act.downgrade != "" {
 			_, err = tx.Exec(act.downgrade)
 			if err != nil {
-				return fmt.Errorf("run reversion %s/downgrade failed: %s", revList[i], err.Error())
+				return fmt.Errorf("run reversion %s/downgrade failed: %s, rollback: %v", revList[i], err.Error(), tx.Rollback())
 			}
 		}
 		if upgrade && act.after != "" {
 			_, err = tx.Exec(act.before)
 			if err != nil {
-				return fmt.Errorf("run reversion %s/after failed: %s", revList[i], err.Error())
+				return fmt.Errorf("run reversion %s/after failed: %s, rollback: %v", revList[i], err.Error(), tx.Rollback())
 			}
 		}
 
 		if err = m.updateReversion(tx, revList[i]); err != nil {
-			return fmt.Errorf("run reversion %s/commit failed: %s", revList[i], err.Error())
+			return fmt.Errorf("run reversion %s/commit failed: %s, rollback: %v", revList[i], err.Error(), tx.Rollback())
 		}
 
 		if err = tx.Commit(); err != nil {
-			return fmt.Errorf("tx commit reversion %s failed: %s", revList[i], err.Error())
+			return fmt.Errorf("tx commit reversion %s failed: %s, rollback: %v", revList[i], err.Error(), tx.Rollback())
 		}
 		m.logger.Infow("migrate to %s succeed", revList[i])
 	}
@@ -158,8 +164,15 @@ func (m *Migrate) exec(revList []string, reversion string, upgrade bool) error {
 	return nil
 }
 
-func (m *Migrate) updateReversion(tx *sqlx.Tx, reversion string) error {
-	_, err := tx.Exec(updateDbReversion, DbReversionModel{
+func (m *Migrate) updateReversion(tx *sqlx.Tx, reversion string) (err error) {
+	if m.uncreated {
+		m.uncreated = false
+		_, err = tx.Exec(insertDbReversion, DbReversionModel{
+			ID:      dbReversionKey,
+			Current: reversion,
+		})
+	}
+	_, err = tx.Exec(updateDbReversion, DbReversionModel{
 		ID:      dbReversionKey,
 		Current: reversion,
 	})
