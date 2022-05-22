@@ -37,7 +37,7 @@ func (s *sqliteMetaStore) GetObject(ctx context.Context, id string) (*types.Obje
 	return queryObject(ctx, s.db, id)
 }
 
-func (s *sqliteMetaStore) ListObjects(ctx context.Context, filter Filter) ([]*types.Object, error) {
+func (s *sqliteMetaStore) ListObjects(ctx context.Context, filter types.Filter) ([]*types.Object, error) {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
 	defer utils.TraceRegion(ctx, "sqlite.listobject")()
@@ -66,7 +66,7 @@ func (s *sqliteMetaStore) ListChildren(ctx context.Context, obj *types.Object) (
 	s.mux.RLock()
 	defer s.mux.RUnlock()
 	defer utils.TraceRegion(ctx, "sqlite.listchildren")()
-	children, err := listObject(ctx, s.db, Filter{ParentID: obj.ID})
+	children, err := listObject(ctx, s.db, types.Filter{ParentID: obj.ID})
 	if err != nil {
 		return nil, err
 	}

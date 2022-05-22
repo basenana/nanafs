@@ -5,6 +5,11 @@ var (
 	reversions        = make([]string, 0)
 )
 
+type DbReversionModel struct {
+	ID      string `json:"id"`
+	Current string `json:"current"`
+}
+
 func register(uid string, r reversion) {
 	reversionRegistry[uid] = r
 	reversions = append(reversions, uid)

@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"math"
@@ -32,7 +31,7 @@ func (c *controller) FsInfo(ctx context.Context) Info {
 		MaxSize:     defaultFsMaxSize,
 	}
 
-	objects, err := c.meta.ListObjects(ctx, storage.Filter{})
+	objects, err := c.meta.ListObjects(ctx, types.Filter{})
 	if err != nil {
 		return info
 	}

@@ -1,19 +1,15 @@
-package storage
-
-import (
-	"github.com/basenana/nanafs/pkg/types"
-)
+package types
 
 type Filter struct {
 	ID        string
 	ParentID  string
 	RefID     string
-	Kind      types.Kind
+	Kind      Kind
 	Namespace string
 	Label     LabelMatch
 }
 
-func filterMapper(f Filter) map[string]interface{} {
+func FilterObjectMapper(f Filter) map[string]interface{} {
 	result := make(map[string]interface{})
 	if f.ID != "" {
 		result["id"] = f.ID
@@ -34,11 +30,11 @@ func filterMapper(f Filter) map[string]interface{} {
 }
 
 type LabelMatch struct {
-	Include []types.Label
+	Include []Label
 	Exclude []string
 }
 
-func isObjectFiltered(obj *types.Object, filter Filter) bool {
+func IsObjectFiltered(obj *Object, filter Filter) bool {
 	if filter.ID != "" {
 		return obj.ID == filter.ID
 	}

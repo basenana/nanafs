@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/hyponet/eventbus/bus"
@@ -155,7 +154,7 @@ func (c *controller) DestroyObject(ctx context.Context, parent, obj *types.Objec
 
 		if srcObj.RefCount == 0 && srcObj.ParentID == "" {
 			c.logger.Infow("source object has no parent", "obj", obj.ID, "ref", obj.RefID)
-			objects, err = c.meta.ListObjects(ctx, storage.Filter{RefID: srcObj.ID})
+			objects, err = c.meta.ListObjects(ctx, types.Filter{RefID: srcObj.ID})
 			if err != nil {
 				c.logger.Errorw("query source object mirrors from meta server error", "srcObj", srcObj.ID, "err", err.Error())
 				return err
@@ -173,7 +172,7 @@ func (c *controller) DestroyObject(ctx context.Context, parent, obj *types.Objec
 	}
 
 	if obj.ID != "" {
-		objects, err = c.meta.ListObjects(ctx, storage.Filter{RefID: obj.ID})
+		objects, err = c.meta.ListObjects(ctx, types.Filter{RefID: obj.ID})
 		if err != nil {
 			c.logger.Errorw("query object mirrors from meta server error", "obj", obj.ID, "err", err.Error())
 			return err

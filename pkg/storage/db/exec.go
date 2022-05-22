@@ -4,6 +4,10 @@ const (
 	getObjectByIDSQL = `
 SELECT * FROM object WHERE id=$1
 `
+
+	getObjectByNameSQL = `
+SELECT * FROM object WHERE parent_id=$1 AND name=$2
+`
 	insertObjectSQL = `
 INSERT INTO object (
 	id, name, aliases, parent_id, ref_id, kind, hash, size, inode, namespace,

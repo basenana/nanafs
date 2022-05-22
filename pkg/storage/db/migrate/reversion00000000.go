@@ -12,11 +12,6 @@ CREATE TABLE db_reversion (
 );
 `
 
-type DbReversionModel struct {
-	ID      string `json:"id"`
-	Current string `json:"current"`
-}
-
 const pingDbReversion = `
 SELECT 1 FROM db_reversion;
 `

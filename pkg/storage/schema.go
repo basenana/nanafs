@@ -224,13 +224,13 @@ func deleteObject(ctx context.Context, db *sqlx.DB, id string) error {
 	return dbError2Error(tx.Commit())
 }
 
-func listObject(ctx context.Context, db *sqlx.DB, filter Filter) ([]*types.Object, error) {
+func listObject(ctx context.Context, db *sqlx.DB, filter types.Filter) ([]*types.Object, error) {
 	if len(filter.Label.Include) > 0 || len(filter.Label.Exclude) > 0 {
 		return listObjectWithLabelMatcher(ctx, db, filter.Label)
 	}
 
 	objList := make([]Object, 0)
-	fm := filterMapper(filter)
+	fm := types.FilterObjectMapper(filter)
 	queryBuf := bytes.Buffer{}
 	queryBuf.WriteString("SELECT * FROM object")
 	if len(fm) > 0 {
@@ -280,7 +280,7 @@ func currentMaxInode(ctx context.Context, db *sqlx.DB) (inode int64, err error) 
 	return
 }
 
-func listObjectWithLabelMatcher(ctx context.Context, db *sqlx.DB, labelMatch LabelMatch) ([]*types.Object, error) {
+func listObjectWithLabelMatcher(ctx context.Context, db *sqlx.DB, labelMatch types.LabelMatch) ([]*types.Object, error) {
 	queryBuf := bytes.Buffer{}
 	queryBuf.WriteString("SELECT * FROM object WHERE ")
 

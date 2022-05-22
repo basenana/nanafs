@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/files"
-	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 )
 
@@ -33,9 +32,9 @@ func (c *controller) SaveStructureObject(ctx context.Context, obj *types.Object,
 }
 
 func (c *controller) ListStructuredObject(ctx context.Context, cType types.Kind, version string) ([]*types.Object, error) {
-	f := storage.Filter{
+	f := types.Filter{
 		Kind: cType,
-		Label: storage.LabelMatch{Include: []types.Label{{
+		Label: types.LabelMatch{Include: []types.Label{{
 			Key:   types.VersionKey,
 			Value: version,
 		}, {

@@ -38,12 +38,12 @@ func (m *memoryMetaStore) GetObject(ctx context.Context, id string) (*types.Obje
 	return result, nil
 }
 
-func (m *memoryMetaStore) ListObjects(ctx context.Context, filter Filter) ([]*types.Object, error) {
+func (m *memoryMetaStore) ListObjects(ctx context.Context, filter types.Filter) ([]*types.Object, error) {
 	defer utils.TraceRegion(ctx, "memory.listobject")()
 	m.mux.Lock()
 	result := make([]*types.Object, 0)
 	for oID, obj := range m.objects {
-		if isObjectFiltered(obj, filter) {
+		if types.IsObjectFiltered(obj, filter) {
 			result = append(result, m.objects[oID])
 		}
 	}
@@ -78,15 +78,15 @@ func (m *memoryMetaStore) DestroyObject(ctx context.Context, obj *types.Object) 
 
 func (m *memoryMetaStore) ListChildren(ctx context.Context, obj *types.Object) (Iterator, error) {
 	defer utils.TraceRegion(ctx, "memory.listchildren")()
-	f := Filter{ParentID: obj.ID}
+	f := types.Filter{ParentID: obj.ID}
 	if obj.Labels.Get(types.KindKey) != nil && obj.Labels.Get(types.KindKey).Value != "" {
 		f.Kind = types.Kind(obj.Labels.Get(types.KindKey).Value)
-		f.Label = LabelMatch{Include: []types.Label{{
+		f.Label = types.LabelMatch{Include: []types.Label{{
 			Key:   types.VersionKey,
 			Value: obj.Labels.Get(types.VersionKey).Value,
 		}}}
 	}
-	children, err := m.ListObjects(ctx, Filter{ParentID: obj.ID})
+	children, err := m.ListObjects(ctx, types.Filter{ParentID: obj.ID})
 	if err != nil {
 		return nil, err
 	}
