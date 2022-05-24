@@ -35,7 +35,7 @@ func GetObjectByName(ctx context.Context, db *sqlx.DB, parent *types.Object, nam
 	return result, nil
 }
 
-func ListObjectChildren(ctx context.Context, db *sqlx.DB, parent *types.Object, filter types.Filter) ([]*types.Object, error) {
+func ListObjectChildren(ctx context.Context, db *sqlx.DB, filter types.Filter) ([]*types.Object, error) {
 	if len(filter.Label.Include) > 0 || len(filter.Label.Exclude) > 0 {
 		return listObjectWithLabelMatcher(ctx, db, filter.Label)
 	}
@@ -110,26 +110,101 @@ func SaveObject(ctx context.Context, db *sqlx.DB, parent, object *types.Object) 
 
 func SaveMirroredObject(ctx context.Context, db *sqlx.DB, srcObj, dstParent, object *types.Object) error {
 	return withTx(ctx, db, func(ctx context.Context, tx *sqlx.Tx) error {
+		srcModel, err := queryRawObject(ctx, tx, srcObj.ID)
+		if err != nil {
+			return err
+		}
+		srcModel.Update(srcObj)
+		if err = saveRawObject(ctx, tx, srcModel, updateObjectSQL); err != nil {
+			return err
+		}
+
+		dstModel, err := queryRawObject(ctx, tx, dstParent.ID)
+		if err != nil {
+			return err
+		}
+		dstModel.Update(dstParent)
+		if err = saveRawObject(ctx, tx, dstModel, updateObjectSQL); err != nil {
+			return err
+		}
+
+		objectModel := &Object{}
+		objectModel.Update(object)
+		if err = saveRawObject(ctx, tx, objectModel, insertObjectSQL); err != nil {
+			return err
+		}
+		if err = updateObjectLabels(ctx, tx, object); err != nil {
+			return err
+		}
 		return nil
 	})
 }
 
-func SaveMovedObject(ctx context.Context, db *sqlx.DB, srcParent, dstParent, object *types.Object) error {
+type MoveOpt struct {
+	Replace  bool
+	Exchange bool
+}
+
+func SaveMovedObject(ctx context.Context, db *sqlx.DB, srcParent, dstParent, old, obj *types.Object, opt MoveOpt) error {
 	return withTx(ctx, db, func(ctx context.Context, tx *sqlx.Tx) error {
+		srcModel, err := queryRawObject(ctx, tx, srcParent.ID)
+		if err != nil {
+			return err
+		}
+		srcModel.Update(srcParent)
+		if err = saveRawObject(ctx, tx, srcModel, updateObjectSQL); err != nil {
+			return err
+		}
+
+		dstModel, err := queryRawObject(ctx, tx, dstParent.ID)
+		if err != nil {
+			return err
+		}
+		dstModel.Update(dstParent)
+		if err = saveRawObject(ctx, tx, dstModel, updateObjectSQL); err != nil {
+			return err
+		}
+
+		if old != nil {
+			oldObjModel, err := queryRawObject(ctx, tx, old.ID)
+			if err != nil {
+				return err
+			}
+			switch {
+			case opt.Replace:
+				if err = deleteRawObject(ctx, tx, dstModel, oldObjModel); err != nil {
+					return err
+				}
+			case opt.Exchange:
+				if err = saveRawObject(ctx, tx, oldObjModel, updateObjectSQL); err != nil {
+					return err
+				}
+			}
+		}
+
+		objectModel, err := queryRawObject(ctx, tx, obj.ID)
+		if err != nil && err != types.ErrNotFound {
+			return err
+		}
+		objectModel.Update(obj)
+		if err = saveRawObject(ctx, tx, objectModel, updateObjectSQL); err != nil {
+			return err
+		}
 		return nil
 	})
 }
 
 func DeleteObject(ctx context.Context, db *sqlx.DB, parent, object *types.Object) error {
 	return withTx(ctx, db, func(ctx context.Context, tx *sqlx.Tx) error {
-		attrs := map[string]interface{}{"id": object.ID}
-		if _, err := tx.NamedExec(deleteObjectSQL, attrs); err != nil {
-			return fmt.Errorf("delete object failed: %s", err.Error())
+		parentModel, err := queryRawObject(ctx, tx, parent.ID)
+		if err != nil {
+			return err
 		}
-		if _, err := tx.NamedExec(deleteObjectLabelSQL, attrs); err != nil {
-			return fmt.Errorf("clean object failed: %s", err.Error())
+		objModel, err := queryRawObject(ctx, tx, object.ID)
+		if err != nil {
+			return err
 		}
-		return nil
+		return deleteRawObject(ctx, tx, parentModel, objModel)
 	})
 }
 
@@ -167,6 +242,17 @@ func saveRawObject(ctx context.Context, tx *sqlx.Tx, object *Object, execSql str
 	_, err := tx.NamedExec(execSql, object)
 	if err != nil {
 		return fmt.Errorf("save object record failed: %s", err.Error())
+	}
+	return nil
+}
+
+func deleteRawObject(ctx context.Context, tx *sqlx.Tx, parent, object *Object) error {
+	attrs := map[string]interface{}{"id": object.ID}
+	if _, err := tx.NamedExec(deleteObjectSQL, attrs); err != nil {
+		return fmt.Errorf("delete object failed: %s", err.Error())
+	}
+	if _, err := tx.NamedExec(deleteObjectLabelSQL, attrs); err != nil {
+		return fmt.Errorf("clean object failed: %s", err.Error())
 	}
 	return nil
 }
