@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/storage/db"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
@@ -34,17 +35,17 @@ func (s *sqliteMetaStore) GetObject(ctx context.Context, id string) (*types.Obje
 	s.mux.RLock()
 	defer s.mux.RUnlock()
 	defer utils.TraceRegion(ctx, "sqlite.getobject")()
-	return queryObject(ctx, s.db, id)
+	return db.GetObjectByID(ctx, s.db, id)
 }
 
 func (s *sqliteMetaStore) ListObjects(ctx context.Context, filter types.Filter) ([]*types.Object, error) {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
 	defer utils.TraceRegion(ctx, "sqlite.listobject")()
-	return listObject(ctx, s.db, filter)
+	return db.ListObjectChildren(ctx, s.db, filter)
 }
 
-func (s *sqliteMetaStore) SaveObject(ctx context.Context, obj *types.Object) error {
+func (s *sqliteMetaStore) SaveObject(ctx context.Context, parent, obj *types.Object) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	defer utils.TraceRegion(ctx, "sqlite.saveobject")()
@@ -52,33 +53,40 @@ func (s *sqliteMetaStore) SaveObject(ctx context.Context, obj *types.Object) err
 		obj.Inode = uint64(s.nextInode)
 		s.nextInode += 1
 	}
-	return saveObject(ctx, s.db, obj)
+	return db.SaveObject(ctx, s.db, parent, obj)
 }
 
-func (s *sqliteMetaStore) DestroyObject(ctx context.Context, obj *types.Object) error {
+func (s *sqliteMetaStore) DestroyObject(ctx context.Context, parent, obj *types.Object) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	defer utils.TraceRegion(ctx, "sqlite.destroyobject")()
-	return deleteObject(ctx, s.db, obj.ID)
+	return db.DeleteObject(ctx, s.db, parent, obj)
 }
 
 func (s *sqliteMetaStore) ListChildren(ctx context.Context, obj *types.Object) (Iterator, error) {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
 	defer utils.TraceRegion(ctx, "sqlite.listchildren")()
-	children, err := listObject(ctx, s.db, types.Filter{ParentID: obj.ID})
+	children, err := db.ListObjectChildren(ctx, s.db, types.Filter{ParentID: obj.ID})
 	if err != nil {
 		return nil, err
 	}
 	return &iterator{objects: children}, nil
 }
 
-func (s *sqliteMetaStore) ChangeParent(ctx context.Context, old *types.Object, parent *types.Object) error {
+func (s *sqliteMetaStore) ChangeParent(ctx context.Context, srcParent, dstParent, existObj, obj *types.Object, opt types.ChangeParentOption) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	defer utils.TraceRegion(ctx, "sqlite.changeparent")()
-	old.ParentID = parent.ID
-	return saveObject(ctx, s.db, old)
+	obj.ParentID = dstParent.ID
+	return db.SaveChangeParentObject(ctx, s.db, srcParent, dstParent, existObj, obj, opt)
+}
+
+func (s *sqliteMetaStore) MirrorObject(ctx context.Context, srcObj, dstParent, object *types.Object) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	defer utils.TraceRegion(ctx, "sqlite.mirrorobject")()
+	return db.SaveMirroredObject(ctx, s.db, srcObj, dstParent, object)
 }
 
 func (s *sqliteMetaStore) SaveContent(ctx context.Context, obj *types.Object, cType types.Kind, version string, content interface{}) error {

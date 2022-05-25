@@ -22,19 +22,6 @@ func GetObjectByID(ctx context.Context, db *sqlx.DB, oid string) (*types.Object,
 	return result, nil
 }
 
-func GetObjectByName(ctx context.Context, db *sqlx.DB, parent *types.Object, name string) (*types.Object, error) {
-	object := &Object{}
-	if err := db.Get(object, getObjectByNameSQL, parent.ParentID, name); err != nil {
-		return nil, dbError2Error(err)
-	}
-
-	result := &types.Object{}
-	if err := json.Unmarshal(object.Data, result); err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
 func ListObjectChildren(ctx context.Context, db *sqlx.DB, filter types.Filter) ([]*types.Object, error) {
 	if len(filter.Label.Include) > 0 || len(filter.Label.Exclude) > 0 {
 		return listObjectWithLabelMatcher(ctx, db, filter.Label)
@@ -140,12 +127,7 @@ func SaveMirroredObject(ctx context.Context, db *sqlx.DB, srcObj, dstParent, obj
 	})
 }
 
-type MoveOpt struct {
-	Replace  bool
-	Exchange bool
-}
-
-func SaveMovedObject(ctx context.Context, db *sqlx.DB, srcParent, dstParent, old, obj *types.Object, opt MoveOpt) error {
+func SaveChangeParentObject(ctx context.Context, db *sqlx.DB, srcParent, dstParent, existObj, obj *types.Object, opt types.ChangeParentOption) error {
 	return withTx(ctx, db, func(ctx context.Context, tx *sqlx.Tx) error {
 		srcModel, err := queryRawObject(ctx, tx, srcParent.ID)
 		if err != nil {
@@ -165,8 +147,8 @@ func SaveMovedObject(ctx context.Context, db *sqlx.DB, srcParent, dstParent, old
 			return err
 		}
 
-		if old != nil {
-			oldObjModel, err := queryRawObject(ctx, tx, old.ID)
+		if existObj != nil {
+			oldObjModel, err := queryRawObject(ctx, tx, existObj.ID)
 			if err != nil {
 				return err
 			}

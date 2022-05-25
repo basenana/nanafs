@@ -51,7 +51,7 @@ func (m *memoryMetaStore) ListObjects(ctx context.Context, filter types.Filter) 
 	return result, nil
 }
 
-func (m *memoryMetaStore) SaveObject(ctx context.Context, obj *types.Object) error {
+func (m *memoryMetaStore) SaveObject(ctx context.Context, parent, obj *types.Object) error {
 	defer utils.TraceRegion(ctx, "memory.saveobject")()
 	m.mux.Lock()
 	if obj.Inode == 0 {
@@ -59,11 +59,12 @@ func (m *memoryMetaStore) SaveObject(ctx context.Context, obj *types.Object) err
 		obj.Inode = m.inodeCount
 	}
 	m.objects[obj.ID] = obj
+	m.objects[parent.ID] = parent
 	m.mux.Unlock()
 	return nil
 }
 
-func (m *memoryMetaStore) DestroyObject(ctx context.Context, obj *types.Object) error {
+func (m *memoryMetaStore) DestroyObject(ctx context.Context, parent, obj *types.Object) error {
 	defer utils.TraceRegion(ctx, "memory.destroyobject")()
 	m.mux.Lock()
 	_, ok := m.objects[obj.ID]
@@ -72,6 +73,7 @@ func (m *memoryMetaStore) DestroyObject(ctx context.Context, obj *types.Object) 
 		return types.ErrNotFound
 	}
 	delete(m.objects, obj.ID)
+	m.objects[parent.ID] = parent
 	m.mux.Unlock()
 	return nil
 }
@@ -94,10 +96,25 @@ func (m *memoryMetaStore) ListChildren(ctx context.Context, obj *types.Object) (
 	return &iterator{objects: children}, nil
 }
 
-func (m *memoryMetaStore) ChangeParent(ctx context.Context, old *types.Object, parent *types.Object) error {
+func (m *memoryMetaStore) ChangeParent(ctx context.Context, srcParent, dstParent, existObj, obj *types.Object, opt types.ChangeParentOption) error {
 	defer utils.TraceRegion(ctx, "memory.changeparent")()
-	old.ParentID = parent.ID
-	return m.SaveObject(ctx, old)
+	m.mux.Lock()
+	obj.ParentID = dstParent.ID
+	m.objects[srcParent.ID] = srcParent
+	m.objects[dstParent.ID] = dstParent
+	m.objects[obj.ID] = obj
+
+	if existObj != nil {
+		switch {
+		case opt.Replace:
+			delete(m.objects, existObj.ID)
+		case opt.Exchange:
+			m.objects[existObj.ID] = existObj
+		}
+	}
+
+	m.mux.Unlock()
+	return nil
 }
 
 func (m *memoryMetaStore) SaveContent(ctx context.Context, obj *types.Object, cType types.Kind, version string, content interface{}) error {
