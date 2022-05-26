@@ -86,7 +86,7 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 	}
 
 	n.obj.ChangedAt = time.Now()
-	if err := n.R.SaveObject(ctx, n.obj); err != nil {
+	if err := n.R.SaveObject(ctx, nil, n.obj); err != nil {
 		return Error2FuseSysError(err)
 	}
 	return n.Getattr(ctx, f, out)
@@ -123,7 +123,7 @@ func (n *NanaNode) Setxattr(ctx context.Context, attr string, data []byte, flags
 	defer utils.TraceRegion(ctx, "node.setxattr")()
 	dentry.AddInternalAnnotation(n.obj, attr, dentry.RawData2AnnotationContent(data), true)
 	n.obj.ChangedAt = time.Now()
-	return Error2FuseSysError(n.R.SaveObject(ctx, n.obj))
+	return Error2FuseSysError(n.R.SaveObject(ctx, nil, n.obj))
 }
 
 func (n *NanaNode) Open(ctx context.Context, flags uint32) (fh fs.FileHandle, fuseFlags uint32, errno syscall.Errno) {

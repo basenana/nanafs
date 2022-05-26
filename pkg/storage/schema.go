@@ -155,20 +155,6 @@ func queryRawObject(ctx context.Context, db *sqlx.DB, id string) (*Object, error
 	return object, nil
 }
 
-func queryObject(ctx context.Context, db *sqlx.DB, id string) (*types.Object, error) {
-	object, err := queryRawObject(ctx, db, id)
-	if err != nil {
-		return nil, err
-	}
-
-	result := &types.Object{}
-	if err := json.Unmarshal(object.Data, result); err != nil {
-		return nil, err
-	}
-
-	return result, nil
-}
-
 func saveObject(ctx context.Context, db *sqlx.DB, obj *types.Object) error {
 	object, err := queryRawObject(ctx, db, obj.ID)
 	if err != nil && err != types.ErrNotFound {
@@ -209,63 +195,6 @@ func saveObject(ctx context.Context, db *sqlx.DB, obj *types.Object) error {
 	return tx.Commit()
 }
 
-func deleteObject(ctx context.Context, db *sqlx.DB, id string) error {
-	tx, err := db.Beginx()
-	if err != nil {
-		return err
-	}
-	attrs := map[string]interface{}{"id": id}
-	if _, err = tx.NamedExec(deleteObjectSQL, attrs); err != nil {
-		return fmt.Errorf("delete object failed: %s", err.Error())
-	}
-	if _, err = tx.NamedExec(deleteObjectLabelSQL, attrs); err != nil {
-		return fmt.Errorf("clean object failed: %s", err.Error())
-	}
-	return dbError2Error(tx.Commit())
-}
-
-func listObject(ctx context.Context, db *sqlx.DB, filter Filter) ([]*types.Object, error) {
-	if len(filter.Label.Include) > 0 || len(filter.Label.Exclude) > 0 {
-		return listObjectWithLabelMatcher(ctx, db, filter.Label)
-	}
-
-	objList := make([]Object, 0)
-	fm := filterMapper(filter)
-	queryBuf := bytes.Buffer{}
-	queryBuf.WriteString("SELECT * FROM object")
-	if len(fm) > 0 {
-		queryBuf.WriteString(" WHERE ")
-		count := len(fm)
-		for queryKey := range fm {
-			queryBuf.WriteString(fmt.Sprintf("%s=:%s ", queryKey, queryKey))
-			count -= 1
-			if count > 0 {
-				queryBuf.WriteString("AND ")
-			}
-		}
-	}
-
-	execSQL := queryBuf.String()
-	nstmt, err := db.PrepareNamed(execSQL)
-	if err != nil {
-		return nil, fmt.Errorf("prepare sql failed, sql=%s, err=%s", execSQL, err.Error())
-	}
-	err = nstmt.Select(&objList, fm)
-	if err != nil {
-		return nil, fmt.Errorf("list object failed: %s", err.Error())
-	}
-
-	result := make([]*types.Object, len(objList))
-	for i, o := range objList {
-		obj := &types.Object{}
-		if err = json.Unmarshal(o.Data, obj); err != nil {
-			return nil, err
-		}
-		result[i] = obj
-	}
-	return result, nil
-}
-
 func currentMaxInode(ctx context.Context, db *sqlx.DB) (inode int64, err error) {
 	var total int64
 	err = db.Get(&total, `SELECT count(*) FROM "object"`)
@@ -278,28 +207,6 @@ func currentMaxInode(ctx context.Context, db *sqlx.DB) (inode int64, err error) 
 	query := `SELECT max(inode) FROM "object"`
 	err = db.Get(&inode, query)
 	return
-}
-
-func listObjectWithLabelMatcher(ctx context.Context, db *sqlx.DB, labelMatch LabelMatch) ([]*types.Object, error) {
-	queryBuf := bytes.Buffer{}
-	queryBuf.WriteString("SELECT * FROM object WHERE ")
-
-	for i, inKey := range labelMatch.Include {
-		queryBuf.WriteString(fmt.Sprintf("id IN (SELECT id FROM object_lable WHERE key='%s' AND value='%s')", inKey.Key, inKey.Value))
-		if i < len(labelMatch.Include) {
-			queryBuf.WriteString(" AND ")
-		}
-	}
-	for i, exKey := range labelMatch.Exclude {
-		queryBuf.WriteString(fmt.Sprintf("id NOT IN (SELECT id FROM object_lable WHERE key='%s')", exKey))
-		if i < len(labelMatch.Exclude) {
-			queryBuf.WriteString(" AND ")
-		}
-	}
-
-	result := make([]*types.Object, 0)
-	err := db.Select(&result, queryBuf.String())
-	return result, err
 }
 
 type Content struct {

@@ -38,12 +38,12 @@ func (m *memoryMetaStore) GetObject(ctx context.Context, id string) (*types.Obje
 	return result, nil
 }
 
-func (m *memoryMetaStore) ListObjects(ctx context.Context, filter Filter) ([]*types.Object, error) {
+func (m *memoryMetaStore) ListObjects(ctx context.Context, filter types.Filter) ([]*types.Object, error) {
 	defer utils.TraceRegion(ctx, "memory.listobject")()
 	m.mux.Lock()
 	result := make([]*types.Object, 0)
 	for oID, obj := range m.objects {
-		if isObjectFiltered(obj, filter) {
+		if types.IsObjectFiltered(obj, filter) {
 			result = append(result, m.objects[oID])
 		}
 	}
@@ -51,7 +51,7 @@ func (m *memoryMetaStore) ListObjects(ctx context.Context, filter Filter) ([]*ty
 	return result, nil
 }
 
-func (m *memoryMetaStore) SaveObject(ctx context.Context, obj *types.Object) error {
+func (m *memoryMetaStore) SaveObject(ctx context.Context, parent, obj *types.Object) error {
 	defer utils.TraceRegion(ctx, "memory.saveobject")()
 	m.mux.Lock()
 	if obj.Inode == 0 {
@@ -59,11 +59,14 @@ func (m *memoryMetaStore) SaveObject(ctx context.Context, obj *types.Object) err
 		obj.Inode = m.inodeCount
 	}
 	m.objects[obj.ID] = obj
+	if parent != nil {
+		m.objects[parent.ID] = parent
+	}
 	m.mux.Unlock()
 	return nil
 }
 
-func (m *memoryMetaStore) DestroyObject(ctx context.Context, obj *types.Object) error {
+func (m *memoryMetaStore) DestroyObject(ctx context.Context, src, parent, obj *types.Object) error {
 	defer utils.TraceRegion(ctx, "memory.destroyobject")()
 	m.mux.Lock()
 	_, ok := m.objects[obj.ID]
@@ -71,22 +74,34 @@ func (m *memoryMetaStore) DestroyObject(ctx context.Context, obj *types.Object) 
 		m.mux.Unlock()
 		return types.ErrNotFound
 	}
-	delete(m.objects, obj.ID)
+	m.objects[parent.ID] = parent
+	if src != nil {
+		if src.RefCount > 0 {
+			m.objects[src.ID] = src
+		} else {
+			delete(m.objects, src.ID)
+		}
+	}
+	if !obj.IsGroup() && obj.RefCount > 0 {
+		m.objects[obj.ID] = obj
+	} else {
+		delete(m.objects, obj.ID)
+	}
 	m.mux.Unlock()
 	return nil
 }
 
 func (m *memoryMetaStore) ListChildren(ctx context.Context, obj *types.Object) (Iterator, error) {
 	defer utils.TraceRegion(ctx, "memory.listchildren")()
-	f := Filter{ParentID: obj.ID}
+	f := types.Filter{ParentID: obj.ID}
 	if obj.Labels.Get(types.KindKey) != nil && obj.Labels.Get(types.KindKey).Value != "" {
 		f.Kind = types.Kind(obj.Labels.Get(types.KindKey).Value)
-		f.Label = LabelMatch{Include: []types.Label{{
+		f.Label = types.LabelMatch{Include: []types.Label{{
 			Key:   types.VersionKey,
 			Value: obj.Labels.Get(types.VersionKey).Value,
 		}}}
 	}
-	children, err := m.ListObjects(ctx, Filter{ParentID: obj.ID})
+	children, err := m.ListObjects(ctx, types.Filter{ParentID: obj.ID})
 	if err != nil {
 		return nil, err
 	}
@@ -94,10 +109,25 @@ func (m *memoryMetaStore) ListChildren(ctx context.Context, obj *types.Object) (
 	return &iterator{objects: children}, nil
 }
 
-func (m *memoryMetaStore) ChangeParent(ctx context.Context, old *types.Object, parent *types.Object) error {
+func (m *memoryMetaStore) ChangeParent(ctx context.Context, srcParent, dstParent, obj *types.Object, opt types.ChangeParentOption) error {
 	defer utils.TraceRegion(ctx, "memory.changeparent")()
-	old.ParentID = parent.ID
-	return m.SaveObject(ctx, old)
+	m.mux.Lock()
+	obj.ParentID = dstParent.ID
+	m.objects[srcParent.ID] = srcParent
+	m.objects[dstParent.ID] = dstParent
+	m.objects[obj.ID] = obj
+
+	m.mux.Unlock()
+	return nil
+}
+func (m *memoryMetaStore) MirrorObject(ctx context.Context, srcObj, dstParent, object *types.Object) error {
+	defer utils.TraceRegion(ctx, "memory.mirrorobject")()
+	m.mux.Lock()
+	m.objects[srcObj.ID] = srcObj
+	m.objects[dstParent.ID] = dstParent
+	m.objects[object.ID] = object
+	m.mux.Unlock()
+	return nil
 }
 
 func (m *memoryMetaStore) SaveContent(ctx context.Context, obj *types.Object, cType types.Kind, version string, content interface{}) error {

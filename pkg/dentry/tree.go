@@ -39,5 +39,5 @@ func CreateMirrorObject(src, newParent *types.Object, attr types.ObjectAttr) (*t
 }
 
 func IsMirrorObject(obj *types.Object) bool {
-	return obj.RefID != "" && obj.RefID != obj.ID
+	return !obj.IsGroup() && obj.RefID != "" && obj.RefID != obj.ID
 }

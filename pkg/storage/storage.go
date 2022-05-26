@@ -38,12 +38,13 @@ func NewStorage(storageID string, cfg config.Storage) (Storage, error) {
 
 type MetaStore interface {
 	GetObject(ctx context.Context, id string) (*types.Object, error)
-	ListObjects(ctx context.Context, filter Filter) ([]*types.Object, error)
-	SaveObject(ctx context.Context, obj *types.Object) error
-	DestroyObject(ctx context.Context, obj *types.Object) error
+	ListObjects(ctx context.Context, filter types.Filter) ([]*types.Object, error)
+	SaveObject(ctx context.Context, parent, obj *types.Object) error
+	DestroyObject(ctx context.Context, src, parent, obj *types.Object) error
 
 	ListChildren(ctx context.Context, obj *types.Object) (Iterator, error)
-	ChangeParent(ctx context.Context, old *types.Object, parent *types.Object) error
+	MirrorObject(ctx context.Context, srcObj, dstParent, object *types.Object) error
+	ChangeParent(ctx context.Context, srcParent, dstParent, obj *types.Object, opt types.ChangeParentOption) error
 
 	SaveContent(ctx context.Context, obj *types.Object, cType types.Kind, version string, content interface{}) error
 	LoadContent(ctx context.Context, obj *types.Object, cType types.Kind, version string, content interface{}) error
