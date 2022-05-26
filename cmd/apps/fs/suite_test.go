@@ -27,8 +27,13 @@ type MockController struct {
 }
 
 func (m *MockController) GetObject(ctx context.Context, id string) (*types.Object, error) {
-	//TODO implement me
-	panic("implement me")
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	obj, ok := m.objects[id]
+	if !ok {
+		return nil, types.ErrNotFound
+	}
+	return obj, nil
 }
 
 func (m *MockController) IsStructured(obj *types.Object) bool {
@@ -46,7 +51,7 @@ func (m *MockController) OpenStructuredObject(ctx context.Context, obj *types.Ob
 	panic("implement me")
 }
 
-func (m *MockController) CleanStructuredObject(ctx context.Context, obj *types.Object) error {
+func (m *MockController) CleanStructuredObject(ctx context.Context, parent, obj *types.Object) error {
 	//TODO implement me
 	panic("implement me")
 }

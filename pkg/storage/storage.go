@@ -44,7 +44,7 @@ type MetaStore interface {
 
 	ListChildren(ctx context.Context, obj *types.Object) (Iterator, error)
 	MirrorObject(ctx context.Context, srcObj, dstParent, object *types.Object) error
-	ChangeParent(ctx context.Context, srcParent, dstParent, existObj, obj *types.Object, opt types.ChangeParentOption) error
+	ChangeParent(ctx context.Context, srcParent, dstParent, obj *types.Object, opt types.ChangeParentOption) error
 
 	SaveContent(ctx context.Context, obj *types.Object, cType types.Kind, version string, content interface{}) error
 	LoadContent(ctx context.Context, obj *types.Object, cType types.Kind, version string, content interface{}) error

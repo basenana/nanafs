@@ -130,7 +130,7 @@ func SaveMirroredObject(ctx context.Context, db *sqlx.DB, srcObj, dstParent, obj
 	})
 }
 
-func SaveChangeParentObject(ctx context.Context, db *sqlx.DB, srcParent, dstParent, existObj, obj *types.Object, opt types.ChangeParentOption) error {
+func SaveChangeParentObject(ctx context.Context, db *sqlx.DB, srcParent, dstParent, obj *types.Object, opt types.ChangeParentOption) error {
 	return withTx(ctx, db, func(ctx context.Context, tx *sqlx.Tx) error {
 		srcModel, err := queryRawObject(ctx, tx, srcParent.ID)
 		if err != nil {
@@ -148,23 +148,6 @@ func SaveChangeParentObject(ctx context.Context, db *sqlx.DB, srcParent, dstPare
 		dstModel.Update(dstParent)
 		if err = saveRawObject(ctx, tx, dstModel, updateObjectSQL); err != nil {
 			return err
-		}
-
-		if existObj != nil {
-			oldObjModel, err := queryRawObject(ctx, tx, existObj.ID)
-			if err != nil {
-				return err
-			}
-			switch {
-			case opt.Replace:
-				if err = deleteRawObject(ctx, tx, oldObjModel); err != nil {
-					return err
-				}
-			case opt.Exchange:
-				if err = saveRawObject(ctx, tx, oldObjModel, updateObjectSQL); err != nil {
-					return err
-				}
-			}
 		}
 
 		objectModel, err := queryRawObject(ctx, tx, obj.ID)
@@ -185,6 +168,7 @@ func DeleteObject(ctx context.Context, db *sqlx.DB, src, parent, object *types.O
 		if err != nil {
 			return err
 		}
+		parentModel.Update(parent)
 		if err = saveRawObject(ctx, tx, parentModel, updateObjectSQL); err != nil {
 			return err
 		}
@@ -195,6 +179,7 @@ func DeleteObject(ctx context.Context, db *sqlx.DB, src, parent, object *types.O
 				return err
 			}
 			if src.RefCount > 0 {
+				srcModel.Update(src)
 				if err = saveRawObject(ctx, tx, srcModel, updateObjectSQL); err != nil {
 					return err
 				}
@@ -209,11 +194,11 @@ func DeleteObject(ctx context.Context, db *sqlx.DB, src, parent, object *types.O
 		if err != nil {
 			return err
 		}
-		if object.RefCount == 0 {
-			return deleteRawObject(ctx, tx, objModel)
+		if !object.IsGroup() && object.RefCount > 0 {
+			objModel.Update(object)
+			return saveRawObject(ctx, tx, objModel, updateObjectSQL)
 		}
-
-		return saveRawObject(ctx, tx, objModel, updateObjectSQL)
+		return deleteRawObject(ctx, tx, objModel)
 	})
 }
 
@@ -247,8 +232,8 @@ func listObjectWithLabelMatcher(ctx context.Context, db *sqlx.DB, labelMatch typ
 	return result, err
 }
 
-func saveRawObject(ctx context.Context, tx *sqlx.Tx, object *Object, execSql string) error {
-	_, err := tx.NamedExec(execSql, object)
+func saveRawObject(ctx context.Context, tx *sqlx.Tx, objModel *Object, execSql string) error {
+	_, err := tx.NamedExec(execSql, objModel)
 	if err != nil {
 		return fmt.Errorf("save object record failed: %s", err.Error())
 	}

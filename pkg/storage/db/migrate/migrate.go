@@ -23,7 +23,7 @@ func (m *Migrate) Current() (string, error) {
 		return "", nil
 	}
 
-	_, tableCheck := m.db.Query(pingDbReversion)
+	_, tableCheck := m.db.Exec(pingDbReversion)
 	if tableCheck != nil {
 		m.uncreated = true
 		m.logger.Warnf("check db reversion table not pass: %s", tableCheck.Error())
@@ -162,6 +162,7 @@ func (m *Migrate) exec(revList []string, reversion string, upgrade bool) error {
 		}
 
 		if err = tx.Commit(); err != nil {
+			_ = tx.Rollback()
 			return fmt.Errorf("tx commit reversion %s failed: %s, rollback: %v", revList[i], err.Error(), tx.Rollback())
 		}
 		m.logger.Infow("migrate to %s succeed", revList[i])

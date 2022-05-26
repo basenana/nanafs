@@ -82,10 +82,10 @@ func (m *memoryMetaStore) DestroyObject(ctx context.Context, src, parent, obj *t
 			delete(m.objects, src.ID)
 		}
 	}
-	if obj.RefCount == 0 {
-		delete(m.objects, obj.ID)
-	} else {
+	if !obj.IsGroup() && obj.RefCount > 0 {
 		m.objects[obj.ID] = obj
+	} else {
+		delete(m.objects, obj.ID)
 	}
 	m.mux.Unlock()
 	return nil
@@ -109,22 +109,13 @@ func (m *memoryMetaStore) ListChildren(ctx context.Context, obj *types.Object) (
 	return &iterator{objects: children}, nil
 }
 
-func (m *memoryMetaStore) ChangeParent(ctx context.Context, srcParent, dstParent, existObj, obj *types.Object, opt types.ChangeParentOption) error {
+func (m *memoryMetaStore) ChangeParent(ctx context.Context, srcParent, dstParent, obj *types.Object, opt types.ChangeParentOption) error {
 	defer utils.TraceRegion(ctx, "memory.changeparent")()
 	m.mux.Lock()
 	obj.ParentID = dstParent.ID
 	m.objects[srcParent.ID] = srcParent
 	m.objects[dstParent.ID] = dstParent
 	m.objects[obj.ID] = obj
-
-	if existObj != nil {
-		switch {
-		case opt.Replace:
-			delete(m.objects, existObj.ID)
-		case opt.Exchange:
-			m.objects[existObj.ID] = existObj
-		}
-	}
 
 	m.mux.Unlock()
 	return nil

@@ -140,7 +140,6 @@ func (c *controller) DestroyObject(ctx context.Context, parent, obj *types.Objec
 			c.logger.Errorw("query source object from meta server error", "obj", obj.ID, "ref", obj.RefID, "err", err.Error())
 			return err
 		}
-		return
 	}
 
 	if err = c.destroyObject(ctx, srcObj, parent, obj); err != nil {
@@ -153,13 +152,16 @@ func (c *controller) DestroyObject(ctx context.Context, parent, obj *types.Objec
 func (c *controller) destroyObject(ctx context.Context, src, parent, obj *types.Object) (err error) {
 	if src != nil {
 		src.RefCount -= 1
+		src.ChangedAt = time.Now()
 	}
-	if obj.RefCount > 1 {
+
+	if !obj.IsGroup() && obj.RefCount > 0 {
 		c.logger.Infow("object has mirrors, remove parent id", "obj", obj.ID)
-		obj.ParentID = ""
 		obj.RefCount -= 1
+		obj.ParentID = ""
 		obj.ChangedAt = time.Now()
 	}
+
 	if obj.IsGroup() {
 		parent.RefCount -= 1
 	}
@@ -304,6 +306,10 @@ func (c *controller) ChangeObjectParent(ctx context.Context, obj, oldParent, new
 			// TODO
 			return types.ErrUnsupported
 		}
+
+		if err = c.DestroyObject(ctx, newParent, existObj); err != nil {
+			return err
+		}
 	}
 
 	obj.Name = newName
@@ -316,7 +322,7 @@ func (c *controller) ChangeObjectParent(ctx context.Context, obj, oldParent, new
 		oldParent.RefCount -= 1
 		newParent.RefCount += 1
 	}
-	err = c.meta.ChangeParent(ctx, oldParent, newParent, existObj, obj, types.ChangeParentOption{Replace: opt.Replace, Exchange: opt.Exchange})
+	err = c.meta.ChangeParent(ctx, oldParent, newParent, obj, types.ChangeParentOption{})
 	if err != nil {
 		c.logger.Errorw("change object parent failed", "old", obj.ID, "newParent", newParent.ID, "newName", newName, "err", err.Error())
 		return err

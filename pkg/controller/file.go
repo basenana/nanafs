@@ -59,6 +59,9 @@ func (c *controller) OpenFile(ctx context.Context, obj *types.Object, attr files
 		c.logger.Errorw("open file error", "obj", obj.ID, "err", err.Error())
 		return nil, err
 	}
+	if attr.Write {
+		obj.ModifiedAt = time.Now()
+	}
 	obj.AccessAt = time.Now()
 	bus.Publish(fmt.Sprintf("object.file.%s.open", obj.ID), obj)
 	return file, c.SaveObject(ctx, nil, obj)
