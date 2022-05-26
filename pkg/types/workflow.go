@@ -4,8 +4,8 @@ import "time"
 
 type Workflow struct {
 	Name    string   `json:"name"`
-	Rule    WFRule   `json:"rule"`
-	Actions []string `json:"actions"`
+	Rule    WFRule   `json:"rule,omitempty"`
+	Actions []string `json:"actions,omitempty"`
 }
 
 type Job struct {
@@ -23,14 +23,14 @@ type Task struct {
 }
 
 type WFRule struct {
-	Logic     string    `json:"logic"`
-	Rules     []WFRule  `json:"rules"`
-	Equal     *CommOpe  `json:"equal"`
-	BeginWith *CommOpe  `json:"begin_with"`
-	Pattern   *CommOpe  `json:"pattern"`
-	Before    *TimeOpe  `json:"before"`
-	After     *TimeOpe  `json:"after"`
-	In        *MutilOpe `json:"in"`
+	Logic     string    `json:"logic,omitempty"`
+	Rules     []WFRule  `json:"rules,omitempty"`
+	Equal     *CommOpe  `json:"equal,omitempty"`
+	BeginWith *CommOpe  `json:"begin_with,omitempty"`
+	Pattern   *CommOpe  `json:"pattern,omitempty"`
+	Before    *TimeOpe  `json:"before,omitempty"`
+	After     *TimeOpe  `json:"after,omitempty"`
+	In        *MutilOpe `json:"in,omitempty"`
 }
 
 func (w WFRule) ToRule() Rule {
@@ -70,11 +70,11 @@ type CommOpe struct {
 }
 
 type MutilOpe struct {
-	ColumnKey string
-	Content   []string
+	ColumnKey string   `json:"column_key"`
+	Content   []string `json:"content"`
 }
 
 type TimeOpe struct {
-	ColumnKey string
-	Content   time.Time
+	ColumnKey string    `json:"column_key"`
+	Content   time.Time `json:"content"`
 }
