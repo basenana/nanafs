@@ -9,7 +9,7 @@ import (
 type StructuredController interface {
 	ListStructuredObject(ctx context.Context, cType types.Kind, version string) ([]*types.Object, error)
 	OpenStructuredObject(ctx context.Context, obj *types.Object, spec interface{}, attr files.Attr) (files.File, error)
-	CleanStructuredObject(ctx context.Context, obj *types.Object) error
+	CleanStructuredObject(ctx context.Context, parent, obj *types.Object) error
 	CreateStructuredObject(ctx context.Context, parent *types.Object, attr types.ObjectAttr, cType types.Kind, version string) (*types.Object, error)
 	LoadStructureObject(ctx context.Context, obj *types.Object, spec interface{}) error
 	SaveStructureObject(ctx context.Context, obj *types.Object, spec interface{}) error
@@ -49,8 +49,8 @@ func (c *controller) OpenStructuredObject(ctx context.Context, obj *types.Object
 	return files.OpenStructured(ctx, obj, spec, attr)
 }
 
-func (c *controller) CleanStructuredObject(ctx context.Context, obj *types.Object) error {
-	return c.meta.DestroyObject(ctx, obj)
+func (c *controller) CleanStructuredObject(ctx context.Context, parent, obj *types.Object) error {
+	return c.meta.DestroyObject(ctx, nil, parent, obj)
 }
 
 func (c *controller) CreateStructuredObject(ctx context.Context, parent *types.Object, attr types.ObjectAttr, cType types.Kind, version string) (*types.Object, error) {
@@ -66,5 +66,5 @@ func (c *controller) CreateStructuredObject(ctx context.Context, parent *types.O
 		Key:   types.KindKey,
 		Value: string(attr.Kind),
 	}}}
-	return obj, c.SaveObject(ctx, obj)
+	return obj, c.SaveObject(ctx, parent, obj)
 }

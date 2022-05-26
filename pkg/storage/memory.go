@@ -59,12 +59,14 @@ func (m *memoryMetaStore) SaveObject(ctx context.Context, parent, obj *types.Obj
 		obj.Inode = m.inodeCount
 	}
 	m.objects[obj.ID] = obj
-	m.objects[parent.ID] = parent
+	if parent != nil {
+		m.objects[parent.ID] = parent
+	}
 	m.mux.Unlock()
 	return nil
 }
 
-func (m *memoryMetaStore) DestroyObject(ctx context.Context, parent, obj *types.Object) error {
+func (m *memoryMetaStore) DestroyObject(ctx context.Context, src, parent, obj *types.Object) error {
 	defer utils.TraceRegion(ctx, "memory.destroyobject")()
 	m.mux.Lock()
 	_, ok := m.objects[obj.ID]
@@ -72,8 +74,19 @@ func (m *memoryMetaStore) DestroyObject(ctx context.Context, parent, obj *types.
 		m.mux.Unlock()
 		return types.ErrNotFound
 	}
-	delete(m.objects, obj.ID)
 	m.objects[parent.ID] = parent
+	if src != nil {
+		if src.RefCount > 0 {
+			m.objects[src.ID] = src
+		} else {
+			delete(m.objects, src.ID)
+		}
+	}
+	if obj.RefCount == 0 {
+		delete(m.objects, obj.ID)
+	} else {
+		m.objects[obj.ID] = obj
+	}
 	m.mux.Unlock()
 	return nil
 }
@@ -113,6 +126,15 @@ func (m *memoryMetaStore) ChangeParent(ctx context.Context, srcParent, dstParent
 		}
 	}
 
+	m.mux.Unlock()
+	return nil
+}
+func (m *memoryMetaStore) MirrorObject(ctx context.Context, srcObj, dstParent, object *types.Object) error {
+	defer utils.TraceRegion(ctx, "memory.mirrorobject")()
+	m.mux.Lock()
+	m.objects[srcObj.ID] = srcObj
+	m.objects[dstParent.ID] = dstParent
+	m.objects[object.ID] = object
 	m.mux.Unlock()
 	return nil
 }

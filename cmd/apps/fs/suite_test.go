@@ -145,10 +145,10 @@ func (m *MockController) CreateObject(ctx context.Context, parent *types.Object,
 		return nil, err
 	}
 
-	return obj, m.SaveObject(ctx, obj)
+	return obj, m.SaveObject(ctx, parent, obj)
 }
 
-func (m *MockController) SaveObject(ctx context.Context, obj *types.Object) error {
+func (m *MockController) SaveObject(ctx context.Context, parent, obj *types.Object) error {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	m.objects[obj.ID] = obj

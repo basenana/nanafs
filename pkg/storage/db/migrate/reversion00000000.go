@@ -17,7 +17,7 @@ SELECT 1 FROM db_reversion;
 `
 
 const queryDbReversion = `
-SELECT * FROM db_reversion WHERE id=:$1;
+SELECT * FROM db_reversion WHERE id=$1;
 `
 
 const insertDbReversion = `

@@ -65,13 +65,16 @@ func ListObjectChildren(ctx context.Context, db *sqlx.DB, filter types.Filter) (
 
 func SaveObject(ctx context.Context, db *sqlx.DB, parent, object *types.Object) error {
 	return withTx(ctx, db, func(ctx context.Context, tx *sqlx.Tx) error {
-		parentModel, err := queryRawObject(ctx, tx, parent.ID)
-		if err != nil {
-			return err
-		}
-		parentModel.Update(parent)
-		if err = saveRawObject(ctx, tx, parentModel, updateObjectSQL); err != nil {
-			return err
+		if parent != nil {
+			parentModel, err := queryRawObject(ctx, tx, parent.ID)
+			if err != nil {
+				return err
+			}
+			parentModel.Update(parent)
+			err = saveRawObject(ctx, tx, parentModel, updateObjectSQL)
+			if err != nil {
+				return err
+			}
 		}
 
 		objectModel, err := queryRawObject(ctx, tx, object.ID)
@@ -154,7 +157,7 @@ func SaveChangeParentObject(ctx context.Context, db *sqlx.DB, srcParent, dstPare
 			}
 			switch {
 			case opt.Replace:
-				if err = deleteRawObject(ctx, tx, dstModel, oldObjModel); err != nil {
+				if err = deleteRawObject(ctx, tx, oldObjModel); err != nil {
 					return err
 				}
 			case opt.Exchange:
@@ -176,24 +179,48 @@ func SaveChangeParentObject(ctx context.Context, db *sqlx.DB, srcParent, dstPare
 	})
 }
 
-func DeleteObject(ctx context.Context, db *sqlx.DB, parent, object *types.Object) error {
+func DeleteObject(ctx context.Context, db *sqlx.DB, src, parent, object *types.Object) error {
 	return withTx(ctx, db, func(ctx context.Context, tx *sqlx.Tx) error {
 		parentModel, err := queryRawObject(ctx, tx, parent.ID)
 		if err != nil {
 			return err
 		}
+		if err = saveRawObject(ctx, tx, parentModel, updateObjectSQL); err != nil {
+			return err
+		}
+
+		if src != nil {
+			srcModel, err := queryRawObject(ctx, tx, src.ID)
+			if err != nil {
+				return err
+			}
+			if src.RefCount > 0 {
+				if err = saveRawObject(ctx, tx, srcModel, updateObjectSQL); err != nil {
+					return err
+				}
+			} else {
+				if err = deleteRawObject(ctx, tx, srcModel); err != nil {
+					return err
+				}
+			}
+		}
+
 		objModel, err := queryRawObject(ctx, tx, object.ID)
 		if err != nil {
 			return err
 		}
-		return deleteRawObject(ctx, tx, parentModel, objModel)
+		if object.RefCount == 0 {
+			return deleteRawObject(ctx, tx, objModel)
+		}
+
+		return saveRawObject(ctx, tx, objModel, updateObjectSQL)
 	})
 }
 
 func queryRawObject(ctx context.Context, tx *sqlx.Tx, id string) (*Object, error) {
 	object := &Object{}
 	if err := tx.Get(object, getObjectByIDSQL, id); err != nil {
-		return nil, dbError2Error(err)
+		return object, dbError2Error(err)
 	}
 	return object, nil
 }
@@ -228,7 +255,7 @@ func saveRawObject(ctx context.Context, tx *sqlx.Tx, object *Object, execSql str
 	return nil
 }
 
-func deleteRawObject(ctx context.Context, tx *sqlx.Tx, parent, object *Object) error {
+func deleteRawObject(ctx context.Context, tx *sqlx.Tx, object *Object) error {
 	attrs := map[string]interface{}{"id": object.ID}
 	if _, err := tx.NamedExec(deleteObjectSQL, attrs); err != nil {
 		return fmt.Errorf("delete object failed: %s", err.Error())
@@ -268,5 +295,9 @@ func withTx(ctx context.Context, db *sqlx.DB, fn combo) error {
 		_ = tx.Rollback()
 		return err
 	}
-	return tx.Commit()
+	if err = tx.Commit(); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	return nil
 }

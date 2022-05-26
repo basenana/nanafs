@@ -36,7 +36,7 @@ func (c *controller) OpenFile(ctx context.Context, obj *types.Object, attr files
 			c.logger.Errorw("open structured object failed", "err", err.Error())
 			return nil, err
 		}
-		return file, c.SaveObject(ctx, file.GetObject())
+		return file, c.SaveObject(ctx, nil, file.GetObject())
 	}
 
 	var err error
@@ -61,7 +61,7 @@ func (c *controller) OpenFile(ctx context.Context, obj *types.Object, attr files
 	}
 	obj.AccessAt = time.Now()
 	bus.Publish(fmt.Sprintf("object.file.%s.open", obj.ID), obj)
-	return file, c.SaveObject(ctx, obj)
+	return file, c.SaveObject(ctx, nil, obj)
 }
 
 func (c *controller) ReadFile(ctx context.Context, file files.File, data []byte, offset int64) (n int, err error) {
@@ -81,7 +81,7 @@ func (c *controller) WriteFile(ctx context.Context, file files.File, data []byte
 	}
 	obj := file.GetObject()
 	obj.ModifiedAt = time.Now()
-	return n, c.SaveObject(ctx, obj)
+	return n, c.SaveObject(ctx, nil, obj)
 }
 
 func (c *controller) CloseFile(ctx context.Context, file files.File) (err error) {

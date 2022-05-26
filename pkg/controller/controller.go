@@ -88,7 +88,7 @@ func InitSchemas(ctrl Controller, cfg config.Config) error {
 			Key:   types.KindKey,
 			Value: string(s.CType),
 		}}}
-		if err = ctrl.SaveObject(context.TODO(), obj); err != nil {
+		if err = ctrl.SaveObject(context.TODO(), root, obj); err != nil {
 			_ = ctrl.DestroyObject(context.Background(), root, obj)
 			return err
 		}

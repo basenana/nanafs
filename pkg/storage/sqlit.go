@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/storage/db"
+	"github.com/basenana/nanafs/pkg/storage/db/migrate"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/jmoiron/sqlx"
 	"go.uber.org/zap"
-	"strings"
 	"sync"
 
 	_ "modernc.org/sqlite"
@@ -56,11 +56,11 @@ func (s *sqliteMetaStore) SaveObject(ctx context.Context, parent, obj *types.Obj
 	return db.SaveObject(ctx, s.db, parent, obj)
 }
 
-func (s *sqliteMetaStore) DestroyObject(ctx context.Context, parent, obj *types.Object) error {
+func (s *sqliteMetaStore) DestroyObject(ctx context.Context, src, parent, obj *types.Object) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	defer utils.TraceRegion(ctx, "sqlite.destroyobject")()
-	return db.DeleteObject(ctx, s.db, parent, obj)
+	return db.DeleteObject(ctx, s.db, src, parent, obj)
 }
 
 func (s *sqliteMetaStore) ListChildren(ctx context.Context, obj *types.Object) (Iterator, error) {
@@ -134,16 +134,9 @@ func newSqliteMetaStore(meta config.Meta) (*sqliteMetaStore, error) {
 		return nil, err
 	}
 
-	total := 0
-	err = db.Get(&total, "SELECT count(*) FROM object")
-	if err != nil {
-		if strings.Contains(err.Error(), "no such table") {
-			if err = initTables(db); err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, err
-		}
+	mig := migrate.NewMigrateManager(db)
+	if err = mig.UpgradeHead(); err != nil {
+		return nil, fmt.Errorf("migrate db failed: %s", err.Error())
 	}
 
 	maxInode, err := currentMaxInode(context.Background(), db)
