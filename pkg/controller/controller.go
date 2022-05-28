@@ -11,11 +11,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	workflowGroup = ".workflow"
-	jobGroup      = ".job"
-)
-
 type Controller interface {
 	ObjectController
 	FileController

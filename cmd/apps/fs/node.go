@@ -528,22 +528,6 @@ func (n *NanaNode) Rename(ctx context.Context, name string, newParent fs.InodeEm
 
 func (n *NanaNode) OnAdd(ctx context.Context) {
 	defer utils.TraceRegion(ctx, "node.onadd")()
-	obj, err := n.R.GetObject(ctx, n.oid)
-	if err != nil {
-		return
-	}
-
-	_ = obj
-	//if obj.IsGroup() {
-	//	children, err := n.R.ListObjectChildren(ctx, obj)
-	//	if err == nil {
-	//		for i := range children {
-	//			newCh := children[i]
-	//			node, _ := n.R.newFsNode(ctx, n, newCh)
-	//			n.AddChild(newCh.Name, node.EmbeddedInode(), false)
-	//		}
-	//	}
-	//}
 }
 
 func (n *NanaNode) Release(ctx context.Context, f fs.FileHandle) (err syscall.Errno) {
@@ -556,15 +540,6 @@ func (n *NanaNode) Release(ctx context.Context, f fs.FileHandle) (err syscall.Er
 	if err != NoErr {
 		return err
 	}
-
-	obj, queryErr := n.R.GetObject(ctx, n.oid)
-	if queryErr != nil {
-		if queryErr == types.ErrNotFound {
-			return NoErr
-		}
-		return Error2FuseSysError(queryErr)
-	}
-	n.R.releaseFsNode(ctx, obj)
 	return NoErr
 }
 
