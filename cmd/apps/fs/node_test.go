@@ -32,7 +32,7 @@ var _ = Describe("TestAccess", func() {
 		}
 		root = initFsBridge(nfs)
 
-		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
+		obj, err := nfs.CreateObject(context.Background(), mustGetNanaObj(root, ctl), types.ObjectAttr{
 			Name:   "file.txt",
 			Kind:   types.RawKind,
 			Access: acc,
@@ -77,7 +77,7 @@ var _ = Describe("TestGetattr", func() {
 		}
 		root = initFsBridge(nfs)
 
-		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
+		obj, err := nfs.CreateObject(context.Background(), mustGetNanaObj(root, ctl), types.ObjectAttr{
 			Name:   "file.txt",
 			Kind:   types.RawKind,
 			Access: acc,
@@ -118,7 +118,7 @@ var _ = Describe("TestOpen", func() {
 		}
 		root = initFsBridge(nfs)
 
-		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
+		obj, err := nfs.CreateObject(context.Background(), mustGetNanaObj(root, ctl), types.ObjectAttr{
 			Name:   "file.txt",
 			Kind:   types.RawKind,
 			Access: acc,
@@ -169,7 +169,7 @@ var _ = Describe("TestCreate", func() {
 				inode, _, _, errNo := root.Create(context.Background(), newFileName, 0, 0755, out)
 				Expect(errNo).To(Equal(syscall.Errno(0)))
 				root.AddChild(newFileName, inode, false)
-				children, err := ctl.ListObjectChildren(context.Background(), root.obj)
+				children, err := ctl.ListObjectChildren(context.Background(), mustGetNanaObj(root, ctl))
 				Expect(err).To(BeNil())
 
 				found := false
@@ -211,7 +211,7 @@ var _ = Describe("TestLookup", func() {
 		}
 		root = initFsBridge(nfs)
 
-		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
+		obj, err := nfs.CreateObject(context.Background(), mustGetNanaObj(root, ctl), types.ObjectAttr{
 			Name:   fileName,
 			Kind:   types.RawKind,
 			Access: acc,
@@ -261,14 +261,14 @@ var _ = Describe("TestOpendir", func() {
 		}
 		root = initFsBridge(nfs)
 
-		fileObj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
+		fileObj, err := nfs.CreateObject(context.Background(), mustGetNanaObj(root, ctl), types.ObjectAttr{
 			Name:   "file.txt",
 			Kind:   types.RawKind,
 			Access: acc,
 		})
 		Expect(err).Should(BeNil())
 
-		dirObj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
+		dirObj, err := nfs.CreateObject(context.Background(), mustGetNanaObj(root, ctl), types.ObjectAttr{
 			Name:   "dir",
 			Kind:   types.GroupKind,
 			Access: acc,
@@ -304,6 +304,7 @@ var _ = Describe("TestReaddir", func() {
 		node *NanaNode
 		root *NanaNode
 		nfs  *NanaFS
+		ctl  controller.Controller
 	)
 
 	acc := types.Access{}
@@ -312,14 +313,14 @@ var _ = Describe("TestReaddir", func() {
 
 	BeforeEach(func() {
 		var err error
-		ctl := NewMockController()
+		ctl = NewMockController()
 		nfs = &NanaFS{
 			Controller: ctl,
 			Path:       "/tmp/test",
 		}
 		root = initFsBridge(nfs)
 
-		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
+		obj, err := nfs.CreateObject(context.Background(), mustGetNanaObj(root, ctl), types.ObjectAttr{
 			Name:   "files",
 			Kind:   types.GroupKind,
 			Access: acc,
@@ -341,7 +342,7 @@ var _ = Describe("TestReaddir", func() {
 				ds.Close()
 			})
 			Context("add file to dir", func() {
-				newObj, err := nfs.CreateObject(context.Background(), node.obj, types.ObjectAttr{
+				newObj, err := nfs.CreateObject(context.Background(), mustGetNanaObj(node, ctl), types.ObjectAttr{
 					Name:   addFileName,
 					Kind:   types.RawKind,
 					Access: acc,
@@ -451,7 +452,7 @@ var _ = Describe("TestLink", func() {
 		}
 		root = initFsBridge(nfs)
 
-		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
+		obj, err := nfs.CreateObject(context.Background(), mustGetNanaObj(root, ctl), types.ObjectAttr{
 			Name:   "file.txt",
 			Kind:   types.RawKind,
 			Access: acc,
@@ -495,7 +496,7 @@ var _ = Describe("TestRmdir", func() {
 		}
 		root = initFsBridge(nfs)
 
-		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
+		obj, err := nfs.CreateObject(context.Background(), mustGetNanaObj(root, ctl), types.ObjectAttr{
 			Name:   dirName,
 			Kind:   types.GroupKind,
 			Access: acc,
@@ -548,7 +549,7 @@ var _ = Describe("TestRename", func() {
 		}
 		root = initFsBridge(nfs)
 
-		obj, err := nfs.CreateObject(context.Background(), root.obj, types.ObjectAttr{
+		obj, err := nfs.CreateObject(context.Background(), mustGetNanaObj(root, ctl), types.ObjectAttr{
 			Name:   "file.txt",
 			Kind:   types.RawKind,
 			Access: acc,

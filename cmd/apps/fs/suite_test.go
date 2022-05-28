@@ -212,6 +212,14 @@ func initFsBridge(nfs *NanaFS) *NanaNode {
 	return root
 }
 
+func mustGetNanaObj(node *NanaNode, ctrl controller.Controller) *types.Object {
+	result, err := ctrl.GetObject(context.Background(), node.oid)
+	if err != nil {
+		panic(err)
+	}
+	return result
+}
+
 func TestFs(t *testing.T) {
 	logger.InitLogger()
 	defer logger.Sync()

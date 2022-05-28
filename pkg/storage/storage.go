@@ -8,10 +8,6 @@ import (
 	"io"
 )
 
-const (
-	defaultChunkSize = 1 << 22 // 4MB
-)
-
 type Info struct {
 	Key  string
 	Size int64

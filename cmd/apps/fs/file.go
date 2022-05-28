@@ -3,6 +3,7 @@ package fs
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/files"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/hanwen/go-fuse/v2/fuse"
 	"io"
@@ -11,10 +12,28 @@ import (
 
 type File struct {
 	node *NanaNode
+	obj  *types.Object
 	file files.File
 }
 
 var _ fileOperation = &File{}
+
+func (f *File) Getattr(ctx context.Context, out *fuse.AttrOut) syscall.Errno {
+	obj, err := f.node.R.GetObject(ctx, f.obj.ID)
+	if err != nil {
+		if f != nil && err == types.ErrNotFound && f.obj != nil {
+			f.obj.RefCount = 0
+			st := nanaNode2Stat(f.obj)
+			updateAttrOut(st, &out.Attr)
+			return NoErr
+		}
+		return Error2FuseSysError(err)
+	}
+
+	st := nanaNode2Stat(obj)
+	updateAttrOut(st, &out.Attr)
+	return NoErr
+}
 
 func (f *File) Read(ctx context.Context, dest []byte, off int64) (fuse.ReadResult, syscall.Errno) {
 	defer utils.TraceRegion(ctx, "files.read")()

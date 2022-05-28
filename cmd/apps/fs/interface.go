@@ -28,6 +28,7 @@ type nodeOperation interface {
 }
 
 type fileOperation interface {
+	fs.FileGetattrer
 	fs.FileReader
 	fs.FileWriter
 	fs.FileFlusher
