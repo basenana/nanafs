@@ -24,6 +24,10 @@ type Object struct {
 	Data       []byte    `db:"data"`
 }
 
+func (o *Object) TableName() string {
+	return "object"
+}
+
 func (o *Object) Update(obj *types.Object) {
 	o.ID = obj.ID
 	o.Name = obj.Name
@@ -47,4 +51,19 @@ type ObjectLabel struct {
 	ID    string `db:"id"`
 	Key   string `db:"key"`
 	Value string `db:"value"`
+}
+
+func (o ObjectLabel) TableName() string {
+	return "object_label"
+}
+
+type ObjectContent struct {
+	ID      string `db:"id"`
+	Kind    string `db:"kind"`
+	Version string `db:"version"`
+	Data    []byte `db:"data"`
+}
+
+func (o ObjectContent) TableName() string {
+	return "object_content"
 }
