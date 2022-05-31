@@ -3,6 +3,7 @@ package db
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
@@ -248,6 +249,9 @@ func deleteRawObject(ctx context.Context, tx *sqlx.Tx, object *Object) error {
 	if _, err := tx.NamedExec(deleteObjectLabelSQL, attrs); err != nil {
 		return fmt.Errorf("clean object failed: %s", err.Error())
 	}
+	if err := deleteObjectContent(ctx, tx, object.ID); err != nil {
+		return fmt.Errorf("clean object content failed: %s", err.Error())
+	}
 	return nil
 }
 
@@ -266,6 +270,70 @@ func updateObjectLabels(ctx context.Context, tx *sqlx.Tx, obj *types.Object) err
 		}
 	}
 	return nil
+}
+
+func GetObjectContent(ctx context.Context, db *sqlx.DB, id, kind, version string) ([]byte, error) {
+	cnt := ObjectContent{}
+	if err := withTx(ctx, db, func(ctx context.Context, tx *sqlx.Tx) error {
+		queryErr := Query(tx, cnt).Where("id", "=", id).Where("kind", "=", kind).Where("version", "=", version).Get(&cnt)
+		if queryErr != nil {
+			if queryErr == sql.ErrNoRows {
+				return types.ErrNotFound
+			}
+			return queryErr
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return cnt.Data, nil
+}
+
+func UpdateObjectContent(ctx context.Context, db *sqlx.DB, obj *types.Object, kind, version string, raw []byte) error {
+	return withTx(ctx, db, func(ctx context.Context, tx *sqlx.Tx) error {
+		cnt := ObjectContent{
+			ID:      obj.ID,
+			Kind:    kind,
+			Version: version,
+		}
+		if err := Query(tx, cnt).Where("id", "=", obj.ID).Where("kind", "=", kind).Where("version", "=", version).Get(&cnt); err != nil {
+			if err == sql.ErrNoRows {
+				cnt.Data = raw
+				return Exec(tx, &cnt).Insert()
+			}
+			return err
+		}
+		cnt.Data = raw
+
+		objectModel, err := queryRawObject(ctx, tx, obj.ID)
+		if err != nil && err != types.ErrNotFound {
+			return err
+		}
+		obj.Size = int64(len(raw))
+		objectModel.Update(obj)
+		if err = saveRawObject(ctx, tx, objectModel, updateObjectSQL); err != nil {
+			return err
+		}
+
+		return Exec(tx, &cnt).Update()
+	})
+}
+
+func DeleteObjectContent(ctx context.Context, db *sqlx.DB, id string) error {
+	return withTx(ctx, db, func(ctx context.Context, tx *sqlx.Tx) error {
+		return deleteObjectContent(ctx, tx, id)
+	})
+}
+
+func deleteObjectContent(ctx context.Context, tx *sqlx.Tx, id string) error {
+	cnt := ObjectContent{}
+	if err := Query(tx, cnt).Where("id", "=", id).Get(&cnt); err != nil {
+		if err == sql.ErrNoRows {
+			return nil
+		}
+		return err
+	}
+	return Exec(tx, &cnt).Delete()
 }
 
 type combo func(ctx context.Context, tx *sqlx.Tx) error
