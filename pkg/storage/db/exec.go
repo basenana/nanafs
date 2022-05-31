@@ -47,21 +47,4 @@ INSERT INTO object_label (
 	deleteObjectLabelSQL = `
 DELETE FROM object_label WHERE id=:id;
 `
-	insertObjectContentSQL = `
-INSERT INTO object_content (
-	id, kind, version, data
-) VALUES (
-	:id, :kind, :version, :data
-);
-`
-	updateObjectContentSQL = `
-UPDATE object_content
-SET
-	data=:data
-WHERE
-	id=:id AND kind=:kind AND version=:version
-`
-	deleteObjectContentSQL = `
-DELETE FROM object_custom WHERE id=:id;
-`
 )
