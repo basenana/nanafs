@@ -143,13 +143,6 @@ func (o *Object) IsGroup() bool {
 	return o.Kind == GroupKind
 }
 
-type ObjectAttr struct {
-	Name   string
-	Dev    int64
-	Kind   Kind
-	Access Access
-}
-
 func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {
 	md := NewMetadata(attr.Name, attr.Kind)
 	md.Access = attr.Access
