@@ -168,6 +168,10 @@ func newSqliteMetaStore(meta config.Meta) (*sqliteMetaStore, error) {
 		return nil, err
 	}
 
+	if err = dbConn.Ping(); err != nil {
+		return nil, err
+	}
+
 	mig := migrate.NewMigrateManager(dbConn)
 	if err = mig.UpgradeHead(); err != nil {
 		return nil, fmt.Errorf("migrate db failed: %s", err.Error())

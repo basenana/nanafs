@@ -21,7 +21,7 @@ var _ fileOperation = &File{}
 func (f *File) Getattr(ctx context.Context, out *fuse.AttrOut) syscall.Errno {
 	obj, err := f.node.R.GetObject(ctx, f.obj.ID)
 	if err != nil {
-		if f != nil && err == types.ErrNotFound && f.obj != nil {
+		if err == types.ErrNotFound && f.obj != nil {
 			f.obj.RefCount = 0
 			st := nanaNode2Stat(f.obj)
 			updateAttrOut(st, &out.Attr)

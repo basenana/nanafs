@@ -11,17 +11,27 @@ CREATE TABLE object (
 	aliases VARCHAR(512),
 	parent_id VARCHAR(32),
 	ref_id VARCHAR(32),
+	ref_count INTEGER(64),
 	kind VARCHAR(128),
 	hash VARCHAR(512),
 	size INTEGER(64),
 	inode INTEGER(64),
+	dev INTEGER(64),
 	namespace VARCHAR(512),
 	created_at DATETIME,
 	changed_at DATETIME,
 	modified_at DATETIME,
 	access_at DATETIME,
-	data BLOB,
+	extend_data BLOB,
+	custom_column BLOB,
 	PRIMARY KEY (id)
+);
+CREATE TABLE object_access (
+    id VARCHAR(32),
+	uid INTEGER(64),
+	gid INTEGER(64),
+	permissions VARCHAR(256),
+    CONSTRAINT pk_lid PRIMARY KEY (id)
 );
 CREATE TABLE object_label (
     id VARCHAR(32),
