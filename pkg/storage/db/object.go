@@ -4,127 +4,97 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/jmoiron/sqlx"
 )
 
-func GetObjectByID(ctx context.Context, db *sqlx.DB, oid string) (*types.Object, error) {
-	object := &Object{}
-	if err := db.Get(object, getObjectByIDSQL, oid); err != nil {
-		return nil, dbError2Error(err)
-	}
-
-	result := &types.Object{}
-	if err := json.Unmarshal(object.Data, result); err != nil {
-		return nil, err
-	}
-	return result, nil
+func GetObjectByID(ctx context.Context, db *sqlx.DB, oid string) (result *types.Object, err error) {
+	err = withTx(ctx, db, func(ctx context.Context, tx *sqlx.Tx) error {
+		object := &Object{}
+		if err := Query(tx, object).Where("id", "=", oid).Get(object); err != nil {
+			return err
+		}
+		result, err = buildObject(ctx, tx, object)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	return
 }
 
 func ListObjectChildren(ctx context.Context, db *sqlx.DB, filter types.Filter) ([]*types.Object, error) {
 	if len(filter.Label.Include) > 0 || len(filter.Label.Exclude) > 0 {
 		return listObjectWithLabelMatcher(ctx, db, filter.Label)
 	}
-	objList := make([]Object, 0)
-	fm := types.FilterObjectMapper(filter)
-	queryBuf := bytes.Buffer{}
-	queryBuf.WriteString("SELECT * FROM object")
-	if len(fm) > 0 {
-		queryBuf.WriteString(" WHERE ")
-		count := len(fm)
-		for queryKey := range fm {
-			queryBuf.WriteString(fmt.Sprintf("%s=:%s ", queryKey, queryKey))
-			count -= 1
-			if count > 0 {
-				queryBuf.WriteString("AND ")
+	var (
+		result []*types.Object
+		fm     = types.FilterObjectMapper(filter)
+	)
+	err := withTx(ctx, db, func(ctx context.Context, tx *sqlx.Tx) error {
+		q := Query(tx, &Object{})
+		if len(fm) > 0 {
+			for queryKey, val := range fm {
+				q = q.Where(queryKey, "=", val)
 			}
 		}
-	}
 
-	execSQL := queryBuf.String()
-	nstmt, err := db.PrepareNamed(execSQL)
-	if err != nil {
-		return nil, fmt.Errorf("prepare sql failed, sql=%s, err=%s", execSQL, err.Error())
-	}
-	err = nstmt.Select(&objList, fm)
-	if err != nil {
-		return nil, fmt.Errorf("list object failed: %s", err.Error())
-	}
-
-	result := make([]*types.Object, len(objList))
-	for i, o := range objList {
-		obj := &types.Object{}
-		if err = json.Unmarshal(o.Data, obj); err != nil {
-			return nil, err
+		objList := make([]Object, 0)
+		if err := q.List(&objList); err != nil {
+			return err
 		}
-		result[i] = obj
+
+		for _, o := range objList {
+			obj, err := buildObject(ctx, tx, &o)
+			if err != nil {
+				return err
+			}
+			result = append(result, obj)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
+
 	return result, nil
 }
 
 func SaveObject(ctx context.Context, db *sqlx.DB, parent, object *types.Object) error {
 	return withTx(ctx, db, func(ctx context.Context, tx *sqlx.Tx) error {
+		var err error
 		if parent != nil {
-			parentModel, err := queryRawObject(ctx, tx, parent.ID)
-			if err != nil {
-				return err
-			}
-			parentModel.Update(parent)
-			err = saveRawObject(ctx, tx, parentModel, updateObjectSQL)
-			if err != nil {
+			if err = saveRawObject(ctx, tx, parent); err != nil {
 				return err
 			}
 		}
 
-		objectModel, err := queryRawObject(ctx, tx, object.ID)
-		if err != nil && err != types.ErrNotFound {
-			return err
-		}
-		execSql := updateObjectSQL
-		if err == types.ErrNotFound {
-			execSql = insertObjectSQL
-		}
-		objectModel.Update(object)
-		if err = saveRawObject(ctx, tx, objectModel, execSql); err != nil {
+		if err = saveRawObject(ctx, tx, object); err != nil {
 			return err
 		}
 
-		if err = updateObjectLabels(ctx, tx, object); err != nil {
+		if err = updateObjectRef(ctx, tx, object); err != nil {
 			return err
 		}
-
 		return nil
 	})
 }
 
 func SaveMirroredObject(ctx context.Context, db *sqlx.DB, srcObj, dstParent, object *types.Object) error {
 	return withTx(ctx, db, func(ctx context.Context, tx *sqlx.Tx) error {
-		srcModel, err := queryRawObject(ctx, tx, srcObj.ID)
-		if err != nil {
-			return err
-		}
-		srcModel.Update(srcObj)
-		if err = saveRawObject(ctx, tx, srcModel, updateObjectSQL); err != nil {
+		if err := saveRawObject(ctx, tx, srcObj); err != nil {
 			return err
 		}
 
-		dstModel, err := queryRawObject(ctx, tx, dstParent.ID)
-		if err != nil {
-			return err
-		}
-		dstModel.Update(dstParent)
-		if err = saveRawObject(ctx, tx, dstModel, updateObjectSQL); err != nil {
+		if err := saveRawObject(ctx, tx, dstParent); err != nil {
 			return err
 		}
 
-		objectModel := &Object{}
-		objectModel.Update(object)
-		if err = saveRawObject(ctx, tx, objectModel, insertObjectSQL); err != nil {
+		if err := saveRawObject(ctx, tx, object); err != nil {
 			return err
 		}
-		if err = updateObjectLabels(ctx, tx, object); err != nil {
+		if err := updateObjectRef(ctx, tx, object); err != nil {
 			return err
 		}
 		return nil
@@ -133,30 +103,15 @@ func SaveMirroredObject(ctx context.Context, db *sqlx.DB, srcObj, dstParent, obj
 
 func SaveChangeParentObject(ctx context.Context, db *sqlx.DB, srcParent, dstParent, obj *types.Object, opt types.ChangeParentOption) error {
 	return withTx(ctx, db, func(ctx context.Context, tx *sqlx.Tx) error {
-		srcModel, err := queryRawObject(ctx, tx, srcParent.ID)
-		if err != nil {
-			return err
-		}
-		srcModel.Update(srcParent)
-		if err = saveRawObject(ctx, tx, srcModel, updateObjectSQL); err != nil {
+		if err := saveRawObject(ctx, tx, srcParent); err != nil {
 			return err
 		}
 
-		dstModel, err := queryRawObject(ctx, tx, dstParent.ID)
-		if err != nil {
-			return err
-		}
-		dstModel.Update(dstParent)
-		if err = saveRawObject(ctx, tx, dstModel, updateObjectSQL); err != nil {
+		if err := saveRawObject(ctx, tx, dstParent); err != nil {
 			return err
 		}
 
-		objectModel, err := queryRawObject(ctx, tx, obj.ID)
-		if err != nil && err != types.ErrNotFound {
-			return err
-		}
-		objectModel.Update(obj)
-		if err = saveRawObject(ctx, tx, objectModel, updateObjectSQL); err != nil {
+		if err := saveRawObject(ctx, tx, obj); err != nil {
 			return err
 		}
 		return nil
@@ -165,50 +120,27 @@ func SaveChangeParentObject(ctx context.Context, db *sqlx.DB, srcParent, dstPare
 
 func DeleteObject(ctx context.Context, db *sqlx.DB, src, parent, object *types.Object) error {
 	return withTx(ctx, db, func(ctx context.Context, tx *sqlx.Tx) error {
-		parentModel, err := queryRawObject(ctx, tx, parent.ID)
-		if err != nil {
-			return err
-		}
-		parentModel.Update(parent)
-		if err = saveRawObject(ctx, tx, parentModel, updateObjectSQL); err != nil {
+		if err := saveRawObject(ctx, tx, parent); err != nil {
 			return err
 		}
 
 		if src != nil {
-			srcModel, err := queryRawObject(ctx, tx, src.ID)
-			if err != nil {
-				return err
-			}
 			if src.RefCount > 0 {
-				srcModel.Update(src)
-				if err = saveRawObject(ctx, tx, srcModel, updateObjectSQL); err != nil {
+				if err := saveRawObject(ctx, tx, src); err != nil {
 					return err
 				}
 			} else {
-				if err = deleteRawObject(ctx, tx, srcModel); err != nil {
+				if err := deleteObject(ctx, tx, src.ID); err != nil {
 					return err
 				}
 			}
 		}
 
-		objModel, err := queryRawObject(ctx, tx, object.ID)
-		if err != nil {
-			return err
-		}
 		if !object.IsGroup() && object.RefCount > 0 {
-			objModel.Update(object)
-			return saveRawObject(ctx, tx, objModel, updateObjectSQL)
+			return saveRawObject(ctx, tx, object)
 		}
-		return deleteRawObject(ctx, tx, objModel)
+		return deleteObject(ctx, tx, object.ID)
 	})
-}
-
-func queryRawObject(ctx context.Context, tx *sqlx.Tx, id string) (*Object, error) {
-	object := &Object{}
-	if err := tx.Get(object, getObjectByIDSQL, id); err != nil {
-		return object, dbError2Error(err)
-	}
-	return object, nil
 }
 
 func listObjectWithLabelMatcher(ctx context.Context, db *sqlx.DB, labelMatch types.LabelMatch) ([]*types.Object, error) {
@@ -233,39 +165,79 @@ func listObjectWithLabelMatcher(ctx context.Context, db *sqlx.DB, labelMatch typ
 	return result, err
 }
 
-func saveRawObject(ctx context.Context, tx *sqlx.Tx, objModel *Object, execSql string) error {
-	_, err := tx.NamedExec(execSql, objModel)
-	if err != nil {
-		return fmt.Errorf("save object record failed: %s", err.Error())
+func buildObject(ctx context.Context, tx *sqlx.Tx, objModel *Object) (*types.Object, error) {
+	result := objModel.Object()
+
+	oa := &ObjectAccess{}
+	ol := make([]ObjectLabel, 0)
+
+	if err := Query(tx, oa).Where("id", "=", objModel.ID).Get(oa); err != nil {
+		return nil, fmt.Errorf("query object access model failed: %s", err.Error())
 	}
-	return nil
+	if err := Query(tx, &ObjectLabel{}).Where("id", "=", objModel.ID).List(&ol); err != nil {
+		return nil, fmt.Errorf("query object access model failed: %s", err.Error())
+	}
+
+	result.Access = oa.ToAccess()
+
+	for _, kv := range ol {
+		result.Labels.Labels = append(result.Labels.Labels, types.Label{Key: kv.Key, Value: kv.Value})
+	}
+	return result, nil
 }
 
-func deleteRawObject(ctx context.Context, tx *sqlx.Tx, object *Object) error {
-	attrs := map[string]interface{}{"id": object.ID}
-	if _, err := tx.NamedExec(deleteObjectSQL, attrs); err != nil {
+func saveRawObject(ctx context.Context, tx *sqlx.Tx, obj *types.Object) error {
+	var (
+		objModel = &Object{}
+		err      error
+	)
+	if err = Query(tx, objModel).Where("id", "=", obj.ID).Get(objModel); err != nil && err != sql.ErrNoRows {
+		return err
+	}
+	objModel.Update(obj)
+	if err == nil {
+		return Exec(tx, objModel).Update()
+	}
+	return Exec(tx, objModel).Insert()
+}
+
+func deleteObject(ctx context.Context, tx *sqlx.Tx, oid string) error {
+	if err := Exec(tx, &Object{}).Delete(oid); err != nil {
 		return fmt.Errorf("delete object failed: %s", err.Error())
 	}
-	if _, err := tx.NamedExec(deleteObjectLabelSQL, attrs); err != nil {
-		return fmt.Errorf("clean object failed: %s", err.Error())
+	if err := Exec(tx, &ObjectAccess{}).Delete(oid); err != nil {
+		return fmt.Errorf("delete object access failed: %s", err.Error())
 	}
-	if err := deleteObjectContent(ctx, tx, object.ID); err != nil {
+	if err := Exec(tx, &ObjectLabel{}).Delete(oid); err != nil {
+		return fmt.Errorf("delete object label failed: %s", err.Error())
+	}
+
+	if err := deleteObjectContent(ctx, tx, oid); err != nil {
 		return fmt.Errorf("clean object content failed: %s", err.Error())
 	}
 	return nil
 }
 
-func updateObjectLabels(ctx context.Context, tx *sqlx.Tx, obj *types.Object) error {
-	// FIXME: rebuild label
-	if _, err := tx.NamedExec(deleteObjectLabelSQL, obj); err != nil {
-		return fmt.Errorf("clean object label failed: %s", err.Error())
+func updateObjectRef(ctx context.Context, tx *sqlx.Tx, obj *types.Object) error {
+	// FIXME: not rebuild
+	if err := Exec(tx, &ObjectAccess{}).Delete(obj.ID); err != nil {
+		return err
+	}
+	oa := &ObjectAccess{}
+	oa.Update(obj)
+	if err := Exec(tx, oa).Insert(); err != nil {
+		return fmt.Errorf("insert object label failed: %s", err.Error())
+	}
+
+	if err := Exec(tx, &ObjectLabel{}).Delete(obj.ID); err != nil {
+		return err
 	}
 	for _, kv := range obj.Labels.Labels {
-		if _, err := tx.NamedExec(insertObjectLabelSQL, ObjectLabel{
+		if err := Exec(tx, &ObjectLabel{
 			ID:    obj.ID,
 			Key:   kv.Key,
 			Value: kv.Value,
-		}); err != nil {
+		}).Insert(); err != nil {
 			return fmt.Errorf("insert object label failed: %s", err.Error())
 		}
 	}
@@ -304,14 +276,8 @@ func UpdateObjectContent(ctx context.Context, db *sqlx.DB, obj *types.Object, ki
 			return err
 		}
 		cnt.Data = raw
-
-		objectModel, err := queryRawObject(ctx, tx, obj.ID)
-		if err != nil && err != types.ErrNotFound {
-			return err
-		}
 		obj.Size = int64(len(raw))
-		objectModel.Update(obj)
-		if err = saveRawObject(ctx, tx, objectModel, updateObjectSQL); err != nil {
+		if err := saveRawObject(ctx, tx, obj); err != nil {
 			return err
 		}
 
@@ -333,7 +299,7 @@ func deleteObjectContent(ctx context.Context, tx *sqlx.Tx, id string) error {
 		}
 		return err
 	}
-	return Exec(tx, &cnt).Delete()
+	return Exec(tx, &cnt).Delete(cnt.ID)
 }
 
 type combo func(ctx context.Context, tx *sqlx.Tx) error
@@ -346,7 +312,7 @@ func withTx(ctx context.Context, db *sqlx.DB, fn combo) error {
 
 	if err = fn(ctx, tx); err != nil {
 		_ = tx.Rollback()
-		return err
+		return dbError2Error(err)
 	}
 	if err = tx.Commit(); err != nil {
 		_ = tx.Rollback()

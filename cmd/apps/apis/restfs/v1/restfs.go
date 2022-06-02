@@ -264,7 +264,7 @@ func (s *RestFS) move(gCtx *gin.Context, obj, parent *types.Object, action frame
 		return
 	}
 
-	err = s.ctrl.ChangeObjectParent(ctx, obj, parent, dstParent, param.Name, controller.ChangeParentOpt{})
+	err = s.ctrl.ChangeObjectParent(ctx, obj, parent, dstParent, param.Name, types.ChangeParentAttr{})
 	if err != nil {
 		common.ErrorResponse(gCtx, err)
 		return
@@ -280,7 +280,7 @@ func (s *RestFS) move(gCtx *gin.Context, obj, parent *types.Object, action frame
 
 func (s *RestFS) rename(gCtx *gin.Context, obj, parent *types.Object, action frame.Action, param frame.Parameters) {
 	ctx := gCtx.Request.Context()
-	err := s.ctrl.ChangeObjectParent(ctx, obj, parent, parent, param.Name, controller.ChangeParentOpt{})
+	err := s.ctrl.ChangeObjectParent(ctx, obj, parent, parent, param.Name, types.ChangeParentAttr{})
 	if err != nil {
 		common.ErrorResponse(gCtx, err)
 		return
@@ -296,7 +296,7 @@ func (s *RestFS) rename(gCtx *gin.Context, obj, parent *types.Object, action fra
 
 func (s *RestFS) destroy(gCtx *gin.Context, obj, parent *types.Object, action frame.Action, param frame.Parameters) {
 	ctx := gCtx.Request.Context()
-	if err := s.ctrl.DestroyObject(ctx, parent, obj); err != nil {
+	if err := s.ctrl.DestroyObject(ctx, parent, obj, types.DestroyObjectAttr{}); err != nil {
 		common.ErrorResponse(gCtx, err)
 		return
 	}

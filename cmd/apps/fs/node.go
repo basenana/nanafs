@@ -2,7 +2,6 @@ package fs
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/types"
@@ -344,6 +343,7 @@ func (n *NanaNode) Link(ctx context.Context, target fs.InodeEmbedder, name strin
 	return node.EmbeddedInode(), NoErr
 }
 
+// TODO: improve symlink operation
 func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.EntryOut) (node *fs.Inode, errno syscall.Errno) {
 	obj, err := n.R.GetObject(ctx, n.oid)
 	if err != nil {
@@ -419,20 +419,12 @@ func (n *NanaNode) Unlink(ctx context.Context, name string) syscall.Errno {
 		return Error2FuseSysError(err)
 	}
 
-	if err := dentry.IsAccess(obj.Access, int64(uid), int64(gid), 0x2); err != nil {
-		return Error2FuseSysError(err)
-	}
-
 	ch, err := n.R.FindObject(ctx, obj, name)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
 
-	if uid != 0 && int64(uid) != ch.Access.UID && int64(uid) != obj.Access.UID && obj.Access.HasPerm(types.PermSticky) {
-		return Error2FuseSysError(types.ErrNoAccess)
-	}
-
-	if err = n.R.DestroyObject(ctx, obj, ch); err != nil {
+	if err = n.R.DestroyObject(ctx, obj, ch, types.DestroyObjectAttr{Uid: int64(uid), Gid: int64(gid)}); err != nil {
 		return Error2FuseSysError(err)
 	}
 	n.RmChild(name)
@@ -456,20 +448,12 @@ func (n *NanaNode) Rmdir(ctx context.Context, name string) syscall.Errno {
 		return Error2FuseSysError(err)
 	}
 
-	if err := dentry.IsAccess(obj.Access, int64(uid), int64(gid), 0x2); err != nil {
-		return Error2FuseSysError(err)
-	}
-
 	ch, err := n.R.FindObject(ctx, obj, name)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
 	if !ch.IsGroup() {
 		return Error2FuseSysError(types.ErrNoGroup)
-	}
-
-	if uid != 0 && int64(uid) != ch.Access.UID && int64(uid) != obj.Access.UID && obj.Access.HasPerm(types.PermSticky) {
-		return Error2FuseSysError(types.ErrNoAccess)
 	}
 
 	children, err := n.R.ListObjectChildren(ctx, ch)
@@ -480,7 +464,7 @@ func (n *NanaNode) Rmdir(ctx context.Context, name string) syscall.Errno {
 		return Error2FuseSysError(types.ErrNotEmpty)
 	}
 
-	if err = n.R.DestroyObject(ctx, obj, ch); err != nil {
+	if err = n.R.DestroyObject(ctx, obj, ch, types.DestroyObjectAttr{Uid: int64(uid), Gid: int64(gid)}); err != nil {
 		return Error2FuseSysError(err)
 	}
 	n.RmChild(name)
@@ -498,7 +482,7 @@ func (n *NanaNode) Rename(ctx context.Context, name string, newParent fs.InodeEm
 	if fuseCtx, ok := ctx.(*fuse.Context); ok {
 		uid, gid = fuseCtx.Uid, fuseCtx.Gid
 	}
-	opt := controller.ChangeParentOpt{Uid: int64(uid), Gid: int64(gid), Replace: true}
+	opt := types.ChangeParentAttr{Uid: int64(uid), Gid: int64(gid), Replace: true}
 	if flags&RENAME_EXCHANGE > 0 {
 		opt.Exchange = true
 	}

@@ -20,10 +20,10 @@ type ObjectController interface {
 	GetObject(ctx context.Context, id string) (*types.Object, error)
 	CreateObject(ctx context.Context, parent *types.Object, attr types.ObjectAttr) (*types.Object, error)
 	SaveObject(ctx context.Context, parent, obj *types.Object) error
-	DestroyObject(ctx context.Context, parent, obj *types.Object) error
+	DestroyObject(ctx context.Context, parent, obj *types.Object, attr types.DestroyObjectAttr) error
 	MirrorObject(ctx context.Context, src, dstParent *types.Object, attr types.ObjectAttr) (*types.Object, error)
 	ListObjectChildren(ctx context.Context, obj *types.Object) ([]*types.Object, error)
-	ChangeObjectParent(ctx context.Context, old, oldParent, newParent *types.Object, newName string, opt ChangeParentOpt) error
+	ChangeObjectParent(ctx context.Context, old, oldParent, newParent *types.Object, newName string, opt types.ChangeParentAttr) error
 }
 
 func (c *controller) LoadRootObject(ctx context.Context) (*types.Object, error) {
@@ -117,9 +117,16 @@ func (c *controller) SaveObject(ctx context.Context, parent, obj *types.Object) 
 	return nil
 }
 
-func (c *controller) DestroyObject(ctx context.Context, parent, obj *types.Object) (err error) {
+func (c *controller) DestroyObject(ctx context.Context, parent, obj *types.Object, attr types.DestroyObjectAttr) (err error) {
 	defer utils.TraceRegion(ctx, "controller.destroyobject")()
 	c.logger.Infow("destroy obj", "obj", obj.ID)
+
+	if err = dentry.IsAccess(parent.Access, attr.Uid, attr.Gid, 0x2); err != nil {
+		return types.ErrNoAccess
+	}
+	if attr.Uid != 0 && attr.Uid != obj.Access.UID && attr.Uid != parent.Access.UID && parent.Access.HasPerm(types.PermSticky) {
+		return types.ErrNoAccess
+	}
 
 	defer func() {
 		if err == nil {
@@ -248,14 +255,7 @@ func (c *controller) ListObjectChildren(ctx context.Context, obj *types.Object) 
 	return result, nil
 }
 
-type ChangeParentOpt struct {
-	Uid      int64
-	Gid      int64
-	Replace  bool
-	Exchange bool
-}
-
-func (c *controller) ChangeObjectParent(ctx context.Context, obj, oldParent, newParent *types.Object, newName string, opt ChangeParentOpt) (err error) {
+func (c *controller) ChangeObjectParent(ctx context.Context, obj, oldParent, newParent *types.Object, newName string, opt types.ChangeParentAttr) (err error) {
 	defer utils.TraceRegion(ctx, "controller.changeparent")()
 
 	if len(newName) > objectNameMaxLength {
@@ -307,7 +307,8 @@ func (c *controller) ChangeObjectParent(ctx context.Context, obj, oldParent, new
 			return types.ErrUnsupported
 		}
 
-		if err = c.DestroyObject(ctx, newParent, existObj); err != nil {
+		// TODO: need a atomic operation?
+		if err = c.DestroyObject(ctx, newParent, existObj, types.DestroyObjectAttr{Uid: opt.Uid, Gid: opt.Gid}); err != nil {
 			return err
 		}
 	}

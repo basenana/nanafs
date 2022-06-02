@@ -104,9 +104,9 @@ func (e *exec) Update() error {
 	return err
 }
 
-func (e *exec) Delete() error {
-	q := fmt.Sprintf("DELETE FROM %s WHERE id=:id", e.model.TableName())
-	_, err := e.tx.NamedExec(q, e.model)
+func (e *exec) Delete(id string) error {
+	q := fmt.Sprintf("DELETE FROM %s WHERE id=$1", e.model.TableName())
+	_, err := e.tx.Exec(q, id)
 	return err
 }
 
