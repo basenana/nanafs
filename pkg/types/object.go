@@ -143,6 +143,10 @@ func (o *Object) IsGroup() bool {
 	return o.Kind == GroupKind
 }
 
+func (o *Object) IsSmartGroup() bool {
+	return o.Kind == SmartGroupKind
+}
+
 func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {
 	md := NewMetadata(attr.Name, attr.Kind)
 	md.Access = attr.Access
