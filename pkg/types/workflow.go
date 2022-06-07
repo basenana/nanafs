@@ -1,6 +1,9 @@
 package types
 
-import "time"
+import (
+	"github.com/basenana/nanafs/utils/rules"
+	"time"
+)
 
 type Workflow struct {
 	Name    string   `json:"name"`
@@ -33,33 +36,33 @@ type WFRule struct {
 	In        *MutilOpe `json:"in,omitempty"`
 }
 
-func (w WFRule) ToRule() Rule {
-	rules := make([]Rule, len(w.Rules))
+func (w WFRule) ToRule() RuleCondition {
+	ruleList := make([]RuleCondition, len(w.Rules))
 	for i, r := range w.Rules {
-		rules[i] = r.ToRule()
+		ruleList[i] = r.ToRule()
 	}
-	var ope Operation
+	var ope rules.RuleOperation
 	if w.Equal != nil {
-		ope = Equal{w.Equal.ColumnKey, w.Equal.Content}
+		ope = rules.Equal{ColumnKey: w.Equal.ColumnKey, Content: w.Equal.Content}
 	}
 	if w.BeginWith != nil {
-		ope = BeginWith{w.BeginWith.ColumnKey, w.BeginWith.Content}
+		ope = rules.BeginWith{ColumnKey: w.BeginWith.ColumnKey, Content: w.BeginWith.Content}
 	}
 	if w.Pattern != nil {
-		ope = Pattern{w.Pattern.ColumnKey, w.Pattern.Content}
+		ope = rules.Pattern{ColumnKey: w.Pattern.ColumnKey, Content: w.Pattern.Content}
 	}
 	if w.Before != nil {
-		ope = Before{w.Before.ColumnKey, w.Before.Content}
+		ope = rules.Before{ColumnKey: w.Before.ColumnKey, Content: w.Before.Content}
 	}
 	if w.After != nil {
-		ope = After{w.After.ColumnKey, w.After.Content}
+		ope = rules.After{ColumnKey: w.After.ColumnKey, Content: w.After.Content}
 	}
 	if w.In != nil {
-		ope = In{w.In.ColumnKey, w.In.Content}
+		ope = rules.In{ColumnKey: w.In.ColumnKey, Content: w.In.Content}
 	}
-	return Rule{
+	return RuleCondition{
 		Logic:     w.Logic,
-		Rules:     rules,
+		Rules:     ruleList,
 		Operation: ope,
 	}
 }

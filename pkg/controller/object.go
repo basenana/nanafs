@@ -238,21 +238,12 @@ func (c *controller) ListObjectChildren(ctx context.Context, obj *types.Object) 
 	if !obj.IsGroup() {
 		return nil, types.ErrNoGroup
 	}
-	c.logger.Infow("list children obj", "name", obj.Name)
-	result := make([]*types.Object, 0)
-	it, err := c.meta.ListChildren(ctx, obj)
+	result, err := c.group.ListObjectChildren(ctx, obj)
 	if err != nil {
-		c.logger.Errorw("load object children error", "obj", obj.ID, "err", err.Error())
+		c.logger.Errorw("list object children failed", "parent", obj.ID, "err", err.Error())
 		return nil, err
 	}
-	for it.HasNext() {
-		next := it.Next()
-		if next.ID == next.ParentID {
-			continue
-		}
-		result = append(result, next)
-	}
-	return result, nil
+	return result, err
 }
 
 func (c *controller) ChangeObjectParent(ctx context.Context, obj, oldParent, newParent *types.Object, newName string, opt types.ChangeParentAttr) (err error) {
