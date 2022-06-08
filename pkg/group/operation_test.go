@@ -1,4 +1,4 @@
-package rules
+package group
 
 import (
 	"github.com/basenana/nanafs/pkg/types"
@@ -8,9 +8,11 @@ import (
 
 func TestRule_Apply(t *testing.T) {
 	type fields struct {
-		Logic     string
-		Rules     []types.RuleCondition
-		Operation RuleOperation
+		Logic     types.RuleFilterLogic
+		Rules     []types.RuleFilter
+		Operation types.RuleOperation
+		Column    string
+		Value     string
 	}
 	type args struct {
 		value *types.Object
@@ -29,73 +31,75 @@ func TestRule_Apply(t *testing.T) {
 		},
 		{
 			name:   "test-equal",
-			fields: fields{Operation: Equal{ColumnKey: "name", Content: "abc"}},
+			fields: fields{Operation: "equal", Column: "name", Value: "abc"},
 			args:   args{value: &types.Object{Metadata: types.Metadata{ID: "abc", Name: "abc"}}},
 			want:   true,
 		},
 		{
 			name:   "test-not-equal",
-			fields: fields{Operation: Equal{ColumnKey: "name", Content: "abc"}},
+			fields: fields{Operation: "equal", Column: "name", Value: "abc"},
 			args:   args{value: &types.Object{Metadata: types.Metadata{Name: "aaa"}}},
 			want:   false,
 		},
 		{
 			name:   "test-pattern",
-			fields: fields{Operation: Pattern{ColumnKey: "name", Content: "[a-z]+"}},
+			fields: fields{Operation: "pattern", Column: "name", Value: "[a-z]+"},
 			args:   args{value: &types.Object{Metadata: types.Metadata{Name: "aaa"}}},
 			want:   true,
 		},
 		{
 			name:   "test-not-pattern",
-			fields: fields{Operation: Pattern{ColumnKey: "name", Content: "[a-z]+"}},
+			fields: fields{Operation: "pattern", Column: "name", Value: "[a-z]+"},
 			args:   args{value: &types.Object{Metadata: types.Metadata{Name: "AAA"}}},
 			want:   false,
 		},
 		{
 			name:   "test-in",
-			fields: fields{Operation: In{ColumnKey: "name", Content: []string{"aaa", "bbb"}}},
+			fields: fields{Operation: "in", Column: "name", Value: "aaa,bbb"},
 			args:   args{value: &types.Object{Metadata: types.Metadata{Name: "aaa"}}},
 			want:   true,
 		},
 		{
 			name:   "test-not-in",
-			fields: fields{Operation: In{ColumnKey: "name", Content: []string{"aaa", "bbb"}}},
+			fields: fields{Operation: "in", Column: "name", Value: "aaa,bbb"},
 			args:   args{value: &types.Object{Metadata: types.Metadata{Name: "abc"}}},
 			want:   false,
 		},
 		{
 			name:   "test-before",
-			fields: fields{Operation: Before{ColumnKey: "created_at", Content: time.Now().AddDate(1, 1, 1)}},
+			fields: fields{Operation: "before", Column: "name", Value: time.Now().AddDate(1, 1, 1).Format(timeOpFmt)},
 			args:   args{value: &types.Object{Metadata: types.Metadata{CreatedAt: time.Now()}}},
 			want:   true,
 		},
 		{
 			name:   "test-not-before",
-			fields: fields{Operation: Before{ColumnKey: "created_at", Content: time.Now()}},
+			fields: fields{Operation: "before", Column: "name", Value: time.Now().Format(timeOpFmt)},
 			args:   args{value: &types.Object{Metadata: types.Metadata{CreatedAt: time.Now().AddDate(1, 1, 1)}}},
 			want:   false,
 		},
 		{
 			name:   "test-after",
-			fields: fields{Operation: After{ColumnKey: "created_at", Content: time.Now()}},
+			fields: fields{Operation: "after", Column: "name", Value: time.Now().Format(timeOpFmt)},
 			args:   args{value: &types.Object{Metadata: types.Metadata{CreatedAt: time.Now().AddDate(1, 1, 1)}}},
 			want:   true,
 		},
 		{
 			name:   "test-not-after",
-			fields: fields{Operation: After{ColumnKey: "created_at", Content: time.Now().AddDate(1, 1, 1)}},
+			fields: fields{Operation: "after", Column: "name", Value: time.Now().AddDate(1, 1, 1).Format(timeOpFmt)},
 			args:   args{value: &types.Object{Metadata: types.Metadata{CreatedAt: time.Now()}}},
 			want:   false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := types.RuleCondition{
+			r := types.RuleFilter{
 				Logic:     tt.fields.Logic,
-				Rules:     tt.fields.Rules,
+				Filters:   tt.fields.Rules,
 				Operation: tt.fields.Operation,
+				Column:    tt.fields.Column,
+				Value:     tt.fields.Value,
 			}
-			if got := r.Apply(tt.args.value); got != tt.want {
+			if got := objectFilter(r, tt.args.value); got != tt.want {
 				t.Errorf("Apply() = %v, want %v", got, tt.want)
 			}
 		})

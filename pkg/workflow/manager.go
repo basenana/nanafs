@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/controller"
+	"github.com/basenana/nanafs/pkg/group"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
@@ -58,7 +59,7 @@ func NewWorkflowManager(ctrl controller.Controller) (*Manager, error) {
 		wfMaps[o.ID] = &Workflow{
 			obj:     *o,
 			Name:    o.Name,
-			Rule:    w.Rule.ToRule(),
+			Rule:    &w.Rule,
 			Plugins: plugins,
 		}
 	}
@@ -110,7 +111,7 @@ func (m *Manager) WorkFlowHandler(obj *types.Object) {
 		m.workflows[obj.ID] = &Workflow{
 			obj:     *obj,
 			Name:    wf.Name,
-			Rule:    wf.Rule.ToRule(),
+			Rule:    &wf.Rule,
 			Plugins: plugins,
 		}
 	}
@@ -134,7 +135,7 @@ func (m *Manager) FileSaveHandler(obj *types.Object) {
 	m.RUnlock()
 
 	for _, w := range workflows {
-		if !w.Rule.Apply(obj) {
+		if !group.RuleMatch(w.Rule, obj) {
 			continue
 		}
 		attr := types.ObjectAttr{

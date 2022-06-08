@@ -68,7 +68,7 @@ var _ = Describe("TestWorkflow", func() {
 	Describe("test job", func() {
 		Context("job trigger", func() {
 			It("should be ok", func() {
-				rule := types.RuleCondition{Logic: "", Rules: nil, Operation: nil}
+				rule := &types.Rule{}
 				f := types.Object{}
 				w := NewWorkflow("test", rule, []plugin.Plugin{fakePlugin})
 				jobObj := types.Object{}

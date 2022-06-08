@@ -1,4 +1,4 @@
-package rules
+package group
 
 import (
 	"encoding/json"
@@ -8,8 +8,46 @@ import (
 	"time"
 )
 
+const (
+	timeOpFmt     = "2006-01-02 15:04:05"
+	itemDelimiter = ","
+)
+
 type RuleOperation interface {
 	Apply(value *types.Object) bool
+}
+
+func NewRuleOperation(opType types.RuleOperation, col, val string) RuleOperation {
+	switch opType {
+	case types.RuleOpEqual:
+		return Equal{ColumnKey: col, Content: val}
+	case types.RuleOpBeginWith:
+		return BeginWith{ColumnKey: col, Content: val}
+	case types.RuleOpPattern:
+		return Pattern{ColumnKey: col, Content: val}
+	case types.RuleOpBefore, types.RuleOpAfter:
+		t, err := time.Parse(timeOpFmt, val)
+		if err != nil {
+			if opType == types.RuleOpBefore {
+				return Before{ColumnKey: col, Time: nil}
+			}
+			if opType == types.RuleOpAfter {
+				return After{ColumnKey: col, Time: nil}
+			}
+		}
+		if opType == types.RuleOpBefore {
+			return Before{ColumnKey: col, Time: &t}
+		}
+		if opType == types.RuleOpAfter {
+			return After{ColumnKey: col, Time: &t}
+		}
+	case types.RuleOpIn:
+		return In{
+			ColumnKey: col,
+			Content:   strings.Split(val, itemDelimiter),
+		}
+	}
+	return nil
 }
 
 type Equal struct {
@@ -42,28 +80,34 @@ func (b BeginWith) Apply(value *types.Object) bool {
 
 type Before struct {
 	ColumnKey string
-	Content   time.Time
+	Time      *time.Time
 }
 
 func (b Before) Apply(value *types.Object) bool {
+	if b.Time == nil {
+		return false
+	}
 	t, err := time.Parse("2006-01-02T15:04:05Z07:00", Get(b.ColumnKey, value).(string))
 	if err != nil {
 		return false
 	}
-	return t.Before(b.Content)
+	return t.Before(*b.Time)
 }
 
 type After struct {
 	ColumnKey string
-	Content   time.Time
+	Time      *time.Time
 }
 
 func (a After) Apply(value *types.Object) bool {
+	if a.Time == nil {
+		return false
+	}
 	t, err := time.Parse("2006-01-02T15:04:05Z07:00", Get(a.ColumnKey, value).(string))
 	if err != nil {
 		return false
 	}
-	return t.After(a.Content)
+	return t.After(*a.Time)
 }
 
 type In struct {
