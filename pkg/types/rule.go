@@ -1,7 +1,8 @@
 package types
 
 type Rule struct {
-	Filters RuleFilter `json:"filters"`
+	Filters  RuleFilter `json:"filters"`
+	Selector LabelMatch `json:"selector"`
 }
 
 type RuleFilter struct {
