@@ -31,3 +31,7 @@ func objectFilter(filter types.RuleFilter, value *types.Object) bool {
 func RuleMatch(rule *types.Rule, value *types.Object) bool {
 	return objectFilter(rule.Filters, value)
 }
+
+func validateRuleSpec(rule *types.Rule) error {
+	return nil
+}

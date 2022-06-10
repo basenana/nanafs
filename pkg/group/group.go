@@ -2,13 +2,18 @@ package group
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
-	"github.com/hyponet/eventbus/bus"
 	"go.uber.org/zap"
+)
+
+const (
+	smtGroupAnnKey = "smt.rule.filter"
 )
 
 type Manager struct {
@@ -27,12 +32,7 @@ func (m *Manager) ListObjectChildren(ctx context.Context, obj *types.Object) ([]
 		return nil, err
 	}
 	if obj.IsSmartGroup() {
-		rule, err := m.loadFilterConfig(ctx, obj)
-		if err != nil {
-			return nil, err
-		}
-
-		filtered, err := m.filterSmtGroupChildren(ctx, Group{Object: obj, Rule: rule})
+		filtered, err := m.filterSmtGroupChildren(ctx, Group{Object: obj, Rule: obj.ExtendData.GroupFilter})
 		if err != nil {
 			return nil, err
 		}
@@ -87,36 +87,52 @@ func (m *Manager) filterSmtGroupChildren(ctx context.Context, group Group) ([]*t
 	return result, nil
 }
 
-func (m *Manager) loadFilterConfig(ctx context.Context, groupObj *types.Object) (*types.Rule, error) {
-	return nil, nil
+func (m *Manager) UpdateGroupFilterRule(ctx context.Context, obj *types.Object, rule *types.Rule) error {
+	if !obj.IsGroup() {
+		return types.ErrNoGroup
+	}
+
+	if err := validateRuleSpec(rule); err != nil {
+		m.logger.Errorw("rule not valid", "gid", obj.ID, "err", err.Error())
+		return err
+	}
+
+	if !obj.IsSmartGroup() {
+		children, err := m.meta.ListChildren(ctx, obj)
+		if err != nil {
+			m.logger.Errorw("check group children failed", "gid", obj.ID, "err", err.Error())
+			return err
+		}
+
+		if children.HasNext() {
+			m.logger.Errorw("group has children", "gid", obj.ID)
+			return types.ErrNotEmpty
+		}
+
+		obj.Kind = types.SmartGroupKind
+	}
+
+	obj.ExtendData.GroupFilter = rule
+	err := m.meta.SaveObject(ctx, nil, obj)
+	if err != nil {
+		m.logger.Errorw("save group config failed", "gid", obj.ID, "err", err.Error())
+		return err
+	}
+	return nil
 }
 
-func (m *Manager) groupFilterHandle(obj *types.Object) {
-	if obj.Name != groupFilterRuleFile {
-		return
+func (m *Manager) loadFilterConfig(ctx context.Context, obj *types.Object) (*types.Rule, error) {
+	ann := dentry.GetInternalAnnotation(obj, smtGroupAnnKey)
+	if ann == nil {
+		return nil, nil
 	}
 
-	m.logger.Infow("handle group filter config", "obj", obj.ID, "group", obj.ParentID)
-	dirObj, err := m.meta.GetObject(context.Background(), obj.ParentID)
-	if err != nil {
-		m.logger.Errorw("query group object failed", "obj", obj.ID, "group", obj.ParentID, "err", err.Error())
-		return
+	rule := &types.Rule{}
+	if err := json.Unmarshal([]byte(ann.Content), rule); err != nil {
+		return nil, err
 	}
 
-	_, err = m.loadFilterConfig(context.Background(), dirObj)
-	if err != nil {
-		m.logger.Errorw("load group filter config failed", "obj", obj.ID, "group", obj.ParentID, "err", err.Error())
-		return
-	}
-
-	if !dirObj.IsSmartGroup() {
-		// migrate group to smt group
-		dirObj.Kind = types.SmartGroupKind
-		if err = m.meta.SaveObject(context.Background(), nil, obj); err != nil {
-			m.logger.Errorw("migrate group object to smt group failed", "obj", obj.ID, "group", obj.ParentID, "err", err.Error())
-			return
-		}
-	}
+	return rule, nil
 }
 
 func NewManager(meta storage.MetaStore, cfgLoader config.Loader) *Manager {
@@ -128,9 +144,6 @@ func NewManager(meta storage.MetaStore, cfgLoader config.Loader) *Manager {
 		cfgLoader: cfgLoader,
 		logger:    logger.NewLogger("groupManager"),
 	}
-
-	_, _ = bus.Subscribe("object.file.*.close", mgr.groupFilterHandle)
-
 	return mgr
 }
 
