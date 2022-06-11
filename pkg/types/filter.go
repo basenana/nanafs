@@ -30,8 +30,8 @@ func FilterObjectMapper(f Filter) map[string]interface{} {
 }
 
 type LabelMatch struct {
-	Include []Label
-	Exclude []string
+	Include []Label  `json:"include"`
+	Exclude []string `json:"exclude"`
 }
 
 func IsObjectFiltered(obj *Object, filter Filter) bool {

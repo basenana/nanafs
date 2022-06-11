@@ -48,8 +48,9 @@ func NewMetadata(name string, kind Kind) Metadata {
 }
 
 type ExtendData struct {
-	Properties *Properties `json:"properties,omitempty"`
-	Annotation *Annotation `json:"annotation,omitempty"`
+	Properties  *Properties `json:"properties,omitempty"`
+	Annotation  *Annotation `json:"annotation,omitempty"`
+	GroupFilter *Rule       `json:"group_filter,omitempty"`
 }
 
 type Properties struct {
@@ -84,16 +85,11 @@ func (a *Annotation) Add(newA *AnnotationItem) {
 	a.Annotations = append(a.Annotations, *newA)
 }
 
-func (a *Annotation) Get(key string, withInternal bool) *AnnotationItem {
+func (a *Annotation) Get(key string) *AnnotationItem {
 	for i := range a.Annotations {
 		ann := a.Annotations[i]
 		if ann.Key != key {
 			continue
-		}
-		if ann.IsInternal {
-			if !withInternal {
-				return nil
-			}
 		}
 		return &ann
 	}
@@ -115,10 +111,9 @@ func (a *Annotation) Remove(key string) {
 }
 
 type AnnotationItem struct {
-	Key        string `json:"key"`
-	Content    string `json:"content"`
-	IsInternal bool   `json:"is_internal"`
-	Encode     bool   `json:"encode"`
+	Key     string `json:"key"`
+	Content string `json:"content"`
+	Encode  bool   `json:"encode"`
 }
 
 type CustomColumn struct {
@@ -141,6 +136,10 @@ type Object struct {
 
 func (o *Object) IsGroup() bool {
 	return o.Kind == GroupKind
+}
+
+func (o *Object) IsSmartGroup() bool {
+	return o.Kind == SmartGroupKind
 }
 
 func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {

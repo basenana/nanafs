@@ -1,5 +1,6 @@
 package group
 
 const (
-	groupPluginDir = ".nanaPlugin"
+	groupPluginDir      = ".nanaPlugins"
+	groupFilterRuleFile = ".filter.nanagroup"
 )

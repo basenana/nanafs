@@ -7,7 +7,8 @@ const (
 	/*
 		system-wide kind
 	*/
-	GroupKind = "group"
+	GroupKind      = "group"
+	SmartGroupKind = "smtgroup"
 
 	/*
 		text based file kind
