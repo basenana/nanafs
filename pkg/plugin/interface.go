@@ -1,27 +1,31 @@
 package plugin
 
 import (
+	"context"
 	"github.com/basenana/nanafs/pkg/types"
-	goplugin "plugin"
 )
 
 type Plugin interface {
 	Name() string
-	Run(object *types.Object) error
 }
 
-func NewPlugin(pluginPath string) (Plugin, error) {
-	p, err := goplugin.Open(pluginPath)
-	if err != nil {
-		return nil, err
-	}
-	pl, err := p.Lookup("Plugin")
-	if err != nil {
-		return nil, err
-	}
-	i, ok := pl.(Plugin)
-	if !ok {
-		return nil, err
-	}
-	return i, nil
+type ProcessPlugin interface {
+	Plugin
+	Run(ctx context.Context, object *types.Object) error
+}
+
+type MetaPlugin interface {
+	ProcessPlugin
+}
+
+type SourcePlugin interface {
+	Plugin
+	Run(ctx context.Context) error
+}
+
+type MirrorPlugin interface {
+	Plugin
+	LookUp(ctx context.Context, path string) error
+	List(ctx context.Context, path string) error
+	Open(ctx context.Context, path string) error
 }

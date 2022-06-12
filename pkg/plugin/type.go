@@ -1,10 +1,10 @@
 package plugin
 
-type PluginType string
+type Type string
 
 const (
-	PluginMeta       PluginType = "meta"
-	PluginSource     PluginType = "source"
-	PluginProcess    PluginType = "process"
-	PluginCustomType PluginType = "custom_type"
+	TypeMeta    Type = "meta"
+	TypeSource  Type = "source"
+	TypeProcess Type = "process"
+	TypeMirror  Type = "mirror"
 )
