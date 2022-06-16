@@ -6,7 +6,6 @@ import (
 	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/go-flow/fsm"
 	"github.com/basenana/nanafs/pkg/controller"
-	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/types"
 	"go.uber.org/zap"
 )
@@ -102,7 +101,7 @@ type NanaTask struct {
 	status  fsm.Status
 	object  *types.Object
 
-	plugin plugin.ProcessPlugin
+	plugin types.ProcessPlugin
 }
 
 func (n *NanaTask) GetStatus() fsm.Status {

@@ -8,7 +8,6 @@ import (
 	"github.com/basenana/nanafs/config"
 	ctrl "github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/files"
-	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	. "github.com/onsi/ginkgo"
@@ -71,7 +70,7 @@ var _ = Describe("TestWorkflow", func() {
 			It("should be ok", func() {
 				rule := &types.Rule{}
 				f := types.Object{}
-				w := NewWorkflow("test", rule, []plugin.ProcessPlugin{fakePlugin})
+				w := NewWorkflow("test", rule, []types.ProcessPlugin{fakePlugin})
 				jobObj := types.Object{}
 				job, _, err := NewNanaJob(ctl, w, &jobObj, &f)
 				Expect(err).Should(BeNil())

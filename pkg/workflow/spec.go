@@ -4,19 +4,18 @@ import (
 	"context"
 	goflow "github.com/basenana/go-flow/flow"
 	"github.com/basenana/nanafs/pkg/controller"
-	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 )
 
 type Workflow struct {
 	obj     types.Object
-	Name    string                 `json:"name"`
-	Rule    *types.Rule            `json:"rule"`
-	Plugins []plugin.ProcessPlugin `json:"plugins"`
+	Name    string                `json:"name"`
+	Rule    *types.Rule           `json:"rule"`
+	Plugins []types.ProcessPlugin `json:"plugins"`
 }
 
-func NewWorkflow(name string, rule *types.Rule, plugins []plugin.ProcessPlugin) *Workflow {
+func NewWorkflow(name string, rule *types.Rule, plugins []types.ProcessPlugin) *Workflow {
 	return &Workflow{
 		Name:    name,
 		Rule:    rule,

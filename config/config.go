@@ -4,6 +4,7 @@ type Config struct {
 	Meta      Meta      `json:"meta"`
 	Storages  []Storage `json:"storages"`
 	Owner     *FsOwner  `json:"owner,omitempty"`
+	Plugin    Plugin    `json:"plugin"`
 	CacheDir  string    `json:"cache_dir,omitempty"`
 	CacheSize int64     `json:"cache_size,omitempty"`
 	Debug     bool      `json:"debug"`
@@ -39,4 +40,8 @@ type Fs struct {
 
 	EntryTimeout *int `json:"entry_timeout,omitempty"`
 	AttrTimeout  *int `json:"attr_timeout,omitempty"`
+}
+
+type Plugin struct {
+	BasePath string `json:"base_path"`
 }
