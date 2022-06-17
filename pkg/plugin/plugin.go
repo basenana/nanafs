@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
@@ -9,7 +10,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	goplugin "plugin"
 	"sync"
 	"time"
 )
@@ -20,11 +20,24 @@ const (
 	EnvBasePath           = "NANAFS_PLUGIN_PATH"
 )
 
+var pluginRegistry *registry
+
 type registry struct {
 	basePath string
 	plugins  map[string]types.Plugin
+	species  map[string]types.PluginSpec
 	mux      sync.RWMutex
 	logger   *zap.SugaredLogger
+}
+
+func (r *registry) get(name string) (types.Plugin, error) {
+	r.mux.RLock()
+	p, ok := r.plugins[name]
+	r.mux.RUnlock()
+	if !ok {
+		return nil, fmt.Errorf("plugin %s not found", name)
+	}
+	return p, nil
 }
 
 func (r *registry) start(stopCh chan struct{}) {
@@ -68,7 +81,26 @@ func (r *registry) start(stopCh chan struct{}) {
 }
 
 func (r *registry) loadPlugin(spec types.PluginSpec) {
+	var (
+		p   types.Plugin
+		err error
+	)
+	switch spec.Type {
+	case types.PluginExecType:
+		p, err = NewGoPlugin(spec)
+	case types.PluginBinType:
+		p, err = NewBinPluginAdaptor(spec)
+	case types.PluginScriptType:
+		p, err = NewScriptAdaptor(spec)
+	}
 
+	if err != nil {
+		r.logger.Errorw("load plugin failed", "plugin", spec.Name, "type", spec.Type, "err", err.Error())
+		return
+	}
+
+	r.plugins[spec.Name] = p
+	r.species[spec.Name] = spec
 }
 
 func RunPluginLoader(config config.Config, stopCh chan struct{}) error {
@@ -80,30 +112,18 @@ func RunPluginLoader(config config.Config, stopCh chan struct{}) error {
 		base = os.Getenv(EnvBasePath)
 	}
 
-	r := registry{
+	pluginRegistry = &registry{
 		basePath: base,
 		plugins:  map[string]types.Plugin{},
 		logger:   logger.NewLogger("pluginRegistry"),
 	}
-	r.start(stopCh)
+	pluginRegistry.start(stopCh)
 
 	return nil
 }
 
-func NewPlugin(pluginPath string) (types.Plugin, error) {
-	p, err := goplugin.Open(pluginPath)
-	if err != nil {
-		return nil, err
-	}
-	pl, err := p.Lookup("Plugin")
-	if err != nil {
-		return nil, err
-	}
-	i, ok := pl.(types.Plugin)
-	if !ok {
-		return nil, err
-	}
-	return i, nil
+func LoadPlugin(name string) (types.Plugin, error) {
+	return pluginRegistry.get(name)
 }
 
 func parsePluginSpec(pluginPath string) (types.PluginSpec, error) {

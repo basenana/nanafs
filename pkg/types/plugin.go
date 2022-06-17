@@ -46,6 +46,7 @@ type MirrorPlugin interface {
 
 // PluginSpec is Plugin Config File to load a Plugin
 type PluginSpec struct {
+	Name       string            `json:"name"`
 	Type       string            `json:"type"`
 	Path       string            `json:"path"`
 	Parameters map[string]string `json:"parameters"`

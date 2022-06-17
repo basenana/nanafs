@@ -7,6 +7,7 @@ import (
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/files"
+	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/workflow"
 	"github.com/basenana/nanafs/utils"
@@ -85,6 +86,10 @@ func run(ctrl controller.Controller, cfg config.Config, stopCh chan struct{}) {
 		time.Sleep(time.Second * 5)
 		close(shutdown)
 	}()
+
+	if err := plugin.RunPluginLoader(cfg, shutdown); err != nil {
+		log.Panicw("init plugin loader failed", "err", err.Error())
+	}
 
 	if cfg.ApiConfig.Enable {
 		s, err := apis.NewApiServer(ctrl, cfg)
