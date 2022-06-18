@@ -40,7 +40,7 @@ func NewMetadata(name string, kind Kind) Metadata {
 		Labels:     Labels{},
 	}
 
-	if kind == GroupKind {
+	if IsGroup(kind) {
 		// as dir, default has self and '..' two links
 		result.RefCount = 2
 	}
@@ -51,6 +51,7 @@ type ExtendData struct {
 	Properties  *Properties `json:"properties,omitempty"`
 	Annotation  *Annotation `json:"annotation,omitempty"`
 	GroupFilter *Rule       `json:"group_filter,omitempty"`
+	PlugScope   *PlugScope  `json:"plug_scope,omitempty"`
 }
 
 type Properties struct {
@@ -135,11 +136,17 @@ type Object struct {
 }
 
 func (o *Object) IsGroup() bool {
-	return o.Kind == GroupKind
+	return IsGroup(o.Kind)
 }
 
 func (o *Object) IsSmartGroup() bool {
 	return o.Kind == SmartGroupKind
+}
+
+type PlugScope struct {
+	PluginName string            `json:"plugin_name"`
+	PluginType PluginType        `json:"plugin_type"`
+	Parameters map[string]string `json:"parameters"`
 }
 
 func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {
