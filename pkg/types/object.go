@@ -6,6 +6,10 @@ import (
 	"time"
 )
 
+const (
+	objectNameMaxLength = 255
+)
+
 type Metadata struct {
 	ID         string    `json:"id"`
 	Name       string    `json:"name"`
@@ -150,6 +154,10 @@ type PlugScope struct {
 }
 
 func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {
+	if len(attr.Name) > objectNameMaxLength {
+		return nil, ErrNameTooLong
+	}
+
 	md := NewMetadata(attr.Name, attr.Kind)
 	md.Access = attr.Access
 	md.Dev = attr.Dev

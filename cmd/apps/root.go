@@ -72,6 +72,11 @@ var daemonCmd = &cobra.Command{
 		}
 		stop := utils.HandleTerminalSignal()
 		files.InitFileIoChain(cfg, sto, stop)
+
+		if err := plugin.RunPluginDaemon(meta, cfg, stop); err != nil {
+			panic(err)
+		}
+
 		run(ctrl, cfg, stop)
 	},
 }
@@ -86,10 +91,6 @@ func run(ctrl controller.Controller, cfg config.Config, stopCh chan struct{}) {
 		time.Sleep(time.Second * 5)
 		close(shutdown)
 	}()
-
-	if err := plugin.RunPluginLoader(cfg, shutdown); err != nil {
-		log.Panicw("init plugin loader failed", "err", err.Error())
-	}
 
 	if cfg.ApiConfig.Enable {
 		s, err := apis.NewApiServer(ctrl, cfg)

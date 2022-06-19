@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
@@ -22,10 +23,33 @@ const (
 
 var pluginRegistry *registry
 
+func RunPluginDaemon(meta storage.MetaStore, config config.Config, stopCh chan struct{}) error {
+	base := DefaultPluginPath
+	if config.Plugin.BasePath != "" {
+		base = config.Plugin.BasePath
+	}
+	if os.Getenv(EnvBasePath) != "" {
+		base = os.Getenv(EnvBasePath)
+	}
+
+	pluginRegistry = &registry{
+		basePath: base,
+		plugins:  map[string]types.Plugin{},
+		logger:   logger.NewLogger("pluginRegistry"),
+	}
+	pluginRegistry.start(stopCh)
+
+	rtm := newPluginRuntime(meta, stopCh)
+	go rtm.run()
+
+	return nil
+}
+
 type registry struct {
 	basePath string
 	plugins  map[string]types.Plugin
 	species  map[string]types.PluginSpec
+	init     bool
 	mux      sync.RWMutex
 	logger   *zap.SugaredLogger
 }
@@ -71,6 +95,7 @@ func (r *registry) start(stopCh chan struct{}) {
 					}
 					pluginCh <- p
 				}
+				r.init = true
 				defer r.mux.Unlock()
 			}()
 		case <-stopCh:
@@ -101,25 +126,6 @@ func (r *registry) loadPlugin(spec types.PluginSpec) {
 
 	r.plugins[spec.Name] = p
 	r.species[spec.Name] = spec
-}
-
-func RunPluginLoader(config config.Config, stopCh chan struct{}) error {
-	base := DefaultPluginPath
-	if config.Plugin.BasePath != "" {
-		base = config.Plugin.BasePath
-	}
-	if os.Getenv(EnvBasePath) != "" {
-		base = os.Getenv(EnvBasePath)
-	}
-
-	pluginRegistry = &registry{
-		basePath: base,
-		plugins:  map[string]types.Plugin{},
-		logger:   logger.NewLogger("pluginRegistry"),
-	}
-	pluginRegistry.start(stopCh)
-
-	return nil
 }
 
 func LoadPlugin(name string) (types.Plugin, error) {

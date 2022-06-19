@@ -25,7 +25,7 @@ type Plugin interface {
 
 type ProcessPlugin interface {
 	Plugin
-	Run(ctx context.Context, object *Object) error
+	Run(ctx context.Context, object *Object, params map[string]string) error
 }
 
 type MetaPlugin interface {
@@ -34,14 +34,14 @@ type MetaPlugin interface {
 
 type SourcePlugin interface {
 	Plugin
-	Run(ctx context.Context) (<-chan *Object, error)
+	Run(ctx context.Context, parent *Object, params map[string]string) (<-chan SimpleFile, error)
 }
 
 type MirrorPlugin interface {
 	Plugin
-	LookUp(ctx context.Context, path string) (*Object, error)
-	List(ctx context.Context, path string) ([]*Object, error)
-	Open(ctx context.Context, path string, attr files.Attr) (files.File, error)
+	LookUp(ctx context.Context, path string, params map[string]string) (SimpleFile, error)
+	List(ctx context.Context, path string, params map[string]string) ([]SimpleFile, error)
+	Open(ctx context.Context, path string, attr files.Attr, params map[string]string) (SimpleFile, error)
 }
 
 // PluginSpec is Plugin Config File to load a Plugin
