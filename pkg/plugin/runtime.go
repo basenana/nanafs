@@ -142,7 +142,7 @@ func (r *runtime) runOnePlugin(pRun *run) {
 				_ = newFile.Close()
 				continue
 			}
-			updatePlugLabels(child)
+			updatePlugLabels(pRun.p, child)
 			obj.ChangedAt = time.Now()
 			obj.ModifiedAt = time.Now()
 			if err = r.meta.SaveObject(ctx, obj, child); err != nil {
@@ -199,6 +199,9 @@ func copyNewFileContent(ctx context.Context, newObj *types.Object, newFile types
 	return nil
 }
 
-// TODO
-func updatePlugLabels(obj *types.Object) {
+func updatePlugLabels(plug types.Plugin, obj *types.Object) {
+	obj.Labels.Labels = append(obj.Labels.Labels, types.Label{
+		Key:   types.PluginLabelName,
+		Value: plug.Name(),
+	})
 }

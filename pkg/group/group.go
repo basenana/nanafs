@@ -104,12 +104,17 @@ func (m *Manager) mirroredSmtGroupChildren(ctx context.Context, group Group) ([]
 		return nil, nil
 	}
 
-	pathAnn := group.ExtendData.Annotation.Get("")
-	files, err := plug.List(ctx, pathAnn.Content, group.ExtendData.PlugScope.Parameters)
+	pathAnn := group.ExtendData.Annotation.Get(types.PluginAnnPath)
+	path := pathAnn.Content
+	if path == "" {
+		path = "/"
+	}
+	files, err := plug.List(ctx, path, group.ExtendData.PlugScope.Parameters)
 	if err != nil {
 		m.logger.Errorw("run mirror plugin list method failed", "gid", group.ID, "plugin", group.ExtendData.PlugScope.PluginName, "err", err.Error())
 		return nil, err
 	}
+	// TODO
 	_ = files
 	return nil, nil
 }

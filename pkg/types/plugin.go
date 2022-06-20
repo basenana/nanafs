@@ -16,6 +16,9 @@ const (
 	PluginExecType   = "goplugin"
 	PluginBinType    = "bin"
 	PluginScriptType = "script"
+
+	PluginLabelName = "plugin.basenana.org/name"
+	PluginAnnPath   = "plugin.basenana.org/path"
 )
 
 type Plugin interface {
