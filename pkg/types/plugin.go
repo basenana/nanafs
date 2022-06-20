@@ -2,7 +2,6 @@ package types
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/files"
 )
 
 type PluginType string
@@ -44,7 +43,7 @@ type MirrorPlugin interface {
 	Plugin
 	LookUp(ctx context.Context, path string, params map[string]string) (SimpleFile, error)
 	List(ctx context.Context, path string, params map[string]string) ([]SimpleFile, error)
-	Open(ctx context.Context, path string, attr files.Attr, params map[string]string) (SimpleFile, error)
+	Open(ctx context.Context, path string, attr OpenAttr, params map[string]string) (SimpleFile, error)
 }
 
 // PluginSpec is Plugin Config File to load a Plugin

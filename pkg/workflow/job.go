@@ -150,7 +150,7 @@ func (n *NanaTask) Setup(ctx *flow.Context) error {
 }
 
 func (n *NanaTask) Do(ctx *flow.Context) error {
-	err := n.plugin.Run(ctx, n.object)
+	err := n.plugin.Run(ctx, n.object, map[string]string{})
 	if err != nil {
 		ctx.Fail(fmt.Sprintf("err %v", err), 3)
 		return err

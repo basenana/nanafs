@@ -37,7 +37,7 @@ func RunPluginDaemon(meta storage.MetaStore, config config.Config, stopCh chan s
 		plugins:  map[string]types.Plugin{},
 		logger:   logger.NewLogger("pluginRegistry"),
 	}
-	pluginRegistry.start(stopCh)
+	go pluginRegistry.start(stopCh)
 
 	rtm := newPluginRuntime(meta, stopCh)
 	go rtm.run()

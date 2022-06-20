@@ -20,3 +20,11 @@ type ChangeParentAttr struct {
 }
 
 type ChangeParentOption struct{}
+
+type OpenAttr struct {
+	Read   bool
+	Write  bool
+	Create bool
+	Trunc  bool
+	Direct bool
+}
