@@ -1,13 +1,13 @@
 package workflow
 
 import (
+	"context"
 	"github.com/basenana/go-flow/controller"
 	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/go-flow/fsm"
 	"github.com/basenana/nanafs/config"
 	ctrl "github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/files"
-	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	. "github.com/onsi/ginkgo"
@@ -40,7 +40,7 @@ func (f fakePlugin) Name() string {
 	return "fake"
 }
 
-func (f fakePlugin) Run(object *types.Object) error {
+func (f fakePlugin) Run(ctx context.Context, object *types.Object) error {
 	return nil
 }
 
@@ -70,7 +70,7 @@ var _ = Describe("TestWorkflow", func() {
 			It("should be ok", func() {
 				rule := &types.Rule{}
 				f := types.Object{}
-				w := NewWorkflow("test", rule, []plugin.Plugin{fakePlugin})
+				w := NewWorkflow("test", rule, []types.ProcessPlugin{fakePlugin})
 				jobObj := types.Object{}
 				job, _, err := NewNanaJob(ctl, w, &jobObj, &f)
 				Expect(err).Should(BeNil())
