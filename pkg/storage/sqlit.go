@@ -162,6 +162,41 @@ func (s *sqliteMetaStore) DeleteContent(ctx context.Context, obj *types.Object, 
 	return err
 }
 
+func (s *sqliteMetaStore) ListObjectWorkflows(ctx context.Context, filter types.WorkflowFilter) ([]*types.ObjectWorkflow, error) {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
+	defer utils.TraceRegion(ctx, "sqlite.listobjectworkflows")()
+	wfs, err := db.ListObjectWorkflows(ctx, s.db, filter)
+	if err != nil {
+		s.logger.Errorw("list object workflows failed", "err", err.Error())
+		return nil, err
+	}
+	return wfs, nil
+}
+
+func (s *sqliteMetaStore) SaveObjectWorkflow(ctx context.Context, objWF *types.ObjectWorkflow) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	defer utils.TraceRegion(ctx, "sqlite.saveobjectworkflow")()
+	if err := db.SaveObjectWorkflow(ctx, s.db, objWF); err != nil {
+		s.logger.Errorw("save object workflow failed", "id", objWF.Id, "err", err.Error())
+		return err
+	}
+	return nil
+}
+
+func (s *sqliteMetaStore) DeleteObjectWorkflow(ctx context.Context, id string) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	defer utils.TraceRegion(ctx, "sqlite.deleteobjectworkflow")()
+	err := db.DeleteObjectWorkflow(ctx, s.db, id)
+	if err != nil {
+		s.logger.Errorw("delete object content failed", "id", id, "err", err.Error())
+		return err
+	}
+	return err
+}
+
 func newSqliteMetaStore(meta config.Meta) (*sqliteMetaStore, error) {
 	dbConn, err := sqlx.Open("sqlite", meta.Path)
 	if err != nil {

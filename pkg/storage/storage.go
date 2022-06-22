@@ -38,6 +38,10 @@ type MetaStore interface {
 	SaveObject(ctx context.Context, parent, obj *types.Object) error
 	DestroyObject(ctx context.Context, src, parent, obj *types.Object) error
 
+	ListObjectWorkflows(ctx context.Context, filter types.WorkflowFilter) ([]*types.ObjectWorkflow, error)
+	SaveObjectWorkflow(ctx context.Context, objWF *types.ObjectWorkflow) error
+	DeleteObjectWorkflow(ctx context.Context, id string) error
+
 	ListChildren(ctx context.Context, obj *types.Object) (Iterator, error)
 	MirrorObject(ctx context.Context, srcObj, dstParent, object *types.Object) error
 	ChangeParent(ctx context.Context, srcParent, dstParent, obj *types.Object, opt types.ChangeParentOption) error

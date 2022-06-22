@@ -1,6 +1,7 @@
 package apps
 
 import (
+	"context"
 	"github.com/basenana/nanafs/cmd/apps/apis"
 	configapp "github.com/basenana/nanafs/cmd/apps/config"
 	"github.com/basenana/nanafs/cmd/apps/fs"
@@ -71,6 +72,14 @@ var daemonCmd = &cobra.Command{
 		}
 		stop := utils.HandleTerminalSignal()
 		files.InitFileIoChain(cfg, sto, stop)
+		wfManager, err := workflow.NewWorkflowManager(ctrl, meta)
+		if err != nil {
+			panic(err)
+		}
+
+		if err = wfManager.Run(context.TODO()); err != nil {
+			panic(err)
+		}
 		run(ctrl, cfg, stop)
 	},
 }
@@ -102,13 +111,6 @@ func run(ctrl controller.Controller, cfg config.Config, stopCh chan struct{}) {
 		fsServer.SetDebug(cfg.Debug)
 		err = fsServer.Start(stopCh)
 		if err != nil {
-			panic(err)
-		}
-		wfManager, err := workflow.NewWorkflowManager(ctrl)
-		if err != nil {
-			panic(err)
-		}
-		if err = wfManager.Run(); err != nil {
 			panic(err)
 		}
 	}

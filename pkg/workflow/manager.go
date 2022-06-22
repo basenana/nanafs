@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/plugin"
+	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
@@ -12,19 +13,21 @@ import (
 	"go.uber.org/zap"
 	"strings"
 	"sync"
+	"time"
 )
 
 type Manager struct {
 	sync.RWMutex
 	logger *zap.SugaredLogger
 	ctrl   controller.Controller
+	meta   storage.MetaStore
 
 	wfParent  *types.Object
 	jobParent *types.Object
 	workflows map[string]*Workflow
 }
 
-func NewWorkflowManager(ctrl controller.Controller) (*Manager, error) {
+func NewWorkflowManager(ctrl controller.Controller, meta storage.MetaStore) (*Manager, error) {
 	root, err := ctrl.LoadRootObject(context.TODO())
 	if err != nil {
 		return nil, err
@@ -64,6 +67,7 @@ func NewWorkflowManager(ctrl controller.Controller) (*Manager, error) {
 	}
 	return &Manager{
 		ctrl:      ctrl,
+		meta:      meta,
 		logger:    logger.NewLogger("WorkflowManager"),
 		wfParent:  wfParent,
 		jobParent: jobParent,
@@ -71,20 +75,50 @@ func NewWorkflowManager(ctrl controller.Controller) (*Manager, error) {
 	}, nil
 }
 
-func (m *Manager) Run() error {
-	_, err := bus.Subscribe("object.workflow.*.close", m.WorkFlowHandler)
-	if err != nil {
+func (m *Manager) Run(ctx context.Context) error {
+	if _, err := bus.Subscribe("object.workflow.*.close", m.WorkFlowHandler); err != nil {
 		return err
 	}
-	_, err = bus.Subscribe("object.file.*.close", m.FileSaveHandler)
-	if err != nil {
+	if _, err := bus.Subscribe("object.file.*.close", m.FileSaveHandler); err != nil {
+		return err
+	}
+	if _, err := bus.Subscribe("object.entry.*.destroy", m.FileDeleteHandler); err != nil {
+		return err
+	}
+	if _, err := bus.Subscribe("object.workflow.*.destroy", m.WorkFlowDestroyHandler); err != nil {
 		return err
 	}
 
-	_, err = bus.Subscribe("object.workflow.*.destroy", m.WorkFlowDestroyHandler)
-	if err != nil {
-		return err
-	}
+	go func() {
+		d := time.Duration(time.Second * 10)
+		ticker := time.NewTicker(d)
+
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				then := time.Now().Add(-10 * time.Minute)
+				filter := types.WorkflowFilter{
+					Synced:    false,
+					UpdatedAt: &then,
+				}
+				objWF, err := m.meta.ListObjectWorkflows(ctx, filter)
+				if err != nil {
+					return
+				}
+				for _, o := range objWF {
+					obj, err := m.meta.GetObject(ctx, o.Id)
+					if err != nil {
+						continue
+					}
+					m.handle(obj)
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 	return nil
 }
 
@@ -129,6 +163,32 @@ func (m *Manager) FileSaveHandler(obj *types.Object) {
 	if m.skipFiles(obj) {
 		return
 	}
+
+	objWF := types.ObjectWorkflow{
+		Id:     obj.ID,
+		Synced: false,
+	}
+	err := m.meta.SaveObjectWorkflow(context.TODO(), &objWF)
+	if err != nil {
+		m.logger.Errorf("save object workflow error: %v", err)
+	}
+}
+
+func (m *Manager) FileDeleteHandler(obj *types.Object) {
+	if m.skipFiles(obj) {
+		return
+	}
+
+	err := m.meta.DeleteObjectWorkflow(context.TODO(), obj.ID)
+	if err != nil {
+		m.logger.Errorf("delete object workflow error: %v", err)
+	}
+}
+
+func (m *Manager) handle(obj *types.Object) {
+	if m.skipFiles(obj) {
+		return
+	}
 	m.RLock()
 	workflows := m.workflows
 	m.RUnlock()
@@ -162,6 +222,16 @@ func (m *Manager) FileSaveHandler(obj *types.Object) {
 				m.logger.Errorw("job %s runs error: %v", job.Id, err)
 			}
 		}()
+	}
+
+	objWF := types.ObjectWorkflow{
+		Id:     obj.ID,
+		Synced: true,
+	}
+	err := m.meta.SaveObjectWorkflow(context.TODO(), &objWF)
+	if err != nil {
+		m.logger.Errorf("save object workflow error: %v", err)
+		return
 	}
 }
 
