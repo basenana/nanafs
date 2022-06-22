@@ -68,24 +68,18 @@ func (r *registry) start(stopCh chan struct{}) {
 	ticker := time.NewTicker(DefaultRegisterPeriod)
 	defer ticker.Stop()
 
-	pluginCh := make(chan types.PluginSpec, 1)
-
-	go func() {
-		for spec := range pluginCh {
-			r.loadPlugin(spec)
-		}
-	}()
-
 	for {
 		select {
 		case <-ticker.C:
 			func() {
 				r.mux.Lock()
+				defer r.mux.Unlock()
 				d, err := ioutil.ReadDir(r.basePath)
 				if err != nil {
 					r.logger.Errorw("load plugin config failed", "basePath", r.basePath, "err", err.Error())
 					return
 				}
+				plugNames := make(map[string]struct{})
 				for _, fi := range d {
 					pName := filepath.Join(r.basePath, fi.Name())
 					p, err := parsePluginSpec(pName)
@@ -93,10 +87,15 @@ func (r *registry) start(stopCh chan struct{}) {
 						r.logger.Warnf("plugin %s can't be parse", pName)
 						continue
 					}
-					pluginCh <- p
+					r.loadPlugin(p)
+					plugNames[p.Name] = struct{}{}
+				}
+				for pName := range r.plugins {
+					if _, ok := plugNames[pName]; !ok {
+						delete(r.plugins, pName)
+					}
 				}
 				r.init = true
-				defer r.mux.Unlock()
 			}()
 		case <-stopCh:
 			r.logger.Infow("stopped")
@@ -143,5 +142,22 @@ func parsePluginSpec(pluginPath string) (types.PluginSpec, error) {
 	if err = json.NewDecoder(f).Decode(&spec); err != nil {
 		return types.PluginSpec{}, err
 	}
+
+	if spec.Name == "" {
+		return types.PluginSpec{}, fmt.Errorf("plugin name was empty")
+	}
+	switch spec.Type {
+	case types.PluginExecType:
+	case types.PluginBinType:
+	case types.PluginScriptType:
+	default:
+		return types.PluginSpec{}, fmt.Errorf("plugin type %s no def", spec.Type)
+	}
+
+	_, err = os.Stat(spec.Path)
+	if err != nil {
+		return types.PluginSpec{}, fmt.Errorf("stat plugin failed: %s", err.Error())
+	}
+
 	return spec, nil
 }
