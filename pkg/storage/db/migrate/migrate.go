@@ -165,7 +165,7 @@ func (m *Migrate) exec(revList []string, reversion string, upgrade bool) error {
 			_ = tx.Rollback()
 			return fmt.Errorf("tx commit reversion %s failed: %s, rollback: %v", revList[i], err.Error(), tx.Rollback())
 		}
-		m.logger.Infow("migrate to %s succeed", revList[i])
+		m.logger.Infof("migrate to %s succeed", revList[i])
 	}
 
 	return nil

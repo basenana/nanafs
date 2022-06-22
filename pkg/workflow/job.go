@@ -6,7 +6,6 @@ import (
 	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/go-flow/fsm"
 	"github.com/basenana/nanafs/pkg/controller"
-	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/types"
 	"go.uber.org/zap"
 )
@@ -102,7 +101,7 @@ type NanaTask struct {
 	status  fsm.Status
 	object  *types.Object
 
-	plugin plugin.Plugin
+	plugin types.ProcessPlugin
 }
 
 func (n *NanaTask) GetStatus() fsm.Status {
@@ -151,7 +150,7 @@ func (n *NanaTask) Setup(ctx *flow.Context) error {
 }
 
 func (n *NanaTask) Do(ctx *flow.Context) error {
-	err := n.plugin.Run(n.object)
+	err := n.plugin.Run(ctx, n.object, map[string]string{})
 	if err != nil {
 		ctx.Fail(fmt.Sprintf("err %v", err), 3)
 		return err

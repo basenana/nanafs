@@ -7,7 +7,8 @@ const (
 	/*
 		system-wide kind
 	*/
-	GroupKind = "group"
+	GroupKind      = "group"
+	SmartGroupKind = "smtgroup"
 
 	/*
 		text based file kind
@@ -54,3 +55,11 @@ const (
 	BlkDevKind  = "blk"
 	CharDevKind = "chr"
 )
+
+func IsGroup(k Kind) bool {
+	switch k {
+	case GroupKind, SmartGroupKind:
+		return true
+	}
+	return false
+}

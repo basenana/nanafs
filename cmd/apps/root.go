@@ -8,6 +8,7 @@ import (
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/files"
+	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/workflow"
 	"github.com/basenana/nanafs/utils"
@@ -80,6 +81,11 @@ var daemonCmd = &cobra.Command{
 		if err = wfManager.Run(context.TODO()); err != nil {
 			panic(err)
 		}
+
+		if err := plugin.RunPluginDaemon(meta, cfg, stop); err != nil {
+			panic(err)
+		}
+
 		run(ctrl, cfg, stop)
 	},
 }

@@ -2,21 +2,25 @@ package dentry
 
 import (
 	"encoding/base64"
+	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
+)
+
+const (
+	InternalAnnPrefix = "internal.basenana.org"
 )
 
 func AddInternalAnnotation(obj *types.Object, key, value string, encode bool) {
 	obj.ExtendData.Annotation.Add(&types.AnnotationItem{
-		Key:        key,
-		Content:    value,
-		IsInternal: true,
-		Encode:     encode,
+		Key:     fmt.Sprintf("%s/%s", InternalAnnPrefix, key),
+		Content: value,
+		Encode:  encode,
 	})
 }
 
 func GetInternalAnnotation(obj *types.Object, key string) *types.AnnotationItem {
 	if obj.ExtendData.Annotation != nil {
-		item := obj.ExtendData.Annotation.Get(key, true)
+		item := obj.ExtendData.Annotation.Get(fmt.Sprintf("%s/%s", InternalAnnPrefix, key))
 		return item
 	}
 	return nil

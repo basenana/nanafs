@@ -6,6 +6,10 @@ import (
 	"time"
 )
 
+const (
+	objectNameMaxLength = 255
+)
+
 type Metadata struct {
 	ID         string    `json:"id"`
 	Name       string    `json:"name"`
@@ -40,7 +44,7 @@ func NewMetadata(name string, kind Kind) Metadata {
 		Labels:     Labels{},
 	}
 
-	if kind == GroupKind {
+	if IsGroup(kind) {
 		// as dir, default has self and '..' two links
 		result.RefCount = 2
 	}
@@ -48,8 +52,10 @@ func NewMetadata(name string, kind Kind) Metadata {
 }
 
 type ExtendData struct {
-	Properties *Properties `json:"properties,omitempty"`
-	Annotation *Annotation `json:"annotation,omitempty"`
+	Properties  *Properties `json:"properties,omitempty"`
+	Annotation  *Annotation `json:"annotation,omitempty"`
+	GroupFilter *Rule       `json:"group_filter,omitempty"`
+	PlugScope   *PlugScope  `json:"plug_scope,omitempty"`
 }
 
 type Properties struct {
@@ -84,16 +90,11 @@ func (a *Annotation) Add(newA *AnnotationItem) {
 	a.Annotations = append(a.Annotations, *newA)
 }
 
-func (a *Annotation) Get(key string, withInternal bool) *AnnotationItem {
+func (a *Annotation) Get(key string) *AnnotationItem {
 	for i := range a.Annotations {
 		ann := a.Annotations[i]
 		if ann.Key != key {
 			continue
-		}
-		if ann.IsInternal {
-			if !withInternal {
-				return nil
-			}
 		}
 		return &ann
 	}
@@ -115,10 +116,9 @@ func (a *Annotation) Remove(key string) {
 }
 
 type AnnotationItem struct {
-	Key        string `json:"key"`
-	Content    string `json:"content"`
-	IsInternal bool   `json:"is_internal"`
-	Encode     bool   `json:"encode"`
+	Key     string `json:"key"`
+	Content string `json:"content"`
+	Encode  bool   `json:"encode"`
 }
 
 type CustomColumn struct {
@@ -140,10 +140,24 @@ type Object struct {
 }
 
 func (o *Object) IsGroup() bool {
-	return o.Kind == GroupKind
+	return IsGroup(o.Kind)
+}
+
+func (o *Object) IsSmartGroup() bool {
+	return o.Kind == SmartGroupKind
+}
+
+type PlugScope struct {
+	PluginName string            `json:"plugin_name"`
+	PluginType PluginType        `json:"plugin_type"`
+	Parameters map[string]string `json:"parameters"`
 }
 
 func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {
+	if len(attr.Name) > objectNameMaxLength {
+		return nil, ErrNameTooLong
+	}
+
 	md := NewMetadata(attr.Name, attr.Kind)
 	md.Access = attr.Access
 	md.Dev = attr.Dev
