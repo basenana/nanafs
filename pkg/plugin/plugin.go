@@ -110,7 +110,7 @@ func (r *registry) loadPlugin(spec types.PluginSpec) {
 		err error
 	)
 	switch spec.Type {
-	case types.PluginExecType:
+	case types.PluginLibType:
 		p, err = NewGoPlugin(spec)
 	case types.PluginBinType:
 		p, err = NewBinPluginAdaptor(spec)
@@ -147,7 +147,7 @@ func parsePluginSpec(pluginPath string) (types.PluginSpec, error) {
 		return types.PluginSpec{}, fmt.Errorf("plugin name was empty")
 	}
 	switch spec.Type {
-	case types.PluginExecType:
+	case types.PluginLibType:
 	case types.PluginBinType:
 	case types.PluginScriptType:
 	default:

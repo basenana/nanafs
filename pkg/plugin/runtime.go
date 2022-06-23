@@ -132,22 +132,9 @@ func (r *runtime) runOnePlugin(pRun *run) {
 				continue
 			}
 
-			child, err := types.InitNewObject(pRun.obj, types.ObjectAttr{
-				Name:   newFile.Name,
-				Kind:   types.RawKind,
-				Access: pRun.obj.Access,
-			})
+			child, err := r.fetchOrCreatFile(ctx, pRun.p, obj, newFile.Name)
 			if err != nil {
 				r.logger.Warnw("build new object failed", "runId", pRun.id, "err", err.Error())
-				_ = newFile.Close()
-				continue
-			}
-			updatePlugLabels(pRun.p, child)
-			obj.ChangedAt = time.Now()
-			obj.ModifiedAt = time.Now()
-			if err = r.meta.SaveObject(ctx, obj, child); err != nil {
-				r.logger.Warnw("save new object failed", "runId", pRun.id, "err", err.Error())
-				_ = newFile.Close()
 				continue
 			}
 			pRun.obj = obj
@@ -157,6 +144,35 @@ func (r *runtime) runOnePlugin(pRun *run) {
 			}
 		}
 	}
+}
+func (r *runtime) fetchOrCreatFile(ctx context.Context, p types.Plugin, parent *types.Object, name string) (*types.Object, error) {
+	chIt, err := r.meta.ListChildren(ctx, parent)
+	if err != nil {
+		return nil, fmt.Errorf("list children failed: %s", err.Error())
+	}
+
+	for chIt.HasNext() {
+		ch := chIt.Next()
+		if ch.Name == name {
+			return ch, nil
+		}
+	}
+
+	child, err := types.InitNewObject(parent, types.ObjectAttr{
+		Name:   name,
+		Kind:   types.RawKind,
+		Access: parent.Access,
+	})
+	if err != nil {
+		return nil, err
+	}
+	updatePlugLabels(p, child)
+	parent.ChangedAt = time.Now()
+	parent.ModifiedAt = time.Now()
+	if err = r.meta.SaveObject(ctx, parent, child); err != nil {
+		return nil, err
+	}
+	return child, nil
 }
 
 func newPluginRuntime(meta storage.MetaStore, stopCh chan struct{}) *runtime {
@@ -168,7 +184,11 @@ func newPluginRuntime(meta storage.MetaStore, stopCh chan struct{}) *runtime {
 	}
 }
 
-func copyNewFileContent(ctx context.Context, newObj *types.Object, newFile types.SimpleFile) error {
+func copyNewFileContent(ctx context.Context, newObj *types.Object, sf types.SimpleFile) error {
+	newFile, err := sf.Open()
+	if err != nil {
+		return err
+	}
 	defer newFile.Close()
 	f, err := files.Open(ctx, newObj, files.Attr{
 		Write:  true,

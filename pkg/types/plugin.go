@@ -12,7 +12,7 @@ const (
 	PluginTypeProcess PluginType = "process"
 	PluginTypeMirror  PluginType = "mirror"
 
-	PluginExecType   = "goplugin"
+	PluginLibType    = "goplugin"
 	PluginBinType    = "bin"
 	PluginScriptType = "script"
 

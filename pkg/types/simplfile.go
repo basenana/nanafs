@@ -1,13 +1,21 @@
 package types
 
-import "io"
+import (
+	"go/types"
+	"io"
+)
+
+const (
+	MirrorSourceLabelKey = "mirror.basenana.org/source"
+)
 
 type SimpleFile struct {
 	Name    string
 	IsGroup bool
-	io.ReadWriteCloser
+	Source  string
+	Open    func() (io.ReadWriteCloser, error)
 }
 
-func NewMirroredObject(sf SimpleFile) {
-
+func NewMirroredObject(sf SimpleFile) types.Object {
+	return nil
 }
