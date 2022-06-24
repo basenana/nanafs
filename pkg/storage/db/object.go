@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/jmoiron/sqlx"
+	"time"
 )
 
 func GetObjectByID(ctx context.Context, db *sqlx.DB, oid string) (result *types.Object, err error) {
@@ -293,6 +294,95 @@ func DeleteObjectContent(ctx context.Context, db *sqlx.DB, id string) error {
 
 func deleteObjectContent(ctx context.Context, tx *sqlx.Tx, id string) error {
 	cnt := ObjectContent{}
+	if err := Query(tx, cnt).Where("id", "=", id).Get(&cnt); err != nil {
+		if err == sql.ErrNoRows {
+			return nil
+		}
+		return err
+	}
+	return Exec(tx, &cnt).Delete(cnt.ID)
+}
+
+func GetObjectWorkflow(ctx context.Context, db *sqlx.DB, id string) ([]byte, error) {
+	cnt := ObjectContent{}
+	if err := withTx(ctx, db, func(ctx context.Context, tx *sqlx.Tx) error {
+		queryErr := Query(tx, cnt).Where("id", "=", id).Get(&cnt)
+		if queryErr != nil {
+			if queryErr == sql.ErrNoRows {
+				return types.ErrNotFound
+			}
+			return queryErr
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return cnt.Data, nil
+}
+
+func ListObjectWorkflows(ctx context.Context, db *sqlx.DB, filter types.WorkflowFilter) ([]*types.ObjectWorkflow, error) {
+	var (
+		result []*types.ObjectWorkflow
+		fm     = types.WorkflowFilterObjectMapper(filter)
+	)
+	err := withTx(ctx, db, func(ctx context.Context, tx *sqlx.Tx) error {
+		q := Query(tx, &ObjectWorkflow{})
+		if len(fm) > 0 {
+			for _, o := range fm {
+				q = q.Where(o.Key, o.Operation, o.Value)
+			}
+		}
+
+		objList := make([]ObjectWorkflow, 0)
+		if err := q.List(&objList); err != nil {
+			return err
+		}
+
+		for _, o := range objList {
+			result = append(result, &types.ObjectWorkflow{
+				Id:        o.ID,
+				Synced:    o.Synced,
+				CreatedAt: o.CreatedAt,
+				UpdatedAt: o.UpdatedAt,
+			})
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func SaveObjectWorkflow(ctx context.Context, db *sqlx.DB, obj *types.ObjectWorkflow) error {
+	return withTx(ctx, db, func(ctx context.Context, tx *sqlx.Tx) error {
+		cnt := ObjectWorkflow{
+			ID: obj.Id,
+		}
+		if err := Query(tx, cnt).Where("id", "=", obj.Id).Get(&cnt); err != nil {
+			if err == sql.ErrNoRows {
+				cnt.UpdatedAt = time.Now()
+				cnt.CreatedAt = time.Now()
+				cnt.Synced = obj.Synced
+				return Exec(tx, &cnt).Insert()
+			}
+			return err
+		}
+		cnt.UpdatedAt = time.Now()
+		cnt.Synced = obj.Synced
+		return Exec(tx, &cnt).Update()
+	})
+}
+
+func DeleteObjectWorkflow(ctx context.Context, db *sqlx.DB, id string) error {
+	return withTx(ctx, db, func(ctx context.Context, tx *sqlx.Tx) error {
+		return deleteObjectWorkflow(ctx, tx, id)
+	})
+}
+
+func deleteObjectWorkflow(ctx context.Context, tx *sqlx.Tx, id string) error {
+	cnt := ObjectWorkflow{}
 	if err := Query(tx, cnt).Where("id", "=", id).Get(&cnt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil

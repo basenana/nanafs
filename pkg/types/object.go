@@ -174,3 +174,10 @@ func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {
 	}
 	return newObj, nil
 }
+
+type ObjectWorkflow struct {
+	Id        string
+	Synced    bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}

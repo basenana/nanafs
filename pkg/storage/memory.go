@@ -24,6 +24,21 @@ type memoryMetaStore struct {
 	mux        sync.Mutex
 }
 
+func (m *memoryMetaStore) DeleteObjectWorkflow(ctx context.Context, id string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *memoryMetaStore) ListObjectWorkflows(ctx context.Context, filter types.WorkflowFilter) ([]*types.ObjectWorkflow, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *memoryMetaStore) SaveObjectWorkflow(ctx context.Context, objWF *types.ObjectWorkflow) error {
+	//TODO implement me
+	panic("implement me")
+}
+
 var _ MetaStore = &memoryMetaStore{}
 
 func (m *memoryMetaStore) GetObject(ctx context.Context, id string) (*types.Object, error) {

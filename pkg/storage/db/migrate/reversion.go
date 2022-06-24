@@ -30,4 +30,8 @@ func init() {
 		upgrade:   reversion20220520Upgrade,
 		downgrade: reversion20220520Downgrade,
 	})
+	register(reversion20220619, reversion{
+		upgrade:   reversion20220619Upgrade,
+		downgrade: reversion20220619Downgrade,
+	})
 }
