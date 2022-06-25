@@ -1,7 +1,9 @@
 package plugin
 
 import (
+	"context"
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils/logger"
 	"testing"
@@ -17,6 +19,8 @@ func NewMockStorage() storage.Storage {
 
 func NewMockMeta() storage.MetaStore {
 	m, _ := storage.NewMetaStorage("memory", config.Meta{})
+	root := dentry.InitRootObject()
+	_ = m.SaveObject(context.TODO(), nil, root)
 	return m
 }
 

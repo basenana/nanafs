@@ -45,8 +45,18 @@ func (r *runtime) run() {
 			r.scanObjects()
 		case <-r.globalStopCh:
 			r.logger.Infow("closed")
+			r.shutdown()
 			return
 		}
+	}
+}
+
+func (r *runtime) shutdown() {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+	for rID, pRun := range r.pluginRuns {
+		close(pRun.stopCh)
+		r.logger.Infof("plugin %s stopped", rID)
 	}
 }
 
@@ -94,10 +104,12 @@ func (r *runtime) trigger(obj *types.Object, p types.Plugin) {
 }
 
 func (r *runtime) runOnePlugin(pRun *run) {
+	r.logger.Infof("plugin %s started", pRun.id)
 	defer func() {
 		r.mux.Lock()
 		defer r.mux.Unlock()
-		close(pRun.stopCh)
+		// FIXME: what happen after plugin crashed
+		//close(pRun.stopCh)
 		delete(r.pluginRuns, pRun.id)
 	}()
 
