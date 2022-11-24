@@ -61,34 +61,7 @@ func (m *Manager) listGroupChildren(ctx context.Context, group Group) ([]*types.
 }
 
 func (m *Manager) filterSmtGroupChildren(ctx context.Context, group Group) ([]*types.Object, error) {
-	result := make([]*types.Object, 0)
-	if group.Rule == nil {
-		if group.ExtendData.PlugScope != nil && group.ExtendData.PlugScope.PluginType == types.PluginTypeMirror {
-			return m.mirroredSmtGroupChildren(ctx, group)
-		}
-		return result, nil
-	}
-
-	defer utils.TraceRegion(ctx, "group.filter")()
-	m.logger.Infow("list smart group children obj", "gid", group.ID)
-	labelSelector := group.Selector
-	if len(labelSelector.Include) == 0 && len(labelSelector.Exclude) == 0 {
-		m.logger.Warnf("group has no label selector, interrupt")
-		return result, nil
-	}
-
-	rawList, err := m.meta.ListObjects(ctx, types.Filter{Label: labelSelector})
-	if err != nil {
-		m.logger.Errorw("group selector object with label selector failed", "gid", group.ID, "err", err.Error())
-		return nil, err
-	}
-
-	for i, obj := range rawList {
-		if RuleMatch(group.Rule, obj) {
-			result = append(result, rawList[i])
-		}
-	}
-	return result, nil
+	return nil, nil
 }
 
 func (m *Manager) mirroredSmtGroupChildren(ctx context.Context, group Group) ([]*types.Object, error) {
@@ -98,13 +71,13 @@ func (m *Manager) mirroredSmtGroupChildren(ctx context.Context, group Group) ([]
 		return nil, err
 	}
 
-	plug, ok := p.(types.MirrorPlugin)
+	plug, ok := p.(plugin.MirrorPlugin)
 	if !ok {
 		m.logger.Warnw("no mirror plugin", "gid", group.ID, "plugin", group.ExtendData.PlugScope.PluginName)
 		return nil, nil
 	}
 
-	pathAnn := group.ExtendData.Annotation.Get(types.PluginAnnPath)
+	pathAnn := group.ExtendData.Annotation.Get(plugin.PluginAnnPath)
 	path := pathAnn.Content
 	if path == "" {
 		path = "/"

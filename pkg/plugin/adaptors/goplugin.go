@@ -1,8 +1,8 @@
-package plugin
+package adaptors
 
 import (
 	"fmt"
-	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/pkg/plugin"
 	goplugin "plugin"
 )
 
@@ -13,7 +13,7 @@ const (
 	currentGoPluginVersion = "1.0"
 )
 
-func NewGoPlugin(spec types.PluginSpec) (types.Plugin, error) {
+func NewGoPlugin(spec plugin.Spec) (plugin.Plugin, error) {
 	p, err := goplugin.Open(spec.Path)
 	if err != nil {
 		return nil, err
@@ -35,7 +35,7 @@ func NewGoPlugin(spec types.PluginSpec) (types.Plugin, error) {
 	if err != nil {
 		return nil, err
 	}
-	i, ok := pl.(types.Plugin)
+	i, ok := pl.(plugin.Plugin)
 	if !ok {
 		return nil, fmt.Errorf("plugin not implemented types.Plugin")
 	}

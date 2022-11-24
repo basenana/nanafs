@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/plugin/adaptors"
 	"github.com/basenana/nanafs/pkg/types"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -12,7 +13,7 @@ import (
 
 var _ = Describe("TestRunOnePlugin", func() {
 	var (
-		meta    = NewMockMeta()
+		meta    = adaptors.NewMockMeta()
 		stopCh  = make(chan struct{})
 		testDir *types.Object
 		r       *runtime

@@ -17,35 +17,26 @@ const (
 	pluginExecutionInterval = time.Minute * 15
 )
 
-type run struct {
-	id     string
-	p      types.Plugin
-	obj    *types.Object
-	params map[string]string
-	stopCh chan struct{}
-}
+var rt *runtime
 
 type runtime struct {
-	meta         storage.MetaStore
-	pluginRuns   map[string]*run
-	globalStopCh chan struct{}
-	mux          sync.Mutex
-	logger       *zap.SugaredLogger
+	basePath        string
+	meta            storage.MetaStore
+	pluginProcesses map[string]*process
+	mux             sync.Mutex
+	logger          *zap.SugaredLogger
 }
 
-func (r *runtime) run() {
+func (r *runtime) run(stopCh chan struct{}) {
 	ticker := time.NewTicker(pluginExecutionInterval)
+
+	defer r.shutdown()
 
 	for {
 		select {
 		case <-ticker.C:
-			if !pluginRegistry.init {
-				continue
-			}
 			r.scanObjects()
-		case <-r.globalStopCh:
-			r.logger.Infow("closed")
-			r.shutdown()
+		case <-stopCh:
 			return
 		}
 	}
@@ -54,63 +45,41 @@ func (r *runtime) run() {
 func (r *runtime) shutdown() {
 	r.mux.Lock()
 	defer r.mux.Unlock()
-	for rID, pRun := range r.pluginRuns {
+	for rID, pRun := range r.pluginProcesses {
 		close(pRun.stopCh)
 		r.logger.Infof("plugin %s stopped", rID)
 	}
+	r.logger.Infow("closed")
 }
 
-func (r *runtime) scanObjects() {
-	objectList, err := r.meta.ListObjects(context.Background(), types.Filter{Kind: types.SmartGroupKind})
-	if err != nil {
-		r.logger.Errorw("list smt groups failed", "err", err.Error())
-		return
-	}
-
-	for i := range objectList {
-		obj := objectList[i]
-		if obj.ExtendData.PlugScope == nil {
-			continue
-		}
-
-		plu, err := LoadPlugin(obj.ExtendData.PlugScope.PluginName)
-		if err != nil {
-			r.logger.Errorw("load group plugin failed", "oid", obj.ID, "plugin", obj.ExtendData.PlugScope.PluginName, "err", err.Error())
-			continue
-		}
-
-		r.trigger(obj, plu)
-	}
-}
-
-func (r *runtime) trigger(obj *types.Object, p types.Plugin) {
+func (r *runtime) trigger(obj *types.Object, p Plugin) {
 	rid := fmt.Sprintf("%s-%s", obj.ID, p.Name())
 	r.mux.Lock()
 	defer r.mux.Unlock()
 
-	if _, ok := r.pluginRuns[rid]; ok {
+	if _, ok := r.pluginProcesses[rid]; ok {
 		return
 	}
 
-	pRun := run{
+	pRun := process{
 		id:     rid,
 		obj:    obj,
 		p:      p,
 		params: obj.ExtendData.PlugScope.Parameters,
 		stopCh: make(chan struct{}),
 	}
-	r.pluginRuns[pRun.id] = &pRun
+	r.pluginProcesses[pRun.id] = &pRun
 	go r.runOnePlugin(&pRun)
 }
 
-func (r *runtime) runOnePlugin(pRun *run) {
+func (r *runtime) runOnePlugin(pRun *process) {
 	r.logger.Infof("plugin %s started", pRun.id)
 	defer func() {
 		r.mux.Lock()
 		defer r.mux.Unlock()
 		// FIXME: what happen after plugin crashed
 		//close(pRun.stopCh)
-		delete(r.pluginRuns, pRun.id)
+		delete(r.pluginProcesses, pRun.id)
 	}()
 
 	ctx, canF := context.WithCancel(context.Background())
@@ -120,8 +89,8 @@ func (r *runtime) runOnePlugin(pRun *run) {
 	}()
 
 	switch pRun.p.Type() {
-	case types.PluginTypeSource:
-		plug, ok := pRun.p.(types.SourcePlugin)
+	case PluginTypeSource:
+		plug, ok := pRun.p.(SourcePlugin)
 		if !ok {
 			r.logger.Warnw("not source plugin", "runId", pRun.id)
 			return
@@ -157,7 +126,7 @@ func (r *runtime) runOnePlugin(pRun *run) {
 		}
 	}
 }
-func (r *runtime) fetchOrCreatFile(ctx context.Context, p types.Plugin, parent *types.Object, name string) (*types.Object, error) {
+func (r *runtime) fetchOrCreatFile(ctx context.Context, p Plugin, parent *types.Object, name string) (*types.Object, error) {
 	chIt, err := r.meta.ListChildren(ctx, parent)
 	if err != nil {
 		return nil, fmt.Errorf("list children failed: %s", err.Error())
@@ -187,12 +156,20 @@ func (r *runtime) fetchOrCreatFile(ctx context.Context, p types.Plugin, parent *
 	return child, nil
 }
 
+type process struct {
+	id     string
+	p      Plugin
+	obj    *types.Object
+	params map[string]string
+	stopCh chan struct{}
+}
+
 func newPluginRuntime(meta storage.MetaStore, stopCh chan struct{}) *runtime {
 	return &runtime{
-		meta:         meta,
-		pluginRuns:   map[string]*run{},
-		globalStopCh: stopCh,
-		logger:       logger.NewLogger("pluginRuntime"),
+		meta:            meta,
+		pluginProcesses: map[string]*process{},
+		globalStopCh:    stopCh,
+		logger:          logger.NewLogger("pluginRuntime"),
 	}
 }
 
@@ -231,9 +208,13 @@ func copyNewFileContent(ctx context.Context, newObj *types.Object, sf types.Simp
 	return nil
 }
 
-func updatePlugLabels(plug types.Plugin, obj *types.Object) {
+func Call(plugin types.PlugScope) (Plugin, error) {
+	return nil, nil
+}
+
+func updatePlugLabels(plug Plugin, obj *types.Object) {
 	obj.Labels.Labels = append(obj.Labels.Labels, types.Label{
-		Key:   types.PluginLabelName,
+		Key:   PluginLabelName,
 		Value: plug.Name(),
 	})
 }

@@ -41,7 +41,7 @@ func (d dummyPlugin) Name() string {
 }
 
 func (d dummyPlugin) Type() types.PluginType {
-	return types.PluginLibType
+	return PluginLibType
 }
 
 type dummyFile struct {

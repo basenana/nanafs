@@ -147,6 +147,8 @@ func (o *Object) IsSmartGroup() bool {
 	return o.Kind == SmartGroupKind
 }
 
+type PluginType string
+
 type PlugScope struct {
 	PluginName string            `json:"plugin_name"`
 	PluginType PluginType        `json:"plugin_type"`

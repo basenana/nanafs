@@ -50,10 +50,10 @@ func NewWorkflowManager(ctrl controller.Controller) (*Manager, error) {
 		if err != nil {
 			return nil, err
 		}
-		plugins := make([]types.ProcessPlugin, 0)
+		plugins := make([]plugin.ProcessPlugin, 0)
 		for _, a := range w.Actions {
 			if plug, err := plugin.LoadPlugin(a); err == nil {
-				p, ok := plug.(types.ProcessPlugin)
+				p, ok := plug.(plugin.ProcessPlugin)
 				if !ok {
 					continue
 				}
@@ -103,10 +103,10 @@ func (m *Manager) WorkFlowHandler(obj *types.Object) {
 	if wf == nil {
 		return
 	}
-	plugins := make([]types.ProcessPlugin, 0)
+	plugins := make([]plugin.ProcessPlugin, 0)
 	for _, a := range wf.Actions {
 		if plug, err := plugin.LoadPlugin(a); err == nil {
-			p, ok := plug.(types.ProcessPlugin)
+			p, ok := plug.(plugin.ProcessPlugin)
 			if !ok {
 				continue
 			}
