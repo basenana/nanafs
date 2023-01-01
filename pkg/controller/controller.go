@@ -17,7 +17,6 @@ type Controller interface {
 	FileController
 	FsController
 	StructuredController
-	WorkflowController
 }
 
 type controller struct {

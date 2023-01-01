@@ -1,9 +1,14 @@
 package plugin
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/plugin/adaptors"
+	"github.com/basenana/nanafs/pkg/plugin/buildin"
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"io/ioutil"
 	"os"
@@ -12,84 +17,123 @@ import (
 	"time"
 )
 
-var pluginRegistry *registry
+var (
+	ErrNotFound = errors.New("PluginNotFound")
+)
 
-type Registry interface {
-	Autoload(stopCh chan struct{})
-	//Loaded() bool
+type pluginInfo struct {
+	Plugin
+	disable bool
+	buildIn bool
 }
 
 type registry struct {
 	basePath string
-	plugins  map[string]Plugin
-	species  map[string]Spec
-	init     bool
+	plugins  map[string]*pluginInfo
 	mux      sync.RWMutex
 	logger   *zap.SugaredLogger
 }
 
-func (r *registry) get(name string) (Plugin, error) {
+func newPluginRegistry(basePath string) *registry {
+	r := &registry{
+		basePath: basePath,
+		plugins:  map[string]*pluginInfo{},
+		logger:   logger.NewLogger("pluginRegistry"),
+	}
+	go r.AutoReload(context.Background(), DefaultRegisterPeriod)
+
+	return r
+}
+
+func (r *registry) Get(ctx context.Context, ps types.PlugScope) (Plugin, error) {
 	r.mux.RLock()
-	p, ok := r.plugins[name]
-	r.mux.RUnlock()
+	defer r.mux.RUnlock()
+	p, ok := r.plugins[ps.PluginName]
 	if !ok {
-		return nil, fmt.Errorf("plugin %s not found", name)
+		return nil, ErrNotFound
+	}
+	if p.Type() != ps.PluginType {
+		return nil, ErrNotFound
 	}
 	return p, nil
 }
 
-func (r *registry) Autoload(stopCh chan struct{}) {
-	ticker := time.NewTicker(DefaultRegisterPeriod)
-	defer ticker.Stop()
+func (r *registry) Reload(ctx context.Context) error {
+	r.mux.Lock()
 
+	d, err := ioutil.ReadDir(r.basePath)
+	if err != nil {
+		r.logger.Errorw("load plugin config failed", "basePath", r.basePath, "err", err.Error())
+		r.mux.Unlock()
+		return err
+	}
+
+	plugNames := make(map[string]struct{})
+	for _, fi := range d {
+		pluginSpec, err := readPluginSpec(r.basePath, fi.Name())
+		if err != nil {
+			r.logger.Warnf("plugin spec %s can't be parse: %s", fi.Name(), err.Error())
+			continue
+		}
+		r.loadPluginWithSpec(pluginSpec)
+		plugNames[pluginSpec.Name] = struct{}{}
+	}
+
+	r.mux.Lock()
+	for pName := range r.plugins {
+		if _, ok := plugNames[pName]; !ok {
+			delete(r.plugins, pName)
+		}
+	}
+	r.mux.Unlock()
+	return nil
+}
+
+func (r *registry) AutoReload(ctx context.Context, duration time.Duration) {
+	wfPlugin := buildin.InitWorkflowMirrorPlugin()
+	rssPlugin := buildin.InitRssSourcePlugin()
+
+	r.mux.Lock()
+	r.plugins[buildin.WorkflowMirrorPluginName] = &pluginInfo{
+		Plugin:  wfPlugin,
+		buildIn: true,
+	}
+	r.plugins[buildin.RssSourcePluginName] = &pluginInfo{
+		Plugin:  rssPlugin,
+		buildIn: true,
+	}
+	r.mux.Unlock()
+
+	ticker := time.NewTicker(duration)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
 			func() {
-				r.mux.Lock()
-				defer r.mux.Unlock()
-				d, err := ioutil.ReadDir(r.basePath)
-				if err != nil {
-					r.logger.Errorw("load plugin config failed", "basePath", r.basePath, "err", err.Error())
-					return
-				}
-				plugNames := make(map[string]struct{})
-				for _, fi := range d {
-					pName := filepath.Join(r.basePath, fi.Name())
-					p, err := parsePluginSpec(pName)
-					if err != nil {
-						r.logger.Warnf("plugin %s can't be parse", pName)
-						continue
-					}
-					r.loadPlugin(p)
-					plugNames[p.Name] = struct{}{}
-				}
-				for pName := range r.plugins {
-					if _, ok := plugNames[pName]; !ok {
-						delete(r.plugins, pName)
-					}
-				}
-				r.init = true
+				reloadCtx, canF := context.WithTimeout(context.Background(), duration)
+				defer canF()
+				_ = r.Reload(reloadCtx)
 			}()
-		case <-stopCh:
-			r.logger.Infow("stopped")
+		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-func (r *registry) loadPlugin(spec Spec) {
+func (r *registry) loadPluginWithSpec(spec types.PluginSpec) {
 	var (
 		p   Plugin
 		err error
 	)
 	switch spec.Type {
-	case PluginLibType:
-		p, err = adaptors.NewGoPlugin(spec)
-	case PluginBinType:
+	case adaptors.ExecTypeGoPlugin:
+		p, err = adaptors.NewGoPluginAdaptor(spec)
+	case adaptors.ExecTypeBin:
 		p, err = adaptors.NewBinPluginAdaptor(spec)
-	case PluginScriptType:
+	case adaptors.ExecTypeScript:
 		p, err = adaptors.NewScriptAdaptor(spec)
+	default:
+		r.logger.Warnf("load plugin %s failed: unknown plugin type %s", spec.Name, spec.Type)
 	}
 
 	if err != nil {
@@ -97,36 +141,43 @@ func (r *registry) loadPlugin(spec Spec) {
 		return
 	}
 
-	r.plugins[spec.Name] = p
-	r.species[spec.Name] = spec
+	r.mux.Lock()
+	r.plugins[spec.Name] = &pluginInfo{
+		Plugin:  p,
+		disable: false,
+	}
+	r.mux.Unlock()
 }
 
-func parsePluginSpec(pluginPath string) (Spec, error) {
+func readPluginSpec(basePath, pluginSpecFile string) (types.PluginSpec, error) {
+	pluginPath := filepath.Join(basePath, pluginSpecFile)
 	f, err := os.Open(pluginPath)
 	if err != nil {
-		return Spec{}, err
+		return types.PluginSpec{}, err
 	}
 	defer f.Close()
 
-	spec := Spec{}
+	spec := types.PluginSpec{}
 	if err = json.NewDecoder(f).Decode(&spec); err != nil {
-		return Spec{}, err
+		return types.PluginSpec{}, err
 	}
 
 	if spec.Name == "" {
-		return Spec{}, fmt.Errorf("plugin name was empty")
+		return types.PluginSpec{}, fmt.Errorf("plugin name was empty")
 	}
 	switch spec.Type {
-	case PluginLibType:
-	case PluginBinType:
-	case PluginScriptType:
+	case adaptors.ExecTypeGoPlugin:
+	case adaptors.ExecTypeBin:
+	case adaptors.ExecTypeScript:
 	default:
-		return Spec{}, fmt.Errorf("plugin type %s no def", spec.Type)
+		return types.PluginSpec{}, fmt.Errorf("plugin type %s no def", spec.Type)
 	}
 
-	_, err = os.Stat(spec.Path)
-	if err != nil {
-		return Spec{}, fmt.Errorf("stat plugin failed: %s", err.Error())
+	if spec.Path != "" {
+		_, err = os.Stat(spec.Path)
+		if err != nil {
+			return types.PluginSpec{}, fmt.Errorf("stat plugin failed: %s", err.Error())
+		}
 	}
 
 	return spec, nil

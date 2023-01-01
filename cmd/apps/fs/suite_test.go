@@ -71,11 +71,6 @@ func (m *MockController) SaveStructureObject(ctx context.Context, obj *types.Obj
 	panic("implement me")
 }
 
-func (m *MockController) GetJobs(ctx context.Context) map[string]*types.Job {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (m *MockController) ReadFile(ctx context.Context, file files.File, data []byte, offset int64) (n int, err error) {
 	//TODO implement me
 	panic("implement me")

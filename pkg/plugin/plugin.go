@@ -1,40 +1,42 @@
 package plugin
 
 import (
+	"context"
+	"fmt"
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/storage"
-	"github.com/basenana/nanafs/utils/logger"
-	"os"
+	"github.com/basenana/nanafs/pkg/plugin/common"
+	"github.com/basenana/nanafs/pkg/types"
 	"time"
 )
 
 const (
 	DefaultPluginPath     = "/var/lib/nanafs/plugins"
 	DefaultRegisterPeriod = time.Minute * 1
-	EnvBasePath           = "NANAFS_PLUGIN_PATH"
 )
 
-func Init(meta storage.MetaStore, config config.Config, stopCh chan struct{}) error {
-	base := DefaultPluginPath
-	if config.Plugin.BasePath != "" {
-		base = config.Plugin.BasePath
-	}
-	if os.Getenv(EnvBasePath) != "" {
-		base = os.Getenv(EnvBasePath)
-	}
+var (
+	pluginRegistry *registry
+)
 
-	rt = &runtime{
-		basePath:        base,
-		meta:            meta,
-		pluginProcesses: map[string]*process{},
-		logger:          logger.NewLogger("pluginRuntime"),
+func Init(config config.Config) error {
+	basePath := config.Plugin.BasePath
+	if basePath == "" {
+		basePath = DefaultPluginPath
 	}
-
-	go rt.run(stopCh)
-
+	pluginRegistry = newPluginRegistry(basePath)
 	return nil
 }
 
-func LoadPlugin(name string) (Plugin, error) {
-	return pluginRegistry.get(name)
+func Call(ctx context.Context, ps types.PlugScope, req *common.Request) (resp *common.Response, err error) {
+	var plugin Plugin
+	plugin, err = pluginRegistry.Get(ctx, ps)
+	if err != nil {
+		return nil, err
+	}
+
+	runnablePlugin, ok := plugin.(RunnablePlugin)
+	if !ok {
+		return nil, fmt.Errorf("not runnable plugin")
+	}
+	return runnablePlugin.Run(ctx, req, ps.Parameters)
 }

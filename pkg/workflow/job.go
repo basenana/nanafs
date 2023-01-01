@@ -1,166 +1,162 @@
 package workflow
 
 import (
-	"context"
-	"fmt"
+	"github.com/basenana/go-flow/controller"
 	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/go-flow/fsm"
-	"github.com/basenana/nanafs/pkg/controller"
+	"github.com/basenana/go-flow/storage"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/types"
 	"go.uber.org/zap"
 )
 
-type NanaJob struct {
-	ctrl   controller.Controller
-	logger *zap.SugaredLogger
+var (
+	flowCtrl    *controller.FlowController
+	flowStorage storage.Interface
+)
 
-	Id       string
-	workflow *Workflow
-	object   *types.Object
-	status   fsm.Status
-	message  string
-
-	tasks []*NanaTask
+func init() {
+	flowStorage = storage.NewInMemoryStorage()
+	opt := controller.Option{
+		Storage: flowStorage,
+	}
+	ctl, err := controller.NewFlowController(opt)
+	if err != nil {
+		panic(err)
+	}
+	flowCtrl = ctl
+	if err := flowCtrl.Register(&Job{}); err != nil {
+		panic(err)
+	}
 }
 
-func (n *NanaJob) GetStatus() fsm.Status {
+type Job struct {
+	Id       string
+	workflow *Workflow
+	status   fsm.Status
+	message  string
+	steps    []*JobStep
+	logger   *zap.SugaredLogger
+}
+
+var _ flow.Flow = &Job{}
+
+func (n *Job) GetStatus() fsm.Status {
 	return n.status
 }
 
-func (n *NanaJob) SetStatus(status fsm.Status) {
+func (n *Job) SetStatus(status fsm.Status) {
 	n.status = status
-	job, err := n.ctrl.GetObject(context.TODO(), n.Id)
-	if err != nil {
-		n.logger.Errorw("save job content error: %v", err)
-		return
-	}
-	content := &types.Job{}
-	err = n.ctrl.LoadStructureObject(context.TODO(), job, content)
-	if err != nil {
-		return
-	}
-	content.Status = string(status)
-	err = n.ctrl.SaveStructureObject(context.TODO(), job, content)
-	if err != nil {
-		return
+	if err := n.writeBack(); err != nil {
+		n.logger.Errorf("update status to %s failed: %s", status, err)
 	}
 }
 
-func (n *NanaJob) GetMessage() string {
+func (n *Job) SetStepStatus(stepName flow.TName, status fsm.Status) {
+	for i := range n.steps {
+		if n.steps[i].name == stepName {
+			n.steps[i].status = status
+		}
+	}
+	if err := n.writeBack(); err != nil {
+		n.logger.Errorf("update status to %s failed: %s", status, err)
+	}
+}
+
+func (n *Job) GetMessage() string {
 	return n.message
 }
 
-func (n *NanaJob) SetMessage(msg string) {
+func (n *Job) SetMessage(msg string) {
 	n.message = msg
 }
 
-func (n NanaJob) ID() flow.FID {
+func (n *Job) ID() flow.FID {
 	return flow.FID(n.Id)
 }
 
-func (n NanaJob) Type() flow.FType {
-	return "NanaJob"
+func (n *Job) Type() flow.FType {
+	return "Job"
 }
 
-func (n NanaJob) GetHooks() flow.Hooks {
+func (n *Job) GetHooks() flow.Hooks {
 	return map[flow.HookType]flow.Hook{}
 }
 
-func (n NanaJob) Setup(ctx *flow.Context) error {
+func (n *Job) Setup(ctx *flow.Context) error {
 	ctx.Succeed()
 	return nil
 }
 
-func (n NanaJob) Teardown(ctx *flow.Context) {
+func (n *Job) Teardown(ctx *flow.Context) {
 	ctx.Succeed()
 	return
 }
 
-func (n *NanaJob) NextBatch(ctx *flow.Context) ([]flow.Task, error) {
-	if len(n.tasks) == 0 {
+func (n *Job) NextBatch(ctx *flow.Context) ([]flow.Task, error) {
+	if len(n.steps) == 0 {
 		return nil, nil
 	}
 
-	t := n.tasks[0]
-	n.tasks = n.tasks[1:]
+	t := n.steps[0]
+	n.steps = n.steps[1:]
 
 	return []flow.Task{t}, nil
 }
 
-func (n NanaJob) GetControlPolicy() flow.ControlPolicy {
+func (n *Job) GetControlPolicy() flow.ControlPolicy {
 	return flow.ControlPolicy{
 		FailedPolicy: flow.PolicyFastFailed,
 	}
 }
 
-type NanaTask struct {
-	ctrl    controller.Controller
-	jobId   string
+func (n *Job) writeBack() error {
+	return nil
+}
+
+type JobStep struct {
+	job     *Job
 	name    flow.TName
 	message string
 	status  fsm.Status
 	object  *types.Object
 
-	plugin plugin.ProcessPlugin
+	plugin plugin.RunnablePlugin
 }
 
-func (n *NanaTask) GetStatus() fsm.Status {
+var _ flow.Task = &JobStep{}
+
+func (n *JobStep) GetStatus() fsm.Status {
 	return n.status
 }
 
-func (n *NanaTask) SetStatus(status fsm.Status) {
+func (n *JobStep) SetStatus(status fsm.Status) {
 	n.status = status
-	job, err := n.ctrl.GetObject(context.TODO(), n.jobId)
-	if err != nil {
-		return
-	}
-	content := &types.Job{}
-	err = n.ctrl.LoadStructureObject(context.TODO(), job, content)
-	if err != nil {
-		return
-	}
-	for i, t := range content.Tasks {
-		if t.Name == string(n.name) {
-			t.Status = string(status)
-			content.Tasks[i] = t
-			break
-		}
-	}
-	err = n.ctrl.SaveStructureObject(context.TODO(), job, content)
-	if err != nil {
-		return
-	}
+	n.job.SetStepStatus(n.name, n.status)
 }
 
-func (n *NanaTask) GetMessage() string {
+func (n *JobStep) GetMessage() string {
 	return n.message
 }
 
-func (n *NanaTask) SetMessage(msg string) {
+func (n *JobStep) SetMessage(msg string) {
 	n.message = msg
 }
 
-func (n *NanaTask) Name() flow.TName {
+func (n *JobStep) Name() flow.TName {
 	return n.name
 }
 
-func (n *NanaTask) Setup(ctx *flow.Context) error {
+func (n *JobStep) Setup(ctx *flow.Context) error {
 	ctx.Succeed()
 	return nil
 }
 
-func (n *NanaTask) Do(ctx *flow.Context) error {
-	err := n.plugin.Run(ctx, n.object, map[string]string{})
-	if err != nil {
-		ctx.Fail(fmt.Sprintf("err %v", err), 3)
-		return err
-	}
-	ctx.Succeed()
+func (n *JobStep) Do(ctx *flow.Context) error {
 	return nil
 }
 
-func (n *NanaTask) Teardown(ctx *flow.Context) {
+func (n *JobStep) Teardown(ctx *flow.Context) {
 	ctx.Succeed()
 	return
 }
