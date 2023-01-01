@@ -84,10 +84,6 @@ func (c *controller) CreateObject(ctx context.Context, parent *types.Object, att
 	}
 
 	c.logger.Infow("creating new obj", "name", attr.Name, "kind", attr.Kind)
-	if parent.Labels.Get(types.KindKey) != nil && parent.Labels.Get(types.KindKey).Value != "" {
-		return c.CreateStructuredObject(ctx, parent, attr, types.Kind(parent.Labels.Get(types.KindKey).Value), parent.Labels.Get(types.VersionKey).Value)
-	}
-
 	obj, err := types.InitNewObject(parent, attr)
 	if err != nil {
 		c.logger.Errorw("create new object error", "parent", parent.ID, "name", attr.Name, "err", err.Error())

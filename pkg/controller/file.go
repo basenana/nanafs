@@ -29,15 +29,6 @@ func (c *controller) OpenFile(ctx context.Context, obj *types.Object, attr files
 	if obj.IsGroup() {
 		return nil, types.ErrIsGroup
 	}
-	if s := c.registry.GetSchema(obj.Kind); s != nil {
-		attr.Meta = c.meta
-		file, err := c.OpenStructuredObject(ctx, obj, &s, attr)
-		if err != nil {
-			c.logger.Errorw("open structured object failed", "err", err.Error())
-			return nil, err
-		}
-		return file, c.SaveObject(ctx, nil, file.GetObject())
-	}
 
 	var err error
 	for dentry.IsMirrorObject(obj) {

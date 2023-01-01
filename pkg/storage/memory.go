@@ -3,7 +3,6 @@ package storage
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
@@ -128,49 +127,6 @@ func (m *memoryMetaStore) MirrorObject(ctx context.Context, srcObj, dstParent, o
 	m.objects[object.ID] = object
 	m.mux.Unlock()
 	return nil
-}
-
-func (m *memoryMetaStore) SaveContent(ctx context.Context, obj *types.Object, cType types.Kind, version string, content interface{}) error {
-	defer utils.TraceRegion(ctx, "memory.savecontent")()
-	raw, err := json.Marshal(content)
-	if err != nil {
-		return err
-	}
-	m.mux.Lock()
-	m.content[m.contentKey(obj, cType, version)] = raw
-	obj.Size = int64(len(raw))
-	m.objects[obj.ID] = obj
-	m.mux.Unlock()
-	return nil
-}
-
-func (m *memoryMetaStore) LoadContent(ctx context.Context, obj *types.Object, cType types.Kind, version string, content interface{}) error {
-	defer utils.TraceRegion(ctx, "memory.loadcontent")()
-	m.mux.Lock()
-	raw, ok := m.content[m.contentKey(obj, cType, version)]
-	m.mux.Unlock()
-	if !ok {
-		return types.ErrNotFound
-	}
-	return json.Unmarshal(raw, content)
-}
-
-func (m *memoryMetaStore) DeleteContent(ctx context.Context, obj *types.Object, cType types.Kind, version string) error {
-	defer utils.TraceRegion(ctx, "memory.deletecontent")()
-	m.mux.Lock()
-	cKey := m.contentKey(obj, cType, version)
-	_, ok := m.content[cKey]
-	if !ok {
-		m.mux.Unlock()
-		return types.ErrNotFound
-	}
-	delete(m.content, cKey)
-	m.mux.Unlock()
-	return nil
-}
-
-func (m *memoryMetaStore) contentKey(obj *types.Object, cType types.Kind, version string) string {
-	return fmt.Sprintf("%s_%s_%s", obj.ID, cType, version)
 }
 
 func newMemoryMetaStore() MetaStore {

@@ -1,8 +1,9 @@
 package types
 
 const (
-	VersionKey = "nanafs.version"
-	KindKey    = "nanafs.kind"
+	VersionKey         = "nanafs.version"
+	KindKey            = "nanafs.kind"
+	LabelPluginNameKey = "nanafs.plugin.name"
 )
 
 type Labels struct {

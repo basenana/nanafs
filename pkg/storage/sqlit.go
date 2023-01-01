@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/storage/db"
@@ -118,48 +117,6 @@ func (s *sqliteMetaStore) MirrorObject(ctx context.Context, srcObj, dstParent, o
 		return err
 	}
 	return nil
-}
-
-func (s *sqliteMetaStore) SaveContent(ctx context.Context, obj *types.Object, cType types.Kind, version string, content interface{}) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	defer utils.TraceRegion(ctx, "sqlite.savecontent")()
-	rawData, err := json.Marshal(content)
-	if err != nil {
-		s.logger.Errorw("marshal object content failed", "id", obj.ID, "err", err.Error())
-		return err
-	}
-	obj.Size = int64(len(rawData))
-	err = db.UpdateObjectContent(ctx, s.db, obj, string(cType), version, rawData)
-	if err != nil {
-		s.logger.Errorw("save object content failed", "id", obj.ID, "err", err.Error())
-		return err
-	}
-	return nil
-}
-
-func (s *sqliteMetaStore) LoadContent(ctx context.Context, obj *types.Object, cType types.Kind, version string, content interface{}) error {
-	s.mux.RLock()
-	defer s.mux.RUnlock()
-	defer utils.TraceRegion(ctx, "sqlite.loadcontent")()
-	contentRaw, err := db.GetObjectContent(ctx, s.db, obj.ID, string(cType), version)
-	if err != nil {
-		s.logger.Errorw("get object content failed", "id", obj.ID, "err", err.Error())
-		return err
-	}
-	return json.Unmarshal(contentRaw, content)
-}
-
-func (s *sqliteMetaStore) DeleteContent(ctx context.Context, obj *types.Object, cType types.Kind, version string) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	defer utils.TraceRegion(ctx, "sqlite.deletecontent")()
-	err := db.DeleteObjectContent(ctx, s.db, obj.ID)
-	if err != nil {
-		s.logger.Errorw("delete object content failed", "id", obj.ID, "err", err.Error())
-		return err
-	}
-	return err
 }
 
 func newSqliteMetaStore(meta config.Meta) (*sqliteMetaStore, error) {

@@ -66,9 +66,6 @@ var daemonCmd = &cobra.Command{
 		}
 
 		ctrl := controller.New(loader, meta, sto)
-		if err := controller.InitSchemas(ctrl, cfg); err != nil {
-			panic(err)
-		}
 		stop := utils.HandleTerminalSignal()
 		files.InitFileIoChain(cfg, sto, stop)
 

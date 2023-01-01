@@ -16,8 +16,6 @@ type Schema struct {
 	Spec    reflect.Type
 }
 
-var Registry = &SchemaRegistry{schemas: []Schema{}, schemaTypes: []types.Kind{}}
-
 func (s *SchemaRegistry) Register(cType types.Kind, version string, spec interface{}) {
 	s.schemas = append(s.schemas, Schema{
 		CType:   cType,
