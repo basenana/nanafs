@@ -40,7 +40,10 @@ func newPluginRegistry(basePath string) *registry {
 		plugins:  map[string]*pluginInfo{},
 		logger:   logger.NewLogger("pluginRegistry"),
 	}
-	go r.AutoReload(context.Background(), DefaultRegisterPeriod)
+
+	if basePath != "" {
+		go r.AutoReload(context.Background(), DefaultRegisterPeriod)
+	}
 
 	return r
 }
@@ -55,7 +58,7 @@ func (r *registry) Get(ctx context.Context, ps types.PlugScope) (Plugin, error) 
 	if p.Type() != ps.PluginType {
 		return nil, ErrNotFound
 	}
-	return p, nil
+	return p.Plugin, nil
 }
 
 func (r *registry) Reload(ctx context.Context) error {

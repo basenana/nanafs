@@ -11,15 +11,6 @@ import (
 	"time"
 )
 
-type FileController interface {
-	OpenFile(ctx context.Context, obj *types.Object, attr files.Attr) (files.File, error)
-	ReadFile(ctx context.Context, file files.File, data []byte, offset int64) (n int, err error)
-	WriteFile(ctx context.Context, file files.File, data []byte, offset int64) (n int64, err error)
-	CloseFile(ctx context.Context, file files.File) error
-	DeleteFileData(ctx context.Context, obj *types.Object) error
-	IsStructured(obj *types.Object) bool
-}
-
 type OpenOption struct {
 }
 
@@ -100,11 +91,4 @@ func (c *controller) DeleteFileData(ctx context.Context, obj *types.Object) (err
 	}
 	bus.Publish(fmt.Sprintf("object.file.%s.delete", obj.ID), obj)
 	return nil
-}
-
-func (c *controller) IsStructured(obj *types.Object) bool {
-	if s := c.registry.GetSchema(obj.Kind); s != nil {
-		return true
-	}
-	return false
 }

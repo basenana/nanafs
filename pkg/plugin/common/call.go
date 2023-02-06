@@ -14,8 +14,18 @@ const (
 type Request struct {
 	CallType string
 	WorkPath string
+	Entry    Entry
+}
+
+func NewRequest() *Request {
+	return &Request{}
 }
 
 type Response struct {
 	IsSucceed bool
+	Entries   []Entry
+}
+
+func NewResponse() *Response {
+	return &Response{}
 }

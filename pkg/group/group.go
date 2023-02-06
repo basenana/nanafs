@@ -115,10 +115,9 @@ func NewManager(meta storage.MetaStore, cfgLoader config.Loader) *Manager {
 	cfg, _ := cfgLoader.GetConfig()
 
 	mgr := &Manager{
-		meta:      meta,
-		cfg:       cfg,
-		cfgLoader: cfgLoader,
-		logger:    logger.NewLogger("groupManager"),
+		meta:   meta,
+		cfg:    cfg,
+		logger: logger.NewLogger("groupManager"),
 	}
 	return mgr
 }

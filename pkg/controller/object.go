@@ -14,18 +14,6 @@ const (
 	objectNameMaxLength = 255
 )
 
-type ObjectController interface {
-	LoadRootObject(ctx context.Context) (*types.Object, error)
-	FindObject(ctx context.Context, parent *types.Object, name string) (*types.Object, error)
-	GetObject(ctx context.Context, id string) (*types.Object, error)
-	CreateObject(ctx context.Context, parent *types.Object, attr types.ObjectAttr) (*types.Object, error)
-	SaveObject(ctx context.Context, parent, obj *types.Object) error
-	DestroyObject(ctx context.Context, parent, obj *types.Object, attr types.DestroyObjectAttr) error
-	MirrorObject(ctx context.Context, src, dstParent *types.Object, attr types.ObjectAttr) (*types.Object, error)
-	ListObjectChildren(ctx context.Context, obj *types.Object) ([]*types.Object, error)
-	ChangeObjectParent(ctx context.Context, old, oldParent, newParent *types.Object, newName string, opt types.ChangeParentAttr) error
-}
-
 func (c *controller) LoadRootObject(ctx context.Context) (*types.Object, error) {
 	defer utils.TraceRegion(ctx, "controller.loadroot")()
 	c.logger.Info("init root object")
@@ -127,9 +115,6 @@ func (c *controller) DestroyObject(ctx context.Context, parent, obj *types.Objec
 	defer func() {
 		if err == nil {
 			bus.Publish(fmt.Sprintf("object.entry.%s.destroy", obj.ID), obj)
-			if c.IsStructured(obj) {
-				bus.Publish(fmt.Sprintf("object.%s.%s.destroy", obj.Kind, obj.ID), obj)
-			}
 		}
 	}()
 
