@@ -1,9 +1,9 @@
 package types
 
 type Filter struct {
-	ID        string
-	ParentID  string
-	RefID     string
+	ID        int64
+	ParentID  int64
+	RefID     int64
 	Kind      Kind
 	Namespace string
 	Label     LabelMatch
@@ -11,13 +11,13 @@ type Filter struct {
 
 func FilterObjectMapper(f Filter) map[string]interface{} {
 	result := make(map[string]interface{})
-	if f.ID != "" {
+	if f.ID != 0 {
 		result["id"] = f.ID
 	}
-	if f.ParentID != "" {
+	if f.ParentID != 0 {
 		result["parent_id"] = f.ParentID
 	}
-	if f.RefID != "" {
+	if f.RefID != 0 {
 		result["ref_id"] = f.RefID
 	}
 	if f.Kind != "" {
@@ -35,16 +35,16 @@ type LabelMatch struct {
 }
 
 func IsObjectFiltered(obj *Object, filter Filter) bool {
-	if filter.ID != "" {
+	if filter.ID != 0 {
 		return obj.ID == filter.ID
 	}
-	if filter.ParentID != "" {
+	if filter.ParentID != 0 {
 		return obj.ParentID == filter.ParentID
 	}
 	if filter.Kind != "" {
 		return obj.Kind == filter.Kind
 	}
-	if filter.RefID != "" {
+	if filter.RefID != 0 {
 		return obj.RefID == filter.RefID
 	}
 	if filter.Namespace != "" {

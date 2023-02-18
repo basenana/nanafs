@@ -17,7 +17,7 @@ func NewMockStorage() storage.Storage {
 	return s
 }
 
-func NewMockMeta() storage.MetaStore {
+func NewMockMeta() storage.Meta {
 	m, _ := storage.NewMetaStorage("memory", config.Meta{})
 	root := dentry.InitRootObject()
 	_ = m.SaveObject(context.TODO(), nil, root)

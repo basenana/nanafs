@@ -18,12 +18,8 @@ var (
 	pluginRegistry *registry
 )
 
-func Init(config config.Config) error {
-	basePath := config.Plugin.BasePath
-	if basePath == "" {
-		basePath = DefaultPluginPath
-	}
-	pluginRegistry = newPluginRegistry(basePath)
+func Init(cfg config.Config) error {
+	pluginRegistry = newPluginRegistry(cfg.Plugin)
 	return nil
 }
 

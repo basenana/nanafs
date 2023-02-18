@@ -14,7 +14,7 @@ import (
 type Controller interface {
 	LoadRootObject(ctx context.Context) (*types.Object, error)
 	FindObject(ctx context.Context, parent *types.Object, name string) (*types.Object, error)
-	GetObject(ctx context.Context, id string) (*types.Object, error)
+	GetObject(ctx context.Context, id int64) (*types.Object, error)
 	CreateObject(ctx context.Context, parent *types.Object, attr types.ObjectAttr) (*types.Object, error)
 	SaveObject(ctx context.Context, parent, obj *types.Object) error
 	DestroyObject(ctx context.Context, parent, obj *types.Object, attr types.DestroyObjectAttr) error
@@ -32,7 +32,7 @@ type Controller interface {
 }
 
 type controller struct {
-	meta      storage.MetaStore
+	meta      storage.Meta
 	storage   storage.Storage
 	cfg       config.Config
 	cfgLoader config.Loader
@@ -44,7 +44,7 @@ type controller struct {
 
 var _ Controller = &controller{}
 
-func New(loader config.Loader, meta storage.MetaStore, storage storage.Storage) Controller {
+func New(loader config.Loader, meta storage.Meta, storage storage.Storage) Controller {
 	cfg, _ := loader.GetConfig()
 
 	ctl := &controller{

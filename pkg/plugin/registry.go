@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/plugin/adaptors"
 	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"github.com/basenana/nanafs/pkg/types"
@@ -34,14 +35,22 @@ type registry struct {
 	logger   *zap.SugaredLogger
 }
 
-func newPluginRegistry(basePath string) *registry {
+func newPluginRegistry(cfg config.Plugin) *registry {
+	if cfg.BasePath == "" {
+		cfg.BasePath = DefaultPluginPath
+	}
+
 	r := &registry{
-		basePath: basePath,
+		basePath: cfg.BasePath,
 		plugins:  map[string]*pluginInfo{},
 		logger:   logger.NewLogger("pluginRegistry"),
 	}
 
-	if basePath != "" {
+	if cfg.DummyPlugins {
+		r.loadDummyPlugins()
+	}
+
+	if r.basePath != "" {
 		go r.AutoReload(context.Background(), DefaultRegisterPeriod)
 	}
 
@@ -150,6 +159,29 @@ func (r *registry) loadPluginWithSpec(spec types.PluginSpec) {
 		disable: false,
 	}
 	r.mux.Unlock()
+}
+
+func (r *registry) loadDummyPlugins() {
+	// register dummy plugin
+	dummySourcePlugin := buildin.InitDummySourcePlugin()
+	dummyProcessPlugin := buildin.InitDummyProcessPlugin()
+	dummyMirrorPlugin := buildin.InitDummyMirrorPlugin()
+
+	r.mux.Lock()
+	r.plugins[dummySourcePlugin.Name()] = &pluginInfo{
+		Plugin:  dummySourcePlugin,
+		buildIn: true,
+	}
+	r.plugins[dummyProcessPlugin.Name()] = &pluginInfo{
+		Plugin:  dummyProcessPlugin,
+		buildIn: true,
+	}
+	r.plugins[dummyMirrorPlugin.Name()] = &pluginInfo{
+		Plugin:  dummyMirrorPlugin,
+		buildIn: true,
+	}
+	r.mux.Unlock()
+
 }
 
 func readPluginSpec(basePath, pluginSpecFile string) (types.PluginSpec, error) {

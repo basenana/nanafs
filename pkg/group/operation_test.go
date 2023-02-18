@@ -32,7 +32,7 @@ func TestRule_Apply(t *testing.T) {
 		{
 			name:   "test-equal",
 			fields: fields{Operation: "equal", Column: "name", Value: "abc"},
-			args:   args{value: &types.Object{Metadata: types.Metadata{ID: "abc", Name: "abc"}}},
+			args:   args{value: &types.Object{Metadata: types.Metadata{ID: 1024, Name: "abc"}}},
 			want:   true,
 		},
 		{

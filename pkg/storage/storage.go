@@ -253,7 +253,7 @@ func (l *local) key2LocalPath(key int64, idx int64) string {
 			}
 		}
 	}
-	return path.Join(l.dir, fmt.Sprintf("%s/%d", key, idx))
+	return path.Join(l.dir, fmt.Sprintf("%d/%d", key, idx))
 }
 
 func newLocalStorage(dir string) Storage {

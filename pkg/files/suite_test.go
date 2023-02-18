@@ -35,10 +35,10 @@ func NewMockStorage() storage.Storage {
 	return s
 }
 
-func newMockObject(key string) *types.Object {
-	meta := types.NewMetadata(key, types.RawKind)
+func newMockObject(name string, inode int64) *types.Object {
+	meta := types.NewMetadata(name, types.RawKind)
 	meta.Size = fileChunkSize * 4
-	meta.ID = key
+	meta.ID = inode
 	return &types.Object{
 		Metadata: meta,
 	}

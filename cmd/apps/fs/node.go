@@ -15,7 +15,7 @@ import (
 
 type NanaNode struct {
 	fs.Inode
-	oid    string
+	oid    int64
 	R      *NanaFS
 	logger *zap.SugaredLogger
 }

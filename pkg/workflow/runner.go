@@ -8,10 +8,8 @@ import (
 	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/go-flow/fsm"
 	"github.com/basenana/go-flow/storage"
-	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
-	"github.com/google/uuid"
 	"github.com/hyponet/eventbus/bus"
 	"go.uber.org/zap"
 	"sync"
@@ -26,68 +24,26 @@ type WfRequest struct {
 	target *types.Object
 }
 
-type Workflow struct {
-	*types.Object
-
-	req    *WfRequest
-	spec   types.WorkflowSpec
-	logger *zap.SugaredLogger
-}
-
-func (w *Workflow) PrepareJob() (*Job, error) {
-	jid := uuid.New().String()
-
-	steps, err := w.initJobSteps()
-	if err != nil {
-		return nil, err
-	}
-
-	return &Job{
-		Id:       jid,
-		workflow: w,
-		status:   flow.CreatingStatus,
-		steps:    steps,
-		logger:   logger.NewLogger(fmt.Sprintf("job.%s", jid)),
-	}, nil
-}
-
-func (w *Workflow) initJobSteps() ([]*JobStep, error) {
-	return nil, nil
-}
-
-func InitWorkflow(wf *types.Object, spec types.WorkflowSpec, req *WfRequest) *Workflow {
-	return &Workflow{
-		Object: wf,
-
-		req:    req,
-		spec:   spec,
-		logger: logger.NewLogger(fmt.Sprintf("workflow.%s", spec.Name)),
-	}
-}
-
 type Runner struct {
-	sync.RWMutex
-	ctrl   controller.Controller
 	stopCh chan struct{}
-
-	jobParent *types.Object
-	jobs      map[flow.FID]*Job
-
+	jobs   map[flow.FID]*Job
 	logger *zap.SugaredLogger
+
+	sync.RWMutex
 }
 
 var _ storage.Interface = &Runner{}
 
-func InitWorkflowRunner(ctrl controller.Controller, stopCh chan struct{}) error {
+func InitWorkflowRunner(stopCh chan struct{}) error {
 	runner := &Runner{
-		ctrl:   ctrl,
 		stopCh: stopCh,
 		jobs:   map[flow.FID]*Job{},
 		logger: logger.NewLogger("workflowRuntime"),
 	}
 
 	var err error
-	flowCtrl, err = goflowctrl.NewFlowController(goflowctrl.Option{Storage: runner})
+	flowStorage = runner
+	flowCtrl, err = goflowctrl.NewFlowController(goflowctrl.Option{Storage: flowStorage})
 	if err != nil {
 		return err
 	}
@@ -106,10 +62,10 @@ func (r *Runner) Init() error {
 	return nil
 }
 
-func (r *Runner) WorkFlowHandler(wf *Workflow) {
+func (r *Runner) WorkFlowHandler(wf *types.WorkflowSpec) {
 	r.logger.Infow("receive workflow", "workflow", wf.Name)
 
-	job, err := wf.PrepareJob()
+	job, err := prepareJob(wf)
 	if err != nil {
 		r.logger.Errorw("init job failed", "workflow", wf.Name, "err", err)
 		return

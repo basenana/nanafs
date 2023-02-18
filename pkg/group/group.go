@@ -17,7 +17,7 @@ const (
 )
 
 type Manager struct {
-	meta      storage.MetaStore
+	meta      storage.Meta
 	cfg       config.Config
 	cfgLoader config.Loader
 	logger    *zap.SugaredLogger
@@ -111,7 +111,7 @@ func (m *Manager) loadFilterConfig(ctx context.Context, obj *types.Object) (*typ
 	return rule, nil
 }
 
-func NewManager(meta storage.MetaStore, cfgLoader config.Loader) *Manager {
+func NewManager(meta storage.Meta, cfgLoader config.Loader) *Manager {
 	cfg, _ := cfgLoader.GetConfig()
 
 	mgr := &Manager{

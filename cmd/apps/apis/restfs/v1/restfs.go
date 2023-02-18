@@ -111,7 +111,7 @@ func (s *RestFS) read(gCtx *gin.Context, obj, parent *types.Object, action frame
 }
 
 func (s *RestFS) alias(gCtx *gin.Context, obj, parent *types.Object, action frame.Action, param frame.Parameters) {
-	common.JsonResponse(gCtx, http.StatusOK, map[string]string{"id": obj.ID})
+	common.JsonResponse(gCtx, http.StatusOK, map[string]int64{"id": obj.ID})
 }
 
 // TODO: search in fs

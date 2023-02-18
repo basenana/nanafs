@@ -43,5 +43,6 @@ type Fs struct {
 }
 
 type Plugin struct {
-	BasePath string `json:"base_path"`
+	BasePath     string `json:"base_path"`
+	DummyPlugins bool   `json:"dummy_plugins"`
 }

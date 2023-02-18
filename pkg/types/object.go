@@ -1,7 +1,7 @@
 package types
 
 import (
-	"github.com/google/uuid"
+	"github.com/basenana/nanafs/utils"
 	"sync"
 	"time"
 )
@@ -11,11 +11,11 @@ const (
 )
 
 type Metadata struct {
-	ID         string    `json:"id"`
+	ID         int64     `json:"id"`
 	Name       string    `json:"name"`
 	Aliases    string    `json:"aliases,omitempty"`
-	ParentID   string    `json:"parent_id"`
-	RefID      string    `json:"ref_id,omitempty"`
+	ParentID   int64     `json:"parent_id"`
+	RefID      int64     `json:"ref_id,omitempty"`
 	RefCount   int       `json:"ref_count,omitempty"`
 	Kind       Kind      `json:"kind"`
 	Hash       string    `json:"hash"`
@@ -33,7 +33,7 @@ type Metadata struct {
 
 func NewMetadata(name string, kind Kind) Metadata {
 	result := Metadata{
-		ID:         uuid.New().String(),
+		ID:         utils.GenerateNewID(),
 		Name:       name,
 		Kind:       kind,
 		RefCount:   1,

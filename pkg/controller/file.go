@@ -45,7 +45,7 @@ func (c *controller) OpenFile(ctx context.Context, obj *types.Object, attr files
 		obj.ModifiedAt = time.Now()
 	}
 	obj.AccessAt = time.Now()
-	bus.Publish(fmt.Sprintf("object.file.%s.open", obj.ID), obj)
+	bus.Publish(fmt.Sprintf("object.file.%d.open", obj.ID), obj)
 	return file, c.SaveObject(ctx, nil, obj)
 }
 
@@ -77,7 +77,7 @@ func (c *controller) CloseFile(ctx context.Context, file files.File) (err error)
 		c.logger.Errorw("close file error", "file", file.GetObject().ID, "err", err.Error())
 		return err
 	}
-	bus.Publish(fmt.Sprintf("object.file.%s.close", file.GetObject().ID), file.GetObject())
+	bus.Publish(fmt.Sprintf("object.file.%d.close", file.GetObject().ID), file.GetObject())
 	return nil
 }
 
@@ -89,6 +89,6 @@ func (c *controller) DeleteFileData(ctx context.Context, obj *types.Object) (err
 		c.logger.Errorw("delete file error", "file", obj.ID, "err", err.Error())
 		return err
 	}
-	bus.Publish(fmt.Sprintf("object.file.%s.delete", obj.ID), obj)
+	bus.Publish(fmt.Sprintf("object.file.%d.delete", obj.ID), obj)
 	return nil
 }

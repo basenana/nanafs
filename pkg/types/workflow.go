@@ -7,7 +7,6 @@ type WorkflowSpec struct {
 }
 
 type WorkflowStepSpec struct {
-	Name       string            `json:"name"`
-	Action     string            `json:"action"`
-	Parameters map[string]string `json:"parameters,omitempty"`
+	Name   string    `json:"name"`
+	Plugin PlugScope `json:"plugin"`
 }

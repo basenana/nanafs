@@ -1,12 +1,16 @@
 package workflow
 
 import (
+	"fmt"
 	"github.com/basenana/go-flow/controller"
 	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/go-flow/fsm"
 	"github.com/basenana/go-flow/storage"
 	"github.com/basenana/nanafs/pkg/plugin"
+	"github.com/basenana/nanafs/pkg/plugin/common"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils/logger"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -15,28 +19,33 @@ var (
 	flowStorage storage.Interface
 )
 
-func init() {
-	flowStorage = storage.NewInMemoryStorage()
-	opt := controller.Option{
-		Storage: flowStorage,
+func prepareJob(spec *types.WorkflowSpec) (*Job, error) {
+	jid := uuid.New().String()
+	j := &Job{
+		Id:     jid,
+		status: flow.CreatingStatus,
+		steps:  make([]*JobStep, len(spec.Steps)),
+		logger: logger.NewLogger(fmt.Sprintf("job.%s", jid)),
 	}
-	ctl, err := controller.NewFlowController(opt)
-	if err != nil {
-		panic(err)
+
+	for i, stepSpec := range spec.Steps {
+		j.steps[i] = &JobStep{
+			job:    j,
+			name:   flow.TName(stepSpec.Name),
+			status: flow.CreatingStatus,
+			plugin: stepSpec.Plugin,
+		}
 	}
-	flowCtrl = ctl
-	if err := flowCtrl.Register(&Job{}); err != nil {
-		panic(err)
-	}
+
+	return j, nil
 }
 
 type Job struct {
-	Id       string
-	workflow *Workflow
-	status   fsm.Status
-	message  string
-	steps    []*JobStep
-	logger   *zap.SugaredLogger
+	Id      string
+	status  fsm.Status
+	message string
+	steps   []*JobStep
+	logger  *zap.SugaredLogger
 }
 
 var _ flow.Flow = &Job{}
@@ -119,9 +128,7 @@ type JobStep struct {
 	name    flow.TName
 	message string
 	status  fsm.Status
-	object  *types.Object
-
-	plugin plugin.RunnablePlugin
+	plugin  types.PlugScope
 }
 
 var _ flow.Task = &JobStep{}
@@ -153,6 +160,13 @@ func (n *JobStep) Setup(ctx *flow.Context) error {
 }
 
 func (n *JobStep) Do(ctx *flow.Context) error {
+	req := common.NewRequest()
+	_, err := plugin.Call(ctx.Context, n.plugin, req)
+	if err != nil {
+		ctx.Fail(err.Error(), 0)
+		return err
+	}
+	ctx.Succeed()
 	return nil
 }
 

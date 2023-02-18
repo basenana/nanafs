@@ -19,7 +19,7 @@ type rssSource struct {
 }
 
 type RssSourcePlugin struct {
-	meta   storage.MetaStore
+	meta   storage.Meta
 	logger *zap.SugaredLogger
 }
 
