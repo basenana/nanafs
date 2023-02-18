@@ -9,5 +9,5 @@ import (
 
 func TestFs(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Fs Suite")
+	RunSpecs(t, "Storage Suite")
 }

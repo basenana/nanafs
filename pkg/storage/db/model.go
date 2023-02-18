@@ -7,25 +7,42 @@ import (
 	"time"
 )
 
+var dbModels = []interface{}{
+	&SystemInfo{},
+	&Object{},
+	&ObjectAccess{},
+	&ObjectLabel{},
+	&PluginData{},
+}
+
+type SystemInfo struct {
+	FsID  string `gorm:"column:fs_id;primaryKey"`
+	Inode uint64 `gorm:"column:inode"`
+}
+
+func (i SystemInfo) TableName() string {
+	return "system_info"
+}
+
 type Object struct {
-	ID           string    `db:"id"`
-	Name         string    `db:"name"`
-	Aliases      string    `db:"aliases"`
-	ParentID     string    `db:"parent_id"`
-	RefID        string    `db:"ref_id"`
-	RefCount     int       `db:"ref_count"`
-	Kind         string    `db:"kind"`
-	Hash         string    `db:"hash"`
-	Size         int64     `db:"size"`
-	Inode        uint64    `db:"inode"`
-	Dev          int64     `db:"dev"`
-	Namespace    string    `db:"namespace"`
-	CreatedAt    time.Time `db:"created_at"`
-	ChangedAt    time.Time `db:"changed_at"`
-	ModifiedAt   time.Time `db:"modified_at"`
-	AccessAt     time.Time `db:"access_at"`
-	ExtendData   []byte    `db:"extend_data"`
-	CustomColumn []byte    `db:"custom_column"`
+	ID           int64     `gorm:"column:id;primaryKey"`
+	Name         string    `gorm:"column:name"`
+	Aliases      string    `gorm:"column:aliases"`
+	ParentID     int64     `gorm:"column:parent_id;index:parent_id;unique"`
+	RefID        int64     `gorm:"column:ref_id;index:ref_id;unique"`
+	RefCount     int       `gorm:"column:ref_count"`
+	Kind         string    `gorm:"column:kind"`
+	Hash         string    `gorm:"column:hash"`
+	Size         int64     `gorm:"column:size"`
+	Inode        uint64    `gorm:"column:inode;unique"`
+	Dev          int64     `gorm:"column:dev"`
+	Namespace    string    `gorm:"column:namespace"`
+	CreatedAt    time.Time `gorm:"column:created_at"`
+	ChangedAt    time.Time `gorm:"column:changed_at"`
+	ModifiedAt   time.Time `gorm:"column:modified_at"`
+	AccessAt     time.Time `gorm:"column:access_at"`
+	ExtendData   []byte    `gorm:"column:extend_data"`
+	CustomColumn []byte    `gorm:"column:custom_column"`
 }
 
 func (o *Object) TableName() string {
@@ -81,10 +98,10 @@ func (o *Object) Object() *types.Object {
 }
 
 type ObjectAccess struct {
-	ID          string `db:"id"`
-	Uid         int64  `db:"uid"`
-	Gid         int64  `db:"gid"`
-	Permissions string `db:"permissions"`
+	ID          int64  `gorm:"column:id;primaryKey"`
+	Uid         int64  `gorm:"column:uid"`
+	Gid         int64  `gorm:"column:gid"`
+	Permissions string `gorm:"column:permissions"`
 }
 
 func (a *ObjectAccess) TableName() string {
@@ -117,22 +134,26 @@ func (a *ObjectAccess) ToAccess() types.Access {
 }
 
 type ObjectLabel struct {
-	ID    string `db:"id"`
-	Key   string `db:"key"`
-	Value string `db:"value"`
+	ID        int64  `gorm:"column:id;autoIncrement"`
+	OID       int64  `gorm:"column:oid;index:oid"`
+	Key       string `gorm:"column:key"`
+	Value     string `gorm:"column:value"`
+	SearchKey string `gorm:"column:search_key;index:search_key"`
 }
 
 func (o ObjectLabel) TableName() string {
 	return "object_label"
 }
 
-type ObjectContent struct {
-	ID      string `db:"id"`
-	Kind    string `db:"kind"`
-	Version string `db:"version"`
-	Data    []byte `db:"data"`
+type PluginData struct {
+	ID         int64            `gorm:"column:id;autoIncrement"`
+	PluginName string           `gorm:"column:plugin_name"`
+	Version    string           `gorm:"column:version"`
+	Type       types.PluginType `gorm:"column:type"`
+	Key        string           `gorm:"column:key"`
+	Content    string           `gorm:"column:content"`
 }
 
-func (o ObjectContent) TableName() string {
-	return "object_content"
+func (d PluginData) TableName() string {
+	return "plugin_data"
 }
