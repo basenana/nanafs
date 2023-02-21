@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	flowcontroller "github.com/basenana/go-flow/controller"
 	goflowctrl "github.com/basenana/go-flow/controller"
 	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/go-flow/fsm"
-	"github.com/basenana/go-flow/storage"
+	flowstorage "github.com/basenana/go-flow/storage"
+	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/hyponet/eventbus/bus"
@@ -19,39 +21,32 @@ var (
 	ErrJobNotFound = errors.New("job not found")
 )
 
-type WfRequest struct {
-	context.Context
-	target *types.Object
-}
-
 type Runner struct {
-	stopCh chan struct{}
-	jobs   map[flow.FID]*Job
-	logger *zap.SugaredLogger
+	*flowcontroller.FlowController
+
+	stopCh   chan struct{}
+	recorder storage.PluginRecorder
+	logger   *zap.SugaredLogger
 
 	sync.RWMutex
 }
 
-var _ storage.Interface = &Runner{}
-
-func InitWorkflowRunner(stopCh chan struct{}) error {
+func InitWorkflowRunner() (*Runner, error) {
 	runner := &Runner{
-		stopCh: stopCh,
-		jobs:   map[flow.FID]*Job{},
 		logger: logger.NewLogger("workflowRuntime"),
 	}
 
 	var err error
-	flowStorage = runner
-	flowCtrl, err = goflowctrl.NewFlowController(goflowctrl.Option{Storage: flowStorage})
+	flowCtrl, err := goflowctrl.NewFlowController(goflowctrl.Option{Storage: runner})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if err = flowCtrl.Register(&Job{}); err != nil {
-		return err
+		return nil, err
 	}
+	runner.FlowController = flowCtrl
 
-	return runner.Init()
+	return runner, nil
 }
 
 func (r *Runner) Init() error {
@@ -62,12 +57,16 @@ func (r *Runner) Init() error {
 	return nil
 }
 
+func (r *Runner) Start(stopCh chan struct{}) error {
+	return nil
+}
+
 func (r *Runner) WorkFlowHandler(wf *types.WorkflowSpec) {
 	r.logger.Infow("receive workflow", "workflow", wf.Name)
 
-	job, err := prepareJob(wf)
+	job, err := assembleWorkflowJob(wf)
 	if err != nil {
-		r.logger.Errorw("init job failed", "workflow", wf.Name, "err", err)
+		r.logger.Errorw("assemble job failed", "workflow", wf.Name, "err", err)
 		return
 	}
 
@@ -77,41 +76,47 @@ func (r *Runner) WorkFlowHandler(wf *types.WorkflowSpec) {
 }
 
 func (r *Runner) triggerJob(ctx context.Context, job *Job) {
-	r.Lock()
-	r.jobs[job.ID()] = job
-	r.Unlock()
+	if err := r.SaveFlow(job); err != nil {
+		r.logger.Errorw("save job failed", "err", err)
+		return
+	}
 
-	if err := flowCtrl.TriggerFlow(ctx, job.ID()); err != nil {
+	if err := r.TriggerFlow(ctx, job.ID()); err != nil {
 		r.logger.Errorw("trigger job flow failed", "job", job.ID(), "err", err)
 	}
 	return
 }
 
 func (r *Runner) GetFlow(flowId flow.FID) (flow.Flow, error) {
-	r.RLock()
-	job, ok := r.jobs[flowId]
-	r.RUnlock()
-	if !ok {
-		return nil, ErrJobNotFound
+	job := &Job{}
+	err := r.recorder.GetRecord(context.Background(), string(flowId), job)
+	if err != nil {
+		r.logger.Errorw("load job failed", "err", err)
+		return nil, err
 	}
+
 	return job, nil
 }
 
-func (r *Runner) GetFlowMeta(flowId flow.FID) (*storage.FlowMeta, error) {
-	r.RLock()
-	job, ok := r.jobs[flowId]
-	r.RUnlock()
+func (r *Runner) GetFlowMeta(flowId flow.FID) (*flowstorage.FlowMeta, error) {
+	flowJob, err := r.GetFlow(flowId)
+	if err != nil {
+		return nil, err
+	}
+
+	job, ok := flowJob.(*Job)
 	if !ok {
 		return nil, ErrJobNotFound
 	}
-	result := &storage.FlowMeta{
+
+	result := &flowstorage.FlowMeta{
 		Type:       job.Type(),
 		Id:         job.ID(),
 		Status:     job.GetStatus(),
 		TaskStatus: map[flow.TName]fsm.Status{},
 	}
-	for _, step := range job.steps {
-		result.TaskStatus[step.name] = step.status
+	for _, step := range job.Steps {
+		result.TaskStatus[step.StepName] = step.Status
 	}
 	return result, nil
 }
@@ -121,24 +126,36 @@ func (r *Runner) SaveFlow(flow flow.Flow) error {
 	if !ok {
 		return fmt.Errorf("flow %s not a Job object", flow.ID())
 	}
-	r.Lock()
-	r.jobs[flow.ID()] = job
-	r.Unlock()
+
+	err := r.recorder.SaveRecord(context.Background(), job.Workflow, job.Id, job)
+	if err != nil {
+		r.logger.Errorw("save job to metadb failed", "err", err)
+		return err
+	}
+
 	return nil
 }
 
 func (r *Runner) DeleteFlow(flowId flow.FID) error {
-	r.Lock()
-	delete(r.jobs, flowId)
-	r.Unlock()
+	err := r.recorder.DeleteRecord(context.Background(), string(flowId))
+	if err != nil {
+		r.logger.Errorw("delete job to metadb failed", "err", err)
+		return err
+	}
 	return nil
 }
 
 func (r *Runner) SaveTask(flowId flow.FID, task flow.Task) error {
 	r.Lock()
-	job, ok := r.jobs[flowId]
+	defer r.Unlock()
+
+	flowJob, err := r.GetFlow(flowId)
+	if err != nil {
+		return err
+	}
+
+	job, ok := flowJob.(*Job)
 	if !ok {
-		r.Unlock()
 		return ErrJobNotFound
 	}
 
@@ -147,14 +164,14 @@ func (r *Runner) SaveTask(flowId flow.FID, task flow.Task) error {
 		return fmt.Errorf("task not a JobStep object")
 	}
 
-	for i, step := range job.steps {
+	for i, step := range job.Steps {
 		if step.Name() == task.Name() {
-			job.steps[i] = newStep
+			job.Steps[i] = newStep
 			break
 		}
 	}
-	r.Unlock()
-	return nil
+
+	return r.SaveFlow(job)
 }
 
 func (r *Runner) DeleteTask(flowId flow.FID, taskName flow.TName) error {

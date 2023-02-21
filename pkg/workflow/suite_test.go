@@ -21,7 +21,9 @@ func TestWorkflow(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	Expect(plugin.Init(config.Config{Plugin: config.Plugin{DummyPlugins: true}})).Should(BeNil())
-	Expect(InitWorkflowRunner(stopCh)).Should(BeNil())
+	runner, err := InitWorkflowRunner()
+	Expect(err).Should(BeNil())
+	Expect(runner.Start(stopCh)).Should(BeNil())
 })
 var _ = AfterSuite(func() {
 	close(stopCh)

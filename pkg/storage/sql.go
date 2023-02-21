@@ -111,6 +111,33 @@ func (s *sqliteMetaStore) MirrorObject(ctx context.Context, srcObj, dstParent, o
 	return nil
 }
 
+func (s *sqliteMetaStore) PluginRecorder(plugin types.PlugScope) PluginRecorder {
+	return &sqlitePluginRecorder{
+		sqliteMetaStore: s,
+		plugin:          plugin,
+	}
+}
+
+func (s *sqliteMetaStore) getPluginRecord(ctx context.Context, plugin types.PlugScope, rid string, record interface{}) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *sqliteMetaStore) listPluginRecords(ctx context.Context, plugin types.PlugScope, groupId string) ([]string, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *sqliteMetaStore) savePluginRecord(ctx context.Context, plugin types.PlugScope, groupId, rid string, record interface{}) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *sqliteMetaStore) deletePluginRecord(ctx context.Context, plugin types.PlugScope, rid string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
 func newSqliteMetaStore(meta config.Meta) (*sqliteMetaStore, error) {
 	dbObj, err := gorm.Open(sqlite.Open(meta.Path), &gorm.Config{})
 	if err != nil {
@@ -136,4 +163,25 @@ func newSqliteMetaStore(meta config.Meta) (*sqliteMetaStore, error) {
 		dbPath:   meta.Path,
 		logger:   logger.NewLogger("sqlite"),
 	}, nil
+}
+
+type sqlitePluginRecorder struct {
+	*sqliteMetaStore
+	plugin types.PlugScope
+}
+
+func (s *sqlitePluginRecorder) GetRecord(ctx context.Context, rid string, record interface{}) error {
+	return s.getPluginRecord(ctx, s.plugin, rid, record)
+}
+
+func (s *sqlitePluginRecorder) ListRecords(ctx context.Context, groupId string) ([]string, error) {
+	return s.listPluginRecords(ctx, s.plugin, groupId)
+}
+
+func (s *sqlitePluginRecorder) SaveRecord(ctx context.Context, groupId, rid string, record interface{}) error {
+	return s.savePluginRecord(ctx, s.plugin, groupId, rid, record)
+}
+
+func (s *sqlitePluginRecorder) DeleteRecord(ctx context.Context, rid string) error {
+	return s.deletePluginRecord(ctx, s.plugin, rid)
 }

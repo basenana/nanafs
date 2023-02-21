@@ -1,11 +1,8 @@
 package workflow
 
 import (
-	"fmt"
-	"github.com/basenana/go-flow/controller"
 	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/go-flow/fsm"
-	"github.com/basenana/go-flow/storage"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/plugin/common"
 	"github.com/basenana/nanafs/pkg/types"
@@ -14,57 +11,52 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	flowCtrl    *controller.FlowController
-	flowStorage storage.Interface
-)
+type Job struct {
+	Id       string     `json:"id"`
+	Workflow string     `json:"workflow"`
+	Status   fsm.Status `json:"status"`
+	Message  string     `json:"message"`
+	Steps    []*JobStep `json:"steps"`
 
-func prepareJob(spec *types.WorkflowSpec) (*Job, error) {
+	logger *zap.SugaredLogger
+}
+
+func assembleWorkflowJob(spec *types.WorkflowSpec) (*Job, error) {
 	jid := uuid.New().String()
 	j := &Job{
 		Id:     jid,
-		status: flow.CreatingStatus,
-		steps:  make([]*JobStep, len(spec.Steps)),
-		logger: logger.NewLogger(fmt.Sprintf("job.%s", jid)),
+		Status: flow.CreatingStatus,
+		Steps:  make([]*JobStep, len(spec.Steps)),
 	}
 
 	for i, stepSpec := range spec.Steps {
-		j.steps[i] = &JobStep{
-			job:    j,
-			name:   flow.TName(stepSpec.Name),
-			status: flow.CreatingStatus,
-			plugin: stepSpec.Plugin,
+		j.Steps[i] = &JobStep{
+			StepName: flow.TName(stepSpec.Name),
+			Status:   flow.CreatingStatus,
+			Plugin:   stepSpec.Plugin,
 		}
 	}
 
 	return j, nil
 }
 
-type Job struct {
-	Id      string
-	status  fsm.Status
-	message string
-	steps   []*JobStep
-	logger  *zap.SugaredLogger
-}
-
 var _ flow.Flow = &Job{}
 
 func (n *Job) GetStatus() fsm.Status {
-	return n.status
+	return n.Status
 }
 
 func (n *Job) SetStatus(status fsm.Status) {
-	n.status = status
+	n.Status = status
 	if err := n.writeBack(); err != nil {
 		n.logger.Errorf("update status to %s failed: %s", status, err)
 	}
 }
 
 func (n *Job) SetStepStatus(stepName flow.TName, status fsm.Status) {
-	for i := range n.steps {
-		if n.steps[i].name == stepName {
-			n.steps[i].status = status
+	for i := range n.Steps {
+		if n.Steps[i].StepName == stepName {
+			n.Steps[i].Status = status
 		}
 	}
 	if err := n.writeBack(); err != nil {
@@ -73,11 +65,11 @@ func (n *Job) SetStepStatus(stepName flow.TName, status fsm.Status) {
 }
 
 func (n *Job) GetMessage() string {
-	return n.message
+	return n.Message
 }
 
 func (n *Job) SetMessage(msg string) {
-	n.message = msg
+	n.Message = msg
 }
 
 func (n *Job) ID() flow.FID {
@@ -93,6 +85,10 @@ func (n *Job) GetHooks() flow.Hooks {
 }
 
 func (n *Job) Setup(ctx *flow.Context) error {
+	n.logger = logger.NewLogger("workflow").With(zap.String("job", n.Id))
+	for i := range n.Steps {
+		n.Steps[i].job = n
+	}
 	ctx.Succeed()
 	return nil
 }
@@ -103,12 +99,12 @@ func (n *Job) Teardown(ctx *flow.Context) {
 }
 
 func (n *Job) NextBatch(ctx *flow.Context) ([]flow.Task, error) {
-	if len(n.steps) == 0 {
+	if len(n.Steps) == 0 {
 		return nil, nil
 	}
 
-	t := n.steps[0]
-	n.steps = n.steps[1:]
+	t := n.Steps[0]
+	n.Steps = n.Steps[1:]
 
 	return []flow.Task{t}, nil
 }
@@ -124,34 +120,35 @@ func (n *Job) writeBack() error {
 }
 
 type JobStep struct {
-	job     *Job
-	name    flow.TName
-	message string
-	status  fsm.Status
-	plugin  types.PlugScope
+	job *Job
+
+	StepName flow.TName      `json:"step_name"`
+	Message  string          `json:"message"`
+	Status   fsm.Status      `json:"status"`
+	Plugin   types.PlugScope `json:"plugin"`
 }
 
 var _ flow.Task = &JobStep{}
 
 func (n *JobStep) GetStatus() fsm.Status {
-	return n.status
+	return n.Status
 }
 
 func (n *JobStep) SetStatus(status fsm.Status) {
-	n.status = status
-	n.job.SetStepStatus(n.name, n.status)
+	n.Status = status
+	n.job.SetStepStatus(n.StepName, n.Status)
 }
 
 func (n *JobStep) GetMessage() string {
-	return n.message
+	return n.Message
 }
 
 func (n *JobStep) SetMessage(msg string) {
-	n.message = msg
+	n.Message = msg
 }
 
 func (n *JobStep) Name() flow.TName {
-	return n.name
+	return n.StepName
 }
 
 func (n *JobStep) Setup(ctx *flow.Context) error {
@@ -161,7 +158,7 @@ func (n *JobStep) Setup(ctx *flow.Context) error {
 
 func (n *JobStep) Do(ctx *flow.Context) error {
 	req := common.NewRequest()
-	_, err := plugin.Call(ctx.Context, n.plugin, req)
+	_, err := plugin.Call(ctx.Context, n.Plugin, req)
 	if err != nil {
 		ctx.Fail(err.Error(), 0)
 		return err

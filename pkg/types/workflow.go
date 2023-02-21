@@ -1,6 +1,7 @@
 package types
 
 type WorkflowSpec struct {
+	Id    string             `json:"id"`
 	Name  string             `json:"name"`
 	Rule  Rule               `json:"rule,omitempty"`
 	Steps []WorkflowStepSpec `json:"steps,omitempty"`

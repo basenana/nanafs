@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/types"
@@ -24,13 +25,6 @@ type ObjectStore interface {
 	ChangeParent(ctx context.Context, srcParent, dstParent, obj *types.Object, opt types.ChangeParentOption) error
 }
 
-type PluginStore interface {
-	GetRecord(ctx context.Context, rid string) error
-	ListRecords(ctx context.Context, groupId string, records interface{}) error
-	SaveRecord(ctx context.Context, rid string, record interface{}) error
-	DeleteRecord(ctx context.Context, rid string) error
-}
-
 const (
 	MemoryMeta = "memory"
 )
@@ -46,15 +40,15 @@ func NewMetaStorage(metaType string, meta config.Meta) (Meta, error) {
 	}
 }
 
-type PluginRecorder interface {
-	NewRecord(ctx context.Context, recordID, groupID string, data interface{}) error
-	GetRecord(ctx context.Context, recordID string, data interface{}) error
-	ListRecord(ctx context.Context, groupID string, data interface{}) error
-	ListGroup(ctx context.Context) ([]string, error)
+type PluginRecorderGetter interface {
+	PluginRecorder(plugin types.PlugScope) PluginRecorder
 }
 
-func NewPluginRecorder(pluginName string) (PluginRecorder, error) {
-	return nil, nil
+type PluginRecorder interface {
+	GetRecord(ctx context.Context, rid string, record interface{}) error
+	ListRecords(ctx context.Context, groupId string) ([]string, error)
+	SaveRecord(ctx context.Context, groupId, rid string, record interface{}) error
+	DeleteRecord(ctx context.Context, rid string) error
 }
 
 type memoryMetaStore struct {
@@ -166,5 +160,96 @@ func (m *memoryMetaStore) MirrorObject(ctx context.Context, srcObj, dstParent, o
 	m.objects[dstParent.ID] = dstParent
 	m.objects[object.ID] = object
 	m.mux.Unlock()
+	return nil
+}
+
+func (m *memoryMetaStore) PluginRecorder(plugin types.PlugScope) PluginRecorder {
+	return &memoryPluginRecorder{
+		plugin: plugin,
+		data:   make(map[string][]byte),
+		groups: make(map[string]map[string]struct{}),
+	}
+}
+
+type memoryPluginRecorder struct {
+	plugin      types.PlugScope
+	data        map[string][]byte
+	recordGroup map[string]string
+	groups      map[string]map[string]struct{}
+	mux         sync.Mutex
+}
+
+func (m *memoryPluginRecorder) GetRecord(ctx context.Context, rid string, record interface{}) error {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	rawData, ok := m.data[rid]
+	if !ok {
+		return types.ErrNotFound
+	}
+	return json.Unmarshal(rawData, record)
+}
+
+func (m *memoryPluginRecorder) ListRecords(ctx context.Context, groupId string) ([]string, error) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	groups, ok := m.groups[groupId]
+	if !ok {
+		return nil, types.ErrNotFound
+	}
+	result := make([]string, 0, len(groups))
+	for rid := range groups {
+		result = append(result, rid)
+	}
+	return result, nil
+}
+
+func (m *memoryPluginRecorder) SaveRecord(ctx context.Context, groupId, rid string, record interface{}) error {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	rawData, err := json.Marshal(record)
+	if err != nil {
+		return err
+	}
+	m.data[rid] = rawData
+	oldGroupId, ok := m.recordGroup[rid]
+	if !ok {
+		m.recordGroup[rid] = groupId
+		groups, inited := m.groups[groupId]
+		if !inited {
+			groups = map[string]struct{}{}
+		}
+		groups[rid] = struct{}{}
+		return nil
+	}
+
+	if groupId != oldGroupId {
+		m.recordGroup[rid] = groupId
+		delete(m.groups[oldGroupId], rid)
+
+		groups, inited := m.groups[groupId]
+		if !inited {
+			groups = map[string]struct{}{}
+		}
+		groups[rid] = struct{}{}
+	}
+	return nil
+}
+
+func (m *memoryPluginRecorder) DeleteRecord(ctx context.Context, rid string) error {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+
+	_, ok := m.data[rid]
+	if !ok {
+		return types.ErrNotFound
+	}
+	delete(m.data, rid)
+
+	groupId, ok := m.recordGroup[rid]
+	if !ok {
+		return nil
+	}
+	delete(m.recordGroup, rid)
+	delete(m.groups[groupId], rid)
 	return nil
 }
