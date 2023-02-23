@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -19,15 +20,16 @@ func NewDbEntity(db *gorm.DB) (*Entity, error) {
 	ctx, canF := context.WithTimeout(context.TODO(), time.Second*10)
 	defer canF()
 
+	if err := db.AutoMigrate(dbModels...); err != nil {
+		return nil, err
+	}
+
 	_, err := ent.SystemInfo(ctx)
 	if err != nil && err != gorm.ErrRecordNotFound {
 		return nil, err
 	}
 
 	if err != nil {
-		if err = db.AutoMigrate(dbModels...); err != nil {
-			return nil, err
-		}
 		sysInfo := &SystemInfo{
 			FsID:  uuid.New().String(),
 			Inode: 1024,
@@ -58,7 +60,7 @@ func (e *Entity) ListObjectChildren(ctx context.Context, filter types.Filter) ([
 	}
 
 	objectList := make([]Object, 0)
-	res := queryFilter(e.DB, filter).Find(objectList)
+	res := queryFilter(e.DB, filter).Find(&objectList)
 	if res.Error != nil {
 		return nil, res.Error
 	}
@@ -125,19 +127,97 @@ func (e *Entity) SaveChangeParentObject(ctx context.Context, srcParent, dstParen
 	})
 }
 
-func (e *Entity) DeleteObject(ctx context.Context, srcParent, dstParent, obj *types.Object) error {
+func (e *Entity) DeleteObject(ctx context.Context, srcObj, dstParent, obj *types.Object) error {
 	return e.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := saveRawObject(tx, srcParent); err != nil {
-			return err
+		if srcObj != nil {
+			if err := saveRawObject(tx, srcObj); err != nil {
+				return err
+			}
 		}
 		if err := saveRawObject(tx, dstParent); err != nil {
 			return err
 		}
-		if err := saveRawObject(tx, obj); err != nil {
+		if err := deleteRawObject(tx, obj); err != nil {
 			return err
 		}
 		return nil
 	})
+}
+
+func (e *Entity) GetPluginRecord(ctx context.Context, plugin types.PlugScope, rid string, record interface{}) error {
+	pd := PluginData{
+		PluginName: plugin.PluginName,
+		RecordId:   rid,
+	}
+	res := e.DB.WithContext(ctx).Where("plugin_name = ? AND record_id = ?", plugin.PluginName, rid).First(&pd)
+	if res.Error != nil {
+		return res.Error
+	}
+	return json.Unmarshal([]byte(pd.Content), record)
+}
+
+func (e *Entity) ListPluginRecords(ctx context.Context, plugin types.PlugScope, groupId string) ([]string, error) {
+	result := make([]string, 0)
+	res := e.DB.WithContext(ctx).Model(&PluginData{}).Select("record_id").Where("plugin_name = ? AND group_id = ?", plugin.PluginName, groupId).Find(&result)
+	return result, res.Error
+}
+
+func (e *Entity) SavePluginRecord(ctx context.Context, plugin types.PlugScope, groupId, rid string, record interface{}) error {
+	pd := PluginData{
+		PluginName: plugin.PluginName,
+		GroupId:    groupId,
+		RecordId:   rid,
+	}
+
+	needCreate := false
+	res := e.DB.WithContext(ctx).Where("plugin_name = ? AND record_id = ?", plugin.PluginName, rid).First(&pd)
+	if res.Error != nil {
+		if res.Error != gorm.ErrRecordNotFound {
+			return res.Error
+		}
+		needCreate = true
+	}
+
+	rawContent, err := json.Marshal(record)
+	if err != nil {
+		return err
+	}
+
+	pd.Version = plugin.Version
+	pd.Type = plugin.PluginType
+	pd.Content = string(rawContent)
+
+	if needCreate {
+		res = e.DB.WithContext(ctx).Create(&pd)
+		if res.Error != nil {
+			return res.Error
+		}
+		return nil
+	}
+
+	res = e.DB.WithContext(ctx).Updates(pd)
+	if res.Error != nil {
+		return res.Error
+	}
+	return nil
+}
+
+func (e *Entity) DeletePluginRecord(ctx context.Context, plugin types.PlugScope, rid string) error {
+	pd := PluginData{
+		PluginName: plugin.PluginName,
+		RecordId:   rid,
+	}
+
+	res := e.DB.WithContext(ctx).Where("plugin_name = ? AND record_id = ?", plugin.PluginName, rid).First(&pd)
+	if res.Error != nil {
+		return res.Error
+	}
+
+	res = e.DB.WithContext(ctx).Delete(pd)
+	if res.Error != nil {
+		return res.Error
+	}
+	return nil
 }
 
 func (e *Entity) SystemInfo(ctx context.Context) (*SystemInfo, error) {
@@ -213,6 +293,32 @@ func saveRawObject(tx *gorm.DB, obj *types.Object) error {
 	return nil
 }
 
+func deleteRawObject(tx *gorm.DB, obj *types.Object) error {
+	var (
+		objModel = &Object{ID: obj.ID}
+		oaModel  = &ObjectAccess{ID: obj.ID}
+	)
+	res := tx.First(objModel)
+	if res.Error != nil && res.Error != gorm.ErrRecordNotFound {
+		return res.Error
+	}
+
+	res = tx.Delete(objModel)
+	if res.Error != nil {
+		return res.Error
+	}
+	res = tx.Delete(oaModel)
+	if res.Error != nil {
+		return res.Error
+	}
+	res = tx.Where("oid = ?", obj.ID).Delete(&ObjectLabel{})
+	if res.Error != nil {
+		return res.Error
+	}
+
+	return nil
+}
+
 func availableInode(tx *gorm.DB) (uint64, error) {
 	info := &SystemInfo{}
 	res := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(info)
@@ -231,7 +337,7 @@ func availableInode(tx *gorm.DB) (uint64, error) {
 
 func updateObjectLabels(tx *gorm.DB, obj *types.Object) error {
 	labelModels := make([]ObjectLabel, 0)
-	res := tx.Where("oid = ?", obj.ID).Find(labelModels)
+	res := tx.Where("oid = ?", obj.ID).Find(&labelModels)
 	if res.Error != nil {
 		return res.Error
 	}

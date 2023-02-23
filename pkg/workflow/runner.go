@@ -31,9 +31,10 @@ type Runner struct {
 	sync.RWMutex
 }
 
-func InitWorkflowRunner() (*Runner, error) {
+func InitWorkflowRunner(recorder storage.PluginRecorder) (*Runner, error) {
 	runner := &Runner{
-		logger: logger.NewLogger("workflowRuntime"),
+		recorder: recorder,
+		logger:   logger.NewLogger("workflowRuntime"),
 	}
 
 	var err error

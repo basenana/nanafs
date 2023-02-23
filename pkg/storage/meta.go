@@ -12,6 +12,7 @@ import (
 
 type Meta interface {
 	ObjectStore
+	PluginRecorderGetter
 }
 
 type ObjectStore interface {
@@ -165,9 +166,10 @@ func (m *memoryMetaStore) MirrorObject(ctx context.Context, srcObj, dstParent, o
 
 func (m *memoryMetaStore) PluginRecorder(plugin types.PlugScope) PluginRecorder {
 	return &memoryPluginRecorder{
-		plugin: plugin,
-		data:   make(map[string][]byte),
-		groups: make(map[string]map[string]struct{}),
+		plugin:      plugin,
+		data:        make(map[string][]byte),
+		recordGroup: make(map[string]string),
+		groups:      make(map[string]map[string]struct{}),
 	}
 }
 

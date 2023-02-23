@@ -1,8 +1,9 @@
 package workflow
 
 import (
+	"context"
+	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/hyponet/eventbus/bus"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"time"
@@ -18,7 +19,7 @@ var _ = Describe("TestWorkflowTrigger", func() {
 
 	Context("with a single workflow", func() {
 		It("should be succeed", func() {
-			bus.Publish("object.workflow.test-workflow.trigger", &types.WorkflowSpec{
+			job, err := assembleWorkflowJob(&types.WorkflowSpec{
 				Name: "test-workflow",
 				Rule: types.Rule{},
 				Steps: []types.WorkflowStepSpec{{
@@ -26,8 +27,17 @@ var _ = Describe("TestWorkflowTrigger", func() {
 					Plugin: ps,
 				}},
 			})
-			// TODO:
-			Eventually(1, time.Minute, time.Second).Should(Equal(1))
+			if err != nil {
+				Expect(err).Should(BeNil())
+				return
+			}
+
+			go runner.triggerJob(context.TODO(), job)
+			Eventually(func() string {
+				f, err := runner.GetFlow(job.ID())
+				Expect(err).Should(BeNil())
+				return string(f.GetStatus())
+			}, time.Minute, time.Second).Should(Equal(string(flow.SucceedStatus)))
 		})
 	})
 })

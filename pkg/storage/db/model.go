@@ -28,8 +28,8 @@ type Object struct {
 	ID           int64     `gorm:"column:id;primaryKey"`
 	Name         string    `gorm:"column:name"`
 	Aliases      string    `gorm:"column:aliases"`
-	ParentID     int64     `gorm:"column:parent_id;index:parent_id;unique"`
-	RefID        int64     `gorm:"column:ref_id;index:ref_id;unique"`
+	ParentID     int64     `gorm:"column:parent_id;index:parent_id"`
+	RefID        int64     `gorm:"column:ref_id;index:ref_id"`
 	RefCount     int       `gorm:"column:ref_count"`
 	Kind         string    `gorm:"column:kind"`
 	Hash         string    `gorm:"column:hash"`
@@ -147,10 +147,11 @@ func (o ObjectLabel) TableName() string {
 
 type PluginData struct {
 	ID         int64            `gorm:"column:id;autoIncrement"`
-	PluginName string           `gorm:"column:plugin_name"`
+	PluginName string           `gorm:"column:plugin_name;index:plugin_name"`
 	Version    string           `gorm:"column:version"`
 	Type       types.PluginType `gorm:"column:type"`
-	Key        string           `gorm:"column:key"`
+	GroupId    string           `gorm:"column:group_id;index:group_id"`
+	RecordId   string           `gorm:"column:record_id;index:record_id"`
 	Content    string           `gorm:"column:content"`
 }
 
