@@ -158,3 +158,14 @@ type PluginData struct {
 func (d PluginData) TableName() string {
 	return "plugin_data"
 }
+
+type ObjectWorkflow struct {
+	ID        string    `db:"id"`
+	Synced    bool      `db:"synced"`
+	CreatedAt time.Time `db:"created_at"`
+	UpdatedAt time.Time `db:"updated_at"`
+}
+
+func (o ObjectWorkflow) TableName() string {
+	return "object_workflow"
+}

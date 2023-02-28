@@ -1,5 +1,7 @@
 package types
 
+import "time"
+
 type Filter struct {
 	ID        int64
 	ParentID  int64
@@ -51,4 +53,42 @@ func IsObjectFiltered(obj *Object, filter Filter) bool {
 		return obj.Namespace == filter.Namespace
 	}
 	return false
+}
+
+type WorkflowFilter struct {
+	ID        string
+	Synced    bool
+	UpdatedAt *time.Time
+}
+
+type ObjectMapper struct {
+	Key       string
+	Value     interface{}
+	Operation string
+}
+
+func WorkflowFilterObjectMapper(f WorkflowFilter) []ObjectMapper {
+	result := []ObjectMapper{}
+	if f.ID != "" {
+		result = append(result, ObjectMapper{
+			Key:       "id",
+			Value:     f.ID,
+			Operation: "=",
+		})
+	}
+	if !f.Synced {
+		result = append(result, ObjectMapper{
+			Key:       "synced",
+			Value:     f.Synced,
+			Operation: "=",
+		})
+	}
+	if f.UpdatedAt != nil {
+		result = append(result, ObjectMapper{
+			Key:       "updated_at",
+			Value:     f.UpdatedAt,
+			Operation: "<",
+		})
+	}
+	return result
 }
