@@ -9,10 +9,11 @@ import (
 	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/go-flow/fsm"
 	flowstorage "github.com/basenana/go-flow/storage"
+	"github.com/basenana/nanafs/pkg/plugin"
+	"github.com/basenana/nanafs/pkg/plugin/common"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
-	"github.com/hyponet/eventbus/bus"
 	"go.uber.org/zap"
 	"sync"
 )
@@ -50,30 +51,35 @@ func InitWorkflowRunner(recorder storage.PluginRecorder) (*Runner, error) {
 	return runner, nil
 }
 
-func (r *Runner) Init() error {
-	_, err := bus.Subscribe("object.workflow.*.trigger", r.WorkFlowHandler)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func (r *Runner) Start(stopCh chan struct{}) error {
 	return nil
 }
 
-func (r *Runner) WorkFlowHandler(wf *types.WorkflowSpec) {
+func (r *Runner) WorkFlowHandler(ctx context.Context, wf *types.WorkflowSpec) (*types.WorkflowJob, error) {
 	r.logger.Infow("receive workflow", "workflow", wf.Name)
 
 	job, err := assembleWorkflowJob(wf)
 	if err != nil {
 		r.logger.Errorw("assemble job failed", "workflow", wf.Name, "err", err)
-		return
+		return nil, err
 	}
 
-	go r.triggerJob(context.TODO(), job)
+	job.Id, err = nextJobId(ctx, r.recorder)
+	if err != nil {
+		return nil, err
+	}
 
-	return
+	err = r.recorder.SaveRecord(ctx, jobGroupId(wf.Id), job.Id, job)
+	if err != nil {
+		return nil, err
+	}
+
+	go r.triggerJob(context.TODO(), &Job{
+		WorkflowJob: job,
+		logger:      r.logger.With(zap.String("job", job.Id)),
+	})
+
+	return job, nil
 }
 
 func (r *Runner) triggerJob(ctx context.Context, job *Job) {
@@ -89,8 +95,11 @@ func (r *Runner) triggerJob(ctx context.Context, job *Job) {
 }
 
 func (r *Runner) GetFlow(flowId flow.FID) (flow.Flow, error) {
-	job := &Job{}
-	err := r.recorder.GetRecord(context.Background(), string(flowId), job)
+	job := &Job{
+		WorkflowJob: &types.WorkflowJob{},
+		logger:      r.logger.With(zap.String("job", string(flowId))),
+	}
+	err := r.recorder.GetRecord(context.Background(), string(flowId), job.WorkflowJob)
 	if err != nil {
 		r.logger.Errorw("load job failed", "err", err)
 		return nil, err
@@ -117,7 +126,7 @@ func (r *Runner) GetFlowMeta(flowId flow.FID) (*flowstorage.FlowMeta, error) {
 		TaskStatus: map[flow.TName]fsm.Status{},
 	}
 	for _, step := range job.Steps {
-		result.TaskStatus[step.StepName] = step.Status
+		result.TaskStatus[flow.TName(step.StepName)] = fsm.Status(step.Status)
 	}
 	return result, nil
 }
@@ -128,7 +137,7 @@ func (r *Runner) SaveFlow(flow flow.Flow) error {
 		return fmt.Errorf("flow %s not a Job object", flow.ID())
 	}
 
-	err := r.recorder.SaveRecord(context.Background(), job.Workflow, job.Id, job)
+	err := r.recorder.SaveRecord(context.Background(), jobGroupId(job.Workflow), job.Id, job.WorkflowJob)
 	if err != nil {
 		r.logger.Errorw("save job to metadb failed", "err", err)
 		return err
@@ -160,14 +169,10 @@ func (r *Runner) SaveTask(flowId flow.FID, task flow.Task) error {
 		return ErrJobNotFound
 	}
 
-	newStep, ok := task.(*JobStep)
-	if !ok {
-		return fmt.Errorf("task not a JobStep object")
-	}
-
 	for i, step := range job.Steps {
-		if step.Name() == task.Name() {
-			job.Steps[i] = newStep
+		if step.StepName == string(task.Name()) {
+			job.Steps[i].Status = string(task.GetStatus())
+			job.Steps[i].Message = task.GetMessage()
 			break
 		}
 	}
@@ -178,3 +183,143 @@ func (r *Runner) SaveTask(flowId flow.FID, task flow.Task) error {
 func (r *Runner) DeleteTask(flowId flow.FID, taskName flow.TName) error {
 	return nil
 }
+
+type Job struct {
+	*types.WorkflowJob
+	logger *zap.SugaredLogger
+}
+
+func assembleWorkflowJob(spec *types.WorkflowSpec) (*types.WorkflowJob, error) {
+	j := &types.WorkflowJob{
+		Workflow: spec.Id,
+		Status:   string(flow.CreatingStatus),
+		Steps:    make([]types.WorkflowJobStep, len(spec.Steps)),
+	}
+
+	for i, stepSpec := range spec.Steps {
+		j.Steps[i] = types.WorkflowJobStep{
+			StepName: stepSpec.Name,
+			Status:   string(flow.CreatingStatus),
+			Plugin:   stepSpec.Plugin,
+		}
+	}
+
+	return j, nil
+}
+
+var _ flow.Flow = &Job{}
+
+func (n *Job) GetStatus() fsm.Status {
+	return fsm.Status(n.Status)
+}
+
+func (n *Job) SetStatus(status fsm.Status) {
+	n.Status = string(status)
+}
+
+func (n *Job) SetStepStatus(stepName flow.TName, status fsm.Status) {
+	for i := range n.Steps {
+		if n.Steps[i].StepName == string(stepName) {
+			n.Steps[i].Status = string(status)
+		}
+	}
+}
+
+func (n *Job) GetMessage() string {
+	return n.Message
+}
+
+func (n *Job) SetMessage(msg string) {
+	n.Message = msg
+}
+
+func (n *Job) ID() flow.FID {
+	return flow.FID(n.Id)
+}
+
+func (n *Job) Type() flow.FType {
+	return "Job"
+}
+
+func (n *Job) GetHooks() flow.Hooks {
+	return map[flow.HookType]flow.Hook{}
+}
+
+func (n *Job) Setup(ctx *flow.Context) error {
+	ctx.Succeed()
+	return nil
+}
+
+func (n *Job) Teardown(ctx *flow.Context) {
+	ctx.Succeed()
+	return
+}
+
+func (n *Job) NextBatch(ctx *flow.Context) ([]flow.Task, error) {
+	if len(n.Steps) == 0 {
+		return nil, nil
+	}
+
+	t := n.Steps[0]
+	n.Steps = n.Steps[1:]
+
+	return []flow.Task{&JobStep{WorkflowJobStep: &t, job: n}}, nil
+}
+
+func (n *Job) GetControlPolicy() flow.ControlPolicy {
+	return flow.ControlPolicy{
+		FailedPolicy: flow.PolicyFastFailed,
+	}
+}
+
+type JobStep struct {
+	*types.WorkflowJobStep
+	job *Job
+}
+
+var _ flow.Task = &JobStep{}
+
+func (n *JobStep) GetStatus() fsm.Status {
+	return fsm.Status(n.Status)
+}
+
+func (n *JobStep) SetStatus(status fsm.Status) {
+	n.Status = string(status)
+}
+
+func (n *JobStep) GetMessage() string {
+	return n.Message
+}
+
+func (n *JobStep) SetMessage(msg string) {
+	n.Message = msg
+}
+
+func (n *JobStep) Name() flow.TName {
+	return flow.TName(n.StepName)
+}
+
+func (n *JobStep) Setup(ctx *flow.Context) error {
+	ctx.Succeed()
+	return nil
+}
+
+func (n *JobStep) Do(ctx *flow.Context) error {
+	req := common.NewRequest()
+	_, err := pluginCall(ctx.Context, n.Plugin, req)
+	if err != nil {
+		ctx.Fail(err.Error(), 0)
+		return err
+	}
+	ctx.Succeed()
+	return nil
+}
+
+func (n *JobStep) Teardown(ctx *flow.Context) {
+	ctx.Succeed()
+	return
+}
+
+var (
+	pluginCall = plugin.Call
+)

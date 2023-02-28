@@ -196,7 +196,7 @@ func (m *memoryPluginRecorder) ListRecords(ctx context.Context, groupId string) 
 	defer m.mux.Unlock()
 	groups, ok := m.groups[groupId]
 	if !ok {
-		return nil, types.ErrNotFound
+		return []string{}, nil
 	}
 	result := make([]string, 0, len(groups))
 	for rid := range groups {
@@ -221,6 +221,7 @@ func (m *memoryPluginRecorder) SaveRecord(ctx context.Context, groupId, rid stri
 			groups = map[string]struct{}{}
 		}
 		groups[rid] = struct{}{}
+		m.groups[groupId] = groups
 		return nil
 	}
 
@@ -233,6 +234,7 @@ func (m *memoryPluginRecorder) SaveRecord(ctx context.Context, groupId, rid stri
 			groups = map[string]struct{}{}
 		}
 		groups[rid] = struct{}{}
+		m.groups[groupId] = groups
 	}
 	return nil
 }

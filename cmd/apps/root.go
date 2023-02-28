@@ -69,7 +69,7 @@ var daemonCmd = &cobra.Command{
 		stop := utils.HandleTerminalSignal()
 		files.InitFileIoChain(cfg, sto, stop)
 
-		if err := plugin.Init(cfg); err != nil {
+		if err := plugin.Init(cfg, meta); err != nil {
 			panic(err)
 		}
 

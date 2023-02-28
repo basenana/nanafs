@@ -16,3 +16,9 @@ type RunnablePlugin interface {
 	Plugin
 	Run(ctx context.Context, request *common.Request, params map[string]string) (*common.Response, error)
 }
+
+type pluginInfo struct {
+	Plugin
+	disable bool
+	buildIn bool
+}
