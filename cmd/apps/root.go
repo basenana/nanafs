@@ -1,7 +1,6 @@
 package apps
 
 import (
-	"context"
 	"github.com/basenana/nanafs/cmd/apps/apis"
 	configapp "github.com/basenana/nanafs/cmd/apps/config"
 	"github.com/basenana/nanafs/cmd/apps/fs"
@@ -10,7 +9,6 @@ import (
 	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/storage"
-	"github.com/basenana/nanafs/pkg/workflow"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/spf13/cobra"
@@ -68,21 +66,10 @@ var daemonCmd = &cobra.Command{
 		}
 
 		ctrl := controller.New(loader, meta, sto)
-		if err := controller.InitSchemas(ctrl, cfg); err != nil {
-			panic(err)
-		}
 		stop := utils.HandleTerminalSignal()
 		files.InitFileIoChain(cfg, sto, stop)
-		wfManager, err := workflow.NewWorkflowManager(ctrl, meta)
-		if err != nil {
-			panic(err)
-		}
 
-		if err = wfManager.Run(context.TODO()); err != nil {
-			panic(err)
-		}
-
-		if err := plugin.RunPluginDaemon(meta, cfg, stop); err != nil {
+		if err := plugin.Init(cfg, meta); err != nil {
 			panic(err)
 		}
 

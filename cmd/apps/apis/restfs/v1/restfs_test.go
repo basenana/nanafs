@@ -69,7 +69,7 @@ var _ = Describe("TestRestFsGet", func() {
 	})
 
 	Describe("test action alias", func() {
-		var oid string
+		var oid int64
 		Context("normal", func() {
 			It("create new file", func() {
 				newFile, err := ctrl.CreateObject(context.Background(), root, types.ObjectAttr{Name: "get-alias-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
@@ -89,7 +89,7 @@ var _ = Describe("TestRestFsGet", func() {
 
 				expect := struct {
 					Data struct {
-						ID string `json:"id"`
+						ID int64 `json:"id"`
 					} `json:"data"`
 				}{}
 				Expect(json.NewDecoder(resp.Body).Decode(&expect)).Should(BeNil())
@@ -130,7 +130,7 @@ var _ = Describe("TestRestFsPost", func() {
 	})
 
 	Describe("test action create", func() {
-		var oid string
+		var oid int64
 		Context("normal", func() {
 			It("create new file by action create", func() {
 				req := frame.RequestV1{
@@ -149,7 +149,7 @@ var _ = Describe("TestRestFsPost", func() {
 
 				newObj := struct {
 					Data struct {
-						ID string `json:"id"`
+						ID int64 `json:"id"`
 					}
 				}{}
 				Expect(json.NewDecoder(resp.Body).Decode(&newObj)).Should(BeNil())

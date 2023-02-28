@@ -14,18 +14,6 @@ const (
 	objectNameMaxLength = 255
 )
 
-type ObjectController interface {
-	LoadRootObject(ctx context.Context) (*types.Object, error)
-	FindObject(ctx context.Context, parent *types.Object, name string) (*types.Object, error)
-	GetObject(ctx context.Context, id string) (*types.Object, error)
-	CreateObject(ctx context.Context, parent *types.Object, attr types.ObjectAttr) (*types.Object, error)
-	SaveObject(ctx context.Context, parent, obj *types.Object) error
-	DestroyObject(ctx context.Context, parent, obj *types.Object, attr types.DestroyObjectAttr) error
-	MirrorObject(ctx context.Context, src, dstParent *types.Object, attr types.ObjectAttr) (*types.Object, error)
-	ListObjectChildren(ctx context.Context, obj *types.Object) ([]*types.Object, error)
-	ChangeObjectParent(ctx context.Context, old, oldParent, newParent *types.Object, newName string, opt types.ChangeParentAttr) error
-}
-
 func (c *controller) LoadRootObject(ctx context.Context) (*types.Object, error) {
 	defer utils.TraceRegion(ctx, "controller.loadroot")()
 	c.logger.Info("init root object")
@@ -68,7 +56,7 @@ func (c *controller) FindObject(ctx context.Context, parent *types.Object, name 
 	return nil, types.ErrNotFound
 }
 
-func (c *controller) GetObject(ctx context.Context, id string) (*types.Object, error) {
+func (c *controller) GetObject(ctx context.Context, id int64) (*types.Object, error) {
 	obj, err := c.meta.GetObject(ctx, id)
 	if err != nil {
 		return nil, err
@@ -84,10 +72,6 @@ func (c *controller) CreateObject(ctx context.Context, parent *types.Object, att
 	}
 
 	c.logger.Infow("creating new obj", "name", attr.Name, "kind", attr.Kind)
-	if parent.Labels.Get(types.KindKey) != nil && parent.Labels.Get(types.KindKey).Value != "" {
-		return c.CreateStructuredObject(ctx, parent, attr, types.Kind(parent.Labels.Get(types.KindKey).Value), parent.Labels.Get(types.VersionKey).Value)
-	}
-
 	obj, err := types.InitNewObject(parent, attr)
 	if err != nil {
 		c.logger.Errorw("create new object error", "parent", parent.ID, "name", attr.Name, "err", err.Error())
@@ -101,7 +85,7 @@ func (c *controller) CreateObject(ctx context.Context, parent *types.Object, att
 	if err = c.SaveObject(ctx, parent, obj); err != nil {
 		return nil, err
 	}
-	bus.Publish(fmt.Sprintf("object.entry.%s.create", obj.ID), obj)
+	bus.Publish(fmt.Sprintf("object.entry.%d.create", obj.ID), obj)
 	return obj, nil
 }
 
@@ -113,7 +97,7 @@ func (c *controller) SaveObject(ctx context.Context, parent, obj *types.Object) 
 		c.logger.Errorw("save object error", "obj", obj.ID, "err", err.Error())
 		return err
 	}
-	bus.Publish(fmt.Sprintf("object.entry.%s.update", obj.ID), obj)
+	bus.Publish(fmt.Sprintf("object.entry.%d.update", obj.ID), obj)
 	return nil
 }
 
@@ -130,10 +114,7 @@ func (c *controller) DestroyObject(ctx context.Context, parent, obj *types.Objec
 
 	defer func() {
 		if err == nil {
-			bus.Publish(fmt.Sprintf("object.entry.%s.destroy", obj.ID), obj)
-			if c.IsStructured(obj) {
-				bus.Publish(fmt.Sprintf("object.%s.%s.destroy", obj.Kind, obj.ID), obj)
-			}
+			bus.Publish(fmt.Sprintf("object.entry.%d.destroy", obj.ID), obj)
 		}
 	}()
 
@@ -165,7 +146,7 @@ func (c *controller) destroyObject(ctx context.Context, src, parent, obj *types.
 	if !obj.IsGroup() && obj.RefCount > 0 {
 		c.logger.Infow("object has mirrors, remove parent id", "obj", obj.ID)
 		obj.RefCount -= 1
-		obj.ParentID = ""
+		obj.ParentID = 0
 		obj.ChangedAt = time.Now()
 	}
 
@@ -229,7 +210,7 @@ func (c *controller) MirrorObject(ctx context.Context, src, dstParent *types.Obj
 		c.logger.Errorw("update dst parent object ref count error", "srcObj", src.ID, "dstParent", dstParent.ID, "err", err.Error())
 		return nil, err
 	}
-	bus.Publish(fmt.Sprintf("object.entry.%s.mirror", obj.ID), obj)
+	bus.Publish(fmt.Sprintf("object.entry.%d.mirror", obj.ID), obj)
 	return obj, nil
 }
 
@@ -319,6 +300,6 @@ func (c *controller) ChangeObjectParent(ctx context.Context, obj, oldParent, new
 		c.logger.Errorw("change object parent failed", "old", obj.ID, "newParent", newParent.ID, "newName", newName, "err", err.Error())
 		return err
 	}
-	bus.Publish(fmt.Sprintf("object.entry.%s.mv", obj.ID), obj)
+	bus.Publish(fmt.Sprintf("object.entry.%d.mv", obj.ID), obj)
 	return nil
 }

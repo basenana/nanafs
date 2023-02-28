@@ -1,16 +1,79 @@
 package db
 
 import (
-	"database/sql"
+	"context"
+	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils/logger"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
+	glogger "gorm.io/gorm/logger"
+	"time"
 )
 
-func dbError2Error(err error) error {
+func SqlError2Error(err error) error {
 	switch err {
-	case sql.ErrNoRows:
+	case gorm.ErrRecordNotFound:
 		return types.ErrNotFound
-
 	default:
 		return err
 	}
+}
+
+func queryFilter(tx *gorm.DB, filter types.Filter) *gorm.DB {
+	if filter.ID != 0 {
+		tx = tx.Where("id = ?", filter.ID)
+	}
+	if filter.ParentID != 0 {
+		tx = tx.Where("parent_id = ?", filter.ParentID)
+	}
+	if filter.RefID != 0 {
+		tx = tx.Where("ref_id = ?", filter.RefID)
+	}
+	if filter.Kind != "" {
+		tx = tx.Where("kind = ?", filter.Kind)
+	}
+	if filter.Namespace != "" {
+		tx = tx.Where("namespace = ?", filter.Namespace)
+	}
+	return tx
+}
+
+func labelSearchKey(k, v string) string {
+	return fmt.Sprintf("%s=%s", k, v)
+}
+
+type Logger struct {
+	*zap.SugaredLogger
+}
+
+func (l *Logger) LogMode(level glogger.LogLevel) glogger.Interface {
+	return l
+}
+
+func (l *Logger) Info(ctx context.Context, s string, i ...interface{}) {
+	l.Infof(s, i...)
+}
+
+func (l *Logger) Warn(ctx context.Context, s string, i ...interface{}) {
+	l.Warnf(s, i...)
+}
+
+func (l *Logger) Error(ctx context.Context, s string, i ...interface{}) {
+	l.Errorf(s, i...)
+}
+
+func (l *Logger) Trace(ctx context.Context, begin time.Time, fc func() (sql string, rowsAffected int64), err error) {
+	switch {
+	case err != nil:
+		sqlContent, rows := fc()
+		l.Warnw("trace error", "sql", sqlContent, "rows", rows, "err", err)
+	case time.Since(begin) > time.Second:
+		sqlContent, rows := fc()
+		l.Infow("slow sql", "sql", sqlContent, "rows", rows, "err", err)
+	}
+}
+
+func NewDbLogger() *Logger {
+	return &Logger{SugaredLogger: logger.NewLogger("database")}
 }

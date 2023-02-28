@@ -8,6 +8,7 @@ import (
 	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/hanwen/go-fuse/v2/fs"
 	. "github.com/onsi/ginkgo"
@@ -22,11 +23,11 @@ var (
 )
 
 type MockController struct {
-	objects map[string]*types.Object
+	objects map[int64]*types.Object
 	mux     sync.Mutex
 }
 
-func (m *MockController) GetObject(ctx context.Context, id string) (*types.Object, error) {
+func (m *MockController) GetObject(ctx context.Context, id int64) (*types.Object, error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	obj, ok := m.objects[id]
@@ -67,11 +68,6 @@ func (m *MockController) LoadStructureObject(ctx context.Context, obj *types.Obj
 }
 
 func (m *MockController) SaveStructureObject(ctx context.Context, obj *types.Object, spec interface{}) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *MockController) GetJobs(ctx context.Context) map[string]*types.Job {
 	//TODO implement me
 	panic("implement me")
 }
@@ -156,6 +152,7 @@ func (m *MockController) CreateObject(ctx context.Context, parent *types.Object,
 func (m *MockController) SaveObject(ctx context.Context, parent, obj *types.Object) error {
 	m.mux.Lock()
 	defer m.mux.Unlock()
+	obj.ID = utils.GenerateNewID()
 	m.objects[obj.ID] = obj
 	return nil
 }
@@ -197,7 +194,7 @@ func (m *MockController) FsInfo(ctx context.Context) controller.Info {
 
 func NewMockController() controller.Controller {
 	return &MockController{
-		objects: map[string]*types.Object{},
+		objects: map[int64]*types.Object{},
 	}
 }
 

@@ -142,7 +142,7 @@ type Attr struct {
 	Create bool
 	Trunc  bool
 	Direct bool
-	Meta   storage.MetaStore
+	Meta   storage.Meta
 }
 
 func Open(ctx context.Context, obj *types.Object, attr Attr) (File, error) {

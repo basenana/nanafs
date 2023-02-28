@@ -11,10 +11,6 @@ const (
 	defaultFsMaxSize = 8796093022208
 )
 
-type FsController interface {
-	FsInfo(ctx context.Context) Info
-}
-
 type Info struct {
 	Objects     uint64
 	FileCount   uint64

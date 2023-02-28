@@ -123,7 +123,7 @@ func (n *NanaFS) newFsNode(ctx context.Context, parent *NanaNode, obj *types.Obj
 	node := &NanaNode{
 		oid:    obj.ID,
 		R:      n,
-		logger: n.logger.With(zap.String("obj", obj.ID)),
+		logger: n.logger.With(zap.Int64("obj", obj.ID)),
 	}
 	if parent != nil {
 		parent.NewInode(ctx, node, idFromStat(n.Dev, nanaNode2Stat(obj)))
@@ -150,7 +150,7 @@ func (n *NanaFS) umount(server *fuse.Server) {
 	}
 }
 
-func (n *NanaFS) GetObject(ctx context.Context, id string) (*types.Object, error) {
+func (n *NanaFS) GetObject(ctx context.Context, id int64) (*types.Object, error) {
 	return n.Controller.GetObject(ctx, id)
 }
 

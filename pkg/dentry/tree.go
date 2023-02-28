@@ -5,7 +5,8 @@ import (
 )
 
 const (
-	RootObjectID = "root"
+	RootObjectID   = -1
+	RootObjectName = "root"
 )
 
 func InitRootObject() *types.Object {
@@ -19,7 +20,7 @@ func InitRootObject() *types.Object {
 			types.PermOthersRead,
 		},
 	}
-	root, _ := types.InitNewObject(nil, types.ObjectAttr{Name: RootObjectID, Kind: types.GroupKind, Access: acc})
+	root, _ := types.InitNewObject(nil, types.ObjectAttr{Name: RootObjectName, Kind: types.GroupKind, Access: acc})
 	root.ID = RootObjectID
 	root.ParentID = root.ID
 	return root
@@ -39,5 +40,5 @@ func CreateMirrorObject(src, newParent *types.Object, attr types.ObjectAttr) (*t
 }
 
 func IsMirrorObject(obj *types.Object) bool {
-	return !obj.IsGroup() && obj.RefID != "" && obj.RefID != obj.ID
+	return !obj.IsGroup() && obj.RefID != 0 && obj.RefID != obj.ID
 }

@@ -2,9 +2,8 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/group"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
@@ -13,28 +12,39 @@ import (
 )
 
 type Controller interface {
-	ObjectController
-	FileController
-	FsController
-	StructuredController
-	WorkflowController
+	LoadRootObject(ctx context.Context) (*types.Object, error)
+	FindObject(ctx context.Context, parent *types.Object, name string) (*types.Object, error)
+	GetObject(ctx context.Context, id int64) (*types.Object, error)
+	CreateObject(ctx context.Context, parent *types.Object, attr types.ObjectAttr) (*types.Object, error)
+	SaveObject(ctx context.Context, parent, obj *types.Object) error
+	DestroyObject(ctx context.Context, parent, obj *types.Object, attr types.DestroyObjectAttr) error
+	MirrorObject(ctx context.Context, src, dstParent *types.Object, attr types.ObjectAttr) (*types.Object, error)
+	ListObjectChildren(ctx context.Context, obj *types.Object) ([]*types.Object, error)
+	ChangeObjectParent(ctx context.Context, old, oldParent, newParent *types.Object, newName string, opt types.ChangeParentAttr) error
+
+	OpenFile(ctx context.Context, obj *types.Object, attr files.Attr) (files.File, error)
+	ReadFile(ctx context.Context, file files.File, data []byte, offset int64) (n int, err error)
+	WriteFile(ctx context.Context, file files.File, data []byte, offset int64) (n int64, err error)
+	CloseFile(ctx context.Context, file files.File) error
+	DeleteFileData(ctx context.Context, obj *types.Object) error
+
+	FsInfo(ctx context.Context) Info
 }
 
 type controller struct {
-	meta      storage.MetaStore
+	meta      storage.Meta
 	storage   storage.Storage
 	cfg       config.Config
 	cfgLoader config.Loader
 
-	group    *group.Manager
-	registry *dentry.SchemaRegistry
+	group *group.Manager
 
 	logger *zap.SugaredLogger
 }
 
 var _ Controller = &controller{}
 
-func New(loader config.Loader, meta storage.MetaStore, storage storage.Storage) Controller {
+func New(loader config.Loader, meta storage.Meta, storage storage.Storage) Controller {
 	cfg, _ := loader.GetConfig()
 
 	ctl := &controller{
@@ -43,57 +53,7 @@ func New(loader config.Loader, meta storage.MetaStore, storage storage.Storage) 
 		cfg:       cfg,
 		cfgLoader: loader,
 		logger:    logger.NewLogger("controller"),
-		registry:  dentry.Registry,
 	}
-
 	ctl.group = group.NewManager(meta, loader)
 	return ctl
-}
-
-func InitSchemas(ctrl Controller, cfg config.Config) error {
-	schemas := dentry.Registry.GetSchemas()
-	root, err := ctrl.LoadRootObject(context.TODO())
-	if err != nil {
-		return err
-	}
-
-	acc := types.Access{
-		Permissions: []types.Permission{
-			types.PermOwnerRead,
-			types.PermOwnerWrite,
-			types.PermOwnerExec,
-			types.PermGroupRead,
-			types.PermGroupWrite,
-			types.PermOthersRead,
-		},
-		UID: cfg.Owner.Uid,
-		GID: cfg.Owner.Gid,
-	}
-
-	for _, s := range schemas {
-		name := fmt.Sprintf(".%s", string(s.CType))
-		_, err = ctrl.FindObject(context.TODO(), root, name)
-		if err != nil && err != types.ErrNotFound {
-			return err
-		}
-		if err == nil {
-			continue
-		}
-		obj, err := ctrl.CreateObject(context.Background(), root, types.ObjectAttr{Name: name, Kind: types.GroupKind, Access: acc})
-		if err != nil {
-			continue
-		}
-		obj.Labels = types.Labels{Labels: []types.Label{{
-			Key:   types.VersionKey,
-			Value: s.Version,
-		}, {
-			Key:   types.KindKey,
-			Value: string(s.CType),
-		}}}
-		if err = ctrl.SaveObject(context.TODO(), root, obj); err != nil {
-			_ = ctrl.DestroyObject(context.Background(), root, obj, types.DestroyObjectAttr{})
-			return err
-		}
-	}
-	return nil
 }

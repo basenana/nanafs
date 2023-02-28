@@ -32,7 +32,7 @@ func TestRule_Apply(t *testing.T) {
 		{
 			name:   "test-equal",
 			fields: fields{Operation: "equal", Column: "name", Value: "abc"},
-			args:   args{value: &types.Object{Metadata: types.Metadata{ID: "abc", Name: "abc"}}},
+			args:   args{value: &types.Object{Metadata: types.Metadata{ID: 1024, Name: "abc"}}},
 			want:   true,
 		},
 		{
@@ -67,25 +67,25 @@ func TestRule_Apply(t *testing.T) {
 		},
 		{
 			name:   "test-before",
-			fields: fields{Operation: "before", Column: "name", Value: time.Now().AddDate(1, 1, 1).Format(timeOpFmt)},
+			fields: fields{Operation: "before", Column: "created_at", Value: time.Now().AddDate(1, 1, 1).Format(timeOpFmt)},
 			args:   args{value: &types.Object{Metadata: types.Metadata{CreatedAt: time.Now()}}},
 			want:   true,
 		},
 		{
 			name:   "test-not-before",
-			fields: fields{Operation: "before", Column: "name", Value: time.Now().Format(timeOpFmt)},
+			fields: fields{Operation: "before", Column: "created_at", Value: time.Now().Format(timeOpFmt)},
 			args:   args{value: &types.Object{Metadata: types.Metadata{CreatedAt: time.Now().AddDate(1, 1, 1)}}},
 			want:   false,
 		},
 		{
 			name:   "test-after",
-			fields: fields{Operation: "after", Column: "name", Value: time.Now().Format(timeOpFmt)},
+			fields: fields{Operation: "after", Column: "created_at", Value: time.Now().Format(timeOpFmt)},
 			args:   args{value: &types.Object{Metadata: types.Metadata{CreatedAt: time.Now().AddDate(1, 1, 1)}}},
 			want:   true,
 		},
 		{
 			name:   "test-not-after",
-			fields: fields{Operation: "after", Column: "name", Value: time.Now().AddDate(1, 1, 1).Format(timeOpFmt)},
+			fields: fields{Operation: "after", Column: "created_at", Value: time.Now().AddDate(1, 1, 1).Format(timeOpFmt)},
 			args:   args{value: &types.Object{Metadata: types.Metadata{CreatedAt: time.Now()}}},
 			want:   false,
 		},

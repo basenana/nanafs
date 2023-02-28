@@ -41,7 +41,7 @@ func (f chainFactory) buildPageChain(obj *types.Object) chain {
 	return &pageCacheChain{
 		root:   &pageRoot{},
 		data:   f.buildChunkChain(obj),
-		logger: logger.NewLogger("pageChain").With(zap.String("key", obj.ID)),
+		logger: logger.NewLogger("pageChain").With(zap.Int64("key", obj.ID)),
 	}
 }
 
@@ -62,7 +62,7 @@ func (f chainFactory) buildLocalCacheChain(obj *types.Object) chain {
 		mapping:  map[string]cacheInfo{},
 		bufQ:     newBuf(),
 		storage:  f.s,
-		logger:   logger.NewLogger("chunkChain").With(zap.String("key", obj.ID)),
+		logger:   logger.NewLogger("chunkChain").With(zap.Int64("key", obj.ID)),
 	}
 	return c
 }
@@ -72,7 +72,7 @@ func (f chainFactory) buildDirectChain(obj *types.Object) chain {
 		key:     obj.ID,
 		storage: f.s,
 		opens:   map[int64]io.ReadWriteSeeker{},
-		logger:  logger.NewLogger("chunkChain").With(zap.String("key", obj.ID)),
+		logger:  logger.NewLogger("chunkChain").With(zap.Int64("key", obj.ID)),
 	}
 }
 
@@ -378,7 +378,7 @@ const (
 )
 
 type chunkCacheChain struct {
-	key      string
+	key      int64
 	cacheDir string
 	mode     int8
 	mapping  map[string]cacheInfo
@@ -525,11 +525,11 @@ func (l *chunkCacheChain) cacheKey(key string, off int64) string {
 }
 
 func (l *chunkCacheChain) cachePath(off int64) string {
-	return path.Join(l.cacheDir, fmt.Sprintf("%s/%d", l.key, off))
+	return path.Join(l.cacheDir, fmt.Sprintf("%d/%d", l.key, off))
 }
 
 type chunkDirectChain struct {
-	key     string
+	key     int64
 	opens   map[int64]io.ReadWriteSeeker
 	storage storage.Storage
 	logger  *zap.SugaredLogger

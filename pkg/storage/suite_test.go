@@ -1,13 +1,26 @@
 package storage
 
 import (
+	"github.com/basenana/nanafs/utils/logger"
+	"os"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
-func TestFs(t *testing.T) {
+var workdir string
+
+func TestStorage(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Fs Suite")
+
+	logger.InitLogger()
+	defer logger.Sync()
+
+	var err error
+	workdir, err = os.MkdirTemp(os.TempDir(), "nanafsunittest-")
+	Expect(err).Should(BeNil())
+	t.Logf("unit test workdir on: %s", workdir)
+
+	RunSpecs(t, "Storage Suite")
 }
