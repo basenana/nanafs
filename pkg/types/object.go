@@ -1,13 +1,29 @@
+/*
+ Copyright 2023 NanaFS Authors.
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+*/
+
 package types
 
 import (
 	"github.com/basenana/nanafs/utils"
-	"sync"
 	"time"
 )
 
 const (
-	objectNameMaxLength = 255
+	objectNameMaxLength    = 255
+	objectDefaultNamespace = "personal"
 )
 
 type Metadata struct {
@@ -27,7 +43,6 @@ type Metadata struct {
 	ChangedAt  time.Time `json:"changed_at"`
 	ModifiedAt time.Time `json:"modified_at"`
 	AccessAt   time.Time `json:"access_at"`
-	Labels     Labels    `json:"labels"`
 	Access     Access    `json:"access"`
 }
 
@@ -35,13 +50,13 @@ func NewMetadata(name string, kind Kind) Metadata {
 	result := Metadata{
 		ID:         utils.GenerateNewID(),
 		Name:       name,
+		Namespace:  objectDefaultNamespace,
 		Kind:       kind,
 		RefCount:   1,
 		CreatedAt:  time.Now(),
 		AccessAt:   time.Now(),
 		ChangedAt:  time.Now(),
 		ModifiedAt: time.Now(),
-		Labels:     Labels{},
 	}
 
 	if IsGroup(kind) {
@@ -128,22 +143,10 @@ type AnnotationItem struct {
 	Encode  bool   `json:"encode"`
 }
 
-type CustomColumn struct {
-	Columns []CustomColumnItem `json:"columns,omitempty"`
-}
-
-type CustomColumnItem struct {
-	Name  string `json:"name"`
-	Type  string `json:"type"`
-	Value string `json:"value"`
-}
-
 type Object struct {
 	Metadata
-	ExtendData   ExtendData   `json:"extend_data"`
-	CustomColumn CustomColumn `json:"custom_column"`
-
-	mux sync.Mutex
+	ExtendData
+	Labels Labels `json:"labels"`
 }
 
 func (o *Object) IsGroup() bool {
