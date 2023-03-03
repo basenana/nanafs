@@ -1,3 +1,5 @@
+//go:build darwin
+
 /*
  Copyright 2023 NanaFS Authors.
 
@@ -13,8 +15,6 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 */
-
-// +build darwin
 
 package fs
 

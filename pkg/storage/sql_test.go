@@ -19,7 +19,6 @@ package storage
 import (
 	"context"
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -31,7 +30,7 @@ import (
 var _ = Describe("TestSqliteObjectOperation", func() {
 	var sqlite = buildNewSqliteMetaStore("test_object.db")
 	// init root
-	rootObj := dentry.InitRootObject()
+	rootObj := InitRootObject()
 	Expect(sqlite.SaveObject(context.TODO(), nil, rootObj)).Should(BeNil())
 
 	Context("create a new file object", func() {
@@ -115,7 +114,7 @@ var _ = Describe("TestSqliteObjectOperation", func() {
 var _ = Describe("TestSqliteGroupOperation", func() {
 	var sqlite = buildNewSqliteMetaStore("test_group.db")
 	// init root
-	rootObj := dentry.InitRootObject()
+	rootObj := InitRootObject()
 	Expect(sqlite.SaveObject(context.TODO(), nil, rootObj)).Should(BeNil())
 
 	group1, err := types.InitNewObject(rootObj, types.ObjectAttr{
@@ -302,6 +301,23 @@ var _ = Describe("TestSqlitePluginData", func() {
 		})
 	})
 })
+
+func InitRootObject() *types.Object {
+	acc := types.Access{
+		Permissions: []types.Permission{
+			types.PermOwnerRead,
+			types.PermOwnerWrite,
+			types.PermOwnerExec,
+			types.PermGroupRead,
+			types.PermGroupWrite,
+			types.PermOthersRead,
+		},
+	}
+	root, _ := types.InitNewObject(nil, types.ObjectAttr{Name: "root", Kind: types.GroupKind, Access: acc})
+	root.ID = -1
+	root.ParentID = root.ID
+	return root
+}
 
 func buildNewSqliteMetaStore(dbName string) *sqliteMetaStore {
 	result, err := newSqliteMetaStore(config.Meta{

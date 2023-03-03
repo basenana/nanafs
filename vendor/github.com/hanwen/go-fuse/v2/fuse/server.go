@@ -9,8 +9,10 @@ import (
 	"log"
 	"math"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -21,6 +23,10 @@ import (
 const (
 	// The kernel caps writes at 128k.
 	MAX_KERNEL_WRITE = 128 * 1024
+
+	// Linux kernel constant from include/uapi/linux/fuse.h
+	// Reads from /dev/fuse that are smaller fail with EINVAL.
+	_FUSE_MIN_READ_BUFFER = 8192
 
 	minMaxReaders = 2
 	maxMaxReaders = 16
@@ -108,9 +114,19 @@ func (ms *Server) RecordLatencies(l LatencyMap) {
 // Unmount calls fusermount -u on the mount. This has the effect of
 // shutting down the filesystem. After the Server is unmounted, it
 // should be discarded.
+//
+// Does not work when we were mounted with the magic /dev/fd/N mountpoint syntax,
+// as we do not know the real mountpoint. Unmount using
+//
+//   fusermount -u /path/to/real/mountpoint
+//
+/// in this case.
 func (ms *Server) Unmount() (err error) {
 	if ms.mountPoint == "" {
 		return nil
+	}
+	if parseFuseFd(ms.mountPoint) >= 0 {
+		return fmt.Errorf("Cannot unmount magic mountpoint %q. Please use `fusermount -u REALMOUNTPOINT` instead.", ms.mountPoint)
 	}
 	delay := time.Duration(0)
 	for try := 0; try < 5; try++ {
@@ -134,7 +150,11 @@ func (ms *Server) Unmount() (err error) {
 	return err
 }
 
-// NewServer creates a server and attaches it to the given directory.
+// NewServer creates a FUSE server and attaches ("mounts") it to the
+// `mountPoint` directory.
+//
+// See the "Mount styles" section in the package documentation if you want to
+// know about the inner workings of the mount process. Usually you do not.
 func NewServer(fs RawFileSystem, mountPoint string, opts *MountOptions) (*Server, error) {
 	if opts == nil {
 		opts = &MountOptions{
@@ -191,8 +211,12 @@ func NewServer(fs RawFileSystem, mountPoint string, opts *MountOptions) (*Server
 		}
 	}
 	ms.readPool.New = func() interface{} {
-		buf := make([]byte, o.MaxWrite+int(maxInputSize)+logicalBlockSize)
-		buf = alignSlice(buf, unsafe.Sizeof(WriteIn{}), logicalBlockSize, uintptr(o.MaxWrite)+maxInputSize)
+		targetSize := o.MaxWrite + int(maxInputSize)
+		if targetSize < _FUSE_MIN_READ_BUFFER {
+			targetSize = _FUSE_MIN_READ_BUFFER
+		}
+		buf := make([]byte, targetSize+logicalBlockSize)
+		buf = alignSlice(buf, unsafe.Sizeof(WriteIn{}), logicalBlockSize, uintptr(targetSize))
 		return buf
 	}
 	mountPoint = filepath.Clean(mountPoint)
@@ -238,6 +262,13 @@ func (o *MountOptions) optionsStrings() []string {
 		r = append(r, "subtype="+o.Name)
 	}
 
+	// OSXFUSE applies a 60-second timeout for file operations. This
+	// is inconsistent with how FUSE works on Linux, where operations
+	// last as long as the daemon is willing to let them run.
+	if runtime.GOOS == "darwin" {
+		r = append(r, "daemon_timeout=0")
+	}
+
 	return r
 }
 
@@ -274,9 +305,6 @@ func handleEINTR(fn func() error) (err error) {
 // Returns a new request, or error. In case exitIdle is given, returns
 // nil, OK if we have too many readers already.
 func (ms *Server) readRequest(exitIdle bool) (req *request, code Status) {
-	req = ms.reqPool.Get().(*request)
-	dest := ms.readPool.Get().([]byte)
-
 	ms.reqMu.Lock()
 	if ms.reqReaders > ms.maxReaders {
 		ms.reqMu.Unlock()
@@ -284,6 +312,9 @@ func (ms *Server) readRequest(exitIdle bool) (req *request, code Status) {
 	}
 	ms.reqReaders++
 	ms.reqMu.Unlock()
+
+	req = ms.reqPool.Get().(*request)
+	dest := ms.readPool.Get().([]byte)
 
 	var n int
 	err := handleEINTR(func() error {
@@ -485,8 +516,15 @@ func (ms *Server) handleRequest(req *request) Status {
 
 	errNo := ms.write(req)
 	if errNo != 0 {
-		log.Printf("writer: Write/Writev failed, err: %v. opcode: %v",
-			errNo, operationName(req.inHeader.Opcode))
+		// Unless debugging is enabled, ignore ENOENT for INTERRUPT responses
+		// which indicates that the referred request is no longer known by the
+		// kernel. This is a normal if the referred request already has
+		// completed.
+		if ms.opts.Debug || !(req.inHeader.Opcode == _OP_INTERRUPT && errNo == ENOENT) {
+			log.Printf("writer: Write/Writev failed, err: %v. opcode: %v",
+				errNo, operationName(req.inHeader.Opcode))
+		}
+
 	}
 	ms.returnRequest(req)
 	return Status(errNo)
@@ -863,5 +901,24 @@ func (ms *Server) WaitMount() error {
 	if err != nil {
 		return err
 	}
+	if parseFuseFd(ms.mountPoint) >= 0 {
+		// Magic `/dev/fd/N` mountpoint. We don't know the real mountpoint, so
+		// we cannot run the poll hack.
+		return nil
+	}
 	return pollHack(ms.mountPoint)
+}
+
+// parseFuseFd checks if `mountPoint` is the special form /dev/fd/N (with N >= 0),
+// and returns N in this case. Returns -1 otherwise.
+func parseFuseFd(mountPoint string) (fd int) {
+	dir, file := path.Split(mountPoint)
+	if dir != "/dev/fd/" {
+		return -1
+	}
+	fd, err := strconv.Atoi(file)
+	if err != nil || fd <= 0 {
+		return -1
+	}
+	return fd
 }
