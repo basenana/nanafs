@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	RootEntryID   = -1
+	RootEntryID   = 1
 	RootEntryName = "root"
 )
 
@@ -99,4 +99,27 @@ func initRootEntryObject() *types.Object {
 	root.ID = RootEntryID
 	root.ParentID = root.ID
 	return root
+}
+
+func initMirrorEntryObject(src, newParent *types.Object, attr EntryAttr) (*types.Object, error) {
+	obj, err := types.InitNewObject(newParent, types.ObjectAttr{
+		Name:   attr.Name,
+		Dev:    attr.Dev,
+		Kind:   attr.Kind,
+		Access: attr.Access,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	obj.Metadata.Kind = src.Kind
+	obj.Metadata.Inode = src.Inode
+	obj.Metadata.Namespace = src.Namespace
+	obj.RefID = src.ID
+	return obj, nil
+}
+
+func isMirrorEntry(en Entry) bool {
+	obj := en.Object()
+	return !obj.IsGroup() && obj.RefID != 0 && obj.RefID != obj.ID
 }

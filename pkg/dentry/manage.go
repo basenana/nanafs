@@ -21,7 +21,9 @@ import (
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
+	"time"
 )
 
 type Manage interface {
@@ -29,7 +31,15 @@ type Manage interface {
 	CreateEntry(ctx context.Context, parent Entry, attr EntryAttr) (Entry, error)
 	DestroyEntry(ctx context.Context, parent, en Entry) error
 	MirrorEntry(ctx context.Context, src, dstParent Entry, attr EntryAttr) (Entry, error)
-	ChangeEntryParent(ctx context.Context, old, oldParent, newParent Entry, newName string, opt ChangeParentAttr) error
+	ChangeEntryParent(ctx context.Context, targetEntry, overwriteEntry, oldParent, newParent Entry, newName string, opt ChangeParentAttr) error
+}
+
+func NewManager(store storage.ObjectStore, cfg config.Config) Manage {
+	return &manage{
+		store:  store,
+		cfg:    cfg,
+		logger: logger.NewLogger("entryManager"),
+	}
 }
 
 type manage struct {
@@ -37,6 +47,8 @@ type manage struct {
 	cfg    config.Config
 	logger *zap.SugaredLogger
 }
+
+var _ Manage = &manage{}
 
 func (m *manage) Root(ctx context.Context) (Entry, error) {
 	root, err := m.store.GetObject(ctx, RootEntryID)
@@ -53,7 +65,7 @@ func (m *manage) Root(ctx context.Context) (Entry, error) {
 	return BuildEntry(root, m.store), m.store.SaveObject(ctx, nil, root)
 }
 
-func (m *manage) CreateObject(ctx context.Context, parent Entry, attr EntryAttr) (Entry, error) {
+func (m *manage) CreateEntry(ctx context.Context, parent Entry, attr EntryAttr) (Entry, error) {
 	if !parent.IsGroup() {
 		return nil, types.ErrNoGroup
 	}
@@ -61,27 +73,143 @@ func (m *manage) CreateObject(ctx context.Context, parent Entry, attr EntryAttr)
 	return grp.CreateEntry(ctx, attr)
 }
 
-func (m *manage) DestroyObject(ctx context.Context, parent, en Entry) error {
+func (m *manage) DestroyEntry(ctx context.Context, parent, en Entry) error {
 	if !parent.IsGroup() {
 		return types.ErrNoGroup
 	}
-	parentGrp := parent.Group()
-	meta := en.Metadata()
-	if meta.RefID == 0 && ((en.IsGroup() && meta.RefCount == 2) || (!en.IsGroup() && meta.RefCount == 1)) {
+	var (
+		parentGrp = parent.Group()
+		parentObj = parent.Object()
+		obj       = en.Object()
+		srcObj    *types.Object
+		err       error
+	)
+	if isMirrorEntry(en) {
+		m.logger.Infow("entry is mirrored, delete ref count", "entry", obj.ID, "ref", obj.RefID)
+		srcObj, err = m.store.GetObject(ctx, en.Metadata().RefID)
+		if err != nil {
+			m.logger.Errorw("query source object from meta server error", "entry", obj.ID, "ref", obj.RefID, "err", err.Error())
+			return err
+		}
+	}
+	if srcObj == nil && ((en.IsGroup() && obj.RefCount == 2) || (!en.IsGroup() && obj.RefCount == 1)) {
 		return parentGrp.DestroyEntry(ctx, en)
 	}
-	// TODO:
+
+	if srcObj != nil {
+		srcObj.RefCount -= 1
+		srcObj.CreatedAt = time.Now()
+	}
+
+	if !obj.IsGroup() && obj.RefCount > 0 {
+		m.logger.Infow("object has mirrors, remove parent id", "entry", obj.ID)
+		obj.RefCount -= 1
+		obj.ParentID = 0
+		obj.ChangedAt = time.Now()
+	}
+
+	if obj.IsGroup() {
+		parentObj.RefCount -= 1
+	}
+	parentObj.ChangedAt = time.Now()
+	parentObj.ModifiedAt = time.Now()
+
+	if err = m.store.DestroyObject(ctx, srcObj, parentObj, obj); err != nil {
+		m.logger.Errorw("destroy object from meta server error", "enrty", obj.ID, "err", err.Error())
+		return err
+	}
+
 	return nil
 }
 
 func (m *manage) MirrorEntry(ctx context.Context, src, dstParent Entry, attr EntryAttr) (Entry, error) {
-	//TODO implement me
-	panic("implement me")
+	var (
+		srcObj    = src.Object()
+		parentObj = dstParent.Object()
+		err       error
+	)
+	if !dstParent.IsGroup() {
+		return nil, types.ErrNoGroup
+	}
+
+	if isMirrorEntry(src) {
+		srcObj, err = m.store.GetObject(ctx, srcObj.RefID)
+		if err != nil {
+			m.logger.Errorw("query source object error", "entry", srcObj.ID, "srcObj", srcObj.RefID, "err", err.Error())
+			return nil, err
+		}
+		m.logger.Infow("replace source object", "entry", srcObj.ID)
+	}
+
+	obj, err := initMirrorEntryObject(srcObj, parentObj, attr)
+	if err != nil {
+		m.logger.Errorw("create mirror object error", "srcEntry", srcObj.ID, "dstParent", parentObj.ID, "err", err.Error())
+		return nil, err
+	}
+
+	srcObj.RefCount += 1
+	srcObj.ChangedAt = time.Now()
+
+	parentObj.ChangedAt = time.Now()
+	parentObj.ModifiedAt = time.Now()
+	if err = m.store.MirrorObject(ctx, srcObj, parentObj, obj); err != nil {
+		m.logger.Errorw("update dst parent object ref count error", "srcEntry", srcObj.ID, "dstParent", parentObj.ID, "err", err.Error())
+		return nil, err
+	}
+	return BuildEntry(obj, m.store), nil
 }
 
-func (m *manage) ChangeObjectParent(ctx context.Context, old, oldParent, newParent Entry, newName string, opt ChangeParentAttr) error {
-	//TODO implement me
-	panic("implement me")
+func (m *manage) ChangeEntryParent(ctx context.Context, targetEntry, overwriteEntry, oldParent, newParent Entry, newName string, opt ChangeParentAttr) error {
+	if !oldParent.IsGroup() || !newParent.IsGroup() {
+		return types.ErrNoGroup
+	}
+
+	var (
+		oldParentObj = oldParent.Object()
+		newParentObj = newParent.Object()
+		entryObj     = targetEntry.Object()
+	)
+	if overwriteEntry != nil {
+		if overwriteEntry.IsGroup() {
+			children, err := overwriteEntry.Group().ListChildren(ctx)
+			if err != nil {
+				return err
+			}
+			if len(children) > 0 {
+				return types.ErrIsExist
+			}
+		}
+
+		if !opt.Replace {
+			return types.ErrIsExist
+		}
+
+		if opt.Exchange {
+			// TODO
+			return types.ErrUnsupported
+		}
+
+		if err := m.DestroyEntry(ctx, newParent, overwriteEntry); err != nil {
+			return err
+		}
+	}
+
+	entryObj.Name = newName
+
+	oldParentObj.ChangedAt = time.Now()
+	oldParentObj.ModifiedAt = time.Now()
+	oldParentObj.ChangedAt = time.Now()
+	oldParentObj.ModifiedAt = time.Now()
+	if entryObj.IsGroup() {
+		oldParentObj.RefCount -= 1
+		newParentObj.RefCount += 1
+	}
+	err := m.store.ChangeParent(ctx, oldParentObj, newParentObj, entryObj, types.ChangeParentOption{})
+	if err != nil {
+		m.logger.Errorw("change object parent failed", "entry", entryObj.ID, "newParent", newParentObj.ID, "newName", newName, "err", err.Error())
+		return err
+	}
+	return nil
 }
 
 type EntryAttr struct {

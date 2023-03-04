@@ -67,10 +67,12 @@ func NewMetadata(name string, kind Kind) Metadata {
 }
 
 type ExtendData struct {
-	Properties  *Properties `json:"properties,omitempty"`
-	Annotation  *Annotation `json:"annotation,omitempty"`
-	GroupFilter *Rule       `json:"group_filter,omitempty"`
-	PlugScope   *PlugScope  `json:"plug_scope,omitempty"`
+	Properties  *Properties       `json:"properties,omitempty"`
+	Annotation  *Annotation       `json:"annotation,omitempty"`
+	Attributes  map[string]string `json:"attributes,omitempty"`
+	DeviceInfo  *[]byte           `json:"device_info,omitempty"`
+	GroupFilter *Rule             `json:"group_filter,omitempty"`
+	PlugScope   *PlugScope        `json:"plug_scope,omitempty"`
 }
 
 type PlugScope struct {

@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	objectNameMaxLength = 255
+	entryNameMaxLength = 255
 )
 
 func (c *controller) LoadRootObject(ctx context.Context) (*types.Object, error) {
@@ -50,7 +50,7 @@ func (c *controller) LoadRootObject(ctx context.Context) (*types.Object, error) 
 func (c *controller) FindObject(ctx context.Context, parent *types.Object, name string) (*types.Object, error) {
 	defer utils.TraceRegion(ctx, "controller.findobject")()
 
-	if len(name) > objectNameMaxLength {
+	if len(name) > entryNameMaxLength {
 		return nil, types.ErrNameTooLong
 	}
 
@@ -83,7 +83,7 @@ func (c *controller) GetObject(ctx context.Context, id int64) (*types.Object, er
 func (c *controller) CreateObject(ctx context.Context, parent *types.Object, attr types.ObjectAttr) (*types.Object, error) {
 	defer utils.TraceRegion(ctx, "controller.createobject")()
 
-	if len(attr.Name) > objectNameMaxLength {
+	if len(attr.Name) > entryNameMaxLength {
 		return nil, types.ErrNameTooLong
 	}
 
@@ -189,7 +189,7 @@ func (c *controller) MirrorObject(ctx context.Context, src, dstParent *types.Obj
 	defer utils.TraceRegion(ctx, "controller.mirrorobject")()
 	c.logger.Infow("mirror obj", "srcObj", src.ID, "dstParent", dstParent.ID)
 
-	if len(attr.Name) > objectNameMaxLength {
+	if len(attr.Name) > entryNameMaxLength {
 		return nil, types.ErrNameTooLong
 	}
 
@@ -205,7 +205,7 @@ func (c *controller) MirrorObject(ctx context.Context, src, dstParent *types.Obj
 	for dentry.IsMirrorObject(src) {
 		src, err = c.meta.GetObject(ctx, src.RefID)
 		if err != nil {
-			c.logger.Errorw("query source object error", "obj", src.ID, "srcObj", src.RefID, "err", err.Error())
+			c.logger.Errorw("query source object error", "srcObj", src.RefID, "err", err.Error())
 			return nil, err
 		}
 		c.logger.Infow("replace source object", "srcObj", src.ID)
@@ -246,7 +246,7 @@ func (c *controller) ListObjectChildren(ctx context.Context, obj *types.Object) 
 func (c *controller) ChangeObjectParent(ctx context.Context, obj, oldParent, newParent *types.Object, newName string, opt types.ChangeParentAttr) (err error) {
 	defer utils.TraceRegion(ctx, "controller.changeparent")()
 
-	if len(newName) > objectNameMaxLength {
+	if len(newName) > entryNameMaxLength {
 		return types.ErrNameTooLong
 	}
 

@@ -38,6 +38,8 @@ type stdGroup struct {
 	store storage.ObjectStore
 }
 
+var _ Group = &stdGroup{}
+
 func (g *stdGroup) FindEntry(ctx context.Context, name string) (Entry, error) {
 	children, err := g.ListChildren(ctx)
 	if err != nil {
@@ -103,7 +105,12 @@ func (g *stdGroup) DestroyEntry(ctx context.Context, en Entry) error {
 		return types.ErrUnsupported
 	}
 
-	if err := g.store.DestroyObject(ctx, nil, g.Object(), obj); err != nil {
+	grpObj := g.Object()
+	grpObj.RefCount -= 1
+	grpObj.ChangedAt = time.Now()
+	grpObj.ModifiedAt = time.Now()
+
+	if err := g.store.DestroyObject(ctx, nil, grpObj, obj); err != nil {
 		return err
 	}
 	return nil

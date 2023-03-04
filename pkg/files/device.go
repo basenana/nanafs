@@ -19,12 +19,7 @@ package files
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
-)
-
-const (
-	symLinkAnnotationKey = "nanafs.symlink"
 )
 
 type Symlink struct {
@@ -65,10 +60,8 @@ func (s *Symlink) Fsync(ctx context.Context) error {
 }
 
 func (s *Symlink) Flush(ctx context.Context) (err error) {
-	s.obj.Annotation.Add(&types.AnnotationItem{
-		Key:     symLinkAnnotationKey,
-		Content: string(s.data),
-	})
+	deviceInfo := s.data
+	s.obj.ExtendData.DeviceInfo = &deviceInfo
 	return nil
 }
 
@@ -82,9 +75,8 @@ func openSymlink(obj *types.Object, attr Attr) (*Symlink, error) {
 	}
 
 	var raw []byte
-	ann := dentry.GetInternalAnnotation(obj, symLinkAnnotationKey)
-	if ann != nil {
-		raw = []byte(ann.Content)
+	if obj.ExtendData.DeviceInfo != nil {
+		raw = *obj.ExtendData.DeviceInfo
 	}
 
 	if raw == nil {
