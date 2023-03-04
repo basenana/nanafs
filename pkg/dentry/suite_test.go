@@ -29,7 +29,7 @@ import (
 
 var (
 	objStore     storage.ObjectStore
-	entryManager Manage
+	entryManager Manager
 	root         Entry
 )
 

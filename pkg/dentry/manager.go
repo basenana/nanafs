@@ -26,7 +26,7 @@ import (
 	"time"
 )
 
-type Manage interface {
+type Manager interface {
 	Root(ctx context.Context) (Entry, error)
 	CreateEntry(ctx context.Context, parent Entry, attr EntryAttr) (Entry, error)
 	DestroyEntry(ctx context.Context, parent, en Entry) error
@@ -34,23 +34,23 @@ type Manage interface {
 	ChangeEntryParent(ctx context.Context, targetEntry, overwriteEntry, oldParent, newParent Entry, newName string, opt ChangeParentAttr) error
 }
 
-func NewManager(store storage.ObjectStore, cfg config.Config) Manage {
-	return &manage{
+func NewManager(store storage.ObjectStore, cfg config.Config) Manager {
+	return &manager{
 		store:  store,
 		cfg:    cfg,
 		logger: logger.NewLogger("entryManager"),
 	}
 }
 
-type manage struct {
+type manager struct {
 	store  storage.ObjectStore
 	cfg    config.Config
 	logger *zap.SugaredLogger
 }
 
-var _ Manage = &manage{}
+var _ Manager = &manager{}
 
-func (m *manage) Root(ctx context.Context) (Entry, error) {
+func (m *manager) Root(ctx context.Context) (Entry, error) {
 	root, err := m.store.GetObject(ctx, RootEntryID)
 	if err == nil {
 		return BuildEntry(root, m.store), nil
@@ -65,7 +65,7 @@ func (m *manage) Root(ctx context.Context) (Entry, error) {
 	return BuildEntry(root, m.store), m.store.SaveObject(ctx, nil, root)
 }
 
-func (m *manage) CreateEntry(ctx context.Context, parent Entry, attr EntryAttr) (Entry, error) {
+func (m *manager) CreateEntry(ctx context.Context, parent Entry, attr EntryAttr) (Entry, error) {
 	if !parent.IsGroup() {
 		return nil, types.ErrNoGroup
 	}
@@ -73,7 +73,7 @@ func (m *manage) CreateEntry(ctx context.Context, parent Entry, attr EntryAttr) 
 	return grp.CreateEntry(ctx, attr)
 }
 
-func (m *manage) DestroyEntry(ctx context.Context, parent, en Entry) error {
+func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) error {
 	if !parent.IsGroup() {
 		return types.ErrNoGroup
 	}
@@ -122,12 +122,15 @@ func (m *manage) DestroyEntry(ctx context.Context, parent, en Entry) error {
 	return nil
 }
 
-func (m *manage) MirrorEntry(ctx context.Context, src, dstParent Entry, attr EntryAttr) (Entry, error) {
+func (m *manager) MirrorEntry(ctx context.Context, src, dstParent Entry, attr EntryAttr) (Entry, error) {
 	var (
 		srcObj    = src.Object()
 		parentObj = dstParent.Object()
 		err       error
 	)
+	if src.IsGroup() {
+		return nil, types.ErrIsGroup
+	}
 	if !dstParent.IsGroup() {
 		return nil, types.ErrNoGroup
 	}
@@ -159,7 +162,7 @@ func (m *manage) MirrorEntry(ctx context.Context, src, dstParent Entry, attr Ent
 	return BuildEntry(obj, m.store), nil
 }
 
-func (m *manage) ChangeEntryParent(ctx context.Context, targetEntry, overwriteEntry, oldParent, newParent Entry, newName string, opt ChangeParentAttr) error {
+func (m *manager) ChangeEntryParent(ctx context.Context, targetEntry, overwriteEntry, oldParent, newParent Entry, newName string, opt ChangeParentAttr) error {
 	if !oldParent.IsGroup() || !newParent.IsGroup() {
 		return types.ErrNoGroup
 	}
