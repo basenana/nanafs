@@ -63,6 +63,13 @@ func (g *stdGroup) GetEntry(ctx context.Context, id int64) (Entry, error) {
 }
 
 func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, error) {
+	_, err := g.FindEntry(ctx, attr.Name)
+	if err != nil && err != types.ErrNotFound {
+		return nil, err
+	}
+	if err == nil {
+		return nil, types.ErrIsExist
+	}
 	groupObject := g.Object()
 	// FIXME: use same attr object
 	obj, err := types.InitNewObject(groupObject, types.ObjectAttr{
