@@ -1,7 +1,22 @@
+/*
+ Copyright 2023 NanaFS Authors.
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+*/
+
 package db
 
 import (
-	"encoding/json"
 	"github.com/basenana/nanafs/pkg/types"
 	"strings"
 	"time"
@@ -25,24 +40,22 @@ func (i SystemInfo) TableName() string {
 }
 
 type Object struct {
-	ID           int64     `gorm:"column:id;primaryKey"`
-	Name         string    `gorm:"column:name"`
-	Aliases      string    `gorm:"column:aliases"`
-	ParentID     int64     `gorm:"column:parent_id;index:parent_id"`
-	RefID        int64     `gorm:"column:ref_id;index:ref_id"`
-	RefCount     int       `gorm:"column:ref_count"`
-	Kind         string    `gorm:"column:kind"`
-	Hash         string    `gorm:"column:hash"`
-	Size         int64     `gorm:"column:size"`
-	Inode        uint64    `gorm:"column:inode;unique"`
-	Dev          int64     `gorm:"column:dev"`
-	Namespace    string    `gorm:"column:namespace"`
-	CreatedAt    time.Time `gorm:"column:created_at"`
-	ChangedAt    time.Time `gorm:"column:changed_at"`
-	ModifiedAt   time.Time `gorm:"column:modified_at"`
-	AccessAt     time.Time `gorm:"column:access_at"`
-	ExtendData   []byte    `gorm:"column:extend_data"`
-	CustomColumn []byte    `gorm:"column:custom_column"`
+	ID         int64     `gorm:"column:id;primaryKey"`
+	Name       string    `gorm:"column:name"`
+	Aliases    string    `gorm:"column:aliases"`
+	ParentID   int64     `gorm:"column:parent_id;index:parent_id"`
+	RefID      int64     `gorm:"column:ref_id;index:ref_id"`
+	RefCount   int       `gorm:"column:ref_count"`
+	Kind       string    `gorm:"column:kind"`
+	Hash       string    `gorm:"column:hash"`
+	Size       int64     `gorm:"column:size"`
+	Inode      uint64    `gorm:"column:inode;unique"`
+	Dev        int64     `gorm:"column:dev"`
+	Namespace  string    `gorm:"column:namespace"`
+	CreatedAt  time.Time `gorm:"column:created_at"`
+	ChangedAt  time.Time `gorm:"column:changed_at"`
+	ModifiedAt time.Time `gorm:"column:modified_at"`
+	AccessAt   time.Time `gorm:"column:access_at"`
 }
 
 func (o *Object) TableName() string {
@@ -66,9 +79,6 @@ func (o *Object) Update(obj *types.Object) {
 	o.ChangedAt = obj.ChangedAt
 	o.ModifiedAt = obj.ModifiedAt
 	o.AccessAt = obj.AccessAt
-
-	o.ExtendData, _ = json.Marshal(obj.ExtendData)
-	o.CustomColumn, _ = json.Marshal(obj.CustomColumn)
 }
 
 func (o *Object) Object() *types.Object {
@@ -92,8 +102,6 @@ func (o *Object) Object() *types.Object {
 			AccessAt:   o.AccessAt,
 		},
 	}
-	_ = json.Unmarshal(o.ExtendData, &(result.ExtendData))
-	_ = json.Unmarshal(o.CustomColumn, &(result.CustomColumn))
 	return result
 }
 

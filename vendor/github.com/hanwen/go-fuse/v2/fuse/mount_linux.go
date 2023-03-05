@@ -68,18 +68,13 @@ func mountDirect(mountPoint string, opts *MountOptions, ready chan<- error) (fd 
 	return
 }
 
-// Create a FUSE FS on the specified mount point.  The returned
-// mount point is always absolute.
-func mount(mountPoint string, opts *MountOptions, ready chan<- error) (fd int, err error) {
-	if opts.DirectMount {
-		fd, err := mountDirect(mountPoint, opts, ready)
-		if err == nil {
-			return fd, nil
-		} else if opts.Debug {
-			log.Printf("mount: failed to do direct mount: %s", err)
-		}
-	}
-
+// callFusermount calls the `fusermount` suid helper with the right options so
+// that it:
+// * opens `/dev/fuse`
+// * mount()s this file descriptor to `mountPoint`
+// * passes this file descriptor back to us via a unix domain socket
+// This file descriptor is returned as `fd`.
+func callFusermount(mountPoint string, opts *MountOptions) (fd int, err error) {
 	local, remote, err := unixgramSocketpair()
 	if err != nil {
 		return
@@ -96,6 +91,9 @@ func mount(mountPoint string, opts *MountOptions, ready chan<- error) (fd int, e
 	cmd := []string{bin, mountPoint}
 	if s := opts.optionsStrings(); len(s) > 0 {
 		cmd = append(cmd, "-o", strings.Join(s, ","))
+	}
+	if opts.Debug {
+		log.Printf("callFusermount: executing %q", cmd)
 	}
 	proc, err := os.StartProcess(bin,
 		cmd,
@@ -121,11 +119,39 @@ func mount(mountPoint string, opts *MountOptions, ready chan<- error) (fd int, e
 		return -1, err
 	}
 
+	return
+}
+
+// Create a FUSE FS on the specified mount point.  The returned
+// mount point is always absolute.
+func mount(mountPoint string, opts *MountOptions, ready chan<- error) (fd int, err error) {
+	if opts.DirectMount {
+		fd, err := mountDirect(mountPoint, opts, ready)
+		if err == nil {
+			return fd, nil
+		} else if opts.Debug {
+			log.Printf("mount: failed to do direct mount: %s", err)
+		}
+	}
+
+	// Magic `/dev/fd/N` mountpoint. See the docs for NewServer() for how this
+	// works.
+	fd = parseFuseFd(mountPoint)
+	if fd >= 0 {
+		if opts.Debug {
+			log.Printf("mount: magic mountpoint %q, using fd %d", mountPoint, fd)
+		}
+	} else {
+		// Usual case: mount via the `fusermount` suid helper
+		fd, err = callFusermount(mountPoint, opts)
+		if err != nil {
+			return
+		}
+	}
 	// golang sets CLOEXEC on file descriptors when they are
 	// acquired through normal operations (e.g. open).
 	// Buf for fd, we have to set CLOEXEC manually
 	syscall.CloseOnExec(fd)
-
 	close(ready)
 	return fd, err
 }
@@ -146,6 +172,9 @@ func unmount(mountPoint string, opts *MountOptions) (err error) {
 	errBuf := bytes.Buffer{}
 	cmd := exec.Command(bin, "-u", mountPoint)
 	cmd.Stderr = &errBuf
+	if opts.Debug {
+		log.Printf("unmount: executing %q", cmd.Args)
+	}
 	err = cmd.Run()
 	if errBuf.Len() > 0 {
 		return fmt.Errorf("%s (code %v)\n",
@@ -193,7 +222,12 @@ func lookPathFallback(file string, fallbackDir string) (string, error) {
 	return exec.LookPath(abs)
 }
 
+// fusermountBinary returns the path to the `fusermount3` binary, or, if not
+// found, the `fusermount` binary.
 func fusermountBinary() (string, error) {
+	if path, err := lookPathFallback("fusermount3", "/bin"); err == nil {
+		return path, nil
+	}
 	return lookPathFallback("fusermount", "/bin")
 }
 

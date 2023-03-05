@@ -1,6 +1,6 @@
 # pprof
 
-[![Build Status](https://travis-ci.org/gin-contrib/pprof.svg)](https://travis-ci.org/gin-contrib/pprof)
+[![Run Tests](https://github.com/gin-contrib/pprof/actions/workflows/go.yml/badge.svg?branch=master)](https://github.com/gin-contrib/pprof/actions/workflows/go.yml)
 [![codecov](https://codecov.io/gh/gin-contrib/pprof/branch/master/graph/badge.svg)](https://codecov.io/gh/gin-contrib/pprof)
 [![Go Report Card](https://goreportcard.com/badge/github.com/gin-contrib/pprof)](https://goreportcard.com/report/github.com/gin-contrib/pprof)
 [![GoDoc](https://godoc.org/github.com/gin-contrib/pprof?status.svg)](https://godoc.org/github.com/gin-contrib/pprof)
@@ -69,7 +69,7 @@ import (
 func main() {
 	router := gin.Default()
 	pprof.Register(router)
-	adminGroup := r.Group("/admin", func(c *gin.Context) {
+	adminGroup := router.Group("/admin", func(c *gin.Context) {
 		if c.Request.Header.Get("Authorization") != "foobar" {
 			c.AbortWithStatus(http.StatusForbidden)
 			return

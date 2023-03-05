@@ -10,6 +10,7 @@ import (
 	"log"
 	"reflect"
 	"runtime"
+	"syscall"
 	"time"
 	"unsafe"
 )
@@ -93,6 +94,18 @@ func doInit(server *Server, req *request) {
 
 	if server.opts.EnableLocks {
 		server.kernelSettings.Flags |= CAP_FLOCK_LOCKS | CAP_POSIX_LOCKS
+	}
+
+	if server.opts.EnableAcl {
+		server.kernelSettings.Flags |= CAP_POSIX_ACL
+	}
+	if server.opts.SyncRead {
+		// Clear CAP_ASYNC_READ
+		server.kernelSettings.Flags &= ^uint32(CAP_ASYNC_READ)
+	}
+	if server.opts.DisableReadDirPlus {
+		// Clear CAP_READDIRPLUS
+		server.kernelSettings.Flags &= ^uint32(CAP_READDIRPLUS)
 	}
 
 	dataCacheMode := input.Flags & CAP_AUTO_INVAL_DATA
@@ -434,7 +447,7 @@ func doStatFs(server *Server, req *request) {
 }
 
 func doIoctl(server *Server, req *request) {
-	req.status = ENOSYS
+	req.status = Status(syscall.ENOTTY)
 }
 
 func doDestroy(server *Server, req *request) {
@@ -727,6 +740,7 @@ func init() {
 		_OP_SETATTR:               func(ptr unsafe.Pointer) interface{} { return (*AttrOut)(ptr) },
 		_OP_INIT:                  func(ptr unsafe.Pointer) interface{} { return (*InitOut)(ptr) },
 		_OP_MKDIR:                 func(ptr unsafe.Pointer) interface{} { return (*EntryOut)(ptr) },
+		_OP_MKNOD:                 func(ptr unsafe.Pointer) interface{} { return (*EntryOut)(ptr) },
 		_OP_NOTIFY_INVAL_ENTRY:    func(ptr unsafe.Pointer) interface{} { return (*NotifyInvalEntryOut)(ptr) },
 		_OP_NOTIFY_INVAL_INODE:    func(ptr unsafe.Pointer) interface{} { return (*NotifyInvalInodeOut)(ptr) },
 		_OP_NOTIFY_STORE_CACHE:    func(ptr unsafe.Pointer) interface{} { return (*NotifyStoreOut)(ptr) },

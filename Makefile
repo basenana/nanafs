@@ -6,7 +6,7 @@ build:
 	docker run --rm -v $(BASE_PATH):/go/src/github.com/basenana/nanafs \
 	-v $(BASE_PATH)/bin:/bin/nanafs \
 	-w /go/src/github.com/basenana/nanafs \
-	golang:1.16 sh ./hack/multibuild.sh ./cmd /bin/nanafs
+	golang:1.18 sh ./hack/multibuild.sh ./cmd /bin/nanafs
 clean:
 	@go clean
 test:
