@@ -46,12 +46,12 @@ func (n *NanaNode) Access(ctx context.Context, mask uint32) syscall.Errno {
 		uid, gid = fuseCtx.Uid, fuseCtx.Gid
 	}
 
-	obj, err := n.R.GetObject(ctx, n.oid)
+	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
 
-	return Error2FuseSysError(dentry.IsAccess(obj.Access, int64(uid), int64(gid), mask))
+	return Error2FuseSysError(dentry.IsAccess(entry.Metadata().Access, int64(uid), int64(gid), mask))
 }
 
 func (n *NanaNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut) syscall.Errno {
@@ -61,12 +61,12 @@ func (n *NanaNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrO
 		return file.Getattr(ctx, out)
 	}
 
-	obj, err := n.R.GetObject(ctx, n.oid)
+	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
 
-	st := nanaNode2Stat(obj)
+	st := nanaNode2Stat(entry)
 	updateAttrOut(st, &out.Attr)
 	return NoErr
 }
@@ -84,16 +84,16 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 		attr = nanaFile.file.GetAttr()
 	}
 
-	obj, err := n.R.GetObject(ctx, n.oid)
+	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
-	if err := updateNanaNodeWithAttr(in, obj, int64(uid), int64(gid), attr); err != nil {
+	if err := updateNanaNodeWithAttr(in, entry, int64(uid), int64(gid), attr); err != nil {
 		return Error2FuseSysError(err)
 	}
 
-	obj.ChangedAt = time.Now()
-	if err = n.R.SaveObject(ctx, nil, obj); err != nil {
+	entry.Metadata().ChangedAt = time.Now()
+	if err = n.R.SaveEntry(ctx, nil, entry); err != nil {
 		return Error2FuseSysError(err)
 	}
 	return n.Getattr(ctx, f, out)
@@ -102,12 +102,12 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 func (n *NanaNode) Getxattr(ctx context.Context, attr string, dest []byte) (uint32, syscall.Errno) {
 	defer utils.TraceRegion(ctx, "node.getxattr")()
 
-	obj, err := n.R.GetObject(ctx, n.oid)
+	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return 0, Error2FuseSysError(err)
 	}
 
-	ann := dentry.GetInternalAnnotation(obj, attr)
+	ann := dentry.GetInternalAnnotation(entry, attr)
 	if ann == nil {
 		return 0, syscall.Errno(0x5d)
 	}
@@ -125,36 +125,36 @@ func (n *NanaNode) Getxattr(ctx context.Context, attr string, dest []byte) (uint
 
 func (n *NanaNode) Setxattr(ctx context.Context, attr string, data []byte, flags uint32) syscall.Errno {
 	defer utils.TraceRegion(ctx, "node.setxattr")()
-	obj, err := n.R.GetObject(ctx, n.oid)
+	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
-	dentry.AddInternalAnnotation(obj, attr, dentry.RawData2AnnotationContent(data), true)
-	obj.ChangedAt = time.Now()
-	return Error2FuseSysError(n.R.SaveObject(ctx, nil, obj))
+	dentry.AddInternalAnnotation(entry, attr, dentry.RawData2AnnotationContent(data), true)
+	entry.Metadata().ChangedAt = time.Now()
+	return Error2FuseSysError(n.R.SaveEntry(ctx, nil, entry))
 }
 
 func (n *NanaNode) Open(ctx context.Context, flags uint32) (fh fs.FileHandle, fuseFlags uint32, errno syscall.Errno) {
 	defer utils.TraceRegion(ctx, "node.open")()
-	obj, err := n.R.GetObject(ctx, n.oid)
+	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return nil, 0, Error2FuseSysError(err)
 	}
-	if obj.IsGroup() {
+	if entry.IsGroup() {
 		return nil, 0, Error2FuseSysError(types.ErrIsGroup)
 	}
-	f, err := n.R.Controller.OpenFile(ctx, obj, openFileAttr(flags))
-	return &File{node: n, obj: obj, file: f}, flags, Error2FuseSysError(err)
+	f, err := n.R.Controller.OpenFile(ctx, entry, openFileAttr(flags))
+	return &File{node: n, entry: entry, file: f}, flags, Error2FuseSysError(err)
 }
 
 func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode uint32, out *fuse.EntryOut) (*fs.Inode, fs.FileHandle, uint32, syscall.Errno) {
 	defer utils.TraceRegion(ctx, "node.create")()
-	obj, err := n.R.GetObject(ctx, n.oid)
+	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return nil, nil, 0, Error2FuseSysError(err)
 	}
 
-	ch, err := n.R.FindObject(ctx, obj, name)
+	ch, err := n.R.FindEntry(ctx, entry, name)
 	if err != nil && err != types.ErrNotFound {
 		return nil, nil, 0, Error2FuseSysError(err)
 	}
@@ -167,7 +167,7 @@ func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode u
 	if fuseCtx, ok := ctx.(*fuse.Context); ok {
 		dentry.UpdateAccessWithOwnID(acc, int64(fuseCtx.Uid), int64(fuseCtx.Gid))
 	}
-	newCh, err := n.R.CreateObject(ctx, obj, types.ObjectAttr{
+	newCh, err := n.R.CreateEntry(ctx, entry, types.ObjectAttr{
 		Name:   name,
 		Kind:   fileKindFromMode(mode),
 		Access: *acc,
@@ -183,25 +183,25 @@ func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode u
 	n.AddChild(name, node.EmbeddedInode(), true)
 
 	f, err := n.R.Controller.OpenFile(ctx, newCh, openFileAttr(flags))
-	return node.EmbeddedInode(), &File{node: node, obj: obj, file: f}, dentry.Access2Mode(newCh.Access), Error2FuseSysError(err)
+	return node.EmbeddedInode(), &File{node: node, entry: entry, file: f}, dentry.Access2Mode(newCh.Metadata().Access), Error2FuseSysError(err)
 }
 
 func (n *NanaNode) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
 	defer utils.TraceRegion(ctx, "node.lookup")()
-	obj, err := n.R.GetObject(ctx, n.oid)
+	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
 
-	ch, err := n.R.FindObject(ctx, obj, name)
+	ch, err := n.R.FindEntry(ctx, entry, name)
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
 
-	if dentry.IsMirrorObject(ch) {
-		ch, err = n.R.GetObject(ctx, ch.RefID)
+	if ch.IsMirror() {
+		ch, err = n.R.GetEntry(ctx, ch.Metadata().RefID)
 		if err != nil {
-			n.logger.Errorw("query source object failed", "err", err.Error())
+			n.logger.Errorw("query source entry failed", "err", err.Error())
 			return nil, Error2FuseSysError(err)
 		}
 	}
@@ -216,11 +216,11 @@ func (n *NanaNode) Lookup(ctx context.Context, name string, out *fuse.EntryOut) 
 
 func (n *NanaNode) Opendir(ctx context.Context) syscall.Errno {
 	defer utils.TraceRegion(ctx, "node.opendir")()
-	obj, err := n.R.GetObject(ctx, n.oid)
+	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
-	if obj.IsGroup() {
+	if entry.IsGroup() {
 		return NoErr
 	}
 	return syscall.EISDIR
@@ -228,15 +228,15 @@ func (n *NanaNode) Opendir(ctx context.Context) syscall.Errno {
 
 func (n *NanaNode) Readdir(ctx context.Context) (fs.DirStream, syscall.Errno) {
 	defer utils.TraceRegion(ctx, "node.readdir")()
-	obj, err := n.R.GetObject(ctx, n.oid)
+	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
-	if !obj.IsGroup() {
+	if !entry.IsGroup() {
 		return nil, Error2FuseSysError(types.ErrNoGroup)
 	}
 	result := make([]fuse.DirEntry, 0)
-	children, err := n.R.ListObjectChildren(ctx, obj)
+	children, err := n.R.ListEntryChildren(ctx, entry)
 	if err != nil {
 		return nil, Error2FuseSysError(types.ErrNoGroup)
 	}
@@ -244,11 +244,11 @@ func (n *NanaNode) Readdir(ctx context.Context) (fs.DirStream, syscall.Errno) {
 	for i := range children {
 		ch := children[i]
 		node, _ := n.R.newFsNode(ctx, n, ch)
-		n.AddChild(ch.Name, node.EmbeddedInode(), false)
+		n.AddChild(ch.Metadata().Name, node.EmbeddedInode(), false)
 
 		result = append(result, fuse.DirEntry{
 			Mode: node.Mode(),
-			Name: ch.Name,
+			Name: ch.Metadata().Name,
 			Ino:  node.StableAttr().Ino,
 		})
 	}
@@ -257,12 +257,12 @@ func (n *NanaNode) Readdir(ctx context.Context) (fs.DirStream, syscall.Errno) {
 
 func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
 	defer utils.TraceRegion(ctx, "node.mkdir")()
-	obj, err := n.R.GetObject(ctx, n.oid)
+	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
 
-	ch, err := n.R.FindObject(ctx, obj, name)
+	ch, err := n.R.FindEntry(ctx, entry, name)
 	if err != nil && err != types.ErrNotFound {
 		return nil, Error2FuseSysError(err)
 	}
@@ -274,7 +274,7 @@ func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fus
 	if fuseCtx, ok := ctx.(*fuse.Context); ok {
 		dentry.UpdateAccessWithOwnID(acc, int64(fuseCtx.Uid), int64(fuseCtx.Gid))
 	}
-	newDir, err := n.R.CreateObject(ctx, obj, types.ObjectAttr{
+	newDir, err := n.R.CreateEntry(ctx, entry, types.ObjectAttr{
 		Name:   name,
 		Kind:   fileKindFromMode(mode),
 		Access: *acc,
@@ -294,11 +294,11 @@ func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fus
 
 func (n *NanaNode) Mknod(ctx context.Context, name string, mode uint32, dev uint32, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
 	defer utils.TraceRegion(ctx, "node.mknod")()
-	obj, err := n.R.GetObject(ctx, n.oid)
+	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
-	ch, err := n.R.FindObject(ctx, obj, name)
+	ch, err := n.R.FindEntry(ctx, entry, name)
 	if err != nil && err != types.ErrNotFound {
 		return nil, Error2FuseSysError(err)
 	}
@@ -311,7 +311,7 @@ func (n *NanaNode) Mknod(ctx context.Context, name string, mode uint32, dev uint
 	if fuseCtx, ok := ctx.(*fuse.Context); ok {
 		dentry.UpdateAccessWithOwnID(acc, int64(fuseCtx.Uid), int64(fuseCtx.Gid))
 	}
-	newCh, err := n.R.CreateObject(ctx, obj, types.ObjectAttr{
+	newCh, err := n.R.CreateEntry(ctx, entry, types.ObjectAttr{
 		Name:   name,
 		Dev:    int64(dev),
 		Kind:   fileKindFromMode(mode),
@@ -336,15 +336,15 @@ func (n *NanaNode) Link(ctx context.Context, target fs.InodeEmbedder, name strin
 		return nil, syscall.EIO
 	}
 
-	obj, err := n.R.GetObject(ctx, n.oid)
+	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
-	targetObj, err := n.R.GetObject(ctx, targetNode.oid)
+	targetEntry, err := n.R.GetEntry(ctx, targetNode.oid)
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
-	mirrored, err := n.R.MirrorObject(ctx, targetObj, obj, types.ObjectAttr{Name: name})
+	mirrored, err := n.R.MirrorEntry(ctx, targetEntry, entry, types.ObjectAttr{Name: name})
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
@@ -361,11 +361,11 @@ func (n *NanaNode) Link(ctx context.Context, target fs.InodeEmbedder, name strin
 
 // TODO: improve symlink operation
 func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.EntryOut) (node *fs.Inode, errno syscall.Errno) {
-	obj, err := n.R.GetObject(ctx, n.oid)
+	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
-	exist, err := n.R.FindObject(ctx, obj, name)
+	exist, err := n.R.FindEntry(ctx, entry, name)
 	if err != nil {
 		if err != types.ErrNotFound {
 			return nil, Error2FuseSysError(err)
@@ -374,10 +374,10 @@ func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.E
 	if exist != nil {
 		return nil, Error2FuseSysError(types.ErrIsExist)
 	}
-	newLink, err := n.R.CreateObject(ctx, obj, types.ObjectAttr{
+	newLink, err := n.R.CreateEntry(ctx, entry, types.ObjectAttr{
 		Name:   name,
 		Kind:   types.SymLinkKind,
-		Access: obj.Access,
+		Access: entry.Metadata().Access,
 	})
 	if err != nil {
 		return nil, Error2FuseSysError(err)
@@ -404,17 +404,17 @@ func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.E
 }
 
 func (n *NanaNode) Readlink(ctx context.Context) ([]byte, syscall.Errno) {
-	obj, err := n.R.GetObject(ctx, n.oid)
+	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
-	f, err := n.R.OpenFile(ctx, obj, files.Attr{Read: true})
+	f, err := n.R.OpenFile(ctx, entry, files.Attr{Read: true})
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
 	defer n.R.CloseFile(ctx, f)
 
-	buf := make([]byte, obj.Size)
+	buf := make([]byte, entry.Metadata().Size)
 	_, err = n.R.ReadFile(ctx, f, buf, 0)
 	if err != nil {
 		return nil, Error2FuseSysError(err)
@@ -430,17 +430,17 @@ func (n *NanaNode) Unlink(ctx context.Context, name string) syscall.Errno {
 		uid, gid = fuseCtx.Uid, fuseCtx.Gid
 	}
 
-	obj, err := n.R.GetObject(ctx, n.oid)
+	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
 
-	ch, err := n.R.FindObject(ctx, obj, name)
+	ch, err := n.R.FindEntry(ctx, entry, name)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
 
-	if err = n.R.DestroyObject(ctx, obj, ch, types.DestroyObjectAttr{Uid: int64(uid), Gid: int64(gid)}); err != nil {
+	if err = n.R.DestroyEntry(ctx, entry, ch, types.DestroyObjectAttr{Uid: int64(uid), Gid: int64(gid)}); err != nil {
 		return Error2FuseSysError(err)
 	}
 	n.RmChild(name)
@@ -459,12 +459,12 @@ func (n *NanaNode) Rmdir(ctx context.Context, name string) syscall.Errno {
 		uid, gid = fuseCtx.Uid, fuseCtx.Gid
 	}
 
-	obj, err := n.R.GetObject(ctx, n.oid)
+	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
 
-	ch, err := n.R.FindObject(ctx, obj, name)
+	ch, err := n.R.FindEntry(ctx, entry, name)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
@@ -472,7 +472,7 @@ func (n *NanaNode) Rmdir(ctx context.Context, name string) syscall.Errno {
 		return Error2FuseSysError(types.ErrNoGroup)
 	}
 
-	children, err := n.R.ListObjectChildren(ctx, ch)
+	children, err := n.R.ListEntryChildren(ctx, ch)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
@@ -480,7 +480,7 @@ func (n *NanaNode) Rmdir(ctx context.Context, name string) syscall.Errno {
 		return Error2FuseSysError(types.ErrNotEmpty)
 	}
 
-	if err = n.R.DestroyObject(ctx, obj, ch, types.DestroyObjectAttr{Uid: int64(uid), Gid: int64(gid)}); err != nil {
+	if err = n.R.DestroyEntry(ctx, entry, ch, types.DestroyObjectAttr{Uid: int64(uid), Gid: int64(gid)}); err != nil {
 		return Error2FuseSysError(err)
 	}
 	n.RmChild(name)
@@ -506,20 +506,20 @@ func (n *NanaNode) Rename(ctx context.Context, name string, newParent fs.InodeEm
 		opt.Replace = false
 	}
 
-	obj, err := n.R.GetObject(ctx, n.oid)
+	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
-	oldObj, err := n.R.FindObject(ctx, obj, name)
+	oldEntry, err := n.R.FindEntry(ctx, entry, name)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
-	newParentObj, err := n.R.GetObject(ctx, newNode.oid)
+	newParentEntry, err := n.R.GetEntry(ctx, newNode.oid)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
 
-	if err = n.R.ChangeObjectParent(ctx, oldObj, obj, newParentObj, newName, opt); err != nil {
+	if err = n.R.ChangeEntryParent(ctx, oldEntry, entry, newParentEntry, newName, opt); err != nil {
 		return Error2FuseSysError(err)
 	}
 	n.RmChild(name)

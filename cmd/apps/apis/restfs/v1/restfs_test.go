@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/basenana/nanafs/cmd/apps/apis/restfs/frame"
+	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/types"
 	. "github.com/onsi/ginkgo"
@@ -31,18 +32,18 @@ import (
 
 var _ = Describe("TestRestFsGet", func() {
 	var (
-		root *types.Object
+		root dentry.Entry
 		err  error
 	)
 	It("load root object", func() {
-		root, err = ctrl.LoadRootObject(context.Background())
+		root, err = ctrl.LoadRootEntry(context.Background())
 		Expect(err).Should(BeNil())
 	})
 
 	Describe("test action read", func() {
 		Context("normal", func() {
 			It("create new file", func() {
-				newFile, err := ctrl.CreateObject(context.Background(), root, types.ObjectAttr{Name: "get-read-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
+				newFile, err := ctrl.CreateEntry(context.Background(), root, types.ObjectAttr{Name: "get-read-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
 				Expect(err).Should(BeNil())
 
 				f, err := ctrl.OpenFile(context.Background(), newFile, files.Attr{Read: true, Write: true})
@@ -88,9 +89,9 @@ var _ = Describe("TestRestFsGet", func() {
 		var oid int64
 		Context("normal", func() {
 			It("create new file", func() {
-				newFile, err := ctrl.CreateObject(context.Background(), root, types.ObjectAttr{Name: "get-alias-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
+				newFile, err := ctrl.CreateEntry(context.Background(), root, types.ObjectAttr{Name: "get-alias-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
 				Expect(err).Should(BeNil())
-				oid = newFile.ID
+				oid = newFile.Metadata().ID
 			})
 			It("read file by action alias", func() {
 				r, err := http.NewRequest(http.MethodGet, "http://127.0.0.1:8001/v1/fs/get-alias-file1.txt", nil)
@@ -137,11 +138,11 @@ var _ = Describe("TestRestFsGet", func() {
 
 var _ = Describe("TestRestFsPost", func() {
 	var (
-		root *types.Object
+		root dentry.Entry
 		err  error
 	)
 	It("load root object", func() {
-		root, err = ctrl.LoadRootObject(context.Background())
+		root, err = ctrl.LoadRootEntry(context.Background())
 		Expect(err).Should(BeNil())
 	})
 
@@ -172,9 +173,9 @@ var _ = Describe("TestRestFsPost", func() {
 				oid = newObj.Data.ID
 			})
 			It("create succeed", func() {
-				newObj, err := ctrl.FindObject(context.Background(), root, "post-create-file1.txt")
+				newObj, err := ctrl.FindEntry(context.Background(), root, "post-create-file1.txt")
 				Expect(err).Should(BeNil())
-				Expect(newObj.ID).Should(Equal(oid))
+				Expect(newObj.Metadata().ID).Should(Equal(oid))
 
 				f, err := ctrl.OpenFile(context.Background(), newObj, files.Attr{Read: true})
 				Expect(err).Should(BeNil())
@@ -211,9 +212,9 @@ var _ = Describe("TestRestFsPost", func() {
 				Expect(resp.StatusCode).Should(Equal(http.StatusOK))
 			})
 			It("create succeed", func() {
-				obj1, err := ctrl.FindObject(context.Background(), root, "post-bulk-file1.txt")
+				obj1, err := ctrl.FindEntry(context.Background(), root, "post-bulk-file1.txt")
 				Expect(err).Should(BeNil())
-				obj2, err := ctrl.FindObject(context.Background(), root, "post-bulk-file2.txt")
+				obj2, err := ctrl.FindEntry(context.Background(), root, "post-bulk-file2.txt")
 				Expect(err).Should(BeNil())
 
 				var (
@@ -243,7 +244,7 @@ var _ = Describe("TestRestFsPost", func() {
 	Describe("test action copy", func() {
 		Context("normal", func() {
 			It("create new file", func() {
-				newFile, err := ctrl.CreateObject(context.Background(), root, types.ObjectAttr{Name: "post-copy-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
+				newFile, err := ctrl.CreateEntry(context.Background(), root, types.ObjectAttr{Name: "post-copy-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
 				Expect(err).Should(BeNil())
 
 				f, err := ctrl.OpenFile(context.Background(), newFile, files.Attr{Read: true, Write: true})
@@ -272,7 +273,7 @@ var _ = Describe("TestRestFsPost", func() {
 				Expect(resp.StatusCode).Should(Equal(http.StatusOK))
 			})
 			It("copy succeed", func() {
-				copyObj, err := ctrl.FindObject(context.TODO(), root, "post-copy-file2.txt")
+				copyObj, err := ctrl.FindEntry(context.TODO(), root, "post-copy-file2.txt")
 				Expect(err).Should(BeNil())
 
 				f, err := ctrl.OpenFile(context.Background(), copyObj, files.Attr{Read: true})
@@ -290,18 +291,18 @@ var _ = Describe("TestRestFsPost", func() {
 
 var _ = Describe("TestRestFsPut", func() {
 	var (
-		root *types.Object
+		root dentry.Entry
 		err  error
 	)
 	It("load root object", func() {
-		root, err = ctrl.LoadRootObject(context.Background())
+		root, err = ctrl.LoadRootEntry(context.Background())
 		Expect(err).Should(BeNil())
 	})
 
 	Describe("test action update", func() {
 		Context("normal", func() {
 			It("create new file", func() {
-				newFile, err := ctrl.CreateObject(context.Background(), root, types.ObjectAttr{Name: "put-update-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
+				newFile, err := ctrl.CreateEntry(context.Background(), root, types.ObjectAttr{Name: "put-update-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
 				Expect(err).Should(BeNil())
 
 				f, err := ctrl.OpenFile(context.Background(), newFile, files.Attr{Read: true, Write: true})
@@ -329,7 +330,7 @@ var _ = Describe("TestRestFsPut", func() {
 				Expect(resp.StatusCode).Should(Equal(http.StatusOK))
 			})
 			It("update succeed", func() {
-				obj, err := ctrl.FindObject(context.Background(), root, "put-update-file1.txt")
+				obj, err := ctrl.FindEntry(context.Background(), root, "put-update-file1.txt")
 				Expect(err).Should(BeNil())
 				f, err := ctrl.OpenFile(context.Background(), obj, files.Attr{Read: true})
 				Expect(err).Should(BeNil())
@@ -344,16 +345,16 @@ var _ = Describe("TestRestFsPut", func() {
 
 	Describe("test action move", func() {
 		var (
-			srcDir, dstDir *types.Object
+			srcDir, dstDir dentry.Entry
 		)
 		Context("normal", func() {
 			It("create new file", func() {
-				srcDir, err = ctrl.CreateObject(context.Background(), root, types.ObjectAttr{Name: "put-move-src-dir", Kind: types.GroupKind, Access: defaultAccessForTest()})
+				srcDir, err = ctrl.CreateEntry(context.Background(), root, types.ObjectAttr{Name: "put-move-src-dir", Kind: types.GroupKind, Access: defaultAccessForTest()})
 				Expect(err).Should(BeNil())
-				dstDir, err = ctrl.CreateObject(context.Background(), root, types.ObjectAttr{Name: "put-move-dst-dir", Kind: types.GroupKind, Access: defaultAccessForTest()})
+				dstDir, err = ctrl.CreateEntry(context.Background(), root, types.ObjectAttr{Name: "put-move-dst-dir", Kind: types.GroupKind, Access: defaultAccessForTest()})
 				Expect(err).Should(BeNil())
 
-				newFile, err := ctrl.CreateObject(context.Background(), srcDir, types.ObjectAttr{Name: "put-move-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
+				newFile, err := ctrl.CreateEntry(context.Background(), srcDir, types.ObjectAttr{Name: "put-move-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
 				Expect(err).Should(BeNil())
 
 				f, err := ctrl.OpenFile(context.Background(), newFile, files.Attr{Read: true, Write: true})
@@ -381,10 +382,10 @@ var _ = Describe("TestRestFsPut", func() {
 				Expect(resp.StatusCode).Should(Equal(http.StatusOK))
 			})
 			It("move succeed", func() {
-				_, err = ctrl.FindObject(context.Background(), srcDir, "put-move-file1.txt")
+				_, err = ctrl.FindEntry(context.Background(), srcDir, "put-move-file1.txt")
 				Expect(err).Should(Equal(types.ErrNotFound))
 
-				moved, err := ctrl.FindObject(context.Background(), dstDir, "put-move-file1.txt")
+				moved, err := ctrl.FindEntry(context.Background(), dstDir, "put-move-file1.txt")
 				Expect(err).Should(BeNil())
 
 				f, err := ctrl.OpenFile(context.Background(), moved, files.Attr{Read: true})
@@ -401,7 +402,7 @@ var _ = Describe("TestRestFsPut", func() {
 	Describe("test action rename", func() {
 		Context("normal", func() {
 			It("create new file", func() {
-				newFile, err := ctrl.CreateObject(context.Background(), root, types.ObjectAttr{Name: "put-rename-old-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
+				newFile, err := ctrl.CreateEntry(context.Background(), root, types.ObjectAttr{Name: "put-rename-old-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
 				Expect(err).Should(BeNil())
 
 				f, err := ctrl.OpenFile(context.Background(), newFile, files.Attr{Read: true, Write: true})
@@ -430,9 +431,9 @@ var _ = Describe("TestRestFsPut", func() {
 				Expect(resp.StatusCode).Should(Equal(http.StatusOK))
 			})
 			It("rename succeed", func() {
-				_, err = ctrl.FindObject(context.Background(), root, "put-rename-old-file1.txt")
+				_, err = ctrl.FindEntry(context.Background(), root, "put-rename-old-file1.txt")
 				Expect(err).Should(Equal(types.ErrNotFound))
-				_, err = ctrl.FindObject(context.Background(), root, "put-rename-new-file1.txt")
+				_, err = ctrl.FindEntry(context.Background(), root, "put-rename-new-file1.txt")
 				Expect(err).Should(BeNil())
 			})
 		})
@@ -441,18 +442,18 @@ var _ = Describe("TestRestFsPut", func() {
 
 var _ = Describe("TestRestFsDelete", func() {
 	var (
-		root *types.Object
+		root dentry.Entry
 		err  error
 	)
 	It("load root object", func() {
-		root, err = ctrl.LoadRootObject(context.Background())
+		root, err = ctrl.LoadRootEntry(context.Background())
 		Expect(err).Should(BeNil())
 	})
 
 	Describe("test action delete", func() {
 		Context("normal", func() {
 			It("create new file", func() {
-				newFile, err := ctrl.CreateObject(context.Background(), root, types.ObjectAttr{Name: "delete-delete-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
+				newFile, err := ctrl.CreateEntry(context.Background(), root, types.ObjectAttr{Name: "delete-delete-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
 				Expect(err).Should(BeNil())
 
 				f, err := ctrl.OpenFile(context.Background(), newFile, files.Attr{Read: true, Write: true})
@@ -471,7 +472,7 @@ var _ = Describe("TestRestFsDelete", func() {
 				Expect(resp.StatusCode).Should(Equal(http.StatusOK))
 			})
 			It("file deleted", func() {
-				_, err := ctrl.FindObject(context.Background(), root, "delete-delete-file1.txt")
+				_, err := ctrl.FindEntry(context.Background(), root, "delete-delete-file1.txt")
 				Expect(err).Should(Equal(types.ErrNotFound))
 			})
 		})

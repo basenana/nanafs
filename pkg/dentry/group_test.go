@@ -50,12 +50,7 @@ var _ = Describe("TestManageGroupEntry", func() {
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
-		})
-		It("find file1 should be succeed", func() {
-			_, err := group1.Group().FindEntry(context.TODO(), file1.Metadata().Name)
-			Expect(err).Should(BeNil())
-			_, err = group1.Group().GetEntry(context.TODO(), file1.Metadata().ID)
-			Expect(err).Should(BeNil())
+			Expect(file1).ShouldNot(BeNil())
 		})
 		It("create file2 should be succeed", func() {
 			_, err := entryManager.CreateEntry(context.TODO(), group1, EntryAttr{

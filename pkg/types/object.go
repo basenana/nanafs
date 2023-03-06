@@ -67,12 +67,10 @@ func NewMetadata(name string, kind Kind) Metadata {
 }
 
 type ExtendData struct {
-	Properties  *Properties       `json:"properties,omitempty"`
-	Annotation  *Annotation       `json:"annotation,omitempty"`
-	Attributes  map[string]string `json:"attributes,omitempty"`
-	DeviceInfo  *[]byte           `json:"device_info,omitempty"`
-	GroupFilter *Rule             `json:"group_filter,omitempty"`
-	PlugScope   *PlugScope        `json:"plug_scope,omitempty"`
+	Annotation  *Annotation `json:"annotation,omitempty"`
+	Symlink     string      `json:"symlink,omitempty"`
+	GroupFilter *Rule       `json:"group_filter,omitempty"`
+	PlugScope   *PlugScope  `json:"plug_scope,omitempty"`
 }
 
 type PlugScope struct {
@@ -82,20 +80,9 @@ type PlugScope struct {
 	Parameters map[string]string `json:"parameters"`
 }
 
-type Properties struct {
-	Author   string   `json:"author,omitempty"`
-	Title    string   `json:"title,omitempty"`
-	Subject  string   `json:"subject,omitempty"`
-	Keywords []string `json:"keywords,omitempty"`
-	Comment  string   `json:"comment,omitempty"`
-}
-
-func (p *Properties) copy(newP *Properties) {
-	p.Author = newP.Author
-	p.Title = newP.Title
-	p.Subject = newP.Subject
-	p.Keywords = newP.Keywords
-	p.Comment = newP.Comment
+type PropertyItem struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }
 
 type Annotation struct {
@@ -148,7 +135,8 @@ type AnnotationItem struct {
 type Object struct {
 	Metadata
 	ExtendData
-	Labels Labels `json:"labels"`
+	Properties []PropertyItem `json:"properties,omitempty"`
+	Labels     Labels         `json:"labels"`
 }
 
 func (o *Object) IsGroup() bool {
@@ -171,7 +159,6 @@ func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {
 	newObj := &Object{
 		Metadata: md,
 		ExtendData: ExtendData{
-			Properties: &Properties{},
 			Annotation: &Annotation{},
 		},
 	}

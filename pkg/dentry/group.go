@@ -26,7 +26,6 @@ import (
 
 type Group interface {
 	FindEntry(ctx context.Context, name string) (Entry, error)
-	GetEntry(ctx context.Context, id int64) (Entry, error)
 	CreateEntry(ctx context.Context, attr EntryAttr) (Entry, error)
 	UpdateEntry(ctx context.Context, en Entry) error
 	DestroyEntry(ctx context.Context, en Entry) error
@@ -52,14 +51,6 @@ func (g *stdGroup) FindEntry(ctx context.Context, name string) (Entry, error) {
 		}
 	}
 	return nil, types.ErrNotFound
-}
-
-func (g *stdGroup) GetEntry(ctx context.Context, id int64) (Entry, error) {
-	obj, err := g.store.GetObject(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	return BuildEntry(obj, g.store), nil
 }
 
 func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, error) {
@@ -112,7 +103,16 @@ func (g *stdGroup) DestroyEntry(ctx context.Context, en Entry) error {
 		return types.ErrUnsupported
 	}
 
+	if !obj.IsGroup() && obj.RefCount > 0 {
+		obj.RefCount -= 1
+		obj.ParentID = 0
+		obj.ChangedAt = time.Now()
+	}
+
 	grpObj := g.Object()
+	if obj.IsGroup() {
+		grpObj.RefCount -= 1
+	}
 	grpObj.RefCount -= 1
 	grpObj.ChangedAt = time.Now()
 	grpObj.ModifiedAt = time.Now()

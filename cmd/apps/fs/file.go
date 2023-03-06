@@ -18,6 +18,7 @@ package fs
 
 import (
 	"context"
+	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
@@ -27,26 +28,26 @@ import (
 )
 
 type File struct {
-	node *NanaNode
-	obj  *types.Object
-	file files.File
+	node  *NanaNode
+	entry dentry.Entry
+	file  files.File
 }
 
 var _ fileOperation = &File{}
 
 func (f *File) Getattr(ctx context.Context, out *fuse.AttrOut) syscall.Errno {
-	obj, err := f.node.R.GetObject(ctx, f.obj.ID)
+	entry, err := f.node.R.GetEntry(ctx, f.entry.Metadata().ID)
 	if err != nil {
-		if err == types.ErrNotFound && f.obj != nil {
-			f.obj.RefCount = 0
-			st := nanaNode2Stat(f.obj)
+		if err == types.ErrNotFound && f.entry != nil {
+			f.entry.Metadata().RefCount = 0
+			st := nanaNode2Stat(f.entry)
 			updateAttrOut(st, &out.Attr)
 			return NoErr
 		}
 		return Error2FuseSysError(err)
 	}
 
-	st := nanaNode2Stat(obj)
+	st := nanaNode2Stat(entry)
 	updateAttrOut(st, &out.Attr)
 	return NoErr
 }

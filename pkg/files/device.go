@@ -61,7 +61,7 @@ func (s *Symlink) Fsync(ctx context.Context) error {
 
 func (s *Symlink) Flush(ctx context.Context) (err error) {
 	deviceInfo := s.data
-	s.obj.ExtendData.DeviceInfo = &deviceInfo
+	s.obj.ExtendData.Symlink = string(deviceInfo)
 	return nil
 }
 
@@ -75,8 +75,8 @@ func openSymlink(obj *types.Object, attr Attr) (*Symlink, error) {
 	}
 
 	var raw []byte
-	if obj.ExtendData.DeviceInfo != nil {
-		raw = *obj.ExtendData.DeviceInfo
+	if obj.ExtendData.Symlink != "" {
+		raw = []byte(obj.ExtendData.Symlink)
 	}
 
 	if raw == nil {

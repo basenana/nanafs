@@ -20,7 +20,7 @@ import (
 	"context"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
-	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
@@ -123,26 +123,26 @@ func (n *NanaFS) SetDebug(debug bool) {
 	n.debug = debug
 }
 
-func (n *NanaFS) newFsNode(ctx context.Context, parent *NanaNode, obj *types.Object) (*NanaNode, error) {
+func (n *NanaFS) newFsNode(ctx context.Context, parent *NanaNode, entry dentry.Entry) (*NanaNode, error) {
 	if parent == nil {
 		var err error
-		obj, err = n.LoadRootObject(ctx)
+		entry, err = n.LoadRootEntry(ctx)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	if obj.Dev == 0 {
-		obj.Dev = int64(n.Dev)
+	if entry.Metadata().Dev == 0 {
+		entry.Metadata().Dev = int64(n.Dev)
 	}
 
 	node := &NanaNode{
-		oid:    obj.ID,
+		oid:    entry.Metadata().ID,
 		R:      n,
-		logger: n.logger.With(zap.Int64("obj", obj.ID)),
+		logger: n.logger.With(zap.Int64("entry", entry.Metadata().ID)),
 	}
 	if parent != nil {
-		parent.NewInode(ctx, node, idFromStat(n.Dev, nanaNode2Stat(obj)))
+		parent.NewInode(ctx, node, idFromStat(n.Dev, nanaNode2Stat(entry)))
 	}
 
 	return node, nil
@@ -166,11 +166,11 @@ func (n *NanaFS) umount(server *fuse.Server) {
 	}
 }
 
-func (n *NanaFS) GetObject(ctx context.Context, id int64) (*types.Object, error) {
-	return n.Controller.GetObject(ctx, id)
+func (n *NanaFS) GetEntry(ctx context.Context, id int64) (dentry.Entry, error) {
+	return n.Controller.GetEntry(ctx, id)
 }
 
-func (n *NanaFS) releaseFsNode(ctx context.Context, obj *types.Object) {
+func (n *NanaFS) releaseFsNode(ctx context.Context, entry dentry.Entry) {
 }
 
 func NewNanaFsRoot(cfg config.Fs, controller controller.Controller) (*NanaFS, error) {
