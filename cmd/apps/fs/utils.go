@@ -39,15 +39,16 @@ func idFromStat(dev uint64, st *syscall.Stat_t) fs.StableAttr {
 	}
 }
 
-func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, obj *types.Object, crtUid, crtGid int64, fileOpenAttr files.Attr) error {
+func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, entry dentry.Entry, crtUid, crtGid int64, fileOpenAttr files.Attr) error {
+	meta := entry.Metadata()
 	// do check
 	if _, ok := attr.GetMode(); ok {
-		if crtUid != 0 && crtUid != obj.Access.UID {
+		if crtUid != 0 && crtUid != meta.Access.UID {
 			return types.ErrNoPerm
 		}
 	}
 	if _, ok := attr.GetUID(); ok {
-		if crtUid != 0 && crtUid != obj.Access.UID {
+		if crtUid != 0 && crtUid != meta.Access.UID {
 			return types.ErrNoPerm
 		}
 	}
@@ -59,7 +60,7 @@ func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, obj *types.Object, crtUid, crt
 			is a member.  A privileged process (Linux: with CAP_CHOWN) may
 			change the group arbitrarily.
 		*/
-		if crtUid != 0 && crtUid != obj.Access.UID {
+		if crtUid != 0 && crtUid != meta.Access.UID {
 			return types.ErrNoPerm
 		}
 		if crtUid != 0 && int64(gid) != crtGid && !dentry.MatchUserGroup(crtUid, int64(gid)) {
@@ -68,7 +69,7 @@ func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, obj *types.Object, crtUid, crt
 	}
 	if _, ok := attr.GetSize(); ok {
 		if !fileOpenAttr.Create {
-			if err := dentry.IsAccess(obj.Access, crtUid, crtGid, 0x2); err != nil {
+			if err := dentry.IsAccess(meta.Access, crtUid, crtGid, 0x2); err != nil {
 				return err
 			}
 		}
@@ -76,23 +77,23 @@ func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, obj *types.Object, crtUid, crt
 
 	// do update
 	if mode, ok := attr.GetMode(); ok {
-		if mode&syscall.S_ISUID > 0 && crtUid != 0 && crtUid != obj.Access.UID {
+		if mode&syscall.S_ISUID > 0 && crtUid != 0 && crtUid != meta.Access.UID {
 			mode ^= syscall.S_ISUID
 		}
-		if mode&syscall.S_ISGID > 0 && crtUid != 0 && crtGid != obj.Access.GID {
+		if mode&syscall.S_ISGID > 0 && crtUid != 0 && crtGid != meta.Access.GID {
 			mode ^= syscall.S_ISGID
 		}
-		dentry.UpdateAccessWithMode(&obj.Access, mode)
+		dentry.UpdateAccessWithMode(&meta.Access, mode)
 	}
 
 	ownerUpdated := false
 	if uid, ok := attr.GetUID(); ok {
 		ownerUpdated = true
-		dentry.UpdateAccessWithOwnID(&obj.Access, int64(uid), obj.Access.GID)
+		dentry.UpdateAccessWithOwnID(&meta.Access, int64(uid), meta.Access.GID)
 	}
 	if gid, ok := attr.GetGID(); ok {
 		ownerUpdated = true
-		dentry.UpdateAccessWithOwnID(&obj.Access, obj.Access.UID, int64(gid))
+		dentry.UpdateAccessWithOwnID(&meta.Access, meta.Access.UID, int64(gid))
 	}
 	if ownerUpdated {
 		/*
@@ -105,22 +106,22 @@ func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, obj *types.Object, crtUid, crt
 		   which the S_IXGRP bit is not set) the S_ISGID bit indicates
 		   mandatory locking, and is not cleared by a chown().
 		*/
-		(&obj.Access).RemovePerm(types.PermSetUid)
-		(&obj.Access).RemovePerm(types.PermSetGid)
+		(&meta.Access).RemovePerm(types.PermSetUid)
+		(&meta.Access).RemovePerm(types.PermSetGid)
 	}
 
 	if size, ok := attr.GetSize(); ok {
-		obj.Size = int64(size)
+		meta.Size = int64(size)
 	}
 
 	if mtime, ok := attr.GetMTime(); ok {
-		obj.ModifiedAt = mtime
+		meta.ModifiedAt = mtime
 	}
 	if atime, ok := attr.GetATime(); ok {
-		obj.AccessAt = atime
+		meta.AccessAt = atime
 	}
 	if ctime, ok := attr.GetCTime(); ok {
-		obj.ChangedAt = ctime
+		meta.ChangedAt = ctime
 	}
 
 	return nil

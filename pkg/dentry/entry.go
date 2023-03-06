@@ -33,6 +33,7 @@ type Entry interface {
 	Metadata() *types.Metadata
 	ExtendData() *types.ExtendData
 	IsGroup() bool
+	IsMirror() bool
 	Group() Group
 }
 
@@ -64,6 +65,10 @@ func (r *rawEntry) IsGroup() bool {
 	default:
 		return false
 	}
+}
+
+func (r *rawEntry) IsMirror() bool {
+	return !r.obj.IsGroup() && r.obj.RefID != 0 && r.obj.RefID != r.obj.ID
 }
 
 func (r *rawEntry) Group() Group {
@@ -117,9 +122,4 @@ func initMirrorEntryObject(src, newParent *types.Object, attr EntryAttr) (*types
 	obj.Metadata.Namespace = src.Namespace
 	obj.RefID = src.ID
 	return obj, nil
-}
-
-func isMirrorEntry(en Entry) bool {
-	obj := en.Object()
-	return !obj.IsGroup() && obj.RefID != 0 && obj.RefID != obj.ID
 }

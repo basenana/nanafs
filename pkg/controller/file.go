@@ -30,15 +30,16 @@ import (
 type OpenOption struct {
 }
 
-func (c *controller) OpenFile(ctx context.Context, obj *types.Object, attr files.Attr) (files.File, error) {
+func (c *controller) OpenFile(ctx context.Context, en dentry.Entry, attr files.Attr) (files.File, error) {
 	defer utils.TraceRegion(ctx, "controller.openfile")()
+	obj := en.Object()
 	c.logger.Infow("open file", "file", obj.ID, "name", obj.Name, "attr", attr)
-	if obj.IsGroup() {
+	if en.IsGroup() {
 		return nil, types.ErrIsGroup
 	}
 
 	var err error
-	for dentry.IsMirrorObject(obj) {
+	for en.IsMirror() {
 		obj, err = c.meta.GetObject(ctx, obj.RefID)
 		if err != nil {
 			c.logger.Errorw("query source object error", "obj", obj.ID, "srcObj", obj.RefID, "err", err.Error())
@@ -62,7 +63,7 @@ func (c *controller) OpenFile(ctx context.Context, obj *types.Object, attr files
 	}
 	obj.AccessAt = time.Now()
 	bus.Publish(fmt.Sprintf("object.file.%d.open", obj.ID), obj)
-	return file, c.SaveObject(ctx, nil, obj)
+	return file, c.SaveEntry(ctx, nil, dentry.BuildEntry(obj, c.meta))
 }
 
 func (c *controller) ReadFile(ctx context.Context, file files.File, data []byte, offset int64) (n int, err error) {
@@ -82,7 +83,7 @@ func (c *controller) WriteFile(ctx context.Context, file files.File, data []byte
 	}
 	obj := file.GetObject()
 	obj.ModifiedAt = time.Now()
-	return n, c.SaveObject(ctx, nil, obj)
+	return n, c.SaveEntry(ctx, nil, dentry.BuildEntry(obj, c.meta))
 }
 
 func (c *controller) CloseFile(ctx context.Context, file files.File) (err error) {
@@ -97,8 +98,9 @@ func (c *controller) CloseFile(ctx context.Context, file files.File) (err error)
 	return nil
 }
 
-func (c *controller) DeleteFileData(ctx context.Context, obj *types.Object) (err error) {
+func (c *controller) DeleteFileData(ctx context.Context, en dentry.Entry) (err error) {
 	defer utils.TraceRegion(ctx, "controller.cleanfile")()
+	obj := en.Object()
 	c.logger.Infow("delete file", "file", obj.Name)
 	err = c.storage.Delete(ctx, obj.ID)
 	if err != nil {

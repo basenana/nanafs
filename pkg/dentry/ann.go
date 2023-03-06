@@ -26,7 +26,8 @@ const (
 	InternalAnnPrefix = "internal.basenana.org"
 )
 
-func AddInternalAnnotation(obj *types.Object, key, value string, encode bool) {
+func AddInternalAnnotation(entry Entry, key, value string, encode bool) {
+	obj := entry.Object()
 	obj.Annotation.Add(&types.AnnotationItem{
 		Key:     fmt.Sprintf("%s/%s", InternalAnnPrefix, key),
 		Content: value,
@@ -34,7 +35,8 @@ func AddInternalAnnotation(obj *types.Object, key, value string, encode bool) {
 	})
 }
 
-func GetInternalAnnotation(obj *types.Object, key string) *types.AnnotationItem {
+func GetInternalAnnotation(entry Entry, key string) *types.AnnotationItem {
+	obj := entry.Object()
 	if obj.Annotation != nil {
 		item := obj.Annotation.Get(fmt.Sprintf("%s/%s", InternalAnnPrefix, key))
 		return item

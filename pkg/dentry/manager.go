@@ -28,6 +28,7 @@ import (
 
 type Manager interface {
 	Root(ctx context.Context) (Entry, error)
+	GetEntry(ctx context.Context, id int64) (Entry, error)
 	CreateEntry(ctx context.Context, parent Entry, attr EntryAttr) (Entry, error)
 	DestroyEntry(ctx context.Context, parent, en Entry) error
 	MirrorEntry(ctx context.Context, src, dstParent Entry, attr EntryAttr) (Entry, error)
@@ -65,6 +66,14 @@ func (m *manager) Root(ctx context.Context) (Entry, error) {
 	return BuildEntry(root, m.store), m.store.SaveObject(ctx, nil, root)
 }
 
+func (m *manager) GetEntry(ctx context.Context, id int64) (Entry, error) {
+	obj, err := m.store.GetObject(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return BuildEntry(obj, m.store), nil
+}
+
 func (m *manager) CreateEntry(ctx context.Context, parent Entry, attr EntryAttr) (Entry, error) {
 	if !parent.IsGroup() {
 		return nil, types.ErrNoGroup
@@ -84,7 +93,7 @@ func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) error {
 		srcObj    *types.Object
 		err       error
 	)
-	if isMirrorEntry(en) {
+	if en.IsMirror() {
 		m.logger.Infow("entry is mirrored, delete ref count", "entry", obj.ID, "ref", obj.RefID)
 		srcObj, err = m.store.GetObject(ctx, en.Metadata().RefID)
 		if err != nil {
@@ -135,7 +144,7 @@ func (m *manager) MirrorEntry(ctx context.Context, src, dstParent Entry, attr En
 		return nil, types.ErrNoGroup
 	}
 
-	if isMirrorEntry(src) {
+	if src.IsMirror() {
 		srcObj, err = m.store.GetObject(ctx, srcObj.RefID)
 		if err != nil {
 			m.logger.Errorw("query source object error", "entry", srcObj.ID, "srcObj", srcObj.RefID, "err", err.Error())

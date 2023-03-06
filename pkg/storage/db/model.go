@@ -27,6 +27,8 @@ var dbModels = []interface{}{
 	&Object{},
 	&ObjectAccess{},
 	&ObjectLabel{},
+	&ObjectProperty{},
+	&ObjectExtend{},
 	&PluginData{},
 }
 
@@ -143,14 +145,37 @@ func (a *ObjectAccess) ToAccess() types.Access {
 
 type ObjectLabel struct {
 	ID        int64  `gorm:"column:id;autoIncrement"`
-	OID       int64  `gorm:"column:oid;index:oid"`
+	OID       int64  `gorm:"column:oid;index:l_oid"`
 	Key       string `gorm:"column:key"`
 	Value     string `gorm:"column:value"`
-	SearchKey string `gorm:"column:search_key;index:search_key"`
+	SearchKey string `gorm:"column:search_key;index:l_search_key"`
 }
 
 func (o ObjectLabel) TableName() string {
 	return "object_label"
+}
+
+type ObjectProperty struct {
+	ID    int64  `gorm:"column:id;autoIncrement"`
+	OID   int64  `gorm:"column:oid;index:p_oid"`
+	Name  string `gorm:"column:key;index:p_name"`
+	Value string `gorm:"column:value"`
+}
+
+func (o ObjectProperty) TableName() string {
+	return "object_property"
+}
+
+type ObjectExtend struct {
+	ID          int64  `gorm:"column:id;autoIncrement"`
+	OID         int64  `gorm:"column:oid;index:e_oid"`
+	Symlink     string `gorm:"column:symlink"`
+	GroupFilter []byte `gorm:"column:group_filter"`
+	PlugScope   []byte `gorm:"column:plug_scope"`
+}
+
+func (o ObjectExtend) TableName() string {
+	return "object_extend"
 }
 
 type PluginData struct {

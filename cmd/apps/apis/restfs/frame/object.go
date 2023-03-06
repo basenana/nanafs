@@ -19,27 +19,28 @@ package frame
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/controller"
+	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"sort"
 	"strings"
 )
 
-func FindObject(ctx context.Context, ctrl controller.Controller, path, action string) (parent, obj *types.Object, err error) {
-	defer utils.TraceRegion(ctx, "restfs.findobject")()
+func FindEntry(ctx context.Context, ctrl controller.Controller, path, action string) (parent, entry dentry.Entry, err error) {
+	defer utils.TraceRegion(ctx, "restfs.findentry")()
 	entries := pathEntries(path)
-	obj, err = ctrl.LoadRootObject(ctx)
+	entry, err = ctrl.LoadRootEntry(ctx)
 	if err != nil {
 		return
 	}
 
 	if len(entries) == 1 && entries[0] == "" {
-		return obj, obj, nil
+		return entry, entry, nil
 	}
 
 	for i, ent := range entries {
-		parent = obj
-		obj, err = ctrl.FindObject(ctx, obj, ent)
+		parent = entry
+		entry, err = ctrl.FindEntry(ctx, entry, ent)
 		if err != nil {
 			if err == types.ErrNotFound {
 				if i == len(entries)-1 && action == ActionCreate {
@@ -53,16 +54,21 @@ func FindObject(ctx context.Context, ctrl controller.Controller, path, action st
 	return
 }
 
-type ObjectList struct {
+type EntryList struct {
 	Objects []*types.Object
 	Total   int
 }
 
-func BuildObjectList(objList []*types.Object) ObjectList {
+func BuildEntryList(objList []dentry.Entry) EntryList {
 	sort.Slice(objList, func(i, j int) bool {
-		return objList[i].Name < objList[j].Name
+		return objList[i].Metadata().Name < objList[j].Metadata().Name
 	})
-	return ObjectList{Objects: objList, Total: len(objList)}
+
+	result := EntryList{Objects: make([]*types.Object, len(objList)), Total: len(objList)}
+	for i := range objList {
+		result.Objects[i] = objList[i].Object()
+	}
+	return result
 }
 
 func pathEntries(path string) []string {
