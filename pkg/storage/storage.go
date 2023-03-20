@@ -46,8 +46,8 @@ type Info struct {
 
 type Storage interface {
 	ID() string
-	Get(ctx context.Context, key int64, idx, offset int64) (io.ReadCloser, error)
-	Put(ctx context.Context, key int64, idx, offset int64, in io.Reader) error
+	Get(ctx context.Context, key, idx, offset int64, dest []byte) (int64, error)
+	Put(ctx context.Context, key, idx, offset int64, data []byte) error
 	Delete(ctx context.Context, key int64) error
 	Head(ctx context.Context, key int64, idx int64) (Info, error)
 }
@@ -80,16 +80,16 @@ func (m *memoryStorage) ID() string {
 	return MemoryStorage
 }
 
-func (m *memoryStorage) Get(ctx context.Context, key int64, idx, offset int64) (io.ReadCloser, error) {
+func (m *memoryStorage) Get(ctx context.Context, key int64, idx, offset int64, dest []byte) (int64, error) {
 	defer utils.TraceRegion(ctx, "memory.get")()
 	ck, err := m.getChunk(ctx, m.chunkKey(key, idx))
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	return utils.NewDateReader(bytes.NewReader(ck.data[offset:])), nil
+	return int64(copy(dest, ck.data[offset:])), nil
 }
 
-func (m *memoryStorage) Put(ctx context.Context, key int64, idx, offset int64, in io.Reader) error {
+func (m *memoryStorage) Put(ctx context.Context, key int64, idx, offset int64, data []byte) error {
 	defer utils.TraceRegion(ctx, "memory.put")()
 	cKey := m.chunkKey(key, idx)
 	ck, err := m.getChunk(ctx, m.chunkKey(key, idx))
@@ -103,8 +103,8 @@ func (m *memoryStorage) Put(ctx context.Context, key int64, idx, offset int64, i
 	)
 
 	for {
-		n, err = in.Read(buf)
-		if err == io.EOF || n == 0 {
+		n = copy(buf, data)
+		if n == 0 {
 			break
 		}
 		offset += int64(copy(ck.data[offset:], buf[:n]))
@@ -179,22 +179,17 @@ func (l *local) ID() string {
 	return LocalStorage
 }
 
-func (l *local) Get(ctx context.Context, key int64, idx, offset int64) (io.ReadCloser, error) {
+func (l *local) Get(ctx context.Context, key int64, idx, offset int64, dest []byte) (int64, error) {
 	defer utils.TraceRegion(ctx, "local.get")()
 	file, err := l.openLocalFile(l.key2LocalPath(key, idx), os.O_RDWR)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	_, err = file.Seek(offset, io.SeekStart)
-	if err != nil {
-		l.logger.Errorw("seek file failed", "key", key, "offset", offset, "err", err.Error())
-		_ = file.Close()
-		return nil, err
-	}
-	return file, nil
+	count, err := file.ReadAt(dest, offset)
+	return int64(count), err
 }
 
-func (l *local) Put(ctx context.Context, key int64, idx, offset int64, in io.Reader) error {
+func (l *local) Put(ctx context.Context, key int64, idx, offset int64, data []byte) error {
 	defer utils.TraceRegion(ctx, "local.put")()
 	file, err := l.openLocalFile(l.key2LocalPath(key, idx), os.O_CREATE|os.O_RDWR)
 	if err != nil {
@@ -208,7 +203,7 @@ func (l *local) Put(ctx context.Context, key int64, idx, offset int64, in io.Rea
 		_ = file.Close()
 		return err
 	}
-	_, err = io.Copy(file, in)
+	_, err = io.Copy(file, bytes.NewBuffer(data))
 	return err
 }
 

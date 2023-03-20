@@ -14,6 +14,15 @@
  limitations under the License.
 */
 
-package storage
+package bio
 
-type webdav struct{}
+import "context"
+
+type Reader interface {
+	ReadAt(ctx context.Context, dest []byte, off int64) (uint32, error)
+}
+
+type Writer interface {
+	WriteAt(ctx context.Context, data []byte, off int64) (uint32, error)
+	Fsync(ctx context.Context) error
+}

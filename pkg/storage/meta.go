@@ -42,6 +42,11 @@ type ObjectStore interface {
 	ChangeParent(ctx context.Context, srcParent, dstParent, obj *types.Object, opt types.ChangeParentOption) error
 }
 
+type ChunkStore interface {
+	ListSegments(ctx context.Context, oid, chunkID int64) ([]types.ChunkSeg, error)
+	AppendSegments(ctx context.Context, seg types.ChunkSeg, obj *types.Object) error
+}
+
 const (
 	MemoryMeta = "memory"
 )

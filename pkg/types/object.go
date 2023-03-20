@@ -24,6 +24,10 @@ import (
 const (
 	objectNameMaxLength    = 255
 	objectDefaultNamespace = "personal"
+
+	VersionKey         = "nanafs.version"
+	KindKey            = "nanafs.kind"
+	LabelPluginNameKey = "nanafs.plugin.name"
 )
 
 type Metadata struct {
@@ -82,6 +86,24 @@ type PlugScope struct {
 
 type PropertyItem struct {
 	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+type Labels struct {
+	Labels []Label `json:"labels,omitempty"`
+}
+
+func (l Labels) Get(key string) *Label {
+	for _, label := range l.Labels {
+		if label.Key == key {
+			return &label
+		}
+	}
+	return nil
+}
+
+type Label struct {
+	Key   string `json:"key"`
 	Value string `json:"value"`
 }
 
@@ -168,9 +190,12 @@ func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {
 	return newObj, nil
 }
 
-type ObjectWorkflow struct {
-	Id        string
-	Synced    bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
+const ()
+
+type ChunkSeg struct {
+	ID    int64
+	OID   int64
+	Off   int64
+	Len   int64
+	State int16
 }

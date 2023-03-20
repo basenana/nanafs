@@ -29,6 +29,7 @@ var dbModels = []interface{}{
 	&ObjectLabel{},
 	&ObjectProperty{},
 	&ObjectExtend{},
+	&ObjectChunk{},
 	&PluginData{},
 }
 
@@ -145,10 +146,10 @@ func (a *ObjectAccess) ToAccess() types.Access {
 
 type ObjectLabel struct {
 	ID        int64  `gorm:"column:id;autoIncrement"`
-	OID       int64  `gorm:"column:oid;index:l_oid"`
+	OID       int64  `gorm:"column:oid;index:label_oid"`
 	Key       string `gorm:"column:key"`
 	Value     string `gorm:"column:value"`
-	SearchKey string `gorm:"column:search_key;index:l_search_key"`
+	SearchKey string `gorm:"column:search_key;index:label_search_key"`
 }
 
 func (o ObjectLabel) TableName() string {
@@ -157,8 +158,8 @@ func (o ObjectLabel) TableName() string {
 
 type ObjectProperty struct {
 	ID    int64  `gorm:"column:id;autoIncrement"`
-	OID   int64  `gorm:"column:oid;index:p_oid"`
-	Name  string `gorm:"column:key;index:p_name"`
+	OID   int64  `gorm:"column:oid;index:prop_oid"`
+	Name  string `gorm:"column:key;index:prop_name"`
 	Value string `gorm:"column:value"`
 }
 
@@ -168,7 +169,7 @@ func (o ObjectProperty) TableName() string {
 
 type ObjectExtend struct {
 	ID          int64  `gorm:"column:id;autoIncrement"`
-	OID         int64  `gorm:"column:oid;index:e_oid"`
+	OID         int64  `gorm:"column:oid;index:ext_oid"`
 	Symlink     string `gorm:"column:symlink"`
 	GroupFilter []byte `gorm:"column:group_filter"`
 	PlugScope   []byte `gorm:"column:plug_scope"`
@@ -176,6 +177,20 @@ type ObjectExtend struct {
 
 func (o ObjectExtend) TableName() string {
 	return "object_extend"
+}
+
+type ObjectChunk struct {
+	ID       int64 `gorm:"column:id;autoIncrement"`
+	OID      int64 `gorm:"column:oid;index:ck_oid"`
+	ChunkID  int64 `gorm:"column:chunk_id;index:ck_id"`
+	Off      int64 `gorm:"column:off"`
+	Len      int64 `gorm:"column:len"`
+	State    int16 `gorm:"column:state"`
+	AppendAt int64 `gorm:"column:append_at"`
+}
+
+func (o ObjectChunk) TableName() string {
+	return "object_chunk"
 }
 
 type PluginData struct {
