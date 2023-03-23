@@ -236,6 +236,49 @@ func (e *Entity) DeletePluginRecord(ctx context.Context, plugin types.PlugScope,
 	return nil
 }
 
+func (e *Entity) NextChunkID(ctx context.Context) (int64, error) {
+	return availableChunkSegID(e.DB.WithContext(ctx))
+}
+
+func (e *Entity) InsertChunkSegment(ctx context.Context, obj *types.Object, seg types.ChunkSeg) error {
+	return e.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		tx.Create(ObjectChunk{
+			ID:       seg.ID,
+			OID:      obj.ID,
+			ChunkID:  seg.ChunkID,
+			Off:      seg.Off,
+			Len:      seg.Len,
+			State:    seg.State,
+			AppendAt: time.Now().UnixNano(),
+		})
+		if seg.Off+seg.Len > obj.Size {
+			obj.Size = seg.Off + seg.Len
+		}
+		return saveRawObject(tx, obj)
+	})
+}
+
+func (e *Entity) ListChunkSegments(ctx context.Context, oid, chunkID int64) ([]types.ChunkSeg, error) {
+	segments := make([]ObjectChunk, 0)
+	res := e.DB.WithContext(ctx).Where("oid = ? AND chunk_id = ?", oid, chunkID).Order("append_at").Find(&segments)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	result := make([]types.ChunkSeg, len(segments))
+	for i, seg := range segments {
+		result[i] = types.ChunkSeg{
+			ID:       seg.ID,
+			ChunkID:  seg.ChunkID,
+			ObjectID: seg.OID,
+			Off:      seg.Off,
+			Len:      seg.Len,
+			State:    seg.State,
+		}
+
+	}
+	return result, nil
+}
+
 func (e *Entity) SystemInfo(ctx context.Context) (*SystemInfo, error) {
 	info := &SystemInfo{}
 	res := e.WithContext(ctx).First(info)
@@ -349,6 +392,22 @@ func availableInode(tx *gorm.DB) (uint64, error) {
 	}
 
 	return info.Inode, nil
+}
+
+func availableChunkSegID(tx *gorm.DB) (int64, error) {
+	info := &SystemInfo{}
+	res := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(info)
+	if res.Error != nil {
+		return 0, res.Error
+	}
+
+	info.ChunkSeg += 1
+	res = tx.Updates(info)
+	if res.Error != nil {
+		return 0, res.Error
+	}
+
+	return info.ChunkSeg, nil
 }
 
 func updateObjectLabels(tx *gorm.DB, obj *types.Object) error {

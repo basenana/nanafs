@@ -35,56 +35,56 @@ type chunkReader struct {
 	page    *pageCache
 	store   storage.ChunkStore
 	storage storage.Storage
-	readers map[int64]*segReader
 	mux     sync.Mutex
 }
 
 func NewChunkReader(obj *types.Object, store storage.ChunkStore) Reader {
 	cr := &chunkReader{
-		Object:  obj,
-		page:    newPageCache(obj.ID, fileChunkSize),
-		store:   store,
-		readers: make(map[int64]*segReader, obj.Size/fileChunkSize+1),
+		Object: obj,
+		page:   newPageCache(obj.ID, fileChunkSize),
+		store:  store,
 	}
 	cr.mux.Lock()
 	return cr
 }
 
-func (c *chunkReader) ReadAt(ctx context.Context, dest []byte, off int64) (uint32, error) {
+func (c *chunkReader) ReadAt(ctx context.Context, dest []byte, off int64) (n int64, err error) {
 	ctx, endF := utils.TraceTask(ctx, "chunkreader.readat")
 	defer endF()
 
 	var (
-		leftSize = int64(len(dest))
-		n        = uint32(0)
-		reqList  = make([]*readReq, 0)
-		req      *readReq
-		err      error
+		readEnd = off + int64(len(dest))
+		reqList = make([]*ioReq, 0, readEnd/fileChunkSize+1)
+		req     *ioReq
 	)
 
-	for int64(n) < leftSize {
+	for {
 		index, _ := computeChunkIndex(off, fileChunkSize)
-		readEnd := (index + 1) * fileChunkSize
-		if readEnd-off > leftSize {
-			readEnd = off + leftSize
+		chunkEnd := (index + 1) * fileChunkSize
+		if chunkEnd > readEnd {
+			chunkEnd = readEnd
 		}
-		if readEnd > c.Object.Size {
-			readEnd = c.Object.Size
+		if chunkEnd > c.Object.Size {
+			chunkEnd = c.Object.Size
 		}
 
-		req, err = c.prepareData(ctx, index, off, dest[n:readEnd-off])
+		readLen := chunkEnd - off
+		req, err = c.prepareData(ctx, index, off, dest[n:n+readLen])
 		if err != nil {
 			return 0, err
 		}
 		reqList = append(reqList, req)
 
-		n += uint32(readEnd - off)
-		off = readEnd
+		n += readLen
+		off = chunkEnd
+		if off == readEnd || off == c.Object.Size {
+			break
+		}
 	}
 	return n, c.waitIO(ctx, reqList)
 }
 
-func (c *chunkReader) waitIO(ctx context.Context, reqList []*readReq) (err error) {
+func (c *chunkReader) waitIO(ctx context.Context, reqList []*ioReq) (err error) {
 	allFinish := false
 	for !allFinish {
 		allFinish = true
@@ -100,88 +100,30 @@ func (c *chunkReader) waitIO(ctx context.Context, reqList []*readReq) (err error
 	return
 }
 
-func (c *chunkReader) prepareData(ctx context.Context, index, off int64, dest []byte) (*readReq, error) {
-	c.mux.Lock()
-	sr, ok := c.readers[index]
-	if !ok {
-		sr = &segReader{chunkReader: c, chunkID: index}
-		c.readers[index] = sr
-	}
-	c.mux.Unlock()
-
-	req := &readReq{
+func (c *chunkReader) prepareData(ctx context.Context, index, off int64, dest []byte) (*ioReq, error) {
+	req := &ioReq{
 		off:  off,
 		dest: dest,
 	}
-	go sr.readRange(ctx, req)
+	go c.readChunkRange(ctx, index, req)
 	return req, nil
 }
 
-type chunkWriter struct {
-	*chunkReader
-	writers map[int64]*segWriter
-}
-
-func (c *chunkWriter) WriteAt(ctx context.Context, data []byte, off int64) (n uint32, err error) {
-	var (
-		leftSize  = uint32(len(data))
-		onceWrite uint32
-	)
-	for {
-		index, pos := computeChunkIndex(off, fileChunkSize)
-
-		chunkEnd := (index+1)*fileChunkSize - off
-		if chunkEnd > int64(leftSize) {
-			chunkEnd = int64(leftSize)
-		}
-
-		cw, ok := c.writers[index]
-		if !ok {
-			// TODO
-		}
-
-		onceWrite, err = cw.writeAt(ctx, index, pos, data[n:chunkEnd])
-		if err != nil {
-			return
-		}
-		n += onceWrite
-		if n == leftSize {
-			break
-		}
-		off += int64(n)
-	}
-	return
-}
-
-func (c *chunkWriter) Fsync(ctx context.Context) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-type segReader struct {
-	*chunkReader
-
-	chunkID  int64
-	segments []segment
-	table    *segTable
-	mux      sync.Mutex
-}
-
-func (r *segReader) readRange(ctx context.Context, req *readReq) {
+func (c *chunkReader) readChunkRange(ctx context.Context, chunkID int64, req *ioReq) {
 	ctx, endF := utils.TraceTask(ctx, "segreader.readrange")
 	defer endF()
 
-	segments, err := r.store.ListSegments(ctx, r.ID, r.chunkID)
+	segments, err := c.store.ListSegments(ctx, c.ID, chunkID)
 	if err != nil {
 		req.err = err
 		return
 	}
 
-	dataSize := (r.chunkID + 1) * int64(fileChunkSize)
-	if r.Size < dataSize {
-		dataSize = r.Size
+	dataSize := (chunkID + 1) * int64(fileChunkSize)
+	if c.Size < dataSize {
+		dataSize = c.Size
 	}
-	st := buildSegmentTree(r.chunkID*fileChunkSize, dataSize, segments)
+	st := buildSegmentTree(chunkID*fileChunkSize, dataSize, segments)
 
 	var (
 		off     = req.off
@@ -199,7 +141,7 @@ func (r *segReader) readRange(ctx context.Context, req *readReq) {
 		wg.Add(1)
 		go func(ctx context.Context, segments []segment, pageID, off int64, dest []byte) {
 			defer wg.Done()
-			if err = r.readPage(ctx, segments, pageID, off, dest); err != nil && req.err == nil {
+			if err = c.readPage(ctx, segments, pageID, off, dest); err != nil && req.err == nil {
 				req.err = err
 				endF()
 				return
@@ -214,8 +156,8 @@ func (r *segReader) readRange(ctx context.Context, req *readReq) {
 	wg.Wait()
 }
 
-func (r *segReader) readPage(ctx context.Context, segments []segment, pageID, off int64, dest []byte) error {
-	page, err := r.page.read(ctx, pageID, segments)
+func (c *chunkReader) readPage(ctx context.Context, segments []segment, pageID, off int64, dest []byte) error {
+	page, err := c.page.read(ctx, pageID, segments)
 	if err != nil {
 		return err
 	}
@@ -223,26 +165,90 @@ func (r *segReader) readPage(ctx context.Context, segments []segment, pageID, of
 	return nil
 }
 
-type segWriter struct {
-	chunkID int64
-	len     int64
+type chunkWriter struct {
+	*chunkReader
 }
 
-func (w *segWriter) writeAt(ctx context.Context, index int64, off int64, data []byte) (n uint32, err error) {
-	return 0, err
+func NewChunkWriter(reader *chunkReader) Writer {
+	return &chunkWriter{chunkReader: reader}
 }
 
-type segTable struct {
-	objID   int64
-	segID   int64
-	off     int64
-	len     uint32
-	active  bool
-	isReady bool
-	err     error
-	storage storage.Storage
-	pages   []*pageNode
-	next    *segTable
+func (c *chunkWriter) WriteAt(ctx context.Context, data []byte, off int64) (n int64, err error) {
+	var (
+		writeEnd = off + int64(len(data))
+		reqList  = make([]*ioReq, 0, writeEnd/fileChunkSize+1)
+	)
+	for {
+		index, _ := computeChunkIndex(off, fileChunkSize)
+
+		chunkEnd := (index+1)*fileChunkSize - off
+		if chunkEnd > writeEnd {
+			chunkEnd = writeEnd
+		}
+
+		readLen := chunkEnd - off
+		reqList = append(reqList, c.flushData(ctx, index, off, data[n:n+readLen]))
+		n += readLen
+		off = chunkEnd
+		if off == writeEnd {
+			break
+		}
+	}
+	return n, c.waitIO(ctx, reqList)
+}
+func (c *chunkWriter) flushData(ctx context.Context, index, off int64, dest []byte) *ioReq {
+	req := &ioReq{
+		off:  off,
+		dest: dest,
+	}
+	go c.writeChunkRange(ctx, index, req)
+	return req
+}
+
+func (c *chunkWriter) Fsync(ctx context.Context) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (c *chunkWriter) writeChunkRange(ctx context.Context, chunkID int64, req *ioReq) {
+	var (
+		off    = req.off
+		bufEnd = off + int64(len(req.dest))
+		wg     = sync.WaitGroup{}
+	)
+
+	for {
+		pageIdx, pos := computePageIndex(off)
+		pageStart := pageIdx*pageSize + pos
+		pageEnd := (pageIdx + 1) * pageSize
+		if pageEnd > bufEnd {
+			pageEnd = bufEnd
+		}
+		wg.Add(1)
+		go func(ctx context.Context, pageID, off int64, data []byte) {
+			defer wg.Done()
+			chunkSegId, err := c.store.NextChunkID(ctx)
+			if err != nil {
+				req.err = err
+				return
+			}
+			if err = c.storage.Put(ctx, chunkSegId, pageID, off, data); err != nil {
+				req.err = err
+				return
+			}
+			if err = c.store.AppendSegments(ctx, chunkID, types.ChunkSeg{ID: chunkSegId, Off: off, Len: int64(len(data))}, c.Object); err != nil {
+				req.err = err
+				return
+			}
+			c.page.invalidate(pageID)
+		}(ctx, pageIdx, pageStart, req.dest[off-req.off:pageEnd-req.off])
+		off = pageEnd
+		if off == bufEnd {
+			break
+		}
+	}
+	wg.Wait()
+	return
 }
 
 func computeChunkIndex(off, chunkSize int64) (idx int64, pos int64) {
@@ -251,9 +257,112 @@ func computeChunkIndex(off, chunkSize int64) (idx int64, pos int64) {
 	return
 }
 
-type readReq struct {
+type ioReq struct {
 	off     int64
 	dest    []byte
 	isReady bool
 	err     error
+}
+
+type segTree struct {
+	start, end  int64
+	id, pos     int64
+	left, right *segTree
+}
+
+func (t *segTree) query(start, end int64) []segment {
+	if t == nil {
+		return nil
+	}
+
+	var result []segment
+	if start < t.start {
+		result = append(result, t.left.query(start, minOff(t.start, end))...)
+	}
+
+	segStart := maxOff(t.start, start)
+	segEnd := minOff(t.end, end)
+	if segEnd-segStart > 0 {
+		result = append(result, segment{
+			id:  t.id,
+			off: segStart,
+			pos: t.pos + segStart - t.start,
+			len: segEnd - segStart,
+		})
+	}
+
+	if end > t.end {
+		result = append(result, t.right.query(maxOff(t.end, start), end)...)
+	}
+	return result
+}
+
+func (t *segTree) cut(off int64) (left, right *segTree) {
+	if t == nil {
+		return nil, nil
+	}
+	switch {
+	case off < t.start:
+		left, _ = t.left.cut(off)
+		right = t
+		return
+	case off > t.end:
+		left = t
+		t.right, right = t.right.cut(off)
+		return
+	case off == t.start:
+		left = t.left
+		right = t
+		t.left = nil
+		return
+	case off == t.end:
+		left = t
+		right = t.right
+		t.right = nil
+		return
+	default:
+		cutSize := off - t.start
+		if cutSize == 0 {
+			return nil, t
+		}
+		if off == t.end {
+			return t, nil
+		}
+		left = &segTree{start: t.start, end: off, id: t.id, pos: t.pos, left: t.left}
+		right = &segTree{start: off, end: t.end, id: t.id, pos: t.pos + cutSize, right: t.right}
+		return
+	}
+}
+
+func buildSegmentTree(dataStart, dataEnd int64, segList []types.ChunkSeg) *segTree {
+	st := &segTree{start: dataStart, end: dataEnd}
+	for _, seg := range segList {
+		newSt := &segTree{id: seg.ID, start: seg.Off, end: seg.Off + seg.Len}
+		var r *segTree
+		newSt.left, r = st.cut(seg.Off)
+		_, newSt.right = r.cut(seg.Off + seg.Len)
+		st = newSt
+	}
+	return st
+}
+
+type segment struct {
+	id  int64 // segment id
+	pos int64 // segment pos
+	off int64 // file offset
+	len int64 // segment remaining length after pos
+}
+
+func maxOff(off1, off2 int64) int64 {
+	if off1 > off2 {
+		return off1
+	}
+	return off2
+}
+
+func minOff(off1, off2 int64) int64 {
+	if off1 < off2 {
+		return off1
+	}
+	return off2
 }

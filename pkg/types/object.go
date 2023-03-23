@@ -193,9 +193,10 @@ func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {
 const ()
 
 type ChunkSeg struct {
-	ID    int64
-	OID   int64
-	Off   int64
-	Len   int64
-	State int16
+	ID       int64
+	ChunkID  int64
+	ObjectID int64
+	Off      int64
+	Len      int64
+	State    int16
 }

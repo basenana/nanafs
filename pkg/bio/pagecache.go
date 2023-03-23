@@ -82,6 +82,7 @@ func (p *pageCache) read(ctx context.Context, pageIndex int64, segments []segmen
 			pageStart = pageSize * pageIndex
 		)
 		page = p.insertPage(ctx, pageIndex)
+		page.mux.Lock()
 		for _, seg := range segments {
 			onceRead, err = p.storage.Get(ctx, seg.id, pageIndex, seg.off-pageStart, page.data[n:n+seg.len])
 			for err != nil {
@@ -90,9 +91,21 @@ func (p *pageCache) read(ctx context.Context, pageIndex int64, segments []segmen
 			n += onceRead
 		}
 		page.mode ^= pageModeInitial
+		page.mux.Unlock()
 		return nil, types.ErrPageFault
 	}
 	return page, nil
+}
+
+func (p *pageCache) invalidate(pageIndex int64) {
+	page := p.findPage(pageIndex)
+	if page == nil {
+		return
+	}
+	page.mux.Lock()
+	page.mode |= pageModeInvalid
+	page.data = nil
+	page.mux.Unlock()
 }
 
 func (p *pageCache) insertPage(ctx context.Context, pageIdx int64) *pageNode {
@@ -233,19 +246,4 @@ func computePageIndex(off int64) (idx int64, pos int64) {
 	idx = off / pageSize
 	pos = off % pageSize
 	return
-}
-
-type rangeData struct {
-	data  []byte
-	off   int64
-	len   uint32
-	pages []*pageNode
-}
-
-func (d *rangeData) Release() {
-	for _, p := range d.pages {
-		p.release()
-	}
-	d.data = nil
-	d.pages = nil
 }

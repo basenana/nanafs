@@ -19,10 +19,10 @@ package bio
 import "context"
 
 type Reader interface {
-	ReadAt(ctx context.Context, dest []byte, off int64) (uint32, error)
+	ReadAt(ctx context.Context, dest []byte, off int64) (int64, error)
 }
 
 type Writer interface {
-	WriteAt(ctx context.Context, data []byte, off int64) (uint32, error)
+	WriteAt(ctx context.Context, data []byte, off int64) (int64, error)
 	Fsync(ctx context.Context) error
 }

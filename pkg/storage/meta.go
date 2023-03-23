@@ -28,6 +28,7 @@ import (
 
 type Meta interface {
 	ObjectStore
+	ChunkStore
 	PluginRecorderGetter
 }
 
@@ -43,6 +44,7 @@ type ObjectStore interface {
 }
 
 type ChunkStore interface {
+	NextChunkID(ctx context.Context) (int64, error)
 	ListSegments(ctx context.Context, oid, chunkID int64) ([]types.ChunkSeg, error)
 	AppendSegments(ctx context.Context, seg types.ChunkSeg, obj *types.Object) error
 }
@@ -74,9 +76,11 @@ type PluginRecorder interface {
 }
 
 type memoryMetaStore struct {
-	objects    map[int64]*types.Object
-	inodeCount uint64
-	mux        sync.Mutex
+	objects     map[int64]*types.Object
+	chunks      map[int64][]types.ChunkSeg
+	inodeCount  uint64
+	nextChunkID int64
+	mux         sync.Mutex
 }
 
 var _ Meta = &memoryMetaStore{}
@@ -192,6 +196,34 @@ func (m *memoryMetaStore) PluginRecorder(plugin types.PlugScope) PluginRecorder 
 		recordGroup: make(map[string]string),
 		groups:      make(map[string]map[string]struct{}),
 	}
+}
+
+func (m *memoryMetaStore) NextChunkID(ctx context.Context) (int64, error) {
+	m.mux.Lock()
+	n := m.nextChunkID
+	m.nextChunkID += 1
+	m.mux.Unlock()
+	return n, nil
+}
+
+func (m *memoryMetaStore) ListSegments(ctx context.Context, oid, chunkID int64) ([]types.ChunkSeg, error) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	return m.chunks[chunkID], nil
+}
+
+func (m *memoryMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg, obj *types.Object) error {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	chunks := m.chunks[seg.ChunkID]
+	chunks = append(chunks, seg)
+	m.chunks[seg.ChunkID] = chunks
+	obj = m.objects[obj.ID]
+	if obj != nil && seg.Off+seg.Len > obj.Size {
+		obj.Size = seg.Off + seg.Len
+		m.objects[obj.ID] = obj
+	}
+	return nil
 }
 
 type memoryPluginRecorder struct {

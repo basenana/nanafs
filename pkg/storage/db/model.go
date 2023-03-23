@@ -34,8 +34,9 @@ var dbModels = []interface{}{
 }
 
 type SystemInfo struct {
-	FsID  string `gorm:"column:fs_id;primaryKey"`
-	Inode uint64 `gorm:"column:inode"`
+	FsID     string `gorm:"column:fs_id;primaryKey"`
+	Inode    uint64 `gorm:"column:inode"`
+	ChunkSeg int64  `gorm:"column:chunk_seg"`
 }
 
 func (i SystemInfo) TableName() string {
@@ -180,7 +181,7 @@ func (o ObjectExtend) TableName() string {
 }
 
 type ObjectChunk struct {
-	ID       int64 `gorm:"column:id;autoIncrement"`
+	ID       int64 `gorm:"column:id;primaryKey"`
 	OID      int64 `gorm:"column:oid;index:ck_oid"`
 	ChunkID  int64 `gorm:"column:chunk_id;index:ck_id"`
 	Off      int64 `gorm:"column:off"`
