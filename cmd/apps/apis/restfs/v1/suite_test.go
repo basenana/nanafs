@@ -55,7 +55,7 @@ var _ config.Loader = mockConfig{}
 
 func NewControllerForTest() controller.Controller {
 	m, _ := storage.NewMetaStorage("memory", config.Meta{})
-	s, _ := storage.NewStorage("memory", config.Storage{})
+	s, _ := storage.NewStorage(storage.MemoryStorage, storage.MemoryStorage, config.Storage{})
 
 	files.InitFileIoChain(config.Config{}, s, make(chan struct{}))
 	return controller.New(mockConfig{}, m, s)

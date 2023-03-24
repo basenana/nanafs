@@ -14,20 +14,38 @@
  limitations under the License.
 */
 
-package storage
+package utils
 
-import (
-	"fmt"
-	"github.com/basenana/nanafs/config"
-)
+type MaximumParallel struct {
+	q chan struct{}
+}
 
-func NewMetaStorage(metaType string, meta config.Meta) (Meta, error) {
-	switch metaType {
-	case MemoryMeta:
-		return newMemoryMetaStore(), nil
-	case SqliteMeta:
-		return newSqliteMetaStore(meta)
-	default:
-		return nil, fmt.Errorf("unknow meta store type: %s", metaType)
-	}
+func (p *MaximumParallel) Go(f func()) {
+	go func() {
+		p.q <- struct{}{}
+		defer func() {
+			select {
+			case <-p.q:
+			default:
+			}
+		}()
+		f()
+	}()
+}
+
+func (p *MaximumParallel) BlockedGo(f func()) {
+	p.q <- struct{}{}
+	go func() {
+		defer func() {
+			select {
+			case <-p.q:
+			default:
+			}
+		}()
+		f()
+	}()
+}
+
+func NewMaximumParallel(num int) *MaximumParallel {
+	return &MaximumParallel{q: make(chan struct{}, num)}
 }

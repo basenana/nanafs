@@ -43,6 +43,7 @@ type Metadata struct {
 	Inode      uint64    `json:"inode"`
 	Dev        int64     `json:"dev"`
 	Namespace  string    `json:"namespace,omitempty"`
+	Storage    string    `json:"storage"`
 	CreatedAt  time.Time `json:"created_at"`
 	ChangedAt  time.Time `json:"changed_at"`
 	ModifiedAt time.Time `json:"modified_at"`
@@ -177,6 +178,7 @@ func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {
 	md := NewMetadata(attr.Name, attr.Kind)
 	md.Access = attr.Access
 	md.Dev = attr.Dev
+	md.Storage = parent.Storage
 
 	newObj := &Object{
 		Metadata: md,

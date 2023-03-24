@@ -127,11 +127,11 @@ func (s *sqliteMetaStore) MirrorObject(ctx context.Context, srcObj, dstParent, o
 	return nil
 }
 
-func (s *sqliteMetaStore) NextChunkID(ctx context.Context) (int64, error) {
+func (s *sqliteMetaStore) NextSegmentID(ctx context.Context) (int64, error) {
 	defer utils.TraceRegion(ctx, "sqlite.nextchunkid")()
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbEntity.NextChunkID(ctx)
+	return s.dbEntity.NextSegmentID(ctx)
 }
 
 func (s *sqliteMetaStore) ListSegments(ctx context.Context, oid, chunkID int64) ([]types.ChunkSeg, error) {

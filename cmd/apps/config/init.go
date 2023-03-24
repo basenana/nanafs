@@ -57,7 +57,8 @@ func initDefaultConfig() {
 		},
 		Storages: []config.Storage{
 			{
-				ID:       storage.LocalStorage,
+				ID:       "local-0",
+				Type:     storage.LocalStorage,
 				LocalDir: dataDir,
 			},
 		},

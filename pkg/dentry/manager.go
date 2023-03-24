@@ -63,6 +63,7 @@ func (m *manager) Root(ctx context.Context) (Entry, error) {
 	root = initRootEntryObject()
 	root.Access.UID = m.cfg.Owner.Uid
 	root.Access.GID = m.cfg.Owner.Gid
+	root.Storage = m.cfg.Storages[0].ID
 	return BuildEntry(root, m.store), m.store.SaveObject(ctx, nil, root)
 }
 

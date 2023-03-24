@@ -22,11 +22,16 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 const (
 	fileChunkSize = 1 << 26 // 64MB
+)
+
+var (
+	maximumChunkTaskParallel = utils.NewMaximumParallel(100)
 )
 
 type chunkReader struct {
@@ -35,7 +40,6 @@ type chunkReader struct {
 	page    *pageCache
 	store   storage.ChunkStore
 	storage storage.Storage
-	mux     sync.Mutex
 }
 
 func NewChunkReader(obj *types.Object, store storage.ChunkStore) Reader {
@@ -44,7 +48,6 @@ func NewChunkReader(obj *types.Object, store storage.ChunkStore) Reader {
 		page:   newPageCache(obj.ID, fileChunkSize),
 		store:  store,
 	}
-	cr.mux.Lock()
 	return cr
 }
 
@@ -55,8 +58,10 @@ func (c *chunkReader) ReadAt(ctx context.Context, dest []byte, off int64) (n int
 	var (
 		readEnd = off + int64(len(dest))
 		reqList = make([]*ioReq, 0, readEnd/fileChunkSize+1)
-		req     *ioReq
 	)
+	if readEnd > c.Object.Size {
+		readEnd = c.Object.Size
+	}
 
 	for {
 		index, _ := computeChunkIndex(off, fileChunkSize)
@@ -69,6 +74,8 @@ func (c *chunkReader) ReadAt(ctx context.Context, dest []byte, off int64) (n int
 		}
 
 		readLen := chunkEnd - off
+	
+		var req *ioReq
 		req, err = c.prepareData(ctx, index, off, dest[n:n+readLen])
 		if err != nil {
 			return 0, err
@@ -77,7 +84,7 @@ func (c *chunkReader) ReadAt(ctx context.Context, dest []byte, off int64) (n int
 
 		n += readLen
 		off = chunkEnd
-		if off == readEnd || off == c.Object.Size {
+		if off == readEnd {
 			break
 		}
 	}
@@ -90,10 +97,15 @@ func (c *chunkReader) waitIO(ctx context.Context, reqList []*ioReq) (err error) 
 		allFinish = true
 	waitIO:
 		for _, req := range reqList {
-			if !req.isReady {
-				allFinish = false
-				time.Sleep(time.Millisecond * 50)
-				break waitIO
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+				if !req.isReady {
+					allFinish = false
+					time.Sleep(time.Millisecond * 50)
+					break waitIO
+				}
 			}
 		}
 	}
@@ -105,7 +117,9 @@ func (c *chunkReader) prepareData(ctx context.Context, index, off int64, dest []
 		off:  off,
 		dest: dest,
 	}
-	go c.readChunkRange(ctx, index, req)
+	maximumChunkTaskParallel.Go(func() {
+		c.readChunkRange(ctx, index, req)
+	})
 	return req, nil
 }
 
@@ -140,12 +154,14 @@ func (c *chunkReader) readChunkRange(ctx context.Context, chunkID int64, req *io
 		}
 		wg.Add(1)
 		go func(ctx context.Context, segments []segment, pageID, off int64, dest []byte) {
-			defer wg.Done()
-			if err = c.readPage(ctx, segments, pageID, off, dest); err != nil && req.err == nil {
-				req.err = err
-				endF()
-				return
-			}
+			maximumChunkTaskParallel.BlockedGo(func() {
+				defer wg.Done()
+				if err = c.readPage(ctx, segments, pageID, off, dest); err != nil && req.err == nil {
+					req.err = err
+					endF()
+					return
+				}
+			})
 		}(ctx, st.query(pageIdx*pageSize, (pageIdx+1)*pageSize), pageIdx, pageStart, req.dest[off-req.off:pageEnd-req.off])
 		bufLeft -= pageEnd - off
 		off = pageEnd
@@ -154,10 +170,33 @@ func (c *chunkReader) readChunkRange(ctx context.Context, chunkID int64, req *io
 		}
 	}
 	wg.Wait()
+	req.isReady = true
 }
 
-func (c *chunkReader) readPage(ctx context.Context, segments []segment, pageID, off int64, dest []byte) error {
-	page, err := c.page.read(ctx, pageID, segments)
+func (c *chunkReader) readPage(ctx context.Context, segments []segment, pageIndex, off int64, dest []byte) error {
+	page, err := c.page.read(ctx, pageIndex, func(page *pageNode) error {
+		var (
+			crt, onceRead, readEnd int64
+			err                    error
+			pageStart              = pageSize * pageIndex
+		)
+		for _, seg := range segments {
+			for i := crt; i < seg.pos; i++ {
+				page.data[i] = 0
+			}
+			crt = seg.pos
+			readEnd = crt + seg.len
+			if readEnd > pageSize {
+				readEnd = pageSize
+			}
+			onceRead, err = c.storage.Get(ctx, seg.id, pageIndex, seg.off-pageStart, page.data[crt:readEnd])
+			for err != nil {
+				return err
+			}
+			crt += onceRead
+		}
+		return nil
+	})
 	if err != nil {
 		return err
 	}
@@ -167,6 +206,7 @@ func (c *chunkReader) readPage(ctx context.Context, segments []segment, pageID, 
 
 type chunkWriter struct {
 	*chunkReader
+	unready int32
 }
 
 func NewChunkWriter(reader *chunkReader) Writer {
@@ -201,13 +241,30 @@ func (c *chunkWriter) flushData(ctx context.Context, index, off int64, dest []by
 		off:  off,
 		dest: dest,
 	}
-	go c.writeChunkRange(ctx, index, req)
+	atomic.AddInt32(&c.unready, 1)
+	maximumChunkTaskParallel.BlockedGo(func() {
+		c.writeChunkRange(ctx, index, req)
+		atomic.AddInt32(&c.unready, -1)
+	})
 	return req
 }
 
 func (c *chunkWriter) Fsync(ctx context.Context) error {
-	//TODO implement me
-	panic("implement me")
+	if atomic.LoadInt32(&c.unready) == 0 {
+		return nil
+	}
+	waitTicker := time.NewTicker(time.Millisecond * 100)
+	defer waitTicker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-waitTicker.C:
+			if atomic.LoadInt32(&c.unready) == 0 {
+				return nil
+			}
+		}
+	}
 }
 
 func (c *chunkWriter) writeChunkRange(ctx context.Context, chunkID int64, req *ioReq) {
@@ -226,21 +283,30 @@ func (c *chunkWriter) writeChunkRange(ctx context.Context, chunkID int64, req *i
 		}
 		wg.Add(1)
 		go func(ctx context.Context, pageID, off int64, data []byte) {
-			defer wg.Done()
-			chunkSegId, err := c.store.NextChunkID(ctx)
-			if err != nil {
-				req.err = err
-				return
-			}
-			if err = c.storage.Put(ctx, chunkSegId, pageID, off, data); err != nil {
-				req.err = err
-				return
-			}
-			if err = c.store.AppendSegments(ctx, chunkID, types.ChunkSeg{ID: chunkSegId, Off: off, Len: int64(len(data))}, c.Object); err != nil {
-				req.err = err
-				return
-			}
-			c.page.invalidate(pageID)
+			maximumChunkTaskParallel.BlockedGo(func() {
+				defer wg.Done()
+				chunkSegId, err := c.store.NextSegmentID(ctx)
+				if err != nil {
+					req.err = err
+					return
+				}
+				if err = c.storage.Put(ctx, chunkSegId, pageID, off, data); err != nil {
+					req.err = err
+					return
+				}
+				if err = c.store.AppendSegments(ctx, types.ChunkSeg{
+					ID:       chunkSegId,
+					ChunkID:  chunkID,
+					ObjectID: c.Object.ID,
+					Off:      off,
+					Len:      int64(len(data)),
+					State:    0,
+				}, c.Object); err != nil {
+					req.err = err
+					return
+				}
+				c.page.invalidate(pageID)
+			})
 		}(ctx, pageIdx, pageStart, req.dest[off-req.off:pageEnd-req.off])
 		off = pageEnd
 		if off == bufEnd {

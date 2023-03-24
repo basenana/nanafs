@@ -34,11 +34,7 @@ package bio
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/storage"
-	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
-	"github.com/basenana/nanafs/utils/logger"
-	"go.uber.org/zap"
 	"sync"
 	"sync/atomic"
 )
@@ -53,47 +49,44 @@ const (
 	pageSize        = 1 << 21 // 2M
 )
 
+var pageCacheDataPool = sync.Pool{New: func() any { return make([]byte, pageSize) }}
+
 type pageCache struct {
+	entryID   int64
 	data      *pageRoot
-	size      int64
 	chunkSize int64
-	storage   storage.Storage
 	mux       sync.Mutex
-	logger    *zap.SugaredLogger
 }
 
 func newPageCache(entryID, chunkSize int64) *pageCache {
 	pc := &pageCache{
+		entryID:   entryID,
 		data:      &pageRoot{},
 		chunkSize: chunkSize,
-		logger:    logger.NewLogger("pageCache").With(zap.Int64("entry", entryID)),
 	}
 	return pc
 }
 
-func (p *pageCache) read(ctx context.Context, pageIndex int64, segments []segment) (page *pageNode, err error) {
+func (p *pageCache) read(ctx context.Context, pageIndex int64, initDataFn func(*pageNode) error) (page *pageNode, err error) {
 	ctx, endF := utils.TraceTask(ctx, "pagecache.read")
 	defer endF()
 	page = p.findPage(pageIndex)
 	if page == nil {
-		var (
-			n         int64
-			onceRead  int64
-			pageStart = pageSize * pageIndex
-		)
 		page = p.insertPage(ctx, pageIndex)
-		page.mux.Lock()
-		for _, seg := range segments {
-			onceRead, err = p.storage.Get(ctx, seg.id, pageIndex, seg.off-pageStart, page.data[n:n+seg.len])
-			for err != nil {
-				return
-			}
-			n += onceRead
-		}
-		page.mode ^= pageModeInitial
-		page.mux.Unlock()
-		return nil, types.ErrPageFault
 	}
+	page.mux.Lock()
+	if page.mode&(pageModeInitial|pageModeInvalid) > 0 {
+		if page.mode|pageModeInvalid > 0 && page.data == nil {
+			page.data = pageCacheDataPool.Get().([]byte)
+		}
+		err = initDataFn(page)
+		page.mode &^= pageModeInitial | pageModeInvalid
+		if err != nil {
+			return nil, err
+		}
+	}
+	atomic.AddInt32(&page.ref, 1)
+	page.mux.Unlock()
 	return page, nil
 }
 
@@ -104,7 +97,10 @@ func (p *pageCache) invalidate(pageIndex int64) {
 	}
 	page.mux.Lock()
 	page.mode |= pageModeInvalid
-	page.data = nil
+	if atomic.LoadInt32(&page.ref) == 0 {
+		pageCacheDataPool.Put(page.data)
+		page.data = nil
+	}
 	page.mux.Unlock()
 }
 
@@ -201,8 +197,6 @@ func (p *pageCache) extendPageTree(index int64) {
 
 type pageRoot struct {
 	rootNode   *pageNode
-	cachedSize int64
-	pageLists  []*pageNode
 	totalCount int
 }
 
@@ -221,7 +215,8 @@ type pageNode struct {
 func (n *pageNode) release() {
 	if atomic.AddInt32(&n.ref, -1) == 0 {
 		// TODO: need delay release
-		n.mode = pageModeInitial
+		n.mode |= pageModeInitial
+		pageCacheDataPool.Put(n.data)
 		n.data = nil
 	}
 }
@@ -237,7 +232,7 @@ func newPage(shift int, pageSize int64, mode int8) *pageNode {
 	case p.mode == pageModeEmpty:
 		p.slots = make([]*pageNode, pageTreeSize)
 	case p.mode&pageModeInitial > 0:
-		p.data = make([]byte, pageSize)
+		p.data = pageCacheDataPool.Get().([]byte)
 	}
 	return p
 }

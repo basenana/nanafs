@@ -236,7 +236,7 @@ func (e *Entity) DeletePluginRecord(ctx context.Context, plugin types.PlugScope,
 	return nil
 }
 
-func (e *Entity) NextChunkID(ctx context.Context) (int64, error) {
+func (e *Entity) NextSegmentID(ctx context.Context) (int64, error) {
 	return availableChunkSegID(e.DB.WithContext(ctx))
 }
 

@@ -218,7 +218,7 @@ func TestFs(t *testing.T) {
 	cfg = config.Config{}
 	_ = config.Verify(&cfg)
 
-	s, _ := storage.NewStorage("memory", config.Storage{})
+	s, _ := storage.NewStorage(storage.MemoryStorage, storage.MemoryStorage, config.Storage{})
 	files.InitFileIoChain(cfg, s, make(chan struct{}))
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Fs Suite")

@@ -46,7 +46,7 @@ func resetFileChunk() {
 }
 
 func NewMockStorage() storage.Storage {
-	s, _ := storage.NewStorage("memory", config.Storage{})
+	s, _ := storage.NewStorage(storage.MemoryStorage, storage.MemoryStorage, config.Storage{})
 	InitFileIoChain(config.Config{}, s, make(chan struct{}))
 	return s
 }
