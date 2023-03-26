@@ -19,7 +19,6 @@ package apis
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/cmd/apps/apis/restfs"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/utils/logger"
@@ -93,8 +92,5 @@ func NewApiServer(ctrl controller.Controller, cfg config.Config) (*Server, error
 		pprof.Register(s.engine)
 	}
 
-	if err := restfs.InitRestFs(ctrl, s.engine, cfg); err != nil {
-		return nil, fmt.Errorf("init restfs failed: %s", err.Error())
-	}
 	return s, nil
 }

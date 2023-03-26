@@ -55,6 +55,7 @@ type Object struct {
 	Size       int64     `gorm:"column:size"`
 	Inode      uint64    `gorm:"column:inode;unique"`
 	Dev        int64     `gorm:"column:dev"`
+	Storage    string    `gorm:"column:storage"`
 	Namespace  string    `gorm:"column:namespace"`
 	CreatedAt  time.Time `gorm:"column:created_at"`
 	ChangedAt  time.Time `gorm:"column:changed_at"`
@@ -78,6 +79,7 @@ func (o *Object) Update(obj *types.Object) {
 	o.Size = obj.Size
 	o.Inode = obj.Inode
 	o.Dev = obj.Dev
+	o.Storage = obj.Storage
 	o.Namespace = obj.Namespace
 	o.CreatedAt = obj.CreatedAt
 	o.ChangedAt = obj.ChangedAt
@@ -99,6 +101,7 @@ func (o *Object) Object() *types.Object {
 			Size:       o.Size,
 			Inode:      o.Inode,
 			Dev:        o.Dev,
+			Storage:    o.Storage,
 			Namespace:  o.Namespace,
 			CreatedAt:  o.CreatedAt,
 			ChangedAt:  o.ChangedAt,

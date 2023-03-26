@@ -187,7 +187,7 @@ func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {
 	}
 	if parent != nil {
 		newObj.ParentID = parent.ID
-		md.Storage = parent.Storage
+		newObj.Storage = parent.Storage
 	}
 	return newObj, nil
 }
