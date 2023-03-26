@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
@@ -45,11 +44,10 @@ type Controller interface {
 	ListEntryChildren(ctx context.Context, en dentry.Entry) ([]dentry.Entry, error)
 	ChangeEntryParent(ctx context.Context, target, oldParent, newParent dentry.Entry, newName string, opt types.ChangeParentAttr) error
 
-	OpenFile(ctx context.Context, en dentry.Entry, attr files.Attr) (files.File, error)
-	ReadFile(ctx context.Context, file files.File, data []byte, offset int64) (n int, err error)
-	WriteFile(ctx context.Context, file files.File, data []byte, offset int64) (n int64, err error)
-	CloseFile(ctx context.Context, file files.File) error
-	DeleteFileData(ctx context.Context, en dentry.Entry) error
+	OpenFile(ctx context.Context, en dentry.Entry, attr dentry.Attr) (dentry.File, error)
+	ReadFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error)
+	WriteFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error)
+	CloseFile(ctx context.Context, file dentry.File) error
 
 	FsInfo(ctx context.Context) Info
 }
@@ -256,7 +254,7 @@ func (c *controller) ChangeEntryParent(ctx context.Context, target, oldParent, n
 	return nil
 }
 
-func New(loader config.Loader, meta storage.Meta, storage storage.Storage) Controller {
+func New(loader config.Loader, meta storage.Meta, storage storage.Storage) (Controller, error) {
 	cfg, _ := loader.GetConfig()
 
 	ctl := &controller{
@@ -266,6 +264,10 @@ func New(loader config.Loader, meta storage.Meta, storage storage.Storage) Contr
 		cfgLoader: loader,
 		logger:    logger.NewLogger("controller"),
 	}
-	ctl.entry = dentry.NewManager(meta, cfg)
-	return ctl
+	var err error
+	ctl.entry, err = dentry.NewManager(meta, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return ctl, nil
 }

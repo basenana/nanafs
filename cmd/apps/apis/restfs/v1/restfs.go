@@ -24,7 +24,6 @@ import (
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
@@ -117,7 +116,7 @@ func (s *RestFS) read(gCtx *gin.Context, entry, parent dentry.Entry, action fram
 		return
 	}
 
-	f, err := s.ctrl.OpenFile(ctx, entry, files.Attr{Read: true})
+	f, err := s.ctrl.OpenFile(ctx, entry, dentry.Attr{Read: true})
 	if err != nil {
 		common.ErrorResponse(gCtx, err)
 		return
@@ -227,7 +226,7 @@ func (s *RestFS) copy(gCtx *gin.Context, entry, parent dentry.Entry, action fram
 		return
 	}
 
-	f, err := s.ctrl.OpenFile(ctx, entry, files.Attr{Read: true})
+	f, err := s.ctrl.OpenFile(ctx, entry, dentry.Attr{Read: true})
 	if err != nil {
 		common.ErrorResponse(gCtx, err)
 		return
@@ -244,7 +243,7 @@ func (s *RestFS) copy(gCtx *gin.Context, entry, parent dentry.Entry, action fram
 
 func (s *RestFS) update(gCtx *gin.Context, entry, parent dentry.Entry, action frame.Action, param frame.Parameters) {
 	ctx := gCtx.Request.Context()
-	f, err := s.ctrl.OpenFile(ctx, entry, files.Attr{Write: true, Create: true, Trunc: true})
+	f, err := s.ctrl.OpenFile(ctx, entry, dentry.Attr{Write: true, Create: true, Trunc: true})
 	if err != nil {
 		common.ErrorResponse(gCtx, err)
 		return
@@ -335,7 +334,7 @@ func (s *RestFS) newFile(gCtx *gin.Context, parent dentry.Entry, name string, ac
 	if err != nil {
 		return nil, err
 	}
-	f, err := s.ctrl.OpenFile(ctx, entry, files.Attr{Write: true})
+	f, err := s.ctrl.OpenFile(ctx, entry, dentry.Attr{Write: true})
 	if err != nil {
 		return nil, err
 	}

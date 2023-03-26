@@ -22,7 +22,6 @@ import (
 	"encoding/json"
 	"github.com/basenana/nanafs/cmd/apps/apis/restfs/frame"
 	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/types"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -46,10 +45,10 @@ var _ = Describe("TestRestFsGet", func() {
 				newFile, err := ctrl.CreateEntry(context.Background(), root, types.ObjectAttr{Name: "get-read-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
 				Expect(err).Should(BeNil())
 
-				f, err := ctrl.OpenFile(context.Background(), newFile, files.Attr{Read: true, Write: true})
+				f, err := ctrl.OpenFile(context.Background(), newFile, dentry.Attr{Read: true, Write: true})
 				Expect(err).Should(BeNil())
 
-				_, err = f.Write(context.Background(), []byte("test"), 0)
+				_, err = f.WriteAt(context.Background(), []byte("test"), 0)
 				Expect(err).Should(BeNil())
 				Expect(f.Close(context.Background())).Should(BeNil())
 			})
@@ -177,10 +176,10 @@ var _ = Describe("TestRestFsPost", func() {
 				Expect(err).Should(BeNil())
 				Expect(newObj.Metadata().ID).Should(Equal(oid))
 
-				f, err := ctrl.OpenFile(context.Background(), newObj, files.Attr{Read: true})
+				f, err := ctrl.OpenFile(context.Background(), newObj, dentry.Attr{Read: true})
 				Expect(err).Should(BeNil())
 				buf := make([]byte, 1024)
-				n, err := f.Read(context.Background(), buf, 0)
+				n, err := f.ReadAt(context.Background(), buf, 0)
 				Expect(err).Should(BeNil())
 				Expect(buf[:n]).Should(Equal([]byte("test")))
 			})
@@ -219,10 +218,10 @@ var _ = Describe("TestRestFsPost", func() {
 
 				var (
 					buf = make([]byte, 1024)
-					n   int
+					n   int64
 				)
 
-				f1, err := ctrl.OpenFile(context.Background(), obj1, files.Attr{Read: true})
+				f1, err := ctrl.OpenFile(context.Background(), obj1, dentry.Attr{Read: true})
 				Expect(err).Should(BeNil())
 				defer ctrl.CloseFile(context.Background(), f1)
 
@@ -230,7 +229,7 @@ var _ = Describe("TestRestFsPost", func() {
 				Expect(err).Should(BeNil())
 				Expect(buf[:n]).Should(Equal([]byte("content1")))
 
-				f2, err := ctrl.OpenFile(context.Background(), obj2, files.Attr{Read: true})
+				f2, err := ctrl.OpenFile(context.Background(), obj2, dentry.Attr{Read: true})
 				Expect(err).Should(BeNil())
 				defer ctrl.CloseFile(context.Background(), f2)
 
@@ -247,10 +246,10 @@ var _ = Describe("TestRestFsPost", func() {
 				newFile, err := ctrl.CreateEntry(context.Background(), root, types.ObjectAttr{Name: "post-copy-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
 				Expect(err).Should(BeNil())
 
-				f, err := ctrl.OpenFile(context.Background(), newFile, files.Attr{Read: true, Write: true})
+				f, err := ctrl.OpenFile(context.Background(), newFile, dentry.Attr{Read: true, Write: true})
 				Expect(err).Should(BeNil())
 
-				_, err = f.Write(context.Background(), []byte("test"), 0)
+				_, err = f.WriteAt(context.Background(), []byte("test"), 0)
 				Expect(err).Should(BeNil())
 				Expect(f.Close(context.Background())).Should(BeNil())
 			})
@@ -276,11 +275,11 @@ var _ = Describe("TestRestFsPost", func() {
 				copyObj, err := ctrl.FindEntry(context.TODO(), root, "post-copy-file2.txt")
 				Expect(err).Should(BeNil())
 
-				f, err := ctrl.OpenFile(context.Background(), copyObj, files.Attr{Read: true})
+				f, err := ctrl.OpenFile(context.Background(), copyObj, dentry.Attr{Read: true})
 				Expect(err).Should(BeNil())
 
 				buf := make([]byte, 1024)
-				n, err := f.Read(context.TODO(), buf, 0)
+				n, err := f.ReadAt(context.TODO(), buf, 0)
 				Expect(err).Should(BeNil())
 				Expect(buf[:n]).Should(Equal([]byte("test")))
 				Expect(ctrl.CloseFile(context.TODO(), f)).Should(BeNil())
@@ -305,10 +304,10 @@ var _ = Describe("TestRestFsPut", func() {
 				newFile, err := ctrl.CreateEntry(context.Background(), root, types.ObjectAttr{Name: "put-update-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
 				Expect(err).Should(BeNil())
 
-				f, err := ctrl.OpenFile(context.Background(), newFile, files.Attr{Read: true, Write: true})
+				f, err := ctrl.OpenFile(context.Background(), newFile, dentry.Attr{Read: true, Write: true})
 				Expect(err).Should(BeNil())
 
-				_, err = f.Write(context.Background(), []byte("test"), 0)
+				_, err = f.WriteAt(context.Background(), []byte("test"), 0)
 				Expect(err).Should(BeNil())
 				Expect(f.Close(context.Background())).Should(BeNil())
 			})
@@ -332,10 +331,10 @@ var _ = Describe("TestRestFsPut", func() {
 			It("update succeed", func() {
 				obj, err := ctrl.FindEntry(context.Background(), root, "put-update-file1.txt")
 				Expect(err).Should(BeNil())
-				f, err := ctrl.OpenFile(context.Background(), obj, files.Attr{Read: true})
+				f, err := ctrl.OpenFile(context.Background(), obj, dentry.Attr{Read: true})
 				Expect(err).Should(BeNil())
 				buf := make([]byte, 1024)
-				n, err := f.Read(context.Background(), buf, 0)
+				n, err := f.ReadAt(context.Background(), buf, 0)
 				Expect(err).Should(BeNil())
 				Expect(buf[:n]).Should(Equal([]byte("hello")))
 				Expect(ctrl.CloseFile(context.TODO(), f)).Should(BeNil())
@@ -357,10 +356,10 @@ var _ = Describe("TestRestFsPut", func() {
 				newFile, err := ctrl.CreateEntry(context.Background(), srcDir, types.ObjectAttr{Name: "put-move-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
 				Expect(err).Should(BeNil())
 
-				f, err := ctrl.OpenFile(context.Background(), newFile, files.Attr{Read: true, Write: true})
+				f, err := ctrl.OpenFile(context.Background(), newFile, dentry.Attr{Read: true, Write: true})
 				Expect(err).Should(BeNil())
 
-				_, err = f.Write(context.Background(), []byte("test move file"), 0)
+				_, err = f.WriteAt(context.Background(), []byte("test move file"), 0)
 				Expect(err).Should(BeNil())
 				Expect(f.Close(context.Background())).Should(BeNil())
 			})
@@ -388,10 +387,10 @@ var _ = Describe("TestRestFsPut", func() {
 				moved, err := ctrl.FindEntry(context.Background(), dstDir, "put-move-file1.txt")
 				Expect(err).Should(BeNil())
 
-				f, err := ctrl.OpenFile(context.Background(), moved, files.Attr{Read: true})
+				f, err := ctrl.OpenFile(context.Background(), moved, dentry.Attr{Read: true})
 				Expect(err).Should(BeNil())
 				buf := make([]byte, 1024)
-				n, err := f.Read(context.Background(), buf, 0)
+				n, err := f.ReadAt(context.Background(), buf, 0)
 				Expect(err).Should(BeNil())
 				Expect(buf[:n]).Should(Equal([]byte("test move file")))
 				Expect(ctrl.CloseFile(context.TODO(), f)).Should(BeNil())
@@ -405,10 +404,10 @@ var _ = Describe("TestRestFsPut", func() {
 				newFile, err := ctrl.CreateEntry(context.Background(), root, types.ObjectAttr{Name: "put-rename-old-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
 				Expect(err).Should(BeNil())
 
-				f, err := ctrl.OpenFile(context.Background(), newFile, files.Attr{Read: true, Write: true})
+				f, err := ctrl.OpenFile(context.Background(), newFile, dentry.Attr{Read: true, Write: true})
 				Expect(err).Should(BeNil())
 
-				_, err = f.Write(context.Background(), []byte("test"), 0)
+				_, err = f.WriteAt(context.Background(), []byte("test"), 0)
 				Expect(err).Should(BeNil())
 				Expect(f.Close(context.Background())).Should(BeNil())
 			})
@@ -456,10 +455,10 @@ var _ = Describe("TestRestFsDelete", func() {
 				newFile, err := ctrl.CreateEntry(context.Background(), root, types.ObjectAttr{Name: "delete-delete-file1.txt", Kind: types.RawKind, Access: defaultAccessForTest()})
 				Expect(err).Should(BeNil())
 
-				f, err := ctrl.OpenFile(context.Background(), newFile, files.Attr{Read: true, Write: true})
+				f, err := ctrl.OpenFile(context.Background(), newFile, dentry.Attr{Read: true, Write: true})
 				Expect(err).Should(BeNil())
 
-				_, err = f.Write(context.Background(), []byte("test"), 0)
+				_, err = f.WriteAt(context.Background(), []byte("test"), 0)
 				Expect(err).Should(BeNil())
 				Expect(f.Close(context.Background())).Should(BeNil())
 			})

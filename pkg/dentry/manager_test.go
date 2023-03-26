@@ -33,7 +33,10 @@ var _ = Describe("TestRootEntryInit", func() {
 	Context("query root entry first time", func() {
 		var mgr Manager
 		It("init manager should be succeed", func() {
-			mgr = NewManager(emptyObjectStore, config.Config{Owner: &config.FsOwner{}})
+			mgr, _ = NewManager(emptyObjectStore, config.Config{Owner: &config.FsOwner{}, Storages: []config.Storage{{
+				ID:   storage.MemoryStorage,
+				Type: storage.MemoryStorage,
+			}}})
 		})
 		It("feat root should be succeed", func() {
 			_, err := mgr.Root(context.TODO())
@@ -48,7 +51,10 @@ var _ = Describe("TestRootEntryInit", func() {
 
 		var mgr Manager
 		It("init manager should be succeed", func() {
-			mgr = NewManager(emptyObjectStore, config.Config{Owner: &config.FsOwner{}})
+			mgr, _ = NewManager(emptyObjectStore, config.Config{Owner: &config.FsOwner{}, Storages: []config.Storage{{
+				ID:   storage.MemoryStorage,
+				Type: storage.MemoryStorage,
+			}}})
 		})
 		It("feat root should be succeed", func() {
 			r, err := mgr.Root(context.TODO())

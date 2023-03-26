@@ -19,7 +19,6 @@ package fs
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/hanwen/go-fuse/v2/fs"
@@ -78,7 +77,7 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 		uid, gid = fuseCtx.Uid, fuseCtx.Gid
 	}
 
-	var attr files.Attr
+	var attr dentry.Attr
 	nanaFile, ok := f.(*File)
 	if ok {
 		attr = nanaFile.file.GetAttr()
@@ -384,7 +383,7 @@ func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.E
 	}
 
 	n.logger.Debugw("create new symlink", "target", target)
-	f, err := n.R.OpenFile(ctx, newLink, files.Attr{Write: true, Create: true, Trunc: true})
+	f, err := n.R.OpenFile(ctx, newLink, dentry.Attr{Write: true, Create: true, Trunc: true})
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
@@ -408,7 +407,7 @@ func (n *NanaNode) Readlink(ctx context.Context) ([]byte, syscall.Errno) {
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
-	f, err := n.R.OpenFile(ctx, entry, files.Attr{Read: true})
+	f, err := n.R.OpenFile(ctx, entry, dentry.Attr{Read: true})
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}

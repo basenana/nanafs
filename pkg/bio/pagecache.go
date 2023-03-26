@@ -76,7 +76,7 @@ func (p *pageCache) read(ctx context.Context, pageIndex int64, initDataFn func(*
 	}
 	page.mux.Lock()
 	if page.mode&(pageModeInitial|pageModeInvalid) > 0 {
-		if page.mode|pageModeInvalid > 0 && page.data == nil {
+		if page.data == nil {
 			page.data = pageCacheDataPool.Get().([]byte)
 		}
 		err = initDataFn(page)

@@ -19,7 +19,6 @@ package fs
 import (
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
@@ -39,7 +38,7 @@ func idFromStat(dev uint64, st *syscall.Stat_t) fs.StableAttr {
 	}
 }
 
-func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, entry dentry.Entry, crtUid, crtGid int64, fileOpenAttr files.Attr) error {
+func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, entry dentry.Entry, crtUid, crtGid int64, fileOpenAttr dentry.Attr) error {
 	meta := entry.Metadata()
 	// do check
 	if _, ok := attr.GetMode(); ok {
@@ -181,8 +180,8 @@ func modeFromFileKind(kind types.Kind) uint32 {
 	}
 }
 
-func openFileAttr(flags uint32) files.Attr {
-	attr := files.Attr{
+func openFileAttr(flags uint32) dentry.Attr {
+	attr := dentry.Attr{
 		Read: true,
 	}
 	if int(flags)&os.O_CREATE > 0 {

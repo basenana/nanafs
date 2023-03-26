@@ -20,7 +20,6 @@ import (
 	"context"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
-	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
@@ -46,7 +45,10 @@ var (
 type mockConfig struct{}
 
 func (m mockConfig) GetConfig() (config.Config, error) {
-	cfg := config.Config{ApiConfig: config.Api{Enable: true}}
+	cfg := config.Config{ApiConfig: config.Api{Enable: true}, Storages: []config.Storage{{
+		ID:   storage.MemoryStorage,
+		Type: storage.MemoryStorage,
+	}}}
 	_ = config.Verify(&cfg)
 	return cfg, nil
 }
@@ -57,8 +59,8 @@ func NewControllerForTest() controller.Controller {
 	m, _ := storage.NewMetaStorage("memory", config.Meta{})
 	s, _ := storage.NewStorage(storage.MemoryStorage, storage.MemoryStorage, config.Storage{})
 
-	files.InitFileIoChain(config.Config{}, s, make(chan struct{}))
-	return controller.New(mockConfig{}, m, s)
+	c, _ := controller.New(mockConfig{}, m, s)
+	return c
 }
 
 type restFsServer struct {

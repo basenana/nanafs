@@ -157,10 +157,9 @@ func (m *memoryMetaStore) PluginRecorder(plugin types.PlugScope) PluginRecorder 
 
 func (m *memoryMetaStore) NextSegmentID(ctx context.Context) (int64, error) {
 	m.mux.Lock()
-	n := m.nextChunkID
 	m.nextChunkID += 1
 	m.mux.Unlock()
-	return n, nil
+	return m.nextChunkID, nil
 }
 
 func (m *memoryMetaStore) ListSegments(ctx context.Context, oid, chunkID int64) ([]types.ChunkSeg, error) {
@@ -175,7 +174,6 @@ func (m *memoryMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg
 	chunks := m.chunks[seg.ChunkID]
 	chunks = append(chunks, seg)
 	m.chunks[seg.ChunkID] = chunks
-	obj = m.objects[obj.ID]
 	if obj != nil && seg.Off+seg.Len > obj.Size {
 		obj.Size = seg.Off + seg.Len
 		m.objects[obj.ID] = obj
@@ -269,7 +267,7 @@ func (m *memoryPluginRecorder) DeleteRecord(ctx context.Context, rid string) err
 }
 
 func newMemoryMetaStore() Meta {
-	return &memoryMetaStore{objects: map[int64]*types.Object{}}
+	return &memoryMetaStore{objects: map[int64]*types.Object{}, chunks: map[int64][]types.ChunkSeg{}}
 }
 
 type memoryStorage struct {
@@ -299,19 +297,7 @@ func (m *memoryStorage) Put(ctx context.Context, key int64, idx, offset int64, d
 		ck = &chunk{data: make([]byte, 1<<22)}
 	}
 
-	var (
-		n   int
-		buf = make([]byte, 1024)
-	)
-
-	for {
-		n = copy(buf, data)
-		if n == 0 {
-			break
-		}
-		offset += int64(copy(ck.data[offset:], buf[:n]))
-	}
-
+	copy(ck.data[offset:], data)
 	return m.saveChunk(ctx, cKey, *ck)
 }
 

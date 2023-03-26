@@ -22,7 +22,6 @@ import (
 	"github.com/basenana/nanafs/cmd/apps/fs"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
-	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils"
@@ -81,9 +80,11 @@ var daemonCmd = &cobra.Command{
 			panic(err)
 		}
 
-		ctrl := controller.New(loader, meta, sto)
+		ctrl, err := controller.New(loader, meta, sto)
+		if err != nil {
+			panic(err)
+		}
 		stop := utils.HandleTerminalSignal()
-		files.InitFileIoChain(cfg, sto, stop)
 
 		if err := plugin.Init(cfg, meta); err != nil {
 			panic(err)

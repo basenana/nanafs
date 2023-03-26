@@ -18,22 +18,23 @@ package v1
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/files"
+	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
 	"io"
 )
 
 type file struct {
-	f      files.File
+	f      dentry.File
 	offset int64
 }
 
 func (f *file) Read(p []byte) (n int, err error) {
-	n, err = f.f.Read(context.Background(), p, f.offset)
-	f.offset += int64(n)
-	if f.offset == f.f.GetObject().Size {
+	n64, err := f.f.ReadAt(context.Background(), p, f.offset)
+	f.offset += n64
+	if f.offset == f.f.Metadata().Size {
 		err = io.EOF
 	}
+	n = int(n64)
 	return
 }
 
@@ -44,7 +45,7 @@ func (f *file) Seek(offset int64, whence int) (int64, error) {
 	case io.SeekCurrent:
 		f.offset += offset
 	case io.SeekEnd:
-		f.offset = f.f.GetObject().Size + int64(whence)
+		f.offset = f.f.Metadata().Size + int64(whence)
 	}
 	return f.offset, nil
 }

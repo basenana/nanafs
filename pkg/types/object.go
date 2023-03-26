@@ -178,7 +178,6 @@ func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {
 	md := NewMetadata(attr.Name, attr.Kind)
 	md.Access = attr.Access
 	md.Dev = attr.Dev
-	md.Storage = parent.Storage
 
 	newObj := &Object{
 		Metadata: md,
@@ -188,6 +187,7 @@ func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {
 	}
 	if parent != nil {
 		newObj.ParentID = parent.ID
+		md.Storage = parent.Storage
 	}
 	return newObj, nil
 }

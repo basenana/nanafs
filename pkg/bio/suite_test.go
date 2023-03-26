@@ -19,6 +19,7 @@ package bio
 import (
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/storage"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"testing"
 
@@ -29,6 +30,7 @@ import (
 var (
 	chunkStore storage.ChunkStore
 	dataStore  storage.Storage
+	fakeObj    *types.Object
 )
 
 func TestBIO(t *testing.T) {
@@ -46,4 +48,8 @@ var _ = BeforeSuite(func() {
 	memData, err := storage.NewStorage(storage.MemoryStorage, storage.MemoryStorage, config.Storage{})
 	Expect(err).Should(BeNil())
 	dataStore = memData
+
+	fakeObj = &types.Object{
+		Metadata: types.NewMetadata("test.file", types.RawKind),
+	}
 })

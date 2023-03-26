@@ -42,11 +42,12 @@ type chunkReader struct {
 	storage storage.Storage
 }
 
-func NewChunkReader(obj *types.Object, store storage.ChunkStore) Reader {
+func NewChunkReader(obj *types.Object, chunkStore storage.ChunkStore, dataStore storage.Storage) Reader {
 	cr := &chunkReader{
-		Object: obj,
-		page:   newPageCache(obj.ID, fileChunkSize),
-		store:  store,
+		Object:  obj,
+		page:    newPageCache(obj.ID, fileChunkSize),
+		store:   chunkStore,
+		storage: dataStore,
 	}
 	return cr
 }
@@ -63,18 +64,18 @@ func (c *chunkReader) ReadAt(ctx context.Context, dest []byte, off int64) (n int
 		readEnd = c.Object.Size
 	}
 
+	if readEnd == 0 {
+		return
+	}
+
 	for {
 		index, _ := computeChunkIndex(off, fileChunkSize)
 		chunkEnd := (index + 1) * fileChunkSize
 		if chunkEnd > readEnd {
 			chunkEnd = readEnd
 		}
-		if chunkEnd > c.Object.Size {
-			chunkEnd = c.Object.Size
-		}
 
 		readLen := chunkEnd - off
-	
 		var req *ioReq
 		req, err = c.prepareData(ctx, index, off, dest[n:n+readLen])
 		if err != nil {
@@ -174,20 +175,27 @@ func (c *chunkReader) readChunkRange(ctx context.Context, chunkID int64, req *io
 }
 
 func (c *chunkReader) readPage(ctx context.Context, segments []segment, pageIndex, off int64, dest []byte) error {
+	pageStart := pageSize * pageIndex
 	page, err := c.page.read(ctx, pageIndex, func(page *pageNode) error {
 		var (
 			crt, onceRead, readEnd int64
 			err                    error
-			pageStart              = pageSize * pageIndex
 		)
 		for _, seg := range segments {
-			for i := crt; i < seg.pos; i++ {
+			for i := crt; i < seg.off-off; i++ {
 				page.data[i] = 0
 			}
-			crt = seg.pos
+			crt = seg.off - off
 			readEnd = crt + seg.len
 			if readEnd > pageSize {
 				readEnd = pageSize
+			}
+			if seg.id == 0 {
+				for i := crt; i < readEnd; i++ {
+					page.data[i] = 0
+				}
+				crt = readEnd
+				continue
 			}
 			onceRead, err = c.storage.Get(ctx, seg.id, pageIndex, seg.off-pageStart, page.data[crt:readEnd])
 			for err != nil {
@@ -200,7 +208,7 @@ func (c *chunkReader) readPage(ctx context.Context, segments []segment, pageInde
 	if err != nil {
 		return err
 	}
-	copy(dest, page.data[off:])
+	copy(dest, page.data[off-pageStart:])
 	return nil
 }
 
@@ -209,8 +217,12 @@ type chunkWriter struct {
 	unready int32
 }
 
-func NewChunkWriter(reader *chunkReader) Writer {
-	return &chunkWriter{chunkReader: reader}
+func NewChunkWriter(reader Reader) Writer {
+	r, ok := reader.(*chunkReader)
+	if !ok {
+		return nil
+	}
+	return &chunkWriter{chunkReader: r}
 }
 
 func (c *chunkWriter) WriteAt(ctx context.Context, data []byte, off int64) (n int64, err error) {
@@ -221,12 +233,15 @@ func (c *chunkWriter) WriteAt(ctx context.Context, data []byte, off int64) (n in
 	for {
 		index, _ := computeChunkIndex(off, fileChunkSize)
 
-		chunkEnd := (index+1)*fileChunkSize - off
+		chunkEnd := (index + 1) * fileChunkSize
 		if chunkEnd > writeEnd {
 			chunkEnd = writeEnd
 		}
 
 		readLen := chunkEnd - off
+		if readLen == 0 {
+			break
+		}
 		reqList = append(reqList, c.flushData(ctx, index, off, data[n:n+readLen]))
 		n += readLen
 		off = chunkEnd
@@ -243,7 +258,12 @@ func (c *chunkWriter) flushData(ctx context.Context, index, off int64, dest []by
 	}
 	atomic.AddInt32(&c.unready, 1)
 	maximumChunkTaskParallel.BlockedGo(func() {
-		c.writeChunkRange(ctx, index, req)
+		chunkSegId, err := c.store.NextSegmentID(ctx)
+		if err != nil {
+			req.err = err
+			return
+		}
+		c.writeChunkRange(ctx, index, chunkSegId, req)
 		atomic.AddInt32(&c.unready, -1)
 	})
 	return req
@@ -267,10 +287,11 @@ func (c *chunkWriter) Fsync(ctx context.Context) error {
 	}
 }
 
-func (c *chunkWriter) writeChunkRange(ctx context.Context, chunkID int64, req *ioReq) {
+func (c *chunkWriter) writeChunkRange(ctx context.Context, chunkID, segID int64, req *ioReq) {
 	var (
 		off    = req.off
 		bufEnd = off + int64(len(req.dest))
+		pages  = make([]int64, 0)
 		wg     = sync.WaitGroup{}
 	)
 
@@ -282,30 +303,14 @@ func (c *chunkWriter) writeChunkRange(ctx context.Context, chunkID int64, req *i
 			pageEnd = bufEnd
 		}
 		wg.Add(1)
+		pages = append(pages, pageIdx)
 		go func(ctx context.Context, pageID, off int64, data []byte) {
 			maximumChunkTaskParallel.BlockedGo(func() {
 				defer wg.Done()
-				chunkSegId, err := c.store.NextSegmentID(ctx)
-				if err != nil {
+				if err := c.storage.Put(ctx, segID, pageID, off-pageStart, data); err != nil {
 					req.err = err
 					return
 				}
-				if err = c.storage.Put(ctx, chunkSegId, pageID, off, data); err != nil {
-					req.err = err
-					return
-				}
-				if err = c.store.AppendSegments(ctx, types.ChunkSeg{
-					ID:       chunkSegId,
-					ChunkID:  chunkID,
-					ObjectID: c.Object.ID,
-					Off:      off,
-					Len:      int64(len(data)),
-					State:    0,
-				}, c.Object); err != nil {
-					req.err = err
-					return
-				}
-				c.page.invalidate(pageID)
 			})
 		}(ctx, pageIdx, pageStart, req.dest[off-req.off:pageEnd-req.off])
 		off = pageEnd
@@ -314,6 +319,22 @@ func (c *chunkWriter) writeChunkRange(ctx context.Context, chunkID int64, req *i
 		}
 	}
 	wg.Wait()
+
+	if err := c.store.AppendSegments(ctx, types.ChunkSeg{
+		ID:       segID,
+		ChunkID:  chunkID,
+		ObjectID: c.Object.ID,
+		Off:      req.off,
+		Len:      int64(len(req.dest)),
+		State:    0,
+	}, c.Object); err != nil {
+		req.err = err
+		return
+	}
+	for _, pid := range pages {
+		c.page.invalidate(pid)
+	}
+	req.isReady = true
 	return
 }
 
