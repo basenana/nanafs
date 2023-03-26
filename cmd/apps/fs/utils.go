@@ -17,6 +17,7 @@
 package fs
 
 import (
+	"encoding/base64"
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
@@ -194,4 +195,12 @@ func openFileAttr(flags uint32) dentry.Attr {
 		attr.Write = true
 	}
 	return attr
+}
+
+func xattrRawData2Content(raw []byte) string {
+	return base64.StdEncoding.EncodeToString(raw)
+}
+
+func xattrContent2RawData(data string) ([]byte, error) {
+	return base64.StdEncoding.DecodeString(data)
 }

@@ -182,10 +182,10 @@ func (c *chunkReader) readPage(ctx context.Context, segments []segment, pageInde
 			err                    error
 		)
 		for _, seg := range segments {
-			for i := crt; i < seg.off-off; i++ {
+			for i := crt; i < seg.off-pageStart; i++ {
 				page.data[i] = 0
 			}
-			crt = seg.off - off
+			crt = seg.off - pageStart
 			readEnd = crt + seg.len
 			if readEnd > pageSize {
 				readEnd = pageSize

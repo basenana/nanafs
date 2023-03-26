@@ -18,9 +18,7 @@ package dentry
 
 import (
 	"context"
-	"fmt"
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/bio"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
@@ -247,21 +245,9 @@ func (m *manager) Open(ctx context.Context, en Entry, attr Attr) (File, error) {
 
 	switch en.Metadata().Kind {
 	case types.SymLinkKind:
-		return nil, nil
+		return openSymlink(en, attr)
 	default:
-		f := &file{
-			Entry: en,
-			attr:  attr,
-		}
-		fileStorage := m.storages[en.Metadata().Storage]
-		if fileStorage == nil {
-			return nil, fmt.Errorf("storage %s not found", en.Metadata().Storage)
-		}
-		f.reader = bio.NewChunkReader(en.Object(), m.store.(storage.ChunkStore), fileStorage)
-		if attr.Write {
-			f.writer = bio.NewChunkWriter(f.reader)
-		}
-		return f, nil
+		return openFile(en, attr, m.store, m.storages[en.Metadata().Storage])
 	}
 }
 

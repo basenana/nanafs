@@ -18,6 +18,7 @@ package types
 
 import (
 	"github.com/basenana/nanafs/utils"
+	"sync"
 	"time"
 )
 
@@ -72,10 +73,11 @@ func NewMetadata(name string, kind Kind) Metadata {
 }
 
 type ExtendData struct {
-	Annotation  *Annotation `json:"annotation,omitempty"`
-	Symlink     string      `json:"symlink,omitempty"`
-	GroupFilter *Rule       `json:"group_filter,omitempty"`
-	PlugScope   *PlugScope  `json:"plug_scope,omitempty"`
+	ExtendFields ExtendFields `json:"extend_fields"`
+	Annotation   *Annotation  `json:"annotation,omitempty"`
+	Symlink      string       `json:"symlink,omitempty"`
+	GroupFilter  *Rule        `json:"group_filter,omitempty"`
+	PlugScope    *PlugScope   `json:"plug_scope,omitempty"`
 }
 
 type PlugScope struct {
@@ -106,6 +108,10 @@ func (l Labels) Get(key string) *Label {
 type Label struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
+}
+
+type ExtendFields struct {
+	Fields map[string]string `json:"fields,omitempty"`
 }
 
 type Annotation struct {
@@ -160,6 +166,8 @@ type Object struct {
 	ExtendData
 	Properties []PropertyItem `json:"properties,omitempty"`
 	Labels     Labels         `json:"labels"`
+
+	L sync.Mutex `json:"-"`
 }
 
 func (o *Object) IsGroup() bool {
@@ -182,7 +190,8 @@ func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {
 	newObj := &Object{
 		Metadata: md,
 		ExtendData: ExtendData{
-			Annotation: &Annotation{},
+			Annotation:   &Annotation{},
+			ExtendFields: ExtendFields{Fields: map[string]string{}},
 		},
 	}
 	if parent != nil {

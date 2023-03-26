@@ -17,6 +17,7 @@
 package db
 
 import (
+	"encoding/json"
 	"github.com/basenana/nanafs/pkg/types"
 	"strings"
 	"time"
@@ -172,15 +173,46 @@ func (o ObjectProperty) TableName() string {
 }
 
 type ObjectExtend struct {
-	ID          int64  `gorm:"column:id;autoIncrement"`
-	OID         int64  `gorm:"column:oid;index:ext_oid"`
-	Symlink     string `gorm:"column:symlink"`
-	GroupFilter []byte `gorm:"column:group_filter"`
-	PlugScope   []byte `gorm:"column:plug_scope"`
+	ID           int64  `gorm:"column::id;primaryKey"`
+	ExtendFields []byte `gorm:"column:extend_fields"`
+	Symlink      string `gorm:"column:symlink"`
+	GroupFilter  []byte `gorm:"column:group_filter"`
+	PlugScope    []byte `gorm:"column:plug_scope"`
 }
 
-func (o ObjectExtend) TableName() string {
+func (o *ObjectExtend) TableName() string {
 	return "object_extend"
+}
+
+func (o *ObjectExtend) Update(obj *types.Object) {
+	o.ExtendFields, _ = json.Marshal(obj.ExtendData.ExtendFields)
+	o.Symlink = obj.ExtendData.Symlink
+
+	if obj.ExtendData.GroupFilter != nil {
+		o.GroupFilter, _ = json.Marshal(obj.ExtendData.GroupFilter)
+	}
+
+	if obj.ExtendData.GroupFilter != nil {
+		o.PlugScope, _ = json.Marshal(obj.ExtendData.PlugScope)
+	}
+}
+
+func (o *ObjectExtend) ToExtData() types.ExtendData {
+	ext := types.ExtendData{
+		ExtendFields: types.ExtendFields{},
+		Symlink:      o.Symlink,
+		GroupFilter:  nil,
+		PlugScope:    nil,
+	}
+
+	_ = json.Unmarshal(o.ExtendFields, &ext.ExtendFields)
+	if o.GroupFilter != nil {
+		_ = json.Unmarshal(o.GroupFilter, &ext.GroupFilter)
+	}
+	if o.PlugScope != nil {
+		_ = json.Unmarshal(o.PlugScope, &ext.PlugScope)
+	}
+	return ext
 }
 
 type ObjectChunk struct {

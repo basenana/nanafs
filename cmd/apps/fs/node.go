@@ -106,11 +106,11 @@ func (n *NanaNode) Getxattr(ctx context.Context, attr string, dest []byte) (uint
 		return 0, Error2FuseSysError(err)
 	}
 
-	ann := dentry.GetInternalAnnotation(entry, attr)
-	if ann == nil {
+	encodedData := entry.GetExtendField(attr)
+	if encodedData == nil {
 		return 0, syscall.Errno(0x5d)
 	}
-	raw, err := dentry.AnnotationContent2RawData(ann)
+	raw, err := xattrContent2RawData(*encodedData)
 	if err != nil {
 		return 0, Error2FuseSysError(err)
 	}
@@ -128,7 +128,20 @@ func (n *NanaNode) Setxattr(ctx context.Context, attr string, data []byte, flags
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
-	dentry.AddInternalAnnotation(entry, attr, dentry.RawData2AnnotationContent(data), true)
+	entry.SetExtendField(attr, xattrRawData2Content(data))
+	entry.Metadata().ChangedAt = time.Now()
+	return Error2FuseSysError(n.R.SaveEntry(ctx, nil, entry))
+}
+
+func (n *NanaNode) Removexattr(ctx context.Context, attr string) syscall.Errno {
+	defer utils.TraceRegion(ctx, "node.removexattr")()
+	entry, err := n.R.GetEntry(ctx, n.oid)
+	if err != nil {
+		return Error2FuseSysError(err)
+	}
+	if err = entry.RemoveExtendField(attr); err != nil {
+		return syscall.Errno(0x5d)
+	}
 	entry.Metadata().ChangedAt = time.Now()
 	return Error2FuseSysError(n.R.SaveEntry(ctx, nil, entry))
 }

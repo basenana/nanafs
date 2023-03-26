@@ -242,7 +242,7 @@ func (e *Entity) NextSegmentID(ctx context.Context) (int64, error) {
 
 func (e *Entity) InsertChunkSegment(ctx context.Context, obj *types.Object, seg types.ChunkSeg) error {
 	return e.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		tx.Create(ObjectChunk{
+		tx.Create(&ObjectChunk{
 			ID:       seg.ID,
 			OID:      obj.ID,
 			ChunkID:  seg.ChunkID,
@@ -292,9 +292,15 @@ func assembleObject(db *gorm.DB, objModel *Object) (*types.Object, error) {
 	obj := objModel.Object()
 
 	oa := &ObjectAccess{}
+	ext := &ObjectExtend{}
 	ol := make([]ObjectLabel, 0)
 
 	res := db.Where("id", "=", objModel.ID).First(oa)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+
+	res = db.Where("id", "=", objModel.ID).First(ext)
 	if res.Error != nil {
 		return nil, res.Error
 	}
@@ -305,6 +311,7 @@ func assembleObject(db *gorm.DB, objModel *Object) (*types.Object, error) {
 	}
 
 	obj.Access = oa.ToAccess()
+	obj.ExtendData = ext.ToExtData()
 
 	for _, kv := range ol {
 		obj.Labels.Labels = append(obj.Labels.Labels, types.Label{Key: kv.Key, Value: kv.Value})
@@ -316,6 +323,7 @@ func saveRawObject(tx *gorm.DB, obj *types.Object) error {
 	var (
 		objModel = &Object{ID: obj.ID}
 		oaModel  = &ObjectAccess{ID: obj.ID}
+		extModel = &ObjectExtend{ID: obj.ID}
 	)
 	res := tx.First(objModel)
 	if res.Error != nil && res.Error != gorm.ErrRecordNotFound {
@@ -324,6 +332,7 @@ func saveRawObject(tx *gorm.DB, obj *types.Object) error {
 
 	objModel.Update(obj)
 	oaModel.Update(obj)
+	extModel.Update(obj)
 	if res.Error == gorm.ErrRecordNotFound {
 		ino, err := availableInode(tx)
 		if err != nil {
@@ -340,12 +349,20 @@ func saveRawObject(tx *gorm.DB, obj *types.Object) error {
 		if res.Error != nil {
 			return res.Error
 		}
+		res = tx.Create(extModel)
+		if res.Error != nil {
+			return res.Error
+		}
 	}
 	res = tx.Updates(objModel)
 	if res.Error != nil {
 		return res.Error
 	}
 	res = tx.Updates(oaModel)
+	if res.Error != nil {
+		return res.Error
+	}
+	res = tx.Updates(extModel)
 	if res.Error != nil {
 		return res.Error
 	}
@@ -356,6 +373,7 @@ func deleteRawObject(tx *gorm.DB, obj *types.Object) error {
 	var (
 		objModel = &Object{ID: obj.ID}
 		oaModel  = &ObjectAccess{ID: obj.ID}
+		extModel = &ObjectExtend{ID: obj.ID}
 	)
 	res := tx.First(objModel)
 	if res.Error != nil && res.Error != gorm.ErrRecordNotFound {
@@ -367,6 +385,10 @@ func deleteRawObject(tx *gorm.DB, obj *types.Object) error {
 		return res.Error
 	}
 	res = tx.Delete(oaModel)
+	if res.Error != nil {
+		return res.Error
+	}
+	res = tx.Delete(extModel)
 	if res.Error != nil {
 		return res.Error
 	}

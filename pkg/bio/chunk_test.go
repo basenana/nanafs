@@ -55,6 +55,7 @@ var _ = Describe("TestChunkIO", func() {
 			n, err = writer.WriteAt(context.TODO(), data1, 0)
 			Expect(int(n)).Should(Equal(len(data1)))
 			Expect(err).Should(BeNil())
+			Expect(writer.Fsync(context.TODO())).Should(BeNil())
 		})
 		It("read data1 should be succeed", func() {
 			buf := make([]byte, 10)
