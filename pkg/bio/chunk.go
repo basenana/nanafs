@@ -21,13 +21,15 @@ import (
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
+	"io"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
 const (
-	fileChunkSize = 1 << 26 // 64MB
+	fileChunkSize          = 1 << 26 // 64MB
+	fileChunkCommitTimeout = time.Second * 3
 )
 
 var (
@@ -55,6 +57,10 @@ func NewChunkReader(obj *types.Object, chunkStore storage.ChunkStore, dataStore 
 func (c *chunkReader) ReadAt(ctx context.Context, dest []byte, off int64) (n int64, err error) {
 	ctx, endF := utils.TraceTask(ctx, "chunkreader.readat")
 	defer endF()
+
+	if off >= c.Object.Size {
+		return 0, io.EOF
+	}
 
 	var (
 		readEnd = off + int64(len(dest))
@@ -148,10 +154,10 @@ func (c *chunkReader) readChunkRange(ctx context.Context, chunkID int64, req *io
 
 	for {
 		pageIdx, pos := computePageIndex(off)
-		pageStart := pageIdx*pageSize + pos
-		pageEnd := (pageIdx + 1) * pageSize
-		if pageEnd-off > bufLeft {
-			pageEnd = off + bufLeft
+		readStart := pageIdx*pageSize + pos
+		readEnd := (pageIdx + 1) * pageSize
+		if readEnd-off > bufLeft {
+			readEnd = off + bufLeft
 		}
 		wg.Add(1)
 		go func(ctx context.Context, segments []segment, pageID, off int64, dest []byte) {
@@ -163,9 +169,9 @@ func (c *chunkReader) readChunkRange(ctx context.Context, chunkID int64, req *io
 					return
 				}
 			})
-		}(ctx, st.query(pageIdx*pageSize, (pageIdx+1)*pageSize), pageIdx, pageStart, req.dest[off-req.off:pageEnd-req.off])
-		bufLeft -= pageEnd - off
-		off = pageEnd
+		}(ctx, st.query(pageIdx*pageSize, (pageIdx+1)*pageSize), pageIdx, readStart, req.dest[off-req.off:readEnd-req.off])
+		bufLeft -= readEnd - off
+		off = readEnd
 		if bufLeft == 0 {
 			break
 		}
@@ -215,6 +221,8 @@ func (c *chunkReader) readPage(ctx context.Context, segments []segment, pageInde
 type chunkWriter struct {
 	*chunkReader
 	unready int32
+	chunks  map[int64]*segWriter
+	mux     sync.Mutex
 }
 
 func NewChunkWriter(reader Reader) Writer {
@@ -222,13 +230,12 @@ func NewChunkWriter(reader Reader) Writer {
 	if !ok {
 		return nil
 	}
-	return &chunkWriter{chunkReader: r}
+	return &chunkWriter{chunkReader: r, chunks: map[int64]*segWriter{}}
 }
 
 func (c *chunkWriter) WriteAt(ctx context.Context, data []byte, off int64) (n int64, err error) {
 	var (
 		writeEnd = off + int64(len(data))
-		reqList  = make([]*ioReq, 0, writeEnd/fileChunkSize+1)
 	)
 	for {
 		index, _ := computeChunkIndex(off, fileChunkSize)
@@ -242,31 +249,44 @@ func (c *chunkWriter) WriteAt(ctx context.Context, data []byte, off int64) (n in
 		if readLen == 0 {
 			break
 		}
-		reqList = append(reqList, c.flushData(ctx, index, off, data[n:n+readLen]))
+		c.writeSegData(ctx, index, off, data[n:n+readLen])
 		n += readLen
 		off = chunkEnd
 		if off == writeEnd {
 			break
 		}
 	}
-	return n, c.waitIO(ctx, reqList)
+	return n, nil
 }
-func (c *chunkWriter) flushData(ctx context.Context, index, off int64, dest []byte) *ioReq {
-	req := &ioReq{
-		off:  off,
-		dest: dest,
-	}
-	atomic.AddInt32(&c.unready, 1)
-	maximumChunkTaskParallel.BlockedGo(func() {
-		chunkSegId, err := c.store.NextSegmentID(ctx)
-		if err != nil {
-			req.err = err
-			return
+func (c *chunkWriter) writeSegData(ctx context.Context, index, off int64, dest []byte) {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+	sw, ok := c.chunks[index]
+	if !ok {
+		sw = &segWriter{
+			chunkWriter: c,
+			chunkID:     index,
+			dirtyPages:  make([]*dirtyPage, 0, 1),
 		}
-		c.writeChunkRange(ctx, index, chunkSegId, req)
-		atomic.AddInt32(&c.unready, -1)
-	})
-	return req
+		c.chunks[index] = sw
+	}
+
+	var (
+		crt    = off
+		bufEnd = off + int64(len(dest))
+	)
+	for {
+		pageIdx, pos := computePageIndex(crt)
+		writeEnd := (pageIdx + 1) * pageSize
+		if writeEnd > bufEnd {
+			writeEnd = bufEnd
+		}
+		sw.put(ctx, pageIdx, pos, dest[crt-off:writeEnd-off])
+		crt = writeEnd
+		if crt == bufEnd {
+			break
+		}
+	}
 }
 
 func (c *chunkWriter) Fsync(ctx context.Context) error {
@@ -287,55 +307,129 @@ func (c *chunkWriter) Fsync(ctx context.Context) error {
 	}
 }
 
-func (c *chunkWriter) writeChunkRange(ctx context.Context, chunkID, segID int64, req *ioReq) {
-	var (
-		off    = req.off
-		bufEnd = off + int64(len(req.dest))
-		pages  = make([]int64, 0)
-		wg     = sync.WaitGroup{}
-	)
+type segWriter struct {
+	*chunkWriter
 
-	for {
-		pageIdx, pos := computePageIndex(off)
-		pageStart := pageIdx*pageSize + pos
-		pageEnd := (pageIdx + 1) * pageSize
-		if pageEnd > bufEnd {
-			pageEnd = bufEnd
-		}
-		wg.Add(1)
-		pages = append(pages, pageIdx)
-		go func(ctx context.Context, pageID, off int64, data []byte) {
-			maximumChunkTaskParallel.BlockedGo(func() {
-				defer wg.Done()
-				if err := c.storage.Put(ctx, segID, pageID, off-pageStart, data); err != nil {
-					req.err = err
-					return
-				}
-			})
-		}(ctx, pageIdx, pageStart, req.dest[off-req.off:pageEnd-req.off])
-		off = pageEnd
-		if off == bufEnd {
+	chunkID    int64
+	chunkErr   error
+	dirtyPages []*dirtyPage
+}
+
+func (w *segWriter) put(ctx context.Context, pageIdx, pagePos int64, data []byte) {
+	atomic.AddInt32(&w.unready, 1)
+
+	var tgt, p *dirtyPage
+	for i := 1; i <= len(w.dirtyPages); i++ {
+		p = w.dirtyPages[len(w.dirtyPages)-i]
+		if !p.readyToCommit && p.pIdx == pageIdx {
+			tgt = p
 			break
+		} else if i > 4 || time.Since(p.modifyAt) > fileChunkCommitTimeout {
+			p.tryCommit()
 		}
 	}
-	wg.Wait()
 
-	if err := c.store.AppendSegments(ctx, types.ChunkSeg{
-		ID:       segID,
-		ChunkID:  chunkID,
-		ObjectID: c.Object.ID,
-		Off:      req.off,
-		Len:      int64(len(req.dest)),
-		State:    0,
-	}, c.Object); err != nil {
-		req.err = err
+	if tgt != nil {
+		dataLen := pagePos + int64(copy(tgt.node.data[pagePos:], data))
+		if pagePos < tgt.node.pos {
+			tgt.node.pos = pagePos
+		}
+		if dataLen > tgt.node.length {
+			tgt.node.length = dataLen
+		}
+		if tgt.node.length == pageSize {
+			tgt.tryCommit()
+		}
+		atomic.AddInt32(&w.unready, -1)
 		return
 	}
-	for _, pid := range pages {
-		c.page.invalidate(pid)
+
+	pNode, err := w.page.read(ctx, pageIdx, func(page *pageNode) error {
+		page.pos = pagePos
+		page.length = int64(copy(page.data[pagePos:], data))
+		page.mode |= pageModeDirty
+		return nil
+	})
+	if err != nil {
+		w.chunkErr = err
+		return
 	}
-	req.isReady = true
-	return
+	pCtx, tryCommit := context.WithCancel(ctx)
+	w.dirtyPages = append(w.dirtyPages, &dirtyPage{
+		ctx:           pCtx,
+		cancelWait:    tryCommit,
+		pIdx:          pageIdx,
+		node:          pNode,
+		modifyAt:      time.Now(),
+		readyToCommit: false,
+	})
+	if len(w.dirtyPages) == 1 {
+		maximumChunkTaskParallel.Go(func() {
+			w.commitPages()
+		})
+	}
+}
+
+func (w *segWriter) commitPages() {
+	t := time.NewTicker(time.Millisecond * 100)
+	defer t.Stop()
+Next:
+	for len(w.dirtyPages) > 0 {
+		page := w.dirtyPages[0]
+		for !page.readyToCommit {
+			select {
+			case <-page.ctx.Done():
+				if !page.readyToCommit {
+					w.dirtyPages = w.dirtyPages[1:]
+					atomic.AddInt32(&w.unready, -1)
+					continue Next
+				}
+			case <-t.C:
+				if time.Since(page.modifyAt) > fileChunkCommitTimeout {
+					page.tryCommit()
+				}
+			}
+		}
+		chunkSegId, err := w.store.NextSegmentID(context.Background())
+		if err != nil {
+			w.chunkErr = err
+			continue
+		}
+
+		if err = w.storage.Put(context.Background(), chunkSegId, page.pIdx, page.node.pos, page.node.data); err != nil {
+			w.chunkErr = err
+			continue
+		}
+
+		if err = w.store.AppendSegments(context.Background(), types.ChunkSeg{
+			ID:       chunkSegId,
+			ChunkID:  w.chunkID,
+			ObjectID: w.Object.ID,
+			Off:      page.pIdx*pageSize + page.node.pos,
+			Len:      page.node.length,
+			State:    0,
+		}, w.Object); err != nil {
+			w.chunkErr = err
+			continue
+		}
+		page.node.commit()
+		w.dirtyPages = w.dirtyPages[1:]
+		atomic.AddInt32(&w.unready, -1)
+	}
+}
+
+type dirtyPage struct {
+	ctx           context.Context
+	cancelWait    func()
+	pIdx          int64
+	node          *pageNode
+	modifyAt      time.Time
+	readyToCommit bool
+}
+
+func (d *dirtyPage) tryCommit() {
+	d.readyToCommit = true
+	d.cancelWait()
 }
 
 func computeChunkIndex(off, chunkSize int64) (idx int64, pos int64) {

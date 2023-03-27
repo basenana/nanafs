@@ -70,6 +70,10 @@ func (r *rawEntry) ExtendField() types.ExtendFields {
 
 func (r *rawEntry) GetExtendField(fKey string) *string {
 	r.obj.L.Lock()
+	if r.obj.ExtendFields.Fields == nil {
+		r.obj.L.Unlock()
+		return nil
+	}
 	fVal, ok := r.obj.ExtendFields.Fields[fKey]
 	r.obj.L.Unlock()
 	if !ok {
@@ -80,6 +84,9 @@ func (r *rawEntry) GetExtendField(fKey string) *string {
 
 func (r *rawEntry) SetExtendField(fKey, fVal string) {
 	r.obj.L.Lock()
+	if r.obj.ExtendFields.Fields == nil {
+		r.obj.ExtendFields.Fields = map[string]string{}
+	}
 	r.obj.ExtendFields.Fields[fKey] = fVal
 	r.obj.L.Unlock()
 }
@@ -87,6 +94,9 @@ func (r *rawEntry) SetExtendField(fKey, fVal string) {
 func (r *rawEntry) RemoveExtendField(fKey string) error {
 	r.obj.L.Lock()
 	defer r.obj.L.Unlock()
+	if r.obj.ExtendFields.Fields == nil {
+		r.obj.ExtendFields.Fields = map[string]string{}
+	}
 	_, ok := r.obj.ExtendFields.Fields[fKey]
 	if !ok {
 		return types.ErrNotFound

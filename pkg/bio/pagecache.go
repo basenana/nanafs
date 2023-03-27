@@ -43,6 +43,7 @@ const (
 	pageModeEmpty   = 0
 	pageModeInitial = 1
 	pageModeInvalid = 1 << 1
+	pageModeDirty   = 1 << 2
 	pageTreeShift   = 6
 	pageTreeSize    = 1 << pageTreeShift
 	pageTreeMask    = pageTreeSize - 1
@@ -74,7 +75,11 @@ func (p *pageCache) read(ctx context.Context, pageIndex int64, initDataFn func(*
 	if page == nil {
 		page = p.insertPage(ctx, pageIndex)
 	}
+	atomic.AddInt32(&page.ref, 1)
 	page.mux.Lock()
+	for page.mode&pageModeDirty > 0 {
+		page.cond.Wait()
+	}
 	if page.mode&(pageModeInitial|pageModeInvalid) > 0 {
 		if page.data == nil {
 			page.data = pageCacheDataPool.Get().([]byte)
@@ -85,7 +90,6 @@ func (p *pageCache) read(ctx context.Context, pageIndex int64, initDataFn func(*
 			return nil, err
 		}
 	}
-	atomic.AddInt32(&page.ref, 1)
 	page.mux.Unlock()
 	return page, nil
 }
@@ -210,6 +214,7 @@ type pageNode struct {
 	ref    int32
 	mode   int8
 	mux    sync.Mutex
+	cond   *sync.Cond
 }
 
 func (n *pageNode) release() {
@@ -219,6 +224,13 @@ func (n *pageNode) release() {
 		pageCacheDataPool.Put(n.data)
 		n.data = nil
 	}
+}
+
+func (n *pageNode) commit() {
+	n.mode |= pageModeInitial
+	n.mode &^= pageModeDirty
+	n.cond.Signal()
+	n.release()
 }
 
 // TODO: need a page pool
@@ -232,6 +244,7 @@ func newPage(shift int, pageSize int64, mode int8) *pageNode {
 	case p.mode == pageModeEmpty:
 		p.slots = make([]*pageNode, pageTreeSize)
 	case p.mode&pageModeInitial > 0:
+		p.cond = sync.NewCond(&p.mux)
 		p.data = pageCacheDataPool.Get().([]byte)
 	}
 	return p
