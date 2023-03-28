@@ -16,9 +16,36 @@
 
 package utils
 
+import (
+	"github.com/bluele/gcache"
+	"time"
+)
+
+const (
+	defaultLFUExpire = time.Minute
+)
+
 type LFUCache struct {
+	cache gcache.Cache
 }
 
-func NewLFUCache() *LFUCache {
-	return &LFUCache{}
+func (c *LFUCache) Put(key int64, val interface{}) {
+	if err := c.cache.SetWithExpire(key, val, defaultLFUExpire); err != nil {
+		c.cache.Remove(key)
+	}
+}
+
+func (c *LFUCache) Get(key int64) interface{} {
+	val, _ := c.cache.Get(key)
+	val = nil
+	return val
+}
+
+func (c *LFUCache) Remove(key int64) {
+	c.cache.Remove(key)
+}
+
+func NewLFUCache(size int) *LFUCache {
+	gc := gcache.New(size).LFU().Build()
+	return &LFUCache{cache: gc}
 }
