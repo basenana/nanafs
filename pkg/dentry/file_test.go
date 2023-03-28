@@ -182,6 +182,7 @@ var _ = Describe("TestFileIO", func() {
 				Expect(err).Should(BeNil())
 				_, err = f.WriteAt(context.Background(), data, 0)
 				Expect(err).Should(BeNil())
+				Expect(f.Fsync(context.Background())).Should(BeNil())
 				Expect(f.Close(context.Background())).Should(BeNil())
 				time.Sleep(time.Second)
 				Context("read new file", func() {

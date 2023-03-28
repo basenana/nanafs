@@ -76,7 +76,10 @@ func (f *file) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error
 
 func (f *file) Close(ctx context.Context) (err error) {
 	atomic.AddInt32(&f.ref, -1)
-	return
+	if f.attr.Write {
+		return f.writer.Flush(ctx)
+	}
+	return nil
 }
 
 func openFile(en Entry, attr Attr, store storage.ObjectStore, fileStorage storage.Storage) (File, error) {

@@ -14,22 +14,6 @@
  limitations under the License.
 */
 
-/*
- Copyright 2023 NanaFS Authors.
-
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
-*/
-
 package bio
 
 import (
@@ -37,6 +21,7 @@ import (
 	"github.com/basenana/nanafs/utils"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 const (
@@ -50,7 +35,15 @@ const (
 	pageSize        = 1 << 21 // 2M
 )
 
-var pageCacheDataPool = sync.Pool{New: func() any { return make([]byte, pageSize) }}
+var (
+	crtPageCacheTotal   int32 = 0
+	maxPageCacheTotal   int32 = 1024
+	pageReleaseInterval       = time.Second * 5
+	pageCacheMux              = sync.Mutex{}
+	pageCacheCond             = sync.NewCond(&pageCacheMux)
+	pageCacheReleaseQ         = make(chan *pageNode, maxPageCacheTotal/4)
+	pageCacheDataPool         = sync.Pool{New: func() any { return make([]byte, pageSize) }}
+)
 
 type pageCache struct {
 	entryID   int64
@@ -81,31 +74,18 @@ func (p *pageCache) read(ctx context.Context, pageIndex int64, initDataFn func(*
 		page.cond.Wait()
 	}
 	if page.mode&(pageModeInitial|pageModeInvalid) > 0 {
-		if page.data == nil {
+		for page.data == nil {
 			page.data = pageCacheDataPool.Get().([]byte)
 		}
 		err = initDataFn(page)
 		page.mode &^= pageModeInitial | pageModeInvalid
 		if err != nil {
+			page.mux.Unlock()
 			return nil, err
 		}
 	}
 	page.mux.Unlock()
 	return page, nil
-}
-
-func (p *pageCache) invalidate(pageIndex int64) {
-	page := p.findPage(pageIndex)
-	if page == nil {
-		return
-	}
-	page.mux.Lock()
-	page.mode |= pageModeInvalid
-	if atomic.LoadInt32(&page.ref) == 0 {
-		pageCacheDataPool.Put(page.data)
-		page.data = nil
-	}
-	page.mux.Unlock()
 }
 
 func (p *pageCache) insertPage(ctx context.Context, pageIdx int64) *pageNode {
@@ -217,23 +197,26 @@ type pageNode struct {
 	cond   *sync.Cond
 }
 
-func (n *pageNode) release() {
+func (n *pageNode) release() bool {
 	if atomic.AddInt32(&n.ref, -1) == 0 {
-		// TODO: need delay release
-		n.mode |= pageModeInitial
-		pageCacheDataPool.Put(n.data)
-		n.data = nil
+		select {
+		case pageCacheReleaseQ <- n:
+		default:
+			releasePage(n)
+		}
+		return true
 	}
+	return false
 }
 
 func (n *pageNode) commit() {
 	n.mode |= pageModeInitial
 	n.mode &^= pageModeDirty
-	n.cond.Signal()
-	n.release()
+	if !n.release() {
+		n.cond.Signal()
+	}
 }
 
-// TODO: need a page pool
 func newPage(shift int, pageSize int64, mode int8) *pageNode {
 	p := &pageNode{
 		shift:  shift,
@@ -244,14 +227,51 @@ func newPage(shift int, pageSize int64, mode int8) *pageNode {
 	case p.mode == pageModeEmpty:
 		p.slots = make([]*pageNode, pageTreeSize)
 	case p.mode&pageModeInitial > 0:
+		pageCacheMux.Lock()
+		for {
+			crtTotal := atomic.LoadInt32(&crtPageCacheTotal)
+			if crtTotal >= maxPageCacheTotal {
+				pageCacheCond.Wait()
+				continue
+			}
+			if atomic.CompareAndSwapInt32(&crtPageCacheTotal, crtTotal, crtTotal+1) {
+				break
+			}
+		}
+		pageCacheMux.Unlock()
 		p.cond = sync.NewCond(&p.mux)
 		p.data = pageCacheDataPool.Get().([]byte)
 	}
 	return p
 }
 
+func releasePage(pNode *pageNode) {
+	atomic.AddInt32(&crtPageCacheTotal, -1)
+	pageCacheCond.Signal()
+	pNode.mux.Lock()
+	pNode.mode |= pageModeInitial
+	pageCacheDataPool.Put(pNode.data)
+	pNode.data = nil
+	pNode.mux.Unlock()
+}
+
 func computePageIndex(off int64) (idx int64, pos int64) {
 	idx = off / pageSize
 	pos = off % pageSize
 	return
+}
+
+func init() {
+	go func() {
+		ticker := time.NewTicker(pageReleaseInterval)
+		for {
+			<-ticker.C
+			select {
+			case pNode := <-pageCacheReleaseQ:
+				if atomic.LoadInt32(&pNode.ref) == 0 {
+					releasePage(pNode)
+				}
+			}
+		}
+	}()
 }

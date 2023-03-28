@@ -29,7 +29,7 @@ import (
 
 const (
 	fileChunkSize          = 1 << 26 // 64MB
-	fileChunkCommitTimeout = time.Second * 3
+	fileChunkCommitTimeout = time.Second * 5
 )
 
 var (
@@ -40,6 +40,8 @@ type chunkReader struct {
 	*types.Object
 
 	page    *pageCache
+	ioReady *sync.Cond
+	mux     sync.Mutex
 	store   storage.ChunkStore
 	storage storage.Storage
 }
@@ -51,6 +53,7 @@ func NewChunkReader(obj *types.Object, chunkStore storage.ChunkStore, dataStore 
 		store:   chunkStore,
 		storage: dataStore,
 	}
+	cr.ioReady = sync.NewCond(&cr.mux)
 	return cr
 }
 
@@ -99,20 +102,15 @@ func (c *chunkReader) ReadAt(ctx context.Context, dest []byte, off int64) (n int
 }
 
 func (c *chunkReader) waitIO(ctx context.Context, reqList []*ioReq) (err error) {
-	allFinish := false
-	for !allFinish {
-		allFinish = true
-	waitIO:
-		for _, req := range reqList {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
-				if !req.isReady {
-					allFinish = false
-					time.Sleep(time.Millisecond * 50)
-					break waitIO
-				}
+	c.mux.Lock()
+	defer c.mux.Unlock()
+	for _, req := range reqList {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			if !req.isReady {
+				c.ioReady.Wait()
 			}
 		}
 	}
@@ -147,13 +145,14 @@ func (c *chunkReader) readChunkRange(ctx context.Context, chunkID int64, req *io
 	st := buildSegmentTree(chunkID*fileChunkSize, dataSize, segments)
 
 	var (
-		off     = req.off
-		bufLeft = int64(len(req.dest))
-		wg      = sync.WaitGroup{}
+		off          = req.off
+		bufLeft      = int64(len(req.dest))
+		wg           = sync.WaitGroup{}
+		pageIdx, pos int64
 	)
 
 	for {
-		pageIdx, pos := computePageIndex(off)
+		pageIdx, pos = computePageIndex(off)
 		readStart := pageIdx*pageSize + pos
 		readEnd := (pageIdx + 1) * pageSize
 		if readEnd-off > bufLeft {
@@ -178,6 +177,26 @@ func (c *chunkReader) readChunkRange(ctx context.Context, chunkID int64, req *io
 	}
 	wg.Wait()
 	req.isReady = true
+	c.ioReady.Broadcast()
+
+	preRead := len(req.dest)/pageSize + 1
+	maxPage := int64(fileChunkSize / pageSize)
+	for preRead > 0 {
+		preRead -= 1
+		pageIdx += 1
+		if pageIdx >= maxPage {
+			break
+		}
+		go func(ctx context.Context, segments []segment, pageID int64) {
+			maximumChunkTaskParallel.BlockedGo(func() {
+				if err = c.readPage(ctx, segments, pageID, 0, nil); err != nil && req.err == nil {
+					req.err = err
+					endF()
+					return
+				}
+			})
+		}(ctx, st.query(pageIdx*pageSize, (pageIdx+1)*pageSize), pageIdx)
+	}
 }
 
 func (c *chunkReader) readPage(ctx context.Context, segments []segment, pageIndex, off int64, dest []byte) error {
@@ -209,12 +228,18 @@ func (c *chunkReader) readPage(ctx context.Context, segments []segment, pageInde
 			}
 			crt += onceRead
 		}
+		page.length = crt
 		return nil
 	})
 	if err != nil {
 		return err
 	}
-	copy(dest, page.data[off-pageStart:])
+	if dest != nil {
+		page.mux.Lock()
+		copy(dest, page.data[off-pageStart:page.length])
+		page.mux.Unlock()
+	}
+	page.release()
 	return nil
 }
 
@@ -289,7 +314,23 @@ func (c *chunkWriter) writeSegData(ctx context.Context, index, off int64, dest [
 	}
 }
 
+func (c *chunkWriter) Flush(ctx context.Context) error {
+	c.mux.Lock()
+	for _, cw := range c.chunks {
+		for _, p := range cw.dirtyPages {
+			p.tryCommit()
+		}
+	}
+	c.mux.Unlock()
+	return nil
+}
+
 func (c *chunkWriter) Fsync(ctx context.Context) error {
+	err := c.Flush(ctx)
+	if err != nil {
+		return err
+	}
+
 	if atomic.LoadInt32(&c.unready) == 0 {
 		return nil
 	}
@@ -312,6 +353,7 @@ type segWriter struct {
 
 	chunkID    int64
 	chunkErr   error
+	maxPageId  int64
 	dirtyPages []*dirtyPage
 }
 
@@ -330,6 +372,7 @@ func (w *segWriter) put(ctx context.Context, pageIdx, pagePos int64, data []byte
 	}
 
 	if tgt != nil {
+		tgt.node.mux.Lock()
 		dataLen := pagePos + int64(copy(tgt.node.data[pagePos:], data))
 		if pagePos < tgt.node.pos {
 			tgt.node.pos = pagePos
@@ -337,6 +380,7 @@ func (w *segWriter) put(ctx context.Context, pageIdx, pagePos int64, data []byte
 		if dataLen > tgt.node.length {
 			tgt.node.length = dataLen
 		}
+		tgt.node.mux.Unlock()
 		if tgt.node.length == pageSize {
 			tgt.tryCommit()
 		}
@@ -364,6 +408,7 @@ func (w *segWriter) put(ctx context.Context, pageIdx, pagePos int64, data []byte
 		readyToCommit: false,
 	})
 	if len(w.dirtyPages) == 1 {
+		w.maxPageId = pageIdx
 		maximumChunkTaskParallel.Go(func() {
 			w.commitPages()
 		})
@@ -396,8 +441,10 @@ Next:
 			continue
 		}
 
+		page.node.mux.Lock()
 		if err = w.storage.Put(context.Background(), chunkSegId, page.pIdx, page.node.pos, page.node.data); err != nil {
 			w.chunkErr = err
+			page.node.mux.Unlock()
 			continue
 		}
 
@@ -410,8 +457,10 @@ Next:
 			State:    0,
 		}, w.Object); err != nil {
 			w.chunkErr = err
+			page.node.mux.Unlock()
 			continue
 		}
+		page.node.mux.Unlock()
 		page.node.commit()
 		w.dirtyPages = w.dirtyPages[1:]
 		atomic.AddInt32(&w.unready, -1)
