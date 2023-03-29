@@ -26,9 +26,6 @@ import (
 	"time"
 )
 
-type OpenOption struct {
-}
-
 func (c *controller) OpenFile(ctx context.Context, en dentry.Entry, attr dentry.Attr) (dentry.File, error) {
 	defer utils.TraceRegion(ctx, "controller.openfile")()
 	obj := en.Object()

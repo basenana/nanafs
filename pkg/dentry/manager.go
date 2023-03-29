@@ -46,12 +46,14 @@ func NewManager(store storage.ObjectStore, cfg config.Config) (Manager, error) {
 			return nil, err
 		}
 	}
-	return &manager{
+	mgr := &manager{
 		store:    store,
 		cfg:      cfg,
 		storages: storages,
 		logger:   logger.NewLogger("entryManager"),
-	}, nil
+	}
+	newLifecycle(mgr).initHooks()
+	return mgr, nil
 }
 
 type manager struct {

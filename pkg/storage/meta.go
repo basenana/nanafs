@@ -66,7 +66,9 @@ func (c *cachedMetaStorage) SaveObject(ctx context.Context, parent, obj *types.O
 	if err != nil {
 		return err
 	}
-	c.cache.Put(parent.ID, parent)
+	if parent != nil {
+		c.cache.Put(parent.ID, parent)
+	}
 	c.cache.Put(obj.ID, obj)
 	return nil
 }

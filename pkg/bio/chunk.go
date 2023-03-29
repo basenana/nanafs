@@ -40,10 +40,10 @@ type chunkReader struct {
 	*types.Object
 
 	page    *pageCache
-	ioReady *sync.Cond
-	mux     sync.Mutex
 	store   storage.ChunkStore
 	storage storage.Storage
+	readers map[int64]*segReader
+	readMux sync.Mutex
 }
 
 func NewChunkReader(obj *types.Object, chunkStore storage.ChunkStore, dataStore storage.Storage) Reader {
@@ -52,8 +52,8 @@ func NewChunkReader(obj *types.Object, chunkStore storage.ChunkStore, dataStore 
 		page:    newPageCache(obj.ID, fileChunkSize),
 		store:   chunkStore,
 		storage: dataStore,
+		readers: map[int64]*segReader{},
 	}
-	cr.ioReady = sync.NewCond(&cr.mux)
 	return cr
 }
 
@@ -65,10 +65,7 @@ func (c *chunkReader) ReadAt(ctx context.Context, dest []byte, off int64) (n int
 		return 0, io.EOF
 	}
 
-	var (
-		readEnd = off + int64(len(dest))
-		reqList = make([]*ioReq, 0, readEnd/fileChunkSize+1)
-	)
+	readEnd := off + int64(len(dest))
 	if readEnd > c.Object.Size {
 		readEnd = c.Object.Size
 	}
@@ -77,6 +74,7 @@ func (c *chunkReader) ReadAt(ctx context.Context, dest []byte, off int64) (n int
 		return
 	}
 
+	wg := &sync.WaitGroup{}
 	for {
 		index, _ := computeChunkIndex(off, fileChunkSize)
 		chunkEnd := (index + 1) * fileChunkSize
@@ -85,12 +83,11 @@ func (c *chunkReader) ReadAt(ctx context.Context, dest []byte, off int64) (n int
 		}
 
 		readLen := chunkEnd - off
-		var req *ioReq
-		req, err = c.prepareData(ctx, index, off, dest[n:n+readLen])
+		wg.Add(1)
+		c.prepareData(ctx, index, off, dest[n:n+readLen], wg)
 		if err != nil {
 			return 0, err
 		}
-		reqList = append(reqList, req)
 
 		n += readLen
 		off = chunkEnd
@@ -98,56 +95,72 @@ func (c *chunkReader) ReadAt(ctx context.Context, dest []byte, off int64) (n int
 			break
 		}
 	}
-	return n, c.waitIO(ctx, reqList)
+	wg.Wait()
+	return n, nil
 }
 
-func (c *chunkReader) waitIO(ctx context.Context, reqList []*ioReq) (err error) {
-	c.mux.Lock()
-	defer c.mux.Unlock()
-	for _, req := range reqList {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			if !req.isReady {
-				c.ioReady.Wait()
-			}
-		}
-	}
-	return
-}
-
-func (c *chunkReader) prepareData(ctx context.Context, index, off int64, dest []byte) (*ioReq, error) {
+func (c *chunkReader) prepareData(ctx context.Context, index, off int64, dest []byte, wg *sync.WaitGroup) *ioReq {
 	req := &ioReq{
-		off:  off,
-		dest: dest,
+		WaitGroup: wg,
+		off:       off,
+		dest:      dest,
 	}
+	c.readMux.Lock()
+	reader, ok := c.readers[index]
+	if !ok {
+		reader = &segReader{r: c}
+		c.readers[index] = reader
+	}
+	c.readMux.Unlock()
+
 	maximumChunkTaskParallel.Go(func() {
-		c.readChunkRange(ctx, index, req)
+		defer req.Done()
+		reader.readChunkRange(ctx, index, req)
 	})
-	return req, nil
+	return req
 }
 
-func (c *chunkReader) readChunkRange(ctx context.Context, chunkID int64, req *ioReq) {
+func (c *chunkReader) invalidate(index int64) {
+	c.readMux.Lock()
+	reader, ok := c.readers[index]
+	c.readMux.Unlock()
+	if ok {
+		reader.mux.Lock()
+		reader.st = nil
+		reader.mux.Unlock()
+	}
+}
+
+type segReader struct {
+	r   *chunkReader
+	st  *segTree
+	mux sync.Mutex
+}
+
+func (c *segReader) readChunkRange(ctx context.Context, chunkID int64, req *ioReq) {
 	ctx, endF := utils.TraceTask(ctx, "segreader.readrange")
 	defer endF()
 
-	segments, err := c.store.ListSegments(ctx, c.ID, chunkID)
-	if err != nil {
-		req.err = err
-		return
-	}
+	c.mux.Lock()
+	if c.st == nil {
+		segments, err := c.r.store.ListSegments(ctx, c.r.ID, chunkID)
+		if err != nil {
+			req.err = err
+			return
+		}
 
-	dataSize := (chunkID + 1) * int64(fileChunkSize)
-	if c.Size < dataSize {
-		dataSize = c.Size
+		dataSize := (chunkID + 1) * int64(fileChunkSize)
+		if c.r.Size < dataSize {
+			dataSize = c.r.Size
+		}
+		c.st = buildSegmentTree(chunkID*fileChunkSize, dataSize, segments)
 	}
-	st := buildSegmentTree(chunkID*fileChunkSize, dataSize, segments)
+	st := c.st
+	c.mux.Unlock()
 
 	var (
 		off          = req.off
 		bufLeft      = int64(len(req.dest))
-		wg           = sync.WaitGroup{}
 		pageIdx, pos int64
 	)
 
@@ -158,11 +171,11 @@ func (c *chunkReader) readChunkRange(ctx context.Context, chunkID int64, req *io
 		if readEnd-off > bufLeft {
 			readEnd = off + bufLeft
 		}
-		wg.Add(1)
+		req.Add(1)
 		go func(ctx context.Context, segments []segment, pageID, off int64, dest []byte) {
 			maximumChunkTaskParallel.BlockedGo(func() {
-				defer wg.Done()
-				if err = c.readPage(ctx, segments, pageID, off, dest); err != nil && req.err == nil {
+				defer req.Done()
+				if err := c.readPage(ctx, segments, pageID, off, dest); err != nil && req.err == nil {
 					req.err = err
 					endF()
 					return
@@ -175,23 +188,18 @@ func (c *chunkReader) readChunkRange(ctx context.Context, chunkID int64, req *io
 			break
 		}
 	}
-	wg.Wait()
-	req.isReady = true
-	c.ioReady.Broadcast()
 
 	preRead := len(req.dest)/pageSize + 1
 	maxPage := int64(fileChunkSize / pageSize)
 	for preRead > 0 {
 		preRead -= 1
 		pageIdx += 1
-		if pageIdx >= maxPage {
+		if pageIdx >= maxPage || pageIdx*pageSize > c.r.Size {
 			break
 		}
 		go func(ctx context.Context, segments []segment, pageID int64) {
 			maximumChunkTaskParallel.BlockedGo(func() {
-				if err = c.readPage(ctx, segments, pageID, 0, nil); err != nil && req.err == nil {
-					req.err = err
-					endF()
+				if err := c.readPage(ctx, segments, pageID, 0, nil); err != nil {
 					return
 				}
 			})
@@ -199,9 +207,9 @@ func (c *chunkReader) readChunkRange(ctx context.Context, chunkID int64, req *io
 	}
 }
 
-func (c *chunkReader) readPage(ctx context.Context, segments []segment, pageIndex, off int64, dest []byte) error {
+func (c *segReader) readPage(ctx context.Context, segments []segment, pageIndex, off int64, dest []byte) error {
 	pageStart := pageSize * pageIndex
-	page, err := c.page.read(ctx, pageIndex, func(page *pageNode) error {
+	page, err := c.r.page.read(ctx, pageIndex, func(page *pageNode) error {
 		var (
 			crt, onceRead, readEnd int64
 			err                    error
@@ -222,7 +230,7 @@ func (c *chunkReader) readPage(ctx context.Context, segments []segment, pageInde
 				crt = readEnd
 				continue
 			}
-			onceRead, err = c.storage.Get(ctx, seg.id, pageIndex, seg.off-pageStart, page.data[crt:readEnd])
+			onceRead, err = c.r.storage.Get(ctx, seg.id, pageIndex, seg.off-pageStart, page.data[crt:readEnd])
 			for err != nil {
 				return err
 			}
@@ -245,9 +253,9 @@ func (c *chunkReader) readPage(ctx context.Context, segments []segment, pageInde
 
 type chunkWriter struct {
 	*chunkReader
-	unready int32
-	chunks  map[int64]*segWriter
-	mux     sync.Mutex
+	unready   int32
+	writers   map[int64]*segWriter
+	writerMux sync.Mutex
 }
 
 func NewChunkWriter(reader Reader) Writer {
@@ -255,7 +263,7 @@ func NewChunkWriter(reader Reader) Writer {
 	if !ok {
 		return nil
 	}
-	return &chunkWriter{chunkReader: r, chunks: map[int64]*segWriter{}}
+	return &chunkWriter{chunkReader: r, writers: map[int64]*segWriter{}}
 }
 
 func (c *chunkWriter) WriteAt(ctx context.Context, data []byte, off int64) (n int64, err error) {
@@ -283,17 +291,18 @@ func (c *chunkWriter) WriteAt(ctx context.Context, data []byte, off int64) (n in
 	}
 	return n, nil
 }
+
 func (c *chunkWriter) writeSegData(ctx context.Context, index, off int64, dest []byte) {
-	c.mux.Lock()
-	defer c.mux.Unlock()
-	sw, ok := c.chunks[index]
+	c.writerMux.Lock()
+	defer c.writerMux.Unlock()
+	sw, ok := c.writers[index]
 	if !ok {
 		sw = &segWriter{
 			chunkWriter: c,
 			chunkID:     index,
 			dirtyPages:  make([]*dirtyPage, 0, 1),
 		}
-		c.chunks[index] = sw
+		c.writers[index] = sw
 	}
 
 	var (
@@ -315,13 +324,13 @@ func (c *chunkWriter) writeSegData(ctx context.Context, index, off int64, dest [
 }
 
 func (c *chunkWriter) Flush(ctx context.Context) error {
-	c.mux.Lock()
-	for _, cw := range c.chunks {
+	c.writerMux.Lock()
+	for _, cw := range c.writers {
 		for _, p := range cw.dirtyPages {
 			p.tryCommit()
 		}
 	}
-	c.mux.Unlock()
+	c.writerMux.Unlock()
 	return nil
 }
 
@@ -426,6 +435,7 @@ Next:
 			case <-page.ctx.Done():
 				if !page.readyToCommit {
 					w.dirtyPages = w.dirtyPages[1:]
+					page.node.commit()
 					atomic.AddInt32(&w.unready, -1)
 					continue Next
 				}
@@ -488,10 +498,11 @@ func computeChunkIndex(off, chunkSize int64) (idx int64, pos int64) {
 }
 
 type ioReq struct {
-	off     int64
-	dest    []byte
-	isReady bool
-	err     error
+	*sync.WaitGroup
+
+	off  int64
+	dest []byte
+	err  error
 }
 
 type segTree struct {

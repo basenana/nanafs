@@ -41,7 +41,7 @@ var (
 	pageReleaseInterval       = time.Second * 5
 	pageCacheMux              = sync.Mutex{}
 	pageCacheCond             = sync.NewCond(&pageCacheMux)
-	pageCacheReleaseQ         = make(chan *pageNode, maxPageCacheTotal/4)
+	pageCacheReleaseQ         = make(chan *pageNode, maxPageCacheTotal/2)
 	pageCacheDataPool         = sync.Pool{New: func() any { return make([]byte, pageSize) }}
 )
 
@@ -247,12 +247,14 @@ func newPage(shift int, pageSize int64, mode int8) *pageNode {
 
 func releasePage(pNode *pageNode) {
 	atomic.AddInt32(&crtPageCacheTotal, -1)
-	pageCacheCond.Signal()
 	pNode.mux.Lock()
 	pNode.mode |= pageModeInitial
-	pageCacheDataPool.Put(pNode.data)
-	pNode.data = nil
+	if pNode.data != nil {
+		pageCacheDataPool.Put(pNode.data)
+		pNode.data = nil
+	}
 	pNode.mux.Unlock()
+	pageCacheCond.Signal()
 }
 
 func computePageIndex(off int64) (idx int64, pos int64) {
@@ -266,10 +268,17 @@ func init() {
 		ticker := time.NewTicker(pageReleaseInterval)
 		for {
 			<-ticker.C
-			select {
-			case pNode := <-pageCacheReleaseQ:
-				if atomic.LoadInt32(&pNode.ref) == 0 {
-					releasePage(pNode)
+			fetch := 1
+			if len(pageCacheReleaseQ) > int(maxPageCacheTotal/4) {
+				fetch = 3
+			}
+			for fetch > 0 {
+				fetch -= 1
+				select {
+				case pNode := <-pageCacheReleaseQ:
+					if atomic.LoadInt32(&pNode.ref) == 0 {
+						releasePage(pNode)
+					}
 				}
 			}
 		}
