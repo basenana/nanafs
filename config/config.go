@@ -36,6 +36,7 @@ type Meta struct {
 
 type Storage struct {
 	ID        string `json:"id"`
+	Type      string `json:"type"`
 	LocalDir  string `json:"local_dir,omitempty"`
 	CacheDir  string `json:"cache_dir,omitempty"`
 	CacheSize int64  `json:"cache_size,omitempty"`

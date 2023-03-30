@@ -17,6 +17,7 @@
 package db
 
 import (
+	"encoding/json"
 	"github.com/basenana/nanafs/pkg/types"
 	"strings"
 	"time"
@@ -29,12 +30,14 @@ var dbModels = []interface{}{
 	&ObjectLabel{},
 	&ObjectProperty{},
 	&ObjectExtend{},
+	&ObjectChunk{},
 	&PluginData{},
 }
 
 type SystemInfo struct {
-	FsID  string `gorm:"column:fs_id;primaryKey"`
-	Inode uint64 `gorm:"column:inode"`
+	FsID     string `gorm:"column:fs_id;primaryKey"`
+	Inode    uint64 `gorm:"column:inode"`
+	ChunkSeg int64  `gorm:"column:chunk_seg"`
 }
 
 func (i SystemInfo) TableName() string {
@@ -53,6 +56,7 @@ type Object struct {
 	Size       int64     `gorm:"column:size"`
 	Inode      uint64    `gorm:"column:inode;unique"`
 	Dev        int64     `gorm:"column:dev"`
+	Storage    string    `gorm:"column:storage"`
 	Namespace  string    `gorm:"column:namespace"`
 	CreatedAt  time.Time `gorm:"column:created_at"`
 	ChangedAt  time.Time `gorm:"column:changed_at"`
@@ -76,6 +80,7 @@ func (o *Object) Update(obj *types.Object) {
 	o.Size = obj.Size
 	o.Inode = obj.Inode
 	o.Dev = obj.Dev
+	o.Storage = obj.Storage
 	o.Namespace = obj.Namespace
 	o.CreatedAt = obj.CreatedAt
 	o.ChangedAt = obj.ChangedAt
@@ -97,6 +102,7 @@ func (o *Object) Object() *types.Object {
 			Size:       o.Size,
 			Inode:      o.Inode,
 			Dev:        o.Dev,
+			Storage:    o.Storage,
 			Namespace:  o.Namespace,
 			CreatedAt:  o.CreatedAt,
 			ChangedAt:  o.ChangedAt,
@@ -145,10 +151,10 @@ func (a *ObjectAccess) ToAccess() types.Access {
 
 type ObjectLabel struct {
 	ID        int64  `gorm:"column:id;autoIncrement"`
-	OID       int64  `gorm:"column:oid;index:l_oid"`
+	OID       int64  `gorm:"column:oid;index:label_oid"`
 	Key       string `gorm:"column:key"`
 	Value     string `gorm:"column:value"`
-	SearchKey string `gorm:"column:search_key;index:l_search_key"`
+	SearchKey string `gorm:"column:search_key;index:label_search_key"`
 }
 
 func (o ObjectLabel) TableName() string {
@@ -157,8 +163,8 @@ func (o ObjectLabel) TableName() string {
 
 type ObjectProperty struct {
 	ID    int64  `gorm:"column:id;autoIncrement"`
-	OID   int64  `gorm:"column:oid;index:p_oid"`
-	Name  string `gorm:"column:key;index:p_name"`
+	OID   int64  `gorm:"column:oid;index:prop_oid"`
+	Name  string `gorm:"column:key;index:prop_name"`
 	Value string `gorm:"column:value"`
 }
 
@@ -167,15 +173,60 @@ func (o ObjectProperty) TableName() string {
 }
 
 type ObjectExtend struct {
-	ID          int64  `gorm:"column:id;autoIncrement"`
-	OID         int64  `gorm:"column:oid;index:e_oid"`
-	Symlink     string `gorm:"column:symlink"`
-	GroupFilter []byte `gorm:"column:group_filter"`
-	PlugScope   []byte `gorm:"column:plug_scope"`
+	ID           int64  `gorm:"column::id;primaryKey"`
+	ExtendFields []byte `gorm:"column:extend_fields"`
+	Symlink      string `gorm:"column:symlink"`
+	GroupFilter  []byte `gorm:"column:group_filter"`
+	PlugScope    []byte `gorm:"column:plug_scope"`
 }
 
-func (o ObjectExtend) TableName() string {
+func (o *ObjectExtend) TableName() string {
 	return "object_extend"
+}
+
+func (o *ObjectExtend) Update(obj *types.Object) {
+	o.ExtendFields, _ = json.Marshal(obj.ExtendData.ExtendFields)
+	o.Symlink = obj.ExtendData.Symlink
+
+	if obj.ExtendData.GroupFilter != nil {
+		o.GroupFilter, _ = json.Marshal(obj.ExtendData.GroupFilter)
+	}
+
+	if obj.ExtendData.GroupFilter != nil {
+		o.PlugScope, _ = json.Marshal(obj.ExtendData.PlugScope)
+	}
+}
+
+func (o *ObjectExtend) ToExtData() types.ExtendData {
+	ext := types.ExtendData{
+		ExtendFields: types.ExtendFields{},
+		Symlink:      o.Symlink,
+		GroupFilter:  nil,
+		PlugScope:    nil,
+	}
+
+	_ = json.Unmarshal(o.ExtendFields, &ext.ExtendFields)
+	if o.GroupFilter != nil {
+		_ = json.Unmarshal(o.GroupFilter, &ext.GroupFilter)
+	}
+	if o.PlugScope != nil {
+		_ = json.Unmarshal(o.PlugScope, &ext.PlugScope)
+	}
+	return ext
+}
+
+type ObjectChunk struct {
+	ID       int64 `gorm:"column:id;primaryKey"`
+	OID      int64 `gorm:"column:oid;index:ck_oid"`
+	ChunkID  int64 `gorm:"column:chunk_id;index:ck_id"`
+	Off      int64 `gorm:"column:off"`
+	Len      int64 `gorm:"column:len"`
+	State    int16 `gorm:"column:state"`
+	AppendAt int64 `gorm:"column:append_at"`
+}
+
+func (o ObjectChunk) TableName() string {
+	return "object_chunk"
 }
 
 type PluginData struct {

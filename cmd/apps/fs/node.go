@@ -19,7 +19,6 @@ package fs
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/hanwen/go-fuse/v2/fs"
@@ -78,7 +77,7 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 		uid, gid = fuseCtx.Uid, fuseCtx.Gid
 	}
 
-	var attr files.Attr
+	var attr dentry.Attr
 	nanaFile, ok := f.(*File)
 	if ok {
 		attr = nanaFile.file.GetAttr()
@@ -107,11 +106,11 @@ func (n *NanaNode) Getxattr(ctx context.Context, attr string, dest []byte) (uint
 		return 0, Error2FuseSysError(err)
 	}
 
-	ann := dentry.GetInternalAnnotation(entry, attr)
-	if ann == nil {
+	encodedData := entry.GetExtendField(attr)
+	if encodedData == nil {
 		return 0, syscall.Errno(0x5d)
 	}
-	raw, err := dentry.AnnotationContent2RawData(ann)
+	raw, err := xattrContent2RawData(*encodedData)
 	if err != nil {
 		return 0, Error2FuseSysError(err)
 	}
@@ -129,7 +128,20 @@ func (n *NanaNode) Setxattr(ctx context.Context, attr string, data []byte, flags
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
-	dentry.AddInternalAnnotation(entry, attr, dentry.RawData2AnnotationContent(data), true)
+	entry.SetExtendField(attr, xattrRawData2Content(data))
+	entry.Metadata().ChangedAt = time.Now()
+	return Error2FuseSysError(n.R.SaveEntry(ctx, nil, entry))
+}
+
+func (n *NanaNode) Removexattr(ctx context.Context, attr string) syscall.Errno {
+	defer utils.TraceRegion(ctx, "node.removexattr")()
+	entry, err := n.R.GetEntry(ctx, n.oid)
+	if err != nil {
+		return Error2FuseSysError(err)
+	}
+	if err = entry.RemoveExtendField(attr); err != nil {
+		return syscall.Errno(0x5d)
+	}
 	entry.Metadata().ChangedAt = time.Now()
 	return Error2FuseSysError(n.R.SaveEntry(ctx, nil, entry))
 }
@@ -384,7 +396,7 @@ func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.E
 	}
 
 	n.logger.Debugw("create new symlink", "target", target)
-	f, err := n.R.OpenFile(ctx, newLink, files.Attr{Write: true, Create: true, Trunc: true})
+	f, err := n.R.OpenFile(ctx, newLink, dentry.Attr{Write: true, Create: true, Trunc: true})
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
@@ -408,7 +420,7 @@ func (n *NanaNode) Readlink(ctx context.Context) ([]byte, syscall.Errno) {
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
-	f, err := n.R.OpenFile(ctx, entry, files.Attr{Read: true})
+	f, err := n.R.OpenFile(ctx, entry, dentry.Attr{Read: true})
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}

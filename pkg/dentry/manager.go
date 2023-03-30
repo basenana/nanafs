@@ -21,6 +21,7 @@ import (
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"time"
@@ -33,20 +34,33 @@ type Manager interface {
 	DestroyEntry(ctx context.Context, parent, en Entry) error
 	MirrorEntry(ctx context.Context, src, dstParent Entry, attr EntryAttr) (Entry, error)
 	ChangeEntryParent(ctx context.Context, targetEntry, overwriteEntry, oldParent, newParent Entry, newName string, opt ChangeParentAttr) error
+	Open(ctx context.Context, en Entry, attr Attr) (File, error)
 }
 
-func NewManager(store storage.ObjectStore, cfg config.Config) Manager {
-	return &manager{
-		store:  store,
-		cfg:    cfg,
-		logger: logger.NewLogger("entryManager"),
+func NewManager(store storage.ObjectStore, cfg config.Config) (Manager, error) {
+	storages := make(map[string]storage.Storage)
+	var err error
+	for i := range cfg.Storages {
+		storages[cfg.Storages[i].ID], err = storage.NewStorage(cfg.Storages[i].ID, cfg.Storages[i].Type, cfg.Storages[i])
+		if err != nil {
+			return nil, err
+		}
 	}
+	mgr := &manager{
+		store:    store,
+		cfg:      cfg,
+		storages: storages,
+		logger:   logger.NewLogger("entryManager"),
+	}
+	newLifecycle(mgr).initHooks()
+	return mgr, nil
 }
 
 type manager struct {
-	store  storage.ObjectStore
-	cfg    config.Config
-	logger *zap.SugaredLogger
+	store    storage.ObjectStore
+	storages map[string]storage.Storage
+	cfg      config.Config
+	logger   *zap.SugaredLogger
 }
 
 var _ Manager = &manager{}
@@ -63,6 +77,7 @@ func (m *manager) Root(ctx context.Context) (Entry, error) {
 	root = initRootEntryObject()
 	root.Access.UID = m.cfg.Owner.Uid
 	root.Access.GID = m.cfg.Owner.Gid
+	root.Storage = m.cfg.Storages[0].ID
 	return BuildEntry(root, m.store), m.store.SaveObject(ctx, nil, root)
 }
 
@@ -222,6 +237,20 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntry, overwriteE
 		return err
 	}
 	return nil
+}
+
+func (m *manager) Open(ctx context.Context, en Entry, attr Attr) (File, error) {
+	defer utils.TraceRegion(ctx, "file.open")()
+	if attr.Trunc {
+		en.Metadata().Size = 0
+	}
+
+	switch en.Metadata().Kind {
+	case types.SymLinkKind:
+		return openSymlink(en, attr)
+	default:
+		return openFile(en, attr, m.store, m.storages[en.Metadata().Storage])
+	}
 }
 
 type EntryAttr struct {

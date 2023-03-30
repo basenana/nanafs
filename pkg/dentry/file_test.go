@@ -14,36 +14,79 @@
  limitations under the License.
 */
 
-package files
+package dentry
 
 import (
-	"bytes"
 	"context"
+	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/storage"
+	"github.com/basenana/nanafs/pkg/types"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"time"
 )
 
+var (
+	fileChunk1 []byte
+	fileChunk2 []byte
+	fileChunk3 []byte
+	fileChunk4 []byte
+)
+
+const fileChunkSize = 1 << 26
+
+func resetFileChunk() {
+	fileChunk1 = make([]byte, fileChunkSize)
+	fileChunk2 = make([]byte, fileChunkSize)
+	fileChunk3 = make([]byte, fileChunkSize)
+	fileChunk4 = make([]byte, fileChunkSize)
+	copy(fileChunk1, []byte("testdata-1"))
+	copy(fileChunk2, []byte("          "))
+	copy(fileChunk3, []byte("testdata-3"))
+	copy(fileChunk4, []byte(""))
+}
+
+func newMockFileStorage() storage.Storage {
+	s, _ := storage.NewStorage(storage.MemoryStorage, storage.MemoryStorage, config.Storage{})
+	return s
+}
+
+func newMockFileEntry(name string, inode int64) Entry {
+	meta := types.NewMetadata(name, types.RawKind)
+	meta.Size = fileChunkSize * 4
+	meta.ID = inode
+	meta.Storage = storage.MemoryStorage
+	return BuildEntry(&types.Object{Metadata: meta}, objStore)
+}
+
 var _ = Describe("TestFileIO", func() {
 	var (
-		s     storage.Storage
 		name        = "test-file-key"
 		inode int64 = 1024
 	)
 	BeforeEach(func() {
-		s = NewMockStorage()
+		f, err := entryManager.Open(context.Background(), newMockFileEntry(name, inode), Attr{Read: true, Write: true})
+		Expect(err).Should(BeNil())
 		resetFileChunk()
-		_ = s.Put(context.Background(), inode, 0, 0, bytes.NewReader(fileChunk1))
-		_ = s.Put(context.Background(), inode, 1, 0, bytes.NewReader(fileChunk2))
-		_ = s.Put(context.Background(), inode, 2, 0, bytes.NewReader(fileChunk3))
-		_ = s.Put(context.Background(), inode, 3, 0, bytes.NewReader(fileChunk4))
+		var off int64
+
+		_, err = f.WriteAt(context.TODO(), fileChunk1, off)
+		Expect(err).Should(BeNil())
+		off += int64(len(fileChunk1))
+		_, err = f.WriteAt(context.TODO(), fileChunk2, off)
+		Expect(err).Should(BeNil())
+		off += int64(len(fileChunk2))
+		_, err = f.WriteAt(context.TODO(), fileChunk3, off)
+		Expect(err).Should(BeNil())
+		off += int64(len(fileChunk3))
+		_, err = f.WriteAt(context.TODO(), fileChunk4, off)
+		Expect(err).Should(BeNil())
 	})
 
 	Describe("test file open", func() {
 		Context("open a file", func() {
 			It("should be ok", func() {
-				f, err := Open(context.Background(), newMockObject(name, inode), Attr{Read: true})
+				f, err := entryManager.Open(context.Background(), newMockFileEntry(name, inode), Attr{Read: true})
 				Expect(err).Should(BeNil())
 				Expect(f.Close(context.Background())).Should(BeNil())
 			})
@@ -56,7 +99,7 @@ var _ = Describe("TestFileIO", func() {
 			err error
 		)
 		BeforeEach(func() {
-			f, err = Open(context.Background(), newMockObject(name, inode), Attr{Read: true})
+			f, err = entryManager.Open(context.Background(), newMockFileEntry(name, inode), Attr{Read: true})
 			Expect(err).Should(BeNil())
 		})
 		Context("read file succeed", func() {
@@ -64,8 +107,8 @@ var _ = Describe("TestFileIO", func() {
 				buf := make([]byte, fileChunkSize)
 				var off int64
 				for i := 0; i < 4; i++ {
-					n, err := f.Read(context.Background(), buf, off)
-					Expect(n).Should(Equal(fileChunkSize))
+					n, err := f.ReadAt(context.Background(), buf, off)
+					Expect(n).Should(Equal(int64(fileChunkSize)))
 					Expect(err).Should(BeNil())
 					switch i {
 					case 0:
@@ -84,9 +127,9 @@ var _ = Describe("TestFileIO", func() {
 		Context("read file failed", func() {
 			It("should be no perm", func() {
 				buf := make([]byte, 1024)
-				f, err = Open(context.Background(), newMockObject(name, inode), Attr{Write: true})
+				f, err = entryManager.Open(context.Background(), newMockFileEntry(name, inode), Attr{Write: true})
 				Expect(err).Should(BeNil())
-				_, err = f.Read(context.Background(), buf, 0)
+				_, err = f.ReadAt(context.Background(), buf, 0)
 				Expect(err).ShouldNot(BeNil())
 			})
 		})
@@ -99,7 +142,7 @@ var _ = Describe("TestFileIO", func() {
 			err  error
 		)
 		BeforeEach(func() {
-			f, err = Open(context.Background(), newMockObject(name, inode), Attr{Write: true})
+			f, err = entryManager.Open(context.Background(), newMockFileEntry(name, inode), Attr{Write: true})
 			Expect(err).Should(BeNil())
 		})
 		AfterEach(func() {
@@ -107,18 +150,18 @@ var _ = Describe("TestFileIO", func() {
 		})
 		Context("write new content to file", func() {
 			It("should be ok", func() {
-				_, err = f.Write(context.Background(), data, 0)
+				_, err = f.WriteAt(context.Background(), data, 0)
 				Expect(err).Should(BeNil())
-				Expect(f.Close(context.Background())).Should(BeNil())
 				Expect(f.Fsync(context.TODO())).Should(BeNil())
+				Expect(f.Close(context.Background())).Should(BeNil())
 				time.Sleep(time.Second)
 
 				Context("read file content", func() {
-					f, err = Open(context.Background(), newMockObject(name, inode), Attr{Read: true})
+					f, err = entryManager.Open(context.Background(), newMockFileEntry(name, inode), Attr{Read: true})
 					Expect(err).Should(BeNil())
 
 					buf := make([]byte, 10)
-					n, err := f.Read(context.Background(), buf, 0)
+					n, err := f.ReadAt(context.Background(), buf, 0)
 					Expect(err).Should(BeNil())
 					Expect(buf[:n]).Should(Equal([]byte("testdata-3")))
 				})
@@ -135,17 +178,18 @@ var _ = Describe("TestFileIO", func() {
 
 		Context("create and write a new file", func() {
 			It("should be ok", func() {
-				f, err = Open(context.Background(), newMockObject("test-create-new-file", inode+1), Attr{Write: true, Create: true})
+				f, err = entryManager.Open(context.Background(), newMockFileEntry("test-create-new-file", inode+1), Attr{Write: true, Create: true})
 				Expect(err).Should(BeNil())
-				_, err = f.Write(context.Background(), data, 0)
+				_, err = f.WriteAt(context.Background(), data, 0)
 				Expect(err).Should(BeNil())
+				Expect(f.Fsync(context.Background())).Should(BeNil())
 				Expect(f.Close(context.Background())).Should(BeNil())
 				time.Sleep(time.Second)
 				Context("read new file", func() {
-					f, err = Open(context.Background(), newMockObject("test-create-new-file", inode+1), Attr{Read: true})
+					f, err = entryManager.Open(context.Background(), newMockFileEntry("test-create-new-file", inode+1), Attr{Read: true})
 					Expect(err).Should(BeNil())
 					buf := make([]byte, 10)
-					n, err := f.Read(context.Background(), buf, 0)
+					n, err := f.ReadAt(context.Background(), buf, 0)
 					Expect(err).Should(BeNil())
 					Expect(buf[:n]).Should(Equal(data[:10]))
 				})

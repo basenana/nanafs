@@ -14,28 +14,36 @@
  limitations under the License.
 */
 
-package types
+package utils
 
-const (
-	VersionKey         = "nanafs.version"
-	KindKey            = "nanafs.kind"
-	LabelPluginNameKey = "nanafs.plugin.name"
-)
+import "io"
 
-type Labels struct {
-	Labels []Label `json:"labels,omitempty"`
+type readerAtWrapper struct {
+	io.ReaderAt
+	off int64
 }
 
-func (l Labels) Get(key string) *Label {
-	for _, label := range l.Labels {
-		if label.Key == key {
-			return &label
-		}
-	}
-	return nil
+func (r *readerAtWrapper) Read(p []byte) (n int, err error) {
+	n, err = r.ReadAt(p, r.off)
+	r.off += int64(n)
+	return n, err
 }
 
-type Label struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
+func NewReaderAtWrapper(at io.ReaderAt) io.Reader {
+	return &readerAtWrapper{ReaderAt: at}
+}
+
+type writeAtWrapper struct {
+	io.WriterAt
+	off int64
+}
+
+func (w *writeAtWrapper) Write(p []byte) (n int, err error) {
+	n, err = w.WriteAt(p, w.off)
+	w.off += int64(n)
+	return n, err
+}
+
+func NewWriteAtWrapper(at io.WriterAt) io.Writer {
+	return &writeAtWrapper{WriterAt: at}
 }

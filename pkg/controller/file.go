@@ -20,17 +20,13 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/files"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/hyponet/eventbus/bus"
 	"time"
 )
 
-type OpenOption struct {
-}
-
-func (c *controller) OpenFile(ctx context.Context, en dentry.Entry, attr files.Attr) (files.File, error) {
+func (c *controller) OpenFile(ctx context.Context, en dentry.Entry, attr dentry.Attr) (dentry.File, error) {
 	defer utils.TraceRegion(ctx, "controller.openfile")()
 	obj := en.Object()
 	c.logger.Infow("open file", "file", obj.ID, "name", obj.Name, "attr", attr)
@@ -53,7 +49,7 @@ func (c *controller) OpenFile(ctx context.Context, en dentry.Entry, attr files.A
 		obj.Size = 0
 	}
 
-	file, err := files.Open(ctx, obj, attr)
+	file, err := c.entry.Open(ctx, en, attr)
 	if err != nil {
 		c.logger.Errorw("open file error", "obj", obj.ID, "err", err.Error())
 		return nil, err
@@ -66,47 +62,34 @@ func (c *controller) OpenFile(ctx context.Context, en dentry.Entry, attr files.A
 	return file, c.SaveEntry(ctx, nil, dentry.BuildEntry(obj, c.meta))
 }
 
-func (c *controller) ReadFile(ctx context.Context, file files.File, data []byte, offset int64) (n int, err error) {
+func (c *controller) ReadFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error) {
 	defer utils.TraceRegion(ctx, "controller.readfile")()
-	n, err = file.Read(ctx, data, offset)
+	n, err = file.ReadAt(ctx, data, offset)
 	if err != nil {
 		return n, err
 	}
 	return n, nil
 }
 
-func (c *controller) WriteFile(ctx context.Context, file files.File, data []byte, offset int64) (n int64, err error) {
+func (c *controller) WriteFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error) {
 	defer utils.TraceRegion(ctx, "controller.writefile")()
-	n, err = file.Write(ctx, data, offset)
+	n, err = file.WriteAt(ctx, data, offset)
 	if err != nil {
 		return n, err
 	}
-	obj := file.GetObject()
-	obj.ModifiedAt = time.Now()
-	return n, c.SaveEntry(ctx, nil, dentry.BuildEntry(obj, c.meta))
+	meta := file.Metadata()
+	meta.ModifiedAt = time.Now()
+	return n, c.SaveEntry(ctx, nil, file)
 }
 
-func (c *controller) CloseFile(ctx context.Context, file files.File) (err error) {
+func (c *controller) CloseFile(ctx context.Context, file dentry.File) (err error) {
 	defer utils.TraceRegion(ctx, "controller.closefile")()
-	c.logger.Infow("close file", "file", file.GetObject().ID)
+	c.logger.Infow("close file", "file", file.Metadata().ID)
 	err = file.Close(ctx)
 	if err != nil {
-		c.logger.Errorw("close file error", "file", file.GetObject().ID, "err", err.Error())
+		c.logger.Errorw("close file error", "file", file.Metadata().ID, "err", err.Error())
 		return err
 	}
-	bus.Publish(fmt.Sprintf("object.file.%d.close", file.GetObject().ID), file.GetObject())
-	return nil
-}
-
-func (c *controller) DeleteFileData(ctx context.Context, en dentry.Entry) (err error) {
-	defer utils.TraceRegion(ctx, "controller.cleanfile")()
-	obj := en.Object()
-	c.logger.Infow("delete file", "file", obj.Name)
-	err = c.storage.Delete(ctx, obj.ID)
-	if err != nil {
-		c.logger.Errorw("delete file error", "file", obj.ID, "err", err.Error())
-		return err
-	}
-	bus.Publish(fmt.Sprintf("object.file.%d.delete", obj.ID), obj)
+	bus.Publish(fmt.Sprintf("object.file.%d.close", file.Metadata().ID), file)
 	return nil
 }

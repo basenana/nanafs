@@ -44,9 +44,9 @@ type sqliteMetaStore struct {
 var _ Meta = &sqliteMetaStore{}
 
 func (s *sqliteMetaStore) GetObject(ctx context.Context, id int64) (*types.Object, error) {
+	defer utils.TraceRegion(ctx, "sqlite.getobject")()
 	s.mux.RLock()
 	defer s.mux.RUnlock()
-	defer utils.TraceRegion(ctx, "sqlite.getobject")()
 	obj, err := s.dbEntity.GetObjectByID(ctx, id)
 	if err != nil {
 		s.logger.Errorw("query object by id failed", "id", id, "err", err.Error())
@@ -56,9 +56,9 @@ func (s *sqliteMetaStore) GetObject(ctx context.Context, id int64) (*types.Objec
 }
 
 func (s *sqliteMetaStore) ListObjects(ctx context.Context, filter types.Filter) ([]*types.Object, error) {
+	defer utils.TraceRegion(ctx, "sqlite.listobject")()
 	s.mux.RLock()
 	defer s.mux.RUnlock()
-	defer utils.TraceRegion(ctx, "sqlite.listobject")()
 	objList, err := s.dbEntity.ListObjectChildren(ctx, filter)
 	if err != nil {
 		s.logger.Errorw("list object failed", "filter", filter, "err", err.Error())
@@ -68,9 +68,9 @@ func (s *sqliteMetaStore) ListObjects(ctx context.Context, filter types.Filter) 
 }
 
 func (s *sqliteMetaStore) SaveObject(ctx context.Context, parent, obj *types.Object) error {
+	defer utils.TraceRegion(ctx, "sqlite.saveobject")()
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	defer utils.TraceRegion(ctx, "sqlite.saveobject")()
 	if err := s.dbEntity.SaveObject(ctx, parent, obj); err != nil {
 		s.logger.Errorw("save object failed", "id", obj.ID, "err", err.Error())
 		return db.SqlError2Error(err)
@@ -79,9 +79,9 @@ func (s *sqliteMetaStore) SaveObject(ctx context.Context, parent, obj *types.Obj
 }
 
 func (s *sqliteMetaStore) DestroyObject(ctx context.Context, src, parent, obj *types.Object) error {
+	defer utils.TraceRegion(ctx, "sqlite.destroyobject")()
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	defer utils.TraceRegion(ctx, "sqlite.destroyobject")()
 	err := s.dbEntity.DeleteObject(ctx, src, parent, obj)
 	if err != nil {
 		s.logger.Errorw("destroy object failed", "id", obj.ID, "err", err.Error())
@@ -91,9 +91,9 @@ func (s *sqliteMetaStore) DestroyObject(ctx context.Context, src, parent, obj *t
 }
 
 func (s *sqliteMetaStore) ListChildren(ctx context.Context, obj *types.Object) (Iterator, error) {
+	defer utils.TraceRegion(ctx, "sqlite.listchildren")()
 	s.mux.RLock()
 	defer s.mux.RUnlock()
-	defer utils.TraceRegion(ctx, "sqlite.listchildren")()
 	children, err := s.dbEntity.ListObjectChildren(ctx, types.Filter{ParentID: obj.ID})
 	if err != nil {
 		s.logger.Errorw("list object children failed", "id", obj.ID, "err", err.Error())
@@ -103,9 +103,9 @@ func (s *sqliteMetaStore) ListChildren(ctx context.Context, obj *types.Object) (
 }
 
 func (s *sqliteMetaStore) ChangeParent(ctx context.Context, srcParent, dstParent, obj *types.Object, opt types.ChangeParentOption) error {
+	defer utils.TraceRegion(ctx, "sqlite.changeparent")()
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	defer utils.TraceRegion(ctx, "sqlite.changeparent")()
 	obj.ParentID = dstParent.ID
 	err := s.dbEntity.SaveChangeParentObject(ctx, srcParent, dstParent, obj, opt)
 	if err != nil {
@@ -116,15 +116,36 @@ func (s *sqliteMetaStore) ChangeParent(ctx context.Context, srcParent, dstParent
 }
 
 func (s *sqliteMetaStore) MirrorObject(ctx context.Context, srcObj, dstParent, object *types.Object) error {
+	defer utils.TraceRegion(ctx, "sqlite.mirrorobject")()
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	defer utils.TraceRegion(ctx, "sqlite.mirrorobject")()
 	err := s.dbEntity.SaveMirroredObject(ctx, srcObj, dstParent, object)
 	if err != nil {
 		s.logger.Errorw("mirror object failed", "id", object.ID, "err", err.Error())
 		return db.SqlError2Error(err)
 	}
 	return nil
+}
+
+func (s *sqliteMetaStore) NextSegmentID(ctx context.Context) (int64, error) {
+	defer utils.TraceRegion(ctx, "sqlite.nextchunkid")()
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbEntity.NextSegmentID(ctx)
+}
+
+func (s *sqliteMetaStore) ListSegments(ctx context.Context, oid, chunkID int64) ([]types.ChunkSeg, error) {
+	defer utils.TraceRegion(ctx, "sqlite.listsegment")()
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbEntity.ListChunkSegments(ctx, oid, chunkID)
+}
+
+func (s *sqliteMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg, obj *types.Object) error {
+	defer utils.TraceRegion(ctx, "sqlite.appendsegment")()
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbEntity.InsertChunkSegment(ctx, obj, seg)
 }
 
 func (s *sqliteMetaStore) PluginRecorder(plugin types.PlugScope) PluginRecorder {

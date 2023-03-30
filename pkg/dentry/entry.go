@@ -32,6 +32,9 @@ type Entry interface {
 
 	Metadata() *types.Metadata
 	ExtendData() *types.ExtendData
+	GetExtendField(fKey string) *string
+	SetExtendField(fKey, fVal string)
+	RemoveExtendField(fKey string) error
 	IsGroup() bool
 	IsMirror() bool
 	Group() Group
@@ -56,6 +59,50 @@ func (r *rawEntry) Metadata() *types.Metadata {
 
 func (r *rawEntry) ExtendData() *types.ExtendData {
 	return &r.obj.ExtendData
+}
+
+func (r *rawEntry) ExtendField() types.ExtendFields {
+	r.obj.L.Lock()
+	result := r.obj.ExtendFields
+	r.obj.L.Unlock()
+	return result
+}
+
+func (r *rawEntry) GetExtendField(fKey string) *string {
+	r.obj.L.Lock()
+	if r.obj.ExtendFields.Fields == nil {
+		r.obj.L.Unlock()
+		return nil
+	}
+	fVal, ok := r.obj.ExtendFields.Fields[fKey]
+	r.obj.L.Unlock()
+	if !ok {
+		return nil
+	}
+	return &fVal
+}
+
+func (r *rawEntry) SetExtendField(fKey, fVal string) {
+	r.obj.L.Lock()
+	if r.obj.ExtendFields.Fields == nil {
+		r.obj.ExtendFields.Fields = map[string]string{}
+	}
+	r.obj.ExtendFields.Fields[fKey] = fVal
+	r.obj.L.Unlock()
+}
+
+func (r *rawEntry) RemoveExtendField(fKey string) error {
+	r.obj.L.Lock()
+	defer r.obj.L.Unlock()
+	if r.obj.ExtendFields.Fields == nil {
+		r.obj.ExtendFields.Fields = map[string]string{}
+	}
+	_, ok := r.obj.ExtendFields.Fields[fKey]
+	if !ok {
+		return types.ErrNotFound
+	}
+	delete(r.obj.ExtendFields.Fields, fKey)
+	return nil
 }
 
 func (r *rawEntry) IsGroup() bool {

@@ -18,12 +18,17 @@ package types
 
 import (
 	"github.com/basenana/nanafs/utils"
+	"sync"
 	"time"
 )
 
 const (
 	objectNameMaxLength    = 255
 	objectDefaultNamespace = "personal"
+
+	VersionKey         = "nanafs.version"
+	KindKey            = "nanafs.kind"
+	LabelPluginNameKey = "nanafs.plugin.name"
 )
 
 type Metadata struct {
@@ -39,6 +44,7 @@ type Metadata struct {
 	Inode      uint64    `json:"inode"`
 	Dev        int64     `json:"dev"`
 	Namespace  string    `json:"namespace,omitempty"`
+	Storage    string    `json:"storage"`
 	CreatedAt  time.Time `json:"created_at"`
 	ChangedAt  time.Time `json:"changed_at"`
 	ModifiedAt time.Time `json:"modified_at"`
@@ -67,10 +73,11 @@ func NewMetadata(name string, kind Kind) Metadata {
 }
 
 type ExtendData struct {
-	Annotation  *Annotation `json:"annotation,omitempty"`
-	Symlink     string      `json:"symlink,omitempty"`
-	GroupFilter *Rule       `json:"group_filter,omitempty"`
-	PlugScope   *PlugScope  `json:"plug_scope,omitempty"`
+	ExtendFields ExtendFields `json:"extend_fields"`
+	Annotation   *Annotation  `json:"annotation,omitempty"`
+	Symlink      string       `json:"symlink,omitempty"`
+	GroupFilter  *Rule        `json:"group_filter,omitempty"`
+	PlugScope    *PlugScope   `json:"plug_scope,omitempty"`
 }
 
 type PlugScope struct {
@@ -83,6 +90,28 @@ type PlugScope struct {
 type PropertyItem struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
+}
+
+type Labels struct {
+	Labels []Label `json:"labels,omitempty"`
+}
+
+func (l Labels) Get(key string) *Label {
+	for _, label := range l.Labels {
+		if label.Key == key {
+			return &label
+		}
+	}
+	return nil
+}
+
+type Label struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type ExtendFields struct {
+	Fields map[string]string `json:"fields,omitempty"`
 }
 
 type Annotation struct {
@@ -137,6 +166,8 @@ type Object struct {
 	ExtendData
 	Properties []PropertyItem `json:"properties,omitempty"`
 	Labels     Labels         `json:"labels"`
+
+	L sync.Mutex `json:"-"`
 }
 
 func (o *Object) IsGroup() bool {
@@ -159,18 +190,24 @@ func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {
 	newObj := &Object{
 		Metadata: md,
 		ExtendData: ExtendData{
-			Annotation: &Annotation{},
+			Annotation:   &Annotation{},
+			ExtendFields: ExtendFields{Fields: map[string]string{}},
 		},
 	}
 	if parent != nil {
 		newObj.ParentID = parent.ID
+		newObj.Storage = parent.Storage
 	}
 	return newObj, nil
 }
 
-type ObjectWorkflow struct {
-	Id        string
-	Synced    bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
+const ()
+
+type ChunkSeg struct {
+	ID       int64
+	ChunkID  int64
+	ObjectID int64
+	Off      int64
+	Len      int64
+	State    int16
 }

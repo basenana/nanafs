@@ -14,30 +14,38 @@
  limitations under the License.
 */
 
-package files
+package utils
 
-const (
-	fileChunkSize  = 1 << 22 // 4MB
-	pageSize       = 1 << 12 // 4k
-	pageCacheLimit = 1 << 24 // 16MB
-	bufQueueLen    = 256
-)
-
-func computeChunkIndex(off, chunkSize int64) (idx int64, pos int64) {
-	idx = off / chunkSize
-	pos = off % chunkSize
-	return
+type MaximumParallel struct {
+	q chan struct{}
 }
 
-func computePageIndex(chunkIndex, off int64) (idx int64, pos int64) {
-	off += chunkIndex * fileChunkSize
-	idx = off / pageSize
-	pos = off % pageSize
-	return
+func (p *MaximumParallel) Go(f func()) {
+	go func() {
+		p.q <- struct{}{}
+		defer func() {
+			select {
+			case <-p.q:
+			default:
+			}
+		}()
+		f()
+	}()
 }
 
-type cRange struct {
-	index  int64
-	offset int64
-	data   []byte
+func (p *MaximumParallel) BlockedGo(f func()) {
+	p.q <- struct{}{}
+	go func() {
+		defer func() {
+			select {
+			case <-p.q:
+			default:
+			}
+		}()
+		f()
+	}()
+}
+
+func NewMaximumParallel(num int) *MaximumParallel {
+	return &MaximumParallel{q: make(chan struct{}, num)}
 }

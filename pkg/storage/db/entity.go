@@ -236,6 +236,49 @@ func (e *Entity) DeletePluginRecord(ctx context.Context, plugin types.PlugScope,
 	return nil
 }
 
+func (e *Entity) NextSegmentID(ctx context.Context) (int64, error) {
+	return availableChunkSegID(e.DB.WithContext(ctx))
+}
+
+func (e *Entity) InsertChunkSegment(ctx context.Context, obj *types.Object, seg types.ChunkSeg) error {
+	return e.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		tx.Create(&ObjectChunk{
+			ID:       seg.ID,
+			OID:      obj.ID,
+			ChunkID:  seg.ChunkID,
+			Off:      seg.Off,
+			Len:      seg.Len,
+			State:    seg.State,
+			AppendAt: time.Now().UnixNano(),
+		})
+		if seg.Off+seg.Len > obj.Size {
+			obj.Size = seg.Off + seg.Len
+		}
+		return saveRawObject(tx, obj)
+	})
+}
+
+func (e *Entity) ListChunkSegments(ctx context.Context, oid, chunkID int64) ([]types.ChunkSeg, error) {
+	segments := make([]ObjectChunk, 0)
+	res := e.DB.WithContext(ctx).Where("oid = ? AND chunk_id = ?", oid, chunkID).Order("append_at").Find(&segments)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	result := make([]types.ChunkSeg, len(segments))
+	for i, seg := range segments {
+		result[i] = types.ChunkSeg{
+			ID:       seg.ID,
+			ChunkID:  seg.ChunkID,
+			ObjectID: seg.OID,
+			Off:      seg.Off,
+			Len:      seg.Len,
+			State:    seg.State,
+		}
+
+	}
+	return result, nil
+}
+
 func (e *Entity) SystemInfo(ctx context.Context) (*SystemInfo, error) {
 	info := &SystemInfo{}
 	res := e.WithContext(ctx).First(info)
@@ -249,9 +292,15 @@ func assembleObject(db *gorm.DB, objModel *Object) (*types.Object, error) {
 	obj := objModel.Object()
 
 	oa := &ObjectAccess{}
+	ext := &ObjectExtend{}
 	ol := make([]ObjectLabel, 0)
 
 	res := db.Where("id", "=", objModel.ID).First(oa)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+
+	res = db.Where("id", "=", objModel.ID).First(ext)
 	if res.Error != nil {
 		return nil, res.Error
 	}
@@ -262,6 +311,7 @@ func assembleObject(db *gorm.DB, objModel *Object) (*types.Object, error) {
 	}
 
 	obj.Access = oa.ToAccess()
+	obj.ExtendData = ext.ToExtData()
 
 	for _, kv := range ol {
 		obj.Labels.Labels = append(obj.Labels.Labels, types.Label{Key: kv.Key, Value: kv.Value})
@@ -273,6 +323,7 @@ func saveRawObject(tx *gorm.DB, obj *types.Object) error {
 	var (
 		objModel = &Object{ID: obj.ID}
 		oaModel  = &ObjectAccess{ID: obj.ID}
+		extModel = &ObjectExtend{ID: obj.ID}
 	)
 	res := tx.First(objModel)
 	if res.Error != nil && res.Error != gorm.ErrRecordNotFound {
@@ -281,6 +332,7 @@ func saveRawObject(tx *gorm.DB, obj *types.Object) error {
 
 	objModel.Update(obj)
 	oaModel.Update(obj)
+	extModel.Update(obj)
 	if res.Error == gorm.ErrRecordNotFound {
 		ino, err := availableInode(tx)
 		if err != nil {
@@ -297,12 +349,20 @@ func saveRawObject(tx *gorm.DB, obj *types.Object) error {
 		if res.Error != nil {
 			return res.Error
 		}
+		res = tx.Create(extModel)
+		if res.Error != nil {
+			return res.Error
+		}
 	}
 	res = tx.Updates(objModel)
 	if res.Error != nil {
 		return res.Error
 	}
 	res = tx.Updates(oaModel)
+	if res.Error != nil {
+		return res.Error
+	}
+	res = tx.Updates(extModel)
 	if res.Error != nil {
 		return res.Error
 	}
@@ -313,6 +373,7 @@ func deleteRawObject(tx *gorm.DB, obj *types.Object) error {
 	var (
 		objModel = &Object{ID: obj.ID}
 		oaModel  = &ObjectAccess{ID: obj.ID}
+		extModel = &ObjectExtend{ID: obj.ID}
 	)
 	res := tx.First(objModel)
 	if res.Error != nil && res.Error != gorm.ErrRecordNotFound {
@@ -324,6 +385,10 @@ func deleteRawObject(tx *gorm.DB, obj *types.Object) error {
 		return res.Error
 	}
 	res = tx.Delete(oaModel)
+	if res.Error != nil {
+		return res.Error
+	}
+	res = tx.Delete(extModel)
 	if res.Error != nil {
 		return res.Error
 	}
@@ -349,6 +414,22 @@ func availableInode(tx *gorm.DB) (uint64, error) {
 	}
 
 	return info.Inode, nil
+}
+
+func availableChunkSegID(tx *gorm.DB) (int64, error) {
+	info := &SystemInfo{}
+	res := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(info)
+	if res.Error != nil {
+		return 0, res.Error
+	}
+
+	info.ChunkSeg += 1
+	res = tx.Updates(info)
+	if res.Error != nil {
+		return 0, res.Error
+	}
+
+	return info.ChunkSeg, nil
 }
 
 func updateObjectLabels(tx *gorm.DB, obj *types.Object) error {

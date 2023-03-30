@@ -27,6 +27,7 @@ type nodeOperation interface {
 	fs.NodeSetattrer
 	fs.NodeGetxattrer
 	fs.NodeSetxattrer
+	fs.NodeRemovexattrer
 	fs.NodeOpener
 	fs.NodeLookuper
 	fs.NodeCreater

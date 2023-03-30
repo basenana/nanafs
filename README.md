@@ -77,8 +77,9 @@ The generated configuration file can be found in the `~/.nana` directory:
   },
   "storages": [
     {
-      "id": "local",
-      "local_dir": "/your/data/path"
+      "id": "local-0",
+      "type": "local",
+      "local_dir": "/your/data/path/local"
     }
   ]
 }

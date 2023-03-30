@@ -44,7 +44,10 @@ var _ = BeforeSuite(func() {
 	memMeta, err := storage.NewMetaStorage(storage.MemoryStorage, config.Meta{})
 	Expect(err).Should(BeNil())
 	objStore = memMeta
-	entryManager = NewManager(objStore, config.Config{Owner: &config.FsOwner{}})
+	entryManager, _ = NewManager(objStore, config.Config{Owner: &config.FsOwner{}, Storages: []config.Storage{{
+		ID:   storage.MemoryStorage,
+		Type: storage.MemoryStorage,
+	}}})
 
 	// init root
 	root, err = entryManager.Root(context.TODO())

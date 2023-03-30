@@ -29,4 +29,5 @@ var (
 	ErrNoPerm      = errors.New("no permission")
 	ErrOutOfFS     = errors.New("out of nanafs control")
 	ErrUnsupported = errors.New("unsupported operation")
+	ErrPageFault   = errors.New("page cache fault")
 )
