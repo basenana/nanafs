@@ -93,16 +93,3 @@ func (c *controller) CloseFile(ctx context.Context, file dentry.File) (err error
 	bus.Publish(fmt.Sprintf("object.file.%d.close", file.Metadata().ID), file)
 	return nil
 }
-
-func (c *controller) DeleteFileData(ctx context.Context, en dentry.Entry) (err error) {
-	defer utils.TraceRegion(ctx, "controller.cleanfile")()
-	obj := en.Object()
-	c.logger.Infow("delete file", "file", obj.Name)
-	err = c.storage.Delete(ctx, obj.ID)
-	if err != nil {
-		c.logger.Errorw("delete file error", "file", obj.ID, "err", err.Error())
-		return err
-	}
-	bus.Publish(fmt.Sprintf("object.file.%d.delete", obj.ID), obj)
-	return nil
-}

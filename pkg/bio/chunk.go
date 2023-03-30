@@ -607,3 +607,30 @@ func minOff(off1, off2 int64) int64 {
 	}
 	return off2
 }
+
+func DeleteChunksData(ctx context.Context, md *types.Metadata, chunkStore storage.ChunkStore, dataStore storage.Storage) error {
+	maxChunkID := (md.Size / fileChunkSize) + 1
+
+	var (
+		segments  []types.ChunkSeg
+		resultErr error
+	)
+	for cid := int64(0); cid < maxChunkID; cid++ {
+		chunkSegment, err := chunkStore.ListSegments(ctx, md.ID, cid)
+		if err != nil {
+			resultErr = err
+			continue
+		}
+		if len(chunkSegment) > 0 {
+			segments = append(segments, chunkSegment...)
+		}
+	}
+
+	for _, seg := range segments {
+		if err := dataStore.Delete(ctx, seg.ID); err != nil {
+			resultErr = err
+			continue
+		}
+	}
+	return resultErr
+}
