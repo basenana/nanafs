@@ -16,15 +16,28 @@
 
 package config
 
+import "fmt"
+
 type verifier func(config *Config) error
 
 var verifiers = []verifier{
 	setDefaultValue,
+	verifyLocalCache,
 }
 
 func setDefaultValue(config *Config) error {
 	if config.Owner == nil {
 		config.Owner = defaultOwner()
+	}
+	return nil
+}
+
+func verifyLocalCache(config *Config) error {
+	if config.CacheDir == "" {
+		return fmt.Errorf("cache dir is empty")
+	}
+	if config.CacheSize <= 0 {
+		return fmt.Errorf("cache size must more than 0")
 	}
 	return nil
 }

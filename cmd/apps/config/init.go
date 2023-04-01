@@ -47,6 +47,13 @@ func initDefaultConfig() {
 		return
 	}
 
+	cacheDir := localCacheDirPath(WorkSpace)
+	fmt.Printf("Workspace Local Cache Dir: %s\n", cacheDir)
+	if err := mkdir(cacheDir); err != nil {
+		fmt.Printf("init workspace local cache dir failed: %s\n", err.Error())
+		return
+	}
+
 	dbFile := localDbFilePath(WorkSpace)
 	fmt.Printf("Workspace Database File: %s\n", dbFile)
 
@@ -62,7 +69,9 @@ func initDefaultConfig() {
 				LocalDir: dataDir,
 			},
 		},
-		Debug: false,
+		CacheDir:  cacheDir,
+		CacheSize: 10,
+		Debug:     false,
 		ApiConfig: config.Api{
 			Enable: true,
 			Host:   "127.0.0.1",

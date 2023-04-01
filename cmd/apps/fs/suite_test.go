@@ -75,7 +75,6 @@ func TestFs(t *testing.T) {
 		ID:   storage.MemoryStorage,
 		Type: storage.MemoryStorage,
 	}}}
-	_ = config.Verify(&cfg)
 
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Fs Suite")

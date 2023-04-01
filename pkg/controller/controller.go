@@ -54,7 +54,6 @@ type Controller interface {
 
 type controller struct {
 	meta      storage.Meta
-	storage   storage.Storage
 	cfg       config.Config
 	cfgLoader config.Loader
 
@@ -248,12 +247,11 @@ func (c *controller) ChangeEntryParent(ctx context.Context, target, oldParent, n
 	return nil
 }
 
-func New(loader config.Loader, meta storage.Meta, storage storage.Storage) (Controller, error) {
+func New(loader config.Loader, meta storage.Meta) (Controller, error) {
 	cfg, _ := loader.GetConfig()
 
 	ctl := &controller{
 		meta:      meta,
-		storage:   storage,
 		cfg:       cfg,
 		cfgLoader: loader,
 		logger:    logger.NewLogger("controller"),

@@ -75,12 +75,9 @@ var daemonCmd = &cobra.Command{
 			panic("storage must config one")
 		}
 
-		sto, err := storage.NewStorage(cfg.Storages[0].ID, cfg.Storages[0].Type, cfg.Storages[0])
-		if err != nil {
-			panic(err)
-		}
+		storage.InitLocalCache(cfg)
 
-		ctrl, err := controller.New(loader, meta, sto)
+		ctrl, err := controller.New(loader, meta)
 		if err != nil {
 			panic(err)
 		}

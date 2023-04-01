@@ -42,6 +42,7 @@ type chunkReader struct {
 	page    *pageCache
 	store   storage.ChunkStore
 	storage storage.Storage
+	cache   *storage.LocalCache
 	readers map[int64]*segReader
 	readMux sync.Mutex
 }
@@ -52,6 +53,7 @@ func NewChunkReader(obj *types.Object, chunkStore storage.ChunkStore, dataStore 
 		page:    newPageCache(obj.ID, fileChunkSize),
 		store:   chunkStore,
 		storage: dataStore,
+		cache:   storage.NewLocalCache(dataStore),
 		readers: map[int64]*segReader{},
 	}
 	return cr
