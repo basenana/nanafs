@@ -20,10 +20,12 @@ import "context"
 
 type Reader interface {
 	ReadAt(ctx context.Context, dest []byte, off int64) (int64, error)
+	Close()
 }
 
 type Writer interface {
 	WriteAt(ctx context.Context, data []byte, off int64) (int64, error)
 	Flush(ctx context.Context) error
 	Fsync(ctx context.Context) error
+	Close()
 }

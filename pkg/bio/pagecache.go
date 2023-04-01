@@ -18,7 +18,9 @@ package bio
 
 import (
 	"context"
+	"fmt"
 	"github.com/basenana/nanafs/utils"
+	"github.com/basenana/nanafs/utils/logger"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -26,7 +28,7 @@ import (
 
 const (
 	pageModeEmpty   = 0
-	pageModeInitial = 1
+	pageModeData    = 1
 	pageModeInvalid = 1 << 1
 	pageModeDirty   = 1 << 2
 	pageTreeShift   = 6
@@ -37,11 +39,12 @@ const (
 
 var (
 	crtPageCacheTotal   int32 = 0
-	maxPageCacheTotal   int32 = 1024
-	pageReleaseInterval       = time.Second * 5
+	maxPageCacheTotal         = 1024
 	pageCacheMux              = sync.Mutex{}
-	pageCacheCond             = sync.NewCond(&pageCacheMux)
+	pageReleaseInterval       = time.Minute * 5
 	pageCacheReleaseQ         = make(chan *pageNode, maxPageCacheTotal/2)
+	pageCacheCond             = sync.NewCond(&pageCacheMux)
+	pageCacheLFU              = utils.NewLFUCache(maxPageCacheTotal - 1)
 	pageCacheDataPool         = sync.Pool{New: func() any { return make([]byte, pageSize) }}
 )
 
@@ -64,25 +67,28 @@ func newPageCache(entryID, chunkSize int64) *pageCache {
 func (p *pageCache) read(ctx context.Context, pageIndex int64, initDataFn func(*pageNode) error) (page *pageNode, err error) {
 	ctx, endF := utils.TraceTask(ctx, "pagecache.read")
 	defer endF()
+	p.mux.Lock()
 	page = p.findPage(pageIndex)
 	if page == nil {
 		page = p.insertPage(ctx, pageIndex)
+		page.entry = p.entryID
+		page.idx = pageIndex
 	}
+	pageCacheLFU.Put(pageCacheKey(p.entryID, pageIndex), page)
+	p.mux.Unlock()
+
 	atomic.AddInt32(&page.ref, 1)
 	page.mux.Lock()
-	for page.mode&pageModeDirty > 0 {
-		page.cond.Wait()
-	}
-	if page.mode&(pageModeInitial|pageModeInvalid) > 0 {
+	if page.mode&pageModeInvalid > 0 {
 		for page.data == nil {
 			page.data = pageCacheDataPool.Get().([]byte)
 		}
 		err = initDataFn(page)
-		page.mode &^= pageModeInitial | pageModeInvalid
 		if err != nil {
 			page.mux.Unlock()
 			return nil, err
 		}
+		page.mode &^= pageModeInvalid
 	}
 	page.mux.Unlock()
 	return page, nil
@@ -91,7 +97,6 @@ func (p *pageCache) read(ctx context.Context, pageIndex int64, initDataFn func(*
 func (p *pageCache) insertPage(ctx context.Context, pageIdx int64) *pageNode {
 	ctx, endF := utils.TraceTask(ctx, "pagecache.insert")
 	defer endF()
-	p.mux.Lock()
 	if p.data.rootNode == nil {
 		p.data.rootNode = newPage(0, pageSize, pageModeEmpty)
 	}
@@ -116,13 +121,12 @@ func (p *pageCache) insertPage(ctx context.Context, pageIdx int64) *pageNode {
 		shift -= pageTreeShift
 	}
 
-	dataNode := newPage(0, pageSize, pageModeInitial)
+	dataNode := newPage(0, pageSize, pageModeData|pageModeInvalid)
 
 	slot = pageIdx & pageTreeMask
 	node.slots[slot] = dataNode
 
 	p.data.totalCount += 1
-	p.mux.Unlock()
 	return dataNode
 }
 
@@ -135,7 +139,6 @@ func (p *pageCache) findPage(pageIdx int64) *pageNode {
 		return nil
 	}
 
-	p.mux.Lock()
 	var (
 		node  = p.data.rootNode
 		shift = node.shift
@@ -145,13 +148,11 @@ func (p *pageCache) findPage(pageIdx int64) *pageNode {
 		slot = pageIdx >> node.shift & pageTreeMask
 		next := node.slots[slot]
 		if next == nil {
-			p.mux.Unlock()
 			return nil
 		}
 		node = next
 		shift -= pageTreeShift
 	}
-	p.mux.Unlock()
 
 	return node
 }
@@ -179,12 +180,37 @@ func (p *pageCache) extendPageTree(index int64) {
 	p.data.rootNode = node
 }
 
+func (p *pageCache) close() {
+	p.data.Visit(func(pNode *pageNode) {
+		logger.NewLogger("pageCache").Infow("release page after close", "idx", pNode.idx)
+		pageCacheLFU.Remove(pageCacheKey(pNode.entry, pNode.idx))
+	})
+}
+
 type pageRoot struct {
 	rootNode   *pageNode
 	totalCount int
 }
 
+func (r *pageRoot) Visit(fn func(pNode *pageNode)) {
+	r.visit(r.rootNode, fn)
+}
+
+func (r *pageRoot) visit(node *pageNode, fn func(pNode *pageNode)) {
+	if node == nil {
+		return
+	}
+	for _, nextNode := range node.slots {
+		r.visit(nextNode, fn)
+	}
+	if node.mode&pageModeData > 0 {
+		fn(node)
+	}
+}
+
 type pageNode struct {
+	entry  int64
+	idx    int64
 	slots  []*pageNode
 	parent *pageNode
 	shift  int
@@ -193,28 +219,17 @@ type pageNode struct {
 	length int64
 	ref    int32
 	mode   int8
-	mux    sync.Mutex
-	cond   *sync.Cond
+	mux    sync.RWMutex
 }
 
-func (n *pageNode) release() bool {
-	if atomic.AddInt32(&n.ref, -1) == 0 {
-		select {
-		case pageCacheReleaseQ <- n:
-		default:
-			releasePage(n)
-		}
-		return true
-	}
-	return false
+func (n *pageNode) release() {
+	atomic.AddInt32(&n.ref, -1)
 }
 
 func (n *pageNode) commit() {
-	n.mode |= pageModeInitial
+	n.mode |= pageModeInvalid
 	n.mode &^= pageModeDirty
-	if !n.release() {
-		n.cond.Signal()
-	}
+	n.release()
 }
 
 func newPage(shift int, pageSize int64, mode int8) *pageNode {
@@ -226,11 +241,11 @@ func newPage(shift int, pageSize int64, mode int8) *pageNode {
 	switch {
 	case p.mode == pageModeEmpty:
 		p.slots = make([]*pageNode, pageTreeSize)
-	case p.mode&pageModeInitial > 0:
+	case p.mode&pageModeData > 0:
 		pageCacheMux.Lock()
 		for {
 			crtTotal := atomic.LoadInt32(&crtPageCacheTotal)
-			if crtTotal >= maxPageCacheTotal {
+			if crtTotal >= int32(maxPageCacheTotal) {
 				pageCacheCond.Wait()
 				continue
 			}
@@ -239,8 +254,6 @@ func newPage(shift int, pageSize int64, mode int8) *pageNode {
 			}
 		}
 		pageCacheMux.Unlock()
-		p.cond = sync.NewCond(&p.mux)
-		p.data = pageCacheDataPool.Get().([]byte)
 	}
 	return p
 }
@@ -248,7 +261,7 @@ func newPage(shift int, pageSize int64, mode int8) *pageNode {
 func releasePage(pNode *pageNode) {
 	atomic.AddInt32(&crtPageCacheTotal, -1)
 	pNode.mux.Lock()
-	pNode.mode |= pageModeInitial
+	pNode.mode |= pageModeInvalid
 	if pNode.data != nil {
 		pageCacheDataPool.Put(pNode.data)
 		pNode.data = nil
@@ -263,23 +276,40 @@ func computePageIndex(off int64) (idx int64, pos int64) {
 	return
 }
 
+func pageCacheKey(oid, pIdx int64) string {
+	return fmt.Sprintf("pg_%d_%d", oid, pIdx)
+}
+
 func init() {
+	pageCacheLFU.HandlerRemove = func(k string, v interface{}) {
+		pNode := v.(*pageNode)
+		if atomic.LoadInt32(&pNode.ref) == 0 {
+			releasePage(pNode)
+			return
+		}
+		pageCacheReleaseQ <- pNode
+	}
+
 	go func() {
 		ticker := time.NewTicker(pageReleaseInterval)
 		for {
-			<-ticker.C
-			fetch := 1
-			if len(pageCacheReleaseQ) > int(maxPageCacheTotal/4) {
-				fetch = 3
-			}
-			for fetch > 0 {
-				fetch -= 1
-				select {
-				case pNode := <-pageCacheReleaseQ:
-					if atomic.LoadInt32(&pNode.ref) == 0 {
-						releasePage(pNode)
-					}
+			select {
+			case <-ticker.C:
+				if atomic.LoadInt32(&crtPageCacheTotal) > int32(float64(maxPageCacheTotal)*0.8) {
+					pageCacheLFU.Visit(func(k string, v interface{}) {
+						pNode := v.(*pageNode)
+						logger.NewLogger("pageCache").Infow("visit page", "pageIdx", pNode.idx, "ref", pNode.ref)
+						if atomic.LoadInt32(&pNode.ref) == 0 {
+							pageCacheLFU.Remove(k)
+						}
+					})
 				}
+			case pNode := <-pageCacheReleaseQ:
+				if atomic.LoadInt32(&pNode.ref) == 0 {
+					releasePage(pNode)
+					continue
+				}
+				pageCacheLFU.Put(pageCacheKey(pNode.entry, pNode.idx), pNode)
 			}
 		}
 	}()

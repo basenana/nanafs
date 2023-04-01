@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/config"
+	"go.uber.org/zap"
 	"golang.org/x/sys/unix"
 	"io"
 	"os"
@@ -33,6 +34,8 @@ var (
 	localCacheDir       string
 	localCacheSizeLimit int64
 	localCacheSizeUsage int64
+
+	cacheLog *zap.SugaredLogger
 )
 
 func InitLocalCache(config config.Config) {
@@ -69,14 +72,16 @@ func (c *LocalCache) OpenChunkNode(ctx context.Context, key, idx int64) (CacheNo
 	}
 	node, ok := nodes[idx]
 	c.mux.Unlock()
-	if ok {
+	if !ok {
 		node, err = c.makeLocalCache(ctx, key, idx)
 		if err != nil {
+			cacheLog.Errorw("make cache node failed", "key", key, "idx", idx, "err", err)
 			return nil, err
 		}
 	}
 
 	if err = node.Attach(); err != nil {
+		cacheLog.Errorw("attach cache node failed", "key", key, "idx", idx, "err", err)
 		return nil, err
 	}
 	return node, nil
@@ -239,6 +244,7 @@ func (c *cacheNode) ReadAt(p []byte, off int64) (n int, err error) {
 func (c *cacheNode) Close() error {
 	if atomic.AddInt32(&c.ref, -1) == 0 {
 		if err := unix.Munmap(c.data); err != nil {
+			cacheLog.Errorw("detach cache node failed", "path", c.path, "err", err)
 			return err
 		}
 		c.data = nil

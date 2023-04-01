@@ -21,6 +21,8 @@ import (
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
+	"github.com/basenana/nanafs/utils/logger"
+	"go.uber.org/zap"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -34,6 +36,9 @@ const (
 
 var (
 	maximumChunkTaskParallel = utils.NewMaximumParallel(100)
+	fileChunkReaders         = make(map[int64]*chunkReader)
+	fileChunkWriters         = make(map[int64]*chunkWriter)
+	fileChunkMux             sync.Mutex
 )
 
 type chunkReader struct {
@@ -45,16 +50,29 @@ type chunkReader struct {
 	cache   *storage.LocalCache
 	readers map[int64]*segReader
 	readMux sync.Mutex
+	ref     int32
+	logger  *zap.SugaredLogger
 }
 
 func NewChunkReader(obj *types.Object, chunkStore storage.ChunkStore, dataStore storage.Storage) Reader {
-	cr := &chunkReader{
+	fileChunkMux.Lock()
+	defer fileChunkMux.Unlock()
+
+	cr, ok := fileChunkReaders[obj.ID]
+	if ok {
+		atomic.AddInt32(&cr.ref, 1)
+		return cr
+	}
+
+	cr = &chunkReader{
 		Object:  obj,
 		page:    newPageCache(obj.ID, fileChunkSize),
 		store:   chunkStore,
 		storage: dataStore,
 		cache:   storage.NewLocalCache(dataStore),
 		readers: map[int64]*segReader{},
+		ref:     1,
+		logger:  logger.NewLogger("chunkIO").With("oid", obj.ID),
 	}
 	return cr
 }
@@ -130,6 +148,15 @@ func (c *chunkReader) invalidate(index int64) {
 		reader.mux.Lock()
 		reader.st = nil
 		reader.mux.Unlock()
+	}
+}
+
+func (c *chunkReader) Close() {
+	if atomic.AddInt32(&c.ref, -1) == 0 {
+		fileChunkMux.Lock()
+		delete(fileChunkReaders, c.ID)
+		fileChunkMux.Unlock()
+		c.page.close()
 	}
 }
 
@@ -245,9 +272,9 @@ func (c *segReader) readPage(ctx context.Context, segments []segment, pageIndex,
 		return err
 	}
 	if dest != nil {
-		page.mux.Lock()
+		page.mux.RLock()
 		copy(dest, page.data[off-pageStart:page.length])
-		page.mux.Unlock()
+		page.mux.RUnlock()
 	}
 	page.release()
 	return nil
@@ -257,6 +284,7 @@ type chunkWriter struct {
 	*chunkReader
 	unready   int32
 	writers   map[int64]*segWriter
+	ref       int32
 	writerMux sync.Mutex
 }
 
@@ -265,7 +293,16 @@ func NewChunkWriter(reader Reader) Writer {
 	if !ok {
 		return nil
 	}
-	return &chunkWriter{chunkReader: r, writers: map[int64]*segWriter{}}
+
+	fileChunkMux.Lock()
+	defer fileChunkMux.Unlock()
+	cw, ok := fileChunkWriters[r.ID]
+	if ok {
+		atomic.AddInt32(&cw.ref, 1)
+		return cw
+	}
+
+	return &chunkWriter{chunkReader: r, writers: map[int64]*segWriter{}, ref: 1}
 }
 
 func (c *chunkWriter) WriteAt(ctx context.Context, data []byte, off int64) (n int64, err error) {
@@ -359,6 +396,14 @@ func (c *chunkWriter) Fsync(ctx context.Context) error {
 	}
 }
 
+func (c *chunkWriter) Close() {
+	if atomic.AddInt32(&c.ref, -1) == 0 {
+		fileChunkMux.Lock()
+		delete(fileChunkWriters, c.ID)
+		fileChunkMux.Unlock()
+	}
+}
+
 type segWriter struct {
 	*chunkWriter
 
@@ -383,7 +428,7 @@ func (w *segWriter) put(ctx context.Context, pageIdx, pagePos int64, data []byte
 	}
 
 	if tgt != nil {
-		tgt.node.mux.Lock()
+		tgt.node.mux.RLock()
 		dataLen := pagePos + int64(copy(tgt.node.data[pagePos:], data))
 		if pagePos < tgt.node.pos {
 			tgt.node.pos = pagePos
@@ -391,7 +436,7 @@ func (w *segWriter) put(ctx context.Context, pageIdx, pagePos int64, data []byte
 		if dataLen > tgt.node.length {
 			tgt.node.length = dataLen
 		}
-		tgt.node.mux.Unlock()
+		tgt.node.mux.RUnlock()
 		if tgt.node.length == pageSize {
 			tgt.tryCommit()
 		}
@@ -453,10 +498,10 @@ Next:
 			continue
 		}
 
-		page.node.mux.Lock()
+		page.node.mux.RLock()
 		if err = w.storage.Put(context.Background(), chunkSegId, page.pIdx, page.node.pos, page.node.data); err != nil {
 			w.chunkErr = err
-			page.node.mux.Unlock()
+			page.node.mux.RUnlock()
 			continue
 		}
 
@@ -469,10 +514,10 @@ Next:
 			State:    0,
 		}, w.Object); err != nil {
 			w.chunkErr = err
-			page.node.mux.Unlock()
+			page.node.mux.RUnlock()
 			continue
 		}
-		page.node.mux.Unlock()
+		page.node.mux.RUnlock()
 		page.node.commit()
 		w.dirtyPages = w.dirtyPages[1:]
 		atomic.AddInt32(&w.unready, -1)
