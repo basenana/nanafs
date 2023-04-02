@@ -294,7 +294,7 @@ func (m *memoryStorage) Put(ctx context.Context, key int64, idx, offset int64, d
 	cKey := m.chunkKey(key, idx)
 	ck, err := m.getChunk(ctx, m.chunkKey(key, idx))
 	if err != nil {
-		ck = &chunk{data: make([]byte, 1<<22)}
+		ck = &chunk{data: make([]byte, cacheNodeSize)}
 	}
 
 	copy(ck.data[offset:], data)

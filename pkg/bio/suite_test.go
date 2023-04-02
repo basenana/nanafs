@@ -21,6 +21,7 @@ import (
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
+	"os"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
@@ -31,12 +32,21 @@ var (
 	chunkStore storage.ChunkStore
 	dataStore  storage.Storage
 	fakeObj    *types.Object
+
+	workdir string
 )
 
 func TestBIO(t *testing.T) {
 	logger.InitLogger()
 	defer logger.Sync()
 	RegisterFailHandler(Fail)
+
+	var err error
+	workdir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-bio-")
+	Expect(err).Should(BeNil())
+	t.Logf("unit test workdir on: %s", workdir)
+	storage.InitLocalCache(config.Config{CacheDir: workdir, CacheSize: 1})
+
 	RunSpecs(t, "BIO Suite")
 }
 

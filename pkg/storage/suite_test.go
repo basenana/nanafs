@@ -34,7 +34,7 @@ func TestStorage(t *testing.T) {
 	defer logger.Sync()
 
 	var err error
-	workdir, err = os.MkdirTemp(os.TempDir(), "nanafsunittest-")
+	workdir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-storage-")
 	Expect(err).Should(BeNil())
 	t.Logf("unit test workdir on: %s", workdir)
 

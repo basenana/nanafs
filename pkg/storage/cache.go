@@ -30,6 +30,10 @@ import (
 	"time"
 )
 
+const (
+	cacheNodeSize = 1 << 21 // 2M
+)
+
 var (
 	localCacheDir       string
 	localCacheSizeLimit int64
@@ -87,12 +91,31 @@ func (c *LocalCache) OpenChunkNode(ctx context.Context, key, idx int64) (CacheNo
 	return node, nil
 }
 
-func (c *LocalCache) OpenTemporaryNode(oid int64) (CacheNode, error) {
-	return nil, nil
+func (c *LocalCache) OpenTemporaryNode(ctx context.Context, oid, off int64) (CacheNode, error) {
+	tFile := c.localTemporaryFilePath(oid, off)
+	f, err := os.Create(tFile)
+	if err != nil {
+		return nil, err
+	}
+	if err = f.Truncate(cacheNodeSize); err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	node := &cacheNode{path: tFile, uncommitted: true}
+	if err = node.Attach(); err != nil {
+		return nil, err
+	}
+	return node, nil
 }
 
-func (c *LocalCache) CommitTemporaryNode(node CacheNode) error {
-	return nil
+func (c *LocalCache) CommitTemporaryNode(ctx context.Context, segID, idx int64, node CacheNode) error {
+	no := node.(*cacheNode)
+	if err := c.s.Put(ctx, segID, idx, 0, no.data[:no.size]); err != nil {
+		return err
+	}
+	no.uncommitted = false
+	// TODO: rename
+	return node.Close()
 }
 
 func (c *LocalCache) makeLocalCache(ctx context.Context, key, idx int64) (CacheNode, error) {
@@ -135,7 +158,7 @@ func (c *LocalCache) makeLocalCache(ctx context.Context, key, idx int64) (CacheN
 	}
 
 	cacheFilePath := c.localCacheFilePath(key, idx)
-	f, err := os.Create(c.localCacheFilePath(key, idx))
+	f, err := os.Create(cacheFilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -182,8 +205,8 @@ func (c *LocalCache) cleanSpaceAndWait(ctx context.Context) error {
 	return nil
 }
 
-func (c *LocalCache) localTemporaryFilePath(oid int64) string {
-	return path.Join(localCacheDir, "temporary", fmt.Sprintf("%d_%d", oid, time.Now().UnixNano()))
+func (c *LocalCache) localTemporaryFilePath(oid, off int64) string {
+	return path.Join(localCacheDir, fmt.Sprintf("t_%d_%d_%d", oid, off, time.Now().UnixNano()))
 }
 
 func (c *LocalCache) localCacheFilePath(key, idx int64) string {
@@ -198,10 +221,12 @@ type CacheNode interface {
 }
 
 type cacheNode struct {
-	ref  int32
-	f    *os.File
-	path string
-	data []byte
+	ref         int32
+	f           *os.File
+	path        string
+	data        []byte
+	size        int64
+	uncommitted bool
 }
 
 var _ CacheNode = &cacheNode{}
@@ -230,6 +255,9 @@ func (c *cacheNode) WriteAt(p []byte, off int64) (n int, err error) {
 		return 0, io.EOF
 	}
 	n = copy(c.data[off:], p)
+	if off+int64(n) > c.size {
+		c.size = off + int64(n)
+	}
 	return n, nil
 }
 

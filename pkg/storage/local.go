@@ -33,8 +33,6 @@ const (
 	LocalStorage         = "local"
 	defaultLocalDirMode  = 0755
 	defaultLocalFileMode = 0644
-
-	cacheNodeSize = 1 << 21 // 2M
 )
 
 type local struct {

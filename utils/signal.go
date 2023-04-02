@@ -56,7 +56,7 @@ func handlerUserSignal() {
 		var (
 			buf       []byte
 			stackSize int
-			startSize = math.MaxInt16
+			startSize = math.MaxInt32
 		)
 		for len(buf) == stackSize {
 			buf = make([]byte, startSize)

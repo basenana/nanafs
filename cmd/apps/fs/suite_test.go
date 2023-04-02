@@ -42,9 +42,7 @@ func (m mockConfig) GetConfig() (config.Config, error) {
 
 func NewMockController() controller.Controller {
 	m, _ := storage.NewMetaStorage("memory", config.Meta{})
-	s, _ := storage.NewStorage(storage.MemoryStorage, storage.MemoryStorage, config.Storage{})
-
-	ctrl, _ := controller.New(mockConfig{}, m, s)
+	ctrl, _ := controller.New(mockConfig{}, m)
 	return ctrl
 }
 
@@ -71,10 +69,16 @@ func TestFs(t *testing.T) {
 	logger.InitLogger()
 	defer logger.Sync()
 
-	cfg = config.Config{ApiConfig: config.Api{Enable: true}, Storages: []config.Storage{{
-		ID:   storage.MemoryStorage,
-		Type: storage.MemoryStorage,
-	}}}
+	cfg = config.Config{
+		Owner: &config.FsOwner{
+			Uid: 0,
+			Gid: 0,
+		},
+		ApiConfig: config.Api{Enable: true},
+		Storages: []config.Storage{{
+			ID:   storage.MemoryStorage,
+			Type: storage.MemoryStorage,
+		}}}
 
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Fs Suite")
