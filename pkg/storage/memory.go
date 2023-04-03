@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
@@ -174,10 +175,11 @@ func (m *memoryMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg
 	chunks := m.chunks[seg.ChunkID]
 	chunks = append(chunks, seg)
 	m.chunks[seg.ChunkID] = chunks
-	if obj != nil && seg.Off+seg.Len > obj.Size {
+	if seg.Off+seg.Len > obj.Size {
 		obj.Size = seg.Off + seg.Len
-		m.objects[obj.ID] = obj
 	}
+	obj.ModifiedAt = time.Now()
+	m.objects[obj.ID] = obj
 	return nil
 }
 

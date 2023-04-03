@@ -79,7 +79,8 @@ func (c *controller) WriteFile(ctx context.Context, file dentry.File, data []byt
 	}
 	meta := file.Metadata()
 	meta.ModifiedAt = time.Now()
-	return n, c.SaveEntry(ctx, nil, file)
+	//return n, c.SaveEntry(ctx, nil, file)
+	return n, nil
 }
 
 func (c *controller) CloseFile(ctx context.Context, file dentry.File) (err error) {

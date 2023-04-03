@@ -254,6 +254,7 @@ func (e *Entity) InsertChunkSegment(ctx context.Context, obj *types.Object, seg 
 		if seg.Off+seg.Len > obj.Size {
 			obj.Size = seg.Off + seg.Len
 		}
+		obj.ModifiedAt = time.Now()
 		return saveRawObject(tx, obj)
 	})
 }

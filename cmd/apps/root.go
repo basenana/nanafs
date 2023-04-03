@@ -94,13 +94,7 @@ var daemonCmd = &cobra.Command{
 func run(ctrl controller.Controller, cfg config.Config, stopCh chan struct{}) {
 	log := logger.NewLogger("nanafs")
 	log.Info("starting")
-	shutdown := make(chan struct{})
-	go func() {
-		<-stopCh
-		log.Info("shutdown after 5s")
-		time.Sleep(time.Second * 5)
-		close(shutdown)
-	}()
+	shutdown := ctrl.SetupShutdownHandler(stopCh)
 
 	if cfg.ApiConfig.Enable {
 		s, err := apis.NewApiServer(ctrl, cfg)
@@ -124,5 +118,6 @@ func run(ctrl controller.Controller, cfg config.Config, stopCh chan struct{}) {
 
 	log.Info("started")
 	<-shutdown
+	time.Sleep(time.Second * 5)
 	log.Info("stopped")
 }

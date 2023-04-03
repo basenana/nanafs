@@ -50,6 +50,7 @@ type Controller interface {
 	CloseFile(ctx context.Context, file dentry.File) error
 
 	FsInfo(ctx context.Context) Info
+	SetupShutdownHandler(stopCh chan struct{}) chan struct{}
 }
 
 type controller struct {

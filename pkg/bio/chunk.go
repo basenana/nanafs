@@ -434,9 +434,8 @@ type segWriter struct {
 }
 
 func (w *segWriter) put(ctx context.Context, pageIdx, pagePos int64, data []byte) {
-	off := pageIdx*pageSize + pagePos
 	w.mux.Lock()
-	seg, page := w.findUncommittedPage(pageIdx, off)
+	seg, page := w.findUncommittedPage(ctx, pageIdx, pageIdx*pageSize+pagePos)
 	if seg == nil {
 		seg = &uncommittedSeg{off: pageIdx*pageSize + pagePos, w: w}
 		w.uncommitted = append(w.uncommitted, seg)
@@ -445,50 +444,54 @@ func (w *segWriter) put(ctx context.Context, pageIdx, pagePos int64, data []byte
 			go w.commitSegment()
 		}
 	}
+
 	if page == nil {
+		seg.mux.Lock()
 		page = &uncommittedPage{idx: pageIdx}
 		var err error
-		page.node, err = w.cache.OpenTemporaryNode(ctx, w.Object.ID, off)
+		page.node, err = w.cache.OpenTemporaryNode(ctx, w.Object.ID, pageIdx*pageSize+pagePos)
 		if err != nil {
+			w.logger.Errorw("open temporary node error", "err", err)
 			w.chunkErr = err
 			return
 		}
 		seg.pages = append(seg.pages, page)
+		seg.mux.Unlock()
 	}
 	w.mux.Unlock()
 
 	seg.uploads.Add(1)
-	go w.preWriteData(ctx, seg, page, pagePos, data)
+	page.mux.Lock()
+	go w.preWrite(ctx, pagePos, seg, page, data)
 }
-
-func (w *segWriter) preWriteData(ctx context.Context, seg *uncommittedSeg, page *uncommittedPage, pagePos int64, data []byte) {
+func (w *segWriter) preWrite(ctx context.Context, pagePos int64, seg *uncommittedSeg, page *uncommittedPage, data []byte) {
 	defer seg.uploads.Done()
 
-	page.mux.Lock()
 	n, err := page.node.WriteAt(data, pagePos)
 	if err != nil {
 		w.chunkErr = err
+		w.logger.Errorw("write to cache error", "err", err)
+		page.mux.Unlock()
 		return
 	}
-	page.mux.Unlock()
 	dataEnd := page.idx*pageSize + pagePos + int64(n)
-
-	if dataEnd > seg.off+seg.size {
-		seg.size = dataEnd - seg.off
-	}
-
 	if dataEnd == (page.idx+1)*pageSize && !page.committed {
 		seg.uploads.Add(1)
-		page.mux.Lock()
 		page.committed = true
 		go w.flushData(ctx, seg, page)
-		page.mux.Unlock()
+	}
+	page.mux.Unlock()
+
+	seg.mux.Lock()
+	if dataEnd > seg.off+seg.size {
+		seg.size = dataEnd - seg.off
 	}
 
 	if dataEnd == (w.chunkID+1)*fileChunkSize {
 		seg.tryCommit(ctx)
 		w.cond.Broadcast()
 	}
+	seg.mux.Unlock()
 }
 
 func (w *segWriter) flushData(ctx context.Context, seg *uncommittedSeg, page *uncommittedPage) {
@@ -497,18 +500,18 @@ func (w *segWriter) flushData(ctx context.Context, seg *uncommittedSeg, page *un
 	segID, err := seg.prepareID(ctx, w.store.NextSegmentID)
 	if err != nil {
 		w.chunkErr = err
+		w.logger.Errorw("prepare segment id error", "err", err)
 		return
 	}
 
-	page.mux.Lock()
-	defer page.mux.Unlock()
 	if err = w.cache.CommitTemporaryNode(ctx, segID, page.idx, page.node); err != nil {
 		w.chunkErr = err
+		w.logger.Errorw("commit page data error", "err", err)
 		return
 	}
 }
 
-func (w *segWriter) findUncommittedPage(pageIdx, off int64) (*uncommittedSeg, *uncommittedPage) {
+func (w *segWriter) findUncommittedPage(ctx context.Context, pageIdx, off int64) (*uncommittedSeg, *uncommittedPage) {
 	var (
 		seg  *uncommittedSeg
 		page *uncommittedPage
@@ -519,7 +522,7 @@ func (w *segWriter) findUncommittedPage(pageIdx, off int64) (*uncommittedSeg, *u
 			seg = s
 			break
 		} else if i > 4 || time.Since(s.modifyAt) > fileChunkCommitTimeout {
-			s.readyToCommit = true
+			s.tryCommit(ctx)
 		}
 	}
 	if seg == nil {
@@ -528,7 +531,7 @@ func (w *segWriter) findUncommittedPage(pageIdx, off int64) (*uncommittedSeg, *u
 
 	seg.mux.Lock()
 	for i, p := range seg.pages {
-		if !p.committed && p.idx == pageIdx {
+		if p.idx == pageIdx {
 			page = seg.pages[i]
 			break
 		}
@@ -537,7 +540,13 @@ func (w *segWriter) findUncommittedPage(pageIdx, off int64) (*uncommittedSeg, *u
 	if page == nil {
 		return seg, nil
 	}
-	return seg, page
+	page.mux.Lock()
+	canRewrite := !page.committed
+	page.mux.Unlock()
+	if canRewrite {
+		return seg, page
+	}
+	return nil, nil
 }
 
 func (w *segWriter) commitSegment() {
@@ -582,12 +591,9 @@ type uncommittedSeg struct {
 }
 
 func (s *uncommittedSeg) tryCommit(ctx context.Context) {
-	s.mux.Lock()
 	if s.readyToCommit {
 		return
 	}
-	s.readyToCommit = true
-	s.mux.Unlock()
 	for i := range s.pages {
 		page := s.pages[i]
 		page.mux.Lock()
@@ -600,6 +606,7 @@ func (s *uncommittedSeg) tryCommit(ctx context.Context) {
 		go s.w.flushData(ctx, s, page)
 		page.mux.Unlock()
 	}
+	s.readyToCommit = true
 }
 
 func (s *uncommittedSeg) prepareID(ctx context.Context, prepareFn func(context.Context) (int64, error)) (int64, error) {
@@ -620,6 +627,7 @@ func (s *uncommittedSeg) prepareID(ctx context.Context, prepareFn func(context.C
 type uncommittedPage struct {
 	idx       int64
 	committed bool
+	version   int32
 	node      storage.CacheNode
 	mux       sync.Mutex
 }
@@ -766,4 +774,34 @@ func DeleteChunksData(ctx context.Context, md *types.Metadata, chunkStore storag
 		}
 	}
 	return resultErr
+}
+
+func CloseAll() {
+	allReaders := make(map[int64]*chunkReader)
+	allWriters := make(map[int64]*chunkWriter)
+	fileChunkMux.Lock()
+	for fid := range fileChunkWriters {
+		allWriters[fid] = fileChunkWriters[fid]
+	}
+	for fid := range fileChunkReaders {
+		allReaders[fid] = fileChunkReaders[fid]
+	}
+	fileChunkMux.Unlock()
+
+	wg := sync.WaitGroup{}
+	wg.Add(len(allWriters))
+	for i := range allWriters {
+		go func(w *chunkWriter) {
+			defer wg.Done()
+			w.Close()
+		}(allWriters[i])
+	}
+	wg.Add(len(allReaders))
+	for i := range allReaders {
+		go func(r *chunkReader) {
+			defer wg.Done()
+			r.Close()
+		}(allReaders[i])
+	}
+	wg.Wait()
 }

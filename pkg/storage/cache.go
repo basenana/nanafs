@@ -115,6 +115,7 @@ func (c *LocalCache) CommitTemporaryNode(ctx context.Context, segID, idx int64, 
 	}
 	no.uncommitted = false
 	// TODO: rename
+	defer os.Remove(no.path)
 	return node.Close()
 }
 

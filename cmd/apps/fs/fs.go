@@ -149,10 +149,14 @@ func (n *NanaFS) newFsNode(ctx context.Context, parent *NanaNode, entry dentry.E
 }
 
 func (n *NanaFS) umount(server *fuse.Server) {
-	go func() {
-		_ = server.Unmount()
-	}()
+	n.logger.Infof("umount %s", n.Path)
 
+	err := server.Unmount()
+	if err == nil {
+		return
+	}
+
+	n.logger.Errorw("umount failed, try again ", "err", err)
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
