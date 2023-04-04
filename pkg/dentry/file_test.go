@@ -81,6 +81,7 @@ var _ = Describe("TestFileIO", func() {
 		off += int64(len(fileChunk3))
 		_, err = f.WriteAt(context.TODO(), fileChunk4, off)
 		Expect(err).Should(BeNil())
+		Expect(f.Fsync(context.Background())).Should(BeNil())
 	})
 
 	Describe("test file open", func() {

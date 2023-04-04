@@ -150,7 +150,6 @@ func (n *NanaFS) newFsNode(ctx context.Context, parent *NanaNode, entry dentry.E
 
 func (n *NanaFS) umount(server *fuse.Server) {
 	n.logger.Infof("umount %s", n.Path)
-
 	err := server.Unmount()
 	if err == nil {
 		return
@@ -168,6 +167,7 @@ func (n *NanaFS) umount(server *fuse.Server) {
 	if err := cmd.Run(); err != nil {
 		n.logger.Errorw("umount failed", "err", err.Error())
 	}
+	n.logger.Info("umount finish")
 }
 
 func (n *NanaFS) GetEntry(ctx context.Context, id int64) (dentry.Entry, error) {

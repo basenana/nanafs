@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/storage"
+	"github.com/basenana/nanafs/utils"
 	"github.com/spf13/cobra"
 	"os"
 )
@@ -35,21 +36,21 @@ var initCmd = &cobra.Command{
 
 func initDefaultConfig() {
 	fmt.Printf("Workspace: %s\n", WorkSpace)
-	if err := mkdir(WorkSpace); err != nil {
+	if err := utils.Mkdir(WorkSpace); err != nil {
 		fmt.Printf("init workspace failed: %s\n", err.Error())
 		return
 	}
 
 	dataDir := localDataDirPath(WorkSpace)
 	fmt.Printf("Workspace Data Dir: %s\n", dataDir)
-	if err := mkdir(dataDir); err != nil {
+	if err := utils.Mkdir(dataDir); err != nil {
 		fmt.Printf("init workspace data dir failed: %s\n", err.Error())
 		return
 	}
 
 	cacheDir := localCacheDirPath(WorkSpace)
 	fmt.Printf("Workspace Local Cache Dir: %s\n", cacheDir)
-	if err := mkdir(cacheDir); err != nil {
+	if err := utils.Mkdir(cacheDir); err != nil {
 		fmt.Printf("init workspace local cache dir failed: %s\n", err.Error())
 		return
 	}
@@ -92,21 +93,4 @@ func initDefaultConfig() {
 		return
 	}
 	fmt.Println("Generate local configuration succeed")
-}
-
-func mkdir(path string) error {
-	d, err := os.Stat(path)
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-
-	if err != nil && os.IsNotExist(err) {
-		return os.MkdirAll(path, 0755)
-	}
-
-	if d.IsDir() {
-		return nil
-	}
-
-	return fmt.Errorf("%s not dir", path)
 }

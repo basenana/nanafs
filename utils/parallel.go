@@ -16,6 +16,11 @@
 
 package utils
 
+import (
+	"fmt"
+	"runtime/debug"
+)
+
 type MaximumParallel struct {
 	q chan struct{}
 }
@@ -48,4 +53,12 @@ func (p *MaximumParallel) BlockedGo(f func()) {
 
 func NewMaximumParallel(num int) *MaximumParallel {
 	return &MaximumParallel{q: make(chan struct{}, num)}
+}
+
+func Recover() error {
+	if panicErr := recover(); panicErr != nil {
+		debug.PrintStack()
+		return fmt.Errorf("panic: %v", panicErr)
+	}
+	return nil
 }

@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/utils"
+	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"golang.org/x/sys/unix"
 	"io"
@@ -43,8 +45,15 @@ var (
 )
 
 func InitLocalCache(config config.Config) {
+	cacheLog = logger.NewLogger("localCache")
 	localCacheDir = config.CacheDir
+	if localCacheDir == "" {
+		cacheLog.Panic("init local cache dri dir failed: empty")
+	}
 	localCacheSizeLimit = int64(config.CacheSize) * (1 << 30) // config.CacheSize Gi
+	if err := utils.Mkdir(localCacheDir); err != nil {
+		cacheLog.Panicf("init local cache dri dir failed: %s", err)
+	}
 }
 
 type LocalCache struct {

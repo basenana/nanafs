@@ -182,7 +182,6 @@ func (p *pageCache) extendPageTree(index int64) {
 
 func (p *pageCache) close() {
 	p.data.Visit(func(pNode *pageNode) {
-		logger.NewLogger("pageCache").Infow("release page after close", "idx", pNode.idx)
 		pageCacheLFU.Remove(pageCacheKey(pNode.entry, pNode.idx))
 	})
 }
