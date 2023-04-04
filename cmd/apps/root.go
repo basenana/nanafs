@@ -75,12 +75,9 @@ var daemonCmd = &cobra.Command{
 			panic("storage must config one")
 		}
 
-		sto, err := storage.NewStorage(cfg.Storages[0].ID, cfg.Storages[0].Type, cfg.Storages[0])
-		if err != nil {
-			panic(err)
-		}
+		storage.InitLocalCache(cfg)
 
-		ctrl, err := controller.New(loader, meta, sto)
+		ctrl, err := controller.New(loader, meta)
 		if err != nil {
 			panic(err)
 		}
@@ -97,13 +94,7 @@ var daemonCmd = &cobra.Command{
 func run(ctrl controller.Controller, cfg config.Config, stopCh chan struct{}) {
 	log := logger.NewLogger("nanafs")
 	log.Info("starting")
-	shutdown := make(chan struct{})
-	go func() {
-		<-stopCh
-		log.Info("shutdown after 5s")
-		time.Sleep(time.Second * 5)
-		close(shutdown)
-	}()
+	shutdown := ctrl.SetupShutdownHandler(stopCh)
 
 	if cfg.ApiConfig.Enable {
 		s, err := apis.NewApiServer(ctrl, cfg)
@@ -127,5 +118,6 @@ func run(ctrl controller.Controller, cfg config.Config, stopCh chan struct{}) {
 
 	log.Info("started")
 	<-shutdown
+	time.Sleep(time.Second * 5)
 	log.Info("stopped")
 }

@@ -49,7 +49,7 @@ func wrapCachedMeta(meta Meta) Meta {
 }
 
 func (c *cachedMetaStorage) GetObject(ctx context.Context, id int64) (*types.Object, error) {
-	cached := c.cache.Get(id)
+	cached := c.cache.Get(objectCacheKey(id))
 	if cached != nil {
 		return cached.(*types.Object), nil
 	}
@@ -57,7 +57,7 @@ func (c *cachedMetaStorage) GetObject(ctx context.Context, id int64) (*types.Obj
 	if err != nil {
 		return nil, err
 	}
-	c.cache.Put(id, obj)
+	c.cache.Put(objectCacheKey(id), obj)
 	return obj, nil
 }
 
@@ -67,9 +67,9 @@ func (c *cachedMetaStorage) SaveObject(ctx context.Context, parent, obj *types.O
 		return err
 	}
 	if parent != nil {
-		c.cache.Put(parent.ID, parent)
+		c.cache.Put(objectCacheKey(parent.ID), parent)
 	}
-	c.cache.Put(obj.ID, obj)
+	c.cache.Put(objectCacheKey(obj.ID), obj)
 	return nil
 }
 
@@ -78,10 +78,10 @@ func (c *cachedMetaStorage) DestroyObject(ctx context.Context, src, parent, obj 
 	if err != nil {
 		return err
 	}
-	c.cache.Remove(obj.ID)
-	c.cache.Remove(obj.ParentID)
+	c.cache.Remove(objectCacheKey(obj.ID))
+	c.cache.Remove(objectCacheKey(obj.ParentID))
 	if src != nil {
-		c.cache.Remove(src.ID)
+		c.cache.Remove(objectCacheKey(src.ID))
 	}
 	return nil
 }
@@ -91,9 +91,9 @@ func (c *cachedMetaStorage) MirrorObject(ctx context.Context, srcObj, dstParent,
 	if err != nil {
 		return err
 	}
-	c.cache.Remove(srcObj.ID)
-	c.cache.Remove(dstParent.ID)
-	c.cache.Remove(object.ID)
+	c.cache.Remove(objectCacheKey(srcObj.ID))
+	c.cache.Remove(objectCacheKey(dstParent.ID))
+	c.cache.Remove(objectCacheKey(object.ID))
 	return err
 }
 
@@ -102,9 +102,9 @@ func (c *cachedMetaStorage) ChangeParent(ctx context.Context, srcParent, dstPare
 	if err != nil {
 		return err
 	}
-	c.cache.Remove(srcParent.ID)
-	c.cache.Remove(dstParent.ID)
-	c.cache.Remove(obj.ID)
+	c.cache.Remove(objectCacheKey(srcParent.ID))
+	c.cache.Remove(objectCacheKey(dstParent.ID))
+	c.cache.Remove(objectCacheKey(obj.ID))
 	return nil
 }
 
@@ -112,6 +112,10 @@ func (c *cachedMetaStorage) AppendSegments(ctx context.Context, seg types.ChunkS
 	if err := c.Meta.AppendSegments(ctx, seg, obj); err != nil {
 		return err
 	}
-	c.cache.Put(obj.ID, obj)
+	c.cache.Put(objectCacheKey(obj.ID), obj)
 	return nil
+}
+
+func objectCacheKey(oid int64) string {
+	return fmt.Sprintf("obj_%d", oid)
 }

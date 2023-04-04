@@ -59,3 +59,13 @@ func (c *controller) FsInfo(ctx context.Context) Info {
 	}
 	return info
 }
+func (c *controller) SetupShutdownHandler(stopCh chan struct{}) chan struct{} {
+	shutdownSafe := make(chan struct{})
+	go func() {
+		<-stopCh
+		c.logger.Warn("waiting all entry closed")
+		c.entry.MustCloseAll()
+		close(shutdownSafe)
+	}()
+	return shutdownSafe
+}

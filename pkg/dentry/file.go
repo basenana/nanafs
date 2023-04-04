@@ -23,7 +23,6 @@ import (
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"sync"
-	"sync/atomic"
 )
 
 type File interface {
@@ -42,7 +41,6 @@ type file struct {
 	reader bio.Reader
 	writer bio.Writer
 
-	ref  int32
 	attr Attr
 	mux  sync.Mutex
 }
@@ -75,8 +73,9 @@ func (f *file) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error
 }
 
 func (f *file) Close(ctx context.Context) (err error) {
-	atomic.AddInt32(&f.ref, -1)
+	defer f.reader.Close()
 	if f.attr.Write {
+		defer f.writer.Close()
 		return f.writer.Flush(ctx)
 	}
 	return nil

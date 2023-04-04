@@ -201,8 +201,6 @@ func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {
 	return newObj, nil
 }
 
-const ()
-
 type ChunkSeg struct {
 	ID       int64
 	ChunkID  int64

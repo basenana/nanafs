@@ -23,6 +23,7 @@ import (
 
 const (
 	defaultLocalDataDir = "local"
+	defaultLocalCache   = "local"
 	defaultSqliteFile   = "sqlite.db"
 )
 
@@ -32,6 +33,10 @@ func localConfigFilePath(local string) string {
 
 func localDataDirPath(local string) string {
 	return path.Join(local, defaultLocalDataDir)
+}
+
+func localCacheDirPath(local string) string {
+	return path.Join(local, defaultLocalCache)
 }
 
 func localDbFilePath(local string) string {

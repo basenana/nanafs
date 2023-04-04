@@ -19,6 +19,7 @@ package dentry
 import (
 	"context"
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/bio"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
@@ -35,6 +36,7 @@ type Manager interface {
 	MirrorEntry(ctx context.Context, src, dstParent Entry, attr EntryAttr) (Entry, error)
 	ChangeEntryParent(ctx context.Context, targetEntry, overwriteEntry, oldParent, newParent Entry, newName string, opt ChangeParentAttr) error
 	Open(ctx context.Context, en Entry, attr Attr) (File, error)
+	MustCloseAll()
 }
 
 func NewManager(store storage.ObjectStore, cfg config.Config) (Manager, error) {
@@ -251,6 +253,10 @@ func (m *manager) Open(ctx context.Context, en Entry, attr Attr) (File, error) {
 	default:
 		return openFile(en, attr, m.store, m.storages[en.Metadata().Storage])
 	}
+}
+
+func (m *manager) MustCloseAll() {
+	bio.CloseAll()
 }
 
 type EntryAttr struct {

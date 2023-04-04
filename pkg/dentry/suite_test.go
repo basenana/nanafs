@@ -21,6 +21,7 @@ import (
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils/logger"
+	"os"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
@@ -31,12 +32,21 @@ var (
 	objStore     storage.ObjectStore
 	entryManager Manager
 	root         Entry
+
+	workdir string
 )
 
 func TestDEntry(t *testing.T) {
 	logger.InitLogger()
 	defer logger.Sync()
 	RegisterFailHandler(Fail)
+
+	var err error
+	workdir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-dentry-")
+	Expect(err).Should(BeNil())
+	t.Logf("unit test workdir on: %s", workdir)
+	storage.InitLocalCache(config.Config{CacheDir: workdir, CacheSize: 1})
+
 	RunSpecs(t, "DEntry Suite")
 }
 

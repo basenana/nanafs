@@ -20,6 +20,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"os"
+	"time"
 )
 
 var (
@@ -56,4 +57,12 @@ func SetDebug(enable bool) {
 		return
 	}
 	atom.SetLevel(zap.InfoLevel)
+}
+
+func CostLog(logger *zap.SugaredLogger, msg string) func() {
+	startAt := time.Now()
+	logger.Infof("%s start", msg)
+	return func() {
+		logger.With(zap.String("cost", time.Since(startAt).String())).Infof("%s finish", msg)
+	}
 }
