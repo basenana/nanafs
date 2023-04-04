@@ -18,14 +18,16 @@ package fs
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
+	"syscall"
+	"time"
+
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
 	"go.uber.org/zap"
-	"syscall"
-	"time"
+
+	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 )
 
 type NanaNode struct {

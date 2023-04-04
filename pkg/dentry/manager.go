@@ -18,14 +18,16 @@ package dentry
 
 import (
 	"context"
+	"time"
+
+	"go.uber.org/zap"
+
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/bio"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
-	"go.uber.org/zap"
-	"time"
 )
 
 type Manager interface {
@@ -118,6 +120,19 @@ func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) error {
 			return err
 		}
 	}
+
+	mirrored, err := m.store.ListObjects(ctx, types.Filter{RefID: obj.ID})
+	if err != nil {
+		return err
+	}
+	if len(mirrored) > 0 {
+		obj.ParentID = 0
+		if err = m.store.SaveObject(ctx, parentObj, obj); err != nil {
+			return err
+		}
+		return nil
+	}
+
 	if srcObj == nil && ((en.IsGroup() && obj.RefCount == 2) || (!en.IsGroup() && obj.RefCount == 1)) {
 		return parentGrp.DestroyEntry(ctx, en)
 	}
@@ -164,7 +179,7 @@ func (m *manager) MirrorEntry(ctx context.Context, src, dstParent Entry, attr En
 	if src.IsMirror() {
 		srcObj, err = m.store.GetObject(ctx, srcObj.RefID)
 		if err != nil {
-			m.logger.Errorw("query source object error", "entry", srcObj.ID, "srcObj", srcObj.RefID, "err", err.Error())
+			m.logger.Errorw("query source object error", "entry", src.Object().ID, "srcObj", src.Object().RefID, "err", err.Error())
 			return nil, err
 		}
 		m.logger.Infow("replace source object", "entry", srcObj.ID)

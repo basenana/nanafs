@@ -19,11 +19,13 @@ package db
 import (
 	"context"
 	"encoding/json"
-	"github.com/basenana/nanafs/pkg/types"
+	"time"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"time"
+
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 type Entity struct {
@@ -146,8 +148,14 @@ func (e *Entity) SaveChangeParentObject(ctx context.Context, srcParent, dstParen
 func (e *Entity) DeleteObject(ctx context.Context, srcObj, dstParent, obj *types.Object) error {
 	return e.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if srcObj != nil {
-			if err := saveRawObject(tx, srcObj); err != nil {
-				return err
+			if srcObj.RefCount == 0 {
+				if err := deleteRawObject(tx, srcObj); err != nil {
+					return err
+				}
+			} else {
+				if err := saveRawObject(tx, srcObj); err != nil {
+					return err
+				}
 			}
 		}
 		if err := saveRawObject(tx, dstParent); err != nil {
