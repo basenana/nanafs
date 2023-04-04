@@ -174,6 +174,24 @@ func (n *NanaFS) GetEntry(ctx context.Context, id int64) (dentry.Entry, error) {
 	return n.Controller.GetEntry(ctx, id)
 }
 
+func (n *NanaFS) GetSourceEntry(ctx context.Context, id int64) (dentry.Entry, error) {
+	var (
+		entry   dentry.Entry
+		err     error
+		entryId = id
+	)
+	for {
+		entry, err = n.Controller.GetEntry(ctx, entryId)
+		if err != nil {
+			return nil, err
+		}
+		if entry.Metadata().RefID == 0 {
+			return entry, nil
+		}
+		entryId = entry.Metadata().RefID
+	}
+}
+
 func (n *NanaFS) releaseFsNode(ctx context.Context, entry dentry.Entry) {
 }
 

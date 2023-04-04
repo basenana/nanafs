@@ -86,7 +86,9 @@ func (c *controller) FindEntry(ctx context.Context, parent dentry.Entry, name st
 	}
 	result, err := parent.Group().FindEntry(ctx, name)
 	if err != nil {
-		c.logger.Errorw("find entry error", "parent", parent.Metadata().ID, "entryName", name, "err", err.Error())
+		if err != types.ErrNotFound {
+			c.logger.Errorw("find entry error", "parent", parent.Metadata().ID, "entryName", name, "err", err.Error())
+		}
 		return nil, err
 	}
 	return result, nil

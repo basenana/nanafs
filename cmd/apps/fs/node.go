@@ -62,7 +62,7 @@ func (n *NanaNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrO
 		return file.Getattr(ctx, out)
 	}
 
-	entry, err := n.R.GetEntry(ctx, n.oid)
+	entry, err := n.R.GetSourceEntry(ctx, n.oid)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
@@ -85,7 +85,7 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 		attr = nanaFile.file.GetAttr()
 	}
 
-	entry, err := n.R.GetEntry(ctx, n.oid)
+	entry, err := n.R.GetSourceEntry(ctx, n.oid)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
@@ -103,7 +103,7 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 func (n *NanaNode) Getxattr(ctx context.Context, attr string, dest []byte) (uint32, syscall.Errno) {
 	defer utils.TraceRegion(ctx, "node.getxattr")()
 
-	entry, err := n.R.GetEntry(ctx, n.oid)
+	entry, err := n.R.GetSourceEntry(ctx, n.oid)
 	if err != nil {
 		return 0, Error2FuseSysError(err)
 	}
@@ -126,7 +126,7 @@ func (n *NanaNode) Getxattr(ctx context.Context, attr string, dest []byte) (uint
 
 func (n *NanaNode) Setxattr(ctx context.Context, attr string, data []byte, flags uint32) syscall.Errno {
 	defer utils.TraceRegion(ctx, "node.setxattr")()
-	entry, err := n.R.GetEntry(ctx, n.oid)
+	entry, err := n.R.GetSourceEntry(ctx, n.oid)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
@@ -137,7 +137,7 @@ func (n *NanaNode) Setxattr(ctx context.Context, attr string, data []byte, flags
 
 func (n *NanaNode) Removexattr(ctx context.Context, attr string) syscall.Errno {
 	defer utils.TraceRegion(ctx, "node.removexattr")()
-	entry, err := n.R.GetEntry(ctx, n.oid)
+	entry, err := n.R.GetSourceEntry(ctx, n.oid)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
@@ -150,7 +150,7 @@ func (n *NanaNode) Removexattr(ctx context.Context, attr string) syscall.Errno {
 
 func (n *NanaNode) Open(ctx context.Context, flags uint32) (fh fs.FileHandle, fuseFlags uint32, errno syscall.Errno) {
 	defer utils.TraceRegion(ctx, "node.open")()
-	entry, err := n.R.GetEntry(ctx, n.oid)
+	entry, err := n.R.GetSourceEntry(ctx, n.oid)
 	if err != nil {
 		return nil, 0, Error2FuseSysError(err)
 	}
@@ -405,6 +405,12 @@ func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.E
 
 	_, err = n.R.WriteFile(ctx, f, []byte(target), 0)
 	if err != nil {
+		return nil, Error2FuseSysError(err)
+	}
+	if err = f.Close(ctx); err != nil {
+		return nil, Error2FuseSysError(err)
+	}
+	if err = n.R.SaveEntry(ctx, entry, newLink); err != nil {
 		return nil, Error2FuseSysError(err)
 	}
 
