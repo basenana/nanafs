@@ -27,7 +27,8 @@ import (
 func NewMetaStorage(metaType string, meta config.Meta) (Meta, error) {
 	switch metaType {
 	case MemoryMeta:
-		return newMemoryMetaStore(), nil
+		meta.Path = ":memory:"
+		return newSqliteMetaStore(meta)
 	case SqliteMeta:
 		m, err := newSqliteMetaStore(meta)
 		if err != nil {

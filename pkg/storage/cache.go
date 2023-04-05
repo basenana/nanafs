@@ -74,32 +74,6 @@ func NewLocalCache(s Storage) *LocalCache {
 	return lc
 }
 
-func (c *LocalCache) OpenChunkNode(ctx context.Context, key, idx int64) (CacheNode, error) {
-	var err error
-
-	c.mux.Lock()
-	nodes, ok := c.nodes[key]
-	if !ok {
-		nodes = map[int64]CacheNode{}
-		c.nodes[key] = nodes
-	}
-	node, ok := nodes[idx]
-	c.mux.Unlock()
-	if !ok {
-		node, err = c.makeLocalCache(ctx, key, idx)
-		if err != nil {
-			cacheLog.Errorw("make cache node failed", "key", key, "idx", idx, "err", err)
-			return nil, err
-		}
-	}
-
-	if err = node.Attach(); err != nil {
-		cacheLog.Errorw("attach cache node failed", "key", key, "idx", idx, "err", err)
-		return nil, err
-	}
-	return node, nil
-}
-
 func (c *LocalCache) OpenTemporaryNode(ctx context.Context, oid, off int64) (CacheNode, error) {
 	tFile := c.localTemporaryFilePath(oid, off)
 	f, err := os.Create(tFile)
@@ -230,9 +204,12 @@ type CacheNode interface {
 	io.Closer
 }
 
+type fileCacheNode struct {
+	os.File
+}
+
 type cacheNode struct {
 	ref         int32
-	f           *os.File
 	path        string
 	data        []byte
 	size        int64
@@ -255,7 +232,7 @@ func (c *cacheNode) Attach() error {
 		_ = f.Close()
 		return err
 	}
-	c.f = f
+	defer f.Close()
 	atomic.AddInt32(&c.ref, 1)
 	return nil
 }
@@ -286,9 +263,7 @@ func (c *cacheNode) Close() error {
 			return err
 		}
 		c.data = nil
-		f := c.f
-		c.f = nil
-		return f.Close()
+		return nil
 	}
 	return nil
 }
