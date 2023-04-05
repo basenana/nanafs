@@ -22,7 +22,12 @@ import (
 	"github.com/basenana/nanafs/pkg/bio"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
+	"go.uber.org/zap"
 	"sync"
+)
+
+var (
+	fileEntryLogger *zap.SugaredLogger
 )
 
 type File interface {
@@ -32,6 +37,7 @@ type File interface {
 	WriteAt(ctx context.Context, data []byte, off int64) (int64, error)
 	ReadAt(ctx context.Context, dest []byte, off int64) (int64, error)
 	Fsync(ctx context.Context) error
+	Flush(ctx context.Context) error
 	Close(ctx context.Context) (err error)
 }
 
@@ -55,21 +61,44 @@ func (f *file) WriteAt(ctx context.Context, data []byte, off int64) (int64, erro
 	if !f.attr.Write || f.writer == nil {
 		return 0, types.ErrUnsupported
 	}
-	return f.writer.WriteAt(ctx, data, off)
+	n, err := f.writer.WriteAt(ctx, data, off)
+	if err != nil {
+		fileEntryLogger.Errorw("write file error", "entry", f.Entry.Metadata().ID, "off", off, "err", err)
+	}
+	return n, err
+}
+
+func (f *file) Flush(ctx context.Context) error {
+	if !f.attr.Write {
+		return nil
+	}
+	err := f.writer.Flush(ctx)
+	if err != nil {
+		fileEntryLogger.Errorw("flush file error", "entry", f.Entry.Metadata().ID, "err", err)
+	}
+	return err
 }
 
 func (f *file) Fsync(ctx context.Context) error {
 	if !f.attr.Write {
-		return types.ErrUnsupported
+		return nil
 	}
-	return f.writer.Fsync(ctx)
+	err := f.writer.Flush(ctx)
+	if err != nil {
+		fileEntryLogger.Errorw("fsync file error", "entry", f.Entry.Metadata().ID, "err", err)
+	}
+	return err
 }
 
 func (f *file) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error) {
 	if !f.attr.Read || f.reader == nil {
 		return 0, types.ErrUnsupported
 	}
-	return f.reader.ReadAt(ctx, dest, off)
+	n, err := f.reader.ReadAt(ctx, dest, off)
+	if err != nil {
+		fileEntryLogger.Errorw("read file error", "entry", f.Entry.Metadata().ID, "off", off, "err", err)
+	}
+	return n, err
 }
 
 func (f *file) Close(ctx context.Context) (err error) {

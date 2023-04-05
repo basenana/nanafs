@@ -68,7 +68,7 @@ func (f *File) Write(ctx context.Context, data []byte, off int64) (written uint3
 
 func (f *File) Flush(ctx context.Context) syscall.Errno {
 	defer utils.TraceRegion(ctx, "files.flush")()
-	return Error2FuseSysError(f.file.Fsync(ctx))
+	return Error2FuseSysError(f.file.Flush(ctx))
 }
 
 func (f *File) Fsync(ctx context.Context, flags uint32) syscall.Errno {

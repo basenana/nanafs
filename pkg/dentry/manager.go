@@ -58,6 +58,7 @@ func NewManager(store storage.ObjectStore, cfg config.Config) (Manager, error) {
 		logger:   logger.NewLogger("entryManager"),
 	}
 	newLifecycle(mgr).initHooks()
+	fileEntryLogger = mgr.logger.Named("files")
 	return mgr, nil
 }
 
