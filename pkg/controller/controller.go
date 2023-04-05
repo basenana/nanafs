@@ -97,7 +97,9 @@ func (c *controller) FindEntry(ctx context.Context, parent dentry.Entry, name st
 func (c *controller) GetEntry(ctx context.Context, id int64) (dentry.Entry, error) {
 	result, err := c.entry.GetEntry(ctx, id)
 	if err != nil {
-		c.logger.Errorw("get entry error", "entry", id, "err", err.Error())
+		if err != types.ErrNotFound {
+			c.logger.Errorw("get entry error", "entry", id, "err", err.Error())
+		}
 		return nil, err
 	}
 	return result, nil

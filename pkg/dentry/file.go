@@ -169,5 +169,4 @@ type Attr struct {
 	Create bool
 	Trunc  bool
 	Direct bool
-	Meta   storage.Meta
 }

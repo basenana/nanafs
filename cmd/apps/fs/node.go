@@ -212,12 +212,10 @@ func (n *NanaNode) Lookup(ctx context.Context, name string, out *fuse.EntryOut) 
 		return nil, Error2FuseSysError(err)
 	}
 
-	if ch.IsMirror() {
-		ch, err = n.R.GetEntry(ctx, ch.Metadata().RefID)
-		if err != nil {
-			n.logger.Errorw("query source entry failed", "err", err.Error())
-			return nil, Error2FuseSysError(err)
-		}
+	ch, err = n.R.GetSourceEntry(ctx, ch.Metadata().ID)
+	if err != nil {
+		n.logger.Errorw("query source entry failed", "", "err", err.Error())
+		return nil, Error2FuseSysError(err)
 	}
 
 	node, err := n.R.newFsNode(ctx, n, ch)
@@ -354,7 +352,7 @@ func (n *NanaNode) Link(ctx context.Context, target fs.InodeEmbedder, name strin
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
-	targetEntry, err := n.R.GetEntry(ctx, targetNode.oid)
+	targetEntry, err := n.R.GetSourceEntry(ctx, targetNode.oid)
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}

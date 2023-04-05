@@ -121,12 +121,21 @@ func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) error {
 		}
 	}
 
-	mirrored, err := m.store.ListObjects(ctx, types.Filter{RefID: obj.ID})
-	if err != nil {
-		return err
-	}
-	if len(mirrored) > 0 {
+	//mirrored, err := m.store.ListObjects(ctx, types.Filter{RefID: obj.ID})
+	//if err != nil {
+	//	return err
+	//}
+	//if len(mirrored) > 0 {
+	//	obj.ParentID = 0
+	//	obj.RefID -= 1
+	//	obj.ChangedAt = time.Now()
+	//	return nil
+	//}
+	if !obj.IsGroup() && obj.RefCount > 1 {
+		m.logger.Infow("object has mirrors, remove parent id", "entry", obj.ID)
+		obj.RefCount -= 1
 		obj.ParentID = 0
+		obj.ChangedAt = time.Now()
 		if err = m.store.SaveObject(ctx, parentObj, obj); err != nil {
 			return err
 		}
@@ -140,13 +149,6 @@ func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) error {
 	if srcObj != nil {
 		srcObj.RefCount -= 1
 		srcObj.CreatedAt = time.Now()
-	}
-
-	if !obj.IsGroup() && obj.RefCount > 0 {
-		m.logger.Infow("object has mirrors, remove parent id", "entry", obj.ID)
-		obj.RefCount -= 1
-		obj.ParentID = 0
-		obj.ChangedAt = time.Now()
 	}
 
 	if obj.IsGroup() {

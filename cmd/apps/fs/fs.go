@@ -185,10 +185,11 @@ func (n *NanaFS) GetSourceEntry(ctx context.Context, id int64) (dentry.Entry, er
 		if err != nil {
 			return nil, err
 		}
-		if entry.Metadata().RefID == 0 {
+		md := entry.Metadata()
+		if md.RefID == 0 || md.RefID == md.ID {
 			return entry, nil
 		}
-		entryId = entry.Metadata().RefID
+		entryId = md.RefID
 	}
 }
 
