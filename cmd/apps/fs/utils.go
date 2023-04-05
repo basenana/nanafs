@@ -18,13 +18,15 @@ package fs
 
 import (
 	"encoding/base64"
+	"os"
+	"syscall"
+
+	"github.com/hanwen/go-fuse/v2/fs"
+	"github.com/hanwen/go-fuse/v2/fuse"
+
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/hanwen/go-fuse/v2/fs"
-	"github.com/hanwen/go-fuse/v2/fuse"
-	"os"
-	"syscall"
 )
 
 const fileBlockSize = 1 << 12 // 4k
@@ -39,8 +41,7 @@ func idFromStat(dev uint64, st *syscall.Stat_t) fs.StableAttr {
 	}
 }
 
-func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, entry dentry.Entry, crtUid, crtGid int64, fileOpenAttr dentry.Attr) error {
-	meta := entry.Metadata()
+func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, meta *types.Metadata, crtUid, crtGid int64, fileOpenAttr dentry.Attr) error {
 	// do check
 	if _, ok := attr.GetMode(); ok {
 		if crtUid != 0 && crtUid != meta.Access.UID {

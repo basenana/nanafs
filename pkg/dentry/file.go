@@ -73,6 +73,7 @@ func (f *file) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error
 }
 
 func (f *file) Close(ctx context.Context) (err error) {
+	defer decreaseOpenedFile(f.Metadata().ID)
 	defer f.reader.Close()
 	if f.attr.Write {
 		defer f.writer.Close()
@@ -93,6 +94,7 @@ func openFile(en Entry, attr Attr, store storage.ObjectStore, fileStorage storag
 	if attr.Write {
 		f.writer = bio.NewChunkWriter(f.reader)
 	}
+	increaseOpenedFile(en.Metadata().ID)
 	return f, nil
 
 }
@@ -142,6 +144,7 @@ func (s *symlink) Flush(ctx context.Context) (err error) {
 }
 
 func (s *symlink) Close(ctx context.Context) (err error) {
+	defer decreaseOpenedFile(s.Metadata().ID)
 	return s.Flush(ctx)
 }
 
@@ -160,6 +163,7 @@ func openSymlink(en Entry, attr Attr) (File, error) {
 		raw = make([]byte, 0, 512)
 	}
 
+	increaseOpenedFile(en.Metadata().ID)
 	return &symlink{Entry: en, data: raw, attr: attr}, nil
 }
 
@@ -169,5 +173,28 @@ type Attr struct {
 	Create bool
 	Trunc  bool
 	Direct bool
-	Meta   storage.Meta
+}
+
+var (
+	openedFiles       = map[int64]int{}
+	openedFileMapLock sync.Mutex
+)
+
+func increaseOpenedFile(fid int64) {
+	openedFileMapLock.Lock()
+	openedFiles[fid]++
+	openedFileMapLock.Unlock()
+}
+
+func decreaseOpenedFile(fid int64) {
+	openedFileMapLock.Lock()
+	openedFiles[fid]--
+	openedFileMapLock.Unlock()
+}
+
+func isFileOpened(fid int64) bool {
+	openedFileMapLock.Lock()
+	count := openedFiles[fid]
+	openedFileMapLock.Unlock()
+	return count > 0
 }

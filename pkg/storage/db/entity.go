@@ -19,11 +19,13 @@ package db
 import (
 	"context"
 	"encoding/json"
-	"github.com/basenana/nanafs/pkg/types"
+	"time"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"time"
+
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 type Entity struct {
@@ -146,8 +148,14 @@ func (e *Entity) SaveChangeParentObject(ctx context.Context, srcParent, dstParen
 func (e *Entity) DeleteObject(ctx context.Context, srcObj, dstParent, obj *types.Object) error {
 	return e.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if srcObj != nil {
-			if err := saveRawObject(tx, srcObj); err != nil {
-				return err
+			if srcObj.RefCount == 0 {
+				if err := deleteRawObject(tx, srcObj); err != nil {
+					return err
+				}
+			} else {
+				if err := saveRawObject(tx, srcObj); err != nil {
+					return err
+				}
 			}
 		}
 		if err := saveRawObject(tx, dstParent); err != nil {
@@ -211,7 +219,7 @@ func (e *Entity) SavePluginRecord(ctx context.Context, plugin types.PlugScope, g
 		return nil
 	}
 
-	res = e.DB.WithContext(ctx).Updates(pd)
+	res = e.DB.WithContext(ctx).Save(pd)
 	if res.Error != nil {
 		return res.Error
 	}
@@ -354,16 +362,17 @@ func saveRawObject(tx *gorm.DB, obj *types.Object) error {
 		if res.Error != nil {
 			return res.Error
 		}
+		return nil
 	}
-	res = tx.Updates(objModel)
+	res = tx.Save(objModel)
 	if res.Error != nil {
 		return res.Error
 	}
-	res = tx.Updates(oaModel)
+	res = tx.Save(oaModel)
 	if res.Error != nil {
 		return res.Error
 	}
-	res = tx.Updates(extModel)
+	res = tx.Save(extModel)
 	if res.Error != nil {
 		return res.Error
 	}
@@ -409,7 +418,7 @@ func availableInode(tx *gorm.DB) (uint64, error) {
 	}
 
 	info.Inode += 1
-	res = tx.Updates(info)
+	res = tx.Save(info)
 	if res.Error != nil {
 		return 0, res.Error
 	}
@@ -425,7 +434,7 @@ func availableChunkSegID(tx *gorm.DB) (int64, error) {
 	}
 
 	info.ChunkSeg += 1
-	res = tx.Updates(info)
+	res = tx.Save(info)
 	if res.Error != nil {
 		return 0, res.Error
 	}
@@ -477,7 +486,7 @@ func updateObjectLabels(tx *gorm.DB, obj *types.Object) error {
 	if len(needUpdateLabelModels) > 0 {
 		for i := range needUpdateLabelModels {
 			label := needUpdateLabelModels[i]
-			res = tx.Updates(label)
+			res = tx.Save(label)
 			if res.Error != nil {
 				return res.Error
 			}

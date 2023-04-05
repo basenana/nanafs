@@ -43,7 +43,20 @@ func (l *lifecycle) initHooks() {
 	if err != nil {
 		l.logger.Errorw("subscribe object destroy topic failed", "err", err)
 	}
+	_, err = bus.Subscribe("object.file.*.close", l.handleFileClose)
+	if err != nil {
+		l.logger.Errorw("subscribe object destroy topic failed", "err", err)
+	}
 }
+
+func (l *lifecycle) handleFileClose(en Entry) {
+	md := en.Metadata()
+	if md.ParentID == 0 && md.RefCount == 0 && !isFileOpened(md.ID) {
+		l.logger.Infow("destroy closed and deleted entry", "entry", md.ID)
+		// TODO
+	}
+}
+
 func (l *lifecycle) cleanChunks(en Entry) {
 	if en.IsGroup() {
 		return

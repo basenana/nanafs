@@ -81,7 +81,7 @@ func (n *NanaFS) Start(stopCh chan struct{}) error {
 	if err != nil {
 		return err
 	}
-	server.SetDebug(n.debug)
+	server.SetDebug(n.cfg.VerboseLog)
 
 	go server.Serve()
 
@@ -172,6 +172,25 @@ func (n *NanaFS) umount(server *fuse.Server) {
 
 func (n *NanaFS) GetEntry(ctx context.Context, id int64) (dentry.Entry, error) {
 	return n.Controller.GetEntry(ctx, id)
+}
+
+func (n *NanaFS) GetSourceEntry(ctx context.Context, id int64) (dentry.Entry, error) {
+	var (
+		entry   dentry.Entry
+		err     error
+		entryId = id
+	)
+	for {
+		entry, err = n.Controller.GetEntry(ctx, entryId)
+		if err != nil {
+			return nil, err
+		}
+		md := entry.Metadata()
+		if md.RefID == 0 || md.RefID == md.ID {
+			return entry, nil
+		}
+		entryId = md.RefID
+	}
 }
 
 func (n *NanaFS) releaseFsNode(ctx context.Context, entry dentry.Entry) {

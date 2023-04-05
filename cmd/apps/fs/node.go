@@ -18,14 +18,16 @@ package fs
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
+	"syscall"
+	"time"
+
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
 	"go.uber.org/zap"
-	"syscall"
-	"time"
+
+	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 )
 
 type NanaNode struct {
@@ -60,7 +62,7 @@ func (n *NanaNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrO
 		return file.Getattr(ctx, out)
 	}
 
-	entry, err := n.R.GetEntry(ctx, n.oid)
+	entry, err := n.R.GetSourceEntry(ctx, n.oid)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
@@ -83,11 +85,11 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 		attr = nanaFile.file.GetAttr()
 	}
 
-	entry, err := n.R.GetEntry(ctx, n.oid)
+	entry, err := n.R.GetSourceEntry(ctx, n.oid)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
-	if err := updateNanaNodeWithAttr(in, entry, int64(uid), int64(gid), attr); err != nil {
+	if err := updateNanaNodeWithAttr(in, entry.Metadata(), int64(uid), int64(gid), attr); err != nil {
 		return Error2FuseSysError(err)
 	}
 
@@ -101,7 +103,7 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 func (n *NanaNode) Getxattr(ctx context.Context, attr string, dest []byte) (uint32, syscall.Errno) {
 	defer utils.TraceRegion(ctx, "node.getxattr")()
 
-	entry, err := n.R.GetEntry(ctx, n.oid)
+	entry, err := n.R.GetSourceEntry(ctx, n.oid)
 	if err != nil {
 		return 0, Error2FuseSysError(err)
 	}
@@ -124,7 +126,7 @@ func (n *NanaNode) Getxattr(ctx context.Context, attr string, dest []byte) (uint
 
 func (n *NanaNode) Setxattr(ctx context.Context, attr string, data []byte, flags uint32) syscall.Errno {
 	defer utils.TraceRegion(ctx, "node.setxattr")()
-	entry, err := n.R.GetEntry(ctx, n.oid)
+	entry, err := n.R.GetSourceEntry(ctx, n.oid)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
@@ -135,7 +137,7 @@ func (n *NanaNode) Setxattr(ctx context.Context, attr string, data []byte, flags
 
 func (n *NanaNode) Removexattr(ctx context.Context, attr string) syscall.Errno {
 	defer utils.TraceRegion(ctx, "node.removexattr")()
-	entry, err := n.R.GetEntry(ctx, n.oid)
+	entry, err := n.R.GetSourceEntry(ctx, n.oid)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
@@ -148,7 +150,7 @@ func (n *NanaNode) Removexattr(ctx context.Context, attr string) syscall.Errno {
 
 func (n *NanaNode) Open(ctx context.Context, flags uint32) (fh fs.FileHandle, fuseFlags uint32, errno syscall.Errno) {
 	defer utils.TraceRegion(ctx, "node.open")()
-	entry, err := n.R.GetEntry(ctx, n.oid)
+	entry, err := n.R.GetSourceEntry(ctx, n.oid)
 	if err != nil {
 		return nil, 0, Error2FuseSysError(err)
 	}
@@ -210,12 +212,10 @@ func (n *NanaNode) Lookup(ctx context.Context, name string, out *fuse.EntryOut) 
 		return nil, Error2FuseSysError(err)
 	}
 
-	if ch.IsMirror() {
-		ch, err = n.R.GetEntry(ctx, ch.Metadata().RefID)
-		if err != nil {
-			n.logger.Errorw("query source entry failed", "err", err.Error())
-			return nil, Error2FuseSysError(err)
-		}
+	ch, err = n.R.GetSourceEntry(ctx, ch.Metadata().ID)
+	if err != nil {
+		n.logger.Errorw("query source entry failed", "", "err", err.Error())
+		return nil, Error2FuseSysError(err)
 	}
 
 	node, err := n.R.newFsNode(ctx, n, ch)
@@ -352,23 +352,18 @@ func (n *NanaNode) Link(ctx context.Context, target fs.InodeEmbedder, name strin
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
-	targetEntry, err := n.R.GetEntry(ctx, targetNode.oid)
+	targetEntry, err := n.R.GetSourceEntry(ctx, targetNode.oid)
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
-	mirrored, err := n.R.MirrorEntry(ctx, targetEntry, entry, types.ObjectAttr{Name: name})
-	if err != nil {
-		return nil, Error2FuseSysError(err)
-	}
-
-	node, err := n.R.newFsNode(ctx, n, mirrored)
+	_, err = n.R.MirrorEntry(ctx, targetEntry, entry, types.ObjectAttr{Name: name})
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
 
-	updateAttrOut(nanaNode2Stat(mirrored), &out.Attr)
-	n.AddChild(name, node.EmbeddedInode(), true)
-	return node.EmbeddedInode(), NoErr
+	updateAttrOut(nanaNode2Stat(targetEntry), &out.Attr)
+	n.AddChild(name, target.EmbeddedInode(), true)
+	return target.EmbeddedInode(), NoErr
 }
 
 // TODO: improve symlink operation
@@ -403,6 +398,12 @@ func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.E
 
 	_, err = n.R.WriteFile(ctx, f, []byte(target), 0)
 	if err != nil {
+		return nil, Error2FuseSysError(err)
+	}
+	if err = f.Close(ctx); err != nil {
+		return nil, Error2FuseSysError(err)
+	}
+	if err = n.R.SaveEntry(ctx, entry, newLink); err != nil {
 		return nil, Error2FuseSysError(err)
 	}
 
