@@ -18,6 +18,7 @@ package dentry
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"go.uber.org/zap"
@@ -57,6 +58,7 @@ func NewManager(store storage.ObjectStore, cfg config.Config) (Manager, error) {
 		logger:   logger.NewLogger("entryManager"),
 	}
 	newLifecycle(mgr).initHooks()
+	fileEntryLogger = mgr.logger.Named("files")
 	return mgr, nil
 }
 
@@ -171,12 +173,8 @@ func (m *manager) MirrorEntry(ctx context.Context, src, dstParent Entry, attr En
 	}
 
 	if src.IsMirror() {
-		srcObj, err = m.store.GetObject(ctx, srcObj.RefID)
-		if err != nil {
-			m.logger.Errorw("query source object error", "entry", src.Object().ID, "srcObj", src.Object().RefID, "err", err.Error())
-			return nil, err
-		}
-		m.logger.Infow("replace source object", "entry", srcObj.ID)
+		m.logger.Warnw("source entry is mirrored", "entry", srcObj.RefID)
+		return nil, fmt.Errorf("source entry is mirrored")
 	}
 
 	obj, err := initMirrorEntryObject(srcObj, parentObj, attr)
