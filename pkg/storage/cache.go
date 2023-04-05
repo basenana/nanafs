@@ -50,10 +50,13 @@ func InitLocalCache(config config.Config) {
 	if localCacheDir == "" {
 		cacheLog.Panic("init local cache dri dir failed: empty")
 	}
+	cacheLog.Infow("local cache dir: %s", localCacheDir)
 	localCacheSizeLimit = int64(config.CacheSize) * (1 << 30) // config.CacheSize Gi
 	if err := utils.Mkdir(localCacheDir); err != nil {
-		cacheLog.Panicf("init local cache dri dir failed: %s", err)
+		cacheLog.Panicf("init local cache dir failed: %s", err)
 	}
+	// TODO: load uncommitted data
+	cacheLog.Infow("local size usage: %d, limit: %d", localCacheSizeUsage, localCacheSizeLimit)
 }
 
 type LocalCache struct {
@@ -80,109 +83,41 @@ func (c *LocalCache) OpenTemporaryNode(ctx context.Context, oid, off int64) (Cac
 	if err != nil {
 		return nil, err
 	}
-	if err = f.Truncate(cacheNodeSize); err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	node := &cacheNode{path: tFile, uncommitted: true}
-	if err = node.Attach(); err != nil {
-		return nil, err
-	}
-	return node, nil
+	return &fileCacheNode{File: f, path: tFile}, nil
 }
 
 func (c *LocalCache) CommitTemporaryNode(ctx context.Context, segID, idx int64, node CacheNode) error {
-	no := node.(*cacheNode)
-	if err := c.s.Put(ctx, segID, idx, 0, no.data[:no.size]); err != nil {
+	no := node.(*fileCacheNode)
+	f := no.File
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		cacheLog.Errorw("seek node to start error", "page", idx, "err", err)
 		return err
 	}
-	no.uncommitted = false
-	// TODO: rename
-	defer os.Remove(no.path)
-	return node.Close()
-}
-
-func (c *LocalCache) makeLocalCache(ctx context.Context, key, idx int64) (CacheNode, error) {
-	if _, isLocalStorage := c.s.(*local); isLocalStorage {
-		return c.mappingLocalStorage(ctx, key, idx)
-	}
-
-	fetchKey := fmt.Sprintf("%d_%d", key, idx)
-	c.mux.Lock()
-	_, stillFetching := c.pending[fetchKey]
-	if stillFetching {
-		for stillFetching {
-			c.cond.Wait()
-			_, stillFetching = c.pending[fetchKey]
-		}
-		node := c.nodes[key][idx]
-		c.mux.Unlock()
-		return node, nil
-	} else {
-		c.pending[fetchKey] = struct{}{}
-	}
-	c.mux.Unlock()
-
-	info, err := c.s.Head(ctx, key, idx)
-	if err != nil {
-		return nil, err
-	}
-
-	for {
-		crtCached := atomic.LoadInt64(&localCacheSizeUsage)
-		if crtCached+info.Size > localCacheSizeLimit {
-			if err = c.cleanSpaceAndWait(ctx); err != nil {
-				return nil, err
-			}
-			continue
-		}
-		if atomic.CompareAndSwapInt64(&localCacheSizeUsage, crtCached, crtCached+info.Size) {
-			break
-		}
-	}
-
-	cacheFilePath := c.localCacheFilePath(key, idx)
-	f, err := os.Create(cacheFilePath)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
 	var (
-		off, n int64
-		buf    = make([]byte, 1024)
+		buffer = make([]byte, 524288)
+		total  int64
 	)
 	for {
-		n, err = c.s.Get(ctx, key, idx, off, buf)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return nil, err
+		n, err := f.Read(buffer)
+		if err != nil && err != io.EOF {
+			cacheLog.Errorw("read local cache node error", "page", idx, "err", err)
+			return err
 		}
-		off += n
-		_, err = f.Write(buf[:n])
-		if err != nil {
-			return nil, err
+		if n == 0 {
+			break
 		}
+		if err = c.s.Put(ctx, segID, idx, total, buffer[:n]); err != nil {
+			cacheLog.Errorw("send cache data to storage error", "page", idx, "err", err)
+			return err
+		}
+		total += int64(n)
 	}
-
-	node := &cacheNode{path: cacheFilePath}
-	c.mux.Lock()
-	c.nodes[key][idx] = node
-	delete(c.pending, fetchKey)
-	c.mux.Unlock()
-	c.cond.Broadcast()
-
-	return node, nil
-}
-
-func (c *LocalCache) mappingLocalStorage(ctx context.Context, key, idx int64) (CacheNode, error) {
-	node := &cacheNode{path: c.s.(*local).key2LocalPath(key, idx)}
-	c.mux.Lock()
-	c.nodes[key][idx] = node
-	c.mux.Unlock()
-	return node, nil
+	defer func() {
+		if innerErr := os.Remove(no.path); innerErr != nil {
+			cacheLog.Errorw("clean cache data error", "page", idx, "err", innerErr)
+		}
+	}()
+	return node.Close()
 }
 
 func (c *LocalCache) cleanSpaceAndWait(ctx context.Context) error {
@@ -193,23 +128,22 @@ func (c *LocalCache) localTemporaryFilePath(oid, off int64) string {
 	return path.Join(localCacheDir, fmt.Sprintf("t_%d_%d_%d", oid, off, time.Now().UnixNano()))
 }
 
-func (c *LocalCache) localCacheFilePath(key, idx int64) string {
-	return path.Join(localCacheDir, fmt.Sprintf("%d_%d", key, idx))
-}
-
 type CacheNode interface {
-	Attach() error
 	io.ReaderAt
 	io.WriterAt
 	io.Closer
 }
 
 type fileCacheNode struct {
-	os.File
+	*os.File
+	path string
 }
+
+var _ CacheNode = &fileCacheNode{}
 
 type cacheNode struct {
 	ref         int32
+	f           *os.File
 	path        string
 	data        []byte
 	size        int64
@@ -232,7 +166,7 @@ func (c *cacheNode) Attach() error {
 		_ = f.Close()
 		return err
 	}
-	defer f.Close()
+	c.f = f
 	atomic.AddInt32(&c.ref, 1)
 	return nil
 }
@@ -263,7 +197,9 @@ func (c *cacheNode) Close() error {
 			return err
 		}
 		c.data = nil
-		return nil
+		f := c.f
+		c.f = nil
+		return f.Close()
 	}
 	return nil
 }
