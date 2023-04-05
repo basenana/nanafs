@@ -159,11 +159,15 @@ func (c *controller) DestroyEntry(ctx context.Context, parent, en dentry.Entry, 
 		return types.ErrNoAccess
 	}
 
-	if err = c.entry.DestroyEntry(ctx, parent, en); err != nil {
+	var destroyed bool
+	destroyed, err = c.entry.DestroyEntry(ctx, parent, en)
+	if err != nil {
 		c.logger.Errorw("delete entry failed", "entry", en.Metadata().ID, "err", err.Error())
 		return err
 	}
-	bus.Publish(fmt.Sprintf("object.entry.%d.destroy", en.Metadata().ID), en)
+	if destroyed {
+		bus.Publish(fmt.Sprintf("object.entry.%d.destroy", en.Metadata().ID), en)
+	}
 	return
 }
 

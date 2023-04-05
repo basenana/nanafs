@@ -34,7 +34,7 @@ type Manager interface {
 	Root(ctx context.Context) (Entry, error)
 	GetEntry(ctx context.Context, id int64) (Entry, error)
 	CreateEntry(ctx context.Context, parent Entry, attr EntryAttr) (Entry, error)
-	DestroyEntry(ctx context.Context, parent, en Entry) error
+	DestroyEntry(ctx context.Context, parent, en Entry) (bool, error)
 	MirrorEntry(ctx context.Context, src, dstParent Entry, attr EntryAttr) (Entry, error)
 	ChangeEntryParent(ctx context.Context, targetEntry, overwriteEntry, oldParent, newParent Entry, newName string, opt ChangeParentAttr) error
 	Open(ctx context.Context, en Entry, attr Attr) (File, error)
@@ -101,9 +101,9 @@ func (m *manager) CreateEntry(ctx context.Context, parent Entry, attr EntryAttr)
 	return grp.CreateEntry(ctx, attr)
 }
 
-func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) error {
+func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) (bool, error) {
 	if !parent.IsGroup() {
-		return types.ErrNoGroup
+		return false, types.ErrNoGroup
 	}
 	var (
 		parentGrp = parent.Group()
@@ -117,33 +117,24 @@ func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) error {
 		srcObj, err = m.store.GetObject(ctx, en.Metadata().RefID)
 		if err != nil {
 			m.logger.Errorw("query source object from meta server error", "entry", obj.ID, "ref", obj.RefID, "err", err.Error())
-			return err
+			return false, err
 		}
 	}
 
-	//mirrored, err := m.store.ListObjects(ctx, types.Filter{RefID: obj.ID})
-	//if err != nil {
-	//	return err
-	//}
-	//if len(mirrored) > 0 {
-	//	obj.ParentID = 0
-	//	obj.RefID -= 1
-	//	obj.ChangedAt = time.Now()
-	//	return nil
-	//}
-	if !obj.IsGroup() && obj.RefCount > 1 {
-		m.logger.Infow("object has mirrors, remove parent id", "entry", obj.ID)
+	if !obj.IsGroup() && (obj.RefCount > 1 || (obj.RefCount == 1 && isFileOpened(obj.ID))) {
+		m.logger.Infow("remove object parent id", "entry", obj.ID, "ref", obj.RefID)
 		obj.RefCount -= 1
 		obj.ParentID = 0
 		obj.ChangedAt = time.Now()
 		if err = m.store.SaveObject(ctx, parentObj, obj); err != nil {
-			return err
+			return false, err
 		}
-		return nil
+		return false, nil
 	}
 
 	if srcObj == nil && ((en.IsGroup() && obj.RefCount == 2) || (!en.IsGroup() && obj.RefCount == 1)) {
-		return parentGrp.DestroyEntry(ctx, en)
+		err = parentGrp.DestroyEntry(ctx, en)
+		return err == nil, err
 	}
 
 	if srcObj != nil {
@@ -159,10 +150,10 @@ func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) error {
 
 	if err = m.store.DestroyObject(ctx, srcObj, parentObj, obj); err != nil {
 		m.logger.Errorw("destroy object from meta server error", "enrty", obj.ID, "err", err.Error())
-		return err
+		return false, err
 	}
 
-	return nil
+	return true, nil
 }
 
 func (m *manager) MirrorEntry(ctx context.Context, src, dstParent Entry, attr EntryAttr) (Entry, error) {
@@ -235,7 +226,7 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntry, overwriteE
 			return types.ErrUnsupported
 		}
 
-		if err := m.DestroyEntry(ctx, newParent, overwriteEntry); err != nil {
+		if _, err := m.DestroyEntry(ctx, newParent, overwriteEntry); err != nil {
 			return err
 		}
 	}
