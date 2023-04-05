@@ -356,19 +356,14 @@ func (n *NanaNode) Link(ctx context.Context, target fs.InodeEmbedder, name strin
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
-	mirrored, err := n.R.MirrorEntry(ctx, targetEntry, entry, types.ObjectAttr{Name: name})
+	_, err = n.R.MirrorEntry(ctx, targetEntry, entry, types.ObjectAttr{Name: name})
 	if err != nil {
 		return nil, Error2FuseSysError(err)
 	}
 
-	node, err := n.R.newFsNode(ctx, n, mirrored)
-	if err != nil {
-		return nil, Error2FuseSysError(err)
-	}
-
-	updateAttrOut(nanaNode2Stat(mirrored), &out.Attr)
-	n.AddChild(name, node.EmbeddedInode(), true)
-	return node.EmbeddedInode(), NoErr
+	updateAttrOut(nanaNode2Stat(targetEntry), &out.Attr)
+	n.AddChild(name, target.EmbeddedInode(), true)
+	return target.EmbeddedInode(), NoErr
 }
 
 // TODO: improve symlink operation
