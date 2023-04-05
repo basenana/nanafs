@@ -7,12 +7,16 @@ desc="write access to subdirectory is required to move it to another directory"
 dir=`dirname $0`
 . ${dir}/../misc.sh
 
-echo "1..16"
+echo "1..17"
 
+n00=`namegen`
 n0=`namegen`
 n1=`namegen`
 n2=`namegen`
 n3=`namegen`
+
+expect 0 mkdir ${n00} 0777
+cd ${n00}
 
 expect 0 mkdir ${n2} 0777
 expect 0 mkdir ${n3} 0777

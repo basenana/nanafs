@@ -139,7 +139,8 @@ func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) (bool, err
 
 	if srcObj != nil {
 		srcObj.RefCount -= 1
-		srcObj.CreatedAt = time.Now()
+		srcObj.ChangedAt = time.Now()
+		srcObj.ModifiedAt = time.Now()
 	}
 
 	if obj.IsGroup() {

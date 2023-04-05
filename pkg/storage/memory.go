@@ -93,17 +93,13 @@ func (m *memoryMetaStore) DestroyObject(ctx context.Context, src, parent, obj *t
 	}
 	m.objects[parent.ID] = parent
 	if src != nil {
-		if src.RefCount > 0 {
-			m.objects[src.ID] = src
-		} else {
+		if src.RefCount == 0 {
 			delete(m.objects, src.ID)
+		} else {
+			m.objects[src.ID] = src
 		}
 	}
-	if !obj.IsGroup() && obj.RefCount > 0 {
-		m.objects[obj.ID] = obj
-	} else {
-		delete(m.objects, obj.ID)
-	}
+	delete(m.objects, obj.ID)
 	m.mux.Unlock()
 	return nil
 }
