@@ -70,7 +70,7 @@ func (f *file) WriteAt(ctx context.Context, data []byte, off int64) (int64, erro
 
 func (f *file) Flush(ctx context.Context) error {
 	if !f.attr.Write {
-		return nil
+		return types.ErrUnsupported
 	}
 	err := f.writer.Flush(ctx)
 	if err != nil {
@@ -81,7 +81,7 @@ func (f *file) Flush(ctx context.Context) error {
 
 func (f *file) Fsync(ctx context.Context) error {
 	if !f.attr.Write {
-		return nil
+		return types.ErrUnsupported
 	}
 	err := f.writer.Flush(ctx)
 	if err != nil {

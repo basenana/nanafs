@@ -48,6 +48,8 @@ func Error2FuseSysError(err error) syscall.Errno {
 		return syscall.ENAMETOOLONG
 	case types.ErrOutOfFS:
 		return syscall.EXDEV
+	case types.ErrUnsupported:
+		return syscall.EBADF
 	}
 	return syscall.EIO
 }
