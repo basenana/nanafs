@@ -130,6 +130,7 @@ func (a *ObjectPermission) Update(obj *types.Object) {
 
 func (a *ObjectPermission) ToAccess() types.Access {
 	result := types.Access{
+		ID:  a.ID,
 		UID: a.Uid,
 		GID: a.Gid,
 	}

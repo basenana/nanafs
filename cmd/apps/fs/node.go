@@ -162,7 +162,7 @@ func (n *NanaNode) Open(ctx context.Context, flags uint32) (fh fs.FileHandle, fu
 		return nil, 0, Error2FuseSysError(types.ErrIsGroup)
 	}
 	f, err := n.R.Controller.OpenFile(ctx, entry, openFileAttr(flags))
-	return &File{node: n, entry: entry, file: f}, flags, Error2FuseSysError(err)
+	return &File{node: n, file: f}, flags, Error2FuseSysError(err)
 }
 
 func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode uint32, out *fuse.EntryOut) (*fs.Inode, fs.FileHandle, uint32, syscall.Errno) {
@@ -201,7 +201,7 @@ func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode u
 	n.AddChild(name, node.EmbeddedInode(), true)
 
 	f, err := n.R.Controller.OpenFile(ctx, newCh, openFileAttr(flags))
-	return node.EmbeddedInode(), &File{node: node, entry: entry, file: f}, dentry.Access2Mode(newCh.Metadata().Access), Error2FuseSysError(err)
+	return node.EmbeddedInode(), &File{node: node, file: f}, dentry.Access2Mode(newCh.Metadata().Access), Error2FuseSysError(err)
 }
 
 func (n *NanaNode) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {

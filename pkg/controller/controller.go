@@ -59,6 +59,7 @@ type controller struct {
 	cfgLoader config.Loader
 
 	entry dentry.Manager
+	cache *entryCache
 
 	logger *zap.SugaredLogger
 }
@@ -73,6 +74,7 @@ func (c *controller) LoadRootEntry(ctx context.Context) (dentry.Entry, error) {
 		c.logger.Errorw("load root object error", "err", err.Error())
 		return nil, err
 	}
+	c.cache.putEntry(rootEntry)
 	return rootEntry, nil
 }
 
@@ -95,6 +97,10 @@ func (c *controller) FindEntry(ctx context.Context, parent dentry.Entry, name st
 }
 
 func (c *controller) GetEntry(ctx context.Context, id int64) (dentry.Entry, error) {
+	cached := c.cache.getEntry(id)
+	if cached != nil {
+		return cached, nil
+	}
 	result, err := c.entry.GetEntry(ctx, id)
 	if err != nil {
 		if err != types.ErrNotFound {
@@ -102,6 +108,7 @@ func (c *controller) GetEntry(ctx context.Context, id int64) (dentry.Entry, erro
 		}
 		return nil, err
 	}
+	c.cache.putEntry(result)
 	return result, nil
 }
 
@@ -122,6 +129,7 @@ func (c *controller) CreateEntry(ctx context.Context, parent dentry.Entry, attr 
 		c.logger.Errorw("create entry error", "parent", parent.Metadata().ID, "entryName", attr.Name, "err", err.Error())
 		return nil, err
 	}
+	c.cache.putEntry(entry)
 	bus.Publish(fmt.Sprintf("object.entry.%d.create", entry.Metadata().ID), entry)
 	return entry, nil
 }
@@ -145,6 +153,7 @@ func (c *controller) SaveEntry(ctx context.Context, parent, entry dentry.Entry) 
 		c.logger.Errorw("save entry error", "entry", entry.Metadata().ID, "err", err.Error())
 		return err
 	}
+	c.cache.putEntry(entry)
 	bus.Publish(fmt.Sprintf("object.entry.%d.update", entry.Metadata().ID), entry)
 	return nil
 }
@@ -165,6 +174,7 @@ func (c *controller) DestroyEntry(ctx context.Context, parent, en dentry.Entry, 
 		c.logger.Errorw("delete entry failed", "entry", en.Metadata().ID, "err", err.Error())
 		return err
 	}
+	c.cache.delEntry(en.Metadata().ID)
 	if destroyed {
 		bus.Publish(fmt.Sprintf("object.entry.%d.destroy", en.Metadata().ID), en)
 	}
@@ -193,6 +203,9 @@ func (c *controller) MirrorEntry(ctx context.Context, src, dstParent dentry.Entr
 		Kind:   attr.Kind,
 		Access: attr.Access,
 	})
+
+	c.cache.delEntry(src.Metadata().ID)
+	c.cache.delEntry(dstParent.Metadata().ID)
 
 	bus.Publish(fmt.Sprintf("object.entry.%d.mirror", entry.Metadata().ID), entry)
 	return entry, nil
@@ -252,6 +265,9 @@ func (c *controller) ChangeEntryParent(ctx context.Context, target, oldParent, n
 		c.logger.Errorw("change object parent failed", "target", target.Metadata().ID, "newParent", newParent.Metadata().ID, "newName", newName, "err", err.Error())
 		return err
 	}
+	c.cache.delEntry(target.Metadata().ID)
+	c.cache.delEntry(oldParent.Metadata().ID)
+	c.cache.delEntry(newParent.Metadata().ID)
 	bus.Publish(fmt.Sprintf("object.entry.%d.mv", target.Metadata().ID), target)
 	return nil
 }
@@ -263,6 +279,7 @@ func New(loader config.Loader, meta storage.Meta) (Controller, error) {
 		meta:      meta,
 		cfg:       cfg,
 		cfgLoader: loader,
+		cache:     initEntryCache(),
 		logger:    logger.NewLogger("controller"),
 	}
 	var err error

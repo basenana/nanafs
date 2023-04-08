@@ -74,7 +74,7 @@ var _ Manager = &manager{}
 func (m *manager) Root(ctx context.Context) (Entry, error) {
 	root, err := m.store.GetObject(ctx, RootEntryID)
 	if err == nil {
-		return BuildEntry(root, m.store), nil
+		return buildEntry(root, m.store), nil
 	}
 	if err != types.ErrNotFound {
 		m.logger.Errorw("load root object error", "err", err.Error())
@@ -84,7 +84,7 @@ func (m *manager) Root(ctx context.Context) (Entry, error) {
 	root.Access.UID = m.cfg.Owner.Uid
 	root.Access.GID = m.cfg.Owner.Gid
 	root.Storage = m.cfg.Storages[0].ID
-	return BuildEntry(root, m.store), m.store.SaveObject(ctx, nil, root)
+	return buildEntry(root, m.store), m.store.SaveObject(ctx, nil, root)
 }
 
 func (m *manager) GetEntry(ctx context.Context, id int64) (Entry, error) {
@@ -92,7 +92,7 @@ func (m *manager) GetEntry(ctx context.Context, id int64) (Entry, error) {
 	if err != nil {
 		return nil, err
 	}
-	return BuildEntry(obj, m.store), nil
+	return buildEntry(obj, m.store), nil
 }
 
 func (m *manager) CreateEntry(ctx context.Context, parent Entry, attr EntryAttr) (Entry, error) {
@@ -192,7 +192,7 @@ func (m *manager) MirrorEntry(ctx context.Context, src, dstParent Entry, attr En
 		m.logger.Errorw("update dst parent object ref count error", "srcEntry", srcMd.ID, "dstParent", parentMd.ID, "err", err.Error())
 		return nil, err
 	}
-	return BuildEntry(obj, m.store), nil
+	return buildEntry(obj, m.store), nil
 }
 
 func (m *manager) ChangeEntryParent(ctx context.Context, targetEntry, overwriteEntry, oldParent, newParent Entry, newName string, opt ChangeParentAttr) error {
@@ -276,4 +276,28 @@ type EntryAttr struct {
 type ChangeParentAttr struct {
 	Replace  bool
 	Exchange bool
+}
+
+type cache struct {
+	lfu *utils.LFUCache
+}
+
+func (c *cache) putEntry(entry Entry) {
+	c.lfu.Put(c.entryKey(entry.Metadata().ID), entry)
+}
+
+func (c *cache) getEntry(eid int64) Entry {
+	enRaw := c.lfu.Get(c.entryKey(eid))
+	if enRaw == nil {
+		return nil
+	}
+	return enRaw.(Entry)
+}
+
+func (c *cache) delEntry(eid int64) {
+	c.lfu.Remove(c.entryKey(eid))
+}
+
+func (c *cache) entryKey(eid int64) string {
+	return fmt.Sprintf("entry_%d", eid)
 }

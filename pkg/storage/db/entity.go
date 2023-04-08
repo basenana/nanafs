@@ -423,6 +423,10 @@ func saveRawObject(tx *gorm.DB, obj *types.Object) error {
 		return nil
 	}
 
+	if obj.Access.ID == 0 {
+		oaModel.Update(obj)
+	}
+
 	objModel.Update(obj)
 	res = tx.Save(objModel)
 	if res.Error != nil {

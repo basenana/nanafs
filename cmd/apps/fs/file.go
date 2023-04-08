@@ -27,19 +27,18 @@ import (
 )
 
 type File struct {
-	node  *NanaNode
-	entry dentry.Entry
-	file  dentry.File
+	node *NanaNode
+	file dentry.File
 }
 
 var _ fileOperation = &File{}
 
 func (f *File) Getattr(ctx context.Context, out *fuse.AttrOut) syscall.Errno {
-	entry, err := f.node.R.GetEntry(ctx, f.entry.Metadata().ID)
+	entry, err := f.node.R.GetEntry(ctx, f.file.Metadata().ID)
 	if err != nil {
-		if err == types.ErrNotFound && f.entry != nil {
-			f.entry.Metadata().RefCount = 0
-			st := nanaNode2Stat(f.entry)
+		if err == types.ErrNotFound && f.file != nil {
+			f.file.Metadata().RefCount = 0
+			st := nanaNode2Stat(f.file)
 			updateAttrOut(st, &out.Attr)
 			return NoErr
 		}
@@ -47,6 +46,9 @@ func (f *File) Getattr(ctx context.Context, out *fuse.AttrOut) syscall.Errno {
 	}
 
 	st := nanaNode2Stat(entry)
+	cachedSt := nanaNode2Stat(f.file)
+	st.Size = cachedSt.Size
+	st.Mtimespec = cachedSt.Mtimespec
 	updateAttrOut(st, &out.Attr)
 	return NoErr
 }

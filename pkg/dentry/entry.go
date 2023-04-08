@@ -41,7 +41,7 @@ type Entry interface {
 	Group() Group
 }
 
-func BuildEntry(obj *types.Object, store storage.ObjectStore) Entry {
+func buildEntry(obj *types.Object, store storage.ObjectStore) Entry {
 	return &rawEntry{obj: obj, store: store}
 }
 

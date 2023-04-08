@@ -80,7 +80,8 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, erro
 	if err = g.store.SaveObject(ctx, &types.Object{Metadata: *groupMd}, obj); err != nil {
 		return nil, err
 	}
-	return BuildEntry(obj, g.store), nil
+	en := buildEntry(obj, g.store)
+	return en, nil
 }
 
 func (g *stdGroup) UpdateEntry(ctx context.Context, en Entry) error {
@@ -113,7 +114,6 @@ func (g *stdGroup) DestroyEntry(ctx context.Context, en Entry) error {
 	if en.IsGroup() {
 		grpMd.RefCount -= 1
 	}
-	grpMd.RefCount -= 1
 	grpMd.ChangedAt = time.Now()
 	grpMd.ModifiedAt = time.Now()
 
@@ -135,7 +135,7 @@ func (g *stdGroup) ListChildren(ctx context.Context) ([]Entry, error) {
 		if next.ID == next.ParentID {
 			continue
 		}
-		result = append(result, BuildEntry(next, g.store))
+		result = append(result, buildEntry(next, g.store))
 	}
 	return result, nil
 }

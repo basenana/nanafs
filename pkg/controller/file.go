@@ -86,6 +86,9 @@ func (c *controller) WriteFile(ctx context.Context, file dentry.File, data []byt
 	}
 	meta := file.Metadata()
 	meta.ModifiedAt = time.Now()
+	if meta.Size < offset+int64(len(data)) {
+		meta.Size = offset + int64(len(data))
+	}
 	return n, nil
 }
 

@@ -190,7 +190,11 @@ func InitNewObject(parent *Metadata, attr ObjectAttr) (*Object, error) {
 	}
 
 	md := NewMetadata(attr.Name, attr.Kind)
-	md.Access = attr.Access
+	md.Access = Access{
+		Permissions: attr.Access.Permissions,
+		UID:         attr.Access.UID,
+		GID:         attr.Access.GID,
+	}
 	md.Dev = attr.Dev
 
 	newObj := &Object{

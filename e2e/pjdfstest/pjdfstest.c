@@ -1182,10 +1182,12 @@ call_syscall(struct syscall_desc *scall, char *argv[])
 	case ACTION_PWRITE:
 		rval = pwrite(NUM(0), STR(1), strlen(STR(1)), NUM(2));
         fsync(NUM(0));
+        sleep(1); // waiting segment committed
 		break;
 	case ACTION_WRITE:
 		rval = write(NUM(0), STR(1), strlen(STR(1)));
         fsync(NUM(0));
+        sleep(1); // waiting segment committed
 		break;
 #ifdef	HAVE_UTIMENSAT
 	case ACTION_UTIMENSAT:
