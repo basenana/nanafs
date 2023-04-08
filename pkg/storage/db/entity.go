@@ -38,7 +38,7 @@ func NewDbEntity(db *gorm.DB) (*Entity, error) {
 	ctx, canF := context.WithTimeout(context.TODO(), time.Second*10)
 	defer canF()
 
-	if err := db.AutoMigrate(dbModels...); err != nil {
+	if err := Migrate(db); err != nil {
 		return nil, err
 	}
 
@@ -300,21 +300,21 @@ func (e *Entity) SystemInfo(ctx context.Context) (*SystemInfo, error) {
 func assembleObject(db *gorm.DB, objModel *Object) (*types.Object, error) {
 	obj := objModel.Object()
 
-	oa := &ObjectAccess{}
+	oa := &ObjectPermission{}
 	ext := &ObjectExtend{}
-	ol := make([]ObjectLabel, 0)
+	ol := make([]Label, 0)
 
-	res := db.Where("id", "=", objModel.ID).First(oa)
+	res := db.Where("oid = ?", objModel.ID).First(oa)
 	if res.Error != nil {
 		return nil, res.Error
 	}
 
-	res = db.Where("id", "=", objModel.ID).First(ext)
+	res = db.Where("id = ?", objModel.ID).First(ext)
 	if res.Error != nil {
 		return nil, res.Error
 	}
 
-	res = db.Where("oid", "=", objModel.ID).Find(&ol)
+	res = db.Where("oid = ?", objModel.ID).Find(&ol)
 	if res.Error != nil {
 		return nil, res.Error
 	}
@@ -331,7 +331,7 @@ func assembleObject(db *gorm.DB, objModel *Object) (*types.Object, error) {
 func saveRawObject(tx *gorm.DB, obj *types.Object) error {
 	var (
 		objModel = &Object{ID: obj.ID}
-		oaModel  = &ObjectAccess{ID: obj.ID}
+		oaModel  = &ObjectPermission{OID: obj.ID}
 		extModel = &ObjectExtend{ID: obj.ID}
 	)
 	res := tx.First(objModel)
@@ -382,7 +382,6 @@ func saveRawObject(tx *gorm.DB, obj *types.Object) error {
 func deleteRawObject(tx *gorm.DB, obj *types.Object) error {
 	var (
 		objModel = &Object{ID: obj.ID}
-		oaModel  = &ObjectAccess{ID: obj.ID}
 		extModel = &ObjectExtend{ID: obj.ID}
 	)
 	res := tx.First(objModel)
@@ -394,15 +393,15 @@ func deleteRawObject(tx *gorm.DB, obj *types.Object) error {
 	if res.Error != nil {
 		return res.Error
 	}
-	res = tx.Delete(oaModel)
-	if res.Error != nil {
-		return res.Error
-	}
 	res = tx.Delete(extModel)
 	if res.Error != nil {
 		return res.Error
 	}
-	res = tx.Where("oid = ?", obj.ID).Delete(&ObjectLabel{})
+	res = tx.Where("oid = ?", obj.ID).Delete(&ObjectPermission{})
+	if res.Error != nil {
+		return res.Error
+	}
+	res = tx.Where("oid = ?", obj.ID).Delete(&Label{})
 	if res.Error != nil {
 		return res.Error
 	}
@@ -443,7 +442,7 @@ func availableChunkSegID(tx *gorm.DB) (int64, error) {
 }
 
 func updateObjectLabels(tx *gorm.DB, obj *types.Object) error {
-	labelModels := make([]ObjectLabel, 0)
+	labelModels := make([]Label, 0)
 	res := tx.Where("oid = ?", obj.ID).Find(&labelModels)
 	if res.Error != nil {
 		return res.Error
@@ -454,9 +453,9 @@ func updateObjectLabels(tx *gorm.DB, obj *types.Object) error {
 		labelsMap[kv.Key] = kv.Value
 	}
 
-	needCreateLabelModels := make([]ObjectLabel, 0)
-	needUpdateLabelModels := make([]ObjectLabel, 0)
-	needDeleteLabelModels := make([]ObjectLabel, 0)
+	needCreateLabelModels := make([]Label, 0)
+	needUpdateLabelModels := make([]Label, 0)
+	needDeleteLabelModels := make([]Label, 0)
 	for i := range labelModels {
 		oldKv := labelModels[i]
 		if newV, ok := labelsMap[oldKv.Key]; ok {
@@ -471,7 +470,7 @@ func updateObjectLabels(tx *gorm.DB, obj *types.Object) error {
 	}
 
 	for k, v := range labelsMap {
-		needCreateLabelModels = append(needCreateLabelModels, ObjectLabel{OID: obj.ID, Key: k, Value: v, SearchKey: labelSearchKey(k, v)})
+		needCreateLabelModels = append(needCreateLabelModels, Label{RefType: "object", RefID: obj.ID, Key: k, Value: v, SearchKey: labelSearchKey(k, v)})
 	}
 
 	if len(needCreateLabelModels) > 0 {
@@ -512,13 +511,13 @@ func listObjectWithLabelMatcher(ctx context.Context, db *gorm.DB, labelMatch typ
 		includeSearchKeys[i] = labelSearchKey(inKey.Key, inKey.Value)
 	}
 
-	var includeLabels []ObjectLabel
+	var includeLabels []Label
 	res := db.Select("oid").Where("search_key IN ?", includeSearchKeys).Find(&includeLabels)
 	if res.Error != nil {
 		return nil, res.Error
 	}
 
-	var excludeLabels []ObjectLabel
+	var excludeLabels []Label
 	res = db.Select("oid").Where("key IN ?", labelMatch.Exclude).Find(&excludeLabels)
 	if res.Error != nil {
 		return nil, res.Error
@@ -526,10 +525,10 @@ func listObjectWithLabelMatcher(ctx context.Context, db *gorm.DB, labelMatch typ
 
 	targetObjects := make(map[int64]struct{})
 	for _, in := range includeLabels {
-		targetObjects[in.OID] = struct{}{}
+		targetObjects[in.RefID] = struct{}{}
 	}
 	for _, ex := range excludeLabels {
-		delete(targetObjects, ex.OID)
+		delete(targetObjects, ex.RefID)
 	}
 
 	idList := make([]int64, 0, len(targetObjects))

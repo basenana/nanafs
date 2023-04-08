@@ -23,17 +23,6 @@ import (
 	"time"
 )
 
-var dbModels = []interface{}{
-	&SystemInfo{},
-	&Object{},
-	&ObjectAccess{},
-	&ObjectLabel{},
-	&ObjectProperty{},
-	&ObjectExtend{},
-	&ObjectChunk{},
-	&PluginData{},
-}
-
 type SystemInfo struct {
 	FsID     string `gorm:"column:fs_id;primaryKey"`
 	Inode    uint64 `gorm:"column:inode"`
@@ -113,20 +102,22 @@ func (o *Object) Object() *types.Object {
 	return result
 }
 
-type ObjectAccess struct {
-	ID          int64  `gorm:"column:id;primaryKey"`
+type ObjectPermission struct {
+	ID          int64  `gorm:"column:id;autoIncrement"`
+	OID         int64  `gorm:"column:oid;index:perm_oid"`
 	Uid         int64  `gorm:"column:uid"`
 	Gid         int64  `gorm:"column:gid"`
 	Permissions string `gorm:"column:permissions"`
 }
 
-func (a *ObjectAccess) TableName() string {
-	return "object_access"
+func (a *ObjectPermission) TableName() string {
+	return "object_permission"
 }
 
-func (a *ObjectAccess) Update(obj *types.Object) {
+func (a *ObjectPermission) Update(obj *types.Object) {
 	acc := obj.Access
-	a.ID = obj.ID
+	a.ID = acc.ID
+	a.OID = obj.ID
 	a.Uid = acc.UID
 	a.Gid = acc.GID
 
@@ -137,7 +128,7 @@ func (a *ObjectAccess) Update(obj *types.Object) {
 	a.Permissions = strings.Join(pList, ",")
 }
 
-func (a *ObjectAccess) ToAccess() types.Access {
+func (a *ObjectPermission) ToAccess() types.Access {
 	result := types.Access{
 		UID: a.Uid,
 		GID: a.Gid,
@@ -149,16 +140,17 @@ func (a *ObjectAccess) ToAccess() types.Access {
 	return result
 }
 
-type ObjectLabel struct {
+type Label struct {
 	ID        int64  `gorm:"column:id;autoIncrement"`
-	OID       int64  `gorm:"column:oid;index:label_oid"`
+	RefID     int64  `gorm:"column:ref_id;index:label_refid"`
+	RefType   string `gorm:"column:ref_type;index:label_reftype"`
 	Key       string `gorm:"column:key"`
 	Value     string `gorm:"column:value"`
 	SearchKey string `gorm:"column:search_key;index:label_search_key"`
 }
 
-func (o ObjectLabel) TableName() string {
-	return "object_label"
+func (o Label) TableName() string {
+	return "label"
 }
 
 type ObjectProperty struct {
@@ -173,7 +165,7 @@ func (o ObjectProperty) TableName() string {
 }
 
 type ObjectExtend struct {
-	ID           int64  `gorm:"column::id;primaryKey"`
+	ID           int64  `gorm:"column:id;primaryKey"`
 	ExtendFields []byte `gorm:"column:extend_fields"`
 	Symlink      string `gorm:"column:symlink"`
 	GroupFilter  []byte `gorm:"column:group_filter"`

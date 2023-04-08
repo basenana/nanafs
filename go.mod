@@ -6,6 +6,7 @@ require (
 	github.com/basenana/go-flow v0.0.0-20220322140457-971dcb315a41
 	github.com/bluele/gcache v0.0.2
 	github.com/glebarez/sqlite v1.7.0
+	github.com/go-gormigrate/gormigrate/v2 v2.0.2
 	github.com/google/uuid v1.3.0
 	github.com/hanwen/go-fuse/v2 v2.2.0
 	github.com/hyponet/eventbus v1.0.0
