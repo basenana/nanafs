@@ -177,27 +177,29 @@ func (o *ObjectExtend) TableName() string {
 }
 
 func (o *ObjectExtend) Update(obj *types.Object) {
-	o.ExtendFields, _ = json.Marshal(obj.ExtendData.ExtendFields)
-	o.Symlink = obj.ExtendData.Symlink
+	if obj.ExtendData != nil {
+		o.ExtendFields, _ = json.Marshal(obj.ExtendData.Properties)
+		o.Symlink = obj.ExtendData.Symlink
 
-	if obj.ExtendData.GroupFilter != nil {
-		o.GroupFilter, _ = json.Marshal(obj.ExtendData.GroupFilter)
-	}
+		if obj.ExtendData.GroupFilter != nil {
+			o.GroupFilter, _ = json.Marshal(obj.ExtendData.GroupFilter)
+		}
 
-	if obj.ExtendData.GroupFilter != nil {
-		o.PlugScope, _ = json.Marshal(obj.ExtendData.PlugScope)
+		if obj.ExtendData.GroupFilter != nil {
+			o.PlugScope, _ = json.Marshal(obj.ExtendData.PlugScope)
+		}
 	}
 }
 
 func (o *ObjectExtend) ToExtData() types.ExtendData {
 	ext := types.ExtendData{
-		ExtendFields: types.ExtendFields{},
-		Symlink:      o.Symlink,
-		GroupFilter:  nil,
-		PlugScope:    nil,
+		Properties:  types.Properties{Fields: map[string]string{}},
+		Symlink:     o.Symlink,
+		GroupFilter: nil,
+		PlugScope:   nil,
 	}
 
-	_ = json.Unmarshal(o.ExtendFields, &ext.ExtendFields)
+	_ = json.Unmarshal(o.ExtendFields, &ext.Properties)
 	if o.GroupFilter != nil {
 		_ = json.Unmarshal(o.GroupFilter, &ext.GroupFilter)
 	}

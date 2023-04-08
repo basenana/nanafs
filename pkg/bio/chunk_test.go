@@ -32,7 +32,7 @@ var _ = Describe("TestChunkIO", func() {
 		var reader Reader
 		var writer Writer
 		It("init should be succeed", func() {
-			reader = NewChunkReader(fakeObj, chunkStore, dataStore)
+			reader = NewChunkReader(&fakeObj.Metadata, chunkStore, dataStore)
 			Expect(reader).ShouldNot(BeNil())
 			writer = NewChunkWriter(reader)
 			Expect(writer).ShouldNot(BeNil())

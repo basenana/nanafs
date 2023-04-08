@@ -18,7 +18,7 @@ package dentry
 
 import (
 	"context"
-	"github.com/basenana/nanafs/config"
+	"fmt"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	. "github.com/onsi/ginkgo"
@@ -46,17 +46,24 @@ func resetFileChunk() {
 	copy(fileChunk4, []byte(""))
 }
 
-func newMockFileStorage() storage.Storage {
-	s, _ := storage.NewStorage(storage.MemoryStorage, storage.MemoryStorage, config.Storage{})
-	return s
-}
-
 func newMockFileEntry(name string, inode int64) Entry {
-	meta := types.NewMetadata(name, types.RawKind)
-	meta.Size = fileChunkSize * 4
-	meta.ID = inode
-	meta.Storage = storage.MemoryStorage
-	return BuildEntry(&types.Object{Metadata: meta}, objStore)
+	en, err := root.Group().FindEntry(context.TODO(), name)
+	if err == nil {
+		return en
+	}
+	en, err = entryManager.CreateEntry(context.TODO(), root, EntryAttr{Name: name, Kind: types.RawKind, Access: types.Access{}})
+	if err != nil {
+		panic(fmt.Errorf("init file entry failed: %s", err))
+	}
+	newMeta := en.Metadata()
+	newMeta.Size = fileChunkSize * 4
+	newMeta.ID = inode
+	newMeta.Storage = storage.MemoryStorage
+	err = root.Group().UpdateEntry(context.TODO(), en)
+	if err != nil {
+		panic(fmt.Errorf("update file entry failed: %s", err))
+	}
+	return en
 }
 
 var _ = Describe("TestFileIO", func() {

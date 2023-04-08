@@ -59,7 +59,7 @@ var _ = Describe("TestRootEntryInit", func() {
 		It("feat root should be succeed", func() {
 			r, err := mgr.Root(context.TODO())
 			Expect(err).Should(BeNil())
-			Expect(time.Since(r.Object().CreatedAt) > time.Second).Should(BeTrue())
+			Expect(time.Since(r.Metadata().CreatedAt) > time.Second).Should(BeTrue())
 
 		})
 	})

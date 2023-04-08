@@ -135,10 +135,13 @@ func (l *local) key2LocalPath(key int64, idx int64) string {
 	return path.Join(l.dir, fmt.Sprintf("%d/%d", key, idx))
 }
 
-func newLocalStorage(sid, dir string) Storage {
+func newLocalStorage(sid, dir string) (Storage, error) {
+	if err := utils.Mkdir(dir); err != nil {
+		return nil, fmt.Errorf("init local data dir failed: %s", err)
+	}
 	return &local{
 		sid:    sid,
 		dir:    dir,
 		logger: logger.NewLogger("localStorage"),
-	}
+	}, nil
 }

@@ -62,14 +62,71 @@ func NewDbEntity(db *gorm.DB) (*Entity, error) {
 
 func (e *Entity) GetObjectByID(ctx context.Context, oid int64) (*types.Object, error) {
 	var (
-		obj = &Object{ID: oid}
+		objMod  = &Object{ID: oid}
+		permMod = &ObjectPermission{}
 	)
-	res := e.WithContext(ctx).First(obj)
+
+	if err := e.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.First(objMod)
+		if res.Error != nil {
+			return res.Error
+		}
+
+		res = tx.Where("oid = ?", oid).First(permMod)
+		if res.Error != nil {
+			return res.Error
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	obj := objMod.Object()
+	obj.Access = permMod.ToAccess()
+
+	return obj, nil
+}
+
+func (e *Entity) GetObjectExtendData(ctx context.Context, obj *types.Object) error {
+	var (
+		ext      = &ObjectExtend{}
+		property = make([]ObjectProperty, 0)
+	)
+	if err := e.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Where("id = ?", obj.ID).First(ext)
+		if res.Error != nil {
+			return res.Error
+		}
+		res = tx.Where("oid = ?", obj.ID).Find(&property)
+		if res.Error != nil {
+			return res.Error
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	ed := ext.ToExtData()
+	for _, p := range property {
+		ed.Properties.Fields[p.Name] = p.Value
+	}
+
+	obj.ExtendData = &ed
+	return nil
+}
+
+func (e *Entity) GetLabels(ctx context.Context, refType string, refID int64) (*types.Labels, error) {
+	ol := make([]Label, 0)
+	res := e.WithContext(ctx).Where("ref_type = ? AND ref_id = ?", refType, refID).Find(&ol)
 	if res.Error != nil {
 		return nil, res.Error
 	}
 
-	return assembleObject(e.DB, obj)
+	label := &types.Labels{}
+	for _, kv := range ol {
+		label.Labels = append(label.Labels, types.Label{Key: kv.Key, Value: kv.Value})
+	}
+	return label, nil
 }
 
 func (e *Entity) ListObjectChildren(ctx context.Context, filter types.Filter) ([]*types.Object, error) {
@@ -78,18 +135,27 @@ func (e *Entity) ListObjectChildren(ctx context.Context, filter types.Filter) ([
 	}
 
 	objectList := make([]Object, 0)
-	res := queryFilter(e.DB, filter).Find(&objectList)
-	if res.Error != nil {
-		return nil, res.Error
-	}
-
-	result := make([]*types.Object, len(objectList))
-	for i, obj := range objectList {
-		o, err := assembleObject(e.DB, &obj)
-		if err != nil {
-			return nil, err
+	var result []*types.Object
+	if err := e.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := queryFilter(tx, filter).Find(&objectList)
+		if res.Error != nil {
+			return res.Error
 		}
-		result[i] = o
+
+		result = make([]*types.Object, len(objectList))
+		for i, objMod := range objectList {
+			perm := &ObjectPermission{}
+			res = tx.Where("oid = ?", objMod.ID).First(perm)
+			if res.Error != nil {
+				return res.Error
+			}
+			o := objMod.Object()
+			o.Access = perm.ToAccess()
+			result[i] = o
+		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	return result, nil
@@ -105,9 +171,6 @@ func (e *Entity) SaveObject(ctx context.Context, parent, object *types.Object) e
 		if err := saveRawObject(tx, object); err != nil {
 			return err
 		}
-		if err := updateObjectLabels(tx, object); err != nil {
-			return err
-		}
 		return nil
 	})
 }
@@ -121,9 +184,6 @@ func (e *Entity) SaveMirroredObject(ctx context.Context, srcObj, dstParent, obje
 			return err
 		}
 		if err := saveRawObject(tx, object); err != nil {
-			return err
-		}
-		if err := updateObjectLabels(tx, object); err != nil {
 			return err
 		}
 		return nil
@@ -248,23 +308,52 @@ func (e *Entity) NextSegmentID(ctx context.Context) (int64, error) {
 	return availableChunkSegID(e.DB.WithContext(ctx))
 }
 
-func (e *Entity) InsertChunkSegment(ctx context.Context, obj *types.Object, seg types.ChunkSeg) error {
-	return e.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		tx.Create(&ObjectChunk{
+func (e *Entity) InsertChunkSegment(ctx context.Context, seg types.ChunkSeg) (*types.Object, error) {
+	var (
+		obj     *types.Object
+		objMod  = &Object{ID: seg.ObjectID}
+		permMod = &ObjectPermission{}
+		err     error
+	)
+	err = e.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.First(objMod)
+		if res.Error != nil {
+			return res.Error
+		}
+		obj = objMod.Object()
+
+		res = tx.Create(&ObjectChunk{
 			ID:       seg.ID,
-			OID:      obj.ID,
+			OID:      seg.ObjectID,
 			ChunkID:  seg.ChunkID,
 			Off:      seg.Off,
 			Len:      seg.Len,
 			State:    seg.State,
 			AppendAt: time.Now().UnixNano(),
 		})
+		if res.Error != nil {
+			return res.Error
+		}
 		if seg.Off+seg.Len > obj.Size {
 			obj.Size = seg.Off + seg.Len
 		}
 		obj.ModifiedAt = time.Now()
-		return saveRawObject(tx, obj)
+
+		if writeBackErr := saveRawObject(tx, obj); writeBackErr != nil {
+			return writeBackErr
+		}
+
+		res = tx.Where("oid = ?", obj.ID).First(permMod)
+		if res.Error != nil {
+			return res.Error
+		}
+		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
+	obj.Access = permMod.ToAccess()
+	return obj, nil
 }
 
 func (e *Entity) ListChunkSegments(ctx context.Context, oid, chunkID int64) ([]types.ChunkSeg, error) {
@@ -297,37 +386,6 @@ func (e *Entity) SystemInfo(ctx context.Context) (*SystemInfo, error) {
 	return info, nil
 }
 
-func assembleObject(db *gorm.DB, objModel *Object) (*types.Object, error) {
-	obj := objModel.Object()
-
-	oa := &ObjectPermission{}
-	ext := &ObjectExtend{}
-	ol := make([]Label, 0)
-
-	res := db.Where("oid = ?", objModel.ID).First(oa)
-	if res.Error != nil {
-		return nil, res.Error
-	}
-
-	res = db.Where("id = ?", objModel.ID).First(ext)
-	if res.Error != nil {
-		return nil, res.Error
-	}
-
-	res = db.Where("oid = ?", objModel.ID).Find(&ol)
-	if res.Error != nil {
-		return nil, res.Error
-	}
-
-	obj.Access = oa.ToAccess()
-	obj.ExtendData = ext.ToExtData()
-
-	for _, kv := range ol {
-		obj.Labels.Labels = append(obj.Labels.Labels, types.Label{Key: kv.Key, Value: kv.Value})
-	}
-	return obj, nil
-}
-
 func saveRawObject(tx *gorm.DB, obj *types.Object) error {
 	var (
 		objModel = &Object{ID: obj.ID}
@@ -339,42 +397,53 @@ func saveRawObject(tx *gorm.DB, obj *types.Object) error {
 		return res.Error
 	}
 
-	objModel.Update(obj)
-	oaModel.Update(obj)
-	extModel.Update(obj)
 	if res.Error == gorm.ErrRecordNotFound {
 		ino, err := availableInode(tx)
 		if err != nil {
 			return err
 		}
 		obj.Inode = ino
-		objModel.Inode = ino
-
+		objModel.Update(obj)
 		res = tx.Create(objModel)
 		if res.Error != nil {
 			return res.Error
 		}
+
+		oaModel.Update(obj)
 		res = tx.Create(oaModel)
 		if res.Error != nil {
 			return res.Error
 		}
+
+		extModel.Update(obj)
 		res = tx.Create(extModel)
 		if res.Error != nil {
 			return res.Error
 		}
 		return nil
 	}
+
+	objModel.Update(obj)
 	res = tx.Save(objModel)
 	if res.Error != nil {
 		return res.Error
 	}
+
+	oaModel.Update(obj)
 	res = tx.Save(oaModel)
 	if res.Error != nil {
 		return res.Error
 	}
-	res = tx.Save(extModel)
-	if res.Error != nil {
-		return res.Error
+
+	if obj.ExtendDataChanged {
+		if err := updateObjectExtendData(tx, obj); err != nil {
+			return err
+		}
+	}
+	if obj.LabelsChanged {
+		if err := updateObjectLabels(tx, obj); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -439,6 +508,79 @@ func availableChunkSegID(tx *gorm.DB) (int64, error) {
 	}
 
 	return info.ChunkSeg, nil
+}
+
+func updateObjectExtendData(tx *gorm.DB, obj *types.Object) error {
+	var (
+		extModel                   = &ObjectExtend{ID: obj.ID}
+		objectProperties           = make([]ObjectProperty, 0)
+		needCreatePropertiesModels = make([]ObjectProperty, 0)
+		needUpdatePropertiesModels = make([]ObjectProperty, 0)
+		needDeletePropertiesModels = make([]ObjectProperty, 0)
+	)
+
+	extModel.Update(obj)
+	res := tx.Save(extModel)
+	if res.Error != nil {
+		return res.Error
+	}
+
+	res = tx.Where("oid = ?", obj.ID).Find(&objectProperties)
+	if res.Error != nil {
+		return res.Error
+	}
+
+	propertiesMap := map[string]string{}
+	for k, v := range obj.Properties.Fields {
+		propertiesMap[k] = v
+	}
+
+	for i := range objectProperties {
+		oldKv := objectProperties[i]
+		if newV, ok := propertiesMap[oldKv.Name]; ok {
+			if oldKv.Value != newV {
+				oldKv.Value = newV
+				needUpdatePropertiesModels = append(needUpdatePropertiesModels, oldKv)
+			}
+			delete(propertiesMap, oldKv.Name)
+			continue
+		}
+		needDeletePropertiesModels = append(needDeletePropertiesModels, oldKv)
+	}
+
+	for k, v := range propertiesMap {
+		needCreatePropertiesModels = append(needCreatePropertiesModels, ObjectProperty{OID: obj.ID, Name: k, Value: v})
+	}
+
+	if len(needCreatePropertiesModels) > 0 {
+		for i := range needCreatePropertiesModels {
+			property := needCreatePropertiesModels[i]
+			res = tx.Create(&property)
+			if res.Error != nil {
+				return res.Error
+			}
+		}
+	}
+	if len(needUpdatePropertiesModels) > 0 {
+		for i := range needUpdatePropertiesModels {
+			property := needUpdatePropertiesModels[i]
+			res = tx.Save(&property)
+			if res.Error != nil {
+				return res.Error
+			}
+		}
+	}
+
+	if len(needDeletePropertiesModels) > 0 {
+		for i := range needDeletePropertiesModels {
+			property := needDeletePropertiesModels[i]
+			res = tx.Delete(&property)
+			if res.Error != nil {
+				return res.Error
+			}
+		}
+	}
+	return nil
 }
 
 func updateObjectLabels(tx *gorm.DB, obj *types.Object) error {

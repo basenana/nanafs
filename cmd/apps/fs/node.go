@@ -108,7 +108,10 @@ func (n *NanaNode) Getxattr(ctx context.Context, attr string, dest []byte) (uint
 		return 0, Error2FuseSysError(err)
 	}
 
-	encodedData := entry.GetExtendField(attr)
+	encodedData, err := entry.GetExtendField(ctx, attr)
+	if err != nil {
+		return 0, Error2FuseSysError(err)
+	}
 	if encodedData == nil {
 		return 0, syscall.Errno(0x5d)
 	}
@@ -130,8 +133,9 @@ func (n *NanaNode) Setxattr(ctx context.Context, attr string, data []byte, flags
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
-	entry.SetExtendField(attr, xattrRawData2Content(data))
-	entry.Metadata().ChangedAt = time.Now()
+	if err = entry.SetExtendField(ctx, attr, xattrRawData2Content(data)); err != nil {
+		return Error2FuseSysError(err)
+	}
 	return Error2FuseSysError(n.R.SaveEntry(ctx, nil, entry))
 }
 
@@ -141,7 +145,7 @@ func (n *NanaNode) Removexattr(ctx context.Context, attr string) syscall.Errno {
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
-	if err = entry.RemoveExtendField(attr); err != nil {
+	if err = entry.RemoveExtendField(ctx, attr); err != nil {
 		return syscall.Errno(0x5d)
 	}
 	entry.Metadata().ChangedAt = time.Now()

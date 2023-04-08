@@ -73,11 +73,10 @@ func NewMetadata(name string, kind Kind) Metadata {
 }
 
 type ExtendData struct {
-	ExtendFields ExtendFields `json:"extend_fields"`
-	Annotation   *Annotation  `json:"annotation,omitempty"`
-	Symlink      string       `json:"symlink,omitempty"`
-	GroupFilter  *Rule        `json:"group_filter,omitempty"`
-	PlugScope    *PlugScope   `json:"plug_scope,omitempty"`
+	Properties  Properties `json:"properties"`
+	Symlink     string     `json:"symlink,omitempty"`
+	GroupFilter *Rule      `json:"group_filter,omitempty"`
+	PlugScope   *PlugScope `json:"plug_scope,omitempty"`
 }
 
 type PlugScope struct {
@@ -85,11 +84,6 @@ type PlugScope struct {
 	Version    string            `json:"version"`
 	PluginType PluginType        `json:"plugin_type"`
 	Parameters map[string]string `json:"parameters"`
-}
-
-type PropertyItem struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
 }
 
 type Labels struct {
@@ -110,7 +104,7 @@ type Label struct {
 	Value string `json:"value"`
 }
 
-type ExtendFields struct {
+type Properties struct {
 	Fields map[string]string `json:"fields,omitempty"`
 }
 
@@ -163,11 +157,23 @@ type AnnotationItem struct {
 
 type Object struct {
 	Metadata
-	ExtendData
-	Properties []PropertyItem `json:"properties,omitempty"`
-	Labels     Labels         `json:"labels"`
+	*ExtendData
+	*Labels
+
+	ExtendDataChanged bool `json:"-"`
+	LabelsChanged     bool `json:"-"`
 
 	L sync.Mutex `json:"-"`
+}
+
+func (o *Object) SetExtendData(ex ExtendData) {
+	o.ExtendData = &ex
+	o.ExtendDataChanged = true
+}
+
+func (o *Object) SetLabels(labels Labels) {
+	o.Labels = &labels
+	o.LabelsChanged = true
 }
 
 func (o *Object) IsGroup() bool {
@@ -178,7 +184,7 @@ func (o *Object) IsSmartGroup() bool {
 	return o.Kind == SmartGroupKind
 }
 
-func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {
+func InitNewObject(parent *Metadata, attr ObjectAttr) (*Object, error) {
 	if len(attr.Name) > objectNameMaxLength {
 		return nil, ErrNameTooLong
 	}
@@ -189,10 +195,10 @@ func InitNewObject(parent *Object, attr ObjectAttr) (*Object, error) {
 
 	newObj := &Object{
 		Metadata: md,
-		ExtendData: ExtendData{
-			Annotation:   &Annotation{},
-			ExtendFields: ExtendFields{Fields: map[string]string{}},
+		ExtendData: &ExtendData{
+			Properties: Properties{Fields: map[string]string{}},
 		},
+		ExtendDataChanged: true,
 	}
 	if parent != nil {
 		newObj.ParentID = parent.ID

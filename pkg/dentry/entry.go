@@ -17,8 +17,11 @@
 package dentry
 
 import (
+	"context"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
+	"sync"
+	"time"
 )
 
 const (
@@ -27,14 +30,12 @@ const (
 )
 
 type Entry interface {
-	// TODO: delete
-	Object() *types.Object
-
 	Metadata() *types.Metadata
-	ExtendData() *types.ExtendData
-	GetExtendField(fKey string) *string
-	SetExtendField(fKey, fVal string)
-	RemoveExtendField(fKey string) error
+	GetExtendData(ctx context.Context) (types.ExtendData, error)
+	UpdateExtendData(ctx context.Context, ed types.ExtendData) error
+	GetExtendField(ctx context.Context, fKey string) (*string, error)
+	SetExtendField(ctx context.Context, fKey, fVal string) error
+	RemoveExtendField(ctx context.Context, fKey string) error
 	IsGroup() bool
 	IsMirror() bool
 	Group() Group
@@ -46,63 +47,84 @@ func BuildEntry(obj *types.Object, store storage.ObjectStore) Entry {
 
 type rawEntry struct {
 	obj   *types.Object
+	mux   sync.Mutex
 	store storage.ObjectStore
-}
-
-func (r *rawEntry) Object() *types.Object {
-	return r.obj
 }
 
 func (r *rawEntry) Metadata() *types.Metadata {
 	return &r.obj.Metadata
 }
 
-func (r *rawEntry) ExtendData() *types.ExtendData {
-	return &r.obj.ExtendData
-}
-
-func (r *rawEntry) ExtendField() types.ExtendFields {
-	r.obj.L.Lock()
-	result := r.obj.ExtendFields
-	r.obj.L.Unlock()
-	return result
-}
-
-func (r *rawEntry) GetExtendField(fKey string) *string {
-	r.obj.L.Lock()
-	if r.obj.ExtendFields.Fields == nil {
-		r.obj.L.Unlock()
-		return nil
+func (r *rawEntry) GetExtendField(ctx context.Context, fKey string) (*string, error) {
+	ed, err := r.GetExtendData(ctx)
+	if err != nil {
+		return nil, err
 	}
-	fVal, ok := r.obj.ExtendFields.Fields[fKey]
-	r.obj.L.Unlock()
+	r.mux.Lock()
+	defer r.mux.Unlock()
+	if ed.Properties.Fields == nil {
+		return nil, nil
+	}
+	fVal, ok := ed.Properties.Fields[fKey]
 	if !ok {
-		return nil
+		return nil, nil
 	}
-	return &fVal
+	return &fVal, nil
 }
 
-func (r *rawEntry) SetExtendField(fKey, fVal string) {
-	r.obj.L.Lock()
-	if r.obj.ExtendFields.Fields == nil {
-		r.obj.ExtendFields.Fields = map[string]string{}
+func (r *rawEntry) SetExtendField(ctx context.Context, fKey, fVal string) error {
+	ed, err := r.GetExtendData(ctx)
+	if err != nil {
+		return err
 	}
-	r.obj.ExtendFields.Fields[fKey] = fVal
-	r.obj.L.Unlock()
+
+	r.mux.Lock()
+	if ed.Properties.Fields == nil {
+		r.obj.Properties.Fields = map[string]string{}
+	}
+	ed.Properties.Fields[fKey] = fVal
+	r.mux.Unlock()
+
+	return r.UpdateExtendData(ctx, ed)
 }
 
-func (r *rawEntry) RemoveExtendField(fKey string) error {
-	r.obj.L.Lock()
-	defer r.obj.L.Unlock()
-	if r.obj.ExtendFields.Fields == nil {
-		r.obj.ExtendFields.Fields = map[string]string{}
+func (r *rawEntry) RemoveExtendField(ctx context.Context, fKey string) error {
+	ed, err := r.GetExtendData(ctx)
+	if err != nil {
+		return err
 	}
-	_, ok := r.obj.ExtendFields.Fields[fKey]
+
+	r.mux.Lock()
+	if ed.Properties.Fields == nil {
+		ed.Properties.Fields = map[string]string{}
+	}
+	_, ok := ed.Properties.Fields[fKey]
+	if ok {
+		delete(ed.Properties.Fields, fKey)
+	}
+	r.mux.Unlock()
 	if !ok {
 		return types.ErrNotFound
 	}
-	delete(r.obj.ExtendFields.Fields, fKey)
-	return nil
+	return r.UpdateExtendData(ctx, ed)
+}
+
+func (r *rawEntry) GetExtendData(ctx context.Context) (types.ExtendData, error) {
+	if r.obj.ExtendData != nil {
+		return *r.obj.ExtendData, nil
+	}
+	err := r.store.GetObjectExtendData(ctx, r.obj)
+	if err != nil {
+		return types.ExtendData{}, err
+	}
+	return *r.obj.ExtendData, nil
+}
+
+func (r *rawEntry) UpdateExtendData(ctx context.Context, ed types.ExtendData) error {
+	r.obj.ChangedAt = time.Now()
+	r.obj.ExtendDataChanged = true
+	r.obj.ExtendData = &ed
+	return r.store.SaveObject(ctx, nil, r.obj)
 }
 
 func (r *rawEntry) IsGroup() bool {
@@ -153,7 +175,7 @@ func initRootEntryObject() *types.Object {
 	return root
 }
 
-func initMirrorEntryObject(src, newParent *types.Object, attr EntryAttr) (*types.Object, error) {
+func initMirrorEntryObject(src, newParent *types.Metadata, attr EntryAttr) (*types.Object, error) {
 	obj, err := types.InitNewObject(newParent, types.ObjectAttr{
 		Name:   attr.Name,
 		Dev:    attr.Dev,

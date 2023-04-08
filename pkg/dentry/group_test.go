@@ -73,7 +73,7 @@ var _ = Describe("TestManageGroupEntry", func() {
 			file2, err := group1.Group().FindEntry(context.TODO(), "test_group_manage_file2")
 			Expect(err).Should(BeNil())
 
-			file2.Object().Name = "test_group_manage_file3"
+			file2.Metadata().Name = "test_group_manage_file3"
 			err = group1.Group().UpdateEntry(context.TODO(), file2)
 			Expect(err).Should(BeNil())
 

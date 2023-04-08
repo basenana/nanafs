@@ -55,6 +55,18 @@ func (s *sqliteMetaStore) GetObject(ctx context.Context, id int64) (*types.Objec
 	return obj, nil
 }
 
+func (s *sqliteMetaStore) GetObjectExtendData(ctx context.Context, obj *types.Object) error {
+	defer utils.TraceRegion(ctx, "sqlite.getextenddata")()
+	s.mux.RLock()
+	defer s.mux.RUnlock()
+
+	if err := s.dbEntity.GetObjectExtendData(ctx, obj); err != nil {
+		s.logger.Errorw("query object extend data failed", "id", obj.ID, "err", err.Error())
+		return db.SqlError2Error(err)
+	}
+	return nil
+}
+
 func (s *sqliteMetaStore) ListObjects(ctx context.Context, filter types.Filter) ([]*types.Object, error) {
 	defer utils.TraceRegion(ctx, "sqlite.listobject")()
 	s.mux.RLock()
@@ -141,11 +153,11 @@ func (s *sqliteMetaStore) ListSegments(ctx context.Context, oid, chunkID int64) 
 	return s.dbEntity.ListChunkSegments(ctx, oid, chunkID)
 }
 
-func (s *sqliteMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg, obj *types.Object) error {
+func (s *sqliteMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Object, error) {
 	defer utils.TraceRegion(ctx, "sqlite.appendsegment")()
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbEntity.InsertChunkSegment(ctx, obj, seg)
+	return s.dbEntity.InsertChunkSegment(ctx, seg)
 }
 
 func (s *sqliteMetaStore) PluginRecorder(plugin types.PlugScope) PluginRecorder {

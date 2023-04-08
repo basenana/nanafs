@@ -35,7 +35,7 @@ var _ = Describe("TestSqliteObjectOperation", func() {
 
 	Context("create a new file object", func() {
 		It("should be succeed", func() {
-			obj, err := types.InitNewObject(rootObj, types.ObjectAttr{
+			obj, err := types.InitNewObject(&rootObj.Metadata, types.ObjectAttr{
 				Name: "test-new-obj-1",
 				Kind: types.RawKind,
 			})
@@ -52,7 +52,7 @@ var _ = Describe("TestSqliteObjectOperation", func() {
 
 	Context("update a exist file object", func() {
 		It("should be succeed", func() {
-			obj, err := types.InitNewObject(rootObj, types.ObjectAttr{
+			obj, err := types.InitNewObject(&rootObj.Metadata, types.ObjectAttr{
 				Name: "test-update-obj-1",
 				Kind: types.RawKind,
 			})
@@ -73,7 +73,7 @@ var _ = Describe("TestSqliteObjectOperation", func() {
 
 	Context("delete a exist file object", func() {
 		It("should be succeed", func() {
-			obj, err := types.InitNewObject(rootObj, types.ObjectAttr{
+			obj, err := types.InitNewObject(&rootObj.Metadata, types.ObjectAttr{
 				Name: "test-delete-obj-1",
 				Kind: types.RawKind,
 			})
@@ -94,7 +94,7 @@ var _ = Describe("TestSqliteObjectOperation", func() {
 
 	Context("create a new group object", func() {
 		It("should be succeed", func() {
-			obj, err := types.InitNewObject(rootObj, types.ObjectAttr{
+			obj, err := types.InitNewObject(&rootObj.Metadata, types.ObjectAttr{
 				Name: "test-new-group-1",
 				Kind: types.GroupKind,
 			})
@@ -117,14 +117,14 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 	rootObj := InitRootObject()
 	Expect(sqlite.SaveObject(context.TODO(), nil, rootObj)).Should(BeNil())
 
-	group1, err := types.InitNewObject(rootObj, types.ObjectAttr{
+	group1, err := types.InitNewObject(&rootObj.Metadata, types.ObjectAttr{
 		Name: "test-new-group-1",
 		Kind: types.GroupKind,
 	})
 	Expect(err).Should(BeNil())
 	Expect(sqlite.SaveObject(context.TODO(), rootObj, group1)).Should(BeNil())
 
-	group2, err := types.InitNewObject(rootObj, types.ObjectAttr{
+	group2, err := types.InitNewObject(&rootObj.Metadata, types.ObjectAttr{
 		Name: "test-new-group-2",
 		Kind: types.GroupKind,
 	})
@@ -134,12 +134,12 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 	Context("list a group object all children", func() {
 		It("create group file should be succeed", func() {
 			for i := 0; i < 4; i++ {
-				obj, err := types.InitNewObject(group1, types.ObjectAttr{Name: "test-file-obj-1", Kind: types.RawKind})
+				obj, err := types.InitNewObject(&group1.Metadata, types.ObjectAttr{Name: "test-file-obj-1", Kind: types.RawKind})
 				Expect(err).Should(BeNil())
 				Expect(sqlite.SaveObject(context.TODO(), group1, obj)).Should(BeNil())
 			}
 
-			obj, err := types.InitNewObject(group1, types.ObjectAttr{Name: "test-dev-obj-1", Kind: types.BlkDevKind})
+			obj, err := types.InitNewObject(&group1.Metadata, types.ObjectAttr{Name: "test-dev-obj-1", Kind: types.BlkDevKind})
 			Expect(err).Should(BeNil())
 			Expect(sqlite.SaveObject(context.TODO(), group1, obj)).Should(BeNil())
 		})
@@ -197,14 +197,14 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 	})
 
 	Context("mirror a exist file object to other group", func() {
-		group3, err := types.InitNewObject(rootObj, types.ObjectAttr{
+		group3, err := types.InitNewObject(&rootObj.Metadata, types.ObjectAttr{
 			Name: "test-mirror-group-1",
 			Kind: types.GroupKind,
 		})
 		Expect(err).Should(BeNil())
 		Expect(sqlite.SaveObject(context.TODO(), group2, group3)).Should(BeNil())
 
-		group4, err := types.InitNewObject(rootObj, types.ObjectAttr{
+		group4, err := types.InitNewObject(&rootObj.Metadata, types.ObjectAttr{
 			Name: "test-mirror-group-2",
 			Kind: types.GroupKind,
 		})
@@ -213,13 +213,13 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 
 		var srcObj *types.Object
 		It("create new file be succeed", func() {
-			srcObj, err = types.InitNewObject(group1, types.ObjectAttr{Name: "test-src-raw-obj-1", Kind: types.RawKind})
+			srcObj, err = types.InitNewObject(&group1.Metadata, types.ObjectAttr{Name: "test-src-raw-obj-1", Kind: types.RawKind})
 			Expect(err).Should(BeNil())
 			Expect(sqlite.SaveObject(context.TODO(), group3, srcObj)).Should(BeNil())
 		})
 
 		It("create mirror object should be succeed", func() {
-			newObj, err := types.InitNewObject(rootObj, types.ObjectAttr{Name: "test-mirror-dst-file-2", Kind: types.RawKind})
+			newObj, err := types.InitNewObject(&rootObj.Metadata, types.ObjectAttr{Name: "test-mirror-dst-file-2", Kind: types.RawKind})
 			Expect(err).Should(BeNil())
 			newObj.RefID = srcObj.ID
 			Expect(sqlite.MirrorObject(context.TODO(), srcObj, group4, newObj)).Should(BeNil())

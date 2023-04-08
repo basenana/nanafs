@@ -109,32 +109,32 @@ func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) (bool, err
 	}
 	var (
 		parentGrp = parent.Group()
-		parentObj = parent.Object()
-		obj       = en.Object()
+		parentMd  = parent.Metadata()
+		md        = en.Metadata()
 		srcObj    *types.Object
 		err       error
 	)
 	if en.IsMirror() {
-		m.logger.Infow("entry is mirrored, delete ref count", "entry", obj.ID, "ref", obj.RefID)
+		m.logger.Infow("entry is mirrored, delete ref count", "entry", md.ID, "ref", md.RefID)
 		srcObj, err = m.store.GetObject(ctx, en.Metadata().RefID)
 		if err != nil {
-			m.logger.Errorw("query source object from meta server error", "entry", obj.ID, "ref", obj.RefID, "err", err.Error())
+			m.logger.Errorw("query source object from meta server error", "entry", md.ID, "ref", md.RefID, "err", err.Error())
 			return false, err
 		}
 	}
 
-	if !obj.IsGroup() && (obj.RefCount > 1 || (obj.RefCount == 1 && isFileOpened(obj.ID))) {
-		m.logger.Infow("remove object parent id", "entry", obj.ID, "ref", obj.RefID)
-		obj.RefCount -= 1
-		obj.ParentID = 0
-		obj.ChangedAt = time.Now()
-		if err = m.store.SaveObject(ctx, parentObj, obj); err != nil {
+	if !en.IsGroup() && (md.RefCount > 1 || (md.RefCount == 1 && isFileOpened(md.ID))) {
+		m.logger.Infow("remove object parent id", "entry", md.ID, "ref", md.RefID)
+		md.RefCount -= 1
+		md.ParentID = 0
+		md.ChangedAt = time.Now()
+		if err = m.store.SaveObject(ctx, &types.Object{Metadata: *parentMd}, &types.Object{Metadata: *md}); err != nil {
 			return false, err
 		}
 		return false, nil
 	}
 
-	if srcObj == nil && ((en.IsGroup() && obj.RefCount == 2) || (!en.IsGroup() && obj.RefCount == 1)) {
+	if srcObj == nil && ((en.IsGroup() && md.RefCount == 2) || (!en.IsGroup() && md.RefCount == 1)) {
 		err = parentGrp.DestroyEntry(ctx, en)
 		return err == nil, err
 	}
@@ -145,14 +145,14 @@ func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) (bool, err
 		srcObj.ModifiedAt = time.Now()
 	}
 
-	if obj.IsGroup() {
-		parentObj.RefCount -= 1
+	if en.IsGroup() {
+		parentMd.RefCount -= 1
 	}
-	parentObj.ChangedAt = time.Now()
-	parentObj.ModifiedAt = time.Now()
+	parentMd.ChangedAt = time.Now()
+	parentMd.ModifiedAt = time.Now()
 
-	if err = m.store.DestroyObject(ctx, srcObj, parentObj, obj); err != nil {
-		m.logger.Errorw("destroy object from meta server error", "enrty", obj.ID, "err", err.Error())
+	if err = m.store.DestroyObject(ctx, srcObj, &types.Object{Metadata: *parentMd}, &types.Object{Metadata: *md}); err != nil {
+		m.logger.Errorw("destroy object from meta server error", "entry", md.ID, "err", err.Error())
 		return false, err
 	}
 
@@ -161,9 +161,9 @@ func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) (bool, err
 
 func (m *manager) MirrorEntry(ctx context.Context, src, dstParent Entry, attr EntryAttr) (Entry, error) {
 	var (
-		srcObj    = src.Object()
-		parentObj = dstParent.Object()
-		err       error
+		srcMd    = src.Metadata()
+		parentMd = dstParent.Metadata()
+		err      error
 	)
 	if src.IsGroup() {
 		return nil, types.ErrIsGroup
@@ -173,23 +173,23 @@ func (m *manager) MirrorEntry(ctx context.Context, src, dstParent Entry, attr En
 	}
 
 	if src.IsMirror() {
-		m.logger.Warnw("source entry is mirrored", "entry", srcObj.RefID)
+		m.logger.Warnw("source entry is mirrored", "entry", srcMd.RefID)
 		return nil, fmt.Errorf("source entry is mirrored")
 	}
 
-	obj, err := initMirrorEntryObject(srcObj, parentObj, attr)
+	obj, err := initMirrorEntryObject(srcMd, parentMd, attr)
 	if err != nil {
-		m.logger.Errorw("create mirror object error", "srcEntry", srcObj.ID, "dstParent", parentObj.ID, "err", err.Error())
+		m.logger.Errorw("create mirror object error", "srcEntry", srcMd.ID, "dstParent", parentMd.ID, "err", err.Error())
 		return nil, err
 	}
 
-	srcObj.RefCount += 1
-	srcObj.ChangedAt = time.Now()
+	srcMd.RefCount += 1
+	srcMd.ChangedAt = time.Now()
 
-	parentObj.ChangedAt = time.Now()
-	parentObj.ModifiedAt = time.Now()
-	if err = m.store.MirrorObject(ctx, srcObj, parentObj, obj); err != nil {
-		m.logger.Errorw("update dst parent object ref count error", "srcEntry", srcObj.ID, "dstParent", parentObj.ID, "err", err.Error())
+	parentMd.ChangedAt = time.Now()
+	parentMd.ModifiedAt = time.Now()
+	if err = m.store.MirrorObject(ctx, &types.Object{Metadata: *srcMd}, &types.Object{Metadata: *parentMd}, obj); err != nil {
+		m.logger.Errorw("update dst parent object ref count error", "srcEntry", srcMd.ID, "dstParent", parentMd.ID, "err", err.Error())
 		return nil, err
 	}
 	return BuildEntry(obj, m.store), nil
@@ -201,9 +201,9 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntry, overwriteE
 	}
 
 	var (
-		oldParentObj = oldParent.Object()
-		newParentObj = newParent.Object()
-		entryObj     = targetEntry.Object()
+		oldParentMd = oldParent.Metadata()
+		newParentMd = newParent.Metadata()
+		entryMd     = targetEntry.Metadata()
 	)
 	if overwriteEntry != nil {
 		if overwriteEntry.IsGroup() {
@@ -230,19 +230,19 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntry, overwriteE
 		}
 	}
 
-	entryObj.Name = newName
+	entryMd.Name = newName
 
-	oldParentObj.ChangedAt = time.Now()
-	oldParentObj.ModifiedAt = time.Now()
-	oldParentObj.ChangedAt = time.Now()
-	oldParentObj.ModifiedAt = time.Now()
-	if entryObj.IsGroup() {
-		oldParentObj.RefCount -= 1
-		newParentObj.RefCount += 1
+	oldParentMd.ChangedAt = time.Now()
+	oldParentMd.ModifiedAt = time.Now()
+	oldParentMd.ChangedAt = time.Now()
+	oldParentMd.ModifiedAt = time.Now()
+	if targetEntry.IsGroup() {
+		oldParentMd.RefCount -= 1
+		newParentMd.RefCount += 1
 	}
-	err := m.store.ChangeParent(ctx, oldParentObj, newParentObj, entryObj, types.ChangeParentOption{})
+	err := m.store.ChangeParent(ctx, &types.Object{Metadata: *oldParentMd}, &types.Object{Metadata: *newParentMd}, &types.Object{Metadata: *entryMd}, types.ChangeParentOption{})
 	if err != nil {
-		m.logger.Errorw("change object parent failed", "entry", entryObj.ID, "newParent", newParentObj.ID, "newName", newName, "err", err.Error())
+		m.logger.Errorw("change object parent failed", "entry", entryMd.ID, "newParent", newParentMd.ID, "newName", newName, "err", err.Error())
 		return err
 	}
 	return nil

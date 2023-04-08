@@ -119,7 +119,7 @@ func openFile(en Entry, attr Attr, store storage.ObjectStore, fileStorage storag
 	if fileStorage == nil {
 		return nil, fmt.Errorf("storage %s not found", en.Metadata().Storage)
 	}
-	f.reader = bio.NewChunkReader(en.Object(), store.(storage.ChunkStore), fileStorage)
+	f.reader = bio.NewChunkReader(en.Metadata(), store.(storage.ChunkStore), fileStorage)
 	if attr.Write {
 		f.writer = bio.NewChunkWriter(f.reader)
 	}
@@ -167,9 +167,12 @@ func (s *symlink) Fsync(ctx context.Context) error {
 
 func (s *symlink) Flush(ctx context.Context) (err error) {
 	deviceInfo := s.data
-	eData := s.ExtendData()
+	eData, err := s.GetExtendData(ctx)
+	if err != nil {
+		return err
+	}
 	eData.Symlink = string(deviceInfo)
-	return nil
+	return s.UpdateExtendData(ctx, eData)
 }
 
 func (s *symlink) Close(ctx context.Context) (err error) {
@@ -183,7 +186,10 @@ func openSymlink(en Entry, attr Attr) (File, error) {
 	}
 
 	var raw []byte
-	eData := en.ExtendData()
+	eData, err := en.GetExtendData(context.TODO())
+	if err != nil {
+		return nil, err
+	}
 	if eData.Symlink != "" {
 		raw = []byte(eData.Symlink)
 	}
