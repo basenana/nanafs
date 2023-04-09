@@ -25,158 +25,125 @@ import (
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/glebarez/sqlite"
 	"go.uber.org/zap"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"sync"
+	"time"
 )
 
 const (
-	SqliteMeta = "sqlite"
+	SqliteMeta   = "sqlite"
+	PostgresMeta = "postgres"
 )
 
 type sqliteMetaStore struct {
-	dbEntity  *db.Entity
-	dbPath    string
-	nextInode int64
-	mux       sync.RWMutex
-	logger    *zap.SugaredLogger
+	dbStore *sqlMetaStore
+	mux     sync.RWMutex
 }
 
 var _ Meta = &sqliteMetaStore{}
 
 func (s *sqliteMetaStore) GetObject(ctx context.Context, id int64) (*types.Object, error) {
-	defer utils.TraceRegion(ctx, "sqlite.getobject")()
 	s.mux.RLock()
 	defer s.mux.RUnlock()
-	obj, err := s.dbEntity.GetObjectByID(ctx, id)
-	if err != nil {
-		s.logger.Errorw("query object by id failed", "id", id, "err", err.Error())
-		return nil, db.SqlError2Error(err)
-	}
-	return obj, nil
+	return s.dbStore.GetObject(ctx, id)
+}
+
+func (s *sqliteMetaStore) GetObjectExtendData(ctx context.Context, obj *types.Object) error {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
+	return s.dbStore.GetObjectExtendData(ctx, obj)
 }
 
 func (s *sqliteMetaStore) ListObjects(ctx context.Context, filter types.Filter) ([]*types.Object, error) {
-	defer utils.TraceRegion(ctx, "sqlite.listobject")()
 	s.mux.RLock()
 	defer s.mux.RUnlock()
-	objList, err := s.dbEntity.ListObjectChildren(ctx, filter)
-	if err != nil {
-		s.logger.Errorw("list object failed", "filter", filter, "err", err.Error())
-		return nil, db.SqlError2Error(err)
-	}
-	return objList, nil
+	return s.dbStore.ListObjects(ctx, filter)
 }
 
 func (s *sqliteMetaStore) SaveObject(ctx context.Context, parent, obj *types.Object) error {
-	defer utils.TraceRegion(ctx, "sqlite.saveobject")()
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	if err := s.dbEntity.SaveObject(ctx, parent, obj); err != nil {
-		s.logger.Errorw("save object failed", "id", obj.ID, "err", err.Error())
-		return db.SqlError2Error(err)
-	}
-	return nil
+	return s.dbStore.SaveObject(ctx, parent, obj)
 }
 
 func (s *sqliteMetaStore) DestroyObject(ctx context.Context, src, parent, obj *types.Object) error {
-	defer utils.TraceRegion(ctx, "sqlite.destroyobject")()
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	err := s.dbEntity.DeleteObject(ctx, src, parent, obj)
-	if err != nil {
-		s.logger.Errorw("destroy object failed", "id", obj.ID, "err", err.Error())
-		return db.SqlError2Error(err)
-	}
-	return nil
+	return s.dbStore.DestroyObject(ctx, src, parent, obj)
 }
 
 func (s *sqliteMetaStore) ListChildren(ctx context.Context, obj *types.Object) (Iterator, error) {
-	defer utils.TraceRegion(ctx, "sqlite.listchildren")()
 	s.mux.RLock()
 	defer s.mux.RUnlock()
-	children, err := s.dbEntity.ListObjectChildren(ctx, types.Filter{ParentID: obj.ID})
-	if err != nil {
-		s.logger.Errorw("list object children failed", "id", obj.ID, "err", err.Error())
-		return nil, db.SqlError2Error(err)
-	}
-	return &iterator{objects: children}, nil
+	return s.dbStore.ListChildren(ctx, obj)
 }
 
 func (s *sqliteMetaStore) ChangeParent(ctx context.Context, srcParent, dstParent, obj *types.Object, opt types.ChangeParentOption) error {
-	defer utils.TraceRegion(ctx, "sqlite.changeparent")()
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	obj.ParentID = dstParent.ID
-	err := s.dbEntity.SaveChangeParentObject(ctx, srcParent, dstParent, obj, opt)
-	if err != nil {
-		s.logger.Errorw("change object parent failed", "id", obj.ID, "err", err.Error())
-		return db.SqlError2Error(err)
-	}
-	return nil
+	return s.dbStore.ChangeParent(ctx, srcParent, dstParent, obj, opt)
 }
 
 func (s *sqliteMetaStore) MirrorObject(ctx context.Context, srcObj, dstParent, object *types.Object) error {
-	defer utils.TraceRegion(ctx, "sqlite.mirrorobject")()
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	err := s.dbEntity.SaveMirroredObject(ctx, srcObj, dstParent, object)
-	if err != nil {
-		s.logger.Errorw("mirror object failed", "id", object.ID, "err", err.Error())
-		return db.SqlError2Error(err)
-	}
-	return nil
+	return s.dbStore.MirrorObject(ctx, srcObj, dstParent, object)
 }
 
 func (s *sqliteMetaStore) NextSegmentID(ctx context.Context) (int64, error) {
-	defer utils.TraceRegion(ctx, "sqlite.nextchunkid")()
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbEntity.NextSegmentID(ctx)
+	return s.dbStore.NextSegmentID(ctx)
 }
 
 func (s *sqliteMetaStore) ListSegments(ctx context.Context, oid, chunkID int64) ([]types.ChunkSeg, error) {
-	defer utils.TraceRegion(ctx, "sqlite.listsegment")()
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbEntity.ListChunkSegments(ctx, oid, chunkID)
+	return s.dbStore.ListSegments(ctx, oid, chunkID)
 }
 
-func (s *sqliteMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg, obj *types.Object) error {
-	defer utils.TraceRegion(ctx, "sqlite.appendsegment")()
+func (s *sqliteMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Object, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbEntity.InsertChunkSegment(ctx, obj, seg)
+	return s.dbStore.AppendSegments(ctx, seg)
+}
+
+func (s *sqliteMetaStore) DeleteSegment(ctx context.Context, segID int64) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.DeleteSegment(ctx, segID)
 }
 
 func (s *sqliteMetaStore) PluginRecorder(plugin types.PlugScope) PluginRecorder {
-	return &sqlitePluginRecorder{
-		sqliteMetaStore: s,
-		plugin:          plugin,
+	return &sqlPluginRecorder{
+		pluginRecordHandler: s,
+		plugin:              plugin,
 	}
 }
 
 func (s *sqliteMetaStore) getPluginRecord(ctx context.Context, plugin types.PlugScope, rid string, record interface{}) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbEntity.GetPluginRecord(ctx, plugin, rid, record)
+	return s.dbStore.getPluginRecord(ctx, plugin, rid, record)
 }
 
 func (s *sqliteMetaStore) listPluginRecords(ctx context.Context, plugin types.PlugScope, groupId string) ([]string, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbEntity.ListPluginRecords(ctx, plugin, groupId)
+	return s.dbStore.listPluginRecords(ctx, plugin, groupId)
 }
 
 func (s *sqliteMetaStore) savePluginRecord(ctx context.Context, plugin types.PlugScope, groupId, rid string, record interface{}) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbEntity.SavePluginRecord(ctx, plugin, groupId, rid, record)
+	return s.dbStore.savePluginRecord(ctx, plugin, groupId, rid, record)
 }
 
 func (s *sqliteMetaStore) deletePluginRecord(ctx context.Context, plugin types.PlugScope, rid string) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbEntity.DeletePluginRecord(ctx, plugin, rid)
+	return s.dbStore.deletePluginRecord(ctx, plugin, rid)
 }
 
 func newSqliteMetaStore(meta config.Meta) (*sqliteMetaStore, error) {
@@ -199,23 +166,183 @@ func newSqliteMetaStore(meta config.Meta) (*sqliteMetaStore, error) {
 		return nil, err
 	}
 
-	return &sqliteMetaStore{
-		dbEntity: dbEnt,
-		dbPath:   meta.Path,
-		logger:   logger.NewLogger("sqlite"),
-	}, nil
+	return &sqliteMetaStore{dbStore: buildSqlMetaStore(dbEnt)}, nil
 }
 
-type sqlitePluginRecorder struct {
-	*sqliteMetaStore
+type sqlMetaStore struct {
+	dbEntity *db.Entity
+	logger   *zap.SugaredLogger
+}
+
+var _ Meta = &sqlMetaStore{}
+
+func buildSqlMetaStore(entity *db.Entity) *sqlMetaStore {
+	return &sqlMetaStore{dbEntity: entity, logger: logger.NewLogger("dbStore")}
+}
+
+func (s *sqlMetaStore) GetObject(ctx context.Context, id int64) (*types.Object, error) {
+	defer utils.TraceRegion(ctx, "sql.getobject")()
+	obj, err := s.dbEntity.GetObjectByID(ctx, id)
+	if err != nil {
+		s.logger.Errorw("query object by id failed", "id", id, "err", err.Error())
+		return nil, db.SqlError2Error(err)
+	}
+	return obj, nil
+}
+
+func (s *sqlMetaStore) GetObjectExtendData(ctx context.Context, obj *types.Object) error {
+	defer utils.TraceRegion(ctx, "sql.getextenddata")()
+	if err := s.dbEntity.GetObjectExtendData(ctx, obj); err != nil {
+		s.logger.Errorw("query object extend data failed", "id", obj.ID, "err", err.Error())
+		return db.SqlError2Error(err)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) ListObjects(ctx context.Context, filter types.Filter) ([]*types.Object, error) {
+	defer utils.TraceRegion(ctx, "sql.listobject")()
+	objList, err := s.dbEntity.ListObjectChildren(ctx, filter)
+	if err != nil {
+		s.logger.Errorw("list object failed", "filter", filter, "err", err.Error())
+		return nil, db.SqlError2Error(err)
+	}
+	return objList, nil
+}
+
+func (s *sqlMetaStore) SaveObject(ctx context.Context, parent, obj *types.Object) error {
+	defer utils.TraceRegion(ctx, "sql.saveobject")()
+	if err := s.dbEntity.SaveObject(ctx, parent, obj); err != nil {
+		s.logger.Errorw("save object failed", "id", obj.ID, "err", err.Error())
+		return db.SqlError2Error(err)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) DestroyObject(ctx context.Context, src, parent, obj *types.Object) error {
+	defer utils.TraceRegion(ctx, "sql.destroyobject")()
+	err := s.dbEntity.DeleteObject(ctx, src, parent, obj)
+	if err != nil {
+		s.logger.Errorw("destroy object failed", "id", obj.ID, "err", err.Error())
+		return db.SqlError2Error(err)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) ListChildren(ctx context.Context, obj *types.Object) (Iterator, error) {
+	defer utils.TraceRegion(ctx, "sql.listchildren")()
+	children, err := s.dbEntity.ListObjectChildren(ctx, types.Filter{ParentID: obj.ID})
+	if err != nil {
+		s.logger.Errorw("list object children failed", "id", obj.ID, "err", err.Error())
+		return nil, db.SqlError2Error(err)
+	}
+	return &iterator{objects: children}, nil
+}
+
+func (s *sqlMetaStore) ChangeParent(ctx context.Context, srcParent, dstParent, obj *types.Object, opt types.ChangeParentOption) error {
+	defer utils.TraceRegion(ctx, "sql.changeparent")()
+	obj.ParentID = dstParent.ID
+	err := s.dbEntity.SaveChangeParentObject(ctx, srcParent, dstParent, obj, opt)
+	if err != nil {
+		s.logger.Errorw("change object parent failed", "id", obj.ID, "err", err.Error())
+		return db.SqlError2Error(err)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) MirrorObject(ctx context.Context, srcObj, dstParent, object *types.Object) error {
+	defer utils.TraceRegion(ctx, "sql.mirrorobject")()
+	err := s.dbEntity.SaveMirroredObject(ctx, srcObj, dstParent, object)
+	if err != nil {
+		s.logger.Errorw("mirror object failed", "id", object.ID, "err", err.Error())
+		return db.SqlError2Error(err)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) NextSegmentID(ctx context.Context) (int64, error) {
+	defer utils.TraceRegion(ctx, "sql.nextchunkid")()
+	return s.dbEntity.NextSegmentID(ctx)
+}
+
+func (s *sqlMetaStore) ListSegments(ctx context.Context, oid, chunkID int64) ([]types.ChunkSeg, error) {
+	defer utils.TraceRegion(ctx, "sql.listsegment")()
+	return s.dbEntity.ListChunkSegments(ctx, oid, chunkID)
+}
+
+func (s *sqlMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Object, error) {
+	defer utils.TraceRegion(ctx, "sql.appendsegment")()
+	return s.dbEntity.InsertChunkSegment(ctx, seg)
+}
+
+func (s *sqlMetaStore) DeleteSegment(ctx context.Context, segID int64) error {
+	defer utils.TraceRegion(ctx, "sql.deletesegment")()
+	return db.SqlError2Error(s.dbEntity.DeleteChunkSegment(ctx, segID))
+}
+
+func (s *sqlMetaStore) PluginRecorder(plugin types.PlugScope) PluginRecorder {
+	return &sqlPluginRecorder{pluginRecordHandler: s, plugin: plugin}
+}
+
+func (s *sqlMetaStore) getPluginRecord(ctx context.Context, plugin types.PlugScope, rid string, record interface{}) error {
+	return s.dbEntity.GetPluginRecord(ctx, plugin, rid, record)
+}
+
+func (s *sqlMetaStore) listPluginRecords(ctx context.Context, plugin types.PlugScope, groupId string) ([]string, error) {
+	return s.dbEntity.ListPluginRecords(ctx, plugin, groupId)
+}
+
+func (s *sqlMetaStore) savePluginRecord(ctx context.Context, plugin types.PlugScope, groupId, rid string, record interface{}) error {
+	return s.dbEntity.SavePluginRecord(ctx, plugin, groupId, rid, record)
+}
+
+func (s *sqlMetaStore) deletePluginRecord(ctx context.Context, plugin types.PlugScope, rid string) error {
+	return s.dbEntity.DeletePluginRecord(ctx, plugin, rid)
+}
+
+func newPostgresMetaStore(meta config.Meta) (*sqlMetaStore, error) {
+	dbObj, err := gorm.Open(postgres.Open(meta.DSN), &gorm.Config{Logger: db.NewDbLogger()})
+	if err != nil {
+		panic(err)
+	}
+
+	dbConn, err := dbObj.DB()
+	if err != nil {
+		return nil, err
+	}
+
+	dbConn.SetMaxIdleConns(5)
+	dbConn.SetMaxOpenConns(50)
+	dbConn.SetConnMaxLifetime(time.Hour)
+
+	if err = dbConn.Ping(); err != nil {
+		return nil, err
+	}
+
+	dbEnt, err := db.NewDbEntity(dbObj)
+	if err != nil {
+		return nil, err
+	}
+
+	return buildSqlMetaStore(dbEnt), nil
+}
+
+type pluginRecordHandler interface {
+	getPluginRecord(ctx context.Context, plugin types.PlugScope, rid string, record interface{}) error
+	listPluginRecords(ctx context.Context, plugin types.PlugScope, groupId string) ([]string, error)
+	savePluginRecord(ctx context.Context, plugin types.PlugScope, groupId, rid string, record interface{}) error
+	deletePluginRecord(ctx context.Context, plugin types.PlugScope, rid string) error
+}
+
+type sqlPluginRecorder struct {
+	pluginRecordHandler
 	plugin types.PlugScope
 }
 
-func (s *sqlitePluginRecorder) GetRecord(ctx context.Context, rid string, record interface{}) error {
+func (s *sqlPluginRecorder) GetRecord(ctx context.Context, rid string, record interface{}) error {
 	return db.SqlError2Error(s.getPluginRecord(ctx, s.plugin, rid, record))
 }
 
-func (s *sqlitePluginRecorder) ListRecords(ctx context.Context, groupId string) ([]string, error) {
+func (s *sqlPluginRecorder) ListRecords(ctx context.Context, groupId string) ([]string, error) {
 	result, err := s.listPluginRecords(ctx, s.plugin, groupId)
 	if err != nil {
 		return nil, db.SqlError2Error(err)
@@ -223,10 +350,10 @@ func (s *sqlitePluginRecorder) ListRecords(ctx context.Context, groupId string) 
 	return result, nil
 }
 
-func (s *sqlitePluginRecorder) SaveRecord(ctx context.Context, groupId, rid string, record interface{}) error {
+func (s *sqlPluginRecorder) SaveRecord(ctx context.Context, groupId, rid string, record interface{}) error {
 	return db.SqlError2Error(s.savePluginRecord(ctx, s.plugin, groupId, rid, record))
 }
 
-func (s *sqlitePluginRecorder) DeleteRecord(ctx context.Context, rid string) error {
+func (s *sqlPluginRecorder) DeleteRecord(ctx context.Context, rid string) error {
 	return db.SqlError2Error(s.deletePluginRecord(ctx, s.plugin, rid))
 }

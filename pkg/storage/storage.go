@@ -29,7 +29,7 @@ type Info struct {
 func NewStorage(storageID, storageType string, cfg config.Storage) (Storage, error) {
 	switch storageType {
 	case LocalStorage:
-		return newLocalStorage(storageID, cfg.LocalDir), nil
+		return newLocalStorage(storageID, cfg.LocalDir)
 	case MemoryStorage:
 		return newMemoryStorage(storageID), nil
 	default:

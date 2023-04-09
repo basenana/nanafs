@@ -35,7 +35,8 @@ brew install --cask osxfuse
 
 ### Deploy using the binary file
 
-The current and historical versions of the binary files can be downloaded on the [release page](https://github.com/basenana/nanafs/releases).
+The current and historical versions of the binary files can be downloaded on
+the [release page](https://github.com/basenana/nanafs/releases).
 
 ### Build your own version
 
@@ -61,16 +62,6 @@ The generated configuration file can be found in the `~/.nana` directory:
 
 ```json
 {
-  "debug": false,
-  "api": {
-    "enable": true,
-    "port": 8080,
-    "pprof": true
-  },
-  "fs": {
-    "enable": true,
-    "root_path": "/your/nanafs/mountpoint"
-  },
   "meta": {
     "type": "sqlite",
     "path": "/your/data/path/sqlite.db"
@@ -81,7 +72,21 @@ The generated configuration file can be found in the `~/.nana` directory:
       "type": "local",
       "local_dir": "/your/data/path/local"
     }
-  ]
+  ],
+  "cache_dir": "/your/data/path/local",
+  "cache_size": 10,
+  "debug": false,
+  "api": {
+    "enable": true,
+    "host": "127.0.0.1",
+    "port": 8081,
+    "pprof": false
+  },
+  "fs": {
+    "enable": false,
+    "root_path": "/your/path/to/mount",
+    "display_name": "nanafs"
+  }
 }
 ```
 
@@ -90,8 +95,6 @@ Run nanafs:
 ```bash
 nanafs serve
 ```
-
-Now, you successfully got a slowly and buggy FS.
 
 ## Architecture
 

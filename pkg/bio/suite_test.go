@@ -17,6 +17,7 @@
 package bio
 
 import (
+	"context"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
@@ -62,4 +63,6 @@ var _ = BeforeSuite(func() {
 	fakeObj = &types.Object{
 		Metadata: types.NewMetadata("test.file", types.RawKind),
 	}
+	err = memMeta.SaveObject(context.Background(), nil, fakeObj)
+	Expect(err).Should(BeNil())
 })

@@ -29,6 +29,7 @@ type Meta interface {
 
 type ObjectStore interface {
 	GetObject(ctx context.Context, id int64) (*types.Object, error)
+	GetObjectExtendData(ctx context.Context, obj *types.Object) error
 	ListObjects(ctx context.Context, filter types.Filter) ([]*types.Object, error)
 	SaveObject(ctx context.Context, parent, obj *types.Object) error
 	DestroyObject(ctx context.Context, src, parent, obj *types.Object) error
@@ -41,7 +42,8 @@ type ObjectStore interface {
 type ChunkStore interface {
 	NextSegmentID(ctx context.Context) (int64, error)
 	ListSegments(ctx context.Context, oid, chunkID int64) ([]types.ChunkSeg, error)
-	AppendSegments(ctx context.Context, seg types.ChunkSeg, obj *types.Object) error
+	AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Object, error)
+	DeleteSegment(ctx context.Context, segID int64) error
 }
 
 type PluginRecorderGetter interface {

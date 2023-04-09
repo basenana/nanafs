@@ -28,38 +28,45 @@ import (
 
 func (c *controller) OpenFile(ctx context.Context, en dentry.Entry, attr dentry.Attr) (dentry.File, error) {
 	defer utils.TraceRegion(ctx, "controller.openfile")()
-	obj := en.Object()
-	c.logger.Infow("open file", "file", obj.ID, "name", obj.Name, "attr", attr)
+	md := en.Metadata()
+	c.logger.Infow("open file", "file", md.ID, "name", md.Name, "attr", attr)
 	if en.IsGroup() {
 		return nil, types.ErrIsGroup
 	}
 
 	var err error
 	for en.IsMirror() {
-		obj, err = c.meta.GetObject(ctx, obj.RefID)
+		var sourceEn dentry.Entry
+		sourceEn, err = c.entry.GetEntry(ctx, md.RefID)
 		if err != nil {
-			c.logger.Errorw("query source object error", "obj", obj.ID, "srcObj", obj.RefID, "err", err.Error())
+			c.logger.Errorw("query source object error", "entry", md.ID, "sourceEntry", md.RefID, "err", err.Error())
 			return nil, err
 		}
-		c.logger.Infow("replace source object", "srcObj", obj.ID)
+		en = sourceEn
+		md = sourceEn.Metadata()
+		c.logger.Infow("replace source object", "sourceEntry", md.ID)
 	}
 
 	if attr.Trunc {
+		md.Size = 0
 		// TODO clean old data
-		obj.Size = 0
+		bus.Publish(fmt.Sprintf("object.file.%d.trunc", md.ID), en)
 	}
 
 	file, err := c.entry.Open(ctx, en, attr)
 	if err != nil {
-		c.logger.Errorw("open file error", "obj", obj.ID, "err", err.Error())
+		c.logger.Errorw("open file error", "entry", md.ID, "err", err.Error())
 		return nil, err
 	}
 	if attr.Write {
-		obj.ModifiedAt = time.Now()
+		md.ModifiedAt = time.Now()
 	}
-	obj.AccessAt = time.Now()
-	bus.Publish(fmt.Sprintf("object.file.%d.open", obj.ID), obj)
-	return file, c.SaveEntry(ctx, nil, dentry.BuildEntry(obj, c.meta))
+	md.AccessAt = time.Now()
+	if err = c.SaveEntry(ctx, nil, en); err != nil {
+		return nil, err
+	}
+	bus.Publish(fmt.Sprintf("object.file.%d.open", md.ID), en)
+	return file, nil
 }
 
 func (c *controller) ReadFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error) {
@@ -79,6 +86,9 @@ func (c *controller) WriteFile(ctx context.Context, file dentry.File, data []byt
 	}
 	meta := file.Metadata()
 	meta.ModifiedAt = time.Now()
+	if meta.Size < offset+int64(len(data)) {
+		meta.Size = offset + int64(len(data))
+	}
 	return n, nil
 }
 

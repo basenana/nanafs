@@ -43,7 +43,7 @@ var (
 )
 
 type chunkReader struct {
-	*types.Object
+	entry *types.Metadata
 
 	page    *pageCache
 	store   storage.ChunkStore
@@ -55,25 +55,25 @@ type chunkReader struct {
 	logger  *zap.SugaredLogger
 }
 
-func NewChunkReader(obj *types.Object, chunkStore storage.ChunkStore, dataStore storage.Storage) Reader {
+func NewChunkReader(md *types.Metadata, chunkStore storage.ChunkStore, dataStore storage.Storage) Reader {
 	fileChunkMux.Lock()
 	defer fileChunkMux.Unlock()
 
-	cr, ok := fileChunkReaders[obj.ID]
+	cr, ok := fileChunkReaders[md.ID]
 	if ok {
 		atomic.AddInt32(&cr.ref, 1)
 		return cr
 	}
 
 	cr = &chunkReader{
-		Object:  obj,
-		page:    newPageCache(obj.ID, fileChunkSize),
+		entry:   md,
+		page:    newPageCache(md.ID, fileChunkSize),
 		store:   chunkStore,
 		storage: dataStore,
 		cache:   storage.NewLocalCache(dataStore),
 		readers: map[int64]*segReader{},
 		ref:     1,
-		logger:  logger.NewLogger("chunkIO").With("oid", obj.ID),
+		logger:  logger.NewLogger("chunkIO").With("entry", md.ID),
 	}
 	return cr
 }
@@ -82,13 +82,13 @@ func (c *chunkReader) ReadAt(ctx context.Context, dest []byte, off int64) (n int
 	ctx, endF := utils.TraceTask(ctx, "chunkreader.readat")
 	defer endF()
 
-	if off >= c.Object.Size {
+	if off >= c.entry.Size {
 		return 0, io.EOF
 	}
 
 	readEnd := off + int64(len(dest))
-	if readEnd > c.Object.Size {
-		readEnd = c.Object.Size
+	if readEnd > c.entry.Size {
+		readEnd = c.entry.Size
 	}
 	if readEnd == 0 {
 		return
@@ -135,7 +135,7 @@ func (c *chunkReader) prepareData(ctx context.Context, index, off int64, dest []
 	if !ok {
 		reader = &segReader{r: c, chunkID: index}
 		c.readers[index] = reader
-		c.logger.Debugw("builder segment reader", "entry", c.ID, "chunk", index)
+		c.logger.Debugw("builder segment reader", "entry", c.entry.ID, "chunk", index)
 	}
 	c.readMux.Unlock()
 
@@ -160,7 +160,7 @@ func (c *chunkReader) invalidate(index int64) {
 func (c *chunkReader) Close() {
 	if atomic.AddInt32(&c.ref, -1) == 0 {
 		fileChunkMux.Lock()
-		delete(fileChunkReaders, c.ID)
+		delete(fileChunkReaders, c.entry.ID)
 		fileChunkMux.Unlock()
 		c.page.close()
 	}
@@ -179,17 +179,17 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 
 	c.mux.Lock()
 	if c.st == nil {
-		segments, err := c.r.store.ListSegments(ctx, c.r.ID, c.chunkID)
+		segments, err := c.r.store.ListSegments(ctx, c.r.entry.ID, c.chunkID)
 		if err != nil {
 			c.mux.Unlock()
-			c.r.logger.Errorw("list segment reader", "entry", c.r.ID, "chunk", c.chunkID, "err", err)
+			c.r.logger.Errorw("list segment reader", "entry", c.r.entry.ID, "chunk", c.chunkID, "err", err)
 			req.err = err
 			return
 		}
 
 		dataSize := (c.chunkID + 1) * int64(fileChunkSize)
-		if c.r.Size < dataSize {
-			dataSize = c.r.Size
+		if c.r.entry.Size < dataSize {
+			dataSize = c.r.entry.Size
 		}
 		c.st = buildSegmentTree(c.chunkID*fileChunkSize, dataSize, segments)
 	}
@@ -198,7 +198,7 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 
 	defer func() {
 		if rErr := utils.Recover(); rErr != nil {
-			c.r.logger.Errorw("read chunk range panic", "entry", c.r.ID, "chunk", c.chunkID, "err", rErr)
+			c.r.logger.Errorw("read chunk range panic", "entry", c.r.entry.ID, "chunk", c.chunkID, "err", rErr)
 			req.err = rErr
 		}
 	}()
@@ -223,7 +223,7 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 				if err := c.readPage(ctx, segments, pageID, off, dest); err != nil && req.err == nil {
 					req.err = err
 					endF()
-					c.r.logger.Errorw("read chunk page error", "entry", c.r.ID, "chunk", c.chunkID, "page", pageID, "err", err)
+					c.r.logger.Errorw("read chunk page error", "entry", c.r.entry.ID, "chunk", c.chunkID, "page", pageID, "err", err)
 					return
 				}
 			})
@@ -240,13 +240,13 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 	for preRead > 0 {
 		preRead -= 1
 		pageIdx += 1
-		if pageIdx >= maxPage || pageIdx*pageSize > c.r.Size {
+		if pageIdx >= maxPage || pageIdx*pageSize > c.r.entry.Size {
 			break
 		}
 		go func(ctx context.Context, segments []segment, pageID int64) {
 			maximumChunkTaskParallel.BlockedGo(func() {
 				if err := c.readPage(ctx, segments, pageID, 0, nil); err != nil {
-					c.r.logger.Errorw("pre-read chunk page error", "entry", c.r.ID, "chunk", c.chunkID, "page", pageIdx, "err", err)
+					c.r.logger.Errorw("pre-read chunk page error", "entry", c.r.entry.ID, "chunk", c.chunkID, "page", pageIdx, "err", err)
 					return
 				}
 			})
@@ -260,7 +260,7 @@ func (c *segReader) readPage(ctx context.Context, segments []segment, pageIndex,
 
 	defer func() {
 		if rErr := utils.Recover(); rErr != nil {
-			c.r.logger.Errorw("read chunk page panic", "entry", c.r.ID, "chunk", c.chunkID, "err", err)
+			c.r.logger.Errorw("read chunk page panic", "entry", c.r.entry.ID, "chunk", c.chunkID, "err", err)
 			err = rErr
 		}
 	}()
@@ -323,7 +323,7 @@ func NewChunkWriter(reader Reader) Writer {
 
 	fileChunkMux.Lock()
 	defer fileChunkMux.Unlock()
-	cw, ok := fileChunkWriters[r.ID]
+	cw, ok := fileChunkWriters[r.entry.ID]
 	if ok {
 		atomic.AddInt32(&cw.ref, 1)
 		return cw
@@ -370,13 +370,13 @@ func (c *chunkWriter) writeSegData(ctx context.Context, index, off int64, dest [
 		}
 		sw.cond = sync.NewCond(&sw.mux)
 		c.writers[index] = sw
-		c.logger.Debugw("build segment writer", "entry", c.ID, "chunk", index)
+		c.logger.Debugw("build segment writer", "entry", c.entry.ID, "chunk", index)
 	}
 	c.writerMux.Unlock()
 
 	defer func() {
 		if rErr := utils.Recover(); rErr != nil {
-			c.logger.Errorw("write segment data panic", "entry", c.ID, "chunk", index, "err", rErr)
+			c.logger.Errorw("write segment data panic", "entry", c.entry.ID, "chunk", index, "err", rErr)
 			err = rErr
 		}
 	}()
@@ -450,7 +450,7 @@ func (c *chunkWriter) Fsync(ctx context.Context) error {
 func (c *chunkWriter) Close() {
 	if atomic.AddInt32(&c.ref, -1) == 0 {
 		fileChunkMux.Lock()
-		delete(fileChunkWriters, c.ID)
+		delete(fileChunkWriters, c.entry.ID)
 		fileChunkMux.Unlock()
 	}
 }
@@ -483,9 +483,9 @@ func (w *segWriter) put(ctx context.Context, pageIdx, pagePos int64, data []byte
 		seg.mux.Lock()
 		page = &uncommittedPage{idx: pageIdx}
 		var err error
-		page.node, err = w.cache.OpenTemporaryNode(ctx, w.Object.ID, pageIdx*pageSize+pagePos)
+		page.node, err = w.cache.OpenTemporaryNode(ctx, w.entry.ID, pageIdx*pageSize+pagePos)
 		if err != nil {
-			w.logger.Errorw("open temporary node error", "entry", w.ID, "chunk", w.chunkID, "err", err)
+			w.logger.Errorw("open temporary node error", "entry", w.entry.ID, "chunk", w.chunkID, "err", err)
 			w.chunkErr = err
 			return
 		}
@@ -502,7 +502,7 @@ func (w *segWriter) preWrite(ctx context.Context, pagePos int64, seg *uncommitte
 
 	defer func() {
 		if rErr := utils.Recover(); rErr != nil {
-			w.logger.Errorw("pre-write segment panic", "entry", w.ID, "chunk", w.chunkID, "err", rErr)
+			w.logger.Errorw("pre-write segment panic", "entry", w.entry.ID, "chunk", w.chunkID, "err", rErr)
 			w.chunkErr = rErr
 		}
 	}()
@@ -510,7 +510,7 @@ func (w *segWriter) preWrite(ctx context.Context, pagePos int64, seg *uncommitte
 	n, err := page.node.WriteAt(data, pagePos)
 	if err != nil {
 		w.chunkErr = err
-		w.logger.Errorw("write to cache node error", "entry", w.ID, "chunk", w.chunkID, "err", err)
+		w.logger.Errorw("write to cache node error", "entry", w.entry.ID, "chunk", w.chunkID, "err", err)
 		page.mux.Unlock()
 		atomic.AddInt32(&page.visitor, -1)
 		return
@@ -544,27 +544,27 @@ func (w *segWriter) flushData(ctx context.Context, seg *uncommittedSeg, page *un
 		select {
 		case <-ctx.Done():
 			w.chunkErr = fmt.Errorf("flush data timeout, chunk=%d, page=%d", w.chunkID, page.idx)
-			w.logger.Errorw("flush data timeout", "entry", w.ID, "chunk", w.chunkID, "page", page.idx, "visitor", atomic.LoadInt32(&page.visitor))
+			w.logger.Errorw("flush data timeout", "entry", w.entry.ID, "chunk", w.chunkID, "page", page.idx, "visitor", atomic.LoadInt32(&page.visitor))
 			return
 		default:
 			time.Sleep(time.Millisecond)
 			waitingTime += 1
 		}
 		if waitingTime > 3 {
-			w.logger.Warnw("page still has visitors, waiting to flush", "entry", w.ID, "chunk", w.chunkID, "page", page.idx, "visitor", atomic.LoadInt32(&page.visitor))
+			w.logger.Warnw("page still has visitors, waiting to flush", "entry", w.entry.ID, "chunk", w.chunkID, "page", page.idx, "visitor", atomic.LoadInt32(&page.visitor))
 		}
 	}
 
 	segID, err := seg.prepareID(ctx, w.store.NextSegmentID)
 	if err != nil {
 		w.chunkErr = err
-		w.logger.Errorw("prepare segment id error", "entry", w.ID, "chunk", w.chunkID, "page", page.idx, "err", err)
+		w.logger.Errorw("prepare segment id error", "entry", w.entry.ID, "chunk", w.chunkID, "page", page.idx, "err", err)
 		return
 	}
 
 	if err = w.cache.CommitTemporaryNode(ctx, segID, page.idx, page.node); err != nil {
 		w.chunkErr = err
-		w.logger.Errorw("commit page data error", "entry", w.ID, "chunk", w.chunkID, "page", page.idx, "err", err)
+		w.logger.Errorw("commit page data error", "entry", w.entry.ID, "chunk", w.chunkID, "page", page.idx, "err", err)
 		return
 	}
 }
@@ -609,7 +609,7 @@ func (w *segWriter) findUncommittedPage(ctx context.Context, pageIdx, off int64)
 }
 
 func (w *segWriter) commitSegment() {
-	defer logger.CostLog(w.logger.With(zap.Int64("entry", w.ID), zap.Int64("chunk", w.chunkID)), "commit segment data")()
+	defer logger.CostLog(w.logger.With(zap.Int64("entry", w.entry.ID), zap.Int64("chunk", w.chunkID)), "commit segment data")()
 	for len(w.uncommitted) > 0 {
 		w.mux.Lock()
 		seg := w.uncommitted[0]
@@ -622,18 +622,20 @@ func (w *segWriter) commitSegment() {
 		w.mux.Unlock()
 
 		seg.uploads.Wait()
-		if err := w.store.AppendSegments(context.Background(), types.ChunkSeg{
+		newObj, err := w.store.AppendSegments(context.Background(), types.ChunkSeg{
 			ID:       seg.segID,
 			ChunkID:  w.chunkID,
-			ObjectID: w.Object.ID,
+			ObjectID: w.entry.ID,
 			Off:      seg.off,
 			Len:      seg.size,
 			State:    0,
-		}, w.Object); err != nil {
-			w.logger.Errorw("append segment error", "entry", w.ID, "chunk", w.chunkID, "err", err)
+		})
+		if err != nil {
+			w.logger.Errorw("append segment error", "entry", w.entry.ID, "chunk", w.chunkID, "err", err)
 			w.chunkErr = err
 			continue
 		}
+		w.entry = &newObj.Metadata
 		w.uncommitted = w.uncommitted[1:]
 		atomic.AddInt32(&w.unready, -1)
 	}
@@ -829,7 +831,11 @@ func DeleteChunksData(ctx context.Context, md *types.Metadata, chunkStore storag
 	}
 
 	for _, seg := range segments {
-		if err := dataStore.Delete(ctx, seg.ID); err != nil {
+		if err := dataStore.Delete(ctx, seg.ID); err != nil && err != types.ErrNotFound {
+			resultErr = err
+			continue
+		}
+		if err := chunkStore.DeleteSegment(ctx, seg.ID); err != nil && err != types.ErrNotFound {
 			resultErr = err
 			continue
 		}

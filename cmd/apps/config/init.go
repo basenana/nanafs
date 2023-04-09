@@ -77,7 +77,7 @@ func initDefaultConfig() {
 			Enable: true,
 			Host:   "127.0.0.1",
 			Port:   8081,
-			Pprof:  true,
+			Pprof:  false,
 		},
 		FsConfig: config.Fs{
 			Enable:      false,

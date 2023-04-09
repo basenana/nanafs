@@ -61,9 +61,9 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, erro
 	if err == nil {
 		return nil, types.ErrIsExist
 	}
-	groupObject := g.Object()
+	groupMd := g.Metadata()
 	// FIXME: use same attr object
-	obj, err := types.InitNewObject(groupObject, types.ObjectAttr{
+	obj, err := types.InitNewObject(groupMd, types.ObjectAttr{
 		Name:   attr.Name,
 		Dev:    attr.Dev,
 		Kind:   attr.Kind,
@@ -73,18 +73,19 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, erro
 		return nil, err
 	}
 	if obj.IsGroup() {
-		groupObject.RefCount += 1
+		groupMd.RefCount += 1
 	}
-	groupObject.ChangedAt = time.Now()
-	groupObject.ModifiedAt = time.Now()
-	if err = g.store.SaveObject(ctx, groupObject, obj); err != nil {
+	groupMd.ChangedAt = time.Now()
+	groupMd.ModifiedAt = time.Now()
+	if err = g.store.SaveObject(ctx, &types.Object{Metadata: *groupMd}, obj); err != nil {
 		return nil, err
 	}
-	return BuildEntry(obj, g.store), nil
+	en := buildEntry(obj, g.store)
+	return en, nil
 }
 
 func (g *stdGroup) UpdateEntry(ctx context.Context, en Entry) error {
-	err := g.store.SaveObject(ctx, g.Object(), en.Object())
+	err := g.store.SaveObject(ctx, &types.Object{Metadata: *g.Metadata()}, &types.Object{Metadata: *en.Metadata()})
 	if err != nil {
 		return err
 	}
@@ -92,32 +93,31 @@ func (g *stdGroup) UpdateEntry(ctx context.Context, en Entry) error {
 }
 
 func (g *stdGroup) DestroyEntry(ctx context.Context, en Entry) error {
-	obj := en.Object()
-	if obj.RefID != 0 {
+	md := en.Metadata()
+	if md.RefID != 0 {
 		return types.ErrUnsupported
 	}
-	if en.IsGroup() && obj.RefCount > 2 {
+	if en.IsGroup() && md.RefCount > 2 {
 		return types.ErrNotEmpty
 	}
-	if !en.IsGroup() && obj.RefCount > 1 {
+	if !en.IsGroup() && md.RefCount > 1 {
 		return types.ErrUnsupported
 	}
 
-	if !obj.IsGroup() && obj.RefCount > 0 {
-		obj.RefCount -= 1
-		obj.ParentID = 0
-		obj.ChangedAt = time.Now()
+	if !en.IsGroup() && md.RefCount > 0 {
+		md.RefCount -= 1
+		md.ParentID = 0
+		md.ChangedAt = time.Now()
 	}
 
-	grpObj := g.Object()
-	if obj.IsGroup() {
-		grpObj.RefCount -= 1
+	grpMd := g.Metadata()
+	if en.IsGroup() {
+		grpMd.RefCount -= 1
 	}
-	grpObj.RefCount -= 1
-	grpObj.ChangedAt = time.Now()
-	grpObj.ModifiedAt = time.Now()
+	grpMd.ChangedAt = time.Now()
+	grpMd.ModifiedAt = time.Now()
 
-	if err := g.store.DestroyObject(ctx, nil, grpObj, obj); err != nil {
+	if err := g.store.DestroyObject(ctx, nil, &types.Object{Metadata: *grpMd}, &types.Object{Metadata: *md}); err != nil {
 		return err
 	}
 	return nil
@@ -125,7 +125,7 @@ func (g *stdGroup) DestroyEntry(ctx context.Context, en Entry) error {
 
 func (g *stdGroup) ListChildren(ctx context.Context) ([]Entry, error) {
 	defer utils.TraceRegion(ctx, "stdGroup.list")()
-	it, err := g.store.ListChildren(ctx, g.Object())
+	it, err := g.store.ListChildren(ctx, &types.Object{Metadata: *g.Metadata()})
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +135,7 @@ func (g *stdGroup) ListChildren(ctx context.Context) ([]Entry, error) {
 		if next.ID == next.ParentID {
 			continue
 		}
-		result = append(result, BuildEntry(next, g.store))
+		result = append(result, buildEntry(next, g.store))
 	}
 	return result, nil
 }
