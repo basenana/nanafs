@@ -356,6 +356,11 @@ func (e *Entity) InsertChunkSegment(ctx context.Context, seg types.ChunkSeg) (*t
 	return obj, nil
 }
 
+func (e *Entity) DeleteChunkSegment(ctx context.Context, segID int64) error {
+	res := e.WithContext(ctx).Delete(&ObjectChunk{ID: segID})
+	return res.Error
+}
+
 func (e *Entity) ListChunkSegments(ctx context.Context, oid, chunkID int64) ([]types.ChunkSeg, error) {
 	segments := make([]ObjectChunk, 0)
 	res := e.DB.WithContext(ctx).Where("oid = ? AND chunk_id = ?", oid, chunkID).Order("append_at").Find(&segments)
@@ -474,7 +479,7 @@ func deleteRawObject(tx *gorm.DB, obj *types.Object) error {
 	if res.Error != nil {
 		return res.Error
 	}
-	res = tx.Where("oid = ?", obj.ID).Delete(&Label{})
+	res = tx.Where("ref_type = 'object' AND ref_id = ?", obj.ID).Delete(&Label{})
 	if res.Error != nil {
 		return res.Error
 	}

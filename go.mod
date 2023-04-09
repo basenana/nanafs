@@ -10,10 +10,12 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/hanwen/go-fuse/v2 v2.2.0
 	github.com/hyponet/eventbus v1.0.0
+	github.com/jackc/pgx/v4 v4.16.1
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.27.2
 	go.uber.org/zap v1.24.0
 	golang.org/x/sys v0.5.0
+	gorm.io/driver/postgres v1.3.7
 )
 
 require (
@@ -27,6 +29,13 @@ require (
 	github.com/go-playground/validator/v10 v10.11.2 // indirect
 	github.com/goccy/go-json v0.10.0 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
+	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
+	github.com/jackc/pgconn v1.12.1 // indirect
+	github.com/jackc/pgio v1.0.0 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgproto3/v2 v2.3.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
+	github.com/jackc/pgtype v1.11.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect

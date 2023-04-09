@@ -28,6 +28,8 @@ func NewMetaStorage(metaType string, meta config.Meta) (Meta, error) {
 		return newSqliteMetaStore(meta)
 	case SqliteMeta:
 		return newSqliteMetaStore(meta)
+	case PostgresMeta:
+		return newPostgresMetaStore(meta)
 	default:
 		return nil, fmt.Errorf("unknow meta store type: %s", metaType)
 	}

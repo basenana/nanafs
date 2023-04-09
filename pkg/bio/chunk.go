@@ -831,7 +831,11 @@ func DeleteChunksData(ctx context.Context, md *types.Metadata, chunkStore storag
 	}
 
 	for _, seg := range segments {
-		if err := dataStore.Delete(ctx, seg.ID); err != nil {
+		if err := dataStore.Delete(ctx, seg.ID); err != nil && err != types.ErrNotFound {
+			resultErr = err
+			continue
+		}
+		if err := chunkStore.DeleteSegment(ctx, seg.ID); err != nil && err != types.ErrNotFound {
 			resultErr = err
 			continue
 		}

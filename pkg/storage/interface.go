@@ -43,6 +43,7 @@ type ChunkStore interface {
 	NextSegmentID(ctx context.Context) (int64, error)
 	ListSegments(ctx context.Context, oid, chunkID int64) ([]types.ChunkSeg, error)
 	AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Object, error)
+	DeleteSegment(ctx context.Context, segID int64) error
 }
 
 type PluginRecorderGetter interface {

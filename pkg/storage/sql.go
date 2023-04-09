@@ -25,12 +25,15 @@ import (
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/glebarez/sqlite"
 	"go.uber.org/zap"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"sync"
+	"time"
 )
 
 const (
-	SqliteMeta = "sqlite"
+	SqliteMeta   = "sqlite"
+	PostgresMeta = "postgres"
 )
 
 type sqliteMetaStore struct {
@@ -106,10 +109,16 @@ func (s *sqliteMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg
 	return s.dbStore.AppendSegments(ctx, seg)
 }
 
+func (s *sqliteMetaStore) DeleteSegment(ctx context.Context, segID int64) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.DeleteSegment(ctx, segID)
+}
+
 func (s *sqliteMetaStore) PluginRecorder(plugin types.PlugScope) PluginRecorder {
-	return &sqlitePluginRecorder{
-		sqlPluginRecorder: s,
-		plugin:            plugin,
+	return &sqlPluginRecorder{
+		pluginRecordHandler: s,
+		plugin:              plugin,
 	}
 }
 
@@ -168,10 +177,7 @@ type sqlMetaStore struct {
 var _ Meta = &sqlMetaStore{}
 
 func buildSqlMetaStore(entity *db.Entity) *sqlMetaStore {
-	return &sqlMetaStore{
-		dbEntity: entity,
-		logger:   logger.NewLogger("dbStore"),
-	}
+	return &sqlMetaStore{dbEntity: entity, logger: logger.NewLogger("dbStore")}
 }
 
 func (s *sqlMetaStore) GetObject(ctx context.Context, id int64) (*types.Object, error) {
@@ -268,11 +274,13 @@ func (s *sqlMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (
 	return s.dbEntity.InsertChunkSegment(ctx, seg)
 }
 
+func (s *sqlMetaStore) DeleteSegment(ctx context.Context, segID int64) error {
+	defer utils.TraceRegion(ctx, "sql.deletesegment")()
+	return db.SqlError2Error(s.dbEntity.DeleteChunkSegment(ctx, segID))
+}
+
 func (s *sqlMetaStore) PluginRecorder(plugin types.PlugScope) PluginRecorder {
-	return &sqlitePluginRecorder{
-		sqlPluginRecorder: s,
-		plugin:            plugin,
-	}
+	return &sqlPluginRecorder{pluginRecordHandler: s, plugin: plugin}
 }
 
 func (s *sqlMetaStore) getPluginRecord(ctx context.Context, plugin types.PlugScope, rid string, record interface{}) error {
@@ -291,23 +299,50 @@ func (s *sqlMetaStore) deletePluginRecord(ctx context.Context, plugin types.Plug
 	return s.dbEntity.DeletePluginRecord(ctx, plugin, rid)
 }
 
-type sqlPluginRecorder interface {
+func newPostgresMetaStore(meta config.Meta) (*sqlMetaStore, error) {
+	dbObj, err := gorm.Open(postgres.Open(meta.DSN), &gorm.Config{Logger: db.NewDbLogger()})
+	if err != nil {
+		panic(err)
+	}
+
+	dbConn, err := dbObj.DB()
+	if err != nil {
+		return nil, err
+	}
+
+	dbConn.SetMaxIdleConns(5)
+	dbConn.SetMaxOpenConns(50)
+	dbConn.SetConnMaxLifetime(time.Hour)
+
+	if err = dbConn.Ping(); err != nil {
+		return nil, err
+	}
+
+	dbEnt, err := db.NewDbEntity(dbObj)
+	if err != nil {
+		return nil, err
+	}
+
+	return buildSqlMetaStore(dbEnt), nil
+}
+
+type pluginRecordHandler interface {
 	getPluginRecord(ctx context.Context, plugin types.PlugScope, rid string, record interface{}) error
 	listPluginRecords(ctx context.Context, plugin types.PlugScope, groupId string) ([]string, error)
 	savePluginRecord(ctx context.Context, plugin types.PlugScope, groupId, rid string, record interface{}) error
 	deletePluginRecord(ctx context.Context, plugin types.PlugScope, rid string) error
 }
 
-type sqlitePluginRecorder struct {
-	sqlPluginRecorder
+type sqlPluginRecorder struct {
+	pluginRecordHandler
 	plugin types.PlugScope
 }
 
-func (s *sqlitePluginRecorder) GetRecord(ctx context.Context, rid string, record interface{}) error {
+func (s *sqlPluginRecorder) GetRecord(ctx context.Context, rid string, record interface{}) error {
 	return db.SqlError2Error(s.getPluginRecord(ctx, s.plugin, rid, record))
 }
 
-func (s *sqlitePluginRecorder) ListRecords(ctx context.Context, groupId string) ([]string, error) {
+func (s *sqlPluginRecorder) ListRecords(ctx context.Context, groupId string) ([]string, error) {
 	result, err := s.listPluginRecords(ctx, s.plugin, groupId)
 	if err != nil {
 		return nil, db.SqlError2Error(err)
@@ -315,10 +350,10 @@ func (s *sqlitePluginRecorder) ListRecords(ctx context.Context, groupId string) 
 	return result, nil
 }
 
-func (s *sqlitePluginRecorder) SaveRecord(ctx context.Context, groupId, rid string, record interface{}) error {
+func (s *sqlPluginRecorder) SaveRecord(ctx context.Context, groupId, rid string, record interface{}) error {
 	return db.SqlError2Error(s.savePluginRecord(ctx, s.plugin, groupId, rid, record))
 }
 
-func (s *sqlitePluginRecorder) DeleteRecord(ctx context.Context, rid string) error {
+func (s *sqlPluginRecorder) DeleteRecord(ctx context.Context, rid string) error {
 	return db.SqlError2Error(s.deletePluginRecord(ctx, s.plugin, rid))
 }

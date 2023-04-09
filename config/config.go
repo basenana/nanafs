@@ -31,7 +31,8 @@ type Config struct {
 
 type Meta struct {
 	Type string `json:"type"`
-	Path string `json:"path"`
+	Path string `json:"path,omitempty"`
+	DSN  string `json:"dsn,omitempty"`
 }
 
 type Storage struct {
