@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/bio"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"go.uber.org/zap"
@@ -111,7 +112,7 @@ func (f *file) Close(ctx context.Context) (err error) {
 	return nil
 }
 
-func openFile(en Entry, attr Attr, store storage.ObjectStore, fileStorage storage.Storage) (File, error) {
+func openFile(en Entry, attr Attr, store metastore.ObjectStore, fileStorage storage.Storage) (File, error) {
 	f := &file{
 		Entry: en,
 		attr:  attr,
@@ -119,7 +120,7 @@ func openFile(en Entry, attr Attr, store storage.ObjectStore, fileStorage storag
 	if fileStorage == nil {
 		return nil, fmt.Errorf("storage %s not found", en.Metadata().Storage)
 	}
-	f.reader = bio.NewChunkReader(en.Metadata(), store.(storage.ChunkStore), fileStorage)
+	f.reader = bio.NewChunkReader(en.Metadata(), store.(metastore.ChunkStore), fileStorage)
 	if attr.Write {
 		f.writer = bio.NewChunkWriter(f.reader)
 	}

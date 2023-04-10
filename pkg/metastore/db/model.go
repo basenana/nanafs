@@ -166,11 +166,10 @@ func (o ObjectProperty) TableName() string {
 }
 
 type ObjectExtend struct {
-	ID           int64  `gorm:"column:id;primaryKey"`
-	ExtendFields []byte `gorm:"column:extend_fields"`
-	Symlink      string `gorm:"column:symlink"`
-	GroupFilter  []byte `gorm:"column:group_filter"`
-	PlugScope    []byte `gorm:"column:plug_scope"`
+	ID          int64  `gorm:"column:id;primaryKey"`
+	Symlink     string `gorm:"column:symlink"`
+	GroupFilter []byte `gorm:"column:group_filter"`
+	PlugScope   []byte `gorm:"column:plug_scope"`
 }
 
 func (o *ObjectExtend) TableName() string {
@@ -179,13 +178,10 @@ func (o *ObjectExtend) TableName() string {
 
 func (o *ObjectExtend) Update(obj *types.Object) {
 	if obj.ExtendData != nil {
-		o.ExtendFields, _ = json.Marshal(obj.ExtendData.Properties)
 		o.Symlink = obj.ExtendData.Symlink
-
 		if obj.ExtendData.GroupFilter != nil {
 			o.GroupFilter, _ = json.Marshal(obj.ExtendData.GroupFilter)
 		}
-
 		if obj.ExtendData.GroupFilter != nil {
 			o.PlugScope, _ = json.Marshal(obj.ExtendData.PlugScope)
 		}
@@ -199,8 +195,6 @@ func (o *ObjectExtend) ToExtData() types.ExtendData {
 		GroupFilter: nil,
 		PlugScope:   nil,
 	}
-
-	_ = json.Unmarshal(o.ExtendFields, &ext.Properties)
 	if o.GroupFilter != nil {
 		_ = json.Unmarshal(o.GroupFilter, &ext.GroupFilter)
 	}
@@ -217,7 +211,7 @@ type ObjectChunk struct {
 	Off      int64 `gorm:"column:off"`
 	Len      int64 `gorm:"column:len"`
 	State    int16 `gorm:"column:state"`
-	AppendAt int64 `gorm:"column:append_at"`
+	AppendAt int64 `gorm:"column:append_at;index:ck_append_at"`
 }
 
 func (o ObjectChunk) TableName() string {

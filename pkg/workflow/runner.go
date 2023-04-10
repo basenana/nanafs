@@ -25,9 +25,9 @@ import (
 	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/go-flow/fsm"
 	flowstorage "github.com/basenana/go-flow/storage"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/plugin/common"
-	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
@@ -42,13 +42,13 @@ type Runner struct {
 	*flowcontroller.FlowController
 
 	stopCh   chan struct{}
-	recorder storage.PluginRecorder
+	recorder metastore.PluginRecorder
 	logger   *zap.SugaredLogger
 
 	sync.RWMutex
 }
 
-func InitWorkflowRunner(recorder storage.PluginRecorder) (*Runner, error) {
+func InitWorkflowRunner(recorder metastore.PluginRecorder) (*Runner, error) {
 	runner := &Runner{
 		recorder: recorder,
 		logger:   logger.NewLogger("workflowRuntime"),

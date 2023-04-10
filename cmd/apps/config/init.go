@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils"
 	"github.com/spf13/cobra"
@@ -60,7 +61,7 @@ func initDefaultConfig() {
 
 	conf := config.Config{
 		Meta: config.Meta{
-			Type: storage.SqliteMeta,
+			Type: metastore.SqliteMeta,
 			Path: dbFile,
 		},
 		Storages: []config.Storage{

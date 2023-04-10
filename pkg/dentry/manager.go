@@ -19,6 +19,7 @@ package dentry
 import (
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"time"
 
 	"go.uber.org/zap"
@@ -42,7 +43,7 @@ type Manager interface {
 	MustCloseAll()
 }
 
-func NewManager(store storage.ObjectStore, cfg config.Config) (Manager, error) {
+func NewManager(store metastore.ObjectStore, cfg config.Config) (Manager, error) {
 	storages := make(map[string]storage.Storage)
 	var err error
 	for i := range cfg.Storages {
@@ -63,7 +64,7 @@ func NewManager(store storage.ObjectStore, cfg config.Config) (Manager, error) {
 }
 
 type manager struct {
-	store    storage.ObjectStore
+	store    metastore.ObjectStore
 	storages map[string]storage.Storage
 	cfg      config.Config
 	logger   *zap.SugaredLogger

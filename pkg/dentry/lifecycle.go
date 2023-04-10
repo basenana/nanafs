@@ -19,7 +19,7 @@ package dentry
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/bio"
-	"github.com/basenana/nanafs/pkg/storage"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/hyponet/eventbus/bus"
 	"go.uber.org/zap"
@@ -68,7 +68,7 @@ func (l *lifecycle) cleanChunks(en Entry) {
 		return
 	}
 
-	cs, ok := l.mgr.store.(storage.ChunkStore)
+	cs, ok := l.mgr.store.(metastore.ChunkStore)
 	if !ok {
 		return
 	}

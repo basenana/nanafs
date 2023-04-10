@@ -22,6 +22,7 @@ import (
 	"github.com/basenana/nanafs/cmd/apps/fs"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils"
@@ -66,7 +67,7 @@ var daemonCmd = &cobra.Command{
 			logger.SetDebug(cfg.Debug)
 		}
 
-		meta, err := storage.NewMetaStorage(cfg.Meta.Type, cfg.Meta)
+		meta, err := metastore.NewMetaStorage(cfg.Meta.Type, cfg.Meta)
 		if err != nil {
 			panic(err)
 		}

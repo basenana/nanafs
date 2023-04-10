@@ -18,7 +18,7 @@ package dentry
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/storage"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"sync"
 	"time"
@@ -41,14 +41,14 @@ type Entry interface {
 	Group() Group
 }
 
-func buildEntry(obj *types.Object, store storage.ObjectStore) Entry {
+func buildEntry(obj *types.Object, store metastore.ObjectStore) Entry {
 	return &rawEntry{obj: obj, store: store}
 }
 
 type rawEntry struct {
 	obj   *types.Object
 	mux   sync.Mutex
-	store storage.ObjectStore
+	store metastore.ObjectStore
 }
 
 func (r *rawEntry) Metadata() *types.Metadata {

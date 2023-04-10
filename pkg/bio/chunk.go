@@ -19,6 +19,7 @@ package bio
 import (
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
@@ -46,7 +47,7 @@ type chunkReader struct {
 	entry *types.Metadata
 
 	page    *pageCache
-	store   storage.ChunkStore
+	store   metastore.ChunkStore
 	storage storage.Storage
 	cache   *storage.LocalCache
 	readers map[int64]*segReader
@@ -55,7 +56,7 @@ type chunkReader struct {
 	logger  *zap.SugaredLogger
 }
 
-func NewChunkReader(md *types.Metadata, chunkStore storage.ChunkStore, dataStore storage.Storage) Reader {
+func NewChunkReader(md *types.Metadata, chunkStore metastore.ChunkStore, dataStore storage.Storage) Reader {
 	fileChunkMux.Lock()
 	defer fileChunkMux.Unlock()
 
@@ -812,7 +813,7 @@ func minOff(off1, off2 int64) int64 {
 	return off2
 }
 
-func DeleteChunksData(ctx context.Context, md *types.Metadata, chunkStore storage.ChunkStore, dataStore storage.Storage) error {
+func DeleteChunksData(ctx context.Context, md *types.Metadata, chunkStore metastore.ChunkStore, dataStore storage.Storage) error {
 	maxChunkID := (md.Size / fileChunkSize) + 1
 
 	var (

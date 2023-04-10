@@ -19,6 +19,7 @@ package dentry
 import (
 	"context"
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils/logger"
 	"os"
@@ -29,7 +30,7 @@ import (
 )
 
 var (
-	objStore     storage.ObjectStore
+	objStore     metastore.ObjectStore
 	entryManager Manager
 	root         Entry
 
@@ -51,7 +52,7 @@ func TestDEntry(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	memMeta, err := storage.NewMetaStorage(storage.MemoryStorage, config.Meta{})
+	memMeta, err := metastore.NewMetaStorage(storage.MemoryStorage, config.Meta{})
 	Expect(err).Should(BeNil())
 	objStore = memMeta
 	entryManager, _ = NewManager(objStore, config.Config{Owner: &config.FsOwner{}, Storages: []config.Storage{{

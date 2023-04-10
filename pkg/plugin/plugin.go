@@ -21,10 +21,10 @@ import (
 	"errors"
 	"fmt"
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin/adaptors"
 	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"github.com/basenana/nanafs/pkg/plugin/common"
-	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
@@ -43,7 +43,7 @@ var (
 	ErrNotFound   = errors.New("PluginNotFound")
 )
 
-func Init(cfg config.Config, recorderGetter storage.PluginRecorderGetter) error {
+func Init(cfg config.Config, recorderGetter metastore.PluginRecorderGetter) error {
 	if cfg.Plugin.BasePath == "" {
 		cfg.Plugin.BasePath = DefaultPluginPath
 	}
@@ -89,7 +89,7 @@ type plugins struct {
 	basePath string
 	plugins  map[string]*pluginInfo
 	mux      sync.RWMutex
-	recorder storage.PluginRecorderGetter
+	recorder metastore.PluginRecorderGetter
 	logger   *zap.SugaredLogger
 }
 

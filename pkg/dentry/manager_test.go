@@ -19,6 +19,7 @@ package dentry
 import (
 	"context"
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	. "github.com/onsi/ginkgo"
@@ -27,7 +28,7 @@ import (
 )
 
 var _ = Describe("TestRootEntryInit", func() {
-	emptyObjectStore, err := storage.NewMetaStorage(storage.MemoryStorage, config.Meta{})
+	emptyObjectStore, err := metastore.NewMetaStorage(storage.MemoryStorage, config.Meta{})
 	Expect(err).Should(BeNil())
 
 	Context("query root entry first time", func() {

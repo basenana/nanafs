@@ -14,12 +14,28 @@
  limitations under the License.
 */
 
-package storage
+/*
+ Copyright 2023 NanaFS Authors.
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+*/
+
+package metastore
 
 import (
 	"context"
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/storage/db"
+	db2 "github.com/basenana/nanafs/pkg/metastore/db"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
@@ -32,6 +48,7 @@ import (
 )
 
 const (
+	MemoryMeta   = "memory"
 	SqliteMeta   = "sqlite"
 	PostgresMeta = "postgres"
 )
@@ -147,7 +164,7 @@ func (s *sqliteMetaStore) deletePluginRecord(ctx context.Context, plugin types.P
 }
 
 func newSqliteMetaStore(meta config.Meta) (*sqliteMetaStore, error) {
-	dbObj, err := gorm.Open(sqlite.Open(meta.Path), &gorm.Config{Logger: db.NewDbLogger()})
+	dbObj, err := gorm.Open(sqlite.Open(meta.Path), &gorm.Config{Logger: db2.NewDbLogger()})
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +178,7 @@ func newSqliteMetaStore(meta config.Meta) (*sqliteMetaStore, error) {
 		return nil, err
 	}
 
-	dbEnt, err := db.NewDbEntity(dbObj)
+	dbEnt, err := db2.NewDbEntity(dbObj)
 	if err != nil {
 		return nil, err
 	}
@@ -170,13 +187,13 @@ func newSqliteMetaStore(meta config.Meta) (*sqliteMetaStore, error) {
 }
 
 type sqlMetaStore struct {
-	dbEntity *db.Entity
+	dbEntity *db2.Entity
 	logger   *zap.SugaredLogger
 }
 
 var _ Meta = &sqlMetaStore{}
 
-func buildSqlMetaStore(entity *db.Entity) *sqlMetaStore {
+func buildSqlMetaStore(entity *db2.Entity) *sqlMetaStore {
 	return &sqlMetaStore{dbEntity: entity, logger: logger.NewLogger("dbStore")}
 }
 
@@ -185,7 +202,7 @@ func (s *sqlMetaStore) GetObject(ctx context.Context, id int64) (*types.Object, 
 	obj, err := s.dbEntity.GetObjectByID(ctx, id)
 	if err != nil {
 		s.logger.Errorw("query object by id failed", "id", id, "err", err.Error())
-		return nil, db.SqlError2Error(err)
+		return nil, db2.SqlError2Error(err)
 	}
 	return obj, nil
 }
@@ -194,7 +211,7 @@ func (s *sqlMetaStore) GetObjectExtendData(ctx context.Context, obj *types.Objec
 	defer utils.TraceRegion(ctx, "sql.getextenddata")()
 	if err := s.dbEntity.GetObjectExtendData(ctx, obj); err != nil {
 		s.logger.Errorw("query object extend data failed", "id", obj.ID, "err", err.Error())
-		return db.SqlError2Error(err)
+		return db2.SqlError2Error(err)
 	}
 	return nil
 }
@@ -204,7 +221,7 @@ func (s *sqlMetaStore) ListObjects(ctx context.Context, filter types.Filter) ([]
 	objList, err := s.dbEntity.ListObjectChildren(ctx, filter)
 	if err != nil {
 		s.logger.Errorw("list object failed", "filter", filter, "err", err.Error())
-		return nil, db.SqlError2Error(err)
+		return nil, db2.SqlError2Error(err)
 	}
 	return objList, nil
 }
@@ -213,7 +230,7 @@ func (s *sqlMetaStore) SaveObject(ctx context.Context, parent, obj *types.Object
 	defer utils.TraceRegion(ctx, "sql.saveobject")()
 	if err := s.dbEntity.SaveObject(ctx, parent, obj); err != nil {
 		s.logger.Errorw("save object failed", "id", obj.ID, "err", err.Error())
-		return db.SqlError2Error(err)
+		return db2.SqlError2Error(err)
 	}
 	return nil
 }
@@ -223,7 +240,7 @@ func (s *sqlMetaStore) DestroyObject(ctx context.Context, src, parent, obj *type
 	err := s.dbEntity.DeleteObject(ctx, src, parent, obj)
 	if err != nil {
 		s.logger.Errorw("destroy object failed", "id", obj.ID, "err", err.Error())
-		return db.SqlError2Error(err)
+		return db2.SqlError2Error(err)
 	}
 	return nil
 }
@@ -233,7 +250,7 @@ func (s *sqlMetaStore) ListChildren(ctx context.Context, obj *types.Object) (Ite
 	children, err := s.dbEntity.ListObjectChildren(ctx, types.Filter{ParentID: obj.ID})
 	if err != nil {
 		s.logger.Errorw("list object children failed", "id", obj.ID, "err", err.Error())
-		return nil, db.SqlError2Error(err)
+		return nil, db2.SqlError2Error(err)
 	}
 	return &iterator{objects: children}, nil
 }
@@ -244,7 +261,7 @@ func (s *sqlMetaStore) ChangeParent(ctx context.Context, srcParent, dstParent, o
 	err := s.dbEntity.SaveChangeParentObject(ctx, srcParent, dstParent, obj, opt)
 	if err != nil {
 		s.logger.Errorw("change object parent failed", "id", obj.ID, "err", err.Error())
-		return db.SqlError2Error(err)
+		return db2.SqlError2Error(err)
 	}
 	return nil
 }
@@ -254,7 +271,7 @@ func (s *sqlMetaStore) MirrorObject(ctx context.Context, srcObj, dstParent, obje
 	err := s.dbEntity.SaveMirroredObject(ctx, srcObj, dstParent, object)
 	if err != nil {
 		s.logger.Errorw("mirror object failed", "id", object.ID, "err", err.Error())
-		return db.SqlError2Error(err)
+		return db2.SqlError2Error(err)
 	}
 	return nil
 }
@@ -276,7 +293,7 @@ func (s *sqlMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (
 
 func (s *sqlMetaStore) DeleteSegment(ctx context.Context, segID int64) error {
 	defer utils.TraceRegion(ctx, "sql.deletesegment")()
-	return db.SqlError2Error(s.dbEntity.DeleteChunkSegment(ctx, segID))
+	return db2.SqlError2Error(s.dbEntity.DeleteChunkSegment(ctx, segID))
 }
 
 func (s *sqlMetaStore) PluginRecorder(plugin types.PlugScope) PluginRecorder {
@@ -300,7 +317,7 @@ func (s *sqlMetaStore) deletePluginRecord(ctx context.Context, plugin types.Plug
 }
 
 func newPostgresMetaStore(meta config.Meta) (*sqlMetaStore, error) {
-	dbObj, err := gorm.Open(postgres.Open(meta.DSN), &gorm.Config{Logger: db.NewDbLogger()})
+	dbObj, err := gorm.Open(postgres.Open(meta.DSN), &gorm.Config{Logger: db2.NewDbLogger()})
 	if err != nil {
 		panic(err)
 	}
@@ -318,7 +335,7 @@ func newPostgresMetaStore(meta config.Meta) (*sqlMetaStore, error) {
 		return nil, err
 	}
 
-	dbEnt, err := db.NewDbEntity(dbObj)
+	dbEnt, err := db2.NewDbEntity(dbObj)
 	if err != nil {
 		return nil, err
 	}
@@ -339,21 +356,21 @@ type sqlPluginRecorder struct {
 }
 
 func (s *sqlPluginRecorder) GetRecord(ctx context.Context, rid string, record interface{}) error {
-	return db.SqlError2Error(s.getPluginRecord(ctx, s.plugin, rid, record))
+	return db2.SqlError2Error(s.getPluginRecord(ctx, s.plugin, rid, record))
 }
 
 func (s *sqlPluginRecorder) ListRecords(ctx context.Context, groupId string) ([]string, error) {
 	result, err := s.listPluginRecords(ctx, s.plugin, groupId)
 	if err != nil {
-		return nil, db.SqlError2Error(err)
+		return nil, db2.SqlError2Error(err)
 	}
 	return result, nil
 }
 
 func (s *sqlPluginRecorder) SaveRecord(ctx context.Context, groupId, rid string, record interface{}) error {
-	return db.SqlError2Error(s.savePluginRecord(ctx, s.plugin, groupId, rid, record))
+	return db2.SqlError2Error(s.savePluginRecord(ctx, s.plugin, groupId, rid, record))
 }
 
 func (s *sqlPluginRecorder) DeleteRecord(ctx context.Context, rid string) error {
-	return db.SqlError2Error(s.deletePluginRecord(ctx, s.plugin, rid))
+	return db2.SqlError2Error(s.deletePluginRecord(ctx, s.plugin, rid))
 }

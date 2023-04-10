@@ -19,11 +19,11 @@ package workflow
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/storage"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 )
 
-func nextWorkflowId(ctx context.Context, recorder storage.PluginRecorder) (string, error) {
+func nextWorkflowId(ctx context.Context, recorder metastore.PluginRecorder) (string, error) {
 	count, err := resourceCount(ctx, dataGroupWorkflow, recorder)
 	if err != nil {
 		return "", err
@@ -31,7 +31,7 @@ func nextWorkflowId(ctx context.Context, recorder storage.PluginRecorder) (strin
 	return fmt.Sprintf("workflow-%d", count.Workflow), nil
 }
 
-func nextJobId(ctx context.Context, recorder storage.PluginRecorder) (string, error) {
+func nextJobId(ctx context.Context, recorder metastore.PluginRecorder) (string, error) {
 	count, err := resourceCount(ctx, dataGroupJob, recorder)
 	if err != nil {
 		return "", err
@@ -48,7 +48,7 @@ type CountData struct {
 	Job      int64 `json:"job"`
 }
 
-func resourceCount(ctx context.Context, groupId string, recorder storage.PluginRecorder) (CountData, error) {
+func resourceCount(ctx context.Context, groupId string, recorder metastore.PluginRecorder) (CountData, error) {
 	data := CountData{}
 	if err := recorder.GetRecord(ctx, "counter", &data); err != nil && err != types.ErrNotFound {
 		return CountData{}, err

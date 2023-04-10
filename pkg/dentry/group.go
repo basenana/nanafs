@@ -18,7 +18,7 @@ package dentry
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/storage"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"time"
@@ -34,7 +34,7 @@ type Group interface {
 
 type stdGroup struct {
 	Entry
-	store storage.ObjectStore
+	store metastore.ObjectStore
 }
 
 var _ Group = &stdGroup{}

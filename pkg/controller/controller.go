@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/storage"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
@@ -54,7 +54,7 @@ type Controller interface {
 }
 
 type controller struct {
-	meta      storage.Meta
+	meta      metastore.Meta
 	cfg       config.Config
 	cfgLoader config.Loader
 
@@ -272,7 +272,7 @@ func (c *controller) ChangeEntryParent(ctx context.Context, target, oldParent, n
 	return nil
 }
 
-func New(loader config.Loader, meta storage.Meta) (Controller, error) {
+func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 	cfg, _ := loader.GetConfig()
 
 	ctl := &controller{

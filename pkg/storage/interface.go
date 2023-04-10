@@ -18,44 +18,7 @@ package storage
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/types"
 )
-
-type Meta interface {
-	ObjectStore
-	ChunkStore
-	PluginRecorderGetter
-}
-
-type ObjectStore interface {
-	GetObject(ctx context.Context, id int64) (*types.Object, error)
-	GetObjectExtendData(ctx context.Context, obj *types.Object) error
-	ListObjects(ctx context.Context, filter types.Filter) ([]*types.Object, error)
-	SaveObject(ctx context.Context, parent, obj *types.Object) error
-	DestroyObject(ctx context.Context, src, parent, obj *types.Object) error
-
-	ListChildren(ctx context.Context, obj *types.Object) (Iterator, error)
-	MirrorObject(ctx context.Context, srcObj, dstParent, object *types.Object) error
-	ChangeParent(ctx context.Context, srcParent, dstParent, obj *types.Object, opt types.ChangeParentOption) error
-}
-
-type ChunkStore interface {
-	NextSegmentID(ctx context.Context) (int64, error)
-	ListSegments(ctx context.Context, oid, chunkID int64) ([]types.ChunkSeg, error)
-	AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Object, error)
-	DeleteSegment(ctx context.Context, segID int64) error
-}
-
-type PluginRecorderGetter interface {
-	PluginRecorder(plugin types.PlugScope) PluginRecorder
-}
-
-type PluginRecorder interface {
-	GetRecord(ctx context.Context, rid string, record interface{}) error
-	ListRecords(ctx context.Context, groupId string) ([]string, error)
-	SaveRecord(ctx context.Context, groupId, rid string, record interface{}) error
-	DeleteRecord(ctx context.Context, rid string) error
-}
 
 type Storage interface {
 	ID() string
