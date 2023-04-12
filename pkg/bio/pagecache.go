@@ -44,7 +44,7 @@ var (
 	pageReleaseInterval       = time.Minute * 5
 	pageCacheReleaseQ         = make(chan *pageNode, maxPageCacheTotal/2)
 	pageCacheCond             = sync.NewCond(&pageCacheMux)
-	pageCacheLFU              = utils.NewLFUCache(maxPageCacheTotal - 1)
+	pageCacheLFU              = utils.NewLFUPool(maxPageCacheTotal - 1)
 	pageCacheDataPool         = sync.Pool{New: func() any { return make([]byte, pageSize) }}
 )
 

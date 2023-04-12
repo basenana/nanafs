@@ -17,6 +17,7 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 	"github.com/basenana/nanafs/config"
 )
@@ -24,6 +25,17 @@ import (
 type Info struct {
 	Key  string
 	Size int64
+}
+
+type Storage interface {
+	Get(ctx context.Context, key, idx, offset int64, dest []byte) (int64, error)
+	Put(ctx context.Context, key, idx, offset int64, data []byte) error
+
+	ID() string
+	//Get(ctx context.Context, key, idx int64) (io.ReadCloser, error)
+	//Put(ctx context.Context, key, idx, dataReader io.Reader) error
+	Delete(ctx context.Context, key int64) error
+	Head(ctx context.Context, key int64, idx int64) (Info, error)
 }
 
 func NewStorage(storageID, storageType string, cfg config.Storage) (Storage, error) {

@@ -278,27 +278,3 @@ type ChangeParentAttr struct {
 	Replace  bool
 	Exchange bool
 }
-
-type cache struct {
-	lfu *utils.LFUCache
-}
-
-func (c *cache) putEntry(entry Entry) {
-	c.lfu.Put(c.entryKey(entry.Metadata().ID), entry)
-}
-
-func (c *cache) getEntry(eid int64) Entry {
-	enRaw := c.lfu.Get(c.entryKey(eid))
-	if enRaw == nil {
-		return nil
-	}
-	return enRaw.(Entry)
-}
-
-func (c *cache) delEntry(eid int64) {
-	c.lfu.Remove(c.entryKey(eid))
-}
-
-func (c *cache) entryKey(eid int64) string {
-	return fmt.Sprintf("entry_%d", eid)
-}

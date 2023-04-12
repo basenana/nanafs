@@ -19,34 +19,35 @@ package storage
 import "context"
 
 const (
-	WebdavStorage = "webdav"
+	MinioStorage = "minio"
 )
 
-type webdavStorage struct{}
+type minioStorage struct {
+}
 
-var _ Storage = &webdavStorage{}
+var _ Storage = &minioStorage{}
 
-func (w *webdavStorage) ID() string {
+func (m *minioStorage) ID() string {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (w *webdavStorage) Get(ctx context.Context, key, idx, offset int64, dest []byte) (int64, error) {
+func (m *minioStorage) Get(ctx context.Context, key, idx, offset int64, dest []byte) (int64, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (w *webdavStorage) Put(ctx context.Context, key, idx, offset int64, data []byte) error {
+func (m *minioStorage) Put(ctx context.Context, key, idx, offset int64, data []byte) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (w *webdavStorage) Delete(ctx context.Context, key int64) error {
+func (m *minioStorage) Delete(ctx context.Context, key int64) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (w *webdavStorage) Head(ctx context.Context, key int64, idx int64) (Info, error) {
+func (m *minioStorage) Head(ctx context.Context, key int64, idx int64) (Info, error) {
 	//TODO implement me
 	panic("implement me")
 }

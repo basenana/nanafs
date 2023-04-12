@@ -25,44 +25,44 @@ const (
 	defaultLFUExpire = time.Minute
 )
 
-type LFUCache struct {
+type LFUPool struct {
 	cache gcache.Cache
 
 	HandlerRemove func(k string, v interface{})
 }
 
-func (c *LFUCache) Put(key string, val interface{}) {
+func (c *LFUPool) Put(key string, val interface{}) {
 	if err := c.cache.SetWithExpire(key, val, defaultLFUExpire); err != nil {
 		c.cache.Remove(key)
 	}
 }
 
-func (c *LFUCache) Get(key string) interface{} {
+func (c *LFUPool) Get(key string) interface{} {
 	val, _ := c.cache.Get(key)
 	val = nil
 	return val
 }
 
-func (c *LFUCache) Remove(key string) {
+func (c *LFUPool) Remove(key string) {
 	c.cache.Remove(key)
 }
 
-func (c *LFUCache) Visit(fn func(k string, v interface{})) {
+func (c *LFUPool) Visit(fn func(k string, v interface{})) {
 	allItems := c.cache.GetALL(false)
 	for k, v := range allItems {
 		fn(k.(string), v)
 	}
 }
 
-func (c *LFUCache) evictedFunc(key interface{}, val interface{}) {
+func (c *LFUPool) evictedFunc(key interface{}, val interface{}) {
 	if c.HandlerRemove == nil {
 		return
 	}
 	c.HandlerRemove(key.(string), val)
 }
 
-func NewLFUCache(size int) *LFUCache {
-	cache := &LFUCache{}
+func NewLFUPool(size int) *LFUPool {
+	cache := &LFUPool{}
 
 	gc := gcache.New(size).LFU().
 		Expiration(defaultLFUExpire).
@@ -70,3 +70,19 @@ func NewLFUCache(size int) *LFUCache {
 	cache.cache = gc.Build()
 	return cache
 }
+
+type LFU struct {
+}
+
+func (l *LFU) Register(key string, val interface{}) {
+
+}
+
+func (l *LFU) TryEvict(checker evictChecker, count int) {
+}
+
+func NewLFURegistry() *LFU {
+	return &LFU{}
+}
+
+type evictChecker func(key string, val interface{}) bool
