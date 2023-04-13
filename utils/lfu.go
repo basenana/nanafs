@@ -70,19 +70,3 @@ func NewLFUPool(size int) *LFUPool {
 	cache.cache = gc.Build()
 	return cache
 }
-
-type LFU struct {
-}
-
-func (l *LFU) Register(key string, val interface{}) {
-
-}
-
-func (l *LFU) TryEvict(checker evictChecker, count int) {
-}
-
-func NewLFURegistry() *LFU {
-	return &LFU{}
-}
-
-type evictChecker func(key string, val interface{}) bool

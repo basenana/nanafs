@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/config"
+	"io"
 )
 
 type Info struct {
@@ -28,18 +29,17 @@ type Info struct {
 }
 
 type Storage interface {
-	Get(ctx context.Context, key, idx, offset int64, dest []byte) (int64, error)
-	Put(ctx context.Context, key, idx, offset int64, data []byte) error
-
 	ID() string
-	//Get(ctx context.Context, key, idx int64) (io.ReadCloser, error)
-	//Put(ctx context.Context, key, idx, dataReader io.Reader) error
+	Get(ctx context.Context, key, idx int64) (io.ReadCloser, error)
+	Put(ctx context.Context, key, idx int64, dataReader io.Reader) error
 	Delete(ctx context.Context, key int64) error
 	Head(ctx context.Context, key int64, idx int64) (Info, error)
 }
 
 func NewStorage(storageID, storageType string, cfg config.Storage) (Storage, error) {
 	switch storageType {
+	case MinioStorage:
+		return newMinioStorage(storageID, cfg.MinIO)
 	case LocalStorage:
 		return newLocalStorage(storageID, cfg.LocalDir)
 	case MemoryStorage:
@@ -48,3 +48,5 @@ func NewStorage(storageID, storageType string, cfg config.Storage) (Storage, err
 		return nil, fmt.Errorf("unknow storage id: %s", storageID)
 	}
 }
+
+var maxConcurrentUploads = make(chan struct{}, 10)

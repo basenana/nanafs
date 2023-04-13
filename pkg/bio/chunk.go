@@ -48,7 +48,6 @@ type chunkReader struct {
 
 	page    *pageCache
 	store   metastore.ChunkStore
-	storage storage.Storage
 	cache   *storage.LocalCache
 	readers map[int64]*segReader
 	readMux sync.Mutex
@@ -70,7 +69,6 @@ func NewChunkReader(md *types.Metadata, chunkStore metastore.ChunkStore, dataSto
 		entry:   md,
 		page:    newPageCache(md.ID, fileChunkSize),
 		store:   chunkStore,
-		storage: dataStore,
 		cache:   storage.NewLocalCache(dataStore),
 		readers: map[int64]*segReader{},
 		ref:     1,
@@ -268,8 +266,10 @@ func (c *segReader) readPage(ctx context.Context, segments []segment, pageIndex,
 
 	page, err = c.r.page.read(ctx, pageIndex, func(page *pageNode) error {
 		var (
-			crt, onceRead, readEnd int64
-			innerErr               error
+			crt, readEnd     int64
+			onceRead         int
+			innerErr         error
+			openedCachedNode storage.CacheNode
 		)
 		for _, seg := range segments {
 			for i := crt; i < seg.off-pageStart; i++ {
@@ -287,11 +287,15 @@ func (c *segReader) readPage(ctx context.Context, segments []segment, pageIndex,
 				crt = readEnd
 				continue
 			}
-			onceRead, innerErr = c.r.storage.Get(ctx, seg.id, pageIndex, seg.off-pageStart, page.data[crt:readEnd])
+			openedCachedNode, innerErr = c.r.cache.OpenCacheNode(ctx, seg.id, pageIndex)
 			for innerErr != nil {
 				return innerErr
 			}
-			crt += onceRead
+			onceRead, innerErr = openedCachedNode.ReadAt(page.data[crt:readEnd], seg.off-pageStart)
+			for innerErr != nil {
+				return innerErr
+			}
+			crt += int64(onceRead)
 		}
 		page.length = crt
 		return nil

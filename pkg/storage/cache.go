@@ -17,6 +17,7 @@
 package storage
 
 import (
+	"container/heap"
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/config"
@@ -47,6 +48,17 @@ var (
 	cacheLog   *zap.SugaredLogger
 )
 
+func init() {
+	cachedFile = &cachedFileMapper{
+		cachedNode:  map[string]*nodeUsingInfo{},
+		pending:     map[string]struct{}{},
+		unusedNodeQ: &priorityNodeQueue{},
+	}
+	cachedFile.cond = sync.NewCond(&cachedFile.mux)
+
+	heap.Init(cachedFile.unusedNodeQ)
+}
+
 func InitLocalCache(config config.Config) {
 	cacheLog = logger.NewLogger("localCache")
 	localCacheDir = config.CacheDir
@@ -67,15 +79,11 @@ func InitLocalCache(config config.Config) {
 
 type LocalCache struct {
 	s       Storage
-	lfu     *utils.LFU
 	isLocal bool
 }
 
 func NewLocalCache(s Storage) *LocalCache {
-	lc := &LocalCache{
-		s:   s,
-		lfu: utils.NewLFURegistry(),
-	}
+	lc := &LocalCache{s: s}
 
 	if _, isLocalStorage := s.(*local); isLocalStorage {
 		lc.isLocal = true
@@ -103,13 +111,7 @@ func (c *LocalCache) CommitTemporaryNode(ctx context.Context, segID, idx int64, 
 		cacheLog.Errorw("seek node to start error", "page", idx, "err", err)
 		return err
 	}
-	buffer := make([]byte, cacheNodeSize)
-	n, err := f.Read(buffer)
-	if err != nil && err != io.EOF {
-		cacheLog.Errorw("read local cache node error", "page", idx, "err", err)
-		return err
-	}
-	if err = c.s.Put(ctx, segID, idx, 0, buffer[:n]); err != nil {
+	if err := c.s.Put(ctx, segID, idx, f); err != nil {
 		cacheLog.Errorw("send cache data to storage error", "page", idx, "err", err)
 		return err
 	}
@@ -152,33 +154,24 @@ func (c *LocalCache) makeLocalCache(ctx context.Context, key, idx int64, filenam
 		return nil, err
 	}
 
-	var (
-		off, n int64
-		buf    = make([]byte, 1024)
-	)
-	for {
-		n, err = c.s.Get(ctx, key, idx, off, buf)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return nil, err
-		}
-		off += n
-		_, err = f.Write(buf[:n])
-		if err != nil {
-			return nil, err
-		}
+	var reader io.ReadCloser
+	reader, err = c.s.Get(ctx, key, idx)
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+	_, err = io.Copy(f, reader)
+	if err != nil {
+		return nil, err
 	}
 
-	node := &cacheNode{key: key, idx: idx, path: cacheFilePath}
-	c.lfu.Register(filename, node)
+	node := &cacheNode{path: cacheFilePath}
 	return node, nil
 }
 
 func (c *LocalCache) mappingLocalStorage(key, idx int64) (*cacheNode, error) {
-	node := &cacheNode{key: key, idx: idx, path: c.s.(*local).key2LocalPath(key, idx)}
-	return node, nil
+	node := &cacheNode{path: c.s.(*local).key2LocalPath(key, idx)}
+	return node, node.Attach()
 }
 
 func (c *LocalCache) mustAccountCacheUsage(ctx context.Context, usage int64) error {
@@ -189,7 +182,7 @@ func (c *LocalCache) mustAccountCacheUsage(ctx context.Context, usage int64) err
 			return ctx.Err()
 		default:
 			crtCached := atomic.LoadInt64(&localCacheSizeUsage)
-			if crtCached+cacheNodeSize > localCacheSizeLimit {
+			if crtCached+usage > localCacheSizeLimit {
 				if err := c.cleanSpace(rmCacheFile); err != nil {
 					return err
 				}
@@ -208,16 +201,12 @@ func (c *LocalCache) releaseCacheUsage(usage int64) {
 }
 
 func (c *LocalCache) cleanSpace(fileCount int) error {
-	c.lfu.TryEvict(func(key string, val interface{}) bool {
-		no, ok := val.(*cacheNode)
-		if !ok {
-			return false
+	var err error
+	for i := 0; i < fileCount; i++ {
+		if err = cachedFile.removeNextCacheFile(); err != nil {
+			return err
 		}
-		if atomic.LoadInt32(&no.ref) == 0 {
-			return cachedFile.removeCacheNode(no.key, no.idx) == nil
-		}
-		return false
-	}, fileCount)
+	}
 	return nil
 }
 
@@ -231,6 +220,7 @@ type CacheNode interface {
 	io.Closer
 	Attach() error
 	Size() int64
+	freq() int
 }
 
 type fileCacheNode struct {
@@ -277,18 +267,22 @@ func (f *fileCacheNode) Size() int64 {
 	return f.size
 }
 
-type cacheNode struct {
-	key, idx int64
+func (f *fileCacheNode) freq() int {
+	return 1
+}
 
-	ref  int32
-	path string
-	data []byte
-	size int64
+type cacheNode struct {
+	ref    int32
+	path   string
+	data   []byte
+	size   int64
+	attach int
 }
 
 var _ CacheNode = &cacheNode{}
 
 func (c *cacheNode) Attach() error {
+	c.attach += 1
 	if atomic.LoadInt32(&c.ref) > 0 {
 		atomic.AddInt32(&c.ref, 1)
 		return nil
@@ -339,9 +333,14 @@ func (c *cacheNode) Close() error {
 			return err
 		}
 		c.data = nil
+		cachedFile.returnNode(path.Base(c.path))
 		return nil
 	}
 	return nil
+}
+
+func (c *cacheNode) freq() int {
+	return c.attach
 }
 
 func (c *cacheNode) Size() int64 {
@@ -349,10 +348,11 @@ func (c *cacheNode) Size() int64 {
 }
 
 type cachedFileMapper struct {
-	cachedNode map[string]CacheNode
-	pending    map[string]struct{}
-	cond       *sync.Cond
-	mux        sync.Mutex
+	cachedNode  map[string]*nodeUsingInfo
+	pending     map[string]struct{}
+	unusedNodeQ *priorityNodeQueue
+	cond        *sync.Cond
+	mux         sync.Mutex
 }
 
 func (c *cachedFileMapper) load(cacheDir string) error {
@@ -366,10 +366,9 @@ func (c *cachedFileMapper) load(cacheDir string) error {
 			return nil
 		}
 		filename := path.Base(filePath)
-		c.cachedNode[filename] = &cacheNode{
-			path: filePath,
-			size: info.Size(),
-		}
+		node := &cacheNode{path: filePath, size: info.Size()}
+		c.cachedNode[filename] = &nodeUsingInfo{filename: filename, node: node, updateAt: time.Now().UnixNano()}
+		heap.Push(c.unusedNodeQ, c.cachedNode[filename])
 		atomic.AddInt64(&localCacheSizeUsage, info.Size())
 		return nil
 	})
@@ -381,10 +380,14 @@ func (c *cachedFileMapper) fetchCacheNode(key int64, idx int64, builder cacheBui
 	fileName := c.filename(key, idx)
 
 	c.mux.Lock()
-	node, ok := c.cachedNode[fileName]
+	vNode, ok := c.cachedNode[fileName]
 	if ok {
+		if vNode.index != -1 && len(*c.unusedNodeQ) > 0 {
+			heap.Remove(c.unusedNodeQ, vNode.index)
+			vNode.index = -1
+		}
 		c.mux.Unlock()
-		return node, nil
+		return vNode.node, nil
 	}
 
 	_, stillFetching := c.pending[fileName]
@@ -393,15 +396,18 @@ func (c *cachedFileMapper) fetchCacheNode(key int64, idx int64, builder cacheBui
 			c.cond.Wait()
 			_, stillFetching = c.pending[fileName]
 		}
-		node = c.cachedNode[fileName]
+		vNode = c.cachedNode[fileName]
 		c.mux.Unlock()
-		return node, nil
+		return vNode.node, nil
 	} else {
 		c.pending[fileName] = struct{}{}
 	}
 	c.mux.Unlock()
 
-	var err error
+	var (
+		err  error
+		node CacheNode
+	)
 	node, err = builder(fileName)
 	if err != nil {
 		return nil, err
@@ -409,38 +415,61 @@ func (c *cachedFileMapper) fetchCacheNode(key int64, idx int64, builder cacheBui
 
 	c.mux.Lock()
 	delete(c.pending, fileName)
-	c.cachedNode[fileName] = node
+	c.cachedNode[fileName] = &nodeUsingInfo{filename: fileName, node: node, updateAt: time.Now().UnixNano()}
 	c.mux.Unlock()
 	return node, nil
 }
 
-func (c *cachedFileMapper) removeCacheNode(key int64, idx int64) error {
-	fileName := c.filename(key, idx)
+func (c *cachedFileMapper) removeNextCacheFile() error {
 	c.mux.Lock()
-	_, ok := c.cachedNode[fileName]
+	if len(*c.unusedNodeQ) == 0 {
+		c.mux.Unlock()
+		return nil
+	}
+	vNode := heap.Pop(c.unusedNodeQ).(*nodeUsingInfo)
+	if vNode == nil {
+		c.mux.Unlock()
+		return nil
+	}
+	filename := vNode.filename
+	node, ok := c.cachedNode[filename]
 	if !ok {
 		c.mux.Unlock()
 		return nil
 	}
 	c.mux.Unlock()
 
-	fPath := localCacheFilePath(fileName)
+	fPath := localCacheFilePath(filename)
 	info, err := os.Stat(fPath)
-	if err != nil {
-		if err == os.ErrNotExist {
-			return nil
-		}
-	}
-	err = os.Remove(fPath)
-	if err != nil {
+	if err != nil && err != os.ErrNotExist {
 		return err
+	}
+	if err == nil {
+		err = os.Remove(fPath)
+		if err != nil {
+			return err
+		}
 	}
 
 	c.mux.Lock()
-	delete(c.cachedNode, fileName)
+	if node.index != -1 && len(*c.unusedNodeQ) > 0 {
+		heap.Remove(c.unusedNodeQ, node.index)
+	}
+	delete(c.cachedNode, filename)
 	c.mux.Unlock()
 	atomic.AddInt64(&localCacheSizeUsage, -1*info.Size())
 	return nil
+}
+
+func (c *cachedFileMapper) returnNode(filename string) {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+	node := c.cachedNode[filename]
+	if node == nil {
+		return
+	}
+	node.updateAt = time.Now().Unix()
+	heap.Push(c.unusedNodeQ, node)
 }
 
 func (c *cachedFileMapper) filename(key int64, idx int64) string {
@@ -451,10 +480,44 @@ func localCacheFilePath(filename string) string {
 	return path.Join(localCacheDir, filename)
 }
 
-func init() {
-	cachedFile = &cachedFileMapper{
-		cachedNode: map[string]CacheNode{},
-		pending:    map[string]struct{}{},
+type nodeUsingInfo struct {
+	filename string
+	node     CacheNode
+	index    int
+	updateAt int64
+}
+
+type priorityNodeQueue []*nodeUsingInfo
+
+func (pq *priorityNodeQueue) Len() int {
+	return len(*pq)
+}
+
+func (pq *priorityNodeQueue) Less(i, j int) bool {
+	if (*pq)[i].node.freq() == (*pq)[j].node.freq() {
+		return (*pq)[i].updateAt < (*pq)[j].updateAt
 	}
-	cachedFile.cond = sync.NewCond(&cachedFile.mux)
+	return (*pq)[i].node.freq() < (*pq)[j].node.freq()
+}
+
+func (pq *priorityNodeQueue) Swap(i, j int) {
+	(*pq)[i], (*pq)[j] = (*pq)[j], (*pq)[i]
+	(*pq)[i].index = i
+	(*pq)[j].index = j
+}
+
+func (pq *priorityNodeQueue) Push(x interface{}) {
+	n := len(*pq)
+	item := x.(*nodeUsingInfo)
+	item.index = n
+	*pq = append(*pq, item)
+}
+
+func (pq *priorityNodeQueue) Pop() interface{} {
+	old := *pq
+	n := len(old)
+	item := old[n-1]
+	item.index = -1
+	*pq = old[0 : n-1]
+	return item
 }

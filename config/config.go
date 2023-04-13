@@ -36,9 +36,20 @@ type Meta struct {
 }
 
 type Storage struct {
-	ID       string `json:"id"`
-	Type     string `json:"type"`
-	LocalDir string `json:"local_dir,omitempty"`
+	ID       string       `json:"id"`
+	Type     string       `json:"type"`
+	LocalDir string       `json:"local_dir,omitempty"`
+	MinIO    *MinIOConfig `json:"minio,omitempty"`
+}
+
+type MinIOConfig struct {
+	Endpoint        string `json:"endpoint"`
+	AccessKeyID     string `json:"access_key_id"`
+	SecretAccessKey string `json:"secret_access_key"`
+	BucketName      string `json:"bucket_name"`
+	Location        string `json:"location"`
+	Token           string `json:"token"`
+	UseSSL          bool   `json:"use_ssl"`
 }
 
 type Api struct {

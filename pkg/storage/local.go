@@ -17,7 +17,6 @@
 package storage
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
@@ -51,17 +50,16 @@ func (l *local) ID() string {
 	return l.sid
 }
 
-func (l *local) Get(ctx context.Context, key int64, idx, offset int64, dest []byte) (int64, error) {
+func (l *local) Get(ctx context.Context, key, idx int64) (io.ReadCloser, error) {
 	defer utils.TraceRegion(ctx, "local.get")()
 	file, err := l.openLocalFile(l.key2LocalPath(key, idx), os.O_RDWR)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	count, err := file.ReadAt(dest, offset)
-	return int64(count), err
+	return file, nil
 }
 
-func (l *local) Put(ctx context.Context, key int64, idx, offset int64, data []byte) error {
+func (l *local) Put(ctx context.Context, key, idx int64, dataReader io.Reader) error {
 	defer utils.TraceRegion(ctx, "local.put")()
 	file, err := l.openLocalFile(l.key2LocalPath(key, idx), os.O_CREATE|os.O_RDWR)
 	if err != nil {
@@ -69,13 +67,11 @@ func (l *local) Put(ctx context.Context, key int64, idx, offset int64, data []by
 	}
 	defer file.Close()
 
-	_, err = file.Seek(offset, io.SeekStart)
+	_, err = io.Copy(file, dataReader)
 	if err != nil {
-		l.logger.Errorw("seek file failed", "key", key, "offset", offset, "err", err.Error())
-		_ = file.Close()
+		l.logger.Errorw("copy file failed", "key", key, "err", err.Error())
 		return err
 	}
-	_, err = io.Copy(file, bytes.NewBuffer(data))
 	return err
 }
 
@@ -152,7 +148,7 @@ func newLocalStorage(sid, dir string) (Storage, error) {
 
 type memoryStorage struct {
 	storageID string
-	storage   map[string]chunk
+	storage   map[string]memChunkData
 	mux       sync.Mutex
 }
 
@@ -160,24 +156,27 @@ func (m *memoryStorage) ID() string {
 	return m.storageID
 }
 
-func (m *memoryStorage) Get(ctx context.Context, key int64, idx, offset int64, dest []byte) (int64, error) {
+func (m *memoryStorage) Get(ctx context.Context, key, idx int64) (io.ReadCloser, error) {
 	defer utils.TraceRegion(ctx, "memory.get")()
 	ck, err := m.getChunk(ctx, m.chunkKey(key, idx))
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return int64(copy(dest, ck.data[offset:])), nil
+	ck.vernier = 0
+	return ck, nil
 }
 
-func (m *memoryStorage) Put(ctx context.Context, key int64, idx, offset int64, data []byte) error {
+func (m *memoryStorage) Put(ctx context.Context, key, idx int64, dataReader io.Reader) error {
 	defer utils.TraceRegion(ctx, "memory.put")()
 	cKey := m.chunkKey(key, idx)
 	ck, err := m.getChunk(ctx, m.chunkKey(key, idx))
 	if err != nil {
-		ck = &chunk{data: make([]byte, cacheNodeSize)}
+		ck = &memChunkData{data: make([]byte, cacheNodeSize)}
 	}
 
-	copy(ck.data[offset:], data)
+	if _, err = io.Copy(ck, dataReader); err != nil {
+		return err
+	}
 	return m.saveChunk(ctx, cKey, *ck)
 }
 
@@ -209,7 +208,7 @@ func (m *memoryStorage) chunkKey(key int64, idx int64) string {
 	return fmt.Sprintf("%d_%d", key, idx)
 }
 
-func (m *memoryStorage) getChunk(ctx context.Context, key string) (*chunk, error) {
+func (m *memoryStorage) getChunk(ctx context.Context, key string) (*memChunkData, error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	chunk, ok := m.storage[key]
@@ -219,7 +218,7 @@ func (m *memoryStorage) getChunk(ctx context.Context, key string) (*chunk, error
 	return &chunk, nil
 }
 
-func (m *memoryStorage) saveChunk(ctx context.Context, key string, chunk chunk) error {
+func (m *memoryStorage) saveChunk(ctx context.Context, key string, chunk memChunkData) error {
 	m.mux.Lock()
 	m.storage[key] = chunk
 	m.mux.Unlock()
@@ -229,10 +228,34 @@ func (m *memoryStorage) saveChunk(ctx context.Context, key string, chunk chunk) 
 func newMemoryStorage(storageID string) Storage {
 	return &memoryStorage{
 		storageID: storageID,
-		storage:   map[string]chunk{},
+		storage:   map[string]memChunkData{},
 	}
 }
 
-type chunk struct {
-	data []byte
+type memChunkData struct {
+	vernier int
+	data    []byte
+}
+
+func (c *memChunkData) Write(p []byte) (n int, err error) {
+	if c.vernier == len(c.data) {
+		return 0, io.ErrShortBuffer
+	}
+
+	n = copy(c.data[c.vernier:], p)
+	c.vernier += n
+	return n, nil
+}
+
+func (c *memChunkData) Read(p []byte) (n int, err error) {
+	n = copy(p, c.data[c.vernier:])
+	c.vernier += n
+	if c.vernier == len(c.data) {
+		return n, io.EOF
+	}
+	return n, nil
+}
+
+func (c *memChunkData) Close() error {
+	return nil
 }

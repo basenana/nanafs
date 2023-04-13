@@ -16,7 +16,10 @@
 
 package storage
 
-import "context"
+import (
+	"context"
+	"io"
+)
 
 const (
 	OSSStorage = "oss"
@@ -32,12 +35,12 @@ func (a *aliyunOSSStorage) ID() string {
 	panic("implement me")
 }
 
-func (a *aliyunOSSStorage) Get(ctx context.Context, key, idx, offset int64, dest []byte) (int64, error) {
+func (a *aliyunOSSStorage) Get(ctx context.Context, key, idx int64) (io.ReadCloser, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (a *aliyunOSSStorage) Put(ctx context.Context, key, idx, offset int64, data []byte) error {
+func (a *aliyunOSSStorage) Put(ctx context.Context, key, idx int64, dataReader io.Reader) error {
 	//TODO implement me
 	panic("implement me")
 }
