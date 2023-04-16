@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/metastore"
+	"runtime/trace"
 	"time"
 
 	"go.uber.org/zap"
@@ -28,7 +29,6 @@ import (
 	"github.com/basenana/nanafs/pkg/bio"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 )
 
@@ -73,6 +73,7 @@ type manager struct {
 var _ Manager = &manager{}
 
 func (m *manager) Root(ctx context.Context) (Entry, error) {
+	defer trace.StartRegion(ctx, "dentry.manager.Root").End()
 	root, err := m.store.GetObject(ctx, RootEntryID)
 	if err == nil {
 		return buildEntry(root, m.store), nil
@@ -89,6 +90,7 @@ func (m *manager) Root(ctx context.Context) (Entry, error) {
 }
 
 func (m *manager) GetEntry(ctx context.Context, id int64) (Entry, error) {
+	defer trace.StartRegion(ctx, "dentry.manager.GetEntry").End()
 	obj, err := m.store.GetObject(ctx, id)
 	if err != nil {
 		return nil, err
@@ -97,6 +99,7 @@ func (m *manager) GetEntry(ctx context.Context, id int64) (Entry, error) {
 }
 
 func (m *manager) CreateEntry(ctx context.Context, parent Entry, attr EntryAttr) (Entry, error) {
+	defer trace.StartRegion(ctx, "dentry.manager.CreateEntry").End()
 	if !parent.IsGroup() {
 		return nil, types.ErrNoGroup
 	}
@@ -105,6 +108,7 @@ func (m *manager) CreateEntry(ctx context.Context, parent Entry, attr EntryAttr)
 }
 
 func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) (bool, error) {
+	defer trace.StartRegion(ctx, "dentry.manager.DestroyEntry").End()
 	if !parent.IsGroup() {
 		return false, types.ErrNoGroup
 	}
@@ -161,6 +165,7 @@ func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) (bool, err
 }
 
 func (m *manager) MirrorEntry(ctx context.Context, src, dstParent Entry, attr EntryAttr) (Entry, error) {
+	defer trace.StartRegion(ctx, "dentry.manager.MirrorEntry").End()
 	var (
 		srcMd    = src.Metadata()
 		parentMd = dstParent.Metadata()
@@ -197,6 +202,7 @@ func (m *manager) MirrorEntry(ctx context.Context, src, dstParent Entry, attr En
 }
 
 func (m *manager) ChangeEntryParent(ctx context.Context, targetEntry, overwriteEntry, oldParent, newParent Entry, newName string, opt ChangeParentAttr) error {
+	defer trace.StartRegion(ctx, "dentry.manager.ChangeEntryParent").End()
 	if !oldParent.IsGroup() || !newParent.IsGroup() {
 		return types.ErrNoGroup
 	}
@@ -250,7 +256,7 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntry, overwriteE
 }
 
 func (m *manager) Open(ctx context.Context, en Entry, attr Attr) (File, error) {
-	defer utils.TraceRegion(ctx, "file.open")()
+	defer trace.StartRegion(ctx, "dentry.manager.Open").End()
 	if attr.Trunc {
 		en.Metadata().Size = 0
 	}
@@ -259,7 +265,7 @@ func (m *manager) Open(ctx context.Context, en Entry, attr Attr) (File, error) {
 	case types.SymLinkKind:
 		return openSymlink(en, attr)
 	default:
-		return openFile(en, attr, m.store, m.storages[en.Metadata().Storage])
+		return openFile(en, attr, m.store, m.storages[en.Metadata().Storage], &m.cfg.Entry)
 	}
 }
 

@@ -20,6 +20,7 @@ import (
 	"context"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
+	"runtime/trace"
 	"sync"
 	"time"
 )
@@ -56,6 +57,7 @@ func (r *rawEntry) Metadata() *types.Metadata {
 }
 
 func (r *rawEntry) GetExtendField(ctx context.Context, fKey string) (*string, error) {
+	defer trace.StartRegion(ctx, "dentry.rawEntry.GetExtendField").End()
 	ed, err := r.GetExtendData(ctx)
 	if err != nil {
 		return nil, err
@@ -73,6 +75,7 @@ func (r *rawEntry) GetExtendField(ctx context.Context, fKey string) (*string, er
 }
 
 func (r *rawEntry) SetExtendField(ctx context.Context, fKey, fVal string) error {
+	defer trace.StartRegion(ctx, "dentry.rawEntry.SetExtendField").End()
 	ed, err := r.GetExtendData(ctx)
 	if err != nil {
 		return err
@@ -89,6 +92,7 @@ func (r *rawEntry) SetExtendField(ctx context.Context, fKey, fVal string) error 
 }
 
 func (r *rawEntry) RemoveExtendField(ctx context.Context, fKey string) error {
+	defer trace.StartRegion(ctx, "dentry.rawEntry.RemoveExtendField").End()
 	ed, err := r.GetExtendData(ctx)
 	if err != nil {
 		return err
@@ -110,6 +114,7 @@ func (r *rawEntry) RemoveExtendField(ctx context.Context, fKey string) error {
 }
 
 func (r *rawEntry) GetExtendData(ctx context.Context) (types.ExtendData, error) {
+	defer trace.StartRegion(ctx, "dentry.rawEntry.GetExtendData").End()
 	if r.obj.ExtendData != nil {
 		return *r.obj.ExtendData, nil
 	}
@@ -121,6 +126,7 @@ func (r *rawEntry) GetExtendData(ctx context.Context) (types.ExtendData, error) 
 }
 
 func (r *rawEntry) UpdateExtendData(ctx context.Context, ed types.ExtendData) error {
+	defer trace.StartRegion(ctx, "dentry.rawEntry.UpdateExtendData").End()
 	r.obj.ChangedAt = time.Now()
 	r.obj.ExtendDataChanged = true
 	r.obj.ExtendData = &ed

@@ -49,4 +49,4 @@ func NewStorage(storageID, storageType string, cfg config.Storage) (Storage, err
 	}
 }
 
-var maxConcurrentUploads = make(chan struct{}, 10)
+var maxConcurrentUploads = make(chan struct{}, 5)

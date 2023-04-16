@@ -26,6 +26,7 @@ import (
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"io"
+	"runtime/trace"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -37,10 +38,11 @@ const (
 )
 
 var (
-	maximumChunkTaskParallel = utils.NewMaximumParallel(100)
-	fileChunkReaders         = make(map[int64]*chunkReader)
-	fileChunkWriters         = make(map[int64]*chunkWriter)
-	fileChunkMux             sync.Mutex
+	maxReadChunkTaskParallel  = utils.NewMaximumParallel(256)
+	maxWriteChunkTaskParallel = utils.NewMaximumParallel(64)
+	fileChunkReaders          = make(map[int64]*chunkReader)
+	fileChunkWriters          = make(map[int64]*chunkWriter)
+	fileChunkMux              sync.Mutex
 )
 
 type chunkReader struct {
@@ -78,8 +80,8 @@ func NewChunkReader(md *types.Metadata, chunkStore metastore.ChunkStore, dataSto
 }
 
 func (c *chunkReader) ReadAt(ctx context.Context, dest []byte, off int64) (n int64, err error) {
-	ctx, endF := utils.TraceTask(ctx, "chunkreader.readat")
-	defer endF()
+	ctx, task := trace.NewTask(ctx, "bio.chunkReader.ReadAt")
+	defer task.End()
 
 	if off >= c.entry.Size {
 		return 0, io.EOF
@@ -124,6 +126,7 @@ func (c *chunkReader) ReadAt(ctx context.Context, dest []byte, off int64) (n int
 }
 
 func (c *chunkReader) prepareData(ctx context.Context, index, off int64, dest []byte, wg *sync.WaitGroup) *ioReq {
+	defer trace.StartRegion(ctx, "bio.chunkReader.prepareData").End()
 	req := &ioReq{
 		WaitGroup: wg,
 		off:       off,
@@ -138,7 +141,7 @@ func (c *chunkReader) prepareData(ctx context.Context, index, off int64, dest []
 	}
 	c.readMux.Unlock()
 
-	maximumChunkTaskParallel.Go(func() {
+	maxReadChunkTaskParallel.Go(func() {
 		defer req.Done()
 		reader.readChunkRange(ctx, req)
 	})
@@ -173,9 +176,7 @@ type segReader struct {
 }
 
 func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
-	ctx, endF := utils.TraceTask(ctx, "segreader.readrange")
-	defer endF()
-
+	defer trace.StartRegion(ctx, "bio.segReader.readChunkRange").End()
 	c.mux.Lock()
 	if c.st == nil {
 		segments, err := c.r.store.ListSegments(ctx, c.r.entry.ID, c.chunkID)
@@ -202,6 +203,9 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 		}
 	}()
 
+	ctx, canF := context.WithCancel(ctx)
+	defer canF()
+
 	var (
 		off          = req.off
 		bufLeft      = int64(len(req.dest))
@@ -217,11 +221,11 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 		}
 		req.Add(1)
 		go func(ctx context.Context, segments []segment, pageID, off int64, dest []byte) {
-			maximumChunkTaskParallel.BlockedGo(func() {
+			maxReadChunkTaskParallel.BlockedGo(func() {
 				defer req.Done()
 				if err := c.readPage(ctx, segments, pageID, off, dest); err != nil && req.err == nil {
 					req.err = err
-					endF()
+					canF()
 					c.r.logger.Errorw("read chunk page error", "entry", c.r.entry.ID, "chunk", c.chunkID, "page", pageID, "err", err)
 					return
 				}
@@ -243,7 +247,7 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 			break
 		}
 		go func(ctx context.Context, segments []segment, pageID int64) {
-			maximumChunkTaskParallel.BlockedGo(func() {
+			maxReadChunkTaskParallel.BlockedGo(func() {
 				if err := c.readPage(ctx, segments, pageID, 0, nil); err != nil {
 					c.r.logger.Errorw("pre-read chunk page error", "entry", c.r.entry.ID, "chunk", c.chunkID, "page", pageIdx, "err", err)
 					return
@@ -254,6 +258,7 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 }
 
 func (c *segReader) readPage(ctx context.Context, segments []segment, pageIndex, off int64, dest []byte) (err error) {
+	defer trace.StartRegion(ctx, "bio.segReader.readPage").End()
 	pageStart := pageSize * pageIndex
 	var page *pageNode
 
@@ -338,6 +343,9 @@ func NewChunkWriter(reader Reader) Writer {
 }
 
 func (c *chunkWriter) WriteAt(ctx context.Context, data []byte, off int64) (n int64, err error) {
+	ctx, task := trace.NewTask(ctx, "bio.chunkWriter.WriteAt")
+	defer task.End()
+
 	writeEnd := off + int64(len(data))
 	for {
 		index, _ := computeChunkIndex(off, fileChunkSize)
@@ -364,6 +372,7 @@ func (c *chunkWriter) WriteAt(ctx context.Context, data []byte, off int64) (n in
 }
 
 func (c *chunkWriter) writeSegData(ctx context.Context, index, off int64, dest []byte) (err error) {
+	defer trace.StartRegion(ctx, "bio.chunkWriter.writeSegData").End()
 	c.writerMux.Lock()
 	sw, ok := c.writers[index]
 	if !ok {
@@ -412,6 +421,7 @@ func (c *chunkWriter) writeSegData(ctx context.Context, index, off int64, dest [
 }
 
 func (c *chunkWriter) Flush(ctx context.Context) error {
+	defer trace.StartRegion(ctx, "bio.chunkWriter.Flush").End()
 	c.writerMux.Lock()
 	var resultErr error
 	for _, cw := range c.writers {
@@ -430,6 +440,7 @@ func (c *chunkWriter) Flush(ctx context.Context) error {
 }
 
 func (c *chunkWriter) Fsync(ctx context.Context) error {
+	defer trace.StartRegion(ctx, "bio.chunkWriter.Fsync").End()
 	err := c.Flush(ctx)
 	if err != nil {
 		return err
@@ -472,6 +483,7 @@ type segWriter struct {
 }
 
 func (w *segWriter) put(ctx context.Context, pageIdx, pagePos int64, data []byte) {
+	defer trace.StartRegion(ctx, "bio.segWriter.put").End()
 	w.mux.Lock()
 	seg, page := w.findUncommittedPage(ctx, pageIdx, pageIdx*pageSize+pagePos)
 	if seg == nil {
@@ -479,7 +491,7 @@ func (w *segWriter) put(ctx context.Context, pageIdx, pagePos int64, data []byte
 		w.uncommitted = append(w.uncommitted, seg)
 		atomic.AddInt32(&w.unready, 1)
 		if len(w.uncommitted) == 1 {
-			go w.commitSegment()
+			go w.commitSegment(ctx)
 		}
 	}
 	w.mux.Unlock()
@@ -500,11 +512,13 @@ func (w *segWriter) put(ctx context.Context, pageIdx, pagePos int64, data []byte
 
 	seg.uploads.Add(1)
 	page.mux.Lock()
-	go w.preWrite(ctx, pagePos, seg, page, data)
+	maxWriteChunkTaskParallel.Go(func() {
+		w.preWrite(ctx, pagePos, seg, page, data)
+	})
 }
 func (w *segWriter) preWrite(ctx context.Context, pagePos int64, seg *uncommittedSeg, page *uncommittedPage, data []byte) {
+	defer trace.StartRegion(ctx, "bio.segWriter.preWrite").End()
 	defer seg.uploads.Done()
-
 	defer func() {
 		if rErr := utils.Recover(); rErr != nil {
 			w.logger.Errorw("pre-write segment panic", "entry", w.entry.ID, "chunk", w.chunkID, "err", rErr)
@@ -542,8 +556,8 @@ func (w *segWriter) preWrite(ctx context.Context, pagePos int64, seg *uncommitte
 }
 
 func (w *segWriter) flushData(ctx context.Context, seg *uncommittedSeg, page *uncommittedPage) {
+	defer trace.StartRegion(ctx, "bio.segWriter.flushData").End()
 	defer seg.uploads.Done()
-
 	waitingTime := 0
 	for atomic.LoadInt32(&page.visitor) == 0 {
 		select {
@@ -575,6 +589,7 @@ func (w *segWriter) flushData(ctx context.Context, seg *uncommittedSeg, page *un
 }
 
 func (w *segWriter) findUncommittedPage(ctx context.Context, pageIdx, off int64) (*uncommittedSeg, *uncommittedPage) {
+	defer trace.StartRegion(ctx, "bio.segWriter.findUncommittedPage").End()
 	var (
 		seg  *uncommittedSeg
 		page *uncommittedPage
@@ -613,7 +628,8 @@ func (w *segWriter) findUncommittedPage(ctx context.Context, pageIdx, off int64)
 	return nil, nil
 }
 
-func (w *segWriter) commitSegment() {
+func (w *segWriter) commitSegment(ctx context.Context) {
+	defer trace.StartRegion(ctx, "bio.segWriter.commitSegment").End()
 	defer logger.CostLog(w.logger.With(zap.Int64("entry", w.entry.ID), zap.Int64("chunk", w.chunkID)), "commit segment data")()
 	for len(w.uncommitted) > 0 {
 		w.mux.Lock()

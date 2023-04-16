@@ -21,13 +21,13 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
 	"github.com/hyponet/eventbus/bus"
+	"runtime/trace"
 	"time"
 )
 
 func (c *controller) OpenFile(ctx context.Context, en dentry.Entry, attr dentry.Attr) (dentry.File, error) {
-	defer utils.TraceRegion(ctx, "controller.openfile")()
+	defer trace.StartRegion(ctx, "controller.OpenFile").End()
 	md := en.Metadata()
 	c.logger.Debugw("open file", "file", md.ID, "name", md.Name, "attr", attr)
 	if en.IsGroup() {
@@ -70,7 +70,7 @@ func (c *controller) OpenFile(ctx context.Context, en dentry.Entry, attr dentry.
 }
 
 func (c *controller) ReadFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error) {
-	defer utils.TraceRegion(ctx, "controller.readfile")()
+	defer trace.StartRegion(ctx, "controller.ReadFile").End()
 	n, err = file.ReadAt(ctx, data, offset)
 	if err != nil {
 		return n, err
@@ -79,7 +79,7 @@ func (c *controller) ReadFile(ctx context.Context, file dentry.File, data []byte
 }
 
 func (c *controller) WriteFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error) {
-	defer utils.TraceRegion(ctx, "controller.writefile")()
+	defer trace.StartRegion(ctx, "controller.WriteFile").End()
 	n, err = file.WriteAt(ctx, data, offset)
 	if err != nil {
 		return n, err
@@ -93,7 +93,7 @@ func (c *controller) WriteFile(ctx context.Context, file dentry.File, data []byt
 }
 
 func (c *controller) CloseFile(ctx context.Context, file dentry.File) (err error) {
-	defer utils.TraceRegion(ctx, "controller.closefile")()
+	defer trace.StartRegion(ctx, "controller.CloseFile").End()
 	err = file.Close(ctx)
 	if err != nil {
 		c.logger.Errorw("close file error", "file", file.Metadata().ID, "err", err.Error())

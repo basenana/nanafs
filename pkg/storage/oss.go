@@ -19,6 +19,7 @@ package storage
 import (
 	"context"
 	"io"
+	"runtime/trace"
 )
 
 const (
@@ -36,21 +37,25 @@ func (a *aliyunOSSStorage) ID() string {
 }
 
 func (a *aliyunOSSStorage) Get(ctx context.Context, key, idx int64) (io.ReadCloser, error) {
+	defer trace.StartRegion(ctx, "storage.oss.Get").End()
 	//TODO implement me
 	panic("implement me")
 }
 
 func (a *aliyunOSSStorage) Put(ctx context.Context, key, idx int64, dataReader io.Reader) error {
+	defer trace.StartRegion(ctx, "storage.oss.Put").End()
 	//TODO implement me
 	panic("implement me")
 }
 
 func (a *aliyunOSSStorage) Delete(ctx context.Context, key int64) error {
+	defer trace.StartRegion(ctx, "storage.oss.Delete").End()
 	//TODO implement me
 	panic("implement me")
 }
 
 func (a *aliyunOSSStorage) Head(ctx context.Context, key int64, idx int64) (Info, error) {
+	defer trace.StartRegion(ctx, "storage.oss.Head").End()
 	//TODO implement me
 	panic("implement me")
 }

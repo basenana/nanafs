@@ -31,6 +31,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime/trace"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -93,6 +94,7 @@ func NewLocalCache(s Storage) *LocalCache {
 }
 
 func (c *LocalCache) OpenTemporaryNode(ctx context.Context, oid, off int64) (CacheNode, error) {
+	defer trace.StartRegion(ctx, "storage.localCache.OpenTemporaryNode").End()
 	if err := c.mustAccountCacheUsage(ctx, cacheNodeSize); err != nil {
 		return nil, err
 	}
@@ -106,6 +108,7 @@ func (c *LocalCache) OpenTemporaryNode(ctx context.Context, oid, off int64) (Cac
 }
 
 func (c *LocalCache) CommitTemporaryNode(ctx context.Context, segID, idx int64, node CacheNode) error {
+	defer trace.StartRegion(ctx, "storage.localCache.CommitTemporaryNode").End()
 	no := node.(*fileCacheNode)
 	f := no.file
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
@@ -130,6 +133,7 @@ func (c *LocalCache) CommitTemporaryNode(ctx context.Context, segID, idx int64, 
 }
 
 func (c *LocalCache) OpenCacheNode(ctx context.Context, key, idx int64) (CacheNode, error) {
+	defer trace.StartRegion(ctx, "storage.localCache.OpenCacheNode").End()
 	if c.isLocal {
 		return c.mappingLocalStorage(key, idx)
 	}
@@ -144,6 +148,7 @@ func (c *LocalCache) OpenCacheNode(ctx context.Context, key, idx int64) (CacheNo
 }
 
 func (c *LocalCache) makeLocalCache(ctx context.Context, key, idx int64, filename string) (*cacheNode, error) {
+	defer trace.StartRegion(ctx, "storage.localCache.makeLocalCache").End()
 	info, err := c.s.Head(ctx, key, idx)
 	if err != nil {
 		return nil, err
@@ -186,6 +191,7 @@ func (c *LocalCache) mappingLocalStorage(key, idx int64) (*cacheNode, error) {
 }
 
 func (c *LocalCache) mustAccountCacheUsage(ctx context.Context, usage int64) error {
+	defer trace.StartRegion(ctx, "storage.localCache.mustAccountCacheUsage").End()
 	rmCacheFile := 1
 	for {
 		select {

@@ -20,7 +20,7 @@ import (
 	"context"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
+	"runtime/trace"
 	"time"
 )
 
@@ -40,6 +40,7 @@ type stdGroup struct {
 var _ Group = &stdGroup{}
 
 func (g *stdGroup) FindEntry(ctx context.Context, name string) (Entry, error) {
+	defer trace.StartRegion(ctx, "dentry.stdGroup.FindEntry").End()
 	children, err := g.ListChildren(ctx)
 	if err != nil {
 		return nil, err
@@ -54,6 +55,7 @@ func (g *stdGroup) FindEntry(ctx context.Context, name string) (Entry, error) {
 }
 
 func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, error) {
+	defer trace.StartRegion(ctx, "dentry.stdGroup.CreateEntry").End()
 	_, err := g.FindEntry(ctx, attr.Name)
 	if err != nil && err != types.ErrNotFound {
 		return nil, err
@@ -85,6 +87,7 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, erro
 }
 
 func (g *stdGroup) UpdateEntry(ctx context.Context, en Entry) error {
+	defer trace.StartRegion(ctx, "dentry.stdGroup.UpdateEntry").End()
 	err := g.store.SaveObject(ctx, &types.Object{Metadata: *g.Metadata()}, &types.Object{Metadata: *en.Metadata()})
 	if err != nil {
 		return err
@@ -93,6 +96,7 @@ func (g *stdGroup) UpdateEntry(ctx context.Context, en Entry) error {
 }
 
 func (g *stdGroup) DestroyEntry(ctx context.Context, en Entry) error {
+	defer trace.StartRegion(ctx, "dentry.stdGroup.DestroyEntry").End()
 	md := en.Metadata()
 	if md.RefID != 0 {
 		return types.ErrUnsupported
@@ -124,7 +128,7 @@ func (g *stdGroup) DestroyEntry(ctx context.Context, en Entry) error {
 }
 
 func (g *stdGroup) ListChildren(ctx context.Context) ([]Entry, error) {
-	defer utils.TraceRegion(ctx, "stdGroup.list")()
+	defer trace.StartRegion(ctx, "dentry.stdGroup.ListChildren").End()
 	it, err := g.store.ListChildren(ctx, &types.Object{Metadata: *g.Metadata()})
 	if err != nil {
 		return nil, err

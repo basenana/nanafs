@@ -18,17 +18,8 @@ package storage
 
 import (
 	"compress/gzip"
-	"fmt"
 	"io"
 )
-
-func objectName(key, idx int64) string {
-	return fmt.Sprintf("%d_%d", key, idx)
-}
-
-func objectPrefix(key int64) string {
-	return fmt.Sprintf("%d_", key)
-}
 
 type nodeUsingInfo struct {
 	filename string

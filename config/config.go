@@ -17,16 +17,21 @@
 package config
 
 type Config struct {
-	Meta      Meta      `json:"meta"`
-	Storages  []Storage `json:"storages"`
-	Owner     *FsOwner  `json:"owner,omitempty"`
-	Plugin    Plugin    `json:"plugin"`
-	CacheDir  string    `json:"cache_dir,omitempty"`
-	CacheSize int       `json:"cache_size,omitempty"`
-	Debug     bool      `json:"debug"`
+	Meta      Meta        `json:"meta"`
+	Storages  []Storage   `json:"storages"`
+	Owner     *FsOwner    `json:"owner,omitempty"`
+	Plugin    Plugin      `json:"plugin"`
+	CacheDir  string      `json:"cache_dir,omitempty"`
+	CacheSize int         `json:"cache_size,omitempty"`
+	Entry     EntryConfig `json:"entry"`
+	Debug     bool        `json:"debug,omitempty"`
 
 	ApiConfig Api `json:"api"`
 	FsConfig  Fs  `json:"fs"`
+}
+
+type EntryConfig struct {
+	Writeback bool `json:"writeback,omitempty"`
 }
 
 type Meta struct {

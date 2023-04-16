@@ -27,6 +27,8 @@ import (
 	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
+	"net/http"
+	"runtime/trace"
 	"time"
 )
 
@@ -49,15 +51,17 @@ func (m *minioStorage) ID() string {
 }
 
 func (m *minioStorage) Get(ctx context.Context, key, idx int64) (io.ReadCloser, error) {
-	obj, err := m.cli.GetObject(ctx, m.bucket, objectName(key, idx), minio.GetObjectOptions{})
+	defer trace.StartRegion(ctx, "storage.minio.Get").End()
+	obj, err := m.cli.GetObject(ctx, m.bucket, minioObjectName(key, idx), minio.GetObjectOptions{})
 	if err != nil {
-		m.logger.Errorw("get object failed", "object", objectName(key, idx), "err", err)
+		m.logger.Errorw("get object failed", "object", minioObjectName(key, idx), "err", err)
 		return nil, err
 	}
 	return obj, nil
 }
 
 func (m *minioStorage) Put(ctx context.Context, key, idx int64, dataReader io.Reader) error {
+	defer trace.StartRegion(ctx, "storage.minio.Put").End()
 	maxConcurrentUploads <- struct{}{}
 	defer func() {
 		<-maxConcurrentUploads
@@ -67,29 +71,35 @@ func (m *minioStorage) Put(ctx context.Context, key, idx int64, dataReader io.Re
 		return err
 	}
 
-	_, err = m.cli.PutObject(ctx, m.bucket, objectName(key, idx), bytes.NewReader(data), int64(len(data)), minio.PutObjectOptions{
+	_, err = m.cli.PutObject(ctx, m.bucket, minioObjectName(key, idx), bytes.NewReader(data), int64(len(data)), minio.PutObjectOptions{
 		ContentType:      "application/octet-stream",
 		DisableMultipart: true,
 	})
 	if err != nil {
-		m.logger.Errorw("put object failed", "object", objectName(key, idx), "err", err)
+		m.logger.Errorw("put object failed", "object", minioObjectName(key, idx), "err", err)
 		return err
 	}
 	return nil
 }
 
 func (m *minioStorage) Delete(ctx context.Context, key int64) error {
+	defer trace.StartRegion(ctx, "storage.minio.Delete").End()
 	needDeleteCh := make(chan minio.ObjectInfo, 10)
-	defer close(needDeleteCh)
 	errCh := m.cli.RemoveObjects(ctx, m.bucket, needDeleteCh, minio.RemoveObjectsOptions{})
 
-	objectCh := m.cli.ListObjects(context.Background(), m.bucket, minio.ListObjectsOptions{Prefix: objectPrefix(key), Recursive: true})
+	objectCh := m.cli.ListObjects(context.Background(), m.bucket, minio.ListObjectsOptions{Prefix: minioObjectPrefix(key), Recursive: true})
+	var listErr error
 	for object := range objectCh {
 		if object.Err != nil {
 			m.logger.Errorw("list object to delete failed", "object", object.Key, "err", object.Err)
-			return object.Err
+			listErr = object.Err
+			continue
 		}
 		needDeleteCh <- object
+	}
+	close(needDeleteCh)
+	if listErr != nil {
+		return listErr
 	}
 
 	var err error
@@ -103,15 +113,17 @@ func (m *minioStorage) Delete(ctx context.Context, key int64) error {
 }
 
 func (m *minioStorage) Head(ctx context.Context, key int64, idx int64) (Info, error) {
-	info, err := m.cli.StatObject(ctx, m.bucket, objectName(key, idx), minio.StatObjectOptions{})
+	defer trace.StartRegion(ctx, "storage.minio.Head").End()
+	info, err := m.cli.StatObject(ctx, m.bucket, minioObjectName(key, idx), minio.StatObjectOptions{})
 	if err != nil {
-		m.logger.Errorw("head object failed", "object", objectName(key, idx), "err", err)
+		m.logger.Errorw("head object failed", "object", minioObjectName(key, idx), "err", err)
 		return Info{}, err
 	}
 	return Info{Key: info.Key, Size: info.Size}, nil
 }
 
 func (m *minioStorage) initBucket(ctx context.Context) error {
+	defer trace.StartRegion(ctx, "storage.minio.initBucket").End()
 	ctx, canF := context.WithTimeout(ctx, time.Minute)
 	defer canF()
 
@@ -148,8 +160,9 @@ func newMinioStorage(storageID string, cfg *config.MinIOConfig) (Storage, error)
 	}
 
 	minioClient, err := minio.New(cfg.Endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(cfg.AccessKeyID, cfg.SecretAccessKey, cfg.Token),
-		Secure: cfg.UseSSL,
+		Creds:     credentials.NewStaticV4(cfg.AccessKeyID, cfg.SecretAccessKey, cfg.Token),
+		Secure:    cfg.UseSSL,
+		Transport: http.DefaultTransport,
 	})
 	if err != nil {
 		return nil, err
@@ -162,4 +175,12 @@ func newMinioStorage(storageID string, cfg *config.MinIOConfig) (Storage, error)
 		logger: logger.NewLogger("minio"),
 	}
 	return s, s.initBucket(context.TODO())
+}
+
+func minioObjectName(key, idx int64) string {
+	return fmt.Sprintf("minio/chunks/%d/%d/%d_%d", key/10000, key/100, key, idx)
+}
+
+func minioObjectPrefix(key int64) string {
+	return fmt.Sprintf("/minio/chunks/%d/%d/%d_", key/10000, key/100, key)
 }

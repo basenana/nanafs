@@ -37,12 +37,12 @@ import (
 	"github.com/basenana/nanafs/config"
 	db2 "github.com/basenana/nanafs/pkg/metastore/db"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/glebarez/sqlite"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"runtime/trace"
 	"sync"
 	"time"
 )
@@ -198,7 +198,7 @@ func buildSqlMetaStore(entity *db2.Entity) *sqlMetaStore {
 }
 
 func (s *sqlMetaStore) GetObject(ctx context.Context, id int64) (*types.Object, error) {
-	defer utils.TraceRegion(ctx, "sql.getobject")()
+	defer trace.StartRegion(ctx, "metastore.sql.GetObject").End()
 	obj, err := s.dbEntity.GetObjectByID(ctx, id)
 	if err != nil {
 		s.logger.Errorw("query object by id failed", "id", id, "err", err.Error())
@@ -208,7 +208,7 @@ func (s *sqlMetaStore) GetObject(ctx context.Context, id int64) (*types.Object, 
 }
 
 func (s *sqlMetaStore) GetObjectExtendData(ctx context.Context, obj *types.Object) error {
-	defer utils.TraceRegion(ctx, "sql.getextenddata")()
+	defer trace.StartRegion(ctx, "metastore.sql.GetObjectExtendData").End()
 	if err := s.dbEntity.GetObjectExtendData(ctx, obj); err != nil {
 		s.logger.Errorw("query object extend data failed", "id", obj.ID, "err", err.Error())
 		return db2.SqlError2Error(err)
@@ -217,7 +217,7 @@ func (s *sqlMetaStore) GetObjectExtendData(ctx context.Context, obj *types.Objec
 }
 
 func (s *sqlMetaStore) ListObjects(ctx context.Context, filter types.Filter) ([]*types.Object, error) {
-	defer utils.TraceRegion(ctx, "sql.listobject")()
+	defer trace.StartRegion(ctx, "metastore.sql.ListObjects").End()
 	objList, err := s.dbEntity.ListObjectChildren(ctx, filter)
 	if err != nil {
 		s.logger.Errorw("list object failed", "filter", filter, "err", err.Error())
@@ -227,7 +227,7 @@ func (s *sqlMetaStore) ListObjects(ctx context.Context, filter types.Filter) ([]
 }
 
 func (s *sqlMetaStore) SaveObject(ctx context.Context, parent, obj *types.Object) error {
-	defer utils.TraceRegion(ctx, "sql.saveobject")()
+	defer trace.StartRegion(ctx, "metastore.sql.SaveObject").End()
 	if err := s.dbEntity.SaveObject(ctx, parent, obj); err != nil {
 		s.logger.Errorw("save object failed", "id", obj.ID, "err", err.Error())
 		return db2.SqlError2Error(err)
@@ -236,7 +236,7 @@ func (s *sqlMetaStore) SaveObject(ctx context.Context, parent, obj *types.Object
 }
 
 func (s *sqlMetaStore) DestroyObject(ctx context.Context, src, parent, obj *types.Object) error {
-	defer utils.TraceRegion(ctx, "sql.destroyobject")()
+	defer trace.StartRegion(ctx, "metastore.sql.DestroyObject").End()
 	err := s.dbEntity.DeleteObject(ctx, src, parent, obj)
 	if err != nil {
 		s.logger.Errorw("destroy object failed", "id", obj.ID, "err", err.Error())
@@ -246,7 +246,7 @@ func (s *sqlMetaStore) DestroyObject(ctx context.Context, src, parent, obj *type
 }
 
 func (s *sqlMetaStore) ListChildren(ctx context.Context, obj *types.Object) (Iterator, error) {
-	defer utils.TraceRegion(ctx, "sql.listchildren")()
+	defer trace.StartRegion(ctx, "metastore.sql.ListChildren").End()
 	children, err := s.dbEntity.ListObjectChildren(ctx, types.Filter{ParentID: obj.ID})
 	if err != nil {
 		s.logger.Errorw("list object children failed", "id", obj.ID, "err", err.Error())
@@ -256,7 +256,7 @@ func (s *sqlMetaStore) ListChildren(ctx context.Context, obj *types.Object) (Ite
 }
 
 func (s *sqlMetaStore) ChangeParent(ctx context.Context, srcParent, dstParent, obj *types.Object, opt types.ChangeParentOption) error {
-	defer utils.TraceRegion(ctx, "sql.changeparent")()
+	defer trace.StartRegion(ctx, "metastore.sql.ChangeParent").End()
 	obj.ParentID = dstParent.ID
 	err := s.dbEntity.SaveChangeParentObject(ctx, srcParent, dstParent, obj, opt)
 	if err != nil {
@@ -267,7 +267,7 @@ func (s *sqlMetaStore) ChangeParent(ctx context.Context, srcParent, dstParent, o
 }
 
 func (s *sqlMetaStore) MirrorObject(ctx context.Context, srcObj, dstParent, object *types.Object) error {
-	defer utils.TraceRegion(ctx, "sql.mirrorobject")()
+	defer trace.StartRegion(ctx, "metastore.sql.MirrorObject").End()
 	err := s.dbEntity.SaveMirroredObject(ctx, srcObj, dstParent, object)
 	if err != nil {
 		s.logger.Errorw("mirror object failed", "id", object.ID, "err", err.Error())
@@ -277,22 +277,22 @@ func (s *sqlMetaStore) MirrorObject(ctx context.Context, srcObj, dstParent, obje
 }
 
 func (s *sqlMetaStore) NextSegmentID(ctx context.Context) (int64, error) {
-	defer utils.TraceRegion(ctx, "sql.nextchunkid")()
+	defer trace.StartRegion(ctx, "metastore.sql.NextSegmentID").End()
 	return s.dbEntity.NextSegmentID(ctx)
 }
 
 func (s *sqlMetaStore) ListSegments(ctx context.Context, oid, chunkID int64) ([]types.ChunkSeg, error) {
-	defer utils.TraceRegion(ctx, "sql.listsegment")()
+	defer trace.StartRegion(ctx, "metastore.sql.ListSegments").End()
 	return s.dbEntity.ListChunkSegments(ctx, oid, chunkID)
 }
 
 func (s *sqlMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Object, error) {
-	defer utils.TraceRegion(ctx, "sql.appendsegment")()
+	defer trace.StartRegion(ctx, "metastore.sql.AppendSegments").End()
 	return s.dbEntity.InsertChunkSegment(ctx, seg)
 }
 
 func (s *sqlMetaStore) DeleteSegment(ctx context.Context, segID int64) error {
-	defer utils.TraceRegion(ctx, "sql.deletesegment")()
+	defer trace.StartRegion(ctx, "metastore.sql.DeleteSegment").End()
 	return db2.SqlError2Error(s.dbEntity.DeleteChunkSegment(ctx, segID))
 }
 
@@ -301,18 +301,22 @@ func (s *sqlMetaStore) PluginRecorder(plugin types.PlugScope) PluginRecorder {
 }
 
 func (s *sqlMetaStore) getPluginRecord(ctx context.Context, plugin types.PlugScope, rid string, record interface{}) error {
+	defer trace.StartRegion(ctx, "metastore.sql.getPluginRecord").End()
 	return s.dbEntity.GetPluginRecord(ctx, plugin, rid, record)
 }
 
 func (s *sqlMetaStore) listPluginRecords(ctx context.Context, plugin types.PlugScope, groupId string) ([]string, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.listPluginRecords").End()
 	return s.dbEntity.ListPluginRecords(ctx, plugin, groupId)
 }
 
 func (s *sqlMetaStore) savePluginRecord(ctx context.Context, plugin types.PlugScope, groupId, rid string, record interface{}) error {
+	defer trace.StartRegion(ctx, "metastore.sql.savePluginRecord").End()
 	return s.dbEntity.SavePluginRecord(ctx, plugin, groupId, rid, record)
 }
 
 func (s *sqlMetaStore) deletePluginRecord(ctx context.Context, plugin types.PlugScope, rid string) error {
+	defer trace.StartRegion(ctx, "metastore.sql.deletePluginRecord").End()
 	return s.dbEntity.DeletePluginRecord(ctx, plugin, rid)
 }
 

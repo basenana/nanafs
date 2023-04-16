@@ -26,6 +26,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"runtime/trace"
 	"strconv"
 	"strings"
 	"sync"
@@ -51,7 +52,7 @@ func (l *local) ID() string {
 }
 
 func (l *local) Get(ctx context.Context, key, idx int64) (io.ReadCloser, error) {
-	defer utils.TraceRegion(ctx, "local.get")()
+	defer trace.StartRegion(ctx, "storage.local.Get").End()
 	file, err := l.openLocalFile(l.key2LocalPath(key, idx), os.O_RDWR)
 	if err != nil {
 		return nil, err
@@ -60,7 +61,7 @@ func (l *local) Get(ctx context.Context, key, idx int64) (io.ReadCloser, error) 
 }
 
 func (l *local) Put(ctx context.Context, key, idx int64, dataReader io.Reader) error {
-	defer utils.TraceRegion(ctx, "local.put")()
+	defer trace.StartRegion(ctx, "storage.local.Put").End()
 	file, err := l.openLocalFile(l.key2LocalPath(key, idx), os.O_CREATE|os.O_RDWR)
 	if err != nil {
 		return err
@@ -76,7 +77,7 @@ func (l *local) Put(ctx context.Context, key, idx int64, dataReader io.Reader) e
 }
 
 func (l *local) Delete(ctx context.Context, key int64) error {
-	defer utils.TraceRegion(ctx, "local.delete")()
+	defer trace.StartRegion(ctx, "storage.local.Delete").End()
 	p := path.Join(l.dir, fmt.Sprintf("%d", key))
 	_, err := os.Stat(p)
 	if err != nil && !os.IsNotExist(err) {
@@ -88,7 +89,7 @@ func (l *local) Delete(ctx context.Context, key int64) error {
 }
 
 func (l *local) Head(ctx context.Context, key int64, idx int64) (Info, error) {
-	defer utils.TraceRegion(ctx, "local.head")()
+	defer trace.StartRegion(ctx, "storage.local.Head").End()
 	info, err := os.Stat(l.key2LocalPath(key, idx))
 	if err != nil && !os.IsNotExist(err) {
 		return Info{}, err
@@ -157,7 +158,7 @@ func (m *memoryStorage) ID() string {
 }
 
 func (m *memoryStorage) Get(ctx context.Context, key, idx int64) (io.ReadCloser, error) {
-	defer utils.TraceRegion(ctx, "memory.get")()
+	defer trace.StartRegion(ctx, "storage.memory.Get").End()
 	ck, err := m.getChunk(ctx, m.chunkKey(key, idx))
 	if err != nil {
 		return nil, err
@@ -167,7 +168,7 @@ func (m *memoryStorage) Get(ctx context.Context, key, idx int64) (io.ReadCloser,
 }
 
 func (m *memoryStorage) Put(ctx context.Context, key, idx int64, dataReader io.Reader) error {
-	defer utils.TraceRegion(ctx, "memory.put")()
+	defer trace.StartRegion(ctx, "storage.memory.Put").End()
 	cKey := m.chunkKey(key, idx)
 	ck, err := m.getChunk(ctx, m.chunkKey(key, idx))
 	if err != nil {
@@ -181,7 +182,7 @@ func (m *memoryStorage) Put(ctx context.Context, key, idx int64, dataReader io.R
 }
 
 func (m *memoryStorage) Delete(ctx context.Context, key int64) error {
-	defer utils.TraceRegion(ctx, "memory.delete")()
+	defer trace.StartRegion(ctx, "storage.memory.Delete").End()
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	for k := range m.storage {
@@ -193,7 +194,7 @@ func (m *memoryStorage) Delete(ctx context.Context, key int64) error {
 }
 
 func (m *memoryStorage) Head(ctx context.Context, key int64, idx int64) (Info, error) {
-	defer utils.TraceRegion(ctx, "memory.head")()
+	defer trace.StartRegion(ctx, "storage.memory.Head").End()
 	result := Info{Key: strconv.FormatInt(key, 10)}
 	ck, err := m.getChunk(ctx, m.chunkKey(key, idx))
 	if err != nil {

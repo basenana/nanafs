@@ -18,6 +18,7 @@ package fs
 
 import (
 	"context"
+	"runtime/trace"
 	"syscall"
 	"time"
 
@@ -27,7 +28,6 @@ import (
 
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
 )
 
 type NanaNode struct {
@@ -40,7 +40,7 @@ type NanaNode struct {
 var _ nodeOperation = &NanaNode{}
 
 func (n *NanaNode) Access(ctx context.Context, mask uint32) syscall.Errno {
-	defer utils.TraceRegion(ctx, "node.access")()
+	defer trace.StartRegion(ctx, "fs.node.Access").End()
 
 	var uid, gid uint32
 	if fuseCtx, ok := ctx.(*fuse.Context); ok {
@@ -56,7 +56,7 @@ func (n *NanaNode) Access(ctx context.Context, mask uint32) syscall.Errno {
 }
 
 func (n *NanaNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut) syscall.Errno {
-	defer utils.TraceRegion(ctx, "node.getattr")()
+	defer trace.StartRegion(ctx, "fs.node.Getattr").End()
 	file, ok := f.(fs.FileGetattrer)
 	if ok {
 		return file.Getattr(ctx, out)
@@ -73,7 +73,7 @@ func (n *NanaNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrO
 }
 
 func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAttrIn, out *fuse.AttrOut) syscall.Errno {
-	defer utils.TraceRegion(ctx, "node.setattr")()
+	defer trace.StartRegion(ctx, "fs.node.Setattr").End()
 	var uid, gid uint32
 	if fuseCtx, ok := ctx.(*fuse.Context); ok {
 		uid, gid = fuseCtx.Uid, fuseCtx.Gid
@@ -101,8 +101,7 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 }
 
 func (n *NanaNode) Getxattr(ctx context.Context, attr string, dest []byte) (uint32, syscall.Errno) {
-	defer utils.TraceRegion(ctx, "node.getxattr")()
-
+	defer trace.StartRegion(ctx, "fs.node.Getxattr").End()
 	entry, err := n.R.GetSourceEntry(ctx, n.oid)
 	if err != nil {
 		return 0, Error2FuseSysError(err)
@@ -128,7 +127,7 @@ func (n *NanaNode) Getxattr(ctx context.Context, attr string, dest []byte) (uint
 }
 
 func (n *NanaNode) Setxattr(ctx context.Context, attr string, data []byte, flags uint32) syscall.Errno {
-	defer utils.TraceRegion(ctx, "node.setxattr")()
+	defer trace.StartRegion(ctx, "fs.node.Setxattr").End()
 	entry, err := n.R.GetSourceEntry(ctx, n.oid)
 	if err != nil {
 		return Error2FuseSysError(err)
@@ -140,7 +139,7 @@ func (n *NanaNode) Setxattr(ctx context.Context, attr string, data []byte, flags
 }
 
 func (n *NanaNode) Removexattr(ctx context.Context, attr string) syscall.Errno {
-	defer utils.TraceRegion(ctx, "node.removexattr")()
+	defer trace.StartRegion(ctx, "fs.node.Removexattr").End()
 	entry, err := n.R.GetSourceEntry(ctx, n.oid)
 	if err != nil {
 		return Error2FuseSysError(err)
@@ -153,7 +152,7 @@ func (n *NanaNode) Removexattr(ctx context.Context, attr string) syscall.Errno {
 }
 
 func (n *NanaNode) Open(ctx context.Context, flags uint32) (fh fs.FileHandle, fuseFlags uint32, errno syscall.Errno) {
-	defer utils.TraceRegion(ctx, "node.open")()
+	defer trace.StartRegion(ctx, "fs.node.Open").End()
 	entry, err := n.R.GetSourceEntry(ctx, n.oid)
 	if err != nil {
 		return nil, 0, Error2FuseSysError(err)
@@ -166,7 +165,7 @@ func (n *NanaNode) Open(ctx context.Context, flags uint32) (fh fs.FileHandle, fu
 }
 
 func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode uint32, out *fuse.EntryOut) (*fs.Inode, fs.FileHandle, uint32, syscall.Errno) {
-	defer utils.TraceRegion(ctx, "node.create")()
+	defer trace.StartRegion(ctx, "fs.node.Create").End()
 	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return nil, nil, 0, Error2FuseSysError(err)
@@ -205,7 +204,7 @@ func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode u
 }
 
 func (n *NanaNode) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
-	defer utils.TraceRegion(ctx, "node.lookup")()
+	defer trace.StartRegion(ctx, "fs.node.Lookup").End()
 	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return nil, Error2FuseSysError(err)
@@ -231,7 +230,7 @@ func (n *NanaNode) Lookup(ctx context.Context, name string, out *fuse.EntryOut) 
 }
 
 func (n *NanaNode) Opendir(ctx context.Context) syscall.Errno {
-	defer utils.TraceRegion(ctx, "node.opendir")()
+	defer trace.StartRegion(ctx, "fs.node.Opendir").End()
 	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return Error2FuseSysError(err)
@@ -243,7 +242,7 @@ func (n *NanaNode) Opendir(ctx context.Context) syscall.Errno {
 }
 
 func (n *NanaNode) Readdir(ctx context.Context) (fs.DirStream, syscall.Errno) {
-	defer utils.TraceRegion(ctx, "node.readdir")()
+	defer trace.StartRegion(ctx, "fs.node.Readdir").End()
 	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return nil, Error2FuseSysError(err)
@@ -272,7 +271,7 @@ func (n *NanaNode) Readdir(ctx context.Context) (fs.DirStream, syscall.Errno) {
 }
 
 func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
-	defer utils.TraceRegion(ctx, "node.mkdir")()
+	defer trace.StartRegion(ctx, "fs.node.Mkdir").End()
 	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return nil, Error2FuseSysError(err)
@@ -309,7 +308,7 @@ func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fus
 }
 
 func (n *NanaNode) Mknod(ctx context.Context, name string, mode uint32, dev uint32, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
-	defer utils.TraceRegion(ctx, "node.mknod")()
+	defer trace.StartRegion(ctx, "fs.node.Mknod").End()
 	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return nil, Error2FuseSysError(err)
@@ -346,7 +345,7 @@ func (n *NanaNode) Mknod(ctx context.Context, name string, mode uint32, dev uint
 }
 
 func (n *NanaNode) Link(ctx context.Context, target fs.InodeEmbedder, name string, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
-	defer utils.TraceRegion(ctx, "node.link")()
+	defer trace.StartRegion(ctx, "fs.node.Link").End()
 	targetNode, ok := target.(*NanaNode)
 	if !ok {
 		return nil, syscall.EIO
@@ -372,6 +371,7 @@ func (n *NanaNode) Link(ctx context.Context, target fs.InodeEmbedder, name strin
 
 // TODO: improve symlink operation
 func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.EntryOut) (node *fs.Inode, errno syscall.Errno) {
+	defer trace.StartRegion(ctx, "fs.node.Symlink").End()
 	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return nil, Error2FuseSysError(err)
@@ -421,6 +421,7 @@ func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.E
 }
 
 func (n *NanaNode) Readlink(ctx context.Context) ([]byte, syscall.Errno) {
+	defer trace.StartRegion(ctx, "fs.node.Readlink").End()
 	entry, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return nil, Error2FuseSysError(err)
@@ -440,8 +441,7 @@ func (n *NanaNode) Readlink(ctx context.Context) ([]byte, syscall.Errno) {
 }
 
 func (n *NanaNode) Unlink(ctx context.Context, name string) syscall.Errno {
-	defer utils.TraceRegion(ctx, "node.unlink")()
-
+	defer trace.StartRegion(ctx, "fs.node.Unlink").End()
 	var uid, gid uint32
 	if fuseCtx, ok := ctx.(*fuse.Context); ok {
 		uid, gid = fuseCtx.Uid, fuseCtx.Gid
@@ -465,8 +465,7 @@ func (n *NanaNode) Unlink(ctx context.Context, name string) syscall.Errno {
 }
 
 func (n *NanaNode) Rmdir(ctx context.Context, name string) syscall.Errno {
-	defer utils.TraceRegion(ctx, "node.rmdir")()
-
+	defer trace.StartRegion(ctx, "fs.node.Rmdir").End()
 	if name == ".." {
 		return Error2FuseSysError(types.ErrIsExist)
 	}
@@ -505,7 +504,7 @@ func (n *NanaNode) Rmdir(ctx context.Context, name string) syscall.Errno {
 }
 
 func (n *NanaNode) Rename(ctx context.Context, name string, newParent fs.InodeEmbedder, newName string, flags uint32) syscall.Errno {
-	defer utils.TraceRegion(ctx, "node.rmname")()
+	defer trace.StartRegion(ctx, "fs.node.Rename").End()
 	newNode, ok := newParent.(*NanaNode)
 	if !ok {
 		return syscall.EIO
@@ -544,11 +543,11 @@ func (n *NanaNode) Rename(ctx context.Context, name string, newParent fs.InodeEm
 }
 
 func (n *NanaNode) OnAdd(ctx context.Context) {
-	defer utils.TraceRegion(ctx, "node.onadd")()
+	defer trace.StartRegion(ctx, "fs.node.OnAdd").End()
 }
 
 func (n *NanaNode) Release(ctx context.Context, f fs.FileHandle) (err syscall.Errno) {
-	defer utils.TraceRegion(ctx, "node.release")()
+	defer trace.StartRegion(ctx, "fs.node.Release").End()
 	closer, ok := f.(fs.FileReleaser)
 	if ok {
 		err = closer.Release(ctx)
@@ -561,7 +560,7 @@ func (n *NanaNode) Release(ctx context.Context, f fs.FileHandle) (err syscall.Er
 }
 
 func (n *NanaNode) Statfs(ctx context.Context, out *fuse.StatfsOut) syscall.Errno {
-	defer utils.TraceRegion(ctx, "node.statfs")()
+	defer trace.StartRegion(ctx, "fs.node.Statfs").End()
 	info := n.R.FsInfo(ctx)
 	fsInfo2StatFs(info, out)
 	return NoErr
