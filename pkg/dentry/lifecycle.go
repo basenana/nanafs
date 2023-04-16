@@ -73,8 +73,9 @@ func (l *lifecycle) cleanChunks(en Entry) {
 		return
 	}
 
+	l.logger.Infow("[cleanChunks] delete chunk data", "entry", en.Metadata().ID)
 	err := bio.DeleteChunksData(context.TODO(), md, cs, s)
 	if err != nil {
-		l.logger.Errorw("[cleanChunks] delete chunk data failed", "err", err)
+		l.logger.Errorw("[cleanChunks] delete chunk data failed", "entry", en.Metadata().ID, "err", err)
 	}
 }

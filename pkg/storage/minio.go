@@ -37,11 +37,13 @@ const (
 )
 
 type minioStorage struct {
-	sid    string
-	bucket string
-	cli    *minio.Client
-	cfg    *config.MinIOConfig
-	logger *zap.SugaredLogger
+	sid        string
+	bucket     string
+	cli        *minio.Client
+	cfg        *config.MinIOConfig
+	readLimit  chan struct{}
+	writeLimit chan struct{}
+	logger     *zap.SugaredLogger
 }
 
 var _ Storage = &minioStorage{}
@@ -52,6 +54,10 @@ func (m *minioStorage) ID() string {
 
 func (m *minioStorage) Get(ctx context.Context, key, idx int64) (io.ReadCloser, error) {
 	defer trace.StartRegion(ctx, "storage.minio.Get").End()
+	m.readLimit <- struct{}{}
+	defer func() {
+		<-m.readLimit
+	}()
 	obj, err := m.cli.GetObject(ctx, m.bucket, minioObjectName(key, idx), minio.GetObjectOptions{})
 	if err != nil {
 		m.logger.Errorw("get object failed", "object", minioObjectName(key, idx), "err", err)
@@ -62,9 +68,9 @@ func (m *minioStorage) Get(ctx context.Context, key, idx int64) (io.ReadCloser, 
 
 func (m *minioStorage) Put(ctx context.Context, key, idx int64, dataReader io.Reader) error {
 	defer trace.StartRegion(ctx, "storage.minio.Put").End()
-	maxConcurrentUploads <- struct{}{}
+	m.writeLimit <- struct{}{}
 	defer func() {
-		<-maxConcurrentUploads
+		<-m.writeLimit
 	}()
 	data, err := ioutil.ReadAll(dataReader)
 	if err != nil {
@@ -87,6 +93,7 @@ func (m *minioStorage) Delete(ctx context.Context, key int64) error {
 	needDeleteCh := make(chan minio.ObjectInfo, 10)
 	errCh := m.cli.RemoveObjects(ctx, m.bucket, needDeleteCh, minio.RemoveObjectsOptions{})
 
+	count := 0
 	objectCh := m.cli.ListObjects(context.Background(), m.bucket, minio.ListObjectsOptions{Prefix: minioObjectPrefix(key), Recursive: true})
 	var listErr error
 	for object := range objectCh {
@@ -95,6 +102,7 @@ func (m *minioStorage) Delete(ctx context.Context, key int64) error {
 			listErr = object.Err
 			continue
 		}
+		count += 1
 		needDeleteCh <- object
 	}
 	close(needDeleteCh)
@@ -105,10 +113,12 @@ func (m *minioStorage) Delete(ctx context.Context, key int64) error {
 	var err error
 	for gotErr := range errCh {
 		if gotErr.Err != nil {
+			count -= 1
 			m.logger.Errorw("delete object failed", "object", gotErr.ObjectName, "err", gotErr.Err)
 			err = gotErr.Err
 		}
 	}
+	m.logger.Infof("delete objects(key=%d) finish, total delete object count: %d", key, count)
 	return err
 }
 
@@ -144,6 +154,9 @@ func newMinioStorage(storageID string, cfg *config.MinIOConfig) (Storage, error)
 	if cfg == nil {
 		return nil, fmt.Errorf("minio is nil")
 	}
+	if storageID == "" {
+		return nil, fmt.Errorf("storage id is empty")
+	}
 
 	if cfg.Endpoint == "" {
 		return nil, fmt.Errorf("minio config endpoint is empty")
@@ -168,11 +181,13 @@ func newMinioStorage(storageID string, cfg *config.MinIOConfig) (Storage, error)
 		return nil, err
 	}
 	s := &minioStorage{
-		sid:    storageID,
-		bucket: cfg.BucketName,
-		cli:    minioClient,
-		cfg:    cfg,
-		logger: logger.NewLogger("minio"),
+		sid:        storageID,
+		bucket:     cfg.BucketName,
+		cli:        minioClient,
+		cfg:        cfg,
+		readLimit:  make(chan struct{}, 50),
+		writeLimit: make(chan struct{}, 10),
+		logger:     logger.NewLogger("minio"),
 	}
 	return s, s.initBucket(context.TODO())
 }
@@ -182,5 +197,5 @@ func minioObjectName(key, idx int64) string {
 }
 
 func minioObjectPrefix(key int64) string {
-	return fmt.Sprintf("/minio/chunks/%d/%d/%d_", key/10000, key/100, key)
+	return fmt.Sprintf("minio/chunks/%d/%d/%d_", key/10000, key/100, key)
 }

@@ -38,6 +38,8 @@ type Storage interface {
 
 func NewStorage(storageID, storageType string, cfg config.Storage) (Storage, error) {
 	switch storageType {
+	case OSSStorage:
+		return newOSSStorage(storageID, cfg.OSS)
 	case MinioStorage:
 		return newMinioStorage(storageID, cfg.MinIO)
 	case LocalStorage:
@@ -48,5 +50,3 @@ func NewStorage(storageID, storageType string, cfg config.Storage) (Storage, err
 		return nil, fmt.Errorf("unknow storage id: %s", storageID)
 	}
 }
-
-var maxConcurrentUploads = make(chan struct{}, 5)

@@ -45,6 +45,7 @@ type Storage struct {
 	Type     string       `json:"type"`
 	LocalDir string       `json:"local_dir,omitempty"`
 	MinIO    *MinIOConfig `json:"minio,omitempty"`
+	OSS      *OSSConfig   `json:"oss,omitempty"`
 }
 
 type MinIOConfig struct {
@@ -55,6 +56,13 @@ type MinIOConfig struct {
 	Location        string `json:"location"`
 	Token           string `json:"token"`
 	UseSSL          bool   `json:"use_ssl"`
+}
+
+type OSSConfig struct {
+	Endpoint        string `json:"endpoint"`
+	AccessKeyID     string `json:"access_key_id"`
+	AccessKeySecret string `json:"access_key_secret"`
+	BucketName      string `json:"bucket_name"`
 }
 
 type Api struct {

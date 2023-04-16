@@ -19,6 +19,7 @@ require (
 )
 
 require (
+	github.com/aliyun/aliyun-oss-go-sdk v2.2.7+incompatible // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect
 	github.com/coreos/etcd v2.3.8+incompatible // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
@@ -54,6 +55,7 @@ require (
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	golang.org/x/net v0.7.0 // indirect
 	golang.org/x/text v0.7.0 // indirect
+	golang.org/x/time v0.3.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect

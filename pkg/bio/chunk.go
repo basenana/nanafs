@@ -203,9 +203,6 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 		}
 	}()
 
-	ctx, canF := context.WithCancel(ctx)
-	defer canF()
-
 	var (
 		off          = req.off
 		bufLeft      = int64(len(req.dest))
@@ -225,7 +222,6 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 				defer req.Done()
 				if err := c.readPage(ctx, segments, pageID, off, dest); err != nil && req.err == nil {
 					req.err = err
-					canF()
 					c.r.logger.Errorw("read chunk page error", "entry", c.r.entry.ID, "chunk", c.chunkID, "page", pageID, "err", err)
 					return
 				}
@@ -865,6 +861,8 @@ func DeleteChunksData(ctx context.Context, md *types.Metadata, chunkStore metast
 }
 
 func CloseAll() {
+	log := logger.NewLogger("Closing")
+
 	allReaders := make(map[int64]*chunkReader)
 	allWriters := make(map[int64]*chunkWriter)
 	fileChunkMux.Lock()
@@ -881,6 +879,7 @@ func CloseAll() {
 	for i := range allWriters {
 		go func(w *chunkWriter) {
 			defer wg.Done()
+			log.Infow("closing writer", "entry", w.entry.ID)
 			w.Close()
 		}(allWriters[i])
 	}
@@ -888,8 +887,10 @@ func CloseAll() {
 	for i := range allReaders {
 		go func(r *chunkReader) {
 			defer wg.Done()
+			log.Infow("closing reader", "entry", r.entry.ID)
 			r.Close()
 		}(allReaders[i])
 	}
 	wg.Wait()
+	log.Infow("all opened file closed")
 }

@@ -1,3 +1,6 @@
+# github.com/aliyun/aliyun-oss-go-sdk v2.2.7+incompatible
+## explicit
+github.com/aliyun/aliyun-oss-go-sdk/oss
 # github.com/basenana/go-flow v0.0.0-20220322140457-971dcb315a41
 ## explicit; go 1.15
 github.com/basenana/go-flow/controller
@@ -354,6 +357,9 @@ golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
 golang.org/x/text/width
+# golang.org/x/time v0.3.0
+## explicit
+golang.org/x/time/rate
 # google.golang.org/protobuf v1.28.1
 ## explicit; go 1.11
 google.golang.org/protobuf/encoding/protowire
