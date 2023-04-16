@@ -29,7 +29,7 @@ import (
 func (c *controller) OpenFile(ctx context.Context, en dentry.Entry, attr dentry.Attr) (dentry.File, error) {
 	defer utils.TraceRegion(ctx, "controller.openfile")()
 	md := en.Metadata()
-	c.logger.Infow("open file", "file", md.ID, "name", md.Name, "attr", attr)
+	c.logger.Debugw("open file", "file", md.ID, "name", md.Name, "attr", attr)
 	if en.IsGroup() {
 		return nil, types.ErrIsGroup
 	}
@@ -94,7 +94,6 @@ func (c *controller) WriteFile(ctx context.Context, file dentry.File, data []byt
 
 func (c *controller) CloseFile(ctx context.Context, file dentry.File) (err error) {
 	defer utils.TraceRegion(ctx, "controller.closefile")()
-	c.logger.Infow("close file", "file", file.Metadata().ID)
 	err = file.Close(ctx)
 	if err != nil {
 		c.logger.Errorw("close file error", "file", file.Metadata().ID, "err", err.Error())

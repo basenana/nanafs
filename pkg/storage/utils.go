@@ -17,7 +17,9 @@
 package storage
 
 import (
+	"compress/gzip"
 	"fmt"
+	"io"
 )
 
 func objectName(key, idx int64) string {
@@ -26,4 +28,75 @@ func objectName(key, idx int64) string {
 
 func objectPrefix(key int64) string {
 	return fmt.Sprintf("%d_", key)
+}
+
+type nodeUsingInfo struct {
+	filename string
+	node     CacheNode
+	index    int
+	updateAt int64
+}
+
+type priorityNodeQueue []*nodeUsingInfo
+
+func (pq *priorityNodeQueue) Len() int {
+	return len(*pq)
+}
+
+func (pq *priorityNodeQueue) Less(i, j int) bool {
+	if (*pq)[i].node.freq() == (*pq)[j].node.freq() {
+		return (*pq)[i].updateAt < (*pq)[j].updateAt
+	}
+	return (*pq)[i].node.freq() < (*pq)[j].node.freq()
+}
+
+func (pq *priorityNodeQueue) Swap(i, j int) {
+	(*pq)[i], (*pq)[j] = (*pq)[j], (*pq)[i]
+	(*pq)[i].index = i
+	(*pq)[j].index = j
+}
+
+func (pq *priorityNodeQueue) Push(x interface{}) {
+	n := len(*pq)
+	item := x.(*nodeUsingInfo)
+	item.index = n
+	*pq = append(*pq, item)
+}
+
+func (pq *priorityNodeQueue) Pop() interface{} {
+	old := *pq
+	n := len(old)
+	item := old[n-1]
+	item.index = -1
+	*pq = old[0 : n-1]
+	return item
+}
+
+func compress(in io.Reader, out io.Writer) error {
+	gz := gzip.NewWriter(out)
+
+	if _, err := io.Copy(gz, in); err != nil {
+		_ = gz.Close()
+		return err
+	}
+
+	if err := gz.Close(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func decompress(in io.Reader, out io.Writer) error {
+	gz, err := gzip.NewReader(in)
+	if err != nil {
+		return err
+	}
+
+	if _, err = io.Copy(out, gz); err != nil {
+		_ = gz.Close()
+		return err
+	}
+
+	return gz.Close()
 }

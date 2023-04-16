@@ -17,6 +17,7 @@
 package storage
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/config"
@@ -25,6 +26,7 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"go.uber.org/zap"
 	"io"
+	"io/ioutil"
 	"time"
 )
 
@@ -60,7 +62,15 @@ func (m *minioStorage) Put(ctx context.Context, key, idx int64, dataReader io.Re
 	defer func() {
 		<-maxConcurrentUploads
 	}()
-	_, err := m.cli.PutObject(ctx, m.bucket, objectName(key, idx), dataReader, -1, minio.PutObjectOptions{ContentType: "application/octet-stream"})
+	data, err := ioutil.ReadAll(dataReader)
+	if err != nil {
+		return err
+	}
+
+	_, err = m.cli.PutObject(ctx, m.bucket, objectName(key, idx), bytes.NewReader(data), int64(len(data)), minio.PutObjectOptions{
+		ContentType:      "application/octet-stream",
+		DisableMultipart: true,
+	})
 	if err != nil {
 		m.logger.Errorw("put object failed", "object", objectName(key, idx), "err", err)
 		return err

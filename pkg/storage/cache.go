@@ -17,6 +17,7 @@
 package storage
 
 import (
+	"bytes"
 	"container/heap"
 	"context"
 	"fmt"
@@ -111,7 +112,11 @@ func (c *LocalCache) CommitTemporaryNode(ctx context.Context, segID, idx int64, 
 		cacheLog.Errorw("seek node to start error", "page", idx, "err", err)
 		return err
 	}
-	if err := c.s.Put(ctx, segID, idx, f); err != nil {
+	var buf bytes.Buffer
+	if compressErr := compress(f, &buf); compressErr != nil {
+		cacheLog.Errorw("compress temporary node data error", "page", idx, "err", compressErr)
+	}
+	if err := c.s.Put(ctx, segID, idx, &buf); err != nil {
 		cacheLog.Errorw("send cache data to storage error", "page", idx, "err", err)
 		return err
 	}
@@ -154,13 +159,19 @@ func (c *LocalCache) makeLocalCache(ctx context.Context, key, idx int64, filenam
 		return nil, err
 	}
 
-	var reader io.ReadCloser
+	var (
+		reader io.ReadCloser
+		buf    bytes.Buffer
+	)
 	reader, err = c.s.Get(ctx, key, idx)
 	if err != nil {
 		return nil, err
 	}
-	defer reader.Close()
-	_, err = io.Copy(f, reader)
+	if decompressErr := decompress(reader, &buf); decompressErr != nil {
+		cacheLog.Errorw("decompress temporary node data error", "page", idx, "err", decompressErr)
+	}
+
+	_, err = io.Copy(f, &buf)
 	if err != nil {
 		return nil, err
 	}
@@ -410,6 +421,10 @@ func (c *cachedFileMapper) fetchCacheNode(key int64, idx int64, builder cacheBui
 	)
 	node, err = builder(fileName)
 	if err != nil {
+		c.mux.Lock()
+		delete(c.pending, fileName)
+		c.mux.Unlock()
+		c.cond.Broadcast()
 		return nil, err
 	}
 
@@ -417,6 +432,7 @@ func (c *cachedFileMapper) fetchCacheNode(key int64, idx int64, builder cacheBui
 	delete(c.pending, fileName)
 	c.cachedNode[fileName] = &nodeUsingInfo{filename: fileName, node: node, updateAt: time.Now().UnixNano()}
 	c.mux.Unlock()
+	c.cond.Broadcast()
 	return node, nil
 }
 
@@ -478,46 +494,4 @@ func (c *cachedFileMapper) filename(key int64, idx int64) string {
 
 func localCacheFilePath(filename string) string {
 	return path.Join(localCacheDir, filename)
-}
-
-type nodeUsingInfo struct {
-	filename string
-	node     CacheNode
-	index    int
-	updateAt int64
-}
-
-type priorityNodeQueue []*nodeUsingInfo
-
-func (pq *priorityNodeQueue) Len() int {
-	return len(*pq)
-}
-
-func (pq *priorityNodeQueue) Less(i, j int) bool {
-	if (*pq)[i].node.freq() == (*pq)[j].node.freq() {
-		return (*pq)[i].updateAt < (*pq)[j].updateAt
-	}
-	return (*pq)[i].node.freq() < (*pq)[j].node.freq()
-}
-
-func (pq *priorityNodeQueue) Swap(i, j int) {
-	(*pq)[i], (*pq)[j] = (*pq)[j], (*pq)[i]
-	(*pq)[i].index = i
-	(*pq)[j].index = j
-}
-
-func (pq *priorityNodeQueue) Push(x interface{}) {
-	n := len(*pq)
-	item := x.(*nodeUsingInfo)
-	item.index = n
-	*pq = append(*pq, item)
-}
-
-func (pq *priorityNodeQueue) Pop() interface{} {
-	old := *pq
-	n := len(old)
-	item := old[n-1]
-	item.index = -1
-	*pq = old[0 : n-1]
-	return item
 }

@@ -24,6 +24,7 @@ import (
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"go.uber.org/zap"
+	"io"
 	"sync"
 )
 
@@ -96,7 +97,7 @@ func (f *file) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error
 		return 0, types.ErrUnsupported
 	}
 	n, err := f.reader.ReadAt(ctx, dest, off)
-	if err != nil {
+	if err != nil && err != io.EOF {
 		fileEntryLogger.Errorw("read file error", "entry", f.Entry.Metadata().ID, "off", off, "err", err)
 	}
 	return n, err
