@@ -186,7 +186,7 @@ func newMinioStorage(storageID string, cfg *config.MinIOConfig) (Storage, error)
 		cli:        minioClient,
 		cfg:        cfg,
 		readLimit:  make(chan struct{}, 50),
-		writeLimit: make(chan struct{}, 10),
+		writeLimit: make(chan struct{}, 15),
 		logger:     logger.NewLogger("minio"),
 	}
 	return s, s.initBucket(context.TODO())

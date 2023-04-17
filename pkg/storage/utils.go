@@ -18,7 +18,9 @@ package storage
 
 import (
 	"compress/gzip"
+	"context"
 	"io"
+	"runtime/trace"
 )
 
 type nodeUsingInfo struct {
@@ -63,7 +65,8 @@ func (pq *priorityNodeQueue) Pop() interface{} {
 	return item
 }
 
-func compress(in io.Reader, out io.Writer) error {
+func compress(ctx context.Context, in io.Reader, out io.Writer) error {
+	defer trace.StartRegion(ctx, "storage.localCache.compress").End()
 	gz := gzip.NewWriter(out)
 
 	if _, err := io.Copy(gz, in); err != nil {
@@ -78,7 +81,8 @@ func compress(in io.Reader, out io.Writer) error {
 	return nil
 }
 
-func decompress(in io.Reader, out io.Writer) error {
+func decompress(ctx context.Context, in io.Reader, out io.Writer) error {
+	defer trace.StartRegion(ctx, "storage.localCache.decompress").End()
 	gz, err := gzip.NewReader(in)
 	if err != nil {
 		return err
@@ -90,4 +94,12 @@ func decompress(in io.Reader, out io.Writer) error {
 	}
 
 	return gz.Close()
+}
+
+func reverseString(s string) string {
+	r := []rune(s)
+	for i, j := 0, len(r)-1; i < j; i, j = i+1, j-1 {
+		r[i], r[j] = r[j], r[i]
+	}
+	return string(r)
 }

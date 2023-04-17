@@ -41,11 +41,12 @@ type Meta struct {
 }
 
 type Storage struct {
-	ID       string       `json:"id"`
-	Type     string       `json:"type"`
-	LocalDir string       `json:"local_dir,omitempty"`
-	MinIO    *MinIOConfig `json:"minio,omitempty"`
-	OSS      *OSSConfig   `json:"oss,omitempty"`
+	ID       string        `json:"id"`
+	Type     string        `json:"type"`
+	LocalDir string        `json:"local_dir,omitempty"`
+	MinIO    *MinIOConfig  `json:"minio,omitempty"`
+	OSS      *OSSConfig    `json:"oss,omitempty"`
+	Webdav   *WebdavConfig `json:"webdav,omitempty"`
 }
 
 type MinIOConfig struct {
@@ -63,6 +64,13 @@ type OSSConfig struct {
 	AccessKeyID     string `json:"access_key_id"`
 	AccessKeySecret string `json:"access_key_secret"`
 	BucketName      string `json:"bucket_name"`
+}
+
+type WebdavConfig struct {
+	ServerURL string `json:"server_url"`
+	User      string `json:"user"`
+	Password  string `json:"password"`
+	Insecure  bool   `json:"insecure,omitempty"`
 }
 
 type Api struct {

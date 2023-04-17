@@ -28,6 +28,7 @@ import (
 	"golang.org/x/sys/unix"
 	"io"
 	"io/fs"
+	"math/rand"
 	"os"
 	"path"
 	"path/filepath"
@@ -76,7 +77,7 @@ func InitLocalCache(config config.Config) {
 		cacheLog.Panicf("load cached file failed: %s", err)
 	}
 	// TODO: load uncommitted data
-	cacheLog.Infow("local size usage: %d, limit: %d", localCacheSizeUsage, localCacheSizeLimit)
+	cacheLog.Infof("local size usage: %d, limit: %d", localCacheSizeUsage, localCacheSizeLimit)
 }
 
 type LocalCache struct {
@@ -116,7 +117,7 @@ func (c *LocalCache) CommitTemporaryNode(ctx context.Context, segID, idx int64, 
 		return err
 	}
 	var buf bytes.Buffer
-	if compressErr := compress(f, &buf); compressErr != nil {
+	if compressErr := compress(ctx, f, &buf); compressErr != nil {
 		cacheLog.Errorw("compress temporary node data error", "page", idx, "err", compressErr)
 	}
 	if err := c.s.Put(ctx, segID, idx, &buf); err != nil {
@@ -132,19 +133,50 @@ func (c *LocalCache) CommitTemporaryNode(ctx context.Context, segID, idx int64, 
 	return node.Close()
 }
 
-func (c *LocalCache) OpenCacheNode(ctx context.Context, key, idx int64) (CacheNode, error) {
+func (c *LocalCache) OpenCacheNode(ctx context.Context, key, idx int64, readBack int) (CacheNode, error) {
 	defer trace.StartRegion(ctx, "storage.localCache.OpenCacheNode").End()
 	if c.isLocal {
 		return c.mappingLocalStorage(key, idx)
 	}
 
-	node, err := cachedFile.fetchCacheNode(key, idx, func(filename string) (CacheNode, error) {
-		return c.makeLocalCache(ctx, key, idx, filename)
-	})
+	var (
+		node CacheNode
+		err  error
+	)
+	node, err = cachedFile.fetchCacheNode(
+		key, idx,
+		func(filename string) (CacheNode, error) { return c.makeLocalCache(ctx, key, idx, filename) },
+		func(_ string) (CacheNode, error) { return c.openDirectNode(ctx, key, idx) },
+		atomic.LoadInt64(&localCacheSizeUsage)+cacheNodeSize > localCacheSizeLimit || readBack > rand.Int()%100,
+	)
 	if err != nil {
 		return nil, err
 	}
 	return node, node.Attach()
+}
+
+func (c *LocalCache) openDirectNode(ctx context.Context, key, idx int64) (*directNode, error) {
+	defer trace.StartRegion(ctx, "storage.localCache.openDirectNode").End()
+	info, err := c.s.Head(ctx, key, idx)
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		reader io.ReadCloser
+		buf    bytes.Buffer
+	)
+	reader, err = c.s.Get(ctx, key, idx)
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+	if decompressErr := decompress(ctx, reader, &buf); decompressErr != nil {
+		cacheLog.Errorw("decompress temporary node data error", "page", idx, "err", decompressErr)
+	}
+
+	node := &directNode{reader: &buf, info: info}
+	return node, nil
 }
 
 func (c *LocalCache) makeLocalCache(ctx context.Context, key, idx int64, filename string) (*cacheNode, error) {
@@ -172,7 +204,8 @@ func (c *LocalCache) makeLocalCache(ctx context.Context, key, idx int64, filenam
 	if err != nil {
 		return nil, err
 	}
-	if decompressErr := decompress(reader, &buf); decompressErr != nil {
+	defer reader.Close()
+	if decompressErr := decompress(ctx, reader, &buf); decompressErr != nil {
 		cacheLog.Errorw("decompress temporary node data error", "page", idx, "err", decompressErr)
 	}
 
@@ -364,6 +397,49 @@ func (c *cacheNode) Size() int64 {
 	return c.size
 }
 
+type directNode struct {
+	info   Info
+	data   []byte
+	off    int64
+	reader *bytes.Buffer
+}
+
+func (d *directNode) ReadAt(p []byte, off int64) (n int, err error) {
+	if off >= d.info.Size {
+		return 0, io.EOF
+	}
+	n, err = d.reader.Read(p)
+	d.off += int64(n)
+	if err != nil {
+		return
+	}
+	if d.off == d.info.Size {
+		return n, io.EOF
+	}
+	return
+}
+
+func (d *directNode) WriteAt(p []byte, off int64) (n int, err error) {
+	// TODO
+	return 0, nil
+}
+
+func (d *directNode) Close() error {
+	return nil
+}
+
+func (d *directNode) Attach() error {
+	return nil
+}
+
+func (d *directNode) Size() int64 {
+	return d.info.Size
+}
+
+func (d *directNode) freq() int {
+	return 0
+}
+
 type cachedFileMapper struct {
 	cachedNode  map[string]*nodeUsingInfo
 	pending     map[string]struct{}
@@ -393,7 +469,7 @@ func (c *cachedFileMapper) load(cacheDir string) error {
 
 type cacheBuilder func(filename string) (CacheNode, error)
 
-func (c *cachedFileMapper) fetchCacheNode(key int64, idx int64, builder cacheBuilder) (CacheNode, error) {
+func (c *cachedFileMapper) fetchCacheNode(key int64, idx int64, builder, directer cacheBuilder, canDirect bool) (CacheNode, error) {
 	fileName := c.filename(key, idx)
 
 	c.mux.Lock()
@@ -417,6 +493,12 @@ func (c *cachedFileMapper) fetchCacheNode(key int64, idx int64, builder cacheBui
 		c.mux.Unlock()
 		return vNode.node, nil
 	} else {
+		if canDirect {
+			node, err := directer(fileName)
+			c.mux.Unlock()
+			return node, err
+		}
+		// try fetch
 		c.pending[fileName] = struct{}{}
 	}
 	c.mux.Unlock()

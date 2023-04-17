@@ -200,17 +200,21 @@ func newOSSStorage(storageID string, cfg *config.OSSConfig) (Storage, error) {
 		sid:        storageID,
 		cli:        cli,
 		cfg:        cfg,
-		readLimit:  make(chan struct{}, 50),
-		writeLimit: make(chan struct{}, 20),
+		readLimit:  make(chan struct{}, 90),
+		writeLimit: make(chan struct{}, 30),
 		logger:     logger.NewLogger("OSS"),
 	}
 	return s, s.initOSSBucket(context.Background())
 }
 
+// ossObjectName
+// it is recommended to use different prefixes to
+// distribute multiple files in different hash buckets
+// in order to improve IO efficiency.
 func ossObjectName(key, idx int64) string {
-	return fmt.Sprintf("oss/chunks/%d/%d/%d_%d", key/1000, key/10, key, idx)
+	return fmt.Sprintf("oss/chunks/%d/%s/%d_%d", key/10, reverseString(strconv.FormatInt(key, 10)), key, idx)
 }
 
 func ossObjectPrefix(key int64) string {
-	return fmt.Sprintf("oss/chunks/%d/%d/%d_", key/1000, key/10, key)
+	return fmt.Sprintf("oss/chunks/%d/%s/%d_", key/10, reverseString(strconv.FormatInt(key, 10)), key)
 }

@@ -3,6 +3,7 @@ module github.com/basenana/nanafs
 go 1.18
 
 require (
+	github.com/aliyun/aliyun-oss-go-sdk v2.2.7+incompatible
 	github.com/basenana/go-flow v0.0.0-20220322140457-971dcb315a41
 	github.com/bluele/gcache v0.0.2
 	github.com/glebarez/sqlite v1.7.0
@@ -13,13 +14,13 @@ require (
 	github.com/minio/minio-go/v7 v7.0.52
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.27.2
+	github.com/studio-b12/gowebdav v0.0.0-20230203202212-3282f94193f2
 	go.uber.org/zap v1.24.0
 	golang.org/x/sys v0.5.0
 	gorm.io/driver/postgres v1.3.7
 )
 
 require (
-	github.com/aliyun/aliyun-oss-go-sdk v2.2.7+incompatible // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect
 	github.com/coreos/etcd v2.3.8+incompatible // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect

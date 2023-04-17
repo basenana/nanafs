@@ -169,10 +169,12 @@ func (c *chunkReader) Close() {
 }
 
 type segReader struct {
-	r       *chunkReader
-	st      *segTree
-	chunkID int64
-	mux     sync.Mutex
+	r            *chunkReader
+	st           *segTree
+	chunkID      int64
+	farthestPage int64
+	readBackCtn  int
+	mux          sync.Mutex
 }
 
 func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
@@ -258,6 +260,15 @@ func (c *segReader) readPage(ctx context.Context, segments []segment, pageIndex,
 	pageStart := pageSize * pageIndex
 	var page *pageNode
 
+	if pageIndex > c.farthestPage {
+		c.farthestPage = pageIndex
+	} else {
+		c.readBackCtn += 1
+		if c.readBackCtn > 100 {
+			c.readBackCtn = 100
+		}
+	}
+
 	defer func() {
 		if rErr := utils.Recover(); rErr != nil {
 			c.r.logger.Errorw("read chunk page panic", "entry", c.r.entry.ID, "chunk", c.chunkID, "err", err)
@@ -288,14 +299,16 @@ func (c *segReader) readPage(ctx context.Context, segments []segment, pageIndex,
 				crt = readEnd
 				continue
 			}
-			openedCachedNode, innerErr = c.r.cache.OpenCacheNode(ctx, seg.id, pageIndex)
+			openedCachedNode, innerErr = c.r.cache.OpenCacheNode(ctx, seg.id, pageIndex, c.readBackCtn)
 			for innerErr != nil {
 				return innerErr
 			}
 			onceRead, innerErr = openedCachedNode.ReadAt(page.data[crt:readEnd], seg.off-pageStart)
 			for innerErr != nil {
+				_ = openedCachedNode.Close()
 				return innerErr
 			}
+			_ = openedCachedNode.Close()
 			crt += int64(onceRead)
 		}
 		page.length = crt
@@ -628,6 +641,13 @@ func (w *segWriter) commitSegment(ctx context.Context) {
 	defer trace.StartRegion(ctx, "bio.segWriter.commitSegment").End()
 	defer logger.CostLog(w.logger.With(zap.Int64("entry", w.entry.ID), zap.Int64("chunk", w.chunkID)), "commit segment data")()
 	for len(w.uncommitted) > 0 {
+		select {
+		case <-ctx.Done():
+			w.logger.Errorw("commit segment error", "entry", w.entry.ID, "chunk", w.chunkID, "err", ctx.Err())
+			return
+		default:
+
+		}
 		w.mux.Lock()
 		seg := w.uncommitted[0]
 		for !seg.readyToCommit {

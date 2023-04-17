@@ -42,6 +42,8 @@ func NewStorage(storageID, storageType string, cfg config.Storage) (Storage, err
 		return newOSSStorage(storageID, cfg.OSS)
 	case MinioStorage:
 		return newMinioStorage(storageID, cfg.MinIO)
+	case WebdavStorage:
+		return newWebdavStorage(storageID, cfg.Webdav)
 	case LocalStorage:
 		return newLocalStorage(storageID, cfg.LocalDir)
 	case MemoryStorage:
