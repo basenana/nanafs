@@ -18,9 +18,12 @@ package dentry
 
 import (
 	"context"
+	"fmt"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils/logger"
 	"runtime/trace"
+	"strings"
 	"time"
 )
 
@@ -41,26 +44,34 @@ var _ Group = &stdGroup{}
 
 func (g *stdGroup) FindEntry(ctx context.Context, name string) (Entry, error) {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.FindEntry").End()
-	children, err := g.ListChildren(ctx)
+	entryLifecycleLock.RLock()
+	defer entryLifecycleLock.RUnlock()
+	objects, err := g.store.ListObjects(ctx, types.Filter{Name: name, ParentID: g.Metadata().ID})
 	if err != nil {
 		return nil, err
 	}
-	for i := range children {
-		tgt := children[i]
-		if tgt.Metadata().Name == name {
-			return tgt, nil
-		}
+	if len(objects) == 0 {
+		return nil, types.ErrNotFound
 	}
-	return nil, types.ErrNotFound
+	if len(objects) > 1 {
+		objNames := make([]string, len(objects))
+		for i, obj := range objects {
+			objNames[i] = fmt.Sprintf(`{"id":%d,"name":"%s"}`, obj.ID, obj.Name)
+		}
+		logger.NewLogger("panic").Warnf("lookup group %s with name %s, got objects: %s", g.Metadata().Name, name, strings.Join(objNames, ","))
+	}
+	return buildEntry(objects[0], g.store), nil
 }
 
 func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, error) {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.CreateEntry").End()
-	_, err := g.FindEntry(ctx, attr.Name)
-	if err != nil && err != types.ErrNotFound {
+	entryLifecycleLock.Lock()
+	defer entryLifecycleLock.Unlock()
+	objects, err := g.store.ListObjects(ctx, types.Filter{Name: attr.Name, ParentID: g.Metadata().ID})
+	if err != nil {
 		return nil, err
 	}
-	if err == nil {
+	if len(objects) > 0 {
 		return nil, types.ErrIsExist
 	}
 	groupMd := g.Metadata()

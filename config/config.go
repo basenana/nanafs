@@ -68,6 +68,8 @@ type OSSConfig struct {
 
 type WebdavConfig struct {
 	ServerURL string `json:"server_url"`
+	UID       int64  `json:"uid"`
+	GID       int64  `json:"gid"`
 	User      string `json:"user"`
 	Password  string `json:"password"`
 	Insecure  bool   `json:"insecure,omitempty"`

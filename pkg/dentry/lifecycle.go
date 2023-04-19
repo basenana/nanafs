@@ -23,6 +23,11 @@ import (
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/hyponet/eventbus/bus"
 	"go.uber.org/zap"
+	"sync"
+)
+
+var (
+	entryLifecycleLock sync.RWMutex
 )
 
 type lifecycle struct {

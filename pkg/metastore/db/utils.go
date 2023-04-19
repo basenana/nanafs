@@ -46,11 +46,14 @@ func queryFilter(tx *gorm.DB, filter types.Filter) *gorm.DB {
 	if filter.RefID != 0 {
 		tx = tx.Where("ref_id = ?", filter.RefID)
 	}
-	if filter.Kind != "" {
-		tx = tx.Where("kind = ?", filter.Kind)
+	if filter.Name != "" {
+		tx = tx.Where("name = ?", filter.Name)
 	}
 	if filter.Namespace != "" {
 		tx = tx.Where("namespace = ?", filter.Namespace)
+	}
+	if filter.Kind != "" {
+		tx = tx.Where("kind = ?", filter.Kind)
 	}
 	return tx
 }

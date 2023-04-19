@@ -68,7 +68,6 @@ func (pq *priorityNodeQueue) Pop() interface{} {
 func compress(ctx context.Context, in io.Reader, out io.Writer) error {
 	defer trace.StartRegion(ctx, "storage.localCache.compress").End()
 	gz := gzip.NewWriter(out)
-
 	if _, err := io.Copy(gz, in); err != nil {
 		_ = gz.Close()
 		return err

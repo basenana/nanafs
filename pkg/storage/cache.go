@@ -147,7 +147,7 @@ func (c *LocalCache) OpenCacheNode(ctx context.Context, key, idx int64, readBack
 		key, idx,
 		func(filename string) (CacheNode, error) { return c.makeLocalCache(ctx, key, idx, filename) },
 		func(_ string) (CacheNode, error) { return c.openDirectNode(ctx, key, idx) },
-		atomic.LoadInt64(&localCacheSizeUsage)+cacheNodeSize > localCacheSizeLimit || readBack > rand.Int()%100,
+		atomic.LoadInt64(&localCacheSizeUsage)+cacheNodeSize > localCacheSizeLimit || readBack+30 > rand.Int()%100,
 	)
 	if err != nil {
 		return nil, err

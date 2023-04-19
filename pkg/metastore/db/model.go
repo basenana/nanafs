@@ -35,7 +35,7 @@ func (i SystemInfo) TableName() string {
 
 type Object struct {
 	ID         int64     `gorm:"column:id;primaryKey"`
-	Name       string    `gorm:"column:name"`
+	Name       string    `gorm:"column:name;index:obj_name"`
 	Aliases    string    `gorm:"column:aliases"`
 	ParentID   int64     `gorm:"column:parent_id;index:parent_id"`
 	RefID      int64     `gorm:"column:ref_id;index:ref_id"`
@@ -46,7 +46,7 @@ type Object struct {
 	Inode      uint64    `gorm:"column:inode;unique"`
 	Dev        int64     `gorm:"column:dev"`
 	Storage    string    `gorm:"column:storage"`
-	Namespace  string    `gorm:"column:namespace"`
+	Namespace  string    `gorm:"column:namespace;index:obj_ns"`
 	CreatedAt  time.Time `gorm:"column:created_at"`
 	ChangedAt  time.Time `gorm:"column:changed_at"`
 	ModifiedAt time.Time `gorm:"column:modified_at"`

@@ -172,7 +172,7 @@ func (m *memoryStorage) Put(ctx context.Context, key, idx int64, dataReader io.R
 	cKey := m.chunkKey(key, idx)
 	ck, err := m.getChunk(ctx, m.chunkKey(key, idx))
 	if err != nil {
-		ck = &memChunkData{data: make([]byte, cacheNodeSize)}
+		ck = &memChunkData{data: make([]byte, cacheNodeSize*1.5)}
 	}
 
 	if _, err = io.Copy(ck, dataReader); err != nil {

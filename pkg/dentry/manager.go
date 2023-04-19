@@ -128,6 +128,8 @@ func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) (bool, err
 		}
 	}
 
+	entryLifecycleLock.Lock()
+	defer entryLifecycleLock.Unlock()
 	if !en.IsGroup() && (md.RefCount > 1 || (md.RefCount == 1 && isFileOpened(md.ID))) {
 		m.logger.Infow("remove object parent id", "entry", md.ID, "ref", md.RefID)
 		md.RefCount -= 1
@@ -183,6 +185,8 @@ func (m *manager) MirrorEntry(ctx context.Context, src, dstParent Entry, attr En
 		return nil, fmt.Errorf("source entry is mirrored")
 	}
 
+	entryLifecycleLock.Lock()
+	defer entryLifecycleLock.Unlock()
 	obj, err := initMirrorEntryObject(srcMd, parentMd, attr)
 	if err != nil {
 		m.logger.Errorw("create mirror object error", "srcEntry", srcMd.ID, "dstParent", parentMd.ID, "err", err.Error())
@@ -247,6 +251,8 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntry, overwriteE
 		oldParentMd.RefCount -= 1
 		newParentMd.RefCount += 1
 	}
+	entryLifecycleLock.Lock()
+	defer entryLifecycleLock.Unlock()
 	err := m.store.ChangeParent(ctx, &types.Object{Metadata: *oldParentMd}, &types.Object{Metadata: *newParentMd}, &types.Object{Metadata: *entryMd}, types.ChangeParentOption{})
 	if err != nil {
 		m.logger.Errorw("change object parent failed", "entry", entryMd.ID, "newParent", newParentMd.ID, "newName", newName, "err", err.Error())
