@@ -14,7 +14,7 @@
  limitations under the License.
 */
 
-package common
+package pathmgr
 
 import (
 	"context"
@@ -29,14 +29,18 @@ import (
 	"strings"
 )
 
-type PathEntryManager struct {
+type PathManager struct {
 	ctrl    controller.Controller
 	entries *utils.LFUPool
 	logger  *zap.SugaredLogger
 }
 
-func (m *PathEntryManager) Access(ctx context.Context, entryPath string, callerUid, callGid int64, perm os.FileMode) error {
-	entryPath = m.getPath(entryPath)
+func (m *PathManager) Access(ctx context.Context, entryPath string, callerUid, callGid int64, perm os.FileMode) error {
+	var err error
+	entryPath, err = m.getPath(entryPath)
+	if err != nil {
+		return err
+	}
 	entry, err := m.FindEntry(ctx, entryPath)
 	if err != nil {
 		return err
@@ -44,8 +48,12 @@ func (m *PathEntryManager) Access(ctx context.Context, entryPath string, callerU
 	return dentry.IsAccess(entry.Metadata().Access, callerUid, callGid, uint32(perm))
 }
 
-func (m *PathEntryManager) FindEntry(ctx context.Context, entryPath string) (dentry.Entry, error) {
-	entryPath = m.getPath(entryPath)
+func (m *PathManager) FindEntry(ctx context.Context, entryPath string) (dentry.Entry, error) {
+	var err error
+	entryPath, err = m.getPath(entryPath)
+	if err != nil {
+		return nil, err
+	}
 	pe, err := m.getPathEntry(ctx, entryPath)
 	if err != nil {
 		return nil, err
@@ -53,8 +61,12 @@ func (m *PathEntryManager) FindEntry(ctx context.Context, entryPath string) (den
 	return m.ctrl.GetEntry(ctx, pe.entryID)
 }
 
-func (m *PathEntryManager) FindParentEntry(ctx context.Context, entryPath string) (dentry.Entry, error) {
-	entryPath = m.getPath(entryPath)
+func (m *PathManager) FindParentEntry(ctx context.Context, entryPath string) (dentry.Entry, error) {
+	var err error
+	entryPath, err = m.getPath(entryPath)
+	if err != nil {
+		return nil, err
+	}
 	pe, err := m.getPathEntry(ctx, path.Dir(entryPath))
 	if err != nil {
 		return nil, err
@@ -62,8 +74,12 @@ func (m *PathEntryManager) FindParentEntry(ctx context.Context, entryPath string
 	return m.ctrl.GetEntry(ctx, pe.entryID)
 }
 
-func (m *PathEntryManager) Open(ctx context.Context, entryPath string, attr dentry.Attr) (dentry.Entry, error) {
-	entryPath = m.getPath(entryPath)
+func (m *PathManager) Open(ctx context.Context, entryPath string, attr dentry.Attr) (dentry.Entry, error) {
+	var err error
+	entryPath, err = m.getPath(entryPath)
+	if err != nil {
+		return nil, err
+	}
 	pe, err := m.getPathEntry(ctx, entryPath)
 	if err != nil && err != types.ErrNotFound {
 		return nil, err
@@ -106,7 +122,7 @@ func (m *PathEntryManager) Open(ctx context.Context, entryPath string, attr dent
 	return m.ctrl.OpenFile(ctx, en, attr)
 }
 
-func (m *PathEntryManager) CreateAll(ctx context.Context, entryPath string, attr dentry.EntryAttr) (dentry.Entry, error) {
+func (m *PathManager) CreateAll(ctx context.Context, entryPath string, attr dentry.EntryAttr) (dentry.Entry, error) {
 	var (
 		en  dentry.Entry
 		pEn *pathEntry
@@ -147,7 +163,7 @@ func (m *PathEntryManager) CreateAll(ctx context.Context, entryPath string, attr
 	return nil, nil
 }
 
-func (m *PathEntryManager) RemoveAll(ctx context.Context, entryPath string) error {
+func (m *PathManager) RemoveAll(ctx context.Context, entryPath string, recursion bool) error {
 	paths := m.splitPath(entryPath)
 	targetPath := paths[len(paths)-1]
 
@@ -169,6 +185,9 @@ func (m *PathEntryManager) RemoveAll(ctx context.Context, entryPath string) erro
 		return err
 	}
 
+	if !recursion {
+		return nil
+	}
 	parentPath := paths[:len(paths)-1]
 	for i := len(parentPath) - 1; i >= 0; i-- {
 		targetPath = parentPath[i]
@@ -200,9 +219,16 @@ func (m *PathEntryManager) RemoveAll(ctx context.Context, entryPath string) erro
 	return nil
 }
 
-func (m *PathEntryManager) Rename(ctx context.Context, oldPath, entryPath string) error {
-	oldPath = m.getPath(oldPath)
-	entryPath = m.getPath(entryPath)
+func (m *PathManager) Rename(ctx context.Context, oldPath, entryPath string) error {
+	var err error
+	oldPath, err = m.getPath(oldPath)
+	if err != nil {
+		return err
+	}
+	entryPath, err = m.getPath(entryPath)
+	if err != nil {
+		return err
+	}
 	oldParent, err := m.FindParentEntry(ctx, oldPath)
 	if err != nil {
 		return err
@@ -218,7 +244,7 @@ func (m *PathEntryManager) Rename(ctx context.Context, oldPath, entryPath string
 	return m.ctrl.ChangeEntryParent(ctx, target, oldParent, newParent, path.Base(entryPath), types.ChangeParentAttr{})
 }
 
-func (m *PathEntryManager) getPathEntry(ctx context.Context, entryPath string) (*pathEntry, error) {
+func (m *PathManager) getPathEntry(ctx context.Context, entryPath string) (*pathEntry, error) {
 	cached := m.entries.Get(entryPath)
 	if cached != nil {
 		return cached.(*pathEntry), nil
@@ -263,19 +289,25 @@ func (m *PathEntryManager) getPathEntry(ctx context.Context, entryPath string) (
 	return nil, types.ErrNotFound
 }
 
-func (m *PathEntryManager) getPath(entryPath string) string {
+func (m *PathManager) getPath(entryPath string) (string, error) {
 	pathParts := strings.Split(entryPath, "/")
 	pathEntries := make([]string, 0, len(pathParts))
 	for _, p := range pathParts {
 		if p == "" {
 			continue
 		}
+		if p == "." || p == ".." {
+			return "", types.ErrNoPerm
+		}
 		pathEntries = append(pathEntries, p)
 	}
-	return "/" + strings.Join(pathEntries, "/")
+	return "/" + strings.Join(pathEntries, "/"), nil
 }
 
-func (m *PathEntryManager) splitPath(entryPath string) []string {
+func (m *PathManager) splitPath(entryPath string) []string {
+	if entryPath == "/" {
+		return []string{entryPath}
+	}
 	pathParts := strings.Split(entryPath, "/")
 	pathEntries := make([]string, 0, len(pathParts))
 	for _, p := range pathParts {
@@ -292,11 +324,11 @@ func (m *PathEntryManager) splitPath(entryPath string) []string {
 	return result
 }
 
-func NewPathEntryManager(controller controller.Controller) *PathEntryManager {
-	return &PathEntryManager{
+func New(controller controller.Controller) *PathManager {
+	return &PathManager{
 		ctrl:    controller,
 		entries: utils.NewLFUPool(1024),
-		logger:  logger.NewLogger("PathEntryManager"),
+		logger:  logger.NewLogger("PathManager"),
 	}
 }
 

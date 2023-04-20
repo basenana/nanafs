@@ -83,8 +83,8 @@ func (m *manager) Root(ctx context.Context) (Entry, error) {
 		return nil, err
 	}
 	root = initRootEntryObject()
-	root.Access.UID = m.cfg.Owner.Uid
-	root.Access.GID = m.cfg.Owner.Gid
+	root.Access.UID = m.cfg.FS.OwnerUid
+	root.Access.GID = m.cfg.FS.OwnerGid
 	root.Storage = m.cfg.Storages[0].ID
 	return buildEntry(root, m.store), m.store.SaveObject(ctx, nil, root)
 }
@@ -271,7 +271,7 @@ func (m *manager) Open(ctx context.Context, en Entry, attr Attr) (File, error) {
 	case types.SymLinkKind:
 		return openSymlink(en, attr)
 	default:
-		return openFile(en, attr, m.store, m.storages[en.Metadata().Storage], &m.cfg.Entry)
+		return openFile(en, attr, m.store, m.storages[en.Metadata().Storage], m.cfg.FS)
 	}
 }
 

@@ -44,6 +44,10 @@ var (
 )
 
 func Init(cfg config.Config, recorderGetter metastore.PluginRecorderGetter) error {
+	if cfg.Plugin == nil {
+		return nil
+	}
+
 	if cfg.Plugin.BasePath == "" {
 		cfg.Plugin.BasePath = DefaultPluginPath
 	}

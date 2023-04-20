@@ -43,7 +43,7 @@ type NanaFS struct {
 	Display   string
 	MountOpts []string
 
-	cfg    config.Fs
+	cfg    config.FUSE
 	logger *zap.SugaredLogger
 
 	// debug will enable debug log and SingleThreaded
@@ -196,7 +196,7 @@ func (n *NanaFS) GetSourceEntry(ctx context.Context, id int64) (dentry.Entry, er
 func (n *NanaFS) releaseFsNode(ctx context.Context, entry dentry.Entry) {
 }
 
-func NewNanaFsRoot(cfg config.Fs, controller controller.Controller) (*NanaFS, error) {
+func NewNanaFsRoot(cfg config.FUSE, controller controller.Controller) (*NanaFS, error) {
 	var st syscall.Stat_t
 	err := syscall.Stat(cfg.RootPath, &st)
 	if err != nil {

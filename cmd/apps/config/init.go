@@ -74,13 +74,19 @@ func initDefaultConfig() {
 		CacheDir:  cacheDir,
 		CacheSize: 10,
 		Debug:     false,
-		ApiConfig: config.Api{
+		Api: config.Api{
 			Enable: true,
 			Host:   "127.0.0.1",
-			Port:   8081,
+			Port:   7081,
 			Pprof:  false,
 		},
-		FsConfig: config.Fs{
+		Webdav: &config.Webdav{
+			Enable: false,
+			Host:   "127.0.0.1",
+			Port:   7082,
+			Users:  []config.OverwriteUser{{Username: "admin", Password: "changeme"}},
+		},
+		FUSE: config.FUSE{
 			Enable:      false,
 			RootPath:    "/your/path/to/mount",
 			DisplayName: "nanafs",

@@ -97,16 +97,25 @@ func run(ctrl controller.Controller, cfg config.Config, stopCh chan struct{}) {
 	log.Info("starting")
 	shutdown := ctrl.SetupShutdownHandler(stopCh)
 
-	if cfg.ApiConfig.Enable {
-		s, err := apis.NewApiServer(ctrl, cfg)
+	pathEntryMgr := apis.NewPathEntryManager(ctrl)
+	if cfg.Api.Enable {
+		s, err := apis.NewApiServer(pathEntryMgr, cfg)
 		if err != nil {
 			log.Panicw("init http server failed", "err", err.Error())
 		}
 		go s.Run(stopCh)
 	}
 
-	if cfg.FsConfig.Enable {
-		fsServer, err := fs.NewNanaFsRoot(cfg.FsConfig, ctrl)
+	if cfg.Webdav != nil && cfg.Webdav.Enable {
+		w, err := apis.NewWebdavServer(pathEntryMgr, cfg)
+		if err != nil {
+			log.Panicw("init http server failed", "err", err.Error())
+		}
+		go w.Run(stopCh)
+	}
+
+	if cfg.FUSE.Enable {
+		fsServer, err := fs.NewNanaFsRoot(cfg.FUSE, ctrl)
 		if err != nil {
 			panic(err)
 		}

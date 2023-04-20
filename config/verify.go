@@ -26,8 +26,8 @@ var verifiers = []verifier{
 }
 
 func setDefaultValue(config *Config) error {
-	if config.Owner == nil {
-		config.Owner = defaultOwner()
+	if config.FS == nil {
+		config.FS = defaultFsConfig()
 	}
 	return nil
 }

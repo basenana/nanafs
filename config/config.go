@@ -17,62 +17,19 @@
 package config
 
 type Config struct {
-	Meta      Meta        `json:"meta"`
-	Storages  []Storage   `json:"storages"`
-	Owner     *FsOwner    `json:"owner,omitempty"`
-	Plugin    Plugin      `json:"plugin"`
-	CacheDir  string      `json:"cache_dir,omitempty"`
-	CacheSize int         `json:"cache_size,omitempty"`
-	Entry     EntryConfig `json:"entry"`
-	Debug     bool        `json:"debug,omitempty"`
+	Api    Api     `json:"api"`
+	FUSE   FUSE    `json:"fuse"`
+	Webdav *Webdav `json:"webdav,omitempty"`
 
-	ApiConfig Api `json:"api"`
-	FsConfig  Fs  `json:"fs"`
-}
+	FS     *FS     `json:"fs,omitempty"`
+	Plugin *Plugin `json:"plugin,omitempty"`
 
-type EntryConfig struct {
-	Writeback bool `json:"writeback,omitempty"`
-}
+	Meta     Meta      `json:"meta"`
+	Storages []Storage `json:"storages"`
 
-type Meta struct {
-	Type string `json:"type"`
-	Path string `json:"path,omitempty"`
-	DSN  string `json:"dsn,omitempty"`
-}
-
-type Storage struct {
-	ID       string        `json:"id"`
-	Type     string        `json:"type"`
-	LocalDir string        `json:"local_dir,omitempty"`
-	MinIO    *MinIOConfig  `json:"minio,omitempty"`
-	OSS      *OSSConfig    `json:"oss,omitempty"`
-	Webdav   *WebdavConfig `json:"webdav,omitempty"`
-}
-
-type MinIOConfig struct {
-	Endpoint        string `json:"endpoint"`
-	AccessKeyID     string `json:"access_key_id"`
-	SecretAccessKey string `json:"secret_access_key"`
-	BucketName      string `json:"bucket_name"`
-	Location        string `json:"location"`
-	Token           string `json:"token"`
-	UseSSL          bool   `json:"use_ssl"`
-}
-
-type OSSConfig struct {
-	Endpoint        string `json:"endpoint"`
-	AccessKeyID     string `json:"access_key_id"`
-	AccessKeySecret string `json:"access_key_secret"`
-	BucketName      string `json:"bucket_name"`
-}
-
-type WebdavConfig struct {
-	ServerURL string `json:"server_url"`
-	UID       int64  `json:"uid"`
-	GID       int64  `json:"gid"`
-	User      string `json:"user"`
-	Password  string `json:"password"`
-	Insecure  bool   `json:"insecure,omitempty"`
+	CacheDir  string `json:"cache_dir,omitempty"`
+	CacheSize int    `json:"cache_size,omitempty"`
+	Debug     bool   `json:"debug,omitempty"`
 }
 
 type Api struct {
@@ -82,7 +39,14 @@ type Api struct {
 	Pprof  bool   `json:"pprof"`
 }
 
-type Fs struct {
+type Webdav struct {
+	Enable bool            `json:"enable"`
+	Host   string          `json:"host"`
+	Port   int             `json:"port"`
+	Users  []OverwriteUser `json:"users"`
+}
+
+type FUSE struct {
 	Enable       bool     `json:"enable"`
 	RootPath     string   `json:"root_path"`
 	MountOptions []string `json:"mount_options,omitempty"`
@@ -93,7 +57,9 @@ type Fs struct {
 	AttrTimeout  *int `json:"attr_timeout,omitempty"`
 }
 
-type Plugin struct {
-	BasePath     string `json:"base_path"`
-	DummyPlugins bool   `json:"dummy_plugins"`
+type OverwriteUser struct {
+	UID      int64  `json:"uid"`
+	GID      int64  `json:"gid"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 }

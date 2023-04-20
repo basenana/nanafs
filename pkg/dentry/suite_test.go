@@ -55,7 +55,7 @@ var _ = BeforeSuite(func() {
 	memMeta, err := metastore.NewMetaStorage(storage.MemoryStorage, config.Meta{})
 	Expect(err).Should(BeNil())
 	objStore = memMeta
-	entryManager, _ = NewManager(objStore, config.Config{Owner: &config.FsOwner{}, Storages: []config.Storage{{
+	entryManager, _ = NewManager(objStore, config.Config{FS: &config.FS{}, Storages: []config.Storage{{
 		ID:   storage.MemoryStorage,
 		Type: storage.MemoryStorage,
 	}}})

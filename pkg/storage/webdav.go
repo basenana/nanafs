@@ -117,7 +117,7 @@ func (w *webdavStorage) Head(ctx context.Context, key int64, idx int64) (Info, e
 	}, nil
 }
 
-func newWebdavStorage(storageID string, cfg *config.WebdavConfig) (Storage, error) {
+func newWebdavStorage(storageID string, cfg *config.WebdavStorageConfig) (Storage, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("webdav is nil")
 	}
@@ -128,7 +128,7 @@ func newWebdavStorage(storageID string, cfg *config.WebdavConfig) (Storage, erro
 	if cfg.ServerURL == "" {
 		return nil, fmt.Errorf("webdav config server_url is empty")
 	}
-	if cfg.User == "" {
+	if cfg.Username == "" {
 		return nil, fmt.Errorf("webdav config user is empty")
 	}
 	if cfg.Password == "" {
@@ -147,7 +147,7 @@ func newWebdavStorage(storageID string, cfg *config.WebdavConfig) (Storage, erro
 		t.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
-	cli := gowebdav.NewClient(cfg.ServerURL, cfg.User, cfg.Password)
+	cli := gowebdav.NewClient(cfg.ServerURL, cfg.Username, cfg.Password)
 	cli.SetTransport(t)
 
 	s := &webdavStorage{

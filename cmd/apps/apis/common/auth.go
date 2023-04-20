@@ -15,3 +15,46 @@
 */
 
 package common
+
+import (
+	"context"
+	"github.com/basenana/nanafs/config"
+	"net/http"
+)
+
+const (
+	userInfoContextKey = "ctx.user_info"
+)
+
+type UserInfo struct {
+	UID, GID int64
+}
+
+func GetUserInfo(ctx context.Context) *UserInfo {
+	rawUi := ctx.Value(userInfoContextKey)
+	if rawUi == nil {
+		return nil
+	}
+	return rawUi.(*UserInfo)
+}
+
+func BasicAuthHandler(h http.Handler, users []config.OverwriteUser) http.Handler {
+	userPassMapper := map[string]*config.OverwriteUser{}
+	for i := range users {
+		u := users[i]
+		userPassMapper[u.Username] = &u
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		username, password, ok := r.BasicAuth()
+		if !ok || userPassMapper[username] == nil || userPassMapper[username].Password != password {
+			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte("Unauthorised.\n"))
+			return
+		}
+		h.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userInfoContextKey, &UserInfo{
+			UID: userPassMapper[username].UID,
+			GID: userPassMapper[username].GID,
+		})))
+	})
+}

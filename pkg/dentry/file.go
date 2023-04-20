@@ -52,7 +52,7 @@ type file struct {
 	writer bio.Writer
 
 	attr Attr
-	cfg  *config.EntryConfig
+	cfg  *config.FS
 	mux  sync.Mutex
 }
 
@@ -124,7 +124,7 @@ func (f *file) Close(ctx context.Context) (err error) {
 	return nil
 }
 
-func openFile(en Entry, attr Attr, store metastore.ObjectStore, fileStorage storage.Storage, cfg *config.EntryConfig) (File, error) {
+func openFile(en Entry, attr Attr, store metastore.ObjectStore, fileStorage storage.Storage, cfg *config.FS) (File, error) {
 	f := &file{
 		Entry: en,
 		attr:  attr,

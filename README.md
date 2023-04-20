@@ -62,6 +62,30 @@ The generated configuration file can be found in the `~/.nana` directory:
 
 ```json
 {
+  "api": {
+    "enable": true,
+    "host": "127.0.0.1",
+    "port": 7081,
+    "pprof": false
+  },
+  "fuse": {
+    "enable": false,
+    "root_path": "/your/path/to/mount",
+    "display_name": "nanafs"
+  },
+  "webdav": {
+    "enable": false,
+    "host": "127.0.0.1",
+    "port": 7082,
+    "users": [
+      {
+        "uid": 0,
+        "gid": 0,
+        "username": "admin",
+        "password": "changeme"
+      }
+    ]
+  },
   "meta": {
     "type": "sqlite",
     "path": "/your/data/path/sqlite.db"
@@ -73,20 +97,8 @@ The generated configuration file can be found in the `~/.nana` directory:
       "local_dir": "/your/data/path/local"
     }
   ],
-  "cache_dir": "/your/data/path/local",
-  "cache_size": 10,
-  "debug": false,
-  "api": {
-    "enable": true,
-    "host": "127.0.0.1",
-    "port": 8081,
-    "pprof": false
-  },
-  "fs": {
-    "enable": false,
-    "root_path": "/your/path/to/mount",
-    "display_name": "nanafs"
-  }
+  "cache_dir": "/your/data/path/cache",
+  "cache_size": 10
 }
 ```
 

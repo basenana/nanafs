@@ -18,9 +18,10 @@ package webdav
 
 import (
 	"context"
+	"fmt"
 	"github.com/basenana/nanafs/cmd/apps/apis/common"
+	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
@@ -29,23 +30,60 @@ import (
 	"os"
 	"path"
 	"runtime/trace"
+	"time"
 )
 
 type Webdav struct {
-	mgr    *common.PathEntryManager
-	cfg    config.WebdavConfig
+	cfg     config.Webdav
+	handler http.Handler
+	logger  *zap.SugaredLogger
+}
+
+func (w *Webdav) Run(stopCh chan struct{}) {
+	addr := fmt.Sprintf("%s:%d", w.cfg.Host, w.cfg.Port)
+	w.logger.Infof("webdav server on %s", addr)
+
+	httpServer := &http.Server{
+		Addr:         addr,
+		Handler:      common.BasicAuthHandler(w.handler, w.cfg.Users),
+		ReadTimeout:  time.Hour,
+		WriteTimeout: time.Hour,
+	}
+
+	go func() {
+		if err := httpServer.ListenAndServe(); err != nil {
+			if err != http.ErrServerClosed {
+				w.logger.Panicw("webdav server down", "err", err.Error())
+			}
+			w.logger.Infof("webdav server stopped")
+		}
+	}()
+
+	<-stopCh
+	shutdownCtx, canF := context.WithTimeout(context.TODO(), time.Second)
+	defer canF()
+	_ = httpServer.Shutdown(shutdownCtx)
+}
+
+type FsOperator struct {
+	mgr    *pathmgr.PathManager
+	cfg    config.Webdav
 	logger *zap.SugaredLogger
 }
 
-func (w Webdav) Mkdir(ctx context.Context, name string, perm os.FileMode) error {
+func (o FsOperator) Mkdir(ctx context.Context, name string, perm os.FileMode) error {
 	defer trace.StartRegion(ctx, "apis.webdav.Mkdir").End()
-	_, err := w.mgr.CreateAll(ctx, name, mode2EntryAttr(perm))
+	_, err := o.mgr.CreateAll(ctx, name, mode2EntryAttr(perm))
 	return err
 }
 
-func (w Webdav) OpenFile(ctx context.Context, name string, flag int, perm os.FileMode) (webdav.File, error) {
+func (o FsOperator) OpenFile(ctx context.Context, name string, flag int, perm os.FileMode) (webdav.File, error) {
 	defer trace.StartRegion(ctx, "apis.webdav.OpenFile").End()
-	err := w.mgr.Access(ctx, name, w.cfg.UID, w.cfg.GID, perm)
+	userInfo := common.GetUserInfo(ctx)
+	if userInfo == nil {
+		return nil, types.ErrNoAccess
+	}
+	err := o.mgr.Access(ctx, name, userInfo.UID, userInfo.GID, perm)
 	if err != nil && err != types.ErrNotFound {
 		return nil, err
 	}
@@ -54,52 +92,50 @@ func (w Webdav) OpenFile(ctx context.Context, name string, flag int, perm os.Fil
 		if !openAttr.Create {
 			return nil, err
 		}
-		_, err = w.mgr.CreateAll(ctx, path.Dir(name), mode2EntryAttr(perm))
+		_, err = o.mgr.CreateAll(ctx, path.Dir(name), mode2EntryAttr(perm))
 		if err != nil {
 			return nil, err
 		}
 	}
-	en, err := w.mgr.Open(ctx, name, openAttr)
+	en, err := o.mgr.Open(ctx, name, openAttr)
 	if err != nil {
 		return nil, err
 	}
 	return openFile(en)
 }
 
-func (w Webdav) RemoveAll(ctx context.Context, name string) error {
+func (o FsOperator) RemoveAll(ctx context.Context, name string) error {
 	defer trace.StartRegion(ctx, "apis.webdav.RemoveAll").End()
-	return w.mgr.RemoveAll(ctx, name)
+	return o.mgr.RemoveAll(ctx, name, false)
 }
 
-func (w Webdav) Rename(ctx context.Context, oldName, newName string) error {
+func (o FsOperator) Rename(ctx context.Context, oldName, newName string) error {
 	defer trace.StartRegion(ctx, "apis.webdav.Rename").End()
-	return w.mgr.Rename(ctx, oldName, newName)
+	return o.mgr.Rename(ctx, oldName, newName)
 }
 
-func (w Webdav) Stat(ctx context.Context, name string) (os.FileInfo, error) {
+func (o FsOperator) Stat(ctx context.Context, name string) (os.FileInfo, error) {
 	defer trace.StartRegion(ctx, "apis.webdav.Stat").End()
-	en, err := w.mgr.Open(ctx, name, dentry.Attr{})
+	en, err := o.mgr.FindEntry(ctx, name)
 	if err != nil {
 		return nil, err
 	}
-	f, err := openFile(en)
-	if err != nil {
-		return nil, err
-	}
-	return f.Stat()
+	return Stat(en.Metadata()), nil
 }
 
-func NewHandler(cfg config.WebdavConfig, mgr *common.PathEntryManager) http.Handler {
-	w := Webdav{
-		mgr:    mgr,
-		cfg:    cfg,
-		logger: logger.NewLogger("webdav"),
+func NewWebdavServer(mgr *pathmgr.PathManager, cfg config.Webdav) (*Webdav, error) {
+	if cfg.Port == 0 {
+		return nil, fmt.Errorf("http port not set")
+	}
+	if cfg.Host == "" {
+		cfg.Host = "127.0.0.1"
 	}
 
+	w := FsOperator{mgr: mgr, cfg: cfg, logger: logger.NewLogger("webdav")}
 	handler := &webdav.Handler{
 		FileSystem: w,
 		LockSystem: webdav.NewMemLS(), // TODO:need flock
-		Logger:     initLogger().handle,
+		Logger:     initLogger(w.logger).handle,
 	}
-	return handler
+	return &Webdav{cfg: cfg, handler: handler, logger: w.logger}, nil
 }

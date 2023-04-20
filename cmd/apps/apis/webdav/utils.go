@@ -19,7 +19,6 @@ package webdav
 import (
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"net/http"
 	"os"
@@ -38,8 +37,8 @@ func (l *log) handle(req *http.Request, err error) {
 	l.logger.Infow(req.URL.Path, "method", req.Method)
 }
 
-func initLogger() *log {
-	return &log{logger: logger.NewLogger("webdav")}
+func initLogger(l *zap.SugaredLogger) *log {
+	return &log{logger: l}
 }
 
 func Stat(md *types.Metadata) Info {
