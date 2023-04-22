@@ -17,9 +17,9 @@
 package storage
 
 import (
-	"bytes"
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
@@ -27,10 +27,15 @@ import (
 	"io"
 	"os"
 	"path"
+	"runtime/trace"
+	"strconv"
+	"strings"
+	"sync"
 )
 
 const (
-	LocalStorage         = "local"
+	LocalStorage         = config.LocalStorage
+	MemoryStorage        = config.MemoryStorage
 	defaultLocalDirMode  = 0755
 	defaultLocalFileMode = 0644
 )
@@ -47,36 +52,33 @@ func (l *local) ID() string {
 	return l.sid
 }
 
-func (l *local) Get(ctx context.Context, key int64, idx, offset int64, dest []byte) (int64, error) {
-	defer utils.TraceRegion(ctx, "local.get")()
+func (l *local) Get(ctx context.Context, key, idx int64) (io.ReadCloser, error) {
+	defer trace.StartRegion(ctx, "storage.local.Get").End()
 	file, err := l.openLocalFile(l.key2LocalPath(key, idx), os.O_RDWR)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	count, err := file.ReadAt(dest, offset)
-	return int64(count), err
+	return file, nil
 }
 
-func (l *local) Put(ctx context.Context, key int64, idx, offset int64, data []byte) error {
-	defer utils.TraceRegion(ctx, "local.put")()
+func (l *local) Put(ctx context.Context, key, idx int64, dataReader io.Reader) error {
+	defer trace.StartRegion(ctx, "storage.local.Put").End()
 	file, err := l.openLocalFile(l.key2LocalPath(key, idx), os.O_CREATE|os.O_RDWR)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	_, err = file.Seek(offset, io.SeekStart)
+	_, err = io.Copy(file, dataReader)
 	if err != nil {
-		l.logger.Errorw("seek file failed", "key", key, "offset", offset, "err", err.Error())
-		_ = file.Close()
+		l.logger.Errorw("copy file failed", "key", key, "err", err.Error())
 		return err
 	}
-	_, err = io.Copy(file, bytes.NewBuffer(data))
 	return err
 }
 
 func (l *local) Delete(ctx context.Context, key int64) error {
-	defer utils.TraceRegion(ctx, "local.delete")()
+	defer trace.StartRegion(ctx, "storage.local.Delete").End()
 	p := path.Join(l.dir, fmt.Sprintf("%d", key))
 	_, err := os.Stat(p)
 	if err != nil && !os.IsNotExist(err) {
@@ -88,7 +90,7 @@ func (l *local) Delete(ctx context.Context, key int64) error {
 }
 
 func (l *local) Head(ctx context.Context, key int64, idx int64) (Info, error) {
-	defer utils.TraceRegion(ctx, "local.head")()
+	defer trace.StartRegion(ctx, "storage.local.Head").End()
 	info, err := os.Stat(l.key2LocalPath(key, idx))
 	if err != nil && !os.IsNotExist(err) {
 		return Info{}, err
@@ -144,4 +146,118 @@ func newLocalStorage(sid, dir string) (Storage, error) {
 		dir:    dir,
 		logger: logger.NewLogger("localStorage"),
 	}, nil
+}
+
+type memoryStorage struct {
+	storageID string
+	storage   map[string]memChunkData
+	mux       sync.Mutex
+}
+
+func (m *memoryStorage) ID() string {
+	return m.storageID
+}
+
+func (m *memoryStorage) Get(ctx context.Context, key, idx int64) (io.ReadCloser, error) {
+	defer trace.StartRegion(ctx, "storage.memory.Get").End()
+	ck, err := m.getChunk(ctx, m.chunkKey(key, idx))
+	if err != nil {
+		return nil, err
+	}
+	ck.vernier = 0
+	return ck, nil
+}
+
+func (m *memoryStorage) Put(ctx context.Context, key, idx int64, dataReader io.Reader) error {
+	defer trace.StartRegion(ctx, "storage.memory.Put").End()
+	cKey := m.chunkKey(key, idx)
+	ck, err := m.getChunk(ctx, m.chunkKey(key, idx))
+	if err != nil {
+		ck = &memChunkData{data: make([]byte, cacheNodeSize*1.5)}
+	}
+
+	if _, err = io.Copy(ck, dataReader); err != nil {
+		return err
+	}
+	return m.saveChunk(ctx, cKey, *ck)
+}
+
+func (m *memoryStorage) Delete(ctx context.Context, key int64) error {
+	defer trace.StartRegion(ctx, "storage.memory.Delete").End()
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	for k := range m.storage {
+		if strings.HasPrefix(k, strconv.FormatInt(key, 10)) {
+			delete(m.storage, k)
+		}
+	}
+	return nil
+}
+
+func (m *memoryStorage) Head(ctx context.Context, key int64, idx int64) (Info, error) {
+	defer trace.StartRegion(ctx, "storage.memory.Head").End()
+	result := Info{Key: strconv.FormatInt(key, 10)}
+	ck, err := m.getChunk(ctx, m.chunkKey(key, idx))
+	if err != nil {
+		return result, err
+	}
+
+	result.Size = int64(len(ck.data))
+	return result, nil
+}
+
+func (m *memoryStorage) chunkKey(key int64, idx int64) string {
+	return fmt.Sprintf("%d_%d", key, idx)
+}
+
+func (m *memoryStorage) getChunk(ctx context.Context, key string) (*memChunkData, error) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	chunk, ok := m.storage[key]
+	if !ok {
+		return nil, types.ErrNotFound
+	}
+	return &chunk, nil
+}
+
+func (m *memoryStorage) saveChunk(ctx context.Context, key string, chunk memChunkData) error {
+	m.mux.Lock()
+	m.storage[key] = chunk
+	m.mux.Unlock()
+	return nil
+}
+
+func newMemoryStorage(storageID string) Storage {
+	return &memoryStorage{
+		storageID: storageID,
+		storage:   map[string]memChunkData{},
+	}
+}
+
+type memChunkData struct {
+	vernier int
+	data    []byte
+}
+
+func (c *memChunkData) Write(p []byte) (n int, err error) {
+	if c.vernier == len(c.data) {
+		return 0, io.ErrShortBuffer
+	}
+
+	n = copy(c.data[c.vernier:], p)
+	c.vernier += n
+	return n, nil
+}
+
+func (c *memChunkData) Read(p []byte) (n int, err error) {
+	n = copy(p, c.data[c.vernier:])
+	c.vernier += n
+	if c.vernier == len(c.data) {
+		return n, io.EOF
+	}
+	return n, nil
+}
+
+func (c *memChunkData) Close() error {
+	return nil
 }

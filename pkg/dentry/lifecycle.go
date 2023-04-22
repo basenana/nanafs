@@ -19,10 +19,15 @@ package dentry
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/bio"
-	"github.com/basenana/nanafs/pkg/storage"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/hyponet/eventbus/bus"
 	"go.uber.org/zap"
+	"sync"
+)
+
+var (
+	entryLifecycleLock sync.RWMutex
 )
 
 type lifecycle struct {
@@ -68,13 +73,14 @@ func (l *lifecycle) cleanChunks(en Entry) {
 		return
 	}
 
-	cs, ok := l.mgr.store.(storage.ChunkStore)
+	cs, ok := l.mgr.store.(metastore.ChunkStore)
 	if !ok {
 		return
 	}
 
+	l.logger.Infow("[cleanChunks] delete chunk data", "entry", en.Metadata().ID)
 	err := bio.DeleteChunksData(context.TODO(), md, cs, s)
 	if err != nil {
-		l.logger.Errorw("[cleanChunks] delete chunk data failed", "err", err)
+		l.logger.Errorw("[cleanChunks] delete chunk data failed", "entry", en.Metadata().ID, "err", err)
 	}
 }

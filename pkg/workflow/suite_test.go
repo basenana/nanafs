@@ -19,6 +19,7 @@ package workflow
 import (
 	"context"
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin/common"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
@@ -45,7 +46,7 @@ func TestWorkflow(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	memMeta, err := storage.NewMetaStorage(storage.MemoryStorage, config.Meta{})
+	memMeta, err := metastore.NewMetaStorage(storage.MemoryStorage, config.Meta{})
 	Expect(err).Should(BeNil())
 	mgr, err = NewManager(memMeta.PluginRecorder(types.PlugScope{}))
 	Expect(err).Should(BeNil())

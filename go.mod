@@ -3,6 +3,7 @@ module github.com/basenana/nanafs
 go 1.18
 
 require (
+	github.com/aliyun/aliyun-oss-go-sdk v2.2.7+incompatible
 	github.com/basenana/go-flow v0.0.0-20220322140457-971dcb315a41
 	github.com/bluele/gcache v0.0.2
 	github.com/glebarez/sqlite v1.7.0
@@ -10,9 +11,10 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/hanwen/go-fuse/v2 v2.2.0
 	github.com/hyponet/eventbus v1.0.0
-	github.com/jackc/pgx/v4 v4.16.1
+	github.com/minio/minio-go/v7 v7.0.52
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.27.2
+	github.com/studio-b12/gowebdav v0.0.0-20230203202212-3282f94193f2
 	go.uber.org/zap v1.24.0
 	golang.org/x/sys v0.5.0
 	gorm.io/driver/postgres v1.3.7
@@ -36,19 +38,27 @@ require (
 	github.com/jackc/pgproto3/v2 v2.3.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
 	github.com/jackc/pgtype v1.11.0 // indirect
+	github.com/jackc/pgx/v4 v4.16.1 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/klauspost/compress v1.16.0 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
+	github.com/minio/md5-simd v1.1.2 // indirect
+	github.com/minio/sha256-simd v1.0.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/nxadm/tail v1.4.8 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230126093431-47fa9a501578 // indirect
+	github.com/rs/xid v1.4.0 // indirect
+	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	golang.org/x/net v0.7.0 // indirect
 	golang.org/x/text v0.7.0 // indirect
+	golang.org/x/time v0.3.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
+	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/libc v1.22.2 // indirect

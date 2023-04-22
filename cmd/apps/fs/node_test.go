@@ -37,7 +37,7 @@ var _ = Describe("TestAccess", func() {
 
 	acc := types.Access{}
 	dentry.UpdateAccessWithMode(&acc, 0655)
-	dentry.UpdateAccessWithOwnID(&acc, cfg.Owner.Uid, cfg.Owner.Gid)
+	dentry.UpdateAccessWithOwnID(&acc, cfg.FS.OwnerUid, cfg.FS.OwnerGid)
 
 	BeforeEach(func() {
 		var err error
@@ -82,7 +82,7 @@ var _ = Describe("TestGetattr", func() {
 
 	acc := types.Access{}
 	dentry.UpdateAccessWithMode(&acc, 0655)
-	dentry.UpdateAccessWithOwnID(&acc, cfg.Owner.Uid, cfg.Owner.Gid)
+	dentry.UpdateAccessWithOwnID(&acc, cfg.FS.OwnerUid, cfg.FS.OwnerGid)
 
 	BeforeEach(func() {
 		var err error
@@ -123,7 +123,7 @@ var _ = Describe("TestOpen", func() {
 
 	acc := types.Access{}
 	dentry.UpdateAccessWithMode(&acc, 0655)
-	dentry.UpdateAccessWithOwnID(&acc, cfg.Owner.Uid, cfg.Owner.Gid)
+	dentry.UpdateAccessWithOwnID(&acc, cfg.FS.OwnerUid, cfg.FS.OwnerGid)
 
 	BeforeEach(func() {
 		var err error
@@ -216,7 +216,7 @@ var _ = Describe("TestLookup", func() {
 
 	acc := types.Access{}
 	dentry.UpdateAccessWithMode(&acc, 0655)
-	dentry.UpdateAccessWithOwnID(&acc, cfg.Owner.Uid, cfg.Owner.Gid)
+	dentry.UpdateAccessWithOwnID(&acc, cfg.FS.OwnerUid, cfg.FS.OwnerGid)
 
 	BeforeEach(func() {
 		var err error
@@ -266,7 +266,7 @@ var _ = Describe("TestOpendir", func() {
 
 	acc := types.Access{}
 	dentry.UpdateAccessWithMode(&acc, 0655)
-	dentry.UpdateAccessWithOwnID(&acc, cfg.Owner.Uid, cfg.Owner.Gid)
+	dentry.UpdateAccessWithOwnID(&acc, cfg.FS.OwnerUid, cfg.FS.OwnerGid)
 
 	BeforeEach(func() {
 		var err error
@@ -325,7 +325,7 @@ var _ = Describe("TestReaddir", func() {
 
 	acc := types.Access{}
 	dentry.UpdateAccessWithMode(&acc, 0655)
-	dentry.UpdateAccessWithOwnID(&acc, cfg.Owner.Uid, cfg.Owner.Gid)
+	dentry.UpdateAccessWithOwnID(&acc, cfg.FS.OwnerUid, cfg.FS.OwnerGid)
 
 	BeforeEach(func() {
 		var err error
@@ -457,7 +457,7 @@ var _ = Describe("TestLink", func() {
 
 	acc := types.Access{}
 	dentry.UpdateAccessWithMode(&acc, 0655)
-	dentry.UpdateAccessWithOwnID(&acc, cfg.Owner.Uid, cfg.Owner.Gid)
+	dentry.UpdateAccessWithOwnID(&acc, cfg.FS.OwnerUid, cfg.FS.OwnerGid)
 
 	BeforeEach(func() {
 		var err error
@@ -501,7 +501,7 @@ var _ = Describe("TestRmdir", func() {
 
 	acc := types.Access{}
 	dentry.UpdateAccessWithMode(&acc, 0655)
-	dentry.UpdateAccessWithOwnID(&acc, cfg.Owner.Uid, cfg.Owner.Gid)
+	dentry.UpdateAccessWithOwnID(&acc, cfg.FS.OwnerUid, cfg.FS.OwnerGid)
 
 	BeforeEach(func() {
 		var err error
@@ -554,7 +554,7 @@ var _ = Describe("TestRename", func() {
 
 	acc := types.Access{}
 	dentry.UpdateAccessWithMode(&acc, 0655)
-	dentry.UpdateAccessWithOwnID(&acc, cfg.Owner.Uid, cfg.Owner.Gid)
+	dentry.UpdateAccessWithOwnID(&acc, cfg.FS.OwnerUid, cfg.FS.OwnerGid)
 
 	BeforeEach(func() {
 		var err error

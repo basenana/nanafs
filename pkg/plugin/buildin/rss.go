@@ -18,8 +18,8 @@ package buildin
 
 import (
 	"context"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin/common"
-	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"go.uber.org/zap"
 )
@@ -35,7 +35,7 @@ type rssSource struct {
 }
 
 type RssSourcePlugin struct {
-	meta   storage.Meta
+	meta   metastore.Meta
 	logger *zap.SugaredLogger
 }
 

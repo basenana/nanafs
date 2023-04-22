@@ -19,7 +19,7 @@ package workflow
 import (
 	"context"
 	"github.com/basenana/go-flow/flow"
-	"github.com/basenana/nanafs/pkg/storage"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
@@ -44,14 +44,14 @@ type Manager interface {
 }
 
 type manager struct {
-	recorder storage.PluginRecorder
+	recorder metastore.PluginRecorder
 	runner   *Runner
 	logger   *zap.SugaredLogger
 }
 
 var _ Manager = &manager{}
 
-func NewManager(recorder storage.PluginRecorder) (Manager, error) {
+func NewManager(recorder metastore.PluginRecorder) (Manager, error) {
 	runner, err := InitWorkflowRunner(recorder)
 	if err != nil {
 		return nil, err

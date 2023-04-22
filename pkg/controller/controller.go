@@ -21,12 +21,12 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/storage"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/hyponet/eventbus/bus"
 	"go.uber.org/zap"
+	"runtime/trace"
 )
 
 const (
@@ -54,7 +54,7 @@ type Controller interface {
 }
 
 type controller struct {
-	meta      storage.Meta
+	meta      metastore.Meta
 	cfg       config.Config
 	cfgLoader config.Loader
 
@@ -67,7 +67,7 @@ type controller struct {
 var _ Controller = &controller{}
 
 func (c *controller) LoadRootEntry(ctx context.Context) (dentry.Entry, error) {
-	defer utils.TraceRegion(ctx, "controller.loadroot")()
+	defer trace.StartRegion(ctx, "controller.LoadRootEntry").End()
 	c.logger.Info("init root object")
 	rootEntry, err := c.entry.Root(ctx)
 	if err != nil {
@@ -79,7 +79,7 @@ func (c *controller) LoadRootEntry(ctx context.Context) (dentry.Entry, error) {
 }
 
 func (c *controller) FindEntry(ctx context.Context, parent dentry.Entry, name string) (dentry.Entry, error) {
-	defer utils.TraceRegion(ctx, "controller.findobject")()
+	defer trace.StartRegion(ctx, "controller.FindEntry").End()
 	if len(name) > entryNameMaxLength {
 		return nil, types.ErrNameTooLong
 	}
@@ -97,6 +97,7 @@ func (c *controller) FindEntry(ctx context.Context, parent dentry.Entry, name st
 }
 
 func (c *controller) GetEntry(ctx context.Context, id int64) (dentry.Entry, error) {
+	defer trace.StartRegion(ctx, "controller.GetEntry").End()
 	cached := c.cache.getEntry(id)
 	if cached != nil {
 		return cached, nil
@@ -113,10 +114,15 @@ func (c *controller) GetEntry(ctx context.Context, id int64) (dentry.Entry, erro
 }
 
 func (c *controller) CreateEntry(ctx context.Context, parent dentry.Entry, attr types.ObjectAttr) (dentry.Entry, error) {
-	defer utils.TraceRegion(ctx, "controller.createobject")()
+	defer trace.StartRegion(ctx, "controller.CreateEntry").End()
 
 	if len(attr.Name) > entryNameMaxLength {
 		return nil, types.ErrNameTooLong
+	}
+
+	if parent == nil {
+		c.logger.Errorw("create entry failed, parent is nil", "entryName", attr.Name)
+		return nil, types.ErrNotFound
 	}
 
 	entry, err := c.entry.CreateEntry(ctx, parent, dentry.EntryAttr{
@@ -135,8 +141,7 @@ func (c *controller) CreateEntry(ctx context.Context, parent dentry.Entry, attr 
 }
 
 func (c *controller) SaveEntry(ctx context.Context, parent, entry dentry.Entry) error {
-	defer utils.TraceRegion(ctx, "controller.saveobject")()
-
+	defer trace.StartRegion(ctx, "controller.SaveEntry").End()
 	var err error
 	if parent == nil {
 		parent, err = c.GetEntry(ctx, entry.Metadata().ParentID)
@@ -153,14 +158,14 @@ func (c *controller) SaveEntry(ctx context.Context, parent, entry dentry.Entry) 
 		c.logger.Errorw("save entry error", "entry", entry.Metadata().ID, "err", err.Error())
 		return err
 	}
+	c.cache.putEntry(parent)
 	c.cache.putEntry(entry)
 	bus.Publish(fmt.Sprintf("object.entry.%d.update", entry.Metadata().ID), entry)
 	return nil
 }
 
 func (c *controller) DestroyEntry(ctx context.Context, parent, en dentry.Entry, attr types.DestroyObjectAttr) (err error) {
-	defer utils.TraceRegion(ctx, "controller.destroyobject")()
-
+	defer trace.StartRegion(ctx, "controller.DestroyEntry").End()
 	if err = dentry.IsAccess(parent.Metadata().Access, attr.Uid, attr.Gid, 0x2); err != nil {
 		return types.ErrNoAccess
 	}
@@ -174,6 +179,10 @@ func (c *controller) DestroyEntry(ctx context.Context, parent, en dentry.Entry, 
 		c.logger.Errorw("delete entry failed", "entry", en.Metadata().ID, "err", err.Error())
 		return err
 	}
+	if en.IsMirror() {
+		c.cache.delEntry(en.Metadata().RefID)
+	}
+	c.cache.putEntry(parent)
 	c.cache.delEntry(en.Metadata().ID)
 	if destroyed {
 		bus.Publish(fmt.Sprintf("object.entry.%d.destroy", en.Metadata().ID), en)
@@ -182,8 +191,7 @@ func (c *controller) DestroyEntry(ctx context.Context, parent, en dentry.Entry, 
 }
 
 func (c *controller) MirrorEntry(ctx context.Context, src, dstParent dentry.Entry, attr types.ObjectAttr) (dentry.Entry, error) {
-	defer utils.TraceRegion(ctx, "controller.mirrorobject")()
-
+	defer trace.StartRegion(ctx, "controller.MirrorEntry").End()
 	if len(attr.Name) > entryNameMaxLength {
 		return nil, types.ErrNameTooLong
 	}
@@ -205,6 +213,7 @@ func (c *controller) MirrorEntry(ctx context.Context, src, dstParent dentry.Entr
 	})
 
 	c.cache.delEntry(src.Metadata().ID)
+	c.cache.delEntry(entry.Metadata().RefID)
 	c.cache.delEntry(dstParent.Metadata().ID)
 
 	bus.Publish(fmt.Sprintf("object.entry.%d.mirror", entry.Metadata().ID), entry)
@@ -212,7 +221,7 @@ func (c *controller) MirrorEntry(ctx context.Context, src, dstParent dentry.Entr
 }
 
 func (c *controller) ListEntryChildren(ctx context.Context, parent dentry.Entry) ([]dentry.Entry, error) {
-	defer utils.TraceRegion(ctx, "controller.listchildren")()
+	defer trace.StartRegion(ctx, "controller.ListEntryChildren").End()
 	if !parent.IsGroup() {
 		return nil, types.ErrNoGroup
 	}
@@ -225,8 +234,7 @@ func (c *controller) ListEntryChildren(ctx context.Context, parent dentry.Entry)
 }
 
 func (c *controller) ChangeEntryParent(ctx context.Context, target, oldParent, newParent dentry.Entry, newName string, opt types.ChangeParentAttr) (err error) {
-	defer utils.TraceRegion(ctx, "controller.changeparent")()
-
+	defer trace.StartRegion(ctx, "controller.ChangeEntryParent").End()
 	if len(newName) > entryNameMaxLength {
 		return types.ErrNameTooLong
 	}
@@ -265,14 +273,17 @@ func (c *controller) ChangeEntryParent(ctx context.Context, target, oldParent, n
 		c.logger.Errorw("change object parent failed", "target", target.Metadata().ID, "newParent", newParent.Metadata().ID, "newName", newName, "err", err.Error())
 		return err
 	}
-	c.cache.delEntry(target.Metadata().ID)
-	c.cache.delEntry(oldParent.Metadata().ID)
-	c.cache.delEntry(newParent.Metadata().ID)
+	if existObj != nil {
+		c.cache.delEntry(existObj.Metadata().ID)
+	}
+	c.cache.putEntry(target)
+	c.cache.putEntry(oldParent)
+	c.cache.putEntry(newParent)
 	bus.Publish(fmt.Sprintf("object.entry.%d.mv", target.Metadata().ID), target)
 	return nil
 }
 
-func New(loader config.Loader, meta storage.Meta) (Controller, error) {
+func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 	cfg, _ := loader.GetConfig()
 
 	ctl := &controller{

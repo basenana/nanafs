@@ -17,28 +17,19 @@
 package config
 
 type Config struct {
-	Meta      Meta      `json:"meta"`
-	Storages  []Storage `json:"storages"`
-	Owner     *FsOwner  `json:"owner,omitempty"`
-	Plugin    Plugin    `json:"plugin"`
-	CacheDir  string    `json:"cache_dir,omitempty"`
-	CacheSize int       `json:"cache_size,omitempty"`
-	Debug     bool      `json:"debug"`
+	Api    Api     `json:"api"`
+	FUSE   FUSE    `json:"fuse"`
+	Webdav *Webdav `json:"webdav,omitempty"`
 
-	ApiConfig Api `json:"api"`
-	FsConfig  Fs  `json:"fs"`
-}
+	FS     *FS     `json:"fs,omitempty"`
+	Plugin *Plugin `json:"plugin,omitempty"`
 
-type Meta struct {
-	Type string `json:"type"`
-	Path string `json:"path,omitempty"`
-	DSN  string `json:"dsn,omitempty"`
-}
+	Meta     Meta      `json:"meta"`
+	Storages []Storage `json:"storages"`
 
-type Storage struct {
-	ID       string `json:"id"`
-	Type     string `json:"type"`
-	LocalDir string `json:"local_dir,omitempty"`
+	CacheDir  string `json:"cache_dir,omitempty"`
+	CacheSize int    `json:"cache_size,omitempty"`
+	Debug     bool   `json:"debug,omitempty"`
 }
 
 type Api struct {
@@ -48,7 +39,14 @@ type Api struct {
 	Pprof  bool   `json:"pprof"`
 }
 
-type Fs struct {
+type Webdav struct {
+	Enable         bool            `json:"enable"`
+	Host           string          `json:"host"`
+	Port           int             `json:"port"`
+	OverwriteUsers []OverwriteUser `json:"overwrite_users"`
+}
+
+type FUSE struct {
 	Enable       bool     `json:"enable"`
 	RootPath     string   `json:"root_path"`
 	MountOptions []string `json:"mount_options,omitempty"`
@@ -59,7 +57,9 @@ type Fs struct {
 	AttrTimeout  *int `json:"attr_timeout,omitempty"`
 }
 
-type Plugin struct {
-	BasePath     string `json:"base_path"`
-	DummyPlugins bool   `json:"dummy_plugins"`
+type OverwriteUser struct {
+	UID      int64  `json:"uid"`
+	GID      int64  `json:"gid"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 }

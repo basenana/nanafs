@@ -34,7 +34,6 @@ const (
 )
 
 type Access struct {
-	ID          int64        `json:"id"`
 	Permissions []Permission `json:"permissions,omitempty"`
 	UID         int64        `json:"uid"`
 	GID         int64        `json:"gid"`

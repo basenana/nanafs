@@ -23,7 +23,7 @@ import (
 )
 
 type entryCache struct {
-	lfu *utils.LFUCache
+	lfu *utils.LFUPool
 }
 
 func (c *entryCache) putEntry(entry dentry.Entry) {
@@ -47,5 +47,5 @@ func (c *entryCache) entryKey(eid int64) string {
 }
 
 func initEntryCache() *entryCache {
-	return &entryCache{lfu: utils.NewLFUCache(100)}
+	return &entryCache{lfu: utils.NewLFUPool(1024)}
 }

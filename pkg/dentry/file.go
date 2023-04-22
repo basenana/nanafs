@@ -19,11 +19,16 @@ package dentry
 import (
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/bio"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"go.uber.org/zap"
+	"io"
+	"runtime/trace"
 	"sync"
+	"time"
 )
 
 var (
@@ -48,6 +53,7 @@ type file struct {
 	writer bio.Writer
 
 	attr Attr
+	cfg  *config.FS
 	mux  sync.Mutex
 }
 
@@ -58,6 +64,7 @@ func (f *file) GetAttr() Attr {
 }
 
 func (f *file) WriteAt(ctx context.Context, data []byte, off int64) (int64, error) {
+	defer trace.StartRegion(ctx, "dentry.file.WriteAt").End()
 	if !f.attr.Write || f.writer == nil {
 		return 0, types.ErrUnsupported
 	}
@@ -65,10 +72,16 @@ func (f *file) WriteAt(ctx context.Context, data []byte, off int64) (int64, erro
 	if err != nil {
 		fileEntryLogger.Errorw("write file error", "entry", f.Entry.Metadata().ID, "off", off, "err", err)
 	}
+	meta := f.Metadata()
+	meta.ModifiedAt = time.Now()
+	if meta.Size < off+n {
+		meta.Size = off + n
+	}
 	return n, err
 }
 
 func (f *file) Flush(ctx context.Context) error {
+	defer trace.StartRegion(ctx, "dentry.file.Flush").End()
 	if !f.attr.Write {
 		return types.ErrUnsupported
 	}
@@ -80,6 +93,7 @@ func (f *file) Flush(ctx context.Context) error {
 }
 
 func (f *file) Fsync(ctx context.Context) error {
+	defer trace.StartRegion(ctx, "dentry.file.Fsync").End()
 	if !f.attr.Write {
 		return types.ErrUnsupported
 	}
@@ -91,35 +105,41 @@ func (f *file) Fsync(ctx context.Context) error {
 }
 
 func (f *file) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error) {
+	defer trace.StartRegion(ctx, "dentry.file.ReadAt").End()
 	if !f.attr.Read || f.reader == nil {
 		return 0, types.ErrUnsupported
 	}
 	n, err := f.reader.ReadAt(ctx, dest, off)
-	if err != nil {
+	if err != nil && err != io.EOF {
 		fileEntryLogger.Errorw("read file error", "entry", f.Entry.Metadata().ID, "off", off, "err", err)
 	}
 	return n, err
 }
 
 func (f *file) Close(ctx context.Context) (err error) {
+	defer trace.StartRegion(ctx, "dentry.file.Close").End()
 	defer decreaseOpenedFile(f.Metadata().ID)
 	defer f.reader.Close()
 	if f.attr.Write {
 		defer f.writer.Close()
-		return f.writer.Flush(ctx)
+		if f.cfg.Writeback {
+			return f.writer.Flush(ctx)
+		}
+		return f.writer.Fsync(ctx)
 	}
 	return nil
 }
 
-func openFile(en Entry, attr Attr, store storage.ObjectStore, fileStorage storage.Storage) (File, error) {
+func openFile(en Entry, attr Attr, store metastore.ObjectStore, fileStorage storage.Storage, cfg *config.FS) (File, error) {
 	f := &file{
 		Entry: en,
 		attr:  attr,
+		cfg:   cfg,
 	}
 	if fileStorage == nil {
 		return nil, fmt.Errorf("storage %s not found", en.Metadata().Storage)
 	}
-	f.reader = bio.NewChunkReader(en.Metadata(), store.(storage.ChunkStore), fileStorage)
+	f.reader = bio.NewChunkReader(en.Metadata(), store.(metastore.ChunkStore), fileStorage)
 	if attr.Write {
 		f.writer = bio.NewChunkWriter(f.reader)
 	}
@@ -142,6 +162,7 @@ func (s *symlink) GetAttr() Attr {
 }
 
 func (s *symlink) WriteAt(ctx context.Context, data []byte, offset int64) (n int64, err error) {
+	defer trace.StartRegion(ctx, "dentry.symlink.WriteAt").End()
 	size := offset + int64(len(data))
 
 	if size > int64(len(s.data)) {
@@ -157,6 +178,7 @@ func (s *symlink) WriteAt(ctx context.Context, data []byte, offset int64) (n int
 }
 
 func (s *symlink) ReadAt(ctx context.Context, data []byte, offset int64) (int64, error) {
+	defer trace.StartRegion(ctx, "dentry.symlink.ReadAt").End()
 	n := copy(data, s.data[offset:])
 	return int64(n), nil
 }
@@ -166,6 +188,7 @@ func (s *symlink) Fsync(ctx context.Context) error {
 }
 
 func (s *symlink) Flush(ctx context.Context) (err error) {
+	defer trace.StartRegion(ctx, "dentry.symlink.Flush").End()
 	deviceInfo := s.data
 	eData, err := s.GetExtendData(ctx)
 	if err != nil {
@@ -176,6 +199,7 @@ func (s *symlink) Flush(ctx context.Context) (err error) {
 }
 
 func (s *symlink) Close(ctx context.Context) (err error) {
+	defer trace.StartRegion(ctx, "dentry.symlink.Close").End()
 	defer decreaseOpenedFile(s.Metadata().ID)
 	return s.Flush(ctx)
 }

@@ -17,30 +17,88 @@
 package storage
 
 import (
-	"github.com/basenana/nanafs/pkg/types"
-	"sync"
+	"compress/gzip"
+	"context"
+	"io"
+	"runtime/trace"
 )
 
-type Iterator interface {
-	HasNext() bool
-	Next() *types.Object
+type nodeUsingInfo struct {
+	filename string
+	node     CacheNode
+	index    int
+	updateAt int64
 }
 
-type iterator struct {
-	objects []*types.Object
-	mux     sync.Mutex
+type priorityNodeQueue []*nodeUsingInfo
+
+func (pq *priorityNodeQueue) Len() int {
+	return len(*pq)
 }
 
-func (i *iterator) HasNext() bool {
-	i.mux.Lock()
-	defer i.mux.Unlock()
-	return len(i.objects) > 0
+func (pq *priorityNodeQueue) Less(i, j int) bool {
+	if (*pq)[i].node.freq() == (*pq)[j].node.freq() {
+		return (*pq)[i].updateAt < (*pq)[j].updateAt
+	}
+	return (*pq)[i].node.freq() < (*pq)[j].node.freq()
 }
 
-func (i *iterator) Next() *types.Object {
-	i.mux.Lock()
-	defer i.mux.Unlock()
-	obj := i.objects[0]
-	i.objects = i.objects[1:]
-	return obj
+func (pq *priorityNodeQueue) Swap(i, j int) {
+	(*pq)[i], (*pq)[j] = (*pq)[j], (*pq)[i]
+	(*pq)[i].index = i
+	(*pq)[j].index = j
+}
+
+func (pq *priorityNodeQueue) Push(x interface{}) {
+	n := len(*pq)
+	item := x.(*nodeUsingInfo)
+	item.index = n
+	*pq = append(*pq, item)
+}
+
+func (pq *priorityNodeQueue) Pop() interface{} {
+	old := *pq
+	n := len(old)
+	item := old[n-1]
+	item.index = -1
+	*pq = old[0 : n-1]
+	return item
+}
+
+func compress(ctx context.Context, in io.Reader, out io.Writer) error {
+	defer trace.StartRegion(ctx, "storage.localCache.compress").End()
+	gz := gzip.NewWriter(out)
+	if _, err := io.Copy(gz, in); err != nil {
+		_ = gz.Close()
+		return err
+	}
+
+	if err := gz.Close(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func decompress(ctx context.Context, in io.Reader, out io.Writer) error {
+	defer trace.StartRegion(ctx, "storage.localCache.decompress").End()
+	gz, err := gzip.NewReader(in)
+	if err != nil {
+		return err
+	}
+
+	if _, err = io.Copy(out, gz); err != nil {
+		_ = gz.Close()
+		return err
+	}
+
+	return gz.Close()
+}
+
+func reverseString(s string) string {
+	r := []rune(s)
+	for i, j := 0, len(r)-1; i < j; i, j = i+1, j-1 {
+		r[i], r[j] = r[j], r[i]
+	}
+	return string(r)
 }

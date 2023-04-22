@@ -16,23 +16,159 @@
 
 package config
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+)
 
 type verifier func(config *Config) error
 
 var verifiers = []verifier{
 	setDefaultValue,
-	verifyLocalCache,
+	checkApiConfig,
+	checkFuseConfig,
+	checkWebdavConfig,
+	checkMetaConfig,
+	checkStorageConfigs,
+	checkLocalCache,
 }
 
 func setDefaultValue(config *Config) error {
-	if config.Owner == nil {
-		config.Owner = defaultOwner()
+	if config.FS == nil {
+		config.FS = defaultFsConfig()
 	}
 	return nil
 }
 
-func verifyLocalCache(config *Config) error {
+func checkApiConfig(config *Config) error {
+	aCfg := config.Api
+	if !aCfg.Enable {
+		return nil
+	}
+	if aCfg.Host == "" || aCfg.Port == 0 {
+		return fmt.Errorf("api.host or api.port not config")
+	}
+	return nil
+}
+
+func checkFuseConfig(config *Config) error {
+	fCfg := config.FUSE
+	if !fCfg.Enable {
+		return nil
+	}
+	_, err := os.Stat(fCfg.RootPath)
+	if err != nil {
+		return fmt.Errorf("check fuse.root_pata error: %s", err)
+	}
+	return nil
+}
+
+func checkWebdavConfig(config *Config) error {
+	wCfg := config.Webdav
+	if !wCfg.Enable {
+		return nil
+	}
+	if wCfg.Host == "" || wCfg.Port == 0 {
+		return fmt.Errorf("webdav.host or webdav.port not config")
+	}
+
+	if len(wCfg.OverwriteUsers) == 0 {
+		return fmt.Errorf("webdav.overwrite_users not config")
+	}
+	return nil
+}
+
+func checkMetaConfig(config *Config) error {
+	m := config.Meta
+	switch m.Type {
+	case MemoryMeta:
+		return nil
+	case SqliteMeta:
+		if m.Path == "" {
+			return fmt.Errorf("path for sqlite db file is empty")
+		}
+		return nil
+	case PostgresMeta:
+		if m.DSN == "" {
+			return fmt.Errorf("db dsn is empty")
+		}
+		return nil
+	default:
+		return fmt.Errorf("unknown meta type %s", m.Type)
+	}
+}
+
+func checkStorageConfigs(config *Config) error {
+	if len(config.Storages) == 0 {
+		return fmt.Errorf("stroage not config")
+	}
+	for i, s := range config.Storages {
+		if err := checkStorageConfig(s); err != nil {
+			return fmt.Errorf("storages[%d].%s: %s", i, s.ID, err)
+		}
+	}
+	return nil
+}
+
+func checkStorageConfig(sConfig Storage) error {
+	if sConfig.ID == "" {
+		return fmt.Errorf("storage.id is empty")
+	}
+	switch sConfig.Type {
+	case MemoryStorage:
+	case LocalStorage:
+		if sConfig.LocalDir == "" {
+			return fmt.Errorf("local path is empty")
+		}
+	case MinioStorage:
+		cfg := sConfig.MinIO
+		if cfg == nil {
+			return fmt.Errorf("minio is nil")
+		}
+		if cfg.Endpoint == "" {
+			return fmt.Errorf("minio config endpoint is empty")
+		}
+		if cfg.AccessKeyID == "" {
+			return fmt.Errorf("minio config access_key_id is empty")
+		}
+		if cfg.SecretAccessKey == "" {
+			return fmt.Errorf("minio config secret_access_key is empty")
+		}
+	case OSSStorage:
+		cfg := sConfig.OSS
+		if cfg == nil {
+			return fmt.Errorf("OSS config is nil")
+		}
+		if cfg.Endpoint == "" {
+			return fmt.Errorf("OSS endpoint is empty")
+		}
+		if cfg.AccessKeyID == "" {
+			return fmt.Errorf("OSS access_key_id is empty")
+		}
+		if cfg.AccessKeySecret == "" {
+			return fmt.Errorf("OSS access_key_secret is empty")
+		}
+	case WebdavStorage:
+		cfg := sConfig.Webdav
+		if cfg == nil {
+			return fmt.Errorf("webdav is nil")
+		}
+		if cfg.ServerURL == "" {
+			return fmt.Errorf("webdav config server_url is empty")
+		}
+		if cfg.Username == "" {
+			return fmt.Errorf("webdav config user is empty")
+		}
+		if cfg.Password == "" {
+			return fmt.Errorf("webdav config password is empty")
+		}
+	default:
+		return fmt.Errorf("unknown storage type: %s", sConfig.Type)
+	}
+	return nil
+}
+
+func checkLocalCache(config *Config) error {
 	if config.CacheDir == "" {
 		return fmt.Errorf("cache dir is empty")
 	}

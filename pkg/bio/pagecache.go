@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
+	"runtime/trace"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -44,7 +45,7 @@ var (
 	pageReleaseInterval       = time.Minute * 5
 	pageCacheReleaseQ         = make(chan *pageNode, maxPageCacheTotal/2)
 	pageCacheCond             = sync.NewCond(&pageCacheMux)
-	pageCacheLFU              = utils.NewLFUCache(maxPageCacheTotal - 1)
+	pageCacheLFU              = utils.NewLFUPool(maxPageCacheTotal - 1)
 	pageCacheDataPool         = sync.Pool{New: func() any { return make([]byte, pageSize) }}
 )
 
@@ -65,8 +66,7 @@ func newPageCache(entryID, chunkSize int64) *pageCache {
 }
 
 func (p *pageCache) read(ctx context.Context, pageIndex int64, initDataFn func(*pageNode) error) (page *pageNode, err error) {
-	ctx, endF := utils.TraceTask(ctx, "pagecache.read")
-	defer endF()
+	defer trace.StartRegion(ctx, "bio.pageCache.read").End()
 	p.mux.Lock()
 	page = p.findPage(pageIndex)
 	if page == nil {
@@ -85,6 +85,7 @@ func (p *pageCache) read(ctx context.Context, pageIndex int64, initDataFn func(*
 		}
 		err = initDataFn(page)
 		if err != nil {
+			page.mode |= pageModeInvalid
 			page.mux.Unlock()
 			return nil, err
 		}
@@ -95,8 +96,7 @@ func (p *pageCache) read(ctx context.Context, pageIndex int64, initDataFn func(*
 }
 
 func (p *pageCache) insertPage(ctx context.Context, pageIdx int64) *pageNode {
-	ctx, endF := utils.TraceTask(ctx, "pagecache.insert")
-	defer endF()
+	defer trace.StartRegion(ctx, "bio.pageCache.insertPage").End()
 	if p.data.rootNode == nil {
 		p.data.rootNode = newPage(0, pageSize, pageModeEmpty)
 	}

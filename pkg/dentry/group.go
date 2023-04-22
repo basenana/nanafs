@@ -18,9 +18,12 @@ package dentry
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/storage"
+	"fmt"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
+	"github.com/basenana/nanafs/utils/logger"
+	"runtime/trace"
+	"strings"
 	"time"
 )
 
@@ -34,31 +37,41 @@ type Group interface {
 
 type stdGroup struct {
 	Entry
-	store storage.ObjectStore
+	store metastore.ObjectStore
 }
 
 var _ Group = &stdGroup{}
 
 func (g *stdGroup) FindEntry(ctx context.Context, name string) (Entry, error) {
-	children, err := g.ListChildren(ctx)
+	defer trace.StartRegion(ctx, "dentry.stdGroup.FindEntry").End()
+	entryLifecycleLock.RLock()
+	defer entryLifecycleLock.RUnlock()
+	objects, err := g.store.ListObjects(ctx, types.Filter{Name: name, ParentID: g.Metadata().ID})
 	if err != nil {
 		return nil, err
 	}
-	for i := range children {
-		tgt := children[i]
-		if tgt.Metadata().Name == name {
-			return tgt, nil
-		}
+	if len(objects) == 0 {
+		return nil, types.ErrNotFound
 	}
-	return nil, types.ErrNotFound
+	if len(objects) > 1 {
+		objNames := make([]string, len(objects))
+		for i, obj := range objects {
+			objNames[i] = fmt.Sprintf(`{"id":%d,"name":"%s"}`, obj.ID, obj.Name)
+		}
+		logger.NewLogger("stdGroup").Warnf("lookup group %s with name %s, got objects: %s", g.Metadata().Name, name, strings.Join(objNames, ","))
+	}
+	return buildEntry(objects[0], g.store), nil
 }
 
 func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, error) {
-	_, err := g.FindEntry(ctx, attr.Name)
-	if err != nil && err != types.ErrNotFound {
+	defer trace.StartRegion(ctx, "dentry.stdGroup.CreateEntry").End()
+	entryLifecycleLock.Lock()
+	defer entryLifecycleLock.Unlock()
+	objects, err := g.store.ListObjects(ctx, types.Filter{Name: attr.Name, ParentID: g.Metadata().ID})
+	if err != nil {
 		return nil, err
 	}
-	if err == nil {
+	if len(objects) > 0 {
 		return nil, types.ErrIsExist
 	}
 	groupMd := g.Metadata()
@@ -85,6 +98,7 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, erro
 }
 
 func (g *stdGroup) UpdateEntry(ctx context.Context, en Entry) error {
+	defer trace.StartRegion(ctx, "dentry.stdGroup.UpdateEntry").End()
 	err := g.store.SaveObject(ctx, &types.Object{Metadata: *g.Metadata()}, &types.Object{Metadata: *en.Metadata()})
 	if err != nil {
 		return err
@@ -93,6 +107,7 @@ func (g *stdGroup) UpdateEntry(ctx context.Context, en Entry) error {
 }
 
 func (g *stdGroup) DestroyEntry(ctx context.Context, en Entry) error {
+	defer trace.StartRegion(ctx, "dentry.stdGroup.DestroyEntry").End()
 	md := en.Metadata()
 	if md.RefID != 0 {
 		return types.ErrUnsupported
@@ -124,7 +139,7 @@ func (g *stdGroup) DestroyEntry(ctx context.Context, en Entry) error {
 }
 
 func (g *stdGroup) ListChildren(ctx context.Context) ([]Entry, error) {
-	defer utils.TraceRegion(ctx, "stdGroup.list")()
+	defer trace.StartRegion(ctx, "dentry.stdGroup.ListChildren").End()
 	it, err := g.store.ListChildren(ctx, &types.Object{Metadata: *g.Metadata()})
 	if err != nil {
 		return nil, err

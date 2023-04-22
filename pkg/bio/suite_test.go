@@ -19,6 +19,7 @@ package bio
 import (
 	"context"
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
@@ -30,7 +31,7 @@ import (
 )
 
 var (
-	chunkStore storage.ChunkStore
+	chunkStore metastore.ChunkStore
 	dataStore  storage.Storage
 	fakeObj    *types.Object
 
@@ -52,7 +53,7 @@ func TestBIO(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	memMeta, err := storage.NewMetaStorage(storage.MemoryStorage, config.Meta{})
+	memMeta, err := metastore.NewMetaStorage(storage.MemoryStorage, config.Meta{})
 	Expect(err).Should(BeNil())
 	chunkStore = memMeta
 

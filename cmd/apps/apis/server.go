@@ -19,6 +19,8 @@ package apis
 import (
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
+	"github.com/basenana/nanafs/cmd/apps/apis/webdav"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/utils/logger"
@@ -40,7 +42,7 @@ type Server struct {
 }
 
 func (s *Server) Run(stopCh chan struct{}) {
-	addr := fmt.Sprintf("%s:%d", s.cfg.ApiConfig.Host, s.cfg.ApiConfig.Port)
+	addr := fmt.Sprintf("%s:%d", s.cfg.Api.Host, s.cfg.Api.Port)
 	s.logger.Infof("http server on %s", addr)
 
 	httpServer := &http.Server{
@@ -72,12 +74,16 @@ func (s *Server) Ping(gCtx *gin.Context) {
 	})
 }
 
-func NewApiServer(ctrl controller.Controller, cfg config.Config) (*Server, error) {
-	if cfg.ApiConfig.Port == 0 {
+func NewPathEntryManager(ctrl controller.Controller) (*pathmgr.PathManager, error) {
+	return pathmgr.New(ctrl)
+}
+
+func NewApiServer(mgr *pathmgr.PathManager, cfg config.Config) (*Server, error) {
+	if cfg.Api.Port == 0 {
 		return nil, fmt.Errorf("http port not set")
 	}
-	if cfg.ApiConfig.Host == "" {
-		cfg.ApiConfig.Host = "127.0.0.1"
+	if cfg.Api.Host == "" {
+		cfg.Api.Host = "127.0.0.1"
 	}
 
 	s := &Server{
@@ -88,9 +94,16 @@ func NewApiServer(ctrl controller.Controller, cfg config.Config) (*Server, error
 	s.engine.GET("/_ping", s.Ping)
 	s.engine.Use()
 
-	if cfg.ApiConfig.Pprof {
+	if cfg.Api.Pprof {
 		pprof.Register(s.engine)
 	}
 
 	return s, nil
+}
+
+func NewWebdavServer(mgr *pathmgr.PathManager, cfg config.Config) (*webdav.Webdav, error) {
+	if cfg.Webdav == nil || !cfg.Webdav.Enable {
+		return nil, fmt.Errorf("webdav not enable")
+	}
+	return webdav.NewWebdavServer(mgr, *cfg.Webdav)
 }
