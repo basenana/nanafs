@@ -97,7 +97,10 @@ func run(ctrl controller.Controller, cfg config.Config, stopCh chan struct{}) {
 	log.Info("starting")
 	shutdown := ctrl.SetupShutdownHandler(stopCh)
 
-	pathEntryMgr := apis.NewPathEntryManager(ctrl)
+	pathEntryMgr, err := apis.NewPathEntryManager(ctrl)
+	if err != nil {
+		log.Panicf("init api path entry manager error: %s", err)
+	}
 	if cfg.Api.Enable {
 		s, err := apis.NewApiServer(pathEntryMgr, cfg)
 		if err != nil {

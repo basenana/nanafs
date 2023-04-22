@@ -74,7 +74,7 @@ func (s *Server) Ping(gCtx *gin.Context) {
 	})
 }
 
-func NewPathEntryManager(ctrl controller.Controller) *pathmgr.PathManager {
+func NewPathEntryManager(ctrl controller.Controller) (*pathmgr.PathManager, error) {
 	return pathmgr.New(ctrl)
 }
 

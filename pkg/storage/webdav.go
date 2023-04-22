@@ -32,7 +32,7 @@ import (
 )
 
 const (
-	WebdavStorage = "webdav"
+	WebdavStorage = config.WebdavStorage
 )
 
 type webdavStorage struct {

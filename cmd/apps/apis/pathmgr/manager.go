@@ -54,11 +54,7 @@ func (m *PathManager) FindEntry(ctx context.Context, entryPath string) (dentry.E
 	if err != nil {
 		return nil, err
 	}
-	pe, err := m.getPathEntry(ctx, entryPath)
-	if err != nil {
-		return nil, err
-	}
-	return m.ctrl.GetEntry(ctx, pe.entryID)
+	return m.getPathEntry(ctx, entryPath)
 }
 
 func (m *PathManager) FindParentEntry(ctx context.Context, entryPath string) (dentry.Entry, error) {
@@ -67,11 +63,7 @@ func (m *PathManager) FindParentEntry(ctx context.Context, entryPath string) (de
 	if err != nil {
 		return nil, err
 	}
-	pe, err := m.getPathEntry(ctx, path.Dir(entryPath))
-	if err != nil {
-		return nil, err
-	}
-	return m.ctrl.GetEntry(ctx, pe.entryID)
+	return m.getPathEntry(ctx, path.Dir(entryPath))
 }
 
 func (m *PathManager) Open(ctx context.Context, entryPath string, attr dentry.Attr) (dentry.Entry, error) {
@@ -80,7 +72,7 @@ func (m *PathManager) Open(ctx context.Context, entryPath string, attr dentry.At
 	if err != nil {
 		return nil, err
 	}
-	pe, err := m.getPathEntry(ctx, entryPath)
+	en, err := m.getPathEntry(ctx, entryPath)
 	if err != nil && err != types.ErrNotFound {
 		return nil, err
 	}
@@ -91,7 +83,7 @@ func (m *PathManager) Open(ctx context.Context, entryPath string, attr dentry.At
 		}
 		var en, parent dentry.Entry
 		parentDir, base := path.Split(entryPath)
-		parent, err = m.FindParentEntry(ctx, parentDir)
+		parent, err = m.FindEntry(ctx, parentDir)
 		if err != nil {
 			return nil, err
 		}
@@ -111,11 +103,6 @@ func (m *PathManager) Open(ctx context.Context, entryPath string, attr dentry.At
 		return m.ctrl.OpenFile(ctx, en, attr)
 	}
 
-	en, err := m.ctrl.GetEntry(ctx, pe.entryID)
-	if err != nil && err != types.ErrNotFound {
-		return nil, err
-	}
-
 	if en.IsGroup() {
 		return en, nil
 	}
@@ -124,11 +111,10 @@ func (m *PathManager) Open(ctx context.Context, entryPath string, attr dentry.At
 
 func (m *PathManager) CreateAll(ctx context.Context, entryPath string, attr dentry.EntryAttr) (dentry.Entry, error) {
 	var (
-		en  dentry.Entry
-		pEn *pathEntry
-		err error
+		en, parent dentry.Entry
+		err        error
 	)
-	en, err = m.ctrl.LoadRootEntry(ctx)
+	parent, err = m.ctrl.GetEntry(ctx, dentry.RootEntryID)
 	if err != nil {
 		return nil, err
 	}
@@ -138,29 +124,24 @@ func (m *PathManager) CreateAll(ctx context.Context, entryPath string, attr dent
 			continue
 		}
 
-		pEn, err = m.getPathEntry(ctx, dirPath)
+		en, err = m.getPathEntry(ctx, dirPath)
 		if err != nil && err != types.ErrNotFound {
 			return nil, err
 		}
 
 		if err == types.ErrNotFound {
 			pp, base := path.Split(dirPath)
-			en, err = m.ctrl.CreateEntry(ctx, en, types.ObjectAttr{Name: base, Kind: types.GroupKind, Access: attr.Access})
+			en, err = m.ctrl.CreateEntry(ctx, parent, types.ObjectAttr{Name: base, Kind: types.GroupKind, Access: attr.Access})
 			if err != nil {
 				return nil, err
 			}
 			m.logger.Infow("create group entry", "path", dirPath, "entry", en.Metadata().ID)
 			m.entries.Put(dirPath, &pathEntry{entryID: en.Metadata().ID, parentPath: pp, baseName: base})
-			continue
 		}
-
-		en, err = m.ctrl.GetEntry(ctx, pEn.entryID)
-		if err != nil {
-			return nil, err
-		}
+		parent = en
 	}
 
-	return nil, nil
+	return en, nil
 }
 
 func (m *PathManager) RemoveAll(ctx context.Context, entryPath string, recursion bool) error {
@@ -175,6 +156,7 @@ func (m *PathManager) RemoveAll(ctx context.Context, entryPath string, recursion
 		return err
 	}
 
+	m.entries.Remove(targetPath)
 	parentEn, err := m.FindParentEntry(ctx, targetPath)
 	if err != nil {
 		return err
@@ -211,6 +193,7 @@ func (m *PathManager) RemoveAll(ctx context.Context, entryPath string, recursion
 			return err
 		}
 
+		m.entries.Remove(targetPath)
 		m.logger.Infow("delete entry", "path", targetPath, "entry", en.Metadata().ID)
 		if err = m.ctrl.DestroyEntry(ctx, parentEn, en, types.DestroyObjectAttr{}); err != nil {
 			return err
@@ -244,13 +227,17 @@ func (m *PathManager) Rename(ctx context.Context, oldPath, entryPath string) err
 	return m.ctrl.ChangeEntryParent(ctx, target, oldParent, newParent, path.Base(entryPath), types.ChangeParentAttr{})
 }
 
-func (m *PathManager) getPathEntry(ctx context.Context, entryPath string) (*pathEntry, error) {
+func (m *PathManager) getPathEntry(ctx context.Context, entryPath string) (dentry.Entry, error) {
 	cached := m.entries.Get(entryPath)
 	if cached != nil {
-		return cached.(*pathEntry), nil
+		pe := cached.(*pathEntry)
+		en, err := m.ctrl.GetEntry(ctx, pe.entryID)
+		if err == nil {
+			return en, err
+		}
 	}
 
-	root, err := m.ctrl.LoadRootEntry(ctx)
+	root, err := m.ctrl.GetEntry(ctx, dentry.RootEntryID)
 	if err != nil {
 		return nil, err
 	}
@@ -264,7 +251,7 @@ func (m *PathManager) getPathEntry(ctx context.Context, entryPath string) (*path
 			continue
 		}
 		if crt == nil {
-			continue
+			return nil, types.ErrNotFound
 		}
 		parent, base := path.Split(p)
 		if base == "." || base == ".." {
@@ -281,10 +268,8 @@ func (m *PathManager) getPathEntry(ctx context.Context, entryPath string) (*path
 		}
 		m.entries.Put(p, &pathEntry{entryID: crt.Metadata().ID, parentPath: parent, baseName: base})
 	}
-
-	cached = m.entries.Get(entryPath)
-	if cached != nil {
-		return cached.(*pathEntry), nil
+	if crt != nil {
+		return crt, nil
 	}
 	return nil, types.ErrNotFound
 }
@@ -316,20 +301,23 @@ func (m *PathManager) splitPath(entryPath string) []string {
 		}
 		pathEntries = append(pathEntries, p)
 	}
-	result := make([]string, len(pathEntries)-1)
-	for i := 2; i <= len(pathEntries); i++ {
-		result[i-2] = "/" + strings.Join(pathEntries[:i], "/")
+	result := make([]string, 0, len(pathEntries))
+	for i := 0; i <= len(pathEntries); i++ {
+		result = append(result, "/"+strings.Join(pathEntries[:i], "/"))
 	}
-	result = append([]string{"/"}, result...)
 	return result
 }
 
-func New(controller controller.Controller) *PathManager {
+func New(controller controller.Controller) (*PathManager, error) {
+	_, err := controller.LoadRootEntry(context.Background())
+	if err != nil {
+		return nil, err
+	}
 	return &PathManager{
 		ctrl:    controller,
 		entries: utils.NewLFUPool(1024),
 		logger:  logger.NewLogger("PathManager"),
-	}
+	}, nil
 }
 
 type pathEntry struct {

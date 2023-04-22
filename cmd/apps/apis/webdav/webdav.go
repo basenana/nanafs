@@ -45,7 +45,7 @@ func (w *Webdav) Run(stopCh chan struct{}) {
 
 	httpServer := &http.Server{
 		Addr:         addr,
-		Handler:      common.BasicAuthHandler(w.handler, w.cfg.Users),
+		Handler:      common.BasicAuthHandler(w.handler, w.cfg.OverwriteUsers),
 		ReadTimeout:  time.Hour,
 		WriteTimeout: time.Hour,
 	}

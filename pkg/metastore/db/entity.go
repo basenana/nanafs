@@ -62,17 +62,11 @@ func NewDbEntity(db *gorm.DB) (*Entity, error) {
 
 func (e *Entity) GetObjectByID(ctx context.Context, oid int64) (*types.Object, error) {
 	var (
-		objMod  = &Object{ID: oid}
-		permMod = &ObjectPermission{}
+		objMod = &Object{ID: oid}
 	)
 
 	if err := e.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		res := tx.First(objMod)
-		if res.Error != nil {
-			return res.Error
-		}
-
-		res = tx.Where("oid = ?", oid).First(permMod)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -82,7 +76,6 @@ func (e *Entity) GetObjectByID(ctx context.Context, oid int64) (*types.Object, e
 	}
 
 	obj := objMod.Object()
-	obj.Access = permMod.ToAccess()
 
 	return obj, nil
 }
@@ -144,13 +137,7 @@ func (e *Entity) ListObjectChildren(ctx context.Context, filter types.Filter) ([
 
 		result = make([]*types.Object, len(objectList))
 		for i, objMod := range objectList {
-			perm := &ObjectPermission{}
-			res = tx.Where("oid = ?", objMod.ID).First(perm)
-			if res.Error != nil {
-				return res.Error
-			}
 			o := objMod.Object()
-			o.Access = perm.ToAccess()
 			result[i] = o
 		}
 		return nil
@@ -310,10 +297,9 @@ func (e *Entity) NextSegmentID(ctx context.Context) (int64, error) {
 
 func (e *Entity) InsertChunkSegment(ctx context.Context, seg types.ChunkSeg) (*types.Object, error) {
 	var (
-		obj     *types.Object
-		objMod  = &Object{ID: seg.ObjectID}
-		permMod = &ObjectPermission{}
-		err     error
+		obj    *types.Object
+		objMod = &Object{ID: seg.ObjectID}
+		err    error
 	)
 	err = e.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		res := tx.First(objMod)
@@ -342,17 +328,11 @@ func (e *Entity) InsertChunkSegment(ctx context.Context, seg types.ChunkSeg) (*t
 		if writeBackErr := saveRawObject(tx, obj); writeBackErr != nil {
 			return writeBackErr
 		}
-
-		res = tx.Where("oid = ?", obj.ID).First(permMod)
-		if res.Error != nil {
-			return res.Error
-		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	obj.Access = permMod.ToAccess()
 	return obj, nil
 }
 
@@ -394,7 +374,6 @@ func (e *Entity) SystemInfo(ctx context.Context) (*SystemInfo, error) {
 func saveRawObject(tx *gorm.DB, obj *types.Object) error {
 	var (
 		objModel = &Object{ID: obj.ID}
-		oaModel  = &ObjectPermission{OID: obj.ID}
 		extModel = &ObjectExtend{ID: obj.ID}
 	)
 	res := tx.First(objModel)
@@ -414,12 +393,6 @@ func saveRawObject(tx *gorm.DB, obj *types.Object) error {
 			return res.Error
 		}
 
-		oaModel.Update(obj)
-		res = tx.Create(oaModel)
-		if res.Error != nil {
-			return res.Error
-		}
-
 		extModel.Update(obj)
 		res = tx.Create(extModel)
 		if res.Error != nil {
@@ -428,18 +401,8 @@ func saveRawObject(tx *gorm.DB, obj *types.Object) error {
 		return nil
 	}
 
-	if obj.Access.ID == 0 {
-		oaModel.Update(obj)
-	}
-
 	objModel.Update(obj)
 	res = tx.Save(objModel)
-	if res.Error != nil {
-		return res.Error
-	}
-
-	oaModel.Update(obj)
-	res = tx.Save(oaModel)
 	if res.Error != nil {
 		return res.Error
 	}
@@ -472,10 +435,6 @@ func deleteRawObject(tx *gorm.DB, obj *types.Object) error {
 		return res.Error
 	}
 	res = tx.Delete(extModel)
-	if res.Error != nil {
-		return res.Error
-	}
-	res = tx.Where("oid = ?", obj.ID).Delete(&ObjectPermission{})
 	if res.Error != nil {
 		return res.Error
 	}

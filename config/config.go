@@ -40,10 +40,10 @@ type Api struct {
 }
 
 type Webdav struct {
-	Enable bool            `json:"enable"`
-	Host   string          `json:"host"`
-	Port   int             `json:"port"`
-	Users  []OverwriteUser `json:"users"`
+	Enable         bool            `json:"enable"`
+	Host           string          `json:"host"`
+	Port           int             `json:"port"`
+	OverwriteUsers []OverwriteUser `json:"overwrite_users"`
 }
 
 type FUSE struct {

@@ -19,6 +19,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
@@ -33,8 +34,8 @@ import (
 )
 
 const (
-	LocalStorage         = "local"
-	MemoryStorage        = "memory"
+	LocalStorage         = config.LocalStorage
+	MemoryStorage        = config.MemoryStorage
 	defaultLocalDirMode  = 0755
 	defaultLocalFileMode = 0644
 )

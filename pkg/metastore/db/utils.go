@@ -96,3 +96,40 @@ func (l *Logger) Trace(ctx context.Context, begin time.Time, fc func() (sql stri
 func NewDbLogger() *Logger {
 	return &Logger{SugaredLogger: logger.NewLogger("database")}
 }
+
+var accessMapping map[types.Permission]int64
+
+func init() {
+	accessMapping = map[types.Permission]int64{
+		types.PermOthersExec:  1 << 0,
+		types.PermOthersRead:  1 << 1,
+		types.PermOthersWrite: 1 << 2,
+		types.PermOwnerExec:   1 << 3,
+		types.PermGroupRead:   1 << 4,
+		types.PermGroupWrite:  1 << 5,
+		types.PermGroupExec:   1 << 6,
+		types.PermOwnerRead:   1 << 7,
+		types.PermOwnerWrite:  1 << 8,
+		types.PermSetUid:      1 << 9,
+		types.PermSetGid:      1 << 10,
+		types.PermSticky:      1 << 11,
+	}
+}
+
+func buildObjectAccess(perm, uid, gid int64) types.Access {
+	acc := types.Access{UID: uid, GID: gid}
+	for name, permVal := range accessMapping {
+		if perm&permVal > 0 {
+			acc.Permissions = append(acc.Permissions, name)
+		}
+	}
+	return acc
+}
+
+func updateObjectPermission(acc types.Access) int64 {
+	var perm int64
+	for _, p := range acc.Permissions {
+		perm |= accessMapping[p]
+	}
+	return perm
+}

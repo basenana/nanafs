@@ -84,11 +84,6 @@ func (c *controller) WriteFile(ctx context.Context, file dentry.File, data []byt
 	if err != nil {
 		return n, err
 	}
-	meta := file.Metadata()
-	meta.ModifiedAt = time.Now()
-	if meta.Size < offset+int64(len(data)) {
-		meta.Size = offset + int64(len(data))
-	}
 	return n, nil
 }
 
@@ -104,6 +99,7 @@ func (c *controller) CloseFile(ctx context.Context, file dentry.File) (err error
 		c.logger.Errorw("query fresh entry error", "file", file.Metadata().ID, "err", err.Error())
 		return err
 	}
+	c.cache.delEntry(en.Metadata().ID)
 	bus.Publish(fmt.Sprintf("object.file.%d.close", file.Metadata().ID), en)
 	return nil
 }

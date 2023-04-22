@@ -28,6 +28,7 @@ import (
 	"io"
 	"runtime/trace"
 	"sync"
+	"time"
 )
 
 var (
@@ -70,6 +71,11 @@ func (f *file) WriteAt(ctx context.Context, data []byte, off int64) (int64, erro
 	n, err := f.writer.WriteAt(ctx, data, off)
 	if err != nil {
 		fileEntryLogger.Errorw("write file error", "entry", f.Entry.Metadata().ID, "off", off, "err", err)
+	}
+	meta := f.Metadata()
+	meta.ModifiedAt = time.Now()
+	if meta.Size < off+n {
+		meta.Size = off + n
 	}
 	return n, err
 }

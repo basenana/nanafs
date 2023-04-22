@@ -19,7 +19,6 @@ package db
 import (
 	"encoding/json"
 	"github.com/basenana/nanafs/pkg/types"
-	"strings"
 	"time"
 )
 
@@ -34,23 +33,26 @@ func (i SystemInfo) TableName() string {
 }
 
 type Object struct {
-	ID         int64     `gorm:"column:id;primaryKey"`
-	Name       string    `gorm:"column:name;index:obj_name"`
-	Aliases    string    `gorm:"column:aliases"`
-	ParentID   int64     `gorm:"column:parent_id;index:parent_id"`
-	RefID      int64     `gorm:"column:ref_id;index:ref_id"`
-	RefCount   int       `gorm:"column:ref_count"`
-	Kind       string    `gorm:"column:kind"`
-	Hash       string    `gorm:"column:hash"`
-	Size       int64     `gorm:"column:size"`
-	Inode      uint64    `gorm:"column:inode;unique"`
-	Dev        int64     `gorm:"column:dev"`
-	Storage    string    `gorm:"column:storage"`
-	Namespace  string    `gorm:"column:namespace;index:obj_ns"`
-	CreatedAt  time.Time `gorm:"column:created_at"`
-	ChangedAt  time.Time `gorm:"column:changed_at"`
-	ModifiedAt time.Time `gorm:"column:modified_at"`
-	AccessAt   time.Time `gorm:"column:access_at"`
+	ID         int64  `gorm:"column:id;primaryKey"`
+	Name       string `gorm:"column:name;index:obj_name"`
+	Aliases    string `gorm:"column:aliases"`
+	ParentID   int64  `gorm:"column:parent_id;index:parent_id"`
+	RefID      int64  `gorm:"column:ref_id;index:ref_id"`
+	RefCount   int    `gorm:"column:ref_count"`
+	Kind       string `gorm:"column:kind"`
+	Hash       string `gorm:"column:hash"`
+	Size       int64  `gorm:"column:size"`
+	Inode      uint64 `gorm:"column:inode;unique"`
+	Dev        int64  `gorm:"column:dev"`
+	Owner      int64  `gorm:"column:owner"`
+	GroupOwner int64  `gorm:"column:group_owner"`
+	Permission int64  `gorm:"column:permission"`
+	Storage    string `gorm:"column:storage"`
+	Namespace  string `gorm:"column:namespace;index:obj_ns"`
+	CreatedAt  int64  `gorm:"column:created_at"`
+	ChangedAt  int64  `gorm:"column:changed_at"`
+	ModifiedAt int64  `gorm:"column:modified_at"`
+	AccessAt   int64  `gorm:"column:access_at"`
 }
 
 func (o *Object) TableName() string {
@@ -71,10 +73,13 @@ func (o *Object) Update(obj *types.Object) {
 	o.Dev = obj.Dev
 	o.Storage = obj.Storage
 	o.Namespace = obj.Namespace
-	o.CreatedAt = obj.CreatedAt
-	o.ChangedAt = obj.ChangedAt
-	o.ModifiedAt = obj.ModifiedAt
-	o.AccessAt = obj.AccessAt
+	o.CreatedAt = obj.CreatedAt.UnixNano()
+	o.ChangedAt = obj.ChangedAt.UnixNano()
+	o.ModifiedAt = obj.ModifiedAt.UnixNano()
+	o.AccessAt = obj.AccessAt.UnixNano()
+	o.Owner = obj.Access.UID
+	o.GroupOwner = obj.Access.GID
+	o.Permission = updateObjectPermission(obj.Access)
 }
 
 func (o *Object) Object() *types.Object {
@@ -93,50 +98,12 @@ func (o *Object) Object() *types.Object {
 			Dev:        o.Dev,
 			Storage:    o.Storage,
 			Namespace:  o.Namespace,
-			CreatedAt:  o.CreatedAt,
-			ChangedAt:  o.ChangedAt,
-			ModifiedAt: o.ModifiedAt,
-			AccessAt:   o.AccessAt,
+			CreatedAt:  time.Unix(0, o.CreatedAt),
+			ChangedAt:  time.Unix(0, o.ChangedAt),
+			ModifiedAt: time.Unix(0, o.ModifiedAt),
+			AccessAt:   time.Unix(0, o.AccessAt),
+			Access:     buildObjectAccess(o.Permission, o.Owner, o.GroupOwner),
 		},
-	}
-	return result
-}
-
-type ObjectPermission struct {
-	ID          int64  `gorm:"column:id;autoIncrement"`
-	OID         int64  `gorm:"column:oid;index:perm_oid"`
-	Uid         int64  `gorm:"column:uid"`
-	Gid         int64  `gorm:"column:gid"`
-	Permissions string `gorm:"column:permissions"`
-}
-
-func (a *ObjectPermission) TableName() string {
-	return "object_permission"
-}
-
-func (a *ObjectPermission) Update(obj *types.Object) {
-	acc := obj.Access
-	a.ID = acc.ID
-	a.OID = obj.ID
-	a.Uid = acc.UID
-	a.Gid = acc.GID
-
-	pList := make([]string, 0, len(acc.Permissions))
-	for _, p := range acc.Permissions {
-		pList = append(pList, string(p))
-	}
-	a.Permissions = strings.Join(pList, ",")
-}
-
-func (a *ObjectPermission) ToAccess() types.Access {
-	result := types.Access{
-		ID:  a.ID,
-		UID: a.Uid,
-		GID: a.Gid,
-	}
-	permissions := strings.Split(a.Permissions, ",")
-	for _, p := range permissions {
-		result.Permissions = append(result.Permissions, types.Permission(p))
 	}
 	return result
 }

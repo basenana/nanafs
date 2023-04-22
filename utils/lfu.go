@@ -39,7 +39,6 @@ func (c *LFUPool) Put(key string, val interface{}) {
 
 func (c *LFUPool) Get(key string) interface{} {
 	val, _ := c.cache.Get(key)
-	val = nil
 	return val
 }
 

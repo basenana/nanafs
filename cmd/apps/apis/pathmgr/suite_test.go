@@ -14,28 +14,41 @@
  limitations under the License.
 */
 
-package plugin
+package pathmgr
 
 import (
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils/logger"
-	"testing"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"testing"
 )
 
-func TestPlugin(t *testing.T) {
-	logger.InitLogger()
-	defer logger.Sync()
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Plugin Suite")
+var cfg = config.Config{
+	FS:       &config.FS{OwnerUid: 0, OwnerGid: 0, Writeback: false},
+	Meta:     config.Meta{Type: metastore.MemoryMeta},
+	Storages: []config.Storage{{ID: "test-memory-0", Type: storage.MemoryStorage}},
 }
 
-var _ = BeforeSuite(func() {
-	// init plugin plugins
-	mem, _ := metastore.NewMetaStorage(storage.MemoryStorage, config.Meta{})
-	Expect(Init(config.Config{Plugin: &config.Plugin{DummyPlugins: true}}, mem)).Should(BeNil())
-})
+type mockConfig struct{}
+
+func (m mockConfig) GetConfig() (config.Config, error) {
+	return cfg, nil
+}
+
+func NewMockController() controller.Controller {
+	m, _ := metastore.NewMetaStorage(metastore.MemoryMeta, cfg.Meta)
+	ctrl, _ := controller.New(mockConfig{}, m)
+	return ctrl
+}
+
+func TestPathMgr(t *testing.T) {
+	logger.InitLogger()
+	defer logger.Sync()
+
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "PathMgr Suite")
+}

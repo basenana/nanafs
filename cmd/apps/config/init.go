@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils"
 	"github.com/spf13/cobra"
 	"os"
@@ -67,7 +66,7 @@ func initDefaultConfig() {
 		Storages: []config.Storage{
 			{
 				ID:       "local-0",
-				Type:     storage.LocalStorage,
+				Type:     config.LocalStorage,
 				LocalDir: dataDir,
 			},
 		},
@@ -81,10 +80,10 @@ func initDefaultConfig() {
 			Pprof:  false,
 		},
 		Webdav: &config.Webdav{
-			Enable: false,
-			Host:   "127.0.0.1",
-			Port:   7082,
-			Users:  []config.OverwriteUser{{Username: "admin", Password: "changeme"}},
+			Enable:         false,
+			Host:           "127.0.0.1",
+			Port:           7082,
+			OverwriteUsers: []config.OverwriteUser{{Username: "admin", Password: "changeme"}},
 		},
 		FUSE: config.FUSE{
 			Enable:      false,

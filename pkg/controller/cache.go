@@ -47,5 +47,5 @@ func (c *entryCache) entryKey(eid int64) string {
 }
 
 func initEntryCache() *entryCache {
-	return &entryCache{lfu: utils.NewLFUPool(100)}
+	return &entryCache{lfu: utils.NewLFUPool(1024)}
 }

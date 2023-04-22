@@ -29,7 +29,6 @@ func buildMigrations() []*gormigrate.Migration {
 				return db.AutoMigrate(
 					&SystemInfo{},
 					&Object{},
-					&ObjectPermission{},
 					&ObjectProperty{},
 					&ObjectExtend{},
 					&ObjectChunk{},

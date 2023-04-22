@@ -120,6 +120,11 @@ func (c *controller) CreateEntry(ctx context.Context, parent dentry.Entry, attr 
 		return nil, types.ErrNameTooLong
 	}
 
+	if parent == nil {
+		c.logger.Errorw("create entry failed, parent is nil", "entryName", attr.Name)
+		return nil, types.ErrNotFound
+	}
+
 	entry, err := c.entry.CreateEntry(ctx, parent, dentry.EntryAttr{
 		Name:   attr.Name,
 		Dev:    attr.Dev,
@@ -153,6 +158,7 @@ func (c *controller) SaveEntry(ctx context.Context, parent, entry dentry.Entry) 
 		c.logger.Errorw("save entry error", "entry", entry.Metadata().ID, "err", err.Error())
 		return err
 	}
+	c.cache.putEntry(parent)
 	c.cache.putEntry(entry)
 	bus.Publish(fmt.Sprintf("object.entry.%d.update", entry.Metadata().ID), entry)
 	return nil
@@ -173,6 +179,10 @@ func (c *controller) DestroyEntry(ctx context.Context, parent, en dentry.Entry, 
 		c.logger.Errorw("delete entry failed", "entry", en.Metadata().ID, "err", err.Error())
 		return err
 	}
+	if en.IsMirror() {
+		c.cache.delEntry(en.Metadata().RefID)
+	}
+	c.cache.putEntry(parent)
 	c.cache.delEntry(en.Metadata().ID)
 	if destroyed {
 		bus.Publish(fmt.Sprintf("object.entry.%d.destroy", en.Metadata().ID), en)
@@ -203,6 +213,7 @@ func (c *controller) MirrorEntry(ctx context.Context, src, dstParent dentry.Entr
 	})
 
 	c.cache.delEntry(src.Metadata().ID)
+	c.cache.delEntry(entry.Metadata().RefID)
 	c.cache.delEntry(dstParent.Metadata().ID)
 
 	bus.Publish(fmt.Sprintf("object.entry.%d.mirror", entry.Metadata().ID), entry)
@@ -262,9 +273,12 @@ func (c *controller) ChangeEntryParent(ctx context.Context, target, oldParent, n
 		c.logger.Errorw("change object parent failed", "target", target.Metadata().ID, "newParent", newParent.Metadata().ID, "newName", newName, "err", err.Error())
 		return err
 	}
-	c.cache.delEntry(target.Metadata().ID)
-	c.cache.delEntry(oldParent.Metadata().ID)
-	c.cache.delEntry(newParent.Metadata().ID)
+	if existObj != nil {
+		c.cache.delEntry(existObj.Metadata().ID)
+	}
+	c.cache.putEntry(target)
+	c.cache.putEntry(oldParent)
+	c.cache.putEntry(newParent)
 	bus.Publish(fmt.Sprintf("object.entry.%d.mv", target.Metadata().ID), target)
 	return nil
 }

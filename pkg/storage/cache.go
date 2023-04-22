@@ -44,8 +44,8 @@ const (
 
 var (
 	localCacheDir       string
-	localCacheSizeLimit int64
 	localCacheSizeUsage int64
+	localCacheSizeLimit int64 = 10 * (1 << 30)
 
 	cachedFile *cachedFileMapper
 	cacheLog   *zap.SugaredLogger

@@ -58,7 +58,7 @@ func (g *stdGroup) FindEntry(ctx context.Context, name string) (Entry, error) {
 		for i, obj := range objects {
 			objNames[i] = fmt.Sprintf(`{"id":%d,"name":"%s"}`, obj.ID, obj.Name)
 		}
-		logger.NewLogger("panic").Warnf("lookup group %s with name %s, got objects: %s", g.Metadata().Name, name, strings.Join(objNames, ","))
+		logger.NewLogger("stdGroup").Warnf("lookup group %s with name %s, got objects: %s", g.Metadata().Name, name, strings.Join(objNames, ","))
 	}
 	return buildEntry(objects[0], g.store), nil
 }

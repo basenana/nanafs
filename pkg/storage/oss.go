@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	OSSStorage = "oss"
+	OSSStorage = config.OSSStorage
 )
 
 type aliyunOSSStorage struct {

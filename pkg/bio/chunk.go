@@ -639,7 +639,7 @@ func (w *segWriter) findUncommittedPage(ctx context.Context, pageIdx, off int64)
 
 func (w *segWriter) commitSegment(ctx context.Context) {
 	defer trace.StartRegion(ctx, "bio.segWriter.commitSegment").End()
-	defer logger.CostLog(w.logger.With(zap.Int64("entry", w.entry.ID), zap.Int64("chunk", w.chunkID)), "commit segment data")()
+	defer logger.CostLog(w.logger.With(zap.Int64("chunk", w.chunkID)), "commit segment data")()
 	for len(w.uncommitted) > 0 {
 		select {
 		case <-ctx.Done():

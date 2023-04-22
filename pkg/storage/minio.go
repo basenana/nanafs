@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	MinioStorage = "minio"
+	MinioStorage = config.MinioStorage
 )
 
 type minioStorage struct {

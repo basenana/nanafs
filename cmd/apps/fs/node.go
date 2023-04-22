@@ -522,11 +522,11 @@ func (n *NanaNode) Rename(ctx context.Context, name string, newParent fs.InodeEm
 		opt.Replace = false
 	}
 
-	entry, err := n.R.GetEntry(ctx, n.oid)
+	oldParent, err := n.R.GetEntry(ctx, n.oid)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
-	oldEntry, err := n.R.FindEntry(ctx, entry, name)
+	oldEntry, err := n.R.FindEntry(ctx, oldParent, name)
 	if err != nil {
 		return Error2FuseSysError(err)
 	}
@@ -535,7 +535,7 @@ func (n *NanaNode) Rename(ctx context.Context, name string, newParent fs.InodeEm
 		return Error2FuseSysError(err)
 	}
 
-	if err = n.R.ChangeEntryParent(ctx, oldEntry, entry, newParentEntry, newName, opt); err != nil {
+	if err = n.R.ChangeEntryParent(ctx, oldEntry, oldParent, newParentEntry, newName, opt); err != nil {
 		return Error2FuseSysError(err)
 	}
 	n.RmChild(name)

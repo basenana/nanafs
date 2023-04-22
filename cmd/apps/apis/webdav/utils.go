@@ -34,7 +34,7 @@ func (l *log) handle(req *http.Request, err error) {
 		l.logger.Errorw(req.URL.Path, "method", req.Method, "err", err)
 		return
 	}
-	l.logger.Infow(req.URL.Path, "method", req.Method)
+	l.logger.Debugw(req.URL.Path, "method", req.Method)
 }
 
 func initLogger(l *zap.SugaredLogger) *log {

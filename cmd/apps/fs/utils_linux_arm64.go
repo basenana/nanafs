@@ -60,6 +60,14 @@ func nanaNode2Stat(entry dentry.Entry) *syscall.Stat_t {
 	}
 }
 
+func updateCachedStat(s *syscall.Stat_t, entry dentry.Entry) *syscall.Stat_t {
+	meta := entry.Metadata()
+	mTime, _ := unix.TimeToTimespec(meta.ModifiedAt)
+	s.Size = meta.Size
+	s.Mtim = syscall.Timespec{Sec: mTime.Sec, Nsec: mTime.Nsec}
+	return s
+}
+
 func updateAttrOut(st *syscall.Stat_t, out *fuse.Attr) {
 	out.FromStat(st)
 }

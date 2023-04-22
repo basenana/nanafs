@@ -21,6 +21,17 @@ import (
 	"strconv"
 )
 
+const (
+	MemoryMeta    = "memory"
+	SqliteMeta    = "sqlite"
+	PostgresMeta  = "postgres"
+	OSSStorage    = "oss"
+	MinioStorage  = "minio"
+	WebdavStorage = "webdav"
+	LocalStorage  = "local"
+	MemoryStorage = "memory"
+)
+
 type FS struct {
 	OwnerUid  int64 `json:"owner_uid"`
 	OwnerGid  int64 `json:"owner_gid"`

@@ -48,9 +48,9 @@ import (
 )
 
 const (
-	MemoryMeta   = "memory"
-	SqliteMeta   = "sqlite"
-	PostgresMeta = "postgres"
+	MemoryMeta   = config.MemoryMeta
+	SqliteMeta   = config.SqliteMeta
+	PostgresMeta = config.PostgresMeta
 )
 
 type sqliteMetaStore struct {
