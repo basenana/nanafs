@@ -17,6 +17,7 @@
 package storage
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/config"
@@ -164,8 +165,7 @@ func (m *memoryStorage) Get(ctx context.Context, key, idx int64) (io.ReadCloser,
 	if err != nil {
 		return nil, err
 	}
-	ck.vernier = 0
-	return ck, nil
+	return &memChunkBuffer{bytes.NewBuffer(ck.data)}, nil
 }
 
 func (m *memoryStorage) Put(ctx context.Context, key, idx int64, dataReader io.Reader) error {
@@ -173,12 +173,14 @@ func (m *memoryStorage) Put(ctx context.Context, key, idx int64, dataReader io.R
 	cKey := m.chunkKey(key, idx)
 	ck, err := m.getChunk(ctx, m.chunkKey(key, idx))
 	if err != nil {
-		ck = &memChunkData{data: make([]byte, cacheNodeSize*1.5)}
+		ck = &memChunkData{}
 	}
 
-	if _, err = io.Copy(ck, dataReader); err != nil {
+	var buf bytes.Buffer
+	if _, err = io.Copy(&buf, dataReader); err != nil {
 		return err
 	}
+	ck.data = buf.Bytes()
 	return m.saveChunk(ctx, cKey, *ck)
 }
 
@@ -234,30 +236,14 @@ func newMemoryStorage(storageID string) Storage {
 	}
 }
 
-type memChunkData struct {
-	vernier int
-	data    []byte
+type memChunkBuffer struct {
+	*bytes.Buffer
 }
 
-func (c *memChunkData) Write(p []byte) (n int, err error) {
-	if c.vernier == len(c.data) {
-		return 0, io.ErrShortBuffer
-	}
-
-	n = copy(c.data[c.vernier:], p)
-	c.vernier += n
-	return n, nil
-}
-
-func (c *memChunkData) Read(p []byte) (n int, err error) {
-	n = copy(p, c.data[c.vernier:])
-	c.vernier += n
-	if c.vernier == len(c.data) {
-		return n, io.EOF
-	}
-	return n, nil
-}
-
-func (c *memChunkData) Close() error {
+func (b *memChunkBuffer) Close() error {
 	return nil
+}
+
+type memChunkData struct {
+	data []byte
 }

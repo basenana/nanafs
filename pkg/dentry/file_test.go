@@ -40,9 +40,9 @@ func resetFileChunk() {
 	fileChunk2 = make([]byte, fileChunkSize)
 	fileChunk3 = make([]byte, fileChunkSize)
 	fileChunk4 = make([]byte, fileChunkSize)
-	copy(fileChunk1, []byte("testdata-1"))
+	copy(fileChunk1, []byte("testdata-A"))
 	copy(fileChunk2, []byte("          "))
-	copy(fileChunk3, []byte("testdata-3"))
+	copy(fileChunk3, []byte("testdata-C"))
 	copy(fileChunk4, []byte(""))
 }
 
@@ -149,30 +149,26 @@ var _ = Describe("TestFileIO", func() {
 			f    File
 			err  error
 		)
-		BeforeEach(func() {
-			f, err = entryManager.Open(context.Background(), newMockFileEntry(name, inode), Attr{Write: true})
-			Expect(err).Should(BeNil())
-		})
-		AfterEach(func() {
-			Expect(f.Close(context.Background())).Should(BeNil())
-		})
 		Context("write new content to file", func() {
 			It("should be ok", func() {
+				f, err = entryManager.Open(context.Background(), newMockFileEntry(name, inode), Attr{Write: true})
+				Expect(err).Should(BeNil())
+
 				_, err = f.WriteAt(context.Background(), data, 0)
 				Expect(err).Should(BeNil())
 				Expect(f.Fsync(context.TODO())).Should(BeNil())
 				Expect(f.Close(context.Background())).Should(BeNil())
 				time.Sleep(time.Second)
 
-				Context("read file content", func() {
-					f, err = entryManager.Open(context.Background(), newMockFileEntry(name, inode), Attr{Read: true})
-					Expect(err).Should(BeNil())
+				f, err = entryManager.Open(context.Background(), newMockFileEntry(name, inode), Attr{Read: true})
+				Expect(err).Should(BeNil())
 
-					buf := make([]byte, 10)
-					n, err := f.ReadAt(context.Background(), buf, 0)
-					Expect(err).Should(BeNil())
-					Expect(buf[:n]).Should(Equal([]byte("testdata-3")))
-				})
+				buf := make([]byte, 10)
+				n, err := f.ReadAt(context.Background(), buf, 0)
+				Expect(err).Should(BeNil())
+				Expect(buf[:n]).Should(Equal(data))
+
+				Expect(f.Close(context.Background())).Should(BeNil())
 			})
 		})
 	})
@@ -193,14 +189,13 @@ var _ = Describe("TestFileIO", func() {
 				Expect(f.Fsync(context.Background())).Should(BeNil())
 				Expect(f.Close(context.Background())).Should(BeNil())
 				time.Sleep(time.Second)
-				Context("read new file", func() {
-					f, err = entryManager.Open(context.Background(), newMockFileEntry("test-create-new-file", inode+1), Attr{Read: true})
-					Expect(err).Should(BeNil())
-					buf := make([]byte, 10)
-					n, err := f.ReadAt(context.Background(), buf, 0)
-					Expect(err).Should(BeNil())
-					Expect(buf[:n]).Should(Equal(data[:10]))
-				})
+
+				f, err = entryManager.Open(context.Background(), newMockFileEntry("test-create-new-file", inode+1), Attr{Read: true})
+				Expect(err).Should(BeNil())
+				buf := make([]byte, 10)
+				n, err := f.ReadAt(context.Background(), buf, 0)
+				Expect(err).Should(BeNil())
+				Expect(buf[:n]).Should(Equal(data[:10]))
 			})
 		})
 	})

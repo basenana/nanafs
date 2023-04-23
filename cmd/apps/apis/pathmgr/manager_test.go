@@ -108,42 +108,19 @@ var _ = Describe("TestPathMgr", func() {
 			Expect(en.Metadata().ID).Should(Equal(int64(dentry.RootEntryID)))
 		})
 	})
-	Context("test Open group", func() {
-		It("should be succeed", func() {
-			en, err := mgr.Open(context.Background(), "/", dentry.Attr{})
-			Expect(err).Should(BeNil())
-			Expect(en.IsGroup()).Should(BeTrue())
-
-			children, err := en.Group().ListChildren(context.Background())
-			Expect(err).Should(BeNil())
-
-			found := false
-			for _, ch := range children {
-				if ch.Metadata().Name == "file1.txt" {
-					found = true
-					break
-				}
-			}
-			Expect(found).Should(BeTrue())
-		})
-	})
 	Context("test Open file", func() {
 		It("open existed should be succeed", func() {
-			en, err := mgr.Open(context.Background(), "/file1.txt", dentry.Attr{Read: true})
+			_, err := mgr.CreateFile(context.Background(), "/", types.ObjectAttr{Name: "file1.txt"})
 			Expect(err).Should(BeNil())
-
-			f, isFile := en.(dentry.File)
-			Expect(isFile).Should(BeTrue())
-			Expect(f.Close(context.Background())).Should(BeNil())
-
 		})
-		It("open new should be succeed", func() {
-			en, err := mgr.Open(context.Background(), "/file2.txt", dentry.Attr{Create: true, Write: true})
+		It("write new should be succeed", func() {
+			en, err := mgr.CreateFile(context.Background(), "/", types.ObjectAttr{Name: "file2.txt"})
 			Expect(err).Should(BeNil())
 			enID := en.Metadata().ID
 
-			f, isFile := en.(dentry.File)
-			Expect(isFile).Should(BeTrue())
+			f, err := mgr.Open(context.Background(), en, dentry.Attr{Write: true})
+			Expect(err).Should(BeNil())
+
 			n, err := f.WriteAt(context.Background(), []byte("abc"), 10)
 			Expect(n).Should(Equal(int64(3)))
 			Expect(err).Should(BeNil())

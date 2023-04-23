@@ -76,6 +76,8 @@ func NewChunkReader(md *types.Metadata, chunkStore metastore.ChunkStore, dataSto
 		ref:     1,
 		logger:  logger.NewLogger("chunkIO").With("entry", md.ID),
 	}
+	//FIXME
+	//fileChunkReaders[md.ID] = cr
 	return cr
 }
 
@@ -130,7 +132,7 @@ func (c *chunkReader) prepareData(ctx context.Context, index, off int64, dest []
 	req := &ioReq{
 		WaitGroup: wg,
 		off:       off,
-		dest:      dest,
+		data:      dest,
 	}
 	c.readMux.Lock()
 	reader, ok := c.readers[index]
@@ -207,7 +209,7 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 
 	var (
 		off          = req.off
-		bufLeft      = int64(len(req.dest))
+		bufLeft      = int64(len(req.data))
 		pageIdx, pos int64
 	)
 
@@ -228,7 +230,7 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 					return
 				}
 			})
-		}(ctx, st.query(pageIdx*pageSize, (pageIdx+1)*pageSize), pageIdx, readStart, req.dest[off-req.off:readEnd-req.off])
+		}(ctx, st.query(pageIdx*pageSize, (pageIdx+1)*pageSize), pageIdx, readStart, req.data[off-req.off:readEnd-req.off])
 		bufLeft -= readEnd - off
 		off = readEnd
 		if bufLeft == 0 {
@@ -236,7 +238,7 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 		}
 	}
 
-	preRead := len(req.dest)/pageSize + 1
+	preRead := len(req.data)/pageSize + 1
 	maxPage := int64(fileChunkSize / pageSize)
 	for preRead > 0 {
 		preRead -= 1
@@ -348,13 +350,20 @@ func NewChunkWriter(reader Reader) Writer {
 		return cw
 	}
 
-	return &chunkWriter{chunkReader: r, writers: map[int64]*segWriter{}, ref: 1}
+	cw = &chunkWriter{chunkReader: r, writers: map[int64]*segWriter{}, ref: 1}
+	//FIXME
+	//fileChunkWriters[r.entry.ID] = cw
+	return cw
 }
 
 func (c *chunkWriter) WriteAt(ctx context.Context, data []byte, off int64) (n int64, err error) {
 	ctx, task := trace.NewTask(ctx, "bio.chunkWriter.WriteAt")
 	defer task.End()
 
+	var (
+		wg      = &sync.WaitGroup{}
+		reqList = make([]*ioReq, 0, len(data)/fileChunkSize+1)
+	)
 	writeEnd := off + int64(len(data))
 	for {
 		index, _ := computeChunkIndex(off, fileChunkSize)
@@ -368,20 +377,31 @@ func (c *chunkWriter) WriteAt(ctx context.Context, data []byte, off int64) (n in
 		if readLen == 0 {
 			break
 		}
-		if err = c.writeSegData(ctx, index, off, data[n:n+readLen]); err != nil {
+		wg.Add(1)
+		req := &ioReq{WaitGroup: wg, off: off, data: data[n : n+readLen]}
+		if err = c.writeSegData(ctx, index, req); err != nil {
 			return n, err
 		}
+		reqList = append(reqList, req)
+
 		n += readLen
 		off = chunkEnd
 		if off == writeEnd {
 			break
 		}
 	}
+	wg.Wait()
+	for _, req := range reqList {
+		if req.err != nil {
+			return n, req.err
+		}
+	}
 	return n, nil
 }
 
-func (c *chunkWriter) writeSegData(ctx context.Context, index, off int64, dest []byte) (err error) {
+func (c *chunkWriter) writeSegData(ctx context.Context, index int64, req *ioReq) (err error) {
 	defer trace.StartRegion(ctx, "bio.chunkWriter.writeSegData").End()
+	defer req.Done()
 	c.writerMux.Lock()
 	sw, ok := c.writers[index]
 	if !ok {
@@ -405,8 +425,8 @@ func (c *chunkWriter) writeSegData(ctx context.Context, index, off int64, dest [
 	}()
 
 	var (
-		crt    = off
-		bufEnd = off + int64(len(dest))
+		crt    = req.off
+		bufEnd = req.off + int64(len(req.data))
 	)
 	for {
 		pageIdx, pos := computePageIndex(crt)
@@ -414,7 +434,7 @@ func (c *chunkWriter) writeSegData(ctx context.Context, index, off int64, dest [
 		if writeEnd > bufEnd {
 			writeEnd = bufEnd
 		}
-		sw.put(ctx, pageIdx, pos, dest[crt-off:writeEnd-off])
+		sw.put(ctx, pageIdx, pos, req, req.data[crt-req.off:writeEnd-req.off])
 		crt = writeEnd
 		if crt == bufEnd {
 			break
@@ -491,7 +511,7 @@ type segWriter struct {
 	mux         sync.Mutex
 }
 
-func (w *segWriter) put(ctx context.Context, pageIdx, pagePos int64, data []byte) {
+func (w *segWriter) put(ctx context.Context, pageIdx, pagePos int64, req *ioReq, data []byte) {
 	defer trace.StartRegion(ctx, "bio.segWriter.put").End()
 	w.mux.Lock()
 	seg, page := w.findUncommittedPage(ctx, pageIdx, pageIdx*pageSize+pagePos)
@@ -512,7 +532,7 @@ func (w *segWriter) put(ctx context.Context, pageIdx, pagePos int64, data []byte
 		page.node, err = w.cache.OpenTemporaryNode(ctx, w.entry.ID, pageIdx*pageSize+pagePos)
 		if err != nil {
 			w.logger.Errorw("open temporary node error", "entry", w.entry.ID, "chunk", w.chunkID, "err", err)
-			w.chunkErr = err
+			req.err = err
 			return
 		}
 		seg.pages = append(seg.pages, page)
@@ -521,11 +541,12 @@ func (w *segWriter) put(ctx context.Context, pageIdx, pagePos int64, data []byte
 
 	seg.uploads.Add(1)
 	page.mux.Lock()
+	req.Add(1)
 	maxWriteChunkTaskParallel.Go(func() {
-		w.preWrite(ctx, pagePos, seg, page, data)
+		w.preWrite(ctx, pagePos, seg, page, req, data)
 	})
 }
-func (w *segWriter) preWrite(ctx context.Context, pagePos int64, seg *uncommittedSeg, page *uncommittedPage, data []byte) {
+func (w *segWriter) preWrite(ctx context.Context, pagePos int64, seg *uncommittedSeg, page *uncommittedPage, req *ioReq, data []byte) {
 	defer trace.StartRegion(ctx, "bio.segWriter.preWrite").End()
 	defer seg.uploads.Done()
 	defer func() {
@@ -537,12 +558,15 @@ func (w *segWriter) preWrite(ctx context.Context, pagePos int64, seg *uncommitte
 
 	n, err := page.node.WriteAt(data, pagePos)
 	if err != nil {
-		w.chunkErr = err
+		req.Done()
+		req.err = err
 		w.logger.Errorw("write to cache node error", "entry", w.entry.ID, "chunk", w.chunkID, "err", err)
 		page.mux.Unlock()
 		atomic.AddInt32(&page.visitor, -1)
 		return
 	}
+	req.Done()
+
 	dataEnd := page.idx*pageSize + pagePos + int64(n)
 	if dataEnd == (page.idx+1)*pageSize && !page.committed {
 		seg.uploads.Add(1)
@@ -742,7 +766,7 @@ type ioReq struct {
 	*sync.WaitGroup
 
 	off  int64
-	dest []byte
+	data []byte
 	err  error
 }
 

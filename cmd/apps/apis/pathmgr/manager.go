@@ -18,6 +18,7 @@ package pathmgr
 
 import (
 	"context"
+	"fmt"
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
@@ -66,47 +67,50 @@ func (m *PathManager) FindParentEntry(ctx context.Context, entryPath string) (de
 	return m.getPathEntry(ctx, path.Dir(entryPath))
 }
 
-func (m *PathManager) Open(ctx context.Context, entryPath string, attr dentry.Attr) (dentry.Entry, error) {
-	var err error
+func (m *PathManager) Open(ctx context.Context, en dentry.Entry, attr dentry.Attr) (dentry.File, error) {
+	return m.ctrl.OpenFile(ctx, en, attr)
+}
+
+func (m *PathManager) CreateFile(ctx context.Context, parentDir string, attr types.ObjectAttr) (dentry.Entry, error) {
+	var (
+		err       error
+		result    dentry.Entry
+		entryPath = path.Join(parentDir, attr.Name)
+	)
+	if attr.Name == "" {
+		return nil, fmt.Errorf("file name is empty")
+	}
+
 	entryPath, err = m.getPath(entryPath)
 	if err != nil {
 		return nil, err
 	}
-	en, err := m.getPathEntry(ctx, entryPath)
-	if err != nil && err != types.ErrNotFound {
+	result, err = m.getPathEntry(ctx, entryPath)
+	if err == nil {
+		if result.IsGroup() {
+			return nil, types.ErrIsGroup
+		}
+		return result, nil
+	} else if err != nil && err != types.ErrNotFound {
 		return nil, err
 	}
 
-	if err == types.ErrNotFound {
-		if !attr.Create {
-			return nil, err
-		}
-		var en, parent dentry.Entry
-		parentDir, base := path.Split(entryPath)
-		parent, err = m.FindEntry(ctx, parentDir)
-		if err != nil {
-			return nil, err
-		}
-		if !parent.IsGroup() {
-			return nil, types.ErrNoGroup
-		}
-
-		en, err = m.ctrl.CreateEntry(ctx, parent, types.ObjectAttr{
-			Name:   base,
-			Kind:   types.RawKind,
-			Access: parent.Metadata().Access,
-		})
-		if err != nil {
-			return nil, err
-		}
-		m.logger.Infow("create file entry", "path", entryPath, "entry", en.Metadata().ID)
-		return m.ctrl.OpenFile(ctx, en, attr)
+	var en, parent dentry.Entry
+	parent, err = m.FindEntry(ctx, parentDir)
+	if err != nil {
+		return nil, err
+	}
+	if !parent.IsGroup() {
+		return nil, types.ErrNoGroup
 	}
 
-	if en.IsGroup() {
-		return en, nil
+	attr.Dev = parent.Metadata().Dev
+	en, err = m.ctrl.CreateEntry(ctx, parent, attr)
+	if err != nil {
+		return nil, err
 	}
-	return m.ctrl.OpenFile(ctx, en, attr)
+	m.logger.Infow("create file entry", "path", entryPath, "entry", en.Metadata().ID)
+	return en, nil
 }
 
 func (m *PathManager) CreateAll(ctx context.Context, entryPath string, attr dentry.EntryAttr) (dentry.Entry, error) {
@@ -131,7 +135,7 @@ func (m *PathManager) CreateAll(ctx context.Context, entryPath string, attr dent
 
 		if err == types.ErrNotFound {
 			pp, base := path.Split(dirPath)
-			en, err = m.ctrl.CreateEntry(ctx, parent, types.ObjectAttr{Name: base, Kind: types.GroupKind, Access: attr.Access})
+			en, err = m.ctrl.CreateEntry(ctx, parent, types.ObjectAttr{Name: base, Kind: types.GroupKind, Dev: parent.Metadata().Dev, Access: attr.Access})
 			if err != nil {
 				return nil, err
 			}

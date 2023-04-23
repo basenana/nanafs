@@ -25,20 +25,20 @@ import (
 	"syscall"
 )
 
-type log struct {
+type wrapLogger struct {
 	logger *zap.SugaredLogger
 }
 
-func (l *log) handle(req *http.Request, err error) {
+func (l *wrapLogger) handle(req *http.Request, err error) {
 	if err != nil {
 		l.logger.Errorw(req.URL.Path, "method", req.Method, "err", err)
 		return
 	}
-	l.logger.Debugw(req.URL.Path, "method", req.Method)
+	l.logger.Infow(req.URL.Path, "method", req.Method)
 }
 
-func initLogger(l *zap.SugaredLogger) *log {
-	return &log{logger: l}
+func initLogger(l *zap.SugaredLogger) *wrapLogger {
+	return &wrapLogger{logger: l}
 }
 
 func Stat(md *types.Metadata) Info {

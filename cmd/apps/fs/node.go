@@ -187,6 +187,7 @@ func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode u
 	newCh, err := n.R.CreateEntry(ctx, entry, types.ObjectAttr{
 		Name:   name,
 		Kind:   fileKindFromMode(mode),
+		Dev:    entry.Metadata().Dev,
 		Access: *acc,
 	})
 	if err != nil {
@@ -292,6 +293,7 @@ func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fus
 	newDir, err := n.R.CreateEntry(ctx, entry, types.ObjectAttr{
 		Name:   name,
 		Kind:   fileKindFromMode(mode),
+		Dev:    entry.Metadata().Dev,
 		Access: *acc,
 	})
 	if err != nil {
@@ -388,6 +390,7 @@ func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.E
 	newLink, err := n.R.CreateEntry(ctx, entry, types.ObjectAttr{
 		Name:   name,
 		Kind:   types.SymLinkKind,
+		Dev:    entry.Metadata().Dev,
 		Access: entry.Metadata().Access,
 	})
 	if err != nil {

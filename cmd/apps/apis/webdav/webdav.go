@@ -33,6 +33,8 @@ import (
 	"time"
 )
 
+var log *zap.SugaredLogger
+
 type Webdav struct {
 	cfg     config.Webdav
 	handler http.Handler
@@ -83,11 +85,19 @@ func (o FsOperator) OpenFile(ctx context.Context, name string, flag int, perm os
 	if userInfo == nil {
 		return nil, types.ErrNoAccess
 	}
+
+	openAttr := flag2EntryOpenAttr(flag)
 	err := o.mgr.Access(ctx, name, userInfo.UID, userInfo.GID, perm)
-	if err != nil && err != types.ErrNotFound {
+	if err == nil {
+		en, err := o.mgr.FindEntry(ctx, name)
+		if err != nil {
+			return nil, err
+		}
+		return openFile(en, o.mgr, openAttr)
+	} else if err != nil && err != types.ErrNotFound {
 		return nil, err
 	}
-	openAttr := flag2EntryOpenAttr(flag)
+
 	if err == types.ErrNotFound {
 		if !openAttr.Create {
 			return nil, err
@@ -97,11 +107,16 @@ func (o FsOperator) OpenFile(ctx context.Context, name string, flag int, perm os
 			return nil, err
 		}
 	}
-	en, err := o.mgr.Open(ctx, name, openAttr)
+	parentDir, filename := path.Split(name)
+	en, err := o.mgr.CreateFile(ctx, parentDir, types.ObjectAttr{
+		Name:   filename,
+		Kind:   types.RawKind,
+		Access: mode2EntryAttr(perm).Access,
+	})
 	if err != nil {
 		return nil, err
 	}
-	return openFile(en)
+	return openFile(en, o.mgr, openAttr)
 }
 
 func (o FsOperator) RemoveAll(ctx context.Context, name string) error {
@@ -131,11 +146,12 @@ func NewWebdavServer(mgr *pathmgr.PathManager, cfg config.Webdav) (*Webdav, erro
 		cfg.Host = "127.0.0.1"
 	}
 
-	w := FsOperator{mgr: mgr, cfg: cfg, logger: logger.NewLogger("webdav")}
+	log = logger.NewLogger("webdav")
+	w := FsOperator{mgr: mgr, cfg: cfg, logger: log}
 	handler := &webdav.Handler{
 		FileSystem: w,
 		LockSystem: webdav.NewMemLS(), // TODO:need flock
-		Logger:     initLogger(w.logger).handle,
+		Logger:     initLogger(log).handle,
 	}
-	return &Webdav{cfg: cfg, handler: handler, logger: w.logger}, nil
+	return &Webdav{cfg: cfg, handler: handler, logger: log}, nil
 }

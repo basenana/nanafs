@@ -65,6 +65,7 @@ func (c *controller) OpenFile(ctx context.Context, en dentry.Entry, attr dentry.
 	if err = c.SaveEntry(ctx, nil, en); err != nil {
 		return nil, err
 	}
+	c.cache.putEntry(en)
 	bus.Publish(fmt.Sprintf("object.file.%d.open", md.ID), en)
 	return file, nil
 }

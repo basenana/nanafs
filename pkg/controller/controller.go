@@ -298,5 +298,6 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 	if err != nil {
 		return nil, err
 	}
+	ctl.entry.SetCacheResetter(ctl.cache)
 	return ctl, nil
 }
