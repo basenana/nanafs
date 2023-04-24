@@ -64,7 +64,6 @@ func NewMetadata(name string, kind Kind) Metadata {
 		ChangedAt:  time.Now(),
 		ModifiedAt: time.Now(),
 	}
-	result.Inode = uint64(result.ID)
 	if IsGroup(kind) {
 		// as dir, default has self and '..' two links
 		result.RefCount = 2

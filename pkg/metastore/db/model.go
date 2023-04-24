@@ -41,7 +41,6 @@ type Object struct {
 	Kind       string `gorm:"column:kind"`
 	Hash       string `gorm:"column:hash"`
 	Size       int64  `gorm:"column:size"`
-	Inode      uint64 `gorm:"column:inode;unique"`
 	Dev        int64  `gorm:"column:dev"`
 	Owner      int64  `gorm:"column:owner"`
 	GroupOwner int64  `gorm:"column:group_owner"`
@@ -68,7 +67,6 @@ func (o *Object) Update(obj *types.Object) {
 	o.Kind = string(obj.Kind)
 	o.Hash = obj.Hash
 	o.Size = obj.Size
-	o.Inode = obj.Inode
 	o.Dev = obj.Dev
 	o.Storage = obj.Storage
 	o.Namespace = obj.Namespace
@@ -93,7 +91,6 @@ func (o *Object) Object() *types.Object {
 			Kind:       types.Kind(o.Kind),
 			Hash:       o.Hash,
 			Size:       o.Size,
-			Inode:      o.Inode,
 			Dev:        o.Dev,
 			Storage:    o.Storage,
 			Namespace:  o.Namespace,

@@ -232,7 +232,6 @@ func (c *LocalCache) mustAccountCacheUsage(ctx context.Context, usage int64) err
 			return ctx.Err()
 		default:
 			crtCached := atomic.LoadInt64(&localCacheSizeUsage)
-			cacheLog.Debugw("mustAccountCacheUsage", "localCacheSizeUsage", crtCached, "localCacheSizeLimit", localCacheSizeLimit, "want", usage, "needCleanSpace", crtCached+usage > localCacheSizeLimit)
 			if crtCached+usage > localCacheSizeLimit {
 				if err := c.cleanSpace(rmCacheFile); err != nil {
 					return err
@@ -557,7 +556,6 @@ func (c *cachedFileMapper) removeNextCacheFile() error {
 	delete(c.cachedNode, filename)
 	c.mux.Unlock()
 	atomic.AddInt64(&localCacheSizeUsage, -1*info.Size())
-	cacheLog.Debugw("removeNextCacheFile finish", "localCacheSizeUsage", atomic.LoadInt64(&localCacheSizeUsage))
 	return nil
 }
 

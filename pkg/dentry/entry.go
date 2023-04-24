@@ -193,7 +193,6 @@ func initMirrorEntryObject(src, newParent *types.Metadata, attr EntryAttr) (*typ
 	}
 
 	obj.Metadata.Kind = src.Kind
-	obj.Metadata.Inode = uint64(src.ID)
 	obj.Metadata.Namespace = src.Namespace
 	obj.RefID = src.ID
 	return obj, nil
