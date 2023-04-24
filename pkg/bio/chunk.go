@@ -310,6 +310,9 @@ func (c *segReader) readPage(ctx context.Context, segments []segment, pageIndex,
 				_ = openedCachedNode.Close()
 				return innerErr
 			}
+			if onceRead == 0 {
+				c.r.logger.Warnw("read cached node error: got empty", "segment", seg.id, "page", pageIndex)
+			}
 			_ = openedCachedNode.Close()
 			crt += int64(onceRead)
 		}

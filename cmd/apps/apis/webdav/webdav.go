@@ -76,14 +76,14 @@ type FsOperator struct {
 func (o FsOperator) Mkdir(ctx context.Context, name string, perm os.FileMode) error {
 	defer trace.StartRegion(ctx, "apis.webdav.Mkdir").End()
 	_, err := o.mgr.CreateAll(ctx, name, mode2EntryAttr(perm))
-	return err
+	return error2FsError(err)
 }
 
 func (o FsOperator) OpenFile(ctx context.Context, name string, flag int, perm os.FileMode) (webdav.File, error) {
 	defer trace.StartRegion(ctx, "apis.webdav.OpenFile").End()
 	userInfo := common.GetUserInfo(ctx)
 	if userInfo == nil {
-		return nil, types.ErrNoAccess
+		return nil, error2FsError(types.ErrNoAccess)
 	}
 
 	openAttr := flag2EntryOpenAttr(flag)
@@ -91,20 +91,24 @@ func (o FsOperator) OpenFile(ctx context.Context, name string, flag int, perm os
 	if err == nil {
 		en, err := o.mgr.FindEntry(ctx, name)
 		if err != nil {
-			return nil, err
+			return nil, error2FsError(err)
 		}
-		return openFile(en, o.mgr, openAttr)
+		f, err := openFile(en, o.mgr, openAttr)
+		if err != nil {
+			return nil, error2FsError(err)
+		}
+		return f, err
 	} else if err != nil && err != types.ErrNotFound {
-		return nil, err
+		return nil, error2FsError(err)
 	}
 
 	if err == types.ErrNotFound {
 		if !openAttr.Create {
-			return nil, err
+			return nil, error2FsError(err)
 		}
 		_, err = o.mgr.CreateAll(ctx, path.Dir(name), mode2EntryAttr(perm))
 		if err != nil {
-			return nil, err
+			return nil, error2FsError(err)
 		}
 	}
 	parentDir, filename := path.Split(name)
@@ -114,26 +118,30 @@ func (o FsOperator) OpenFile(ctx context.Context, name string, flag int, perm os
 		Access: mode2EntryAttr(perm).Access,
 	})
 	if err != nil {
-		return nil, err
+		return nil, error2FsError(err)
 	}
-	return openFile(en, o.mgr, openAttr)
+	f, err := openFile(en, o.mgr, openAttr)
+	if err != nil {
+		return nil, error2FsError(err)
+	}
+	return f, nil
 }
 
 func (o FsOperator) RemoveAll(ctx context.Context, name string) error {
 	defer trace.StartRegion(ctx, "apis.webdav.RemoveAll").End()
-	return o.mgr.RemoveAll(ctx, name, false)
+	return error2FsError(o.mgr.RemoveAll(ctx, name, false))
 }
 
 func (o FsOperator) Rename(ctx context.Context, oldName, newName string) error {
 	defer trace.StartRegion(ctx, "apis.webdav.Rename").End()
-	return o.mgr.Rename(ctx, oldName, newName)
+	return error2FsError(o.mgr.Rename(ctx, oldName, newName))
 }
 
 func (o FsOperator) Stat(ctx context.Context, name string) (os.FileInfo, error) {
 	defer trace.StartRegion(ctx, "apis.webdav.Stat").End()
 	en, err := o.mgr.FindEntry(ctx, name)
 	if err != nil {
-		return nil, err
+		return nil, error2FsError(err)
 	}
 	return Stat(en.Metadata()), nil
 }

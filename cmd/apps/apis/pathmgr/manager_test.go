@@ -181,8 +181,8 @@ var _ = Describe("TestPathMgr", func() {
 			err := mgr.Rename(context.Background(), "/file1.txt", "/new-file-1.txt")
 			Expect(err).Should(BeNil())
 
-			//_, err = mgr.FindEntry(context.Background(), "/file1.txt")
-			//Expect(err).Should(Equal(types.ErrNotFound))
+			_, err = mgr.FindEntry(context.Background(), "/file1.txt")
+			Expect(err).Should(Equal(types.ErrNotFound))
 		})
 	})
 })

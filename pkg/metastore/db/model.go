@@ -24,7 +24,6 @@ import (
 
 type SystemInfo struct {
 	FsID     string `gorm:"column:fs_id;primaryKey"`
-	Inode    uint64 `gorm:"column:inode"`
 	ChunkSeg int64  `gorm:"column:chunk_seg"`
 }
 

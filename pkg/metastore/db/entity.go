@@ -48,10 +48,7 @@ func NewDbEntity(db *gorm.DB) (*Entity, error) {
 	}
 
 	if err != nil {
-		sysInfo := &SystemInfo{
-			FsID:  uuid.New().String(),
-			Inode: 1024,
-		}
+		sysInfo := &SystemInfo{FsID: uuid.New().String()}
 		if res := db.WithContext(ctx).Create(sysInfo); res.Error != nil {
 			return nil, res.Error
 		}
@@ -291,8 +288,12 @@ func (e *Entity) DeletePluginRecord(ctx context.Context, plugin types.PlugScope,
 	return nil
 }
 
-func (e *Entity) NextSegmentID(ctx context.Context) (int64, error) {
-	return availableChunkSegID(e.DB.WithContext(ctx))
+func (e *Entity) NextSegmentID(ctx context.Context) (nextID int64, err error) {
+	err = e.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		nextID, err = availableChunkSegID(tx)
+		return err
+	})
+	return
 }
 
 func (e *Entity) InsertChunkSegment(ctx context.Context, seg types.ChunkSeg) (*types.Object, error) {
@@ -382,11 +383,6 @@ func saveRawObject(tx *gorm.DB, obj *types.Object) error {
 	}
 
 	if res.Error == gorm.ErrRecordNotFound {
-		ino, err := availableInode(tx)
-		if err != nil {
-			return err
-		}
-		obj.Inode = ino
 		objModel.Update(obj)
 		res = tx.Create(objModel)
 		if res.Error != nil {
@@ -444,22 +440,6 @@ func deleteRawObject(tx *gorm.DB, obj *types.Object) error {
 	}
 
 	return nil
-}
-
-func availableInode(tx *gorm.DB) (uint64, error) {
-	info := &SystemInfo{}
-	res := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(info)
-	if res.Error != nil {
-		return 0, res.Error
-	}
-
-	info.Inode += 1
-	res = tx.Save(info)
-	if res.Error != nil {
-		return 0, res.Error
-	}
-
-	return info.Inode, nil
 }
 
 func availableChunkSegID(tx *gorm.DB) (int64, error) {

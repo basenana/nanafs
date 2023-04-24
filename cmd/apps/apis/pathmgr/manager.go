@@ -224,11 +224,17 @@ func (m *PathManager) Rename(ctx context.Context, oldPath, entryPath string) err
 	if err != nil {
 		return err
 	}
-	target, err := m.FindParentEntry(ctx, oldPath)
+	target, err := m.FindEntry(ctx, oldPath)
 	if err != nil {
 		return err
 	}
-	return m.ctrl.ChangeEntryParent(ctx, target, oldParent, newParent, path.Base(entryPath), types.ChangeParentAttr{})
+	err = m.ctrl.ChangeEntryParent(ctx, target, oldParent, newParent, path.Base(entryPath), types.ChangeParentAttr{})
+	if err != nil {
+		return err
+	}
+	m.entries.Remove(oldPath)
+	m.entries.Remove(entryPath)
+	return nil
 }
 
 func (m *PathManager) getPathEntry(ctx context.Context, entryPath string) (dentry.Entry, error) {
