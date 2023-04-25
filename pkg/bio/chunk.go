@@ -76,8 +76,7 @@ func NewChunkReader(md *types.Metadata, chunkStore metastore.ChunkStore, dataSto
 		ref:     1,
 		logger:  logger.NewLogger("chunkIO").With("entry", md.ID),
 	}
-	//FIXME
-	//fileChunkReaders[md.ID] = cr
+	fileChunkReaders[md.ID] = cr
 	return cr
 }
 
@@ -157,6 +156,7 @@ func (c *chunkReader) invalidate(index int64) {
 	if ok {
 		reader.mux.Lock()
 		reader.st = nil
+		c.page.invalid(fileChunkSize*index/pageSize, fileChunkSize*(index+1)/pageSize)
 		reader.mux.Unlock()
 	}
 }
@@ -344,6 +344,7 @@ func NewChunkWriter(reader Reader) Writer {
 	if !ok {
 		return nil
 	}
+	atomic.AddInt32(&r.ref, 1)
 
 	fileChunkMux.Lock()
 	defer fileChunkMux.Unlock()
@@ -354,8 +355,7 @@ func NewChunkWriter(reader Reader) Writer {
 	}
 
 	cw = &chunkWriter{chunkReader: r, writers: map[int64]*segWriter{}, ref: 1}
-	//FIXME
-	//fileChunkWriters[r.entry.ID] = cw
+	fileChunkWriters[r.entry.ID] = cw
 	return cw
 }
 
@@ -501,6 +501,7 @@ func (c *chunkWriter) Close() {
 		delete(fileChunkWriters, c.entry.ID)
 		fileChunkMux.Unlock()
 	}
+	c.chunkReader.Close()
 }
 
 type segWriter struct {
@@ -699,6 +700,7 @@ func (w *segWriter) commitSegment(ctx context.Context) {
 			w.chunkErr = err
 			continue
 		}
+		w.invalidate(w.chunkID)
 		w.entry = &newObj.Metadata
 		w.uncommitted = w.uncommitted[1:]
 		atomic.AddInt32(&w.unready, -1)

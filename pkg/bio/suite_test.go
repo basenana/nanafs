@@ -17,11 +17,9 @@
 package bio
 
 import (
-	"context"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
-	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"os"
 	"testing"
@@ -33,7 +31,6 @@ import (
 var (
 	chunkStore metastore.ChunkStore
 	dataStore  storage.Storage
-	fakeObj    *types.Object
 
 	workdir string
 )
@@ -49,10 +46,6 @@ func TestBIO(t *testing.T) {
 	t.Logf("unit test workdir on: %s", workdir)
 	storage.InitLocalCache(config.Config{CacheDir: workdir, CacheSize: 1})
 
-	RunSpecs(t, "BIO Suite")
-}
-
-var _ = BeforeSuite(func() {
 	memMeta, err := metastore.NewMetaStorage(storage.MemoryStorage, config.Meta{})
 	Expect(err).Should(BeNil())
 	chunkStore = memMeta
@@ -61,9 +54,5 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 	dataStore = memData
 
-	fakeObj = &types.Object{
-		Metadata: types.NewMetadata("test.file", types.RawKind),
-	}
-	err = memMeta.SaveObject(context.Background(), nil, fakeObj)
-	Expect(err).Should(BeNil())
-})
+	RunSpecs(t, "BIO Suite")
+}

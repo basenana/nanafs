@@ -132,6 +132,18 @@ func (p *pageCache) insertPage(ctx context.Context, pageIdx int64) *pageNode {
 	return dataNode
 }
 
+func (p *pageCache) invalid(pageStartIndex, pageEndIndex int64) {
+	for i := pageStartIndex; i < pageEndIndex; i++ {
+		page := p.findPage(i)
+		if page == nil {
+			continue
+		}
+		page.mux.Lock()
+		page.mode |= pageModeInvalid
+		page.mux.Unlock()
+	}
+}
+
 func (p *pageCache) findPage(pageIdx int64) *pageNode {
 	if p.data.rootNode == nil {
 		return nil

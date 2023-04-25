@@ -19,6 +19,7 @@ package dentry
 import (
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"runtime/trace"
 	"time"
@@ -267,14 +268,25 @@ func (m *manager) Open(ctx context.Context, en Entry, attr Attr) (File, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.Open").End()
 	if attr.Trunc {
 		en.Metadata().Size = 0
+		// TODO clean old data
+		events.Publish(events.EntryActionTopic(events.TopicFileTruncFmt, en.Metadata().ID), en)
 	}
 
+	var (
+		f   File
+		err error
+	)
 	switch en.Metadata().Kind {
 	case types.SymLinkKind:
-		return openSymlink(en, attr)
+		f, err = openSymlink(en, attr)
 	default:
-		return openFile(en, attr, m.store, m.storages[en.Metadata().Storage], m.cacheReset, m.cfg.FS)
+		f, err = openFile(en, attr, m.store, m.storages[en.Metadata().Storage], m.cacheReset, m.cfg.FS)
 	}
+	if err != nil {
+		return nil, err
+	}
+	events.Publish(events.EntryActionTopic(events.TopicFileOpenFmt, en.Metadata().ID), en)
+	return &instrumentalFile{file: f}, nil
 }
 
 func (m *manager) MustCloseAll() {
