@@ -77,7 +77,7 @@ The generated configuration file can be found in the `~/.nana` directory:
     "enable": false,
     "host": "127.0.0.1",
     "port": 7082,
-    "users": [
+    "overwrite_users": [
       {
         "uid": 0,
         "gid": 0,

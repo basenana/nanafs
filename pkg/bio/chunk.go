@@ -878,6 +878,10 @@ func minOff(off1, off2 int64) int64 {
 	return off2
 }
 
+func CompactChunksData(ctx context.Context, md *types.Metadata, chunkStore metastore.ChunkStore, dataStore storage.Storage) error {
+	return nil
+}
+
 func DeleteChunksData(ctx context.Context, md *types.Metadata, chunkStore metastore.ChunkStore, dataStore storage.Storage) error {
 	maxChunkID := (md.Size / fileChunkSize) + 1
 
