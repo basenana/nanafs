@@ -18,13 +18,12 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
-	"github.com/hyponet/eventbus/bus"
 	"go.uber.org/zap"
 	"runtime/trace"
 )
@@ -136,7 +135,7 @@ func (c *controller) CreateEntry(ctx context.Context, parent dentry.Entry, attr 
 		return nil, err
 	}
 	c.cache.putEntry(entry)
-	bus.Publish(fmt.Sprintf("object.entry.%d.create", entry.Metadata().ID), entry)
+	events.Publish(events.EntryActionTopic(events.TopicEntryCreateFmt, entry.Metadata().ID), entry)
 	return entry, nil
 }
 
@@ -160,7 +159,7 @@ func (c *controller) SaveEntry(ctx context.Context, parent, entry dentry.Entry) 
 	}
 	c.cache.putEntry(parent)
 	c.cache.putEntry(entry)
-	bus.Publish(fmt.Sprintf("object.entry.%d.update", entry.Metadata().ID), entry)
+	events.Publish(events.EntryActionTopic(events.TopicEntryUpdateFmt, entry.Metadata().ID), entry)
 	return nil
 }
 
@@ -185,7 +184,7 @@ func (c *controller) DestroyEntry(ctx context.Context, parent, en dentry.Entry, 
 	c.cache.putEntry(parent)
 	c.cache.delEntry(en.Metadata().ID)
 	if destroyed {
-		bus.Publish(fmt.Sprintf("object.entry.%d.destroy", en.Metadata().ID), en)
+		events.Publish(events.EntryActionTopic(events.TopicEntryDestroyFmt, en.Metadata().ID), en)
 	}
 	return
 }
@@ -216,7 +215,7 @@ func (c *controller) MirrorEntry(ctx context.Context, src, dstParent dentry.Entr
 	c.cache.delEntry(entry.Metadata().RefID)
 	c.cache.delEntry(dstParent.Metadata().ID)
 
-	bus.Publish(fmt.Sprintf("object.entry.%d.mirror", entry.Metadata().ID), entry)
+	events.Publish(events.EntryActionTopic(events.TopicEntryMirrorFmt, entry.Metadata().ID), entry)
 	return entry, nil
 }
 
@@ -279,7 +278,7 @@ func (c *controller) ChangeEntryParent(ctx context.Context, target, oldParent, n
 	c.cache.putEntry(target)
 	c.cache.putEntry(oldParent)
 	c.cache.putEntry(newParent)
-	bus.Publish(fmt.Sprintf("object.entry.%d.mv", target.Metadata().ID), target)
+	events.Publish(events.EntryActionTopic(events.TopicEntryChangeParentFmt, target.Metadata().ID), target)
 	return nil
 }
 
@@ -298,5 +297,6 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 	if err != nil {
 		return nil, err
 	}
+	ctl.entry.SetCacheResetter(ctl.cache)
 	return ctl, nil
 }

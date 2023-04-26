@@ -14,23 +14,11 @@
  limitations under the License.
 */
 
-package metastore
+package events
 
-import (
-	"fmt"
-	"github.com/basenana/nanafs/config"
+import "github.com/hyponet/eventbus/bus"
+
+var (
+	Publish   = bus.Publish
+	Subscribe = bus.Subscribe
 )
-
-func NewMetaStorage(metaType string, meta config.Meta) (Meta, error) {
-	switch metaType {
-	case MemoryMeta:
-		meta.Path = ":memory:"
-		return newSqliteMetaStore(meta)
-	case SqliteMeta:
-		return newSqliteMetaStore(meta)
-	case PostgresMeta:
-		return newPostgresMetaStore(meta)
-	default:
-		return nil, fmt.Errorf("unknow meta store type: %s", metaType)
-	}
-}

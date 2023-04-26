@@ -19,9 +19,9 @@ package dentry
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/bio"
+	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/utils/logger"
-	"github.com/hyponet/eventbus/bus"
 	"go.uber.org/zap"
 	"sync"
 )
@@ -44,11 +44,11 @@ func newLifecycle(mgr *manager) *lifecycle {
 
 func (l *lifecycle) initHooks() {
 	var err error
-	_, err = bus.Subscribe("object.entry.*.destroy", l.cleanChunks)
+	_, err = events.Subscribe(events.EntryActionTopic(events.TopicEntryDestroyFmt, 0), l.cleanChunks)
 	if err != nil {
 		l.logger.Errorw("subscribe object destroy topic failed", "err", err)
 	}
-	_, err = bus.Subscribe("object.file.*.close", l.handleFileClose)
+	_, err = events.Subscribe(events.EntryActionTopic(events.TopicFileCloseFmt, 0), l.handleFileClose)
 	if err != nil {
 		l.logger.Errorw("subscribe object destroy topic failed", "err", err)
 	}

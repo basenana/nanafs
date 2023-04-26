@@ -26,6 +26,10 @@ type entryCache struct {
 	lfu *utils.LFUPool
 }
 
+func (c *entryCache) ResetEntry(entry dentry.Entry) {
+	c.lfu.Remove(c.entryKey(entry.Metadata().ID))
+}
+
 func (c *entryCache) putEntry(entry dentry.Entry) {
 	c.lfu.Put(c.entryKey(entry.Metadata().ID), entry)
 }

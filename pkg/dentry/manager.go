@@ -19,6 +19,7 @@ package dentry
 import (
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"runtime/trace"
 	"time"
@@ -40,6 +41,7 @@ type Manager interface {
 	MirrorEntry(ctx context.Context, src, dstParent Entry, attr EntryAttr) (Entry, error)
 	ChangeEntryParent(ctx context.Context, targetEntry, overwriteEntry, oldParent, newParent Entry, newName string, opt ChangeParentAttr) error
 	Open(ctx context.Context, en Entry, attr Attr) (File, error)
+	SetCacheResetter(r CacheResetter)
 	MustCloseAll()
 }
 
@@ -64,10 +66,11 @@ func NewManager(store metastore.ObjectStore, cfg config.Config) (Manager, error)
 }
 
 type manager struct {
-	store    metastore.ObjectStore
-	storages map[string]storage.Storage
-	cfg      config.Config
-	logger   *zap.SugaredLogger
+	store      metastore.ObjectStore
+	storages   map[string]storage.Storage
+	cacheReset CacheResetter
+	cfg        config.Config
+	logger     *zap.SugaredLogger
 }
 
 var _ Manager = &manager{}
@@ -265,18 +268,33 @@ func (m *manager) Open(ctx context.Context, en Entry, attr Attr) (File, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.Open").End()
 	if attr.Trunc {
 		en.Metadata().Size = 0
+		// TODO clean old data
+		events.Publish(events.EntryActionTopic(events.TopicFileTruncFmt, en.Metadata().ID), en)
 	}
 
+	var (
+		f   File
+		err error
+	)
 	switch en.Metadata().Kind {
 	case types.SymLinkKind:
-		return openSymlink(en, attr)
+		f, err = openSymlink(en, attr)
 	default:
-		return openFile(en, attr, m.store, m.storages[en.Metadata().Storage], m.cfg.FS)
+		f, err = openFile(en, attr, m.store, m.storages[en.Metadata().Storage], m.cacheReset, m.cfg.FS)
 	}
+	if err != nil {
+		return nil, err
+	}
+	events.Publish(events.EntryActionTopic(events.TopicFileOpenFmt, en.Metadata().ID), en)
+	return &instrumentalFile{file: f}, nil
 }
 
 func (m *manager) MustCloseAll() {
 	bio.CloseAll()
+}
+
+func (m *manager) SetCacheResetter(r CacheResetter) {
+	m.cacheReset = r
 }
 
 type EntryAttr struct {
@@ -289,4 +307,8 @@ type EntryAttr struct {
 type ChangeParentAttr struct {
 	Replace  bool
 	Exchange bool
+}
+
+type CacheResetter interface {
+	ResetEntry(entry Entry)
 }

@@ -18,10 +18,8 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/hyponet/eventbus/bus"
 	"runtime/trace"
 	"time"
 )
@@ -49,8 +47,6 @@ func (c *controller) OpenFile(ctx context.Context, en dentry.Entry, attr dentry.
 
 	if attr.Trunc {
 		md.Size = 0
-		// TODO clean old data
-		bus.Publish(fmt.Sprintf("object.file.%d.trunc", md.ID), en)
 	}
 
 	file, err := c.entry.Open(ctx, en, attr)
@@ -65,7 +61,7 @@ func (c *controller) OpenFile(ctx context.Context, en dentry.Entry, attr dentry.
 	if err = c.SaveEntry(ctx, nil, en); err != nil {
 		return nil, err
 	}
-	bus.Publish(fmt.Sprintf("object.file.%d.open", md.ID), en)
+	c.cache.putEntry(en)
 	return file, nil
 }
 
@@ -100,6 +96,5 @@ func (c *controller) CloseFile(ctx context.Context, file dentry.File) (err error
 		return err
 	}
 	c.cache.delEntry(en.Metadata().ID)
-	bus.Publish(fmt.Sprintf("object.file.%d.close", file.Metadata().ID), en)
 	return nil
 }

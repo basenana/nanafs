@@ -52,9 +52,10 @@ type file struct {
 	reader bio.Reader
 	writer bio.Writer
 
-	attr Attr
-	cfg  *config.FS
-	mux  sync.Mutex
+	attr  Attr
+	reset CacheResetter
+	cfg   *config.FS
+	mux   sync.Mutex
 }
 
 var _ File = &file{}
@@ -77,17 +78,23 @@ func (f *file) WriteAt(ctx context.Context, data []byte, off int64) (int64, erro
 	if meta.Size < off+n {
 		meta.Size = off + n
 	}
+	if f.reset != nil {
+		f.reset.ResetEntry(f)
+	}
 	return n, err
 }
 
 func (f *file) Flush(ctx context.Context) error {
 	defer trace.StartRegion(ctx, "dentry.file.Flush").End()
 	if !f.attr.Write {
-		return types.ErrUnsupported
+		return nil
 	}
 	err := f.writer.Flush(ctx)
 	if err != nil {
 		fileEntryLogger.Errorw("flush file error", "entry", f.Entry.Metadata().ID, "err", err)
+	}
+	if f.reset != nil {
+		f.reset.ResetEntry(f)
 	}
 	return err
 }
@@ -130,10 +137,11 @@ func (f *file) Close(ctx context.Context) (err error) {
 	return nil
 }
 
-func openFile(en Entry, attr Attr, store metastore.ObjectStore, fileStorage storage.Storage, cfg *config.FS) (File, error) {
+func openFile(en Entry, attr Attr, store metastore.ObjectStore, fileStorage storage.Storage, cacheReset CacheResetter, cfg *config.FS) (File, error) {
 	f := &file{
 		Entry: en,
 		attr:  attr,
+		reset: cacheReset,
 		cfg:   cfg,
 	}
 	if fileStorage == nil {

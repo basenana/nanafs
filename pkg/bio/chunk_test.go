@@ -19,6 +19,7 @@ package bio
 import (
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"math/rand"
 	"reflect"
@@ -28,6 +29,8 @@ import (
 )
 
 var _ = Describe("TestChunkIO", func() {
+	var fakeObj = &types.Object{Metadata: types.NewMetadata("test_chunk_io.file", types.RawKind)}
+	Expect(chunkStore.(metastore.ObjectStore).SaveObject(context.Background(), nil, fakeObj)).Should(BeNil())
 	Context("test one page", func() {
 		var reader Reader
 		var writer Writer
@@ -77,6 +80,53 @@ var _ = Describe("TestChunkIO", func() {
 			Expect(err).Should(BeNil())
 			Expect(int(n)).Should(Equal(len(buf)))
 			Expect(buf).Should(Equal(data3[len(data2) : len(data2)+10]))
+		})
+	})
+})
+
+var _ = Describe("TestChunkRewrite", func() {
+	var fakeObj = &types.Object{Metadata: types.NewMetadata("test_chunk_rewrite.file", types.RawKind)}
+	Expect(chunkStore.(metastore.ObjectStore).SaveObject(context.Background(), nil, fakeObj)).Should(BeNil())
+	Context("test multi chunk", func() {
+		var reader Reader
+		var writer Writer
+		It("init should be succeed", func() {
+			reader = NewChunkReader(&fakeObj.Metadata, chunkStore, dataStore)
+			Expect(reader).ShouldNot(BeNil())
+			writer = NewChunkWriter(reader)
+			Expect(writer).ShouldNot(BeNil())
+		})
+
+		data1 := buildRandomData(fileChunkSize/pageSize, 0)
+		data2 := buildRandomData(fileChunkSize/pageSize, 0.9)
+		data3 := buildRandomData(1, 0)
+		It("write data should be succeed", func() {
+			var (
+				n   int64
+				err error
+			)
+			n, err = writer.WriteAt(context.TODO(), data1, 0)
+			Expect(err).Should(BeNil())
+			Expect(int(n)).Should(Equal(len(data1)))
+			n, err = writer.WriteAt(context.TODO(), data2, fileChunkSize/2+10)
+			Expect(err).Should(BeNil())
+			Expect(int(n)).Should(Equal(len(data2)))
+			n, err = writer.WriteAt(context.TODO(), data3, pageSize/2)
+			Expect(err).Should(BeNil())
+			Expect(int(n)).Should(Equal(len(data3)))
+			Expect(writer.Fsync(context.TODO())).Should(BeNil())
+		})
+		It("read one chunk should be succeed", func() {
+			buf := make([]byte, fileChunkSize)
+			n, err := reader.ReadAt(context.TODO(), buf, 0)
+			Expect(err).Should(BeNil())
+			Expect(int(n)).Should(Equal(len(buf)))
+
+			wanted := make([]byte, fileChunkSize)
+			copy(wanted[0:], data1)
+			copy(wanted[fileChunkSize/2+10:], data2)
+			copy(wanted[pageSize/2:], data3)
+			Expect(buf).Should(Equal(wanted))
 		})
 	})
 })

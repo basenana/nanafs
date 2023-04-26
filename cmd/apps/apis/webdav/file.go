@@ -18,7 +18,7 @@ package webdav
 
 import (
 	"context"
-	"fmt"
+	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
 	"golang.org/x/net/webdav"
@@ -28,19 +28,30 @@ import (
 )
 
 type File struct {
-	file dentry.File
-	off  int64
-	size int64
+	mgr   *pathmgr.PathManager
+	entry dentry.Entry
+	file  dentry.File
+	attr  dentry.Attr
+	off   int64
+	size  int64
 }
 
-func (f *File) Read(p []byte) (int, error) {
-	cnt, err := f.file.ReadAt(context.TODO(), p, f.off)
+func (f *File) Read(p []byte) (n int, err error) {
+	if err = f.open(); err != nil {
+		return 0, err
+	}
+	var cnt int64
+	cnt, err = f.file.ReadAt(context.TODO(), p, f.off)
 	f.off += cnt
 	return int(cnt), err
 }
 
 func (f *File) Write(p []byte) (n int, err error) {
-	cnt, err := f.file.WriteAt(context.TODO(), p, f.off)
+	if err = f.open(); err != nil {
+		return 0, err
+	}
+	var cnt int64
+	cnt, err = f.file.WriteAt(context.TODO(), p, f.off)
 	f.off += cnt
 	if f.off > f.size {
 		f.size = f.off
@@ -55,23 +66,39 @@ func (f *File) Seek(offset int64, whence int) (int64, error) {
 	case io.SeekCurrent:
 		f.off += offset
 	case io.SeekEnd:
-		f.off = f.file.Metadata().Size + offset
+		f.off = f.entry.Metadata().Size + offset
 	}
 	return f.off, nil
 }
 
 func (f *File) Stat() (fs.FileInfo, error) {
-	info := Stat(f.file.Metadata())
+	info := Stat(f.entry.Metadata())
 	info.size = f.size
 	return info, nil
 }
 
 func (f *File) Close() error {
+	if f.file == nil {
+		return nil
+	}
+	log.Infow("close file", "entry", f.entry.Metadata().ID, "name", f.entry.Metadata().Name)
 	return f.file.Close(context.TODO())
 }
 
 func (f *File) Readdir(count int) ([]fs.FileInfo, error) {
 	return nil, types.ErrNoGroup
+}
+
+func (f *File) open() (err error) {
+	if f.file == nil {
+		f.file, err = f.mgr.Open(context.TODO(), f.entry, f.attr)
+		if err != nil {
+			log.Errorw("open file error", "entry", f.entry.Metadata().ID, "err", err)
+			return err
+		}
+		log.Infow("open file", "entry", f.entry.Metadata().ID, "name", f.entry.Metadata().Name)
+	}
+	return nil
 }
 
 type Dir struct {
@@ -120,17 +147,15 @@ func (d *Dir) Close() error {
 	return nil
 }
 
-func openFile(entry dentry.Entry) (webdav.File, error) {
+func openFile(entry dentry.Entry, mgr *pathmgr.PathManager, attr dentry.Attr) (webdav.File, error) {
 	if entry.IsGroup() {
 		return &Dir{group: entry}, nil
 	}
-	file, ok := entry.(dentry.File)
-	if !ok {
-		return nil, fmt.Errorf("not a opened file")
-	}
 	return &File{
-		file: file,
-		size: entry.Metadata().Size,
+		entry: entry,
+		mgr:   mgr,
+		attr:  attr,
+		size:  entry.Metadata().Size,
 	}, nil
 }
 

@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/utils"
-	"github.com/basenana/nanafs/utils/logger"
 	"runtime/trace"
 	"sync"
 	"sync/atomic"
@@ -89,6 +88,9 @@ func (p *pageCache) read(ctx context.Context, pageIndex int64, initDataFn func(*
 			page.mux.Unlock()
 			return nil, err
 		}
+		if page.length == 0 {
+			return nil, fmt.Errorf("page data init not finish")
+		}
 		page.mode &^= pageModeInvalid
 	}
 	page.mux.Unlock()
@@ -128,6 +130,18 @@ func (p *pageCache) insertPage(ctx context.Context, pageIdx int64) *pageNode {
 
 	p.data.totalCount += 1
 	return dataNode
+}
+
+func (p *pageCache) invalid(pageStartIndex, pageEndIndex int64) {
+	for i := pageStartIndex; i < pageEndIndex; i++ {
+		page := p.findPage(i)
+		if page == nil {
+			continue
+		}
+		page.mux.Lock()
+		page.mode |= pageModeInvalid
+		page.mux.Unlock()
+	}
 }
 
 func (p *pageCache) findPage(pageIdx int64) *pageNode {
@@ -297,7 +311,6 @@ func init() {
 				if atomic.LoadInt32(&crtPageCacheTotal) > int32(float64(maxPageCacheTotal)*0.8) {
 					pageCacheLFU.Visit(func(k string, v interface{}) {
 						pNode := v.(*pageNode)
-						logger.NewLogger("pageCache").Infow("visit page", "pageIdx", pNode.idx, "ref", pNode.ref)
 						if atomic.LoadInt32(&pNode.ref) == 0 {
 							pageCacheLFU.Remove(k)
 						}

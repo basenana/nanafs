@@ -68,7 +68,7 @@ func InitLocalCache(config config.Config) {
 	if localCacheDir == "" {
 		cacheLog.Panic("init local cache dri dir failed: empty")
 	}
-	cacheLog.Infow("local cache dir: %s", localCacheDir)
+	cacheLog.Infof("local cache dir: %s", localCacheDir)
 	localCacheSizeLimit = int64(config.CacheSize) * (1 << 30) // config.CacheSize Gi
 	if err := utils.Mkdir(localCacheDir); err != nil {
 		cacheLog.Panicf("init local cache dir failed: %s", err)
@@ -128,7 +128,7 @@ func (c *LocalCache) CommitTemporaryNode(ctx context.Context, segID, idx int64, 
 		if innerErr := os.Remove(no.path); innerErr != nil {
 			cacheLog.Errorw("clean cache data error", "page", idx, "err", innerErr)
 		}
-		c.releaseCacheUsage(no.size)
+		c.releaseCacheUsage(cacheNodeSize)
 	}()
 	return node.Close()
 }
@@ -172,10 +172,10 @@ func (c *LocalCache) openDirectNode(ctx context.Context, key, idx int64) (*direc
 	}
 	defer reader.Close()
 	if decompressErr := decompress(ctx, reader, &buf); decompressErr != nil {
-		cacheLog.Errorw("decompress temporary node data error", "page", idx, "err", decompressErr)
+		cacheLog.Errorw("decompress direct node data error", "page", idx, "err", decompressErr)
 	}
 
-	node := &directNode{reader: &buf, info: info}
+	node := &directNode{data: buf.Bytes(), info: info}
 	return node, nil
 }
 
@@ -206,7 +206,7 @@ func (c *LocalCache) makeLocalCache(ctx context.Context, key, idx int64, filenam
 	}
 	defer reader.Close()
 	if decompressErr := decompress(ctx, reader, &buf); decompressErr != nil {
-		cacheLog.Errorw("decompress temporary node data error", "page", idx, "err", decompressErr)
+		cacheLog.Errorw("decompress local node data error", "page", idx, "err", decompressErr)
 	}
 
 	_, err = io.Copy(f, &buf)
@@ -398,22 +398,16 @@ func (c *cacheNode) Size() int64 {
 }
 
 type directNode struct {
-	info   Info
-	data   []byte
-	off    int64
-	reader *bytes.Buffer
+	info Info
+	data []byte
 }
 
 func (d *directNode) ReadAt(p []byte, off int64) (n int, err error) {
 	if off >= d.info.Size {
 		return 0, io.EOF
 	}
-	n, err = d.reader.Read(p)
-	d.off += int64(n)
-	if err != nil {
-		return
-	}
-	if d.off == d.info.Size {
+	n = copy(p, d.data[off:])
+	if int64(n+len(p)) == d.info.Size {
 		return n, io.EOF
 	}
 	return
@@ -494,8 +488,8 @@ func (c *cachedFileMapper) fetchCacheNode(key int64, idx int64, builder, directe
 		return vNode.node, nil
 	} else {
 		if canDirect {
-			node, err := directer(fileName)
 			c.mux.Unlock()
+			node, err := directer(fileName)
 			return node, err
 		}
 		// try fetch

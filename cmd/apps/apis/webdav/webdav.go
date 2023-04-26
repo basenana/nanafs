@@ -33,6 +33,8 @@ import (
 	"time"
 )
 
+var log *zap.SugaredLogger
+
 type Webdav struct {
 	cfg     config.Webdav
 	handler http.Handler
@@ -74,51 +76,72 @@ type FsOperator struct {
 func (o FsOperator) Mkdir(ctx context.Context, name string, perm os.FileMode) error {
 	defer trace.StartRegion(ctx, "apis.webdav.Mkdir").End()
 	_, err := o.mgr.CreateAll(ctx, name, mode2EntryAttr(perm))
-	return err
+	return error2FsError(err)
 }
 
 func (o FsOperator) OpenFile(ctx context.Context, name string, flag int, perm os.FileMode) (webdav.File, error) {
 	defer trace.StartRegion(ctx, "apis.webdav.OpenFile").End()
 	userInfo := common.GetUserInfo(ctx)
 	if userInfo == nil {
-		return nil, types.ErrNoAccess
+		return nil, error2FsError(types.ErrNoAccess)
 	}
-	err := o.mgr.Access(ctx, name, userInfo.UID, userInfo.GID, perm)
-	if err != nil && err != types.ErrNotFound {
-		return nil, err
-	}
+
 	openAttr := flag2EntryOpenAttr(flag)
+	err := o.mgr.Access(ctx, name, userInfo.UID, userInfo.GID, perm)
+	if err == nil {
+		en, err := o.mgr.FindEntry(ctx, name)
+		if err != nil {
+			return nil, error2FsError(err)
+		}
+		f, err := openFile(en, o.mgr, openAttr)
+		if err != nil {
+			return nil, error2FsError(err)
+		}
+		return f, err
+	} else if err != nil && err != types.ErrNotFound {
+		return nil, error2FsError(err)
+	}
+
 	if err == types.ErrNotFound {
 		if !openAttr.Create {
-			return nil, err
+			return nil, error2FsError(err)
 		}
 		_, err = o.mgr.CreateAll(ctx, path.Dir(name), mode2EntryAttr(perm))
 		if err != nil {
-			return nil, err
+			return nil, error2FsError(err)
 		}
 	}
-	en, err := o.mgr.Open(ctx, name, openAttr)
+	parentDir, filename := path.Split(name)
+	en, err := o.mgr.CreateFile(ctx, parentDir, types.ObjectAttr{
+		Name:   filename,
+		Kind:   types.RawKind,
+		Access: mode2EntryAttr(perm).Access,
+	})
 	if err != nil {
-		return nil, err
+		return nil, error2FsError(err)
 	}
-	return openFile(en)
+	f, err := openFile(en, o.mgr, openAttr)
+	if err != nil {
+		return nil, error2FsError(err)
+	}
+	return f, nil
 }
 
 func (o FsOperator) RemoveAll(ctx context.Context, name string) error {
 	defer trace.StartRegion(ctx, "apis.webdav.RemoveAll").End()
-	return o.mgr.RemoveAll(ctx, name, false)
+	return error2FsError(o.mgr.RemoveAll(ctx, name, false))
 }
 
 func (o FsOperator) Rename(ctx context.Context, oldName, newName string) error {
 	defer trace.StartRegion(ctx, "apis.webdav.Rename").End()
-	return o.mgr.Rename(ctx, oldName, newName)
+	return error2FsError(o.mgr.Rename(ctx, oldName, newName))
 }
 
 func (o FsOperator) Stat(ctx context.Context, name string) (os.FileInfo, error) {
 	defer trace.StartRegion(ctx, "apis.webdav.Stat").End()
 	en, err := o.mgr.FindEntry(ctx, name)
 	if err != nil {
-		return nil, err
+		return nil, error2FsError(err)
 	}
 	return Stat(en.Metadata()), nil
 }
@@ -131,11 +154,12 @@ func NewWebdavServer(mgr *pathmgr.PathManager, cfg config.Webdav) (*Webdav, erro
 		cfg.Host = "127.0.0.1"
 	}
 
-	w := FsOperator{mgr: mgr, cfg: cfg, logger: logger.NewLogger("webdav")}
+	log = logger.NewLogger("webdav")
+	w := FsOperator{mgr: mgr, cfg: cfg, logger: log}
 	handler := &webdav.Handler{
 		FileSystem: w,
 		LockSystem: webdav.NewMemLS(), // TODO:need flock
-		Logger:     initLogger(w.logger).handle,
+		Logger:     initLogger(log).handle,
 	}
-	return &Webdav{cfg: cfg, handler: handler, logger: w.logger}, nil
+	return &Webdav{cfg: cfg, handler: handler, logger: log}, nil
 }

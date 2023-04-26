@@ -52,7 +52,7 @@ func nanaNode2Stat(entry dentry.Entry) *syscall.Stat_t {
 		Mtimespec: syscall.Timespec{Sec: mTime.Sec, Nsec: mTime.Nsec},
 		Ctimespec: syscall.Timespec{Sec: cTime.Sec, Nsec: cTime.Nsec},
 		Mode:      uint16(mode),
-		Ino:       meta.Inode,
+		Ino:       uint64(meta.ID),
 		Nlink:     uint16(meta.RefCount),
 		Uid:       uint32(meta.Access.UID),
 		Gid:       uint32(meta.Access.GID),
