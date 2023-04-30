@@ -16,7 +16,9 @@
 
 package events
 
-import "github.com/hyponet/eventbus/bus"
+import (
+	"github.com/hyponet/eventbus/bus"
+)
 
 var (
 	Publish   = bus.Publish

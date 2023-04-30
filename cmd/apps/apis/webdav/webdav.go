@@ -159,7 +159,7 @@ func NewWebdavServer(mgr *pathmgr.PathManager, cfg config.Webdav) (*Webdav, erro
 	handler := &webdav.Handler{
 		FileSystem: w,
 		LockSystem: webdav.NewMemLS(), // TODO:need flock
-		Logger:     initLogger(log).handle,
+		Logger:     logger.InitWebdavLogger().Handle,
 	}
 	return &Webdav{cfg: cfg, handler: handler, logger: log}, nil
 }

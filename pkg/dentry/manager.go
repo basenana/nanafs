@@ -269,7 +269,7 @@ func (m *manager) Open(ctx context.Context, en Entry, attr Attr) (File, error) {
 	if attr.Trunc {
 		en.Metadata().Size = 0
 		// TODO clean old data
-		events.Publish(events.EntryActionTopic(events.TopicFileTruncFmt, en.Metadata().ID), en)
+		PublicFileActionEvent(events.ActionTypeTrunc, en)
 	}
 
 	var (
@@ -285,7 +285,7 @@ func (m *manager) Open(ctx context.Context, en Entry, attr Attr) (File, error) {
 	if err != nil {
 		return nil, err
 	}
-	events.Publish(events.EntryActionTopic(events.TopicFileOpenFmt, en.Metadata().ID), en)
+	PublicFileActionEvent(events.ActionTypeOpen, en)
 	return &instrumentalFile{file: f}, nil
 }
 

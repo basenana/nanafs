@@ -19,6 +19,7 @@ package db
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -190,6 +191,9 @@ func (e *Entity) SaveChangeParentObject(ctx context.Context, srcParent, dstParen
 }
 
 func (e *Entity) DeleteObject(ctx context.Context, srcObj, dstParent, obj *types.Object) error {
+	if obj == nil {
+		return fmt.Errorf("object is nil")
+	}
 	return e.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if srcObj != nil {
 			if srcObj.RefCount == 0 {
@@ -202,8 +206,10 @@ func (e *Entity) DeleteObject(ctx context.Context, srcObj, dstParent, obj *types
 				}
 			}
 		}
-		if err := saveRawObject(tx, dstParent); err != nil {
-			return err
+		if dstParent != nil {
+			if err := saveRawObject(tx, dstParent); err != nil {
+				return err
+			}
 		}
 		if err := deleteRawObject(tx, obj); err != nil {
 			return err

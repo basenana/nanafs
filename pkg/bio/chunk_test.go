@@ -87,6 +87,128 @@ var _ = Describe("TestChunkIO", func() {
 var _ = Describe("TestChunkRewrite", func() {
 	var fakeObj = &types.Object{Metadata: types.NewMetadata("test_chunk_rewrite.file", types.RawKind)}
 	Expect(chunkStore.(metastore.ObjectStore).SaveObject(context.Background(), nil, fakeObj)).Should(BeNil())
+	Context("test one chunk", func() {
+		var reader Reader
+		var writer Writer
+		It("init should be succeed", func() {
+			reader = NewChunkReader(&fakeObj.Metadata, chunkStore, dataStore)
+			Expect(reader).ShouldNot(BeNil())
+			writer = NewChunkWriter(reader)
+			Expect(writer).ShouldNot(BeNil())
+		})
+
+		data1 := buildRandomData(fileChunkSize/pageSize, 0)
+		data2 := buildRandomData(fileChunkSize/pageSize, 0.9)
+		data3 := buildRandomData(1, 0)
+		It("write data should be succeed", func() {
+			var (
+				n   int64
+				err error
+			)
+			n, err = writer.WriteAt(context.TODO(), data1, 0)
+			Expect(err).Should(BeNil())
+			Expect(int(n)).Should(Equal(len(data1)))
+			if n > fakeObj.Size {
+				fakeObj.Size = n
+			}
+
+			n, err = writer.WriteAt(context.TODO(), data2, fileChunkSize/2+10)
+			Expect(err).Should(BeNil())
+			Expect(int(n)).Should(Equal(len(data2)))
+			if n+fileChunkSize/2+10 > fakeObj.Size {
+				fakeObj.Size = n + fileChunkSize/2 + 10
+			}
+			n, err = writer.WriteAt(context.TODO(), data3, pageSize/2)
+			Expect(err).Should(BeNil())
+			Expect(int(n)).Should(Equal(len(data3)))
+			if n+pageSize/2 > fakeObj.Size {
+				fakeObj.Size = n + pageSize/2
+			}
+
+			Expect(writer.Fsync(context.TODO())).Should(BeNil())
+		})
+		It("compact segment should be succeed", func() {
+			segList, err := chunkStore.ListSegments(context.TODO(), fakeObj.ID, 0)
+			Expect(err).Should(BeNil())
+			Expect(len(segList)).Should(Equal(3))
+
+			var maxId int64
+			for _, seg := range segList {
+				if seg.ID > maxId {
+					maxId = seg.ID
+				}
+			}
+
+			err = CompactChunksData(context.TODO(), &fakeObj.Metadata, chunkStore, dataStore)
+			Expect(err).Should(BeNil())
+
+			segList, err = chunkStore.ListSegments(context.TODO(), fakeObj.ID, 0)
+			Expect(err).Should(BeNil())
+			Expect(len(segList)).Should(Equal(1))
+
+			Expect(segList[0].ID > maxId).Should(BeTrue())
+
+			// compact again need safe
+			err = CompactChunksData(context.TODO(), &fakeObj.Metadata, chunkStore, dataStore)
+			Expect(err).Should(BeNil())
+
+			segList, err = chunkStore.ListSegments(context.TODO(), fakeObj.ID, 0)
+			Expect(err).Should(BeNil())
+			Expect(len(segList)).Should(Equal(1))
+		})
+		It("read new data should be succeed", func() {
+			buf := make([]byte, fileChunkSize)
+			n, err := reader.ReadAt(context.TODO(), buf, 0)
+			Expect(err).Should(BeNil())
+			Expect(int(n)).Should(Equal(len(buf)))
+
+			wanted := make([]byte, fileChunkSize)
+			copy(wanted[0:], data1)
+			copy(wanted[fileChunkSize/2+10:], data2)
+			copy(wanted[pageSize/2:], data3)
+			Expect(buf).Should(Equal(wanted))
+		})
+		It("rewrite data should be succeed", func() {
+			n, err := writer.WriteAt(context.TODO(), data1, 0)
+			Expect(err).Should(BeNil())
+			Expect(int(n)).Should(Equal(len(data1)))
+			Expect(writer.Fsync(context.TODO())).Should(BeNil())
+		})
+		It("compact old data should be succeed", func() {
+			segList, err := chunkStore.ListSegments(context.TODO(), fakeObj.ID, 0)
+			Expect(err).Should(BeNil())
+			Expect(len(segList)).Should(Equal(2))
+			needed := segList[1].ID
+
+			err = CompactChunksData(context.TODO(), &fakeObj.Metadata, chunkStore, dataStore)
+			Expect(err).Should(BeNil())
+
+			segList, err = chunkStore.ListSegments(context.TODO(), fakeObj.ID, 0)
+			Expect(err).Should(BeNil())
+			Expect(len(segList)).Should(Equal(1))
+			Expect(segList[0].ID).Should(Equal(needed))
+
+			// compact again is safe
+			err = CompactChunksData(context.TODO(), &fakeObj.Metadata, chunkStore, dataStore)
+			Expect(err).Should(BeNil())
+			segList, err = chunkStore.ListSegments(context.TODO(), fakeObj.ID, 0)
+			Expect(err).Should(BeNil())
+			Expect(len(segList)).Should(Equal(1))
+			Expect(segList[0].ID).Should(Equal(needed))
+		})
+		It("read data should be succeed", func() {
+			buf := make([]byte, fileChunkSize)
+			n, err := reader.ReadAt(context.TODO(), buf, 0)
+			Expect(err).Should(BeNil())
+			Expect(int(n)).Should(Equal(len(buf)))
+			Expect(buf).Should(Equal(data1))
+		})
+	})
+})
+
+var _ = Describe("TestChunkCompact", func() {
+	var fakeObj = &types.Object{Metadata: types.NewMetadata("test_chunk_compact.file", types.RawKind)}
+	Expect(chunkStore.(metastore.ObjectStore).SaveObject(context.Background(), nil, fakeObj)).Should(BeNil())
 	Context("test multi chunk", func() {
 		var reader Reader
 		var writer Writer

@@ -18,23 +18,23 @@ package events
 
 import (
 	"fmt"
-	"strconv"
 )
 
 var (
-	TopicEntryCreateFmt       = "action.entry.%s.create"
-	TopicEntryUpdateFmt       = "action.entry.%s.update"
-	TopicEntryDestroyFmt      = "action.entry.%s.destroy"
-	TopicEntryMirrorFmt       = "action.entry.%s.mirror"
-	TopicEntryChangeParentFmt = "action.entry.%s.change_parent"
-	TopicFileTruncFmt         = "action.file.%s.trunc"
-	TopicFileOpenFmt          = "action.file.%s.open"
-	TopicFileCloseFmt         = "action.file.%s.close"
+	TopicAllActions     = "action.*.*"
+	TopicEntryActionFmt = "action.entry.%s"
+	TopicFileActionFmt  = "action.file.%s"
+
+	ActionTypeCreate       = "create"
+	ActionTypeUpdate       = "update"
+	ActionTypeDestroy      = "destroy"
+	ActionTypeMirror       = "mirror"
+	ActionTypeChangeParent = "change_parent"
+	ActionTypeTrunc        = "trunc"
+	ActionTypeOpen         = "open"
+	ActionTypeClose        = "close"
 )
 
-func EntryActionTopic(topicFmt string, enID int64) string {
-	if enID == 0 {
-		return fmt.Sprintf(topicFmt, "*")
-	}
-	return fmt.Sprintf(topicFmt, strconv.FormatInt(enID, 10))
+func EntryActionTopic(topicFmt string, actionType string) string {
+	return fmt.Sprintf(topicFmt, actionType)
 }

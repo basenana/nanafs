@@ -864,22 +864,71 @@ type segment struct {
 	len int64 // segment remaining length after pos
 }
 
-func maxOff(off1, off2 int64) int64 {
-	if off1 > off2 {
-		return off1
-	}
-	return off2
-}
+func CompactChunksData(ctx context.Context, md *types.Metadata, chunkStore metastore.ChunkStore, dataStore storage.Storage) (resultErr error) {
+	maxChunkID := (md.Size / fileChunkSize) + 1
+	var (
+		reader Reader
+		writer Writer
+		buf    []byte
+		readN  int64
+	)
+	for cid := int64(0); cid < maxChunkID; cid++ {
+		chunkSegment, err := chunkStore.ListSegments(ctx, md.ID, cid)
+		if err != nil {
+			resultErr = err
+			continue
+		}
 
-func minOff(off1, off2 int64) int64 {
-	if off1 < off2 {
-		return off1
-	}
-	return off2
-}
+		segmentCount := len(chunkSegment)
+		if segmentCount <= 1 {
+			continue
+		}
 
-func CompactChunksData(ctx context.Context, md *types.Metadata, chunkStore metastore.ChunkStore, dataStore storage.Storage) error {
-	return nil
+		// compact chunk
+		chunkStart := cid * fileChunkSize
+		chunkEnd := (cid + 1) * fileChunkSize
+		if chunkEnd > md.Size {
+			chunkEnd = md.Size
+		}
+		if chunkSegment[segmentCount-1].Off == chunkStart && chunkSegment[segmentCount-1].Len == chunkEnd-chunkStart {
+			// clean overed write segments
+			if err = deleteSegmentAndData(ctx, chunkSegment[:segmentCount-1], chunkStore, dataStore); err != nil {
+				resultErr = err
+			}
+			continue
+		}
+
+		// rebuild new sequential segment
+		if reader == nil {
+			reader = NewChunkReader(md, chunkStore, dataStore)
+			writer = NewChunkWriter(reader)
+			buf = make([]byte, fileChunkSize)
+		}
+		readN, err = reader.ReadAt(ctx, buf, chunkStart)
+		if err != nil {
+			return err
+		}
+		// write sequential data
+		_, err = writer.WriteAt(ctx, buf[:readN], chunkStart)
+		if err != nil {
+			return err
+		}
+		err = writer.Fsync(ctx)
+		if err != nil {
+			return err
+		}
+
+		if err = deleteSegmentAndData(ctx, chunkSegment, chunkStore, dataStore); err != nil {
+			resultErr = err
+		}
+	}
+
+	if reader != nil {
+		reader.Close()
+		writer.Close()
+	}
+
+	return resultErr
 }
 
 func DeleteChunksData(ctx context.Context, md *types.Metadata, chunkStore metastore.ChunkStore, dataStore storage.Storage) error {
@@ -900,6 +949,13 @@ func DeleteChunksData(ctx context.Context, md *types.Metadata, chunkStore metast
 		}
 	}
 
+	if err := deleteSegmentAndData(ctx, segments, chunkStore, dataStore); err != nil {
+		resultErr = err
+	}
+	return resultErr
+}
+
+func deleteSegmentAndData(ctx context.Context, segments []types.ChunkSeg, chunkStore metastore.ChunkStore, dataStore storage.Storage) (resultErr error) {
 	for _, seg := range segments {
 		if err := dataStore.Delete(ctx, seg.ID); err != nil && err != types.ErrNotFound {
 			resultErr = err
@@ -910,7 +966,7 @@ func DeleteChunksData(ctx context.Context, md *types.Metadata, chunkStore metast
 			continue
 		}
 	}
-	return resultErr
+	return
 }
 
 func CloseAll() {

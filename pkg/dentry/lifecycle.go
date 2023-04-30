@@ -21,6 +21,7 @@ import (
 	"github.com/basenana/nanafs/pkg/bio"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"sync"
@@ -44,30 +45,41 @@ func newLifecycle(mgr *manager) *lifecycle {
 
 func (l *lifecycle) initHooks() {
 	var err error
-	_, err = events.Subscribe(events.EntryActionTopic(events.TopicEntryDestroyFmt, 0), l.cleanChunks)
+	_, err = events.Subscribe(events.EntryActionTopic(events.TopicEntryActionFmt, events.ActionTypeDestroy), l.cleanChunks)
 	if err != nil {
 		l.logger.Errorw("subscribe object destroy topic failed", "err", err)
 	}
-	_, err = events.Subscribe(events.EntryActionTopic(events.TopicFileCloseFmt, 0), l.handleFileClose)
+	_, err = events.Subscribe(events.EntryActionTopic(events.TopicFileActionFmt, events.ActionTypeClose), l.handleFileClose)
 	if err != nil {
 		l.logger.Errorw("subscribe object destroy topic failed", "err", err)
 	}
 }
 
-func (l *lifecycle) handleFileClose(en Entry) {
-	md := en.Metadata()
+func (l *lifecycle) handleFileClose(evt types.Event) {
+	md := evt.Data.(*types.Metadata)
 	if md.ParentID == 0 && md.RefCount == 0 && !isFileOpened(md.ID) {
 		l.logger.Infow("destroy closed and deleted entry", "entry", md.ID)
-		// TODO
-	}
-}
-
-func (l *lifecycle) cleanChunks(en Entry) {
-	if en.IsGroup() {
+		l.cleanChunks(evt)
+		if err := l.mgr.store.DestroyObject(context.TODO(), nil, nil, &types.Object{Metadata: *md}); err != nil {
+			l.logger.Errorw("clean closed and deleted object record failed", "entry", md.ID, "err", err)
+		}
 		return
 	}
 
-	md := en.Metadata()
+	if isFileOpened(md.ID) {
+		s, ok := l.mgr.storages[md.Storage]
+		if !ok {
+			return
+		}
+		if err := bio.CompactChunksData(context.TODO(), md, l.mgr.store.(metastore.ChunkStore), s); err != nil {
+			l.logger.Errorw("compact chunk data failed", "entry", md.ID, "err", err)
+		}
+		return
+	}
+}
+
+func (l *lifecycle) cleanChunks(evt types.Event) {
+	md := evt.Data.(*types.Metadata)
 	s, ok := l.mgr.storages[md.Storage]
 	if !ok {
 		return
@@ -78,9 +90,9 @@ func (l *lifecycle) cleanChunks(en Entry) {
 		return
 	}
 
-	l.logger.Infow("[cleanChunks] delete chunk data", "entry", en.Metadata().ID)
+	l.logger.Infow("[cleanChunks] delete chunk data", "entry", md.ID)
 	err := bio.DeleteChunksData(context.TODO(), md, cs, s)
 	if err != nil {
-		l.logger.Errorw("[cleanChunks] delete chunk data failed", "entry", en.Metadata().ID, "err", err)
+		l.logger.Errorw("[cleanChunks] delete chunk data failed", "entry", md.ID, "err", err)
 	}
 }
