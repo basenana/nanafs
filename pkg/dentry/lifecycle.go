@@ -57,7 +57,7 @@ func (l *lifecycle) initHooks() {
 
 func (l *lifecycle) handleFileClose(evt types.Event) {
 	md := evt.Data.(*types.Metadata)
-	if md.ParentID == 0 && md.RefCount == 0 && !isFileOpened(md.ID) {
+	if md.ParentID == 0 && md.RefCount == 0 && !IsFileOpened(md.ID) {
 		l.logger.Infow("destroy closed and deleted entry", "entry", md.ID)
 		l.cleanChunks(evt)
 		if err := l.mgr.store.DestroyObject(context.TODO(), nil, nil, &types.Object{Metadata: *md}); err != nil {
@@ -66,7 +66,7 @@ func (l *lifecycle) handleFileClose(evt types.Event) {
 		return
 	}
 
-	if isFileOpened(md.ID) {
+	if IsFileOpened(md.ID) {
 		s, ok := l.mgr.storages[md.Storage]
 		if !ok {
 			return

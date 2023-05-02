@@ -348,11 +348,18 @@ func (e *Entity) DeleteChunkSegment(ctx context.Context, segID int64) error {
 	return res.Error
 }
 
-func (e *Entity) ListChunkSegments(ctx context.Context, oid, chunkID int64) ([]types.ChunkSeg, error) {
+func (e *Entity) ListChunkSegments(ctx context.Context, oid, chunkID int64, allChunk bool) ([]types.ChunkSeg, error) {
 	segments := make([]ObjectChunk, 0)
-	res := e.DB.WithContext(ctx).Where("oid = ? AND chunk_id = ?", oid, chunkID).Order("append_at").Find(&segments)
-	if res.Error != nil {
-		return nil, res.Error
+	if allChunk {
+		res := e.DB.WithContext(ctx).Where("oid = ?", oid).Order("append_at").Find(&segments)
+		if res.Error != nil {
+			return nil, res.Error
+		}
+	} else {
+		res := e.DB.WithContext(ctx).Where("oid = ? AND chunk_id = ?", oid, chunkID).Order("append_at").Find(&segments)
+		if res.Error != nil {
+			return nil, res.Error
+		}
 	}
 	result := make([]types.ChunkSeg, len(segments))
 	for i, seg := range segments {

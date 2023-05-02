@@ -38,6 +38,7 @@ type Manager interface {
 	GetEntry(ctx context.Context, id int64) (Entry, error)
 	CreateEntry(ctx context.Context, parent Entry, attr EntryAttr) (Entry, error)
 	DestroyEntry(ctx context.Context, parent, en Entry) (bool, error)
+	CleanEntryData(ctx context.Context, en Entry) error
 	MirrorEntry(ctx context.Context, src, dstParent Entry, attr EntryAttr) (Entry, error)
 	ChangeEntryParent(ctx context.Context, targetEntry, overwriteEntry, oldParent, newParent Entry, newName string, opt ChangeParentAttr) error
 	Open(ctx context.Context, en Entry, attr Attr) (File, error)
@@ -110,9 +111,9 @@ func (m *manager) CreateEntry(ctx context.Context, parent Entry, attr EntryAttr)
 	return grp.CreateEntry(ctx, attr)
 }
 
-func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) (bool, error) {
-	defer trace.StartRegion(ctx, "dentry.manager.DestroyEntry").End()
-	if !parent.IsGroup() {
+func (m *manager) RemoveEntry(ctx context.Context, parent, en Entry) (bool, error) {
+	defer trace.StartRegion(ctx, "dentry.manager.RemoveEntry").End()
+	if parent == nil || !parent.IsGroup() {
 		return false, types.ErrNoGroup
 	}
 	var (
@@ -133,7 +134,7 @@ func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) (bool, err
 
 	entryLifecycleLock.Lock()
 	defer entryLifecycleLock.Unlock()
-	if !en.IsGroup() && (md.RefCount > 1 || (md.RefCount == 1 && isFileOpened(md.ID))) {
+	if !en.IsGroup() && (md.RefCount > 1 || (md.RefCount == 1 && IsFileOpened(md.ID))) {
 		m.logger.Infow("remove object parent id", "entry", md.ID, "ref", md.RefID)
 		md.RefCount -= 1
 		md.ParentID = 0
@@ -145,7 +146,77 @@ func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) (bool, err
 	}
 
 	if srcObj == nil && ((en.IsGroup() && md.RefCount == 2) || (!en.IsGroup() && md.RefCount == 1)) {
-		err = parentGrp.DestroyEntry(ctx, en)
+		err = parentGrp.RemoveEntry(ctx, en)
+		return err == nil, err
+	}
+
+	if srcObj != nil {
+		srcObj.RefCount -= 1
+		srcObj.ChangedAt = time.Now()
+		srcObj.ModifiedAt = time.Now()
+	}
+
+	if en.IsGroup() {
+		parentMd.RefCount -= 1
+	}
+	parentMd.ChangedAt = time.Now()
+	parentMd.ModifiedAt = time.Now()
+
+	md.ParentID = 0
+	if err = m.store.SaveObject(ctx, &types.Object{Metadata: *parentMd}, &types.Object{Metadata: *md}); err != nil {
+		m.logger.Errorw("destroy object from meta server error", "entry", md.ID, "err", err.Error())
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) (bool, error) {
+	defer trace.StartRegion(ctx, "dentry.manager.DestroyEntry").End()
+
+	md := en.Metadata()
+	if parent == nil && md.RefCount == 0 {
+		m.logger.Infow("destroy closed and deleted entry", "entry", md.ID)
+		if err := m.store.DestroyObject(ctx, nil, nil, &types.Object{Metadata: *md}); err != nil {
+			m.logger.Errorw("destroy closed and deleted entry error", "entry", md.ID, "err", err)
+			return false, err
+		}
+		return true, nil
+	}
+
+	if parent == nil || !parent.IsGroup() {
+		return false, types.ErrNoGroup
+	}
+	var (
+		parentGrp = parent.Group()
+		parentMd  = parent.Metadata()
+		srcObj    *types.Object
+		err       error
+	)
+	if en.IsMirror() {
+		m.logger.Infow("entry is mirrored, delete ref count", "entry", md.ID, "ref", md.RefID)
+		srcObj, err = m.store.GetObject(ctx, en.Metadata().RefID)
+		if err != nil {
+			m.logger.Errorw("query source object from meta server error", "entry", md.ID, "ref", md.RefID, "err", err.Error())
+			return false, err
+		}
+	}
+
+	entryLifecycleLock.Lock()
+	defer entryLifecycleLock.Unlock()
+	if !en.IsGroup() && (md.RefCount > 1 || (md.RefCount == 1 && IsFileOpened(md.ID))) {
+		m.logger.Infow("remove object parent id", "entry", md.ID, "ref", md.RefID)
+		md.RefCount -= 1
+		md.ParentID = 0
+		md.ChangedAt = time.Now()
+		if err = m.store.SaveObject(ctx, &types.Object{Metadata: *parentMd}, &types.Object{Metadata: *md}); err != nil {
+			return false, err
+		}
+		return false, nil
+	}
+
+	if srcObj == nil && ((en.IsGroup() && md.RefCount == 2) || (!en.IsGroup() && md.RefCount == 1)) {
+		err = parentGrp.RemoveEntry(ctx, en)
 		return err == nil, err
 	}
 
@@ -167,6 +238,27 @@ func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) (bool, err
 	}
 
 	return true, nil
+}
+
+func (m *manager) CleanEntryData(ctx context.Context, en Entry) error {
+	md := en.Metadata()
+	s, ok := m.storages[md.Storage]
+	if !ok {
+		return fmt.Errorf("storage %s not register", md.Storage)
+	}
+
+	cs, ok := m.store.(metastore.ChunkStore)
+	if !ok {
+		return nil
+	}
+
+	m.logger.Infow("delete chunk data", "entry", md.ID)
+	err := bio.DeleteChunksData(ctx, md, cs, s)
+	if err != nil {
+		m.logger.Errorw("delete chunk data failed", "entry", md.ID, "err", err)
+		return err
+	}
+	return nil
 }
 
 func (m *manager) MirrorEntry(ctx context.Context, src, dstParent Entry, attr EntryAttr) (Entry, error) {
@@ -266,9 +358,15 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntry, overwriteE
 
 func (m *manager) Open(ctx context.Context, en Entry, attr Attr) (File, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.Open").End()
+	md := en.Metadata()
 	if attr.Trunc {
+		if err := m.CleanEntryData(ctx, en); err != nil {
+			m.logger.Errorw("clean entry with trunc error", "entry", en.Metadata().ID, "err", err)
+		}
 		en.Metadata().Size = 0
-		// TODO clean old data
+		if err := m.store.SaveObject(ctx, nil, &types.Object{Metadata: *md}); err != nil {
+			m.logger.Errorw("update entry size to zero error", "entry", en.Metadata().ID, "err", err)
+		}
 		PublicFileActionEvent(events.ActionTypeTrunc, en)
 	}
 
@@ -276,7 +374,7 @@ func (m *manager) Open(ctx context.Context, en Entry, attr Attr) (File, error) {
 		f   File
 		err error
 	)
-	switch en.Metadata().Kind {
+	switch md.Kind {
 	case types.SymLinkKind:
 		f, err = openSymlink(en, attr)
 	default:

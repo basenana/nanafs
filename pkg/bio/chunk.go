@@ -183,7 +183,7 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 	defer trace.StartRegion(ctx, "bio.segReader.readChunkRange").End()
 	c.mux.Lock()
 	if c.st == nil {
-		segments, err := c.r.store.ListSegments(ctx, c.r.entry.ID, c.chunkID)
+		segments, err := c.r.store.ListSegments(ctx, c.r.entry.ID, c.chunkID, false)
 		if err != nil {
 			c.mux.Unlock()
 			c.r.logger.Errorw("list segment reader", "entry", c.r.entry.ID, "chunk", c.chunkID, "err", err)
@@ -873,7 +873,7 @@ func CompactChunksData(ctx context.Context, md *types.Metadata, chunkStore metas
 		readN  int64
 	)
 	for cid := int64(0); cid < maxChunkID; cid++ {
-		chunkSegment, err := chunkStore.ListSegments(ctx, md.ID, cid)
+		chunkSegment, err := chunkStore.ListSegments(ctx, md.ID, cid, false)
 		if err != nil {
 			resultErr = err
 			continue
@@ -932,27 +932,14 @@ func CompactChunksData(ctx context.Context, md *types.Metadata, chunkStore metas
 }
 
 func DeleteChunksData(ctx context.Context, md *types.Metadata, chunkStore metastore.ChunkStore, dataStore storage.Storage) error {
-	maxChunkID := (md.Size / fileChunkSize) + 1
-
-	var (
-		segments  []types.ChunkSeg
-		resultErr error
-	)
-	for cid := int64(0); cid < maxChunkID; cid++ {
-		chunkSegment, err := chunkStore.ListSegments(ctx, md.ID, cid)
-		if err != nil {
-			resultErr = err
-			continue
-		}
-		if len(chunkSegment) > 0 {
-			segments = append(segments, chunkSegment...)
-		}
+	segments, err := chunkStore.ListSegments(ctx, md.ID, 0, true)
+	if err != nil {
+		return err
 	}
-
-	if err := deleteSegmentAndData(ctx, segments, chunkStore, dataStore); err != nil {
-		resultErr = err
+	if err = deleteSegmentAndData(ctx, segments, chunkStore, dataStore); err != nil {
+		return err
 	}
-	return resultErr
+	return nil
 }
 
 func deleteSegmentAndData(ctx context.Context, segments []types.ChunkSeg, chunkStore metastore.ChunkStore, dataStore storage.Storage) (resultErr error) {

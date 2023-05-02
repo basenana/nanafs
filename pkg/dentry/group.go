@@ -31,7 +31,7 @@ type Group interface {
 	FindEntry(ctx context.Context, name string) (Entry, error)
 	CreateEntry(ctx context.Context, attr EntryAttr) (Entry, error)
 	UpdateEntry(ctx context.Context, en Entry) error
-	DestroyEntry(ctx context.Context, en Entry) error
+	RemoveEntry(ctx context.Context, en Entry) error
 	ListChildren(ctx context.Context) ([]Entry, error)
 }
 
@@ -106,8 +106,8 @@ func (g *stdGroup) UpdateEntry(ctx context.Context, en Entry) error {
 	return nil
 }
 
-func (g *stdGroup) DestroyEntry(ctx context.Context, en Entry) error {
-	defer trace.StartRegion(ctx, "dentry.stdGroup.DestroyEntry").End()
+func (g *stdGroup) RemoveEntry(ctx context.Context, en Entry) error {
+	defer trace.StartRegion(ctx, "dentry.stdGroup.RemoveEntry").End()
 	md := en.Metadata()
 	if md.RefID != 0 {
 		return types.ErrUnsupported
@@ -132,7 +132,8 @@ func (g *stdGroup) DestroyEntry(ctx context.Context, en Entry) error {
 	grpMd.ChangedAt = time.Now()
 	grpMd.ModifiedAt = time.Now()
 
-	if err := g.store.DestroyObject(ctx, nil, &types.Object{Metadata: *grpMd}, &types.Object{Metadata: *md}); err != nil {
+	md.ParentID = 0
+	if err := g.store.SaveObject(ctx, &types.Object{Metadata: *grpMd}, &types.Object{Metadata: *md}); err != nil {
 		return err
 	}
 	return nil

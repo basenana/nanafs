@@ -24,13 +24,20 @@ const (
 )
 
 type ScheduledTask struct {
-	ID     int64
-	TaskID string
-	Status string
-	Result string
+	ID      int64
+	TaskID  string
+	Status  string
+	RefType string
+	RefID   int64
+	Result  string
 
 	CreatedTime    time.Time
 	ExecutionTime  time.Time
 	ExpirationTime time.Time
 	Event          Event
+}
+
+type ScheduledTaskFilter struct {
+	RefType string
+	RefID   int64
 }

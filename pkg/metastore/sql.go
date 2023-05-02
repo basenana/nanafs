@@ -98,10 +98,10 @@ func (s *sqliteMetaStore) NextSegmentID(ctx context.Context) (int64, error) {
 	return s.dbStore.NextSegmentID(ctx)
 }
 
-func (s *sqliteMetaStore) ListSegments(ctx context.Context, oid, chunkID int64) ([]types.ChunkSeg, error) {
+func (s *sqliteMetaStore) ListSegments(ctx context.Context, oid, chunkID int64, allChunk bool) ([]types.ChunkSeg, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.ListSegments(ctx, oid, chunkID)
+	return s.dbStore.ListSegments(ctx, oid, chunkID, allChunk)
 }
 
 func (s *sqliteMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Object, error) {
@@ -265,9 +265,9 @@ func (s *sqlMetaStore) NextSegmentID(ctx context.Context) (int64, error) {
 	return s.dbEntity.NextSegmentID(ctx)
 }
 
-func (s *sqlMetaStore) ListSegments(ctx context.Context, oid, chunkID int64) ([]types.ChunkSeg, error) {
+func (s *sqlMetaStore) ListSegments(ctx context.Context, oid, chunkID int64, allChunk bool) ([]types.ChunkSeg, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListSegments").End()
-	return s.dbEntity.ListChunkSegments(ctx, oid, chunkID)
+	return s.dbEntity.ListChunkSegments(ctx, oid, chunkID, allChunk)
 }
 
 func (s *sqlMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Object, error) {

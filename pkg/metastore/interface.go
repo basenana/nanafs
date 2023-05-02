@@ -42,13 +42,13 @@ type ObjectStore interface {
 
 type ChunkStore interface {
 	NextSegmentID(ctx context.Context) (int64, error)
-	ListSegments(ctx context.Context, oid, chunkID int64) ([]types.ChunkSeg, error)
+	ListSegments(ctx context.Context, oid, chunkID int64, allChunk bool) ([]types.ChunkSeg, error)
 	AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Object, error)
 	DeleteSegment(ctx context.Context, segID int64) error
 }
 
 type ScheduledTaskRecorder interface {
-	ListTask(ctx context.Context, taskID string) ([]*types.ScheduledTask, error)
+	ListTask(ctx context.Context, taskID string, filter types.ScheduledTaskFilter) ([]*types.ScheduledTask, error)
 	SaveTask(ctx context.Context, task *types.ScheduledTask) error
 	DeleteFinishedTask(ctx context.Context, aliveTime time.Duration) error
 }

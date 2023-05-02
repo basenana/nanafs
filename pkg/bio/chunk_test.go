@@ -128,7 +128,7 @@ var _ = Describe("TestChunkRewrite", func() {
 			Expect(writer.Fsync(context.TODO())).Should(BeNil())
 		})
 		It("compact segment should be succeed", func() {
-			segList, err := chunkStore.ListSegments(context.TODO(), fakeObj.ID, 0)
+			segList, err := chunkStore.ListSegments(context.TODO(), fakeObj.ID, 0, false)
 			Expect(err).Should(BeNil())
 			Expect(len(segList)).Should(Equal(3))
 
@@ -142,7 +142,7 @@ var _ = Describe("TestChunkRewrite", func() {
 			err = CompactChunksData(context.TODO(), &fakeObj.Metadata, chunkStore, dataStore)
 			Expect(err).Should(BeNil())
 
-			segList, err = chunkStore.ListSegments(context.TODO(), fakeObj.ID, 0)
+			segList, err = chunkStore.ListSegments(context.TODO(), fakeObj.ID, 0, false)
 			Expect(err).Should(BeNil())
 			Expect(len(segList)).Should(Equal(1))
 
@@ -152,7 +152,7 @@ var _ = Describe("TestChunkRewrite", func() {
 			err = CompactChunksData(context.TODO(), &fakeObj.Metadata, chunkStore, dataStore)
 			Expect(err).Should(BeNil())
 
-			segList, err = chunkStore.ListSegments(context.TODO(), fakeObj.ID, 0)
+			segList, err = chunkStore.ListSegments(context.TODO(), fakeObj.ID, 0, false)
 			Expect(err).Should(BeNil())
 			Expect(len(segList)).Should(Equal(1))
 		})
@@ -175,7 +175,7 @@ var _ = Describe("TestChunkRewrite", func() {
 			Expect(writer.Fsync(context.TODO())).Should(BeNil())
 		})
 		It("compact old data should be succeed", func() {
-			segList, err := chunkStore.ListSegments(context.TODO(), fakeObj.ID, 0)
+			segList, err := chunkStore.ListSegments(context.TODO(), fakeObj.ID, 0, false)
 			Expect(err).Should(BeNil())
 			Expect(len(segList)).Should(Equal(2))
 			needed := segList[1].ID
@@ -183,7 +183,7 @@ var _ = Describe("TestChunkRewrite", func() {
 			err = CompactChunksData(context.TODO(), &fakeObj.Metadata, chunkStore, dataStore)
 			Expect(err).Should(BeNil())
 
-			segList, err = chunkStore.ListSegments(context.TODO(), fakeObj.ID, 0)
+			segList, err = chunkStore.ListSegments(context.TODO(), fakeObj.ID, 0, false)
 			Expect(err).Should(BeNil())
 			Expect(len(segList)).Should(Equal(1))
 			Expect(segList[0].ID).Should(Equal(needed))
@@ -191,7 +191,7 @@ var _ = Describe("TestChunkRewrite", func() {
 			// compact again is safe
 			err = CompactChunksData(context.TODO(), &fakeObj.Metadata, chunkStore, dataStore)
 			Expect(err).Should(BeNil())
-			segList, err = chunkStore.ListSegments(context.TODO(), fakeObj.ID, 0)
+			segList, err = chunkStore.ListSegments(context.TODO(), fakeObj.ID, 0, false)
 			Expect(err).Should(BeNil())
 			Expect(len(segList)).Should(Equal(1))
 			Expect(segList[0].ID).Should(Equal(needed))

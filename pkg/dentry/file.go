@@ -259,7 +259,7 @@ func decreaseOpenedFile(fid int64) {
 	openedFileMapLock.Unlock()
 }
 
-func isFileOpened(fid int64) bool {
+func IsFileOpened(fid int64) bool {
 	openedFileMapLock.Lock()
 	count := openedFiles[fid]
 	openedFileMapLock.Unlock()

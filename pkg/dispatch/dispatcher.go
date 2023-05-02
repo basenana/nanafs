@@ -79,7 +79,7 @@ func (d *Dispatcher) handleEvent(evt *types.Event) {
 }
 
 func (d *Dispatcher) findRunnableTasks(ctx context.Context, taskID string) ([]*types.ScheduledTask, error) {
-	tasks, err := d.recorder.ListTask(ctx, taskID)
+	tasks, err := d.recorder.ListTask(ctx, taskID, types.ScheduledTaskFilter{})
 	if err != nil {
 		return nil, err
 	}
@@ -101,8 +101,7 @@ func Init(
 	entry dentry.Manager,
 	recorder metastore.ScheduledTaskRecorder,
 	chunkStore metastore.ChunkStore,
-	dataStore storage.Storage,
-) (*Dispatcher, error) {
+	dataStore storage.Storage) (*Dispatcher, error) {
 	d := &Dispatcher{
 		entry:    entry,
 		recorder: recorder,
