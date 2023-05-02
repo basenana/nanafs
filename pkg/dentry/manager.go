@@ -22,6 +22,7 @@ import (
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"runtime/trace"
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -37,7 +38,8 @@ type Manager interface {
 	Root(ctx context.Context) (Entry, error)
 	GetEntry(ctx context.Context, id int64) (Entry, error)
 	CreateEntry(ctx context.Context, parent Entry, attr EntryAttr) (Entry, error)
-	DestroyEntry(ctx context.Context, parent, en Entry) (bool, error)
+	RemoveEntry(ctx context.Context, parent, en Entry) (bool, error)
+	DestroyEntry(ctx context.Context, en Entry) (bool, error)
 	CleanEntryData(ctx context.Context, en Entry) error
 	MirrorEntry(ctx context.Context, src, dstParent Entry, attr EntryAttr) (Entry, error)
 	ChangeEntryParent(ctx context.Context, targetEntry, overwriteEntry, oldParent, newParent Entry, newName string, opt ChangeParentAttr) error
@@ -61,10 +63,11 @@ func NewManager(store metastore.ObjectStore, cfg config.Config) (Manager, error)
 		storages: storages,
 		logger:   logger.NewLogger("entryManager"),
 	}
-	newLifecycle(mgr).initHooks()
 	fileEntryLogger = mgr.logger.Named("files")
 	return mgr, nil
 }
+
+var entryLifecycleLock sync.RWMutex
 
 type manager struct {
 	store      metastore.ObjectStore
@@ -90,7 +93,7 @@ func (m *manager) Root(ctx context.Context) (Entry, error) {
 	root.Access.UID = m.cfg.FS.OwnerUid
 	root.Access.GID = m.cfg.FS.OwnerGid
 	root.Storage = m.cfg.Storages[0].ID
-	return buildEntry(root, m.store), m.store.SaveObject(ctx, nil, root)
+	return buildEntry(root, m.store), m.store.SaveObjects(ctx, root)
 }
 
 func (m *manager) GetEntry(ctx context.Context, id int64) (Entry, error) {
@@ -134,12 +137,13 @@ func (m *manager) RemoveEntry(ctx context.Context, parent, en Entry) (bool, erro
 
 	entryLifecycleLock.Lock()
 	defer entryLifecycleLock.Unlock()
+	// TODO improve this
 	if !en.IsGroup() && (md.RefCount > 1 || (md.RefCount == 1 && IsFileOpened(md.ID))) {
 		m.logger.Infow("remove object parent id", "entry", md.ID, "ref", md.RefID)
 		md.RefCount -= 1
 		md.ParentID = 0
 		md.ChangedAt = time.Now()
-		if err = m.store.SaveObject(ctx, &types.Object{Metadata: *parentMd}, &types.Object{Metadata: *md}); err != nil {
+		if err = m.store.SaveObjects(ctx, &types.Object{Metadata: *parentMd}, &types.Object{Metadata: *md}); err != nil {
 			return false, err
 		}
 		return false, nil
@@ -163,35 +167,21 @@ func (m *manager) RemoveEntry(ctx context.Context, parent, en Entry) (bool, erro
 	parentMd.ModifiedAt = time.Now()
 
 	md.ParentID = 0
-	if err = m.store.SaveObject(ctx, &types.Object{Metadata: *parentMd}, &types.Object{Metadata: *md}); err != nil {
+	if err = m.store.SaveObjects(ctx, srcObj, &types.Object{Metadata: *parentMd}, &types.Object{Metadata: *md}); err != nil {
 		m.logger.Errorw("destroy object from meta server error", "entry", md.ID, "err", err.Error())
 		return false, err
 	}
 
-	return true, nil
+	return md.RefID == 0, nil
 }
 
-func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) (bool, error) {
+func (m *manager) DestroyEntry(ctx context.Context, en Entry) (bool, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.DestroyEntry").End()
 
-	md := en.Metadata()
-	if parent == nil && md.RefCount == 0 {
-		m.logger.Infow("destroy closed and deleted entry", "entry", md.ID)
-		if err := m.store.DestroyObject(ctx, nil, nil, &types.Object{Metadata: *md}); err != nil {
-			m.logger.Errorw("destroy closed and deleted entry error", "entry", md.ID, "err", err)
-			return false, err
-		}
-		return true, nil
-	}
-
-	if parent == nil || !parent.IsGroup() {
-		return false, types.ErrNoGroup
-	}
 	var (
-		parentGrp = parent.Group()
-		parentMd  = parent.Metadata()
-		srcObj    *types.Object
-		err       error
+		md     = en.Metadata()
+		srcObj *types.Object
+		err    error
 	)
 	if en.IsMirror() {
 		m.logger.Infow("entry is mirrored, delete ref count", "entry", md.ID, "ref", md.RefID)
@@ -202,37 +192,13 @@ func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) (bool, err
 		}
 	}
 
-	entryLifecycleLock.Lock()
-	defer entryLifecycleLock.Unlock()
-	if !en.IsGroup() && (md.RefCount > 1 || (md.RefCount == 1 && IsFileOpened(md.ID))) {
-		m.logger.Infow("remove object parent id", "entry", md.ID, "ref", md.RefID)
-		md.RefCount -= 1
-		md.ParentID = 0
-		md.ChangedAt = time.Now()
-		if err = m.store.SaveObject(ctx, &types.Object{Metadata: *parentMd}, &types.Object{Metadata: *md}); err != nil {
-			return false, err
-		}
-		return false, nil
-	}
-
-	if srcObj == nil && ((en.IsGroup() && md.RefCount == 2) || (!en.IsGroup() && md.RefCount == 1)) {
-		err = parentGrp.RemoveEntry(ctx, en)
-		return err == nil, err
-	}
-
 	if srcObj != nil {
 		srcObj.RefCount -= 1
 		srcObj.ChangedAt = time.Now()
 		srcObj.ModifiedAt = time.Now()
 	}
 
-	if en.IsGroup() {
-		parentMd.RefCount -= 1
-	}
-	parentMd.ChangedAt = time.Now()
-	parentMd.ModifiedAt = time.Now()
-
-	if err = m.store.DestroyObject(ctx, srcObj, &types.Object{Metadata: *parentMd}, &types.Object{Metadata: *md}); err != nil {
+	if err = m.store.DestroyObject(ctx, srcObj, &types.Object{Metadata: *md}); err != nil {
 		m.logger.Errorw("destroy object from meta server error", "entry", md.ID, "err", err.Error())
 		return false, err
 	}
@@ -311,6 +277,7 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntry, overwriteE
 		newParentMd = newParent.Metadata()
 		entryMd     = targetEntry.Metadata()
 	)
+	// TODO: delete overwrite entry on outside
 	if overwriteEntry != nil {
 		if overwriteEntry.IsGroup() {
 			children, err := overwriteEntry.Group().ListChildren(ctx)
@@ -331,7 +298,7 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntry, overwriteE
 			return types.ErrUnsupported
 		}
 
-		if _, err := m.DestroyEntry(ctx, newParent, overwriteEntry); err != nil {
+		if _, err := m.RemoveEntry(ctx, newParent, overwriteEntry); err != nil {
 			return err
 		}
 	}
@@ -364,7 +331,7 @@ func (m *manager) Open(ctx context.Context, en Entry, attr Attr) (File, error) {
 			m.logger.Errorw("clean entry with trunc error", "entry", en.Metadata().ID, "err", err)
 		}
 		en.Metadata().Size = 0
-		if err := m.store.SaveObject(ctx, nil, &types.Object{Metadata: *md}); err != nil {
+		if err := m.store.SaveObjects(ctx, &types.Object{Metadata: *md}); err != nil {
 			m.logger.Errorw("update entry size to zero error", "entry", en.Metadata().ID, "err", err)
 		}
 		PublicFileActionEvent(events.ActionTypeTrunc, en)

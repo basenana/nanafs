@@ -100,7 +100,7 @@ var _ = Describe("TestEntryManage", func() {
 		It("delete should be succeed", func() {
 			file1, err := grp1.Group().FindEntry(context.TODO(), "test_create_file1")
 			Expect(err).Should(BeNil())
-			_, err = entryManager.DestroyEntry(context.TODO(), grp1, file1)
+			_, err = entryManager.RemoveEntry(context.TODO(), grp1, file1)
 			Expect(err).Should(BeNil())
 
 			_, err = grp1.Group().FindEntry(context.TODO(), "test_create_file1")
@@ -112,7 +112,7 @@ var _ = Describe("TestEntryManage", func() {
 			var err error
 			grp1, err = root.Group().FindEntry(context.TODO(), "test_create_grp1")
 			Expect(err).Should(BeNil())
-			_, err = entryManager.DestroyEntry(context.TODO(), root, grp1)
+			_, err = entryManager.RemoveEntry(context.TODO(), root, grp1)
 			Expect(err).Should(BeNil())
 		})
 		It("query should be failed", func() {
@@ -196,7 +196,7 @@ var _ = Describe("TestMirrorEntryManage", func() {
 			sFile, err := grp1.Group().FindEntry(context.TODO(), sourceFile)
 			Expect(err).Should(BeNil())
 
-			_, err = entryManager.DestroyEntry(context.TODO(), grp1, sFile)
+			_, err = entryManager.RemoveEntry(context.TODO(), grp1, sFile)
 			Expect(err).Should(BeNil())
 
 			_, err = grp1.Group().FindEntry(context.TODO(), sourceFile)
@@ -208,7 +208,7 @@ var _ = Describe("TestMirrorEntryManage", func() {
 		It("delete mirror file should be succeed", func() {
 			mFile2, err := grp1.Group().FindEntry(context.TODO(), mirrorFile2)
 			Expect(err).Should(BeNil())
-			_, err = entryManager.DestroyEntry(context.TODO(), grp1, mFile2)
+			_, err = entryManager.RemoveEntry(context.TODO(), grp1, mFile2)
 			Expect(err).Should(BeNil())
 
 			_, err = grp1.Group().FindEntry(context.TODO(), mirrorFile2)
@@ -221,7 +221,7 @@ var _ = Describe("TestMirrorEntryManage", func() {
 			mirroredFile, err := grp1.Group().FindEntry(context.TODO(), mirrorFile3)
 			Expect(err).Should(BeNil())
 
-			_, err = entryManager.DestroyEntry(context.TODO(), grp1, mirroredFile)
+			_, err = entryManager.RemoveEntry(context.TODO(), grp1, mirroredFile)
 			Expect(err).Should(BeNil())
 
 			_, err = grp1.Group().FindEntry(context.TODO(), mirrorFile3)

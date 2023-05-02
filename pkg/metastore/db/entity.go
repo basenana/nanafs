@@ -146,15 +146,16 @@ func (e *Entity) ListObjectChildren(ctx context.Context, filter types.Filter) ([
 	return result, nil
 }
 
-func (e *Entity) SaveObject(ctx context.Context, parent, object *types.Object) error {
+func (e *Entity) SaveObjects(ctx context.Context, objects ...*types.Object) error {
 	return e.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if parent != nil {
-			if err := saveRawObject(tx, parent); err != nil {
+		for i := range objects {
+			obj := objects[i]
+			if obj == nil {
+				continue
+			}
+			if err := saveRawObject(tx, obj); err != nil {
 				return err
 			}
-		}
-		if err := saveRawObject(tx, object); err != nil {
-			return err
 		}
 		return nil
 	})
@@ -190,7 +191,7 @@ func (e *Entity) SaveChangeParentObject(ctx context.Context, srcParent, dstParen
 	})
 }
 
-func (e *Entity) DeleteObject(ctx context.Context, srcObj, dstParent, obj *types.Object) error {
+func (e *Entity) DeleteObject(ctx context.Context, srcObj, obj *types.Object) error {
 	if obj == nil {
 		return fmt.Errorf("object is nil")
 	}
@@ -204,11 +205,6 @@ func (e *Entity) DeleteObject(ctx context.Context, srcObj, dstParent, obj *types
 				if err := saveRawObject(tx, srcObj); err != nil {
 					return err
 				}
-			}
-		}
-		if dstParent != nil {
-			if err := saveRawObject(tx, dstParent); err != nil {
-				return err
 			}
 		}
 		if err := deleteRawObject(tx, obj); err != nil {

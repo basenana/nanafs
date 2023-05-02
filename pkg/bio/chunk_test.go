@@ -30,7 +30,7 @@ import (
 
 var _ = Describe("TestChunkIO", func() {
 	var fakeObj = &types.Object{Metadata: types.NewMetadata("test_chunk_io.file", types.RawKind)}
-	Expect(chunkStore.(metastore.ObjectStore).SaveObject(context.Background(), nil, fakeObj)).Should(BeNil())
+	Expect(chunkStore.(metastore.ObjectStore).SaveObjects(context.Background(), fakeObj)).Should(BeNil())
 	Context("test one page", func() {
 		var reader Reader
 		var writer Writer
@@ -86,7 +86,7 @@ var _ = Describe("TestChunkIO", func() {
 
 var _ = Describe("TestChunkRewrite", func() {
 	var fakeObj = &types.Object{Metadata: types.NewMetadata("test_chunk_rewrite.file", types.RawKind)}
-	Expect(chunkStore.(metastore.ObjectStore).SaveObject(context.Background(), nil, fakeObj)).Should(BeNil())
+	Expect(chunkStore.(metastore.ObjectStore).SaveObjects(context.Background(), fakeObj)).Should(BeNil())
 	Context("test one chunk", func() {
 		var reader Reader
 		var writer Writer
@@ -208,7 +208,7 @@ var _ = Describe("TestChunkRewrite", func() {
 
 var _ = Describe("TestChunkCompact", func() {
 	var fakeObj = &types.Object{Metadata: types.NewMetadata("test_chunk_compact.file", types.RawKind)}
-	Expect(chunkStore.(metastore.ObjectStore).SaveObject(context.Background(), nil, fakeObj)).Should(BeNil())
+	Expect(chunkStore.(metastore.ObjectStore).SaveObjects(context.Background(), fakeObj)).Should(BeNil())
 	Context("test multi chunk", func() {
 		var reader Reader
 		var writer Writer

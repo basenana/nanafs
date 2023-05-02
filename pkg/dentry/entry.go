@@ -130,7 +130,7 @@ func (r *rawEntry) UpdateExtendData(ctx context.Context, ed types.ExtendData) er
 	r.obj.ChangedAt = time.Now()
 	r.obj.ExtendDataChanged = true
 	r.obj.ExtendData = &ed
-	return r.store.SaveObject(ctx, nil, r.obj)
+	return r.store.SaveObjects(ctx, r.obj)
 }
 
 func (r *rawEntry) IsGroup() bool {

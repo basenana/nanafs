@@ -90,7 +90,7 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, erro
 	}
 	groupMd.ChangedAt = time.Now()
 	groupMd.ModifiedAt = time.Now()
-	if err = g.store.SaveObject(ctx, &types.Object{Metadata: *groupMd}, obj); err != nil {
+	if err = g.store.SaveObjects(ctx, &types.Object{Metadata: *groupMd}, obj); err != nil {
 		return nil, err
 	}
 	en := buildEntry(obj, g.store)
@@ -99,7 +99,7 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, erro
 
 func (g *stdGroup) UpdateEntry(ctx context.Context, en Entry) error {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.UpdateEntry").End()
-	err := g.store.SaveObject(ctx, &types.Object{Metadata: *g.Metadata()}, &types.Object{Metadata: *en.Metadata()})
+	err := g.store.SaveObjects(ctx, &types.Object{Metadata: *g.Metadata()}, &types.Object{Metadata: *en.Metadata()})
 	if err != nil {
 		return err
 	}
@@ -133,7 +133,7 @@ func (g *stdGroup) RemoveEntry(ctx context.Context, en Entry) error {
 	grpMd.ModifiedAt = time.Now()
 
 	md.ParentID = 0
-	if err := g.store.SaveObject(ctx, &types.Object{Metadata: *grpMd}, &types.Object{Metadata: *md}); err != nil {
+	if err := g.store.SaveObjects(ctx, &types.Object{Metadata: *grpMd}, &types.Object{Metadata: *md}); err != nil {
 		return err
 	}
 	return nil

@@ -169,7 +169,7 @@ func (c *entryCleanExecutor) execute(ctx context.Context, task *types.ScheduledT
 		return err
 	}
 
-	_, err = c.entry.DestroyEntry(ctx, nil, en)
+	_, err = c.entry.DestroyEntry(ctx, en)
 	if err != nil {
 		c.logger.Errorw("[entryCleanExecutor] get entry failed", "entry", evt.RefID, "task", task.ID, "err", err)
 		return err

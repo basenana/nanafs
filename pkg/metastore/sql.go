@@ -62,16 +62,16 @@ func (s *sqliteMetaStore) ListObjects(ctx context.Context, filter types.Filter) 
 	return s.dbStore.ListObjects(ctx, filter)
 }
 
-func (s *sqliteMetaStore) SaveObject(ctx context.Context, parent, obj *types.Object) error {
+func (s *sqliteMetaStore) SaveObjects(ctx context.Context, objList ...*types.Object) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.SaveObject(ctx, parent, obj)
+	return s.dbStore.SaveObjects(ctx, objList...)
 }
 
-func (s *sqliteMetaStore) DestroyObject(ctx context.Context, src, parent, obj *types.Object) error {
+func (s *sqliteMetaStore) DestroyObject(ctx context.Context, src, obj *types.Object) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.DestroyObject(ctx, src, parent, obj)
+	return s.dbStore.DestroyObject(ctx, src, obj)
 }
 
 func (s *sqliteMetaStore) ListChildren(ctx context.Context, obj *types.Object) (Iterator, error) {
@@ -210,18 +210,18 @@ func (s *sqlMetaStore) ListObjects(ctx context.Context, filter types.Filter) ([]
 	return objList, nil
 }
 
-func (s *sqlMetaStore) SaveObject(ctx context.Context, parent, obj *types.Object) error {
-	defer trace.StartRegion(ctx, "metastore.sql.SaveObject").End()
-	if err := s.dbEntity.SaveObject(ctx, parent, obj); err != nil {
-		s.logger.Errorw("save object failed", "id", obj.ID, "err", err.Error())
+func (s *sqlMetaStore) SaveObjects(ctx context.Context, objList ...*types.Object) error {
+	defer trace.StartRegion(ctx, "metastore.sql.SaveMirroredObject").End()
+	if err := s.dbEntity.SaveObjects(ctx, objList...); err != nil {
+		s.logger.Errorw("save objects failed", "err", err.Error())
 		return db.SqlError2Error(err)
 	}
 	return nil
 }
 
-func (s *sqlMetaStore) DestroyObject(ctx context.Context, src, parent, obj *types.Object) error {
+func (s *sqlMetaStore) DestroyObject(ctx context.Context, src, obj *types.Object) error {
 	defer trace.StartRegion(ctx, "metastore.sql.DestroyObject").End()
-	err := s.dbEntity.DeleteObject(ctx, src, parent, obj)
+	err := s.dbEntity.DeleteObject(ctx, src, obj)
 	if err != nil {
 		s.logger.Errorw("destroy object failed", "id", obj.ID, "err", err.Error())
 		return db.SqlError2Error(err)

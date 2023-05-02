@@ -173,7 +173,7 @@ func (c *controller) DestroyEntry(ctx context.Context, parent, en dentry.Entry, 
 	}
 
 	var destroyed bool
-	destroyed, err = c.entry.DestroyEntry(ctx, parent, en)
+	destroyed, err = c.entry.RemoveEntry(ctx, parent, en)
 	if err != nil {
 		c.logger.Errorw("delete entry failed", "entry", en.Metadata().ID, "err", err.Error())
 		return err
