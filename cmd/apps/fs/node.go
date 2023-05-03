@@ -292,7 +292,7 @@ func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fus
 	}
 	newDir, err := n.R.CreateEntry(ctx, entry, types.ObjectAttr{
 		Name:   name,
-		Kind:   fileKindFromMode(mode),
+		Kind:   types.GroupKind,
 		Dev:    entry.Metadata().Dev,
 		Access: *acc,
 	})
