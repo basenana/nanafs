@@ -26,6 +26,7 @@ type Meta interface {
 	ObjectStore
 	ChunkStore
 	PluginRecorderGetter
+	ScheduledTaskRecorder
 }
 
 type ObjectStore interface {

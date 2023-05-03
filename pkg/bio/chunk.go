@@ -19,6 +19,7 @@ package bio
 import (
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
@@ -40,43 +41,45 @@ const (
 var (
 	maxReadChunkTaskParallel  = utils.NewMaximumParallel(256)
 	maxWriteChunkTaskParallel = utils.NewMaximumParallel(64)
-	fileChunkReaders          = make(map[int64]*chunkReader)
-	fileChunkWriters          = make(map[int64]*chunkWriter)
-	fileChunkMux              sync.Mutex
 )
 
 type chunkReader struct {
 	entry *types.Metadata
 
-	page    *pageCache
-	store   metastore.ChunkStore
-	cache   *storage.LocalCache
-	readers map[int64]*segReader
-	readMux sync.Mutex
-	ref     int32
-	logger  *zap.SugaredLogger
+	page        *pageCache
+	store       metastore.ChunkStore
+	cache       *storage.LocalCache
+	readers     map[int64]*segReader
+	readMux     sync.Mutex
+	ref         int32
+	logger      *zap.SugaredLogger
+	needCompact bool
 }
 
 func NewChunkReader(md *types.Metadata, chunkStore metastore.ChunkStore, dataStore storage.Storage) Reader {
 	fileChunkMux.Lock()
 	defer fileChunkMux.Unlock()
 
-	cr, ok := fileChunkReaders[md.ID]
-	if ok {
-		atomic.AddInt32(&cr.ref, 1)
+	r, ok := fileChunkReaders[md.ID]
+	if !ok {
+		cr := &chunkReader{
+			entry:   md,
+			page:    newPageCache(md.ID, fileChunkSize),
+			store:   chunkStore,
+			cache:   storage.NewLocalCache(dataStore),
+			ref:     1,
+			readers: map[int64]*segReader{},
+			logger:  logger.NewLogger("chunkIO").With("entry", md.ID),
+		}
+		fileChunkReaders[md.ID] = cr
 		return cr
 	}
 
-	cr = &chunkReader{
-		entry:   md,
-		page:    newPageCache(md.ID, fileChunkSize),
-		store:   chunkStore,
-		cache:   storage.NewLocalCache(dataStore),
-		readers: map[int64]*segReader{},
-		ref:     1,
-		logger:  logger.NewLogger("chunkIO").With("entry", md.ID),
+	cr, ok := r.(*chunkReader)
+	if !ok {
+		return nil
 	}
-	fileChunkReaders[md.ID] = cr
+	atomic.AddInt32(&cr.ref, 1)
 	return cr
 }
 
@@ -166,6 +169,10 @@ func (c *chunkReader) Close() {
 		fileChunkMux.Lock()
 		delete(fileChunkReaders, c.entry.ID)
 		fileChunkMux.Unlock()
+		if c.needCompact {
+			events.Publish(events.EntryActionTopic(events.TopicFileActionFmt, events.ActionTypeCompact),
+				buildCompactEvent(c.entry))
+		}
 		c.page.close()
 	}
 }
@@ -189,6 +196,10 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 			c.r.logger.Errorw("list segment reader", "entry", c.r.entry.ID, "chunk", c.chunkID, "err", err)
 			req.err = err
 			return
+		}
+
+		if len(segments) > 1 {
+			c.r.needCompact = true
 		}
 
 		dataSize := (c.chunkID + 1) * int64(fileChunkSize)
@@ -348,14 +359,18 @@ func NewChunkWriter(reader Reader) Writer {
 
 	fileChunkMux.Lock()
 	defer fileChunkMux.Unlock()
-	cw, ok := fileChunkWriters[r.entry.ID]
-	if ok {
-		atomic.AddInt32(&cw.ref, 1)
+	w, ok := fileChunkWriters[r.entry.ID]
+	if !ok {
+		cw := &chunkWriter{chunkReader: r, writers: map[int64]*segWriter{}, ref: 1}
+		fileChunkWriters[r.entry.ID] = cw
 		return cw
 	}
 
-	cw = &chunkWriter{chunkReader: r, writers: map[int64]*segWriter{}, ref: 1}
-	fileChunkWriters[r.entry.ID] = cw
+	cw, ok := w.(*chunkWriter)
+	if !ok {
+		return nil
+	}
+	atomic.AddInt32(&cw.ref, 1)
 	return cw
 }
 
@@ -365,6 +380,7 @@ func (c *chunkWriter) WriteAt(ctx context.Context, data []byte, off int64) (n in
 
 	var (
 		wg      = &sync.WaitGroup{}
+		fileLen = c.entry.Size
 		reqList = make([]*ioReq, 0, len(data)/fileChunkSize+1)
 	)
 	writeEnd := off + int64(len(data))
@@ -392,6 +408,9 @@ func (c *chunkWriter) WriteAt(ctx context.Context, data []byte, off int64) (n in
 		if off == writeEnd {
 			break
 		}
+	}
+	if fileLen > off {
+		c.needCompact = true
 	}
 	wg.Wait()
 	for _, req := range reqList {
@@ -954,39 +973,4 @@ func deleteSegmentAndData(ctx context.Context, segments []types.ChunkSeg, chunkS
 		}
 	}
 	return
-}
-
-func CloseAll() {
-	log := logger.NewLogger("Closing")
-
-	allReaders := make(map[int64]*chunkReader)
-	allWriters := make(map[int64]*chunkWriter)
-	fileChunkMux.Lock()
-	for fid := range fileChunkWriters {
-		allWriters[fid] = fileChunkWriters[fid]
-	}
-	for fid := range fileChunkReaders {
-		allReaders[fid] = fileChunkReaders[fid]
-	}
-	fileChunkMux.Unlock()
-
-	wg := sync.WaitGroup{}
-	wg.Add(len(allWriters))
-	for i := range allWriters {
-		go func(w *chunkWriter) {
-			defer wg.Done()
-			log.Infow("closing writer", "entry", w.entry.ID)
-			w.Close()
-		}(allWriters[i])
-	}
-	wg.Add(len(allReaders))
-	for i := range allReaders {
-		go func(r *chunkReader) {
-			defer wg.Done()
-			log.Infow("closing reader", "entry", r.entry.ID)
-			r.Close()
-		}(allReaders[i])
-	}
-	wg.Wait()
-	log.Infow("all opened file closed")
 }

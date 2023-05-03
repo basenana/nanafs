@@ -95,6 +95,7 @@ var daemonCmd = &cobra.Command{
 func run(ctrl controller.Controller, cfg config.Config, stopCh chan struct{}) {
 	log := logger.NewLogger("nanafs")
 	log.Info("starting")
+	ctrl.StartBackendTask(stopCh)
 	shutdown := ctrl.SetupShutdownHandler(stopCh)
 
 	pathEntryMgr, err := apis.NewPathEntryManager(ctrl)

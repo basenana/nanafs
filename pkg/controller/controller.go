@@ -49,6 +49,7 @@ type Controller interface {
 	CloseFile(ctx context.Context, file dentry.File) error
 
 	FsInfo(ctx context.Context) Info
+	StartBackendTask(stopCh chan struct{})
 	SetupShutdownHandler(stopCh chan struct{}) chan struct{}
 }
 
@@ -172,8 +173,7 @@ func (c *controller) DestroyEntry(ctx context.Context, parent, en dentry.Entry, 
 		return types.ErrNoAccess
 	}
 
-	var destroyed bool
-	destroyed, err = c.entry.RemoveEntry(ctx, parent, en)
+	err = c.entry.RemoveEntry(ctx, parent, en)
 	if err != nil {
 		c.logger.Errorw("delete entry failed", "entry", en.Metadata().ID, "err", err.Error())
 		return err
@@ -183,9 +183,7 @@ func (c *controller) DestroyEntry(ctx context.Context, parent, en dentry.Entry, 
 	}
 	c.cache.putEntry(parent)
 	c.cache.delEntry(en.Metadata().ID)
-	if destroyed {
-		dentry.PublicEntryActionEvent(events.ActionTypeDestroy, en)
-	}
+	dentry.PublicEntryActionEvent(events.ActionTypeDestroy, en)
 	return
 }
 

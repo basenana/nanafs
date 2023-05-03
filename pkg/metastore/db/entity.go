@@ -372,6 +372,84 @@ func (e *Entity) ListChunkSegments(ctx context.Context, oid, chunkID int64, allC
 	return result, nil
 }
 
+func (e *Entity) ListScheduledTask(ctx context.Context, taskID string, filter types.ScheduledTaskFilter) ([]*types.ScheduledTask, error) {
+	tasks := make([]ScheduledTask, 0)
+	query := e.DB.WithContext(ctx).Where("task_id = ?", taskID)
+
+	if filter.RefID != 0 && filter.RefType != "" {
+		query = query.Where("ref_type = ? AND ref_id = ?", filter.RefType, filter.RefID)
+	}
+
+	if len(filter.Status) > 0 {
+		query = query.Where("status IN ?", filter.Status)
+	}
+
+	res := query.Order("created_time").Find(&tasks)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+
+	result := make([]*types.ScheduledTask, len(tasks))
+	for i, t := range tasks {
+		evt := types.Event{}
+		_ = json.Unmarshal([]byte(t.Event), &evt)
+		result[i] = &types.ScheduledTask{
+			ID:             t.ID,
+			TaskID:         t.TaskID,
+			Status:         t.Status,
+			RefType:        t.RefType,
+			RefID:          t.RefID,
+			Result:         t.Result,
+			CreatedTime:    t.CreatedTime,
+			ExecutionTime:  t.ExecutionTime,
+			ExpirationTime: t.ExpirationTime,
+			Event:          evt,
+		}
+	}
+	return result, nil
+}
+
+func (e *Entity) SaveScheduledTask(ctx context.Context, task *types.ScheduledTask) error {
+	t := &ScheduledTask{
+		ID:             task.ID,
+		TaskID:         task.TaskID,
+		Status:         task.Status,
+		RefID:          task.RefID,
+		RefType:        task.RefType,
+		Result:         task.Result,
+		CreatedTime:    task.CreatedTime,
+		ExecutionTime:  task.ExecutionTime,
+		ExpirationTime: task.ExpirationTime,
+	}
+
+	rawEvt, err := json.Marshal(task.Event)
+	if err != nil {
+		return err
+	}
+	t.Event = string(rawEvt)
+	if task.ID == 0 {
+		res := e.DB.WithContext(ctx).Create(t)
+		if res.Error != nil {
+			return err
+		}
+		task.ID = t.ID
+		return nil
+	}
+	res := e.DB.WithContext(ctx).Save(t)
+	if res.Error != nil {
+		return err
+	}
+	return nil
+}
+
+func (e *Entity) DeleteFinishedScheduledTask(ctx context.Context, aliveTime time.Duration) error {
+	res := e.DB.WithContext(ctx).Where("status = ? AND created_time < ?", types.ScheduledTaskFinish, time.Now().Add(-1*aliveTime)).Delete(&ScheduledTask{})
+	if res.Error != nil {
+		return res.Error
+	}
+	return nil
+}
+
 func (e *Entity) SystemInfo(ctx context.Context) (*SystemInfo, error) {
 	info := &SystemInfo{}
 	res := e.WithContext(ctx).First(info)

@@ -116,6 +116,24 @@ func (s *sqliteMetaStore) DeleteSegment(ctx context.Context, segID int64) error 
 	return s.dbStore.DeleteSegment(ctx, segID)
 }
 
+func (s *sqliteMetaStore) ListTask(ctx context.Context, taskID string, filter types.ScheduledTaskFilter) ([]*types.ScheduledTask, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.ListTask(ctx, taskID, filter)
+}
+
+func (s *sqliteMetaStore) SaveTask(ctx context.Context, task *types.ScheduledTask) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.SaveTask(ctx, task)
+}
+
+func (s *sqliteMetaStore) DeleteFinishedTask(ctx context.Context, aliveTime time.Duration) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.DeleteFinishedTask(ctx, aliveTime)
+}
+
 func (s *sqliteMetaStore) PluginRecorder(plugin types.PlugScope) PluginRecorder {
 	return &sqlPluginRecorder{
 		pluginRecordHandler: s,
@@ -278,6 +296,25 @@ func (s *sqlMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (
 func (s *sqlMetaStore) DeleteSegment(ctx context.Context, segID int64) error {
 	defer trace.StartRegion(ctx, "metastore.sql.DeleteSegment").End()
 	return db.SqlError2Error(s.dbEntity.DeleteChunkSegment(ctx, segID))
+}
+
+func (s *sqlMetaStore) ListTask(ctx context.Context, taskID string, filter types.ScheduledTaskFilter) ([]*types.ScheduledTask, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.ListTask").End()
+	result, err := s.dbEntity.ListScheduledTask(ctx, taskID, filter)
+	if err != nil {
+		return nil, db.SqlError2Error(err)
+	}
+	return result, nil
+}
+
+func (s *sqlMetaStore) SaveTask(ctx context.Context, task *types.ScheduledTask) error {
+	defer trace.StartRegion(ctx, "metastore.sql.SaveTask").End()
+	return db.SqlError2Error(s.dbEntity.SaveScheduledTask(ctx, task))
+}
+
+func (s *sqlMetaStore) DeleteFinishedTask(ctx context.Context, aliveTime time.Duration) error {
+	defer trace.StartRegion(ctx, "metastore.sql.DeleteFinishedTask").End()
+	return db.SqlError2Error(s.dbEntity.DeleteFinishedScheduledTask(ctx, aliveTime))
 }
 
 func (s *sqlMetaStore) PluginRecorder(plugin types.PlugScope) PluginRecorder {

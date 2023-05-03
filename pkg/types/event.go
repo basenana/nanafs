@@ -5,15 +5,19 @@ import (
 )
 
 type Event struct {
-	Id              string      `json:"id"`
-	Type            string      `json:"type"`
-	Source          string      `json:"source"`
-	SpecVersion     string      `json:"specversion"`
-	Time            time.Time   `json:"time"`
-	RefID           int64       `json:"nanafsrefid"`
-	RefType         string      `json:"nanafsreftype"`
-	DataContentType string      `json:"datacontenttype"`
-	Data            interface{} `json:"data"`
+	Id              string    `json:"id"`
+	Type            string    `json:"type"`
+	Source          string    `json:"source"`
+	SpecVersion     string    `json:"specversion"`
+	Time            time.Time `json:"time"`
+	RefID           int64     `json:"nanafsrefid"`
+	RefType         string    `json:"nanafsreftype"`
+	DataContentType string    `json:"datacontenttype"`
+	Data            EventData `json:"data"`
+}
+
+type EventData struct {
+	*Metadata
 }
 
 const (
@@ -40,4 +44,5 @@ type ScheduledTask struct {
 type ScheduledTaskFilter struct {
 	RefType string
 	RefID   int64
+	Status  []string
 }

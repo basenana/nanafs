@@ -184,14 +184,14 @@ func (o ObjectChunk) TableName() string {
 type ScheduledTask struct {
 	ID             int64     `gorm:"column:id;autoIncrement"`
 	TaskID         string    `gorm:"column:task_id;index:st_task_id"`
-	Status         string    `gorm:"column:status"`
-	Event          string    `gorm:"column:event"`
-	RefID          int64     `gorm:"column:ref_id;index:sche_task_refid"`
 	RefType        string    `gorm:"column:ref_type;index:sche_task_reftype"`
+	RefID          int64     `gorm:"column:ref_id;index:sche_task_refid"`
+	Status         string    `gorm:"column:status;index:st_task_status"`
 	Result         string    `gorm:"column:result"`
 	CreatedTime    time.Time `gorm:"column:created_time"`
 	ExecutionTime  time.Time `gorm:"column:execution_time"`
 	ExpirationTime time.Time `gorm:"column:expiration_time"`
+	Event          string    `gorm:"column:event"`
 }
 
 func (d ScheduledTask) TableName() string {

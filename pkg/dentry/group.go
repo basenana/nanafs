@@ -121,7 +121,6 @@ func (g *stdGroup) RemoveEntry(ctx context.Context, en Entry) error {
 
 	if !en.IsGroup() && md.RefCount > 0 {
 		md.RefCount -= 1
-		md.ParentID = 0
 		md.ChangedAt = time.Now()
 	}
 

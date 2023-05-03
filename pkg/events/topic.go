@@ -33,6 +33,7 @@ var (
 	ActionTypeTrunc        = "trunc"
 	ActionTypeOpen         = "open"
 	ActionTypeClose        = "close"
+	ActionTypeCompact      = "compact"
 )
 
 func EntryActionTopic(topicFmt string, actionType string) string {
