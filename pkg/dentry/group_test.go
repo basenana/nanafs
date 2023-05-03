@@ -100,8 +100,8 @@ var _ = Describe("TestManageGroupEntry", func() {
 			file3, err := group1.Group().FindEntry(context.TODO(), "test_group_manage_file3")
 			Expect(err).Should(BeNil())
 
-			Expect(group1.Group().DestroyEntry(context.TODO(), file1)).Should(BeNil())
-			Expect(group1.Group().DestroyEntry(context.TODO(), file3)).Should(BeNil())
+			Expect(group1.Group().RemoveEntry(context.TODO(), file1)).Should(BeNil())
+			Expect(group1.Group().RemoveEntry(context.TODO(), file3)).Should(BeNil())
 
 			file1, err = group1.Group().FindEntry(context.TODO(), "test_group_manage_file1")
 			Expect(err).Should(Equal(types.ErrNotFound))

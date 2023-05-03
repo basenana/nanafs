@@ -31,7 +31,7 @@ type Group interface {
 	FindEntry(ctx context.Context, name string) (Entry, error)
 	CreateEntry(ctx context.Context, attr EntryAttr) (Entry, error)
 	UpdateEntry(ctx context.Context, en Entry) error
-	DestroyEntry(ctx context.Context, en Entry) error
+	RemoveEntry(ctx context.Context, en Entry) error
 	ListChildren(ctx context.Context) ([]Entry, error)
 }
 
@@ -90,7 +90,7 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, erro
 	}
 	groupMd.ChangedAt = time.Now()
 	groupMd.ModifiedAt = time.Now()
-	if err = g.store.SaveObject(ctx, &types.Object{Metadata: *groupMd}, obj); err != nil {
+	if err = g.store.SaveObjects(ctx, &types.Object{Metadata: *groupMd}, obj); err != nil {
 		return nil, err
 	}
 	en := buildEntry(obj, g.store)
@@ -99,15 +99,15 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, erro
 
 func (g *stdGroup) UpdateEntry(ctx context.Context, en Entry) error {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.UpdateEntry").End()
-	err := g.store.SaveObject(ctx, &types.Object{Metadata: *g.Metadata()}, &types.Object{Metadata: *en.Metadata()})
+	err := g.store.SaveObjects(ctx, &types.Object{Metadata: *g.Metadata()}, &types.Object{Metadata: *en.Metadata()})
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (g *stdGroup) DestroyEntry(ctx context.Context, en Entry) error {
-	defer trace.StartRegion(ctx, "dentry.stdGroup.DestroyEntry").End()
+func (g *stdGroup) RemoveEntry(ctx context.Context, en Entry) error {
+	defer trace.StartRegion(ctx, "dentry.stdGroup.RemoveEntry").End()
 	md := en.Metadata()
 	if md.RefID != 0 {
 		return types.ErrUnsupported
@@ -121,7 +121,6 @@ func (g *stdGroup) DestroyEntry(ctx context.Context, en Entry) error {
 
 	if !en.IsGroup() && md.RefCount > 0 {
 		md.RefCount -= 1
-		md.ParentID = 0
 		md.ChangedAt = time.Now()
 	}
 
@@ -132,7 +131,8 @@ func (g *stdGroup) DestroyEntry(ctx context.Context, en Entry) error {
 	grpMd.ChangedAt = time.Now()
 	grpMd.ModifiedAt = time.Now()
 
-	if err := g.store.DestroyObject(ctx, nil, &types.Object{Metadata: *grpMd}, &types.Object{Metadata: *md}); err != nil {
+	md.ParentID = 0
+	if err := g.store.SaveObjects(ctx, &types.Object{Metadata: *grpMd}, &types.Object{Metadata: *md}); err != nil {
 		return err
 	}
 	return nil

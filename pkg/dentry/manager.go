@@ -22,6 +22,7 @@ import (
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"runtime/trace"
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -37,10 +38,13 @@ type Manager interface {
 	Root(ctx context.Context) (Entry, error)
 	GetEntry(ctx context.Context, id int64) (Entry, error)
 	CreateEntry(ctx context.Context, parent Entry, attr EntryAttr) (Entry, error)
-	DestroyEntry(ctx context.Context, parent, en Entry) (bool, error)
+	RemoveEntry(ctx context.Context, parent, en Entry) error
+	DestroyEntry(ctx context.Context, en Entry) error
+	CleanEntryData(ctx context.Context, en Entry) error
 	MirrorEntry(ctx context.Context, src, dstParent Entry, attr EntryAttr) (Entry, error)
 	ChangeEntryParent(ctx context.Context, targetEntry, overwriteEntry, oldParent, newParent Entry, newName string, opt ChangeParentAttr) error
 	Open(ctx context.Context, en Entry, attr Attr) (File, error)
+	ChunkCompact(ctx context.Context, en Entry) error
 	SetCacheResetter(r CacheResetter)
 	MustCloseAll()
 }
@@ -60,10 +64,11 @@ func NewManager(store metastore.ObjectStore, cfg config.Config) (Manager, error)
 		storages: storages,
 		logger:   logger.NewLogger("entryManager"),
 	}
-	newLifecycle(mgr).initHooks()
 	fileEntryLogger = mgr.logger.Named("files")
 	return mgr, nil
 }
+
+var entryLifecycleLock sync.RWMutex
 
 type manager struct {
 	store      metastore.ObjectStore
@@ -89,7 +94,7 @@ func (m *manager) Root(ctx context.Context) (Entry, error) {
 	root.Access.UID = m.cfg.FS.OwnerUid
 	root.Access.GID = m.cfg.FS.OwnerGid
 	root.Storage = m.cfg.Storages[0].ID
-	return buildEntry(root, m.store), m.store.SaveObject(ctx, nil, root)
+	return buildEntry(root, m.store), m.store.SaveObjects(ctx, root)
 }
 
 func (m *manager) GetEntry(ctx context.Context, id int64) (Entry, error) {
@@ -110,10 +115,10 @@ func (m *manager) CreateEntry(ctx context.Context, parent Entry, attr EntryAttr)
 	return grp.CreateEntry(ctx, attr)
 }
 
-func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) (bool, error) {
-	defer trace.StartRegion(ctx, "dentry.manager.DestroyEntry").End()
-	if !parent.IsGroup() {
-		return false, types.ErrNoGroup
+func (m *manager) RemoveEntry(ctx context.Context, parent, en Entry) error {
+	defer trace.StartRegion(ctx, "dentry.manager.RemoveEntry").End()
+	if parent == nil || !parent.IsGroup() {
+		return types.ErrNoGroup
 	}
 	var (
 		parentGrp = parent.Group()
@@ -127,26 +132,16 @@ func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) (bool, err
 		srcObj, err = m.store.GetObject(ctx, en.Metadata().RefID)
 		if err != nil {
 			m.logger.Errorw("query source object from meta server error", "entry", md.ID, "ref", md.RefID, "err", err.Error())
-			return false, err
+			return err
 		}
 	}
 
 	entryLifecycleLock.Lock()
 	defer entryLifecycleLock.Unlock()
-	if !en.IsGroup() && (md.RefCount > 1 || (md.RefCount == 1 && isFileOpened(md.ID))) {
-		m.logger.Infow("remove object parent id", "entry", md.ID, "ref", md.RefID)
-		md.RefCount -= 1
-		md.ParentID = 0
-		md.ChangedAt = time.Now()
-		if err = m.store.SaveObject(ctx, &types.Object{Metadata: *parentMd}, &types.Object{Metadata: *md}); err != nil {
-			return false, err
-		}
-		return false, nil
-	}
 
 	if srcObj == nil && ((en.IsGroup() && md.RefCount == 2) || (!en.IsGroup() && md.RefCount == 1)) {
-		err = parentGrp.DestroyEntry(ctx, en)
-		return err == nil, err
+		err = parentGrp.RemoveEntry(ctx, en)
+		return err
 	}
 
 	if srcObj != nil {
@@ -161,12 +156,57 @@ func (m *manager) DestroyEntry(ctx context.Context, parent, en Entry) (bool, err
 	parentMd.ChangedAt = time.Now()
 	parentMd.ModifiedAt = time.Now()
 
-	if err = m.store.DestroyObject(ctx, srcObj, &types.Object{Metadata: *parentMd}, &types.Object{Metadata: *md}); err != nil {
+	md.ParentID = 0
+	md.RefCount -= 1
+	md.ChangedAt = time.Now()
+	if err = m.store.SaveObjects(ctx, srcObj, &types.Object{Metadata: *parentMd}, &types.Object{Metadata: *md}); err != nil {
 		m.logger.Errorw("destroy object from meta server error", "entry", md.ID, "err", err.Error())
-		return false, err
+		return err
 	}
 
-	return true, nil
+	return nil
+}
+
+func (m *manager) DestroyEntry(ctx context.Context, en Entry) error {
+	defer trace.StartRegion(ctx, "dentry.manager.DestroyEntry").End()
+	var (
+		md     = en.Metadata()
+		srcObj *types.Object
+		err    error
+	)
+	if en.IsMirror() {
+		srcObj, err = m.store.GetObject(ctx, en.Metadata().RefID)
+		if err != nil {
+			m.logger.Warnw("query source object from meta server error", "entry", md.ID, "ref", md.RefID, "err", err.Error())
+		}
+	}
+
+	if err = m.store.DestroyObject(ctx, srcObj, &types.Object{Metadata: *md}); err != nil {
+		m.logger.Errorw("destroy object from meta server error", "entry", md.ID, "err", err.Error())
+		return err
+	}
+	return nil
+}
+
+func (m *manager) CleanEntryData(ctx context.Context, en Entry) error {
+	md := en.Metadata()
+	s, ok := m.storages[md.Storage]
+	if !ok {
+		return fmt.Errorf("storage %s not register", md.Storage)
+	}
+
+	cs, ok := m.store.(metastore.ChunkStore)
+	if !ok {
+		return nil
+	}
+
+	m.logger.Infow("delete chunk data", "entry", md.ID)
+	err := bio.DeleteChunksData(ctx, md, cs, s)
+	if err != nil {
+		m.logger.Errorw("delete chunk data failed", "entry", md.ID, "err", err)
+		return err
+	}
+	return nil
 }
 
 func (m *manager) MirrorEntry(ctx context.Context, src, dstParent Entry, attr EntryAttr) (Entry, error) {
@@ -219,6 +259,7 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntry, overwriteE
 		newParentMd = newParent.Metadata()
 		entryMd     = targetEntry.Metadata()
 	)
+	// TODO delete overwrite entry on outside
 	if overwriteEntry != nil {
 		if overwriteEntry.IsGroup() {
 			children, err := overwriteEntry.Group().ListChildren(ctx)
@@ -239,9 +280,10 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntry, overwriteE
 			return types.ErrUnsupported
 		}
 
-		if _, err := m.DestroyEntry(ctx, newParent, overwriteEntry); err != nil {
+		if err := m.RemoveEntry(ctx, newParent, overwriteEntry); err != nil {
 			return err
 		}
+		PublicEntryActionEvent(events.ActionTypeDestroy, overwriteEntry)
 	}
 
 	entryMd.Name = newName
@@ -266,17 +308,23 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntry, overwriteE
 
 func (m *manager) Open(ctx context.Context, en Entry, attr Attr) (File, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.Open").End()
+	md := en.Metadata()
 	if attr.Trunc {
+		if err := m.CleanEntryData(ctx, en); err != nil {
+			m.logger.Errorw("clean entry with trunc error", "entry", en.Metadata().ID, "err", err)
+		}
 		en.Metadata().Size = 0
-		// TODO clean old data
-		events.Publish(events.EntryActionTopic(events.TopicFileTruncFmt, en.Metadata().ID), en)
+		if err := m.store.SaveObjects(ctx, &types.Object{Metadata: *md}); err != nil {
+			m.logger.Errorw("update entry size to zero error", "entry", en.Metadata().ID, "err", err)
+		}
+		PublicFileActionEvent(events.ActionTypeTrunc, en)
 	}
 
 	var (
 		f   File
 		err error
 	)
-	switch en.Metadata().Kind {
+	switch md.Kind {
 	case types.SymLinkKind:
 		f, err = openSymlink(en, attr)
 	default:
@@ -285,8 +333,20 @@ func (m *manager) Open(ctx context.Context, en Entry, attr Attr) (File, error) {
 	if err != nil {
 		return nil, err
 	}
-	events.Publish(events.EntryActionTopic(events.TopicFileOpenFmt, en.Metadata().ID), en)
+	PublicFileActionEvent(events.ActionTypeOpen, en)
 	return &instrumentalFile{file: f}, nil
+}
+
+func (m *manager) ChunkCompact(ctx context.Context, en Entry) error {
+	chunkStore, ok := m.store.(metastore.ChunkStore)
+	if !ok {
+		return fmt.Errorf("not chunk store")
+	}
+	dataStorage, ok := m.storages[en.Metadata().Storage]
+	if !ok {
+		return fmt.Errorf("storage %s not registered", en.Metadata().Storage)
+	}
+	return bio.CompactChunksData(ctx, en.Metadata(), chunkStore, dataStorage)
 }
 
 func (m *manager) MustCloseAll() {

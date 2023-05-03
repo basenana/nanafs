@@ -19,20 +19,22 @@ package metastore
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/types"
+	"time"
 )
 
 type Meta interface {
 	ObjectStore
 	ChunkStore
 	PluginRecorderGetter
+	ScheduledTaskRecorder
 }
 
 type ObjectStore interface {
 	GetObject(ctx context.Context, id int64) (*types.Object, error)
 	GetObjectExtendData(ctx context.Context, obj *types.Object) error
 	ListObjects(ctx context.Context, filter types.Filter) ([]*types.Object, error)
-	SaveObject(ctx context.Context, parent, obj *types.Object) error
-	DestroyObject(ctx context.Context, src, parent, obj *types.Object) error
+	SaveObjects(ctx context.Context, obj ...*types.Object) error
+	DestroyObject(ctx context.Context, src, obj *types.Object) error
 
 	ListChildren(ctx context.Context, obj *types.Object) (Iterator, error)
 	MirrorObject(ctx context.Context, srcObj, dstParent, object *types.Object) error
@@ -41,9 +43,15 @@ type ObjectStore interface {
 
 type ChunkStore interface {
 	NextSegmentID(ctx context.Context) (int64, error)
-	ListSegments(ctx context.Context, oid, chunkID int64) ([]types.ChunkSeg, error)
+	ListSegments(ctx context.Context, oid, chunkID int64, allChunk bool) ([]types.ChunkSeg, error)
 	AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Object, error)
 	DeleteSegment(ctx context.Context, segID int64) error
+}
+
+type ScheduledTaskRecorder interface {
+	ListTask(ctx context.Context, taskID string, filter types.ScheduledTaskFilter) ([]*types.ScheduledTask, error)
+	SaveTask(ctx context.Context, task *types.ScheduledTask) error
+	DeleteFinishedTask(ctx context.Context, aliveTime time.Duration) error
 }
 
 type PluginRecorderGetter interface {

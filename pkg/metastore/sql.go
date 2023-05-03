@@ -62,16 +62,16 @@ func (s *sqliteMetaStore) ListObjects(ctx context.Context, filter types.Filter) 
 	return s.dbStore.ListObjects(ctx, filter)
 }
 
-func (s *sqliteMetaStore) SaveObject(ctx context.Context, parent, obj *types.Object) error {
+func (s *sqliteMetaStore) SaveObjects(ctx context.Context, objList ...*types.Object) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.SaveObject(ctx, parent, obj)
+	return s.dbStore.SaveObjects(ctx, objList...)
 }
 
-func (s *sqliteMetaStore) DestroyObject(ctx context.Context, src, parent, obj *types.Object) error {
+func (s *sqliteMetaStore) DestroyObject(ctx context.Context, src, obj *types.Object) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.DestroyObject(ctx, src, parent, obj)
+	return s.dbStore.DestroyObject(ctx, src, obj)
 }
 
 func (s *sqliteMetaStore) ListChildren(ctx context.Context, obj *types.Object) (Iterator, error) {
@@ -98,10 +98,10 @@ func (s *sqliteMetaStore) NextSegmentID(ctx context.Context) (int64, error) {
 	return s.dbStore.NextSegmentID(ctx)
 }
 
-func (s *sqliteMetaStore) ListSegments(ctx context.Context, oid, chunkID int64) ([]types.ChunkSeg, error) {
+func (s *sqliteMetaStore) ListSegments(ctx context.Context, oid, chunkID int64, allChunk bool) ([]types.ChunkSeg, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.ListSegments(ctx, oid, chunkID)
+	return s.dbStore.ListSegments(ctx, oid, chunkID, allChunk)
 }
 
 func (s *sqliteMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Object, error) {
@@ -114,6 +114,24 @@ func (s *sqliteMetaStore) DeleteSegment(ctx context.Context, segID int64) error 
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	return s.dbStore.DeleteSegment(ctx, segID)
+}
+
+func (s *sqliteMetaStore) ListTask(ctx context.Context, taskID string, filter types.ScheduledTaskFilter) ([]*types.ScheduledTask, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.ListTask(ctx, taskID, filter)
+}
+
+func (s *sqliteMetaStore) SaveTask(ctx context.Context, task *types.ScheduledTask) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.SaveTask(ctx, task)
+}
+
+func (s *sqliteMetaStore) DeleteFinishedTask(ctx context.Context, aliveTime time.Duration) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.DeleteFinishedTask(ctx, aliveTime)
 }
 
 func (s *sqliteMetaStore) PluginRecorder(plugin types.PlugScope) PluginRecorder {
@@ -210,18 +228,18 @@ func (s *sqlMetaStore) ListObjects(ctx context.Context, filter types.Filter) ([]
 	return objList, nil
 }
 
-func (s *sqlMetaStore) SaveObject(ctx context.Context, parent, obj *types.Object) error {
-	defer trace.StartRegion(ctx, "metastore.sql.SaveObject").End()
-	if err := s.dbEntity.SaveObject(ctx, parent, obj); err != nil {
-		s.logger.Errorw("save object failed", "id", obj.ID, "err", err.Error())
+func (s *sqlMetaStore) SaveObjects(ctx context.Context, objList ...*types.Object) error {
+	defer trace.StartRegion(ctx, "metastore.sql.SaveMirroredObject").End()
+	if err := s.dbEntity.SaveObjects(ctx, objList...); err != nil {
+		s.logger.Errorw("save objects failed", "err", err.Error())
 		return db.SqlError2Error(err)
 	}
 	return nil
 }
 
-func (s *sqlMetaStore) DestroyObject(ctx context.Context, src, parent, obj *types.Object) error {
+func (s *sqlMetaStore) DestroyObject(ctx context.Context, src, obj *types.Object) error {
 	defer trace.StartRegion(ctx, "metastore.sql.DestroyObject").End()
-	err := s.dbEntity.DeleteObject(ctx, src, parent, obj)
+	err := s.dbEntity.DeleteObject(ctx, src, obj)
 	if err != nil {
 		s.logger.Errorw("destroy object failed", "id", obj.ID, "err", err.Error())
 		return db.SqlError2Error(err)
@@ -265,9 +283,9 @@ func (s *sqlMetaStore) NextSegmentID(ctx context.Context) (int64, error) {
 	return s.dbEntity.NextSegmentID(ctx)
 }
 
-func (s *sqlMetaStore) ListSegments(ctx context.Context, oid, chunkID int64) ([]types.ChunkSeg, error) {
+func (s *sqlMetaStore) ListSegments(ctx context.Context, oid, chunkID int64, allChunk bool) ([]types.ChunkSeg, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListSegments").End()
-	return s.dbEntity.ListChunkSegments(ctx, oid, chunkID)
+	return s.dbEntity.ListChunkSegments(ctx, oid, chunkID, allChunk)
 }
 
 func (s *sqlMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Object, error) {
@@ -278,6 +296,25 @@ func (s *sqlMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (
 func (s *sqlMetaStore) DeleteSegment(ctx context.Context, segID int64) error {
 	defer trace.StartRegion(ctx, "metastore.sql.DeleteSegment").End()
 	return db.SqlError2Error(s.dbEntity.DeleteChunkSegment(ctx, segID))
+}
+
+func (s *sqlMetaStore) ListTask(ctx context.Context, taskID string, filter types.ScheduledTaskFilter) ([]*types.ScheduledTask, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.ListTask").End()
+	result, err := s.dbEntity.ListScheduledTask(ctx, taskID, filter)
+	if err != nil {
+		return nil, db.SqlError2Error(err)
+	}
+	return result, nil
+}
+
+func (s *sqlMetaStore) SaveTask(ctx context.Context, task *types.ScheduledTask) error {
+	defer trace.StartRegion(ctx, "metastore.sql.SaveTask").End()
+	return db.SqlError2Error(s.dbEntity.SaveScheduledTask(ctx, task))
+}
+
+func (s *sqlMetaStore) DeleteFinishedTask(ctx context.Context, aliveTime time.Duration) error {
+	defer trace.StartRegion(ctx, "metastore.sql.DeleteFinishedTask").End()
+	return db.SqlError2Error(s.dbEntity.DeleteFinishedScheduledTask(ctx, aliveTime))
 }
 
 func (s *sqlMetaStore) PluginRecorder(plugin types.PlugScope) PluginRecorder {

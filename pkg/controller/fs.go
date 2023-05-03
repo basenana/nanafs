@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"github.com/basenana/nanafs/pkg/dispatch"
 	"github.com/basenana/nanafs/pkg/types"
 	"math"
 	"runtime/trace"
@@ -58,6 +59,15 @@ func (c *controller) FsInfo(ctx context.Context) Info {
 	}
 	return info
 }
+
+func (c *controller) StartBackendTask(stopCh chan struct{}) {
+	st, err := dispatch.Init(c.entry, c.meta)
+	if err != nil {
+		c.logger.Panicf("start backend task failed: %s", err)
+	}
+	go st.Run(stopCh)
+}
+
 func (c *controller) SetupShutdownHandler(stopCh chan struct{}) chan struct{} {
 	shutdownSafe := make(chan struct{})
 	go func() {

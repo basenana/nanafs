@@ -49,6 +49,7 @@ type Controller interface {
 	CloseFile(ctx context.Context, file dentry.File) error
 
 	FsInfo(ctx context.Context) Info
+	StartBackendTask(stopCh chan struct{})
 	SetupShutdownHandler(stopCh chan struct{}) chan struct{}
 }
 
@@ -135,7 +136,7 @@ func (c *controller) CreateEntry(ctx context.Context, parent dentry.Entry, attr 
 		return nil, err
 	}
 	c.cache.putEntry(entry)
-	events.Publish(events.EntryActionTopic(events.TopicEntryCreateFmt, entry.Metadata().ID), entry)
+	dentry.PublicEntryActionEvent(events.ActionTypeCreate, entry)
 	return entry, nil
 }
 
@@ -159,7 +160,7 @@ func (c *controller) SaveEntry(ctx context.Context, parent, entry dentry.Entry) 
 	}
 	c.cache.putEntry(parent)
 	c.cache.putEntry(entry)
-	events.Publish(events.EntryActionTopic(events.TopicEntryUpdateFmt, entry.Metadata().ID), entry)
+	dentry.PublicEntryActionEvent(events.ActionTypeUpdate, entry)
 	return nil
 }
 
@@ -172,8 +173,7 @@ func (c *controller) DestroyEntry(ctx context.Context, parent, en dentry.Entry, 
 		return types.ErrNoAccess
 	}
 
-	var destroyed bool
-	destroyed, err = c.entry.DestroyEntry(ctx, parent, en)
+	err = c.entry.RemoveEntry(ctx, parent, en)
 	if err != nil {
 		c.logger.Errorw("delete entry failed", "entry", en.Metadata().ID, "err", err.Error())
 		return err
@@ -183,9 +183,7 @@ func (c *controller) DestroyEntry(ctx context.Context, parent, en dentry.Entry, 
 	}
 	c.cache.putEntry(parent)
 	c.cache.delEntry(en.Metadata().ID)
-	if destroyed {
-		events.Publish(events.EntryActionTopic(events.TopicEntryDestroyFmt, en.Metadata().ID), en)
-	}
+	dentry.PublicEntryActionEvent(events.ActionTypeDestroy, en)
 	return
 }
 
@@ -215,7 +213,8 @@ func (c *controller) MirrorEntry(ctx context.Context, src, dstParent dentry.Entr
 	c.cache.delEntry(entry.Metadata().RefID)
 	c.cache.delEntry(dstParent.Metadata().ID)
 
-	events.Publish(events.EntryActionTopic(events.TopicEntryMirrorFmt, entry.Metadata().ID), entry)
+	events.Publish(events.EntryActionTopic(events.TopicEntryActionFmt, events.ActionTypeMirror),
+		dentry.BuildEntryEvent(events.ActionTypeMirror, entry))
 	return entry, nil
 }
 
@@ -278,7 +277,7 @@ func (c *controller) ChangeEntryParent(ctx context.Context, target, oldParent, n
 	c.cache.putEntry(target)
 	c.cache.putEntry(oldParent)
 	c.cache.putEntry(newParent)
-	events.Publish(events.EntryActionTopic(events.TopicEntryChangeParentFmt, target.Metadata().ID), target)
+	dentry.PublicEntryActionEvent(events.ActionTypeChangeParent, target)
 	return nil
 }
 

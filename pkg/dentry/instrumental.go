@@ -83,6 +83,6 @@ func (i *instrumentalFile) Flush(ctx context.Context) error {
 }
 
 func (i *instrumentalFile) Close(ctx context.Context) (err error) {
-	defer events.Publish(events.EntryActionTopic(events.TopicFileCloseFmt, i.file.Metadata().ID), i.file)
+	defer PublicFileActionEvent(events.ActionTypeClose, i.file)
 	return i.file.Close(ctx)
 }

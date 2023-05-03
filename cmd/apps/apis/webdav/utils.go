@@ -19,28 +19,10 @@ package webdav
 import (
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
-	"go.uber.org/zap"
 	"io/fs"
-	"net/http"
 	"os"
 	"syscall"
 )
-
-type wrapLogger struct {
-	logger *zap.SugaredLogger
-}
-
-func (l *wrapLogger) handle(req *http.Request, err error) {
-	if err != nil && err != fs.ErrNotExist {
-		l.logger.Errorw(req.URL.Path, "method", req.Method, "err", err)
-		return
-	}
-	l.logger.Infow(req.URL.Path, "method", req.Method)
-}
-
-func initLogger(l *zap.SugaredLogger) *wrapLogger {
-	return &wrapLogger{logger: l}
-}
 
 func Stat(md *types.Metadata) Info {
 	return Info{

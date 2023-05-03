@@ -19,6 +19,7 @@ package db
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -145,15 +146,16 @@ func (e *Entity) ListObjectChildren(ctx context.Context, filter types.Filter) ([
 	return result, nil
 }
 
-func (e *Entity) SaveObject(ctx context.Context, parent, object *types.Object) error {
+func (e *Entity) SaveObjects(ctx context.Context, objects ...*types.Object) error {
 	return e.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if parent != nil {
-			if err := saveRawObject(tx, parent); err != nil {
+		for i := range objects {
+			obj := objects[i]
+			if obj == nil {
+				continue
+			}
+			if err := saveRawObject(tx, obj); err != nil {
 				return err
 			}
-		}
-		if err := saveRawObject(tx, object); err != nil {
-			return err
 		}
 		return nil
 	})
@@ -189,7 +191,10 @@ func (e *Entity) SaveChangeParentObject(ctx context.Context, srcParent, dstParen
 	})
 }
 
-func (e *Entity) DeleteObject(ctx context.Context, srcObj, dstParent, obj *types.Object) error {
+func (e *Entity) DeleteObject(ctx context.Context, srcObj, obj *types.Object) error {
+	if obj == nil {
+		return fmt.Errorf("object is nil")
+	}
 	return e.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if srcObj != nil {
 			if srcObj.RefCount == 0 {
@@ -201,9 +206,6 @@ func (e *Entity) DeleteObject(ctx context.Context, srcObj, dstParent, obj *types
 					return err
 				}
 			}
-		}
-		if err := saveRawObject(tx, dstParent); err != nil {
-			return err
 		}
 		if err := deleteRawObject(tx, obj); err != nil {
 			return err
@@ -342,11 +344,18 @@ func (e *Entity) DeleteChunkSegment(ctx context.Context, segID int64) error {
 	return res.Error
 }
 
-func (e *Entity) ListChunkSegments(ctx context.Context, oid, chunkID int64) ([]types.ChunkSeg, error) {
+func (e *Entity) ListChunkSegments(ctx context.Context, oid, chunkID int64, allChunk bool) ([]types.ChunkSeg, error) {
 	segments := make([]ObjectChunk, 0)
-	res := e.DB.WithContext(ctx).Where("oid = ? AND chunk_id = ?", oid, chunkID).Order("append_at").Find(&segments)
-	if res.Error != nil {
-		return nil, res.Error
+	if allChunk {
+		res := e.DB.WithContext(ctx).Where("oid = ?", oid).Order("append_at").Find(&segments)
+		if res.Error != nil {
+			return nil, res.Error
+		}
+	} else {
+		res := e.DB.WithContext(ctx).Where("oid = ? AND chunk_id = ?", oid, chunkID).Order("append_at").Find(&segments)
+		if res.Error != nil {
+			return nil, res.Error
+		}
 	}
 	result := make([]types.ChunkSeg, len(segments))
 	for i, seg := range segments {
@@ -361,6 +370,84 @@ func (e *Entity) ListChunkSegments(ctx context.Context, oid, chunkID int64) ([]t
 
 	}
 	return result, nil
+}
+
+func (e *Entity) ListScheduledTask(ctx context.Context, taskID string, filter types.ScheduledTaskFilter) ([]*types.ScheduledTask, error) {
+	tasks := make([]ScheduledTask, 0)
+	query := e.DB.WithContext(ctx).Where("task_id = ?", taskID)
+
+	if filter.RefID != 0 && filter.RefType != "" {
+		query = query.Where("ref_type = ? AND ref_id = ?", filter.RefType, filter.RefID)
+	}
+
+	if len(filter.Status) > 0 {
+		query = query.Where("status IN ?", filter.Status)
+	}
+
+	res := query.Order("created_time").Find(&tasks)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+
+	result := make([]*types.ScheduledTask, len(tasks))
+	for i, t := range tasks {
+		evt := types.Event{}
+		_ = json.Unmarshal([]byte(t.Event), &evt)
+		result[i] = &types.ScheduledTask{
+			ID:             t.ID,
+			TaskID:         t.TaskID,
+			Status:         t.Status,
+			RefType:        t.RefType,
+			RefID:          t.RefID,
+			Result:         t.Result,
+			CreatedTime:    t.CreatedTime,
+			ExecutionTime:  t.ExecutionTime,
+			ExpirationTime: t.ExpirationTime,
+			Event:          evt,
+		}
+	}
+	return result, nil
+}
+
+func (e *Entity) SaveScheduledTask(ctx context.Context, task *types.ScheduledTask) error {
+	t := &ScheduledTask{
+		ID:             task.ID,
+		TaskID:         task.TaskID,
+		Status:         task.Status,
+		RefID:          task.RefID,
+		RefType:        task.RefType,
+		Result:         task.Result,
+		CreatedTime:    task.CreatedTime,
+		ExecutionTime:  task.ExecutionTime,
+		ExpirationTime: task.ExpirationTime,
+	}
+
+	rawEvt, err := json.Marshal(task.Event)
+	if err != nil {
+		return err
+	}
+	t.Event = string(rawEvt)
+	if task.ID == 0 {
+		res := e.DB.WithContext(ctx).Create(t)
+		if res.Error != nil {
+			return err
+		}
+		task.ID = t.ID
+		return nil
+	}
+	res := e.DB.WithContext(ctx).Save(t)
+	if res.Error != nil {
+		return err
+	}
+	return nil
+}
+
+func (e *Entity) DeleteFinishedScheduledTask(ctx context.Context, aliveTime time.Duration) error {
+	res := e.DB.WithContext(ctx).Where("status = ? AND created_time < ?", types.ScheduledTaskFinish, time.Now().Add(-1*aliveTime)).Delete(&ScheduledTask{})
+	if res.Error != nil {
+		return res.Error
+	}
+	return nil
 }
 
 func (e *Entity) SystemInfo(ctx context.Context) (*SystemInfo, error) {

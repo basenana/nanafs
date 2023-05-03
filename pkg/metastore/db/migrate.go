@@ -24,6 +24,15 @@ import (
 func buildMigrations() []*gormigrate.Migration {
 	return []*gormigrate.Migration{
 		{
+			ID: "2023050100",
+			Migrate: func(db *gorm.DB) error {
+				return db.AutoMigrate(&ScheduledTask{})
+			},
+			Rollback: func(db *gorm.DB) error {
+				return db.Migrator().DropTable(&ScheduledTask{})
+			},
+		},
+		{
 			ID: "2023040600",
 			Migrate: func(db *gorm.DB) error {
 				return db.AutoMigrate(
