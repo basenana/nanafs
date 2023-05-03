@@ -116,11 +116,13 @@ func (c *LocalCache) CommitTemporaryNode(ctx context.Context, segID, idx int64, 
 		cacheLog.Errorw("seek node to start error", "page", idx, "err", err)
 		return err
 	}
-	var buf bytes.Buffer
-	if compressErr := compress(ctx, f, &buf); compressErr != nil {
-		cacheLog.Errorw("compress temporary node data error", "page", idx, "err", compressErr)
-	}
-	if err := c.s.Put(ctx, segID, idx, &buf); err != nil {
+	pr, pw := io.Pipe()
+	go func() {
+		if compressErr := compress(ctx, f, pw); compressErr != nil {
+			cacheLog.Errorw("compress temporary node data error", "page", idx, "err", compressErr)
+		}
+	}()
+	if err := c.s.Put(ctx, segID, idx, pr); err != nil {
 		cacheLog.Errorw("send cache data to storage error", "page", idx, "err", err)
 		return err
 	}
@@ -170,7 +172,6 @@ func (c *LocalCache) openDirectNode(ctx context.Context, key, idx int64) (*direc
 	if err != nil {
 		return nil, err
 	}
-	defer reader.Close()
 	if decompressErr := decompress(ctx, reader, &buf); decompressErr != nil {
 		cacheLog.Errorw("decompress direct node data error", "page", idx, "err", decompressErr)
 	}
@@ -204,9 +205,8 @@ func (c *LocalCache) makeLocalCache(ctx context.Context, key, idx int64, filenam
 	if err != nil {
 		return nil, err
 	}
-	defer reader.Close()
 	if decompressErr := decompress(ctx, reader, &buf); decompressErr != nil {
-		cacheLog.Errorw("decompress local node data error", "page", idx, "err", decompressErr)
+		cacheLog.Errorw("decompress local node data error", "key", key, "page", idx, "err", decompressErr)
 	}
 
 	_, err = io.Copy(f, &buf)

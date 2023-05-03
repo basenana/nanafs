@@ -17,8 +17,8 @@
 package storage
 
 import (
-	"compress/gzip"
 	"context"
+	"github.com/pierrec/lz4/v4"
 	"io"
 	"runtime/trace"
 )
@@ -65,34 +65,30 @@ func (pq *priorityNodeQueue) Pop() interface{} {
 	return item
 }
 
-func compress(ctx context.Context, in io.Reader, out io.Writer) error {
+func compress(ctx context.Context, in io.Reader, out io.WriteCloser) error {
 	defer trace.StartRegion(ctx, "storage.localCache.compress").End()
-	gz := gzip.NewWriter(out)
-	if _, err := io.Copy(gz, in); err != nil {
-		_ = gz.Close()
+	zw := lz4.NewWriter(out)
+	defer zw.Close()
+	defer out.Close()
+	if _, err := io.Copy(zw, in); err != nil {
 		return err
 	}
+	return nil
+}
 
-	if err := gz.Close(); err != nil {
+func decompress(ctx context.Context, in io.ReadCloser, out io.Writer) error {
+	defer trace.StartRegion(ctx, "storage.localCache.decompress").End()
+	zr := lz4.NewReader(in)
+	defer in.Close()
+	if _, err := io.Copy(out, zr); err != nil {
+		if err == io.EOF {
+			// https://github.com/golang/go/issues/44411
+			return nil
+		}
 		return err
 	}
 
 	return nil
-}
-
-func decompress(ctx context.Context, in io.Reader, out io.Writer) error {
-	defer trace.StartRegion(ctx, "storage.localCache.decompress").End()
-	gz, err := gzip.NewReader(in)
-	if err != nil {
-		return err
-	}
-
-	if _, err = io.Copy(out, gz); err != nil {
-		_ = gz.Close()
-		return err
-	}
-
-	return gz.Close()
 }
 
 func reverseString(s string) string {

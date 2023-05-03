@@ -175,11 +175,9 @@ func (m *manager) DestroyEntry(ctx context.Context, en Entry) error {
 		err    error
 	)
 	if en.IsMirror() {
-		m.logger.Infow("entry is mirrored, delete ref count", "entry", md.ID, "ref", md.RefID)
 		srcObj, err = m.store.GetObject(ctx, en.Metadata().RefID)
 		if err != nil {
-			m.logger.Errorw("query source object from meta server error", "entry", md.ID, "ref", md.RefID, "err", err.Error())
-			return err
+			m.logger.Warnw("query source object from meta server error", "entry", md.ID, "ref", md.RefID, "err", err.Error())
 		}
 	}
 
