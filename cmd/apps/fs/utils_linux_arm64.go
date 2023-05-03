@@ -25,6 +25,10 @@ import (
 	"syscall"
 )
 
+const (
+	ENOAttr = syscall.ENODATA
+)
+
 func fsMountOptions(displayName string, ops []string) []string {
 	options := make([]string, 0)
 	if ops != nil {
