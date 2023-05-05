@@ -72,8 +72,8 @@ var daemonCmd = &cobra.Command{
 			panic(err)
 		}
 
-		if len(cfg.Storages) != 1 {
-			panic("storage must config one")
+		if len(cfg.Storages) == 0 {
+			panic("storage must config")
 		}
 
 		storage.InitLocalCache(cfg)

@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	defaultFsMaxSize = 8796093022208
+	defaultFsMaxSize = 1125899906842624
 )
 
 type Info struct {

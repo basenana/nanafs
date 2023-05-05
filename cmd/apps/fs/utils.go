@@ -29,7 +29,9 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 )
 
-const fileBlockSize = 1 << 12 // 4k
+const (
+	fileBlockSize = 1 << 12 // 4k
+)
 
 func idFromStat(dev uint64, st *syscall.Stat_t) fs.StableAttr {
 	//swapped := (uint64(st.Dev) << 32) | (uint64(st.Dev) >> 32)
@@ -129,15 +131,13 @@ func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, meta *types.Metadata, crtUid, 
 }
 
 func fsInfo2StatFs(info controller.Info, out *fuse.StatfsOut) {
-	var blockSize uint64 = 32768
-
-	out.Blocks = info.MaxSize / blockSize
-	out.Bfree = (info.MaxSize - info.UsageSize) / blockSize
+	out.Blocks = info.MaxSize / fileBlockSize
+	out.Bfree = (info.MaxSize - info.UsageSize) / fileBlockSize
 	out.Bavail = out.Bfree
 	out.Files = info.AvailInodes
 	out.Ffree = info.AvailInodes - info.FileCount
-	out.Bsize = uint32(blockSize)
-	out.NameLen = 1024
+	out.Bsize = uint32(fileBlockSize)
+	out.NameLen = 255
 }
 
 func fileKindFromMode(mode uint32) types.Kind {
