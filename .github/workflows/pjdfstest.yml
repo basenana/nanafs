@@ -1,0 +1,61 @@
+name: pjdfstest
+
+on:
+  pull_request:
+  push:
+    branches:
+      - 'main'
+      - 'feature/**'
+      - 'hotfix/**'
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+
+jobs:
+  pjdfstest:
+    strategy:
+      fail-fast: true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Go 1.18
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18
+
+      - name: init nanafs dep
+        run: |
+          sudo apt-get install -y libfuse3-dev fuse3 libssl-dev 
+          sudo mkdir -p /var/lib/nanafs
+          sudo mkdir -p /etc/nanafs
+          mkdir -p /tmp/mnt/nanafs
+          sudo cp .github/configs/nanafs-fuse.conf /etc/nanafs/nanafs.conf
+
+      - name: Build nanafs binary
+        run: sudo make buildbin
+
+      - name: Run nanafs fuse daemon
+        run: sudo nanafs serve --config /etc/nanafs/nanafs.conf > /tmp/nanafs.log 2>&1 &
+
+      - name: Make pjdfstest
+        run: |
+          cp -r e2e/pjdfstest /tmp
+          cd /tmp/pjdfstest && sudo autoreconf -ifs && sudo ./configure && sudo make pjdfstest
+
+      - name: Run pjdfstest
+        run: |
+          df
+          sudo chmod 777 /tmp/mnt/nanafs && cd /tmp/mnt/nanafs
+          sudo prove -rv /tmp/pjdfstest
+
+      - name: Print nanafs log
+        if: failure()
+        run: cat /tmp/nanafs.log
+
+      - name: Setup upterm session
+        if: failure()
+        timeout-minutes: 60
+        uses: lhotari/action-upterm@v1

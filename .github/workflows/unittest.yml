@@ -1,0 +1,30 @@
+name: unittest
+
+on:
+  pull_request:
+  push:
+    branches:
+      - 'main'
+      - 'feature/**'
+      - 'hotfix/**'
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+
+jobs:
+  unittest:
+    strategy:
+      fail-fast: true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Go 1.18
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18
+
+      - name: Run unit tests
+        run: make test

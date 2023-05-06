@@ -1,4 +1,4 @@
-.PHONY: all build buildinci clean run check cover lint docker help
+.PHONY: all build buildbin clean run check cover lint docker help
 BIN_DIR=bin
 BASE_PATH=$(shell pwd)
 all: check build
@@ -7,7 +7,7 @@ build:
 	-v $(BASE_PATH)/bin:/bin/nanafs \
 	-w /go/src/github.com/basenana/nanafs \
 	golang:1.18 sh ./hack/multibuild.sh ./cmd /bin/nanafs
-buildinci:
+buildbin:
 	CGO_ENABLED=0 GOOS=$1 GOARCH=$2 go build -ldflags="-s -w" -o /usr/bin/nanafs ./cmd
 clean:
 	@go clean

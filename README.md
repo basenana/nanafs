@@ -1,5 +1,8 @@
 # NanaFS
 
+![unittest workflow](https://github.com/basenana/nanafs/actions/workflows/unittest.yml/badge.svg)
+![pjdfstest workflow](https://github.com/basenana/nanafs/actions/workflows/pjdfstest.yml/badge.svg)
+
 NanaFS is a workflow engine that simplifies data management
 by allowing users to manage structured and unstructured data in one place,
 rather than across multiple sources. It's like a filing cabinet
