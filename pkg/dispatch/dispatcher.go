@@ -60,7 +60,7 @@ func (d *Dispatcher) Run(stopCh chan struct{}) {
 func (d *Dispatcher) dispatch(ctx context.Context, exec executor, task *types.ScheduledTask) error {
 	execFn := func() error {
 		if err := exec.execute(ctx, task); err != nil {
-			d.logger.Errorw("execute task error", "recordID", task.ID, "taskID", task.TaskID)
+			d.logger.Errorw("execute task error", "recordID", task.ID, "taskID", task.TaskID, "err", err)
 			return err
 		}
 		d.logger.Debugw("execute task finish", "recordID", task.ID, "taskID", task.TaskID)

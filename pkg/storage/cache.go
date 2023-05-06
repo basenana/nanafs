@@ -28,6 +28,7 @@ import (
 	"golang.org/x/sys/unix"
 	"io"
 	"io/fs"
+	"io/ioutil"
 	"math/rand"
 	"os"
 	"path"
@@ -40,6 +41,8 @@ import (
 
 const (
 	cacheNodeSize = 1 << 21 // 2M
+	retryInterval = time.Millisecond * 100
+	retryTimes    = 50
 )
 
 var (
@@ -112,23 +115,42 @@ func (c *LocalCache) CommitTemporaryNode(ctx context.Context, segID, idx int64, 
 	defer trace.StartRegion(ctx, "storage.localCache.CommitTemporaryNode").End()
 	no := node.(*fileCacheNode)
 	f := no.file
-	if _, err := f.Seek(0, io.SeekStart); err != nil {
-		cacheLog.Errorw("seek node to start error", "page", idx, "err", err)
-		return err
-	}
-	pr, pw := io.Pipe()
-	go func() {
-		if compressErr := compress(ctx, f, pw); compressErr != nil {
-			cacheLog.Errorw("compress temporary node data error", "page", idx, "err", compressErr)
+
+	upload := func() error {
+		if _, err := f.Seek(0, io.SeekStart); err != nil {
+			cacheLog.Errorw("seek node to start error", "segment", segID, "page", idx, "err", err)
+			return err
 		}
-	}()
-	if err := c.s.Put(ctx, segID, idx, pr); err != nil {
-		cacheLog.Errorw("send cache data to storage error", "page", idx, "err", err)
+		pr, pw := io.Pipe()
+		go func() {
+			if compressErr := compress(ctx, f, pw); compressErr != nil {
+				cacheLog.Errorw("compress temporary node data error", "segment", segID, "page", idx, "err", compressErr)
+			}
+		}()
+		if err := c.s.Put(ctx, segID, idx, pr); err != nil {
+			cacheLog.Errorw("send cache data to storage error", "segment", segID, "page", idx, "err", err)
+			_, _ = io.Copy(ioutil.Discard, pr)
+			return err
+		}
+		return nil
+	}
+
+	var err error
+	for i := 0; i < retryTimes; i++ {
+		if err = upload(); err == nil {
+			break
+		}
+		time.Sleep(retryInterval)
+		cacheLog.Errorw("upload chunk page error, try again", "segment", segID, "page", idx, "tryTime", i+1)
+	}
+	if err != nil {
+		_ = node.Close()
 		return err
 	}
+
 	defer func() {
 		if innerErr := os.Remove(no.path); innerErr != nil {
-			cacheLog.Errorw("clean cache data error", "page", idx, "err", innerErr)
+			cacheLog.Errorw("clean cache data error", "segment", segID, "page", idx, "err", innerErr)
 		}
 		c.releaseCacheUsage(cacheNodeSize)
 	}()
@@ -168,12 +190,19 @@ func (c *LocalCache) openDirectNode(ctx context.Context, key, idx int64) (*direc
 		reader io.ReadCloser
 		buf    bytes.Buffer
 	)
-	reader, err = c.s.Get(ctx, key, idx)
+	for i := 0; i < retryTimes; i++ {
+		reader, err = c.s.Get(ctx, key, idx)
+		if err == nil {
+			break
+		}
+		time.Sleep(retryInterval)
+		cacheLog.Errorw("read chunk page error, try again", "segment", key, "page", idx, "tryTime", i+1)
+	}
 	if err != nil {
 		return nil, err
 	}
 	if decompressErr := decompress(ctx, reader, &buf); decompressErr != nil {
-		cacheLog.Errorw("decompress direct node data error", "page", idx, "err", decompressErr)
+		cacheLog.Errorw("decompress direct node data error", "segment", key, "page", idx, "err", decompressErr)
 	}
 
 	node := &directNode{data: buf.Bytes(), info: info}
@@ -201,16 +230,26 @@ func (c *LocalCache) makeLocalCache(ctx context.Context, key, idx int64, filenam
 		reader io.ReadCloser
 		buf    bytes.Buffer
 	)
-	reader, err = c.s.Get(ctx, key, idx)
+	for i := 0; i < retryTimes; i++ {
+		reader, err = c.s.Get(ctx, key, idx)
+		if err == nil {
+			break
+		}
+		time.Sleep(retryInterval)
+		cacheLog.Errorw("read chunk page error, try again", "segment", key, "page", idx, "tryTime", i+1)
+	}
 	if err != nil {
+		_ = f.Close()
 		return nil, err
 	}
+
 	if decompressErr := decompress(ctx, reader, &buf); decompressErr != nil {
 		cacheLog.Errorw("decompress local node data error", "key", key, "page", idx, "err", decompressErr)
 	}
 
 	_, err = io.Copy(f, &buf)
 	if err != nil {
+		_ = f.Close()
 		return nil, err
 	}
 
