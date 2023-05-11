@@ -135,7 +135,7 @@ func fsInfo2StatFs(info controller.Info, out *fuse.StatfsOut) {
 	out.Bfree = (info.MaxSize - info.UsageSize) / fileBlockSize
 	out.Bavail = out.Bfree
 	out.Files = info.AvailInodes
-	out.Ffree = info.AvailInodes - info.FileCount
+	out.Ffree = info.AvailInodes - info.Objects
 	out.Bsize = uint32(fileBlockSize)
 	out.NameLen = 255
 }

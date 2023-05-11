@@ -52,7 +52,7 @@ func init() {
 
 var daemonCmd = &cobra.Command{
 	Use:   "serve",
-	Short: "nanafs daemon run",
+	Short: "NanaFS server run",
 	PreRun: func(cmd *cobra.Command, args []string) {
 
 	},
