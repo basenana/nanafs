@@ -26,7 +26,7 @@ type RuleFilter struct {
 	Filters []RuleFilter    `json:"filters,omitempty"`
 
 	Operation RuleOperation `json:"operation,omitempty"`
-	Column    string        `json:"column"`
+	Column    string        `json:"column,omitempty"`
 	Value     string        `json:"value,omitempty"`
 }
 

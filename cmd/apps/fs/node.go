@@ -112,7 +112,7 @@ func (n *NanaNode) Getxattr(ctx context.Context, attr string, dest []byte) (uint
 		return 0, Error2FuseSysError(err)
 	}
 	if encodedData == nil {
-		return 0, syscall.Errno(0x5d)
+		return 0, ENOAttr
 	}
 	raw, err := xattrContent2RawData(*encodedData)
 	if err != nil {

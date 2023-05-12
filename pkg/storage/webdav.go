@@ -41,7 +41,7 @@ type webdavStorage struct {
 	cli        *gowebdav.Client
 	readLimit  chan struct{}
 	writeLimit chan struct{}
-	mux        sync.Mutex
+	dirLock    sync.Mutex
 	logger     *zap.SugaredLogger
 }
 
@@ -72,15 +72,25 @@ func (w *webdavStorage) Put(ctx context.Context, key, idx int64, dataReader io.R
 		<-w.writeLimit
 	}()
 
-	w.mux.Lock()
-	// concurrent creation will result in a 403 error.
-	err := w.cli.MkdirAll(webdavObjectDir(key), 0655)
+	err := func() error {
+		// concurrent creation will result in a 403 error.
+		w.dirLock.Lock()
+		defer w.dirLock.Unlock()
+
+		var innerErr error
+		for i := 0; i < 5; i++ {
+			innerErr = w.cli.MkdirAll(webdavObjectDir(key), 0655)
+			if innerErr == nil {
+				return nil
+			}
+			time.Sleep(time.Millisecond * 10)
+		}
+		return innerErr
+	}()
 	if err != nil {
 		w.logger.Errorw("put file to server failed: mkdir error", "path", webdavObjectDir(key), "err", err)
-		time.Sleep(time.Millisecond * 10)
 		return err
 	}
-	w.mux.Unlock()
 
 	err = w.cli.WriteStream(webdavObjectPath(key, idx), dataReader, 0655)
 	if err != nil {
@@ -92,6 +102,8 @@ func (w *webdavStorage) Put(ctx context.Context, key, idx int64, dataReader io.R
 
 func (w *webdavStorage) Delete(ctx context.Context, key int64) error {
 	defer trace.StartRegion(ctx, "storage.webdav.Delete").End()
+	w.dirLock.Lock()
+	defer w.dirLock.Unlock()
 	err := w.cli.RemoveAll(webdavObjectDir(key))
 	if err != nil {
 		w.logger.Errorw("delete dir failed", "path", webdavObjectDir(key), "err", err)
@@ -153,8 +165,8 @@ func newWebdavStorage(storageID string, cfg *config.WebdavStorageConfig) (Storag
 	s := &webdavStorage{
 		sid:        storageID,
 		cli:        cli,
-		readLimit:  make(chan struct{}, 30),
-		writeLimit: make(chan struct{}, 10),
+		readLimit:  make(chan struct{}, 10),
+		writeLimit: make(chan struct{}, 5),
 		logger:     logger.NewLogger("webdav"),
 	}
 	return s, nil

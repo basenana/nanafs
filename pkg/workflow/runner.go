@@ -30,6 +30,7 @@ import (
 	"github.com/basenana/nanafs/pkg/plugin/common"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"sync"
 )
@@ -42,13 +43,13 @@ type Runner struct {
 	*flowcontroller.FlowController
 
 	stopCh   chan struct{}
-	recorder metastore.PluginRecorder
+	recorder metastore.ScheduledTaskRecorder
 	logger   *zap.SugaredLogger
 
 	sync.RWMutex
 }
 
-func InitWorkflowRunner(recorder metastore.PluginRecorder) (*Runner, error) {
+func InitWorkflowRunner(recorder metastore.ScheduledTaskRecorder) (*Runner, error) {
 	runner := &Runner{
 		recorder: recorder,
 		logger:   logger.NewLogger("workflowRuntime"),
@@ -80,12 +81,7 @@ func (r *Runner) WorkFlowHandler(ctx context.Context, wf *types.WorkflowSpec) (*
 		return nil, err
 	}
 
-	job.Id, err = nextJobId(ctx, r.recorder)
-	if err != nil {
-		return nil, err
-	}
-
-	err = r.recorder.SaveRecord(ctx, jobGroupId(wf.Id), job.Id, job)
+	err = r.recorder.SaveWorkflowJob(ctx, job)
 	if err != nil {
 		return nil, err
 	}
@@ -111,16 +107,16 @@ func (r *Runner) triggerJob(ctx context.Context, job *Job) {
 }
 
 func (r *Runner) GetFlow(flowId flow.FID) (flow.Flow, error) {
-	job := &Job{
-		WorkflowJob: &types.WorkflowJob{},
-		logger:      r.logger.With(zap.String("job", string(flowId))),
-	}
-	err := r.recorder.GetRecord(context.Background(), string(flowId), job.WorkflowJob)
+	wfJob, err := r.recorder.GetWorkflowJob(context.Background(), string(flowId))
 	if err != nil {
 		r.logger.Errorw("load job failed", "err", err)
 		return nil, err
 	}
 
+	job := &Job{
+		WorkflowJob: wfJob,
+		logger:      r.logger.With(zap.String("job", string(flowId))),
+	}
 	return job, nil
 }
 
@@ -153,7 +149,7 @@ func (r *Runner) SaveFlow(flow flow.Flow) error {
 		return fmt.Errorf("flow %s not a Job object", flow.ID())
 	}
 
-	err := r.recorder.SaveRecord(context.Background(), jobGroupId(job.Workflow), job.Id, job.WorkflowJob)
+	err := r.recorder.SaveWorkflowJob(context.Background(), job.WorkflowJob)
 	if err != nil {
 		r.logger.Errorw("save job to metadb failed", "err", err)
 		return err
@@ -163,7 +159,7 @@ func (r *Runner) SaveFlow(flow flow.Flow) error {
 }
 
 func (r *Runner) DeleteFlow(flowId flow.FID) error {
-	err := r.recorder.DeleteRecord(context.Background(), string(flowId))
+	err := r.recorder.DeleteWorkflowJob(context.Background(), string(flowId))
 	if err != nil {
 		r.logger.Errorw("delete job to metadb failed", "err", err)
 		return err
@@ -207,6 +203,7 @@ type Job struct {
 
 func assembleWorkflowJob(spec *types.WorkflowSpec) (*types.WorkflowJob, error) {
 	j := &types.WorkflowJob{
+		Id:       uuid.New().String(),
 		Workflow: spec.Id,
 		Status:   string(flow.CreatingStatus),
 		Steps:    make([]types.WorkflowJobStep, len(spec.Steps)),

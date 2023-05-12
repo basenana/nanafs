@@ -30,6 +30,7 @@ type Meta interface {
 }
 
 type ObjectStore interface {
+	SystemInfo(ctx context.Context) (*types.SystemInfo, error)
 	GetObject(ctx context.Context, id int64) (*types.Object, error)
 	GetObjectExtendData(ctx context.Context, obj *types.Object) error
 	ListObjects(ctx context.Context, filter types.Filter) ([]*types.Object, error)
@@ -52,6 +53,15 @@ type ScheduledTaskRecorder interface {
 	ListTask(ctx context.Context, taskID string, filter types.ScheduledTaskFilter) ([]*types.ScheduledTask, error)
 	SaveTask(ctx context.Context, task *types.ScheduledTask) error
 	DeleteFinishedTask(ctx context.Context, aliveTime time.Duration) error
+
+	GetWorkflow(ctx context.Context, wfID string) (*types.WorkflowSpec, error)
+	ListWorkflow(ctx context.Context) ([]*types.WorkflowSpec, error)
+	DeleteWorkflow(ctx context.Context, wfID string) error
+	GetWorkflowJob(ctx context.Context, wfJobID string) (*types.WorkflowJob, error)
+	ListWorkflowJob(ctx context.Context, wfID string) ([]*types.WorkflowJob, error)
+	SaveWorkflow(ctx context.Context, wf *types.WorkflowSpec) error
+	SaveWorkflowJob(ctx context.Context, wf *types.WorkflowJob) error
+	DeleteWorkflowJob(ctx context.Context, wfJobID ...string) error
 }
 
 type PluginRecorderGetter interface {

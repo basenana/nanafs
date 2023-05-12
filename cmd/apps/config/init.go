@@ -28,22 +28,32 @@ import (
 
 var initCmd = &cobra.Command{
 	Use:   "init",
-	Short: "generate local configuration",
+	Short: "Generate local default configuration",
 	Run: func(cmd *cobra.Command, args []string) {
 		initDefaultConfig()
 	},
 }
 
 func initDefaultConfig() {
+	configPath := localConfigFilePath(WorkSpace)
+
 	fmt.Printf("Workspace: %s\n", WorkSpace)
-	if err := utils.Mkdir(WorkSpace); err != nil {
+	fmt.Printf("Configuration File: %s\n", configPath)
+
+	_, err := os.Stat(configPath)
+	if err == nil {
+		fmt.Println("the configuration file already exists.")
+		return
+	}
+
+	if err = utils.Mkdir(WorkSpace); err != nil {
 		fmt.Printf("init workspace failed: %s\n", err.Error())
 		return
 	}
 
 	dataDir := localDataDirPath(WorkSpace)
 	fmt.Printf("Workspace Data Dir: %s\n", dataDir)
-	if err := utils.Mkdir(dataDir); err != nil {
+	if err = utils.Mkdir(dataDir); err != nil {
 		fmt.Printf("init workspace data dir failed: %s\n", err.Error())
 		return
 	}
@@ -58,6 +68,12 @@ func initDefaultConfig() {
 	dbFile := localDbFilePath(WorkSpace)
 	fmt.Printf("Workspace Database File: %s\n", dbFile)
 
+	sk, err := utils.RandString(16)
+	if err != nil {
+		fmt.Printf("gen encryption secret key failed: %s\n", err.Error())
+		return
+	}
+
 	conf := config.Config{
 		Meta: config.Meta{
 			Type: metastore.SqliteMeta,
@@ -69,6 +85,11 @@ func initDefaultConfig() {
 				Type:     config.LocalStorage,
 				LocalDir: dataDir,
 			},
+		},
+		GlobalEncryption: config.Encryption{
+			Enable:    false,
+			Method:    config.AESEncryption,
+			SecretKey: sk,
 		},
 		CacheDir:  cacheDir,
 		CacheSize: 10,
@@ -91,7 +112,6 @@ func initDefaultConfig() {
 			DisplayName: "nanafs",
 		},
 	}
-	configPath := localConfigFilePath(WorkSpace)
 	fmt.Printf("Workspace Config: %s\n", configPath)
 	raw, _ := json.MarshalIndent(conf, "", "    ")
 	if err := os.WriteFile(configPath, raw, 0755); err != nil {

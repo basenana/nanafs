@@ -23,7 +23,7 @@ import (
 
 var setCmd = &cobra.Command{
 	Use:   "set",
-	Short: "edit local configuration",
+	Short: "Edit current configuration",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("do nothing")
 	},

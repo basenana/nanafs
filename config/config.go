@@ -21,11 +21,15 @@ type Config struct {
 	FUSE   FUSE    `json:"fuse"`
 	Webdav *Webdav `json:"webdav,omitempty"`
 
-	FS     *FS     `json:"fs,omitempty"`
-	Plugin *Plugin `json:"plugin,omitempty"`
+	Workflow Workflow `json:"workflow"`
+	Plugin   *Plugin  `json:"plugin,omitempty"`
+
+	FS *FS `json:"fs,omitempty"`
 
 	Meta     Meta      `json:"meta"`
 	Storages []Storage `json:"storages"`
+
+	GlobalEncryption Encryption `json:"global_encryption"`
 
 	CacheDir  string `json:"cache_dir,omitempty"`
 	CacheSize int    `json:"cache_size,omitempty"`
@@ -55,6 +59,12 @@ type FUSE struct {
 
 	EntryTimeout *int `json:"entry_timeout,omitempty"`
 	AttrTimeout  *int `json:"attr_timeout,omitempty"`
+}
+
+type Encryption struct {
+	Enable    bool   `json:"enable"`
+	Method    string `json:"method"`
+	SecretKey string `json:"secret_key"`
 }
 
 type OverwriteUser struct {

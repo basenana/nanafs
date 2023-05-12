@@ -48,7 +48,7 @@ func TestWorkflow(t *testing.T) {
 var _ = BeforeSuite(func() {
 	memMeta, err := metastore.NewMetaStorage(storage.MemoryStorage, config.Meta{})
 	Expect(err).Should(BeNil())
-	mgr, err = NewManager(memMeta.PluginRecorder(types.PlugScope{}))
+	mgr, err = NewManager(memMeta)
 	Expect(err).Should(BeNil())
 
 	runner = mgr.(*manager).runner

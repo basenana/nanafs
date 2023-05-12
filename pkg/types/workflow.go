@@ -16,11 +16,17 @@
 
 package types
 
+import "time"
+
 type WorkflowSpec struct {
-	Id    string             `json:"id"`
-	Name  string             `json:"name"`
-	Rule  Rule               `json:"rule,omitempty"`
-	Steps []WorkflowStepSpec `json:"steps,omitempty"`
+	Id              string             `json:"id"`
+	Name            string             `json:"name"`
+	Rule            Rule               `json:"rule,omitempty"`
+	Steps           []WorkflowStepSpec `json:"steps,omitempty"`
+	Enable          bool               `json:"enable"`
+	CreatedAt       time.Time          `json:"created_at"`
+	UpdatedAt       time.Time          `json:"updated_at"`
+	LastTriggeredAt time.Time          `json:"last_triggered_at"`
 }
 
 type WorkflowStepSpec struct {
@@ -29,11 +35,17 @@ type WorkflowStepSpec struct {
 }
 
 type WorkflowJob struct {
-	Id       string            `json:"id"`
-	Workflow string            `json:"workflow"`
-	Status   string            `json:"status"`
-	Message  string            `json:"message"`
-	Steps    []WorkflowJobStep `json:"steps"`
+	Id            string            `json:"id"`
+	Workflow      string            `json:"workflow"`
+	TriggerReason string            `json:"trigger_reason"`
+	Target        WorkflowTarget    `json:"target"`
+	Steps         []WorkflowJobStep `json:"steps"`
+	Status        string            `json:"status"`
+	Message       string            `json:"message"`
+	StartAt       time.Time         `json:"start_at"`
+	FinishAt      time.Time         `json:"finish_at"`
+	CreatedAt     time.Time         `json:"created_at"`
+	UpdatedAt     time.Time         `json:"updated_at"`
 }
 
 type WorkflowJobStep struct {
@@ -41,4 +53,9 @@ type WorkflowJobStep struct {
 	Message  string    `json:"message"`
 	Status   string    `json:"status"`
 	Plugin   PlugScope `json:"plugin"`
+}
+
+type WorkflowTarget struct {
+	EntryID *int64 `json:"entry_id,omitempty"`
+	Rule    *Rule  `json:"rule,omitempty"`
 }

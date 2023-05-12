@@ -16,6 +16,11 @@
 
 package config
 
+type Workflow struct {
+	Enable     bool   `json:"enable"`
+	JobWorkdir string `json:"job_workdir"`
+}
+
 type Plugin struct {
 	BasePath     string `json:"base_path"`
 	DummyPlugins bool   `json:"dummy_plugins"`

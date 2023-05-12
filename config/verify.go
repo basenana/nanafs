@@ -30,6 +30,7 @@ var verifiers = []verifier{
 	checkWebdavConfig,
 	checkMetaConfig,
 	checkStorageConfigs,
+	checkEncryptionConfig,
 	checkLocalCache,
 }
 
@@ -106,6 +107,20 @@ func checkStorageConfigs(config *Config) error {
 		if err := checkStorageConfig(s); err != nil {
 			return fmt.Errorf("storages[%d].%s: %s", i, s.ID, err)
 		}
+	}
+	return nil
+}
+
+func checkEncryptionConfig(config *Config) error {
+	if !config.GlobalEncryption.Enable {
+		return nil
+	}
+	enCfg := config.GlobalEncryption
+	if enCfg.Method != AESEncryption {
+		return fmt.Errorf("only supports the AES encryption method")
+	}
+	if len(enCfg.SecretKey) != 16 || len(enCfg.SecretKey) != 32 {
+		return fmt.Errorf("the length of the encryption.secret_key needs to be 16 or 32")
 	}
 	return nil
 }

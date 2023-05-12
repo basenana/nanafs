@@ -614,11 +614,16 @@ func (w *segWriter) preWrite(ctx context.Context, pagePos int64, seg *uncommitte
 func (w *segWriter) flushData(ctx context.Context, seg *uncommittedSeg, page *uncommittedPage) {
 	defer trace.StartRegion(ctx, "bio.segWriter.flushData").End()
 	defer seg.uploads.Done()
+	defer func() {
+		if page.err != nil {
+			w.chunkErr = page.err
+		}
+	}()
 	waitingTime := 0
 	for atomic.LoadInt32(&page.visitor) == 0 {
 		select {
 		case <-ctx.Done():
-			w.chunkErr = fmt.Errorf("flush data timeout, chunk=%d, page=%d", w.chunkID, page.idx)
+			page.err = fmt.Errorf("flush data timeout, chunk=%d, page=%d", w.chunkID, page.idx)
 			w.logger.Errorw("flush data timeout", "entry", w.entry.ID, "chunk", w.chunkID, "page", page.idx, "visitor", atomic.LoadInt32(&page.visitor))
 			return
 		default:
@@ -632,13 +637,13 @@ func (w *segWriter) flushData(ctx context.Context, seg *uncommittedSeg, page *un
 
 	segID, err := seg.prepareID(ctx, w.store.NextSegmentID)
 	if err != nil {
-		w.chunkErr = err
+		page.err = err
 		w.logger.Errorw("prepare segment id error", "entry", w.entry.ID, "chunk", w.chunkID, "page", page.idx, "err", err)
 		return
 	}
 
 	if err = w.cache.CommitTemporaryNode(ctx, segID, page.idx, page.node); err != nil {
-		w.chunkErr = err
+		page.err = err
 		w.logger.Errorw("commit page data error", "entry", w.entry.ID, "chunk", w.chunkID, "page", page.idx, "err", err)
 		return
 	}
@@ -706,6 +711,13 @@ func (w *segWriter) commitSegment(ctx context.Context) {
 		w.mux.Unlock()
 
 		seg.uploads.Wait()
+		if uploadErr := seg.uploaded(); uploadErr != nil {
+			w.uncommitted = w.uncommitted[1:]
+			atomic.AddInt32(&w.unready, -1)
+			w.logger.Errorw("upload segment error, discard segment info", "entry", w.entry.ID, "chunk", w.chunkID, "err", uploadErr)
+			continue
+		}
+
 		newObj, err := w.store.AppendSegments(context.Background(), types.ChunkSeg{
 			ID:       seg.segID,
 			ChunkID:  w.chunkID,
@@ -757,6 +769,15 @@ func (s *uncommittedSeg) tryCommit(ctx context.Context) {
 	s.readyToCommit = true
 }
 
+func (s *uncommittedSeg) uploaded() error {
+	for _, p := range s.pages {
+		if p.err != nil {
+			return p.err
+		}
+	}
+	return nil
+}
+
 func (s *uncommittedSeg) prepareID(ctx context.Context, prepareFn func(context.Context) (int64, error)) (int64, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
@@ -776,6 +797,7 @@ type uncommittedPage struct {
 	idx       int64
 	committed bool
 	visitor   int32
+	err       error
 	node      storage.CacheNode
 	mux       sync.Mutex
 }

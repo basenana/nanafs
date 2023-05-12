@@ -26,6 +26,10 @@ import (
 	"syscall"
 )
 
+const (
+	ENOAttr = syscall.ENOATTR
+)
+
 func fsMountOptions(displayName string, ops []string) []string {
 	options := []string{fmt.Sprintf("volname=%s", displayName)}
 	if ops != nil {

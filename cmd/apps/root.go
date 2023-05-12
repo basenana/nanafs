@@ -17,6 +17,7 @@
 package apps
 
 import (
+	"fmt"
 	"github.com/basenana/nanafs/cmd/apps/apis"
 	configapp "github.com/basenana/nanafs/cmd/apps/config"
 	"github.com/basenana/nanafs/cmd/apps/fs"
@@ -34,6 +35,7 @@ import (
 
 func init() {
 	RootCmd.AddCommand(daemonCmd)
+	RootCmd.AddCommand(versionCmd)
 	RootCmd.AddCommand(configapp.RunCmd)
 }
 
@@ -52,7 +54,7 @@ func init() {
 
 var daemonCmd = &cobra.Command{
 	Use:   "serve",
-	Short: "nanafs daemon run",
+	Short: "NanaFS server run",
 	PreRun: func(cmd *cobra.Command, args []string) {
 
 	},
@@ -72,8 +74,8 @@ var daemonCmd = &cobra.Command{
 			panic(err)
 		}
 
-		if len(cfg.Storages) != 1 {
-			panic("storage must config one")
+		if len(cfg.Storages) == 0 {
+			panic("storage must config")
 		}
 
 		storage.InitLocalCache(cfg)
@@ -94,7 +96,7 @@ var daemonCmd = &cobra.Command{
 
 func run(ctrl controller.Controller, cfg config.Config, stopCh chan struct{}) {
 	log := logger.NewLogger("nanafs")
-	log.Info("starting")
+	log.Infow("starting", "version", config.VersionInfo().Version())
 	ctrl.StartBackendTask(stopCh)
 	shutdown := ctrl.SetupShutdownHandler(stopCh)
 
@@ -134,4 +136,14 @@ func run(ctrl controller.Controller, cfg config.Config, stopCh chan struct{}) {
 	<-shutdown
 	time.Sleep(time.Second * 5)
 	log.Info("stopped")
+}
+
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "NanaFS version info",
+	Run: func(cmd *cobra.Command, args []string) {
+		vInfo := config.VersionInfo()
+		fmt.Printf("Version: %s\n", vInfo.Version())
+		fmt.Printf("GitCommit: %s\n", vInfo.Git)
+	},
 }

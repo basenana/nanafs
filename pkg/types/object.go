@@ -31,6 +31,13 @@ const (
 	LabelPluginNameKey = "nanafs.plugin.name"
 )
 
+type SystemInfo struct {
+	FilesystemID  string `json:"filesystem_id"`
+	MaxSegmentID  int64  `json:"max_segment_id"`
+	ObjectCount   int64  `json:"object_count"`
+	FileSizeTotal int64  `json:"file_size_total"`
+}
+
 type Metadata struct {
 	ID         int64     `json:"id"`
 	Name       string    `json:"name"`

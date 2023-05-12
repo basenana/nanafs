@@ -46,3 +46,14 @@ type ScheduledTaskFilter struct {
 	RefID   int64
 	Status  []string
 }
+
+type Notification struct {
+	ID      string
+	Title   string
+	Message string
+	Type    string
+	Source  string
+	Action  string
+	Status  string
+	Time    time.Time
+}

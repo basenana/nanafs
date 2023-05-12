@@ -30,6 +30,7 @@ const (
 	WebdavStorage = "webdav"
 	LocalStorage  = "local"
 	MemoryStorage = "memory"
+	AESEncryption = "AES"
 )
 
 type FS struct {
@@ -45,12 +46,13 @@ type Meta struct {
 }
 
 type Storage struct {
-	ID       string               `json:"id"`
-	Type     string               `json:"type"`
-	LocalDir string               `json:"local_dir,omitempty"`
-	MinIO    *MinIOConfig         `json:"minio,omitempty"`
-	OSS      *OSSConfig           `json:"oss,omitempty"`
-	Webdav   *WebdavStorageConfig `json:"webdav,omitempty"`
+	ID         string               `json:"id"`
+	Type       string               `json:"type"`
+	LocalDir   string               `json:"local_dir,omitempty"`
+	MinIO      *MinIOConfig         `json:"minio,omitempty"`
+	OSS        *OSSConfig           `json:"oss,omitempty"`
+	Webdav     *WebdavStorageConfig `json:"webdav,omitempty"`
+	Encryption *Encryption          `json:"encryption,omitempty"`
 }
 
 type MinIOConfig struct {
