@@ -1,4 +1,4 @@
-.PHONY: all build clean run check cover lint docker help
+.PHONY: all build buildbin clean run check cover lint docker help
 BIN_DIR=bin
 BASE_PATH=$(shell pwd)
 $(shell git fetch --tags)
@@ -13,6 +13,10 @@ build:
 	-v $(BASE_PATH)/bin:/bin/nanafs \
 	-w /go/src/github.com/basenana/nanafs \
 	golang:1.18 sh ./hack/multibuild.sh ./cmd /bin/nanafs
+buildbin:
+	CGO_ENABLED=0 GOOS=$1 GOARCH=$2 go build \
+		-ldflags="-s -w -X github.com/basenana/nanafs/config.gitCommit=${GIT_COMMIT} -X github.com/basenana/nanafs/config.gitTag=${GIT_TAG}" \
+		-o /usr/bin/nanafs ./cmd
 clean:
 	@go clean
 test:
