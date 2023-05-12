@@ -18,6 +18,7 @@ package db
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
 	"time"
 )
@@ -212,13 +213,151 @@ func (d PluginData) TableName() string {
 	return "plugin_data"
 }
 
-type ObjectWorkflow struct {
-	ID        string    `db:"id"`
-	Synced    bool      `db:"synced"`
-	CreatedAt time.Time `db:"created_at"`
-	UpdatedAt time.Time `db:"updated_at"`
+type Notification struct {
+	ID      string    `gorm:"column:id;primaryKey"`
+	Title   string    `gorm:"column:title"`
+	Message string    `gorm:"column:message"`
+	Type    string    `gorm:"column:type"`
+	Source  string    `gorm:"column:source"`
+	Action  string    `gorm:"column:action"`
+	Status  string    `gorm:"column:status"`
+	Time    time.Time `gorm:"column:time;index:notif_time"`
 }
 
-func (o ObjectWorkflow) TableName() string {
-	return "object_workflow"
+func (o *Notification) TableName() string {
+	return "notification"
+}
+
+type Workflow struct {
+	ID              string    `gorm:"column:id;primaryKey"`
+	Name            string    `gorm:"column:name"`
+	Rule            string    `gorm:"column:rule"`
+	Steps           string    `gorm:"column:steps"`
+	Enable          bool      `gorm:"column:enable;index:wf_enable"`
+	CreatedAt       time.Time `gorm:"column:created_at;index:wf_creat"`
+	UpdatedAt       time.Time `gorm:"column:updated_at"`
+	LastTriggeredAt time.Time `gorm:"column:last_triggered_at"`
+}
+
+func (o *Workflow) TableName() string {
+	return "workflow"
+}
+
+func (o *Workflow) Update(wf *types.WorkflowSpec) error {
+	o.ID = wf.Id
+	o.Name = wf.Name
+	o.Enable = wf.Enable
+	o.CreatedAt = wf.CreatedAt
+	o.UpdatedAt = wf.UpdatedAt
+	o.LastTriggeredAt = wf.LastTriggeredAt
+
+	rawRule, err := json.Marshal(wf.Rule)
+	if err != nil {
+		return fmt.Errorf("marshal workflow rule config failed: %s", err)
+	}
+	o.Rule = string(rawRule)
+
+	rawSteps, err := json.Marshal(wf.Steps)
+	if err != nil {
+		return fmt.Errorf("marshal workflow rule config failed: %s", err)
+	}
+	o.Steps = string(rawSteps)
+	return nil
+}
+
+func (o *Workflow) ToWorkflowSpec() (*types.WorkflowSpec, error) {
+	result := &types.WorkflowSpec{
+		Id:              o.ID,
+		Name:            o.Name,
+		Enable:          o.Enable,
+		Steps:           []types.WorkflowStepSpec{},
+		CreatedAt:       o.CreatedAt,
+		UpdatedAt:       o.UpdatedAt,
+		LastTriggeredAt: o.LastTriggeredAt,
+	}
+
+	if err := json.Unmarshal([]byte(o.Rule), &result.Rule); err != nil {
+		return nil, fmt.Errorf("load workflow rule config failed: %s", err)
+	}
+	if err := json.Unmarshal([]byte(o.Steps), &result.Steps); err != nil {
+		return nil, fmt.Errorf("load workflow steps config failed: %s", err)
+	}
+	return result, nil
+}
+
+type WorkflowJob struct {
+	ID            string    `gorm:"column:id;autoIncrement"`
+	Workflow      string    `gorm:"column:workflow;index:job_wf_id"`
+	TriggerReason string    `gorm:"column:trigger_reason"`
+	TargetEntry   int64     `gorm:"column:target_entry;index:job_tgt_en"`
+	Target        string    `gorm:"column:target"`
+	Steps         string    `gorm:"column:steps"`
+	Status        string    `gorm:"column:status"`
+	Message       string    `gorm:"column:message"`
+	Executor      string    `gorm:"column:executor;index:job_executor"`
+	StartAt       time.Time `gorm:"column:start_at"`
+	FinishAt      time.Time `gorm:"column:finish_at"`
+	CreatedAt     time.Time `gorm:"column:created_at;index:job_created_at"`
+	UpdatedAt     time.Time `gorm:"column:updated_at"`
+}
+
+func (o *WorkflowJob) TableName() string {
+	return "workflow_job"
+}
+
+func (o *WorkflowJob) Update(job *types.WorkflowJob) error {
+	o.ID = job.Id
+	o.Workflow = job.Workflow
+	o.TriggerReason = job.TriggerReason
+	o.Status = job.Status
+	o.Message = job.Message
+	o.Executor = "any"
+	o.StartAt = job.StartAt
+	o.FinishAt = job.FinishAt
+	o.CreatedAt = job.CreatedAt
+	o.UpdatedAt = job.UpdatedAt
+
+	rawTarget, err := json.Marshal(job.Target)
+	if err != nil {
+		return fmt.Errorf("marshal workflow job target failed: %s", err)
+	}
+	if job.Target.EntryID != nil {
+		o.TargetEntry = *job.Target.EntryID
+	}
+	o.Target = string(rawTarget)
+
+	rawStep, err := json.Marshal(job.Steps)
+	if err != nil {
+		return fmt.Errorf("marshal workflow job steps failed: %s", err)
+	}
+	o.Steps = string(rawStep)
+
+	return nil
+}
+
+func (o *WorkflowJob) ToWorkflowJobSpec() (*types.WorkflowJob, error) {
+	result := &types.WorkflowJob{
+		Id:            o.ID,
+		Workflow:      o.Workflow,
+		TriggerReason: o.TriggerReason,
+		Steps:         []types.WorkflowJobStep{},
+		Status:        o.Status,
+		Message:       o.Message,
+		StartAt:       o.StartAt,
+		FinishAt:      o.FinishAt,
+		CreatedAt:     o.CreatedAt,
+		UpdatedAt:     o.UpdatedAt,
+	}
+
+	err := json.Unmarshal([]byte(o.Target), &result.Target)
+	if err != nil {
+		return nil, fmt.Errorf("load workflow job target failed: %s", err)
+	}
+
+	err = json.Unmarshal([]byte(o.Steps), &result.Steps)
+	if err != nil {
+		return nil, fmt.Errorf("load workflow job steps failed: %s", err)
+	}
+
+	return result, nil
 }

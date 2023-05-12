@@ -24,15 +24,6 @@ import (
 func buildMigrations() []*gormigrate.Migration {
 	return []*gormigrate.Migration{
 		{
-			ID: "2023050100",
-			Migrate: func(db *gorm.DB) error {
-				return db.AutoMigrate(&ScheduledTask{})
-			},
-			Rollback: func(db *gorm.DB) error {
-				return db.Migrator().DropTable(&ScheduledTask{})
-			},
-		},
-		{
 			ID: "2023040600",
 			Migrate: func(db *gorm.DB) error {
 				return db.AutoMigrate(
@@ -47,6 +38,24 @@ func buildMigrations() []*gormigrate.Migration {
 			},
 			Rollback: func(db *gorm.DB) error {
 				return nil
+			},
+		},
+		{
+			ID: "2023050100",
+			Migrate: func(db *gorm.DB) error {
+				return db.AutoMigrate(&ScheduledTask{})
+			},
+			Rollback: func(db *gorm.DB) error {
+				return db.Migrator().DropTable(&ScheduledTask{})
+			},
+		},
+		{
+			ID: "2023051400",
+			Migrate: func(db *gorm.DB) error {
+				return db.AutoMigrate(&Workflow{}, &WorkflowJob{}, &Notification{})
+			},
+			Rollback: func(db *gorm.DB) error {
+				return db.Migrator().DropTable(&Workflow{}, &WorkflowJob{}, &Notification{})
 			},
 		},
 	}

@@ -19,9 +19,9 @@ package controller
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/dispatch"
-	"github.com/basenana/nanafs/pkg/types"
 	"math"
 	"runtime/trace"
+	"time"
 )
 
 const (
@@ -36,27 +36,34 @@ type Info struct {
 	UsageSize   uint64
 }
 
+var (
+	fsInfoCache       *Info
+	fsInfoNextFetchAt time.Time
+)
+
 func (c *controller) FsInfo(ctx context.Context) Info {
 	defer trace.StartRegion(ctx, "controller.FsInfo").End()
+
+	nowTime := time.Now()
+	if fsInfoCache != nil && nowTime.Before(fsInfoNextFetchAt) {
+		return *fsInfoCache
+	}
+
 	info := Info{
 		AvailInodes: math.MaxUint32,
 		MaxSize:     defaultFsMaxSize,
 	}
 
-	objects, err := c.meta.ListObjects(ctx, types.Filter{})
+	sysInfo, err := c.meta.SystemInfo(ctx)
 	if err != nil {
 		return info
 	}
 
-	for _, obj := range objects {
-		switch obj.Kind {
-		case types.GroupKind:
-		default:
-			info.FileCount += 1
-		}
-		info.Objects += 1
-		info.UsageSize += uint64(obj.Size)
-	}
+	info.Objects = uint64(sysInfo.ObjectCount)
+	info.UsageSize = uint64(sysInfo.FileSizeTotal)
+
+	fsInfoCache = &info
+	fsInfoNextFetchAt.Add(time.Minute * 5)
 	return info
 }
 

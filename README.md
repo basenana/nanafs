@@ -1,6 +1,7 @@
 # NanaFS
 
 ![unittest workflow](https://github.com/basenana/nanafs/actions/workflows/unittest.yml/badge.svg)
+![pages-build-deployment](https://github.com/basenana/nanafs/actions/workflows/pages/pages-build-deployment/badge.svg)
 
 <p align="right">[ English | <a href="https://github.com/basenana/nanafs/blob/main/README_zh.md">简体中文</a> ]</p>
 
@@ -18,8 +19,8 @@ This makes NanaFS a versatile and valuable tool for personal, academic, and prof
 
 ### Cloud-Based Storage
 
-NanaFS utilizes cloud-based storage as its main backend storage method,
-supporting not only object storage but also network hard drives.
+NanaFS utilizes cloud-based storage as main backend storage,
+supporting not only object storage but also file-hosting service.
 With the cloud-based storage feature, NanaFS can have unlimited storage capacity at an affordable price,
 and users can access their data saved in the cloud anywhere and anytime.
 

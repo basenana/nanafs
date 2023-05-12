@@ -1,6 +1,7 @@
 # NanaFS
 
 ![unittest workflow](https://github.com/basenana/nanafs/actions/workflows/unittest.yml/badge.svg)
+![pages-build-deployment](https://github.com/basenana/nanafs/actions/workflows/pages/pages-build-deployment/badge.svg)
 
 <p align="right">[ <a href="https://github.com/basenana/nanafs/blob/main/README.md">English</a> | 简体中文 ]</p>
 
@@ -21,7 +22,7 @@ NanaFS 采用云端存储技术作为其主要后端存储方式，不仅仅支�
 
 已经支持或者计划支持的存储包括：
 
-- **对象存储类**：AWS S3、AlibabaCloud OSS、Cloudflare R2
+- **对象存储类**：AWS S3、阿里云OSS、Cloudflare R2
 - **云盘类**：Google Drive、OneDrive、阿里云盘、百度网盘
 - **其他存储协议**：WebDAV
 

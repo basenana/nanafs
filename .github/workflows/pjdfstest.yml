@@ -53,7 +53,7 @@ jobs:
         if: failure()
         run: cat /tmp/nanafs.log
 
-      - name: Setup upterm session
-        if: failure()
-        timeout-minutes: 60
-        uses: lhotari/action-upterm@v1
+#      - name: Setup upterm session
+#        if: failure()
+#        timeout-minutes: 60
+#        uses: lhotari/action-upterm@v1

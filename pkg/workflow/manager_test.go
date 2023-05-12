@@ -105,7 +105,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 	})
 
 	Context("trigger a workflow", func() {
-		var job types.WorkflowJob
+		var job *types.WorkflowJob
 		It("trigger workflow should be succeed", func() {
 			var err error
 			job, err = mgr.TriggerWorkflow(context.TODO(), wf.Id)
@@ -195,7 +195,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 	//})
 
 	Context("cancel workflow job", func() {
-		var job types.WorkflowJob
+		var job *types.WorkflowJob
 		It("trigger workflow should be succeed", func() {
 			var err error
 			job, err = mgr.TriggerWorkflow(context.TODO(), wf.Id)

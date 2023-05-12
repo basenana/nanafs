@@ -22,36 +22,32 @@ import (
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
-const (
-	dataGroupWorkflow = "workflow"
-	dataGroupJob      = "job"
-)
-
 type Manager interface {
-	ListWorkflows(ctx context.Context) ([]types.WorkflowSpec, error)
-	GetWorkflow(ctx context.Context, wfId string) (types.WorkflowSpec, error)
+	ListWorkflows(ctx context.Context) ([]*types.WorkflowSpec, error)
+	GetWorkflow(ctx context.Context, wfId string) (*types.WorkflowSpec, error)
 	SaveWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error)
 	DeleteWorkflow(ctx context.Context, wfId string) error
-	ListJobs(ctx context.Context, wfId string) ([]types.WorkflowJob, error)
+	ListJobs(ctx context.Context, wfId string) ([]*types.WorkflowJob, error)
 
-	TriggerWorkflow(ctx context.Context, wfId string) (types.WorkflowJob, error)
+	TriggerWorkflow(ctx context.Context, wfId string) (*types.WorkflowJob, error)
 	PauseWorkflowJob(ctx context.Context, jobId string) error
 	ResumeWorkflowJob(ctx context.Context, jobId string) error
 	CancelWorkflowJob(ctx context.Context, jobId string) error
 }
 
 type manager struct {
-	recorder metastore.PluginRecorder
+	recorder metastore.ScheduledTaskRecorder
 	runner   *Runner
 	logger   *zap.SugaredLogger
 }
 
 var _ Manager = &manager{}
 
-func NewManager(recorder metastore.PluginRecorder) (Manager, error) {
+func NewManager(recorder metastore.ScheduledTaskRecorder) (Manager, error) {
 	runner, err := InitWorkflowRunner(recorder)
 	if err != nil {
 		return nil, err
@@ -66,76 +62,52 @@ func NewManager(recorder metastore.PluginRecorder) (Manager, error) {
 	return mgr, nil
 }
 
-func (m *manager) ListWorkflows(ctx context.Context) ([]types.WorkflowSpec, error) {
-	wfIdList, err := m.recorder.ListRecords(ctx, dataGroupWorkflow)
+func (m *manager) ListWorkflows(ctx context.Context) ([]*types.WorkflowSpec, error) {
+	result, err := m.recorder.ListWorkflow(ctx)
 	if err != nil {
 		return nil, err
-	}
-
-	result := make([]types.WorkflowSpec, len(wfIdList))
-	for i, wfId := range wfIdList {
-		spec := types.WorkflowSpec{}
-		if err = m.recorder.GetRecord(ctx, wfId, &spec); err != nil {
-			return nil, err
-		}
-		result[i] = spec
 	}
 	return result, nil
 }
 
-func (m *manager) GetWorkflow(ctx context.Context, wfId string) (types.WorkflowSpec, error) {
-	spec := types.WorkflowSpec{}
-	if err := m.recorder.GetRecord(ctx, wfId, &spec); err != nil {
-		return spec, err
-	}
-	return spec, nil
+func (m *manager) GetWorkflow(ctx context.Context, wfId string) (*types.WorkflowSpec, error) {
+	return m.recorder.GetWorkflow(ctx, wfId)
 }
 
 func (m *manager) SaveWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error) {
-	wfId, err := nextWorkflowId(ctx, m.recorder)
-	if err != nil {
-		return nil, err
+	if spec.Id == "" {
+		spec.Id = uuid.New().String()
 	}
-	spec.Id = wfId
-	if err = m.recorder.SaveRecord(ctx, dataGroupWorkflow, wfId, &spec); err != nil {
-		return spec, err
+	if err := m.recorder.SaveWorkflow(ctx, spec); err != nil {
+		return nil, err
 	}
 	return spec, nil
 }
 
 func (m *manager) DeleteWorkflow(ctx context.Context, wfId string) error {
-	return m.recorder.DeleteRecord(ctx, wfId)
+	return m.recorder.DeleteWorkflow(ctx, wfId)
 }
 
-func (m *manager) ListJobs(ctx context.Context, wfId string) ([]types.WorkflowJob, error) {
-	jobIdList, err := m.recorder.ListRecords(ctx, jobGroupId(wfId))
+func (m *manager) ListJobs(ctx context.Context, wfId string) ([]*types.WorkflowJob, error) {
+	result, err := m.recorder.ListWorkflowJob(ctx, wfId)
 	if err != nil {
 		return nil, err
-	}
-
-	result := make([]types.WorkflowJob, len(jobIdList))
-	for i, jobId := range jobIdList {
-		job := types.WorkflowJob{}
-		if err = m.recorder.GetRecord(ctx, jobId, &job); err != nil {
-			return nil, err
-		}
-		result[i] = job
 	}
 	return result, nil
 }
 
-func (m *manager) TriggerWorkflow(ctx context.Context, wfId string) (types.WorkflowJob, error) {
+func (m *manager) TriggerWorkflow(ctx context.Context, wfId string) (*types.WorkflowJob, error) {
 	workflow, err := m.GetWorkflow(ctx, wfId)
 	if err != nil {
-		return types.WorkflowJob{}, err
+		return nil, err
 	}
 
-	job, err := m.runner.WorkFlowHandler(ctx, &workflow)
+	job, err := m.runner.WorkFlowHandler(ctx, workflow)
 	if err != nil {
-		return types.WorkflowJob{}, err
+		return nil, err
 	}
 
-	return *job, nil
+	return job, nil
 }
 
 func (m *manager) PauseWorkflowJob(ctx context.Context, jobId string) error {

@@ -450,13 +450,140 @@ func (e *Entity) DeleteFinishedScheduledTask(ctx context.Context, aliveTime time
 	return nil
 }
 
-func (e *Entity) SystemInfo(ctx context.Context) (*SystemInfo, error) {
+func (e *Entity) GetWorkflow(ctx context.Context, wfID string) (*types.WorkflowSpec, error) {
+	wf := &Workflow{}
+	res := e.DB.WithContext(ctx).Where("id = ?", wfID).First(wf)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	return wf.ToWorkflowSpec()
+}
+
+func (e *Entity) ListWorkflow(ctx context.Context) ([]*types.WorkflowSpec, error) {
+	wfList := make([]Workflow, 0)
+	res := e.DB.WithContext(ctx).Order("created_at desc").Find(&wfList)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+
+	var (
+		result = make([]*types.WorkflowSpec, len(wfList))
+		err    error
+	)
+	for i, wf := range wfList {
+		result[i], err = wf.ToWorkflowSpec()
+		if err != nil {
+			return nil, err
+		}
+	}
+	return result, nil
+}
+
+func (e *Entity) SaveWorkflow(ctx context.Context, wf *types.WorkflowSpec) error {
+	return e.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		dbMod := &Workflow{}
+		res := tx.Where("id = ?", wf.Id).First(dbMod)
+		if res.Error == gorm.ErrRecordNotFound {
+			if err := dbMod.Update(wf); err != nil {
+				return err
+			}
+			res = tx.Create(dbMod)
+			return res.Error
+		}
+		if err := dbMod.Update(wf); err != nil {
+			return err
+		}
+		res = tx.Save(dbMod)
+		return res.Error
+	})
+}
+
+func (e *Entity) DeleteWorkflow(ctx context.Context, wfID string) error {
+	return e.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Where("id = ?", wfID).First(&Workflow{})
+		if res.Error != nil {
+			return res.Error
+		}
+		res = tx.Where("id = ?", wfID).Delete(&Workflow{})
+		return res.Error
+	})
+}
+
+func (e *Entity) GetWorkflowJob(ctx context.Context, wfJobID string) (*types.WorkflowJob, error) {
+	job := &WorkflowJob{}
+	res := e.DB.WithContext(ctx).Where("id = ?", wfJobID).First(job)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	return job.ToWorkflowJobSpec()
+}
+
+func (e *Entity) ListWorkflowJob(ctx context.Context, wfID string) ([]*types.WorkflowJob, error) {
+	jobList := make([]WorkflowJob, 0)
+	res := e.DB.WithContext(ctx).Where("workflow = ?", wfID).Order("created_at desc").Find(&jobList)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+
+	var (
+		result = make([]*types.WorkflowJob, len(jobList))
+		err    error
+	)
+	for i, wf := range jobList {
+		result[i], err = wf.ToWorkflowJobSpec()
+		if err != nil {
+			return nil, err
+		}
+	}
+	return result, nil
+}
+
+func (e *Entity) SaveWorkflowJob(ctx context.Context, job *types.WorkflowJob) error {
+	return e.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		dbMod := &WorkflowJob{}
+		res := tx.Where("id = ?", job.Id).First(dbMod)
+		if res.Error == gorm.ErrRecordNotFound {
+			if err := dbMod.Update(job); err != nil {
+				return err
+			}
+			res = tx.Create(dbMod)
+			return res.Error
+		}
+		if err := dbMod.Update(job); err != nil {
+			return err
+		}
+		res = tx.Save(dbMod)
+		return res.Error
+	})
+}
+
+func (e *Entity) DeleteWorkflowJob(ctx context.Context, wfJobID ...string) error {
+	res := e.DB.WithContext(ctx).Where("id IN ?", wfJobID).Delete(&WorkflowJob{})
+	return res.Error
+}
+
+func (e *Entity) SystemInfo(ctx context.Context) (*types.SystemInfo, error) {
 	info := &SystemInfo{}
 	res := e.WithContext(ctx).First(info)
 	if res.Error != nil {
 		return nil, res.Error
 	}
-	return info, nil
+	result := &types.SystemInfo{
+		FilesystemID:  info.FsID,
+		MaxSegmentID:  info.ChunkSeg,
+		ObjectCount:   0,
+		FileSizeTotal: 0,
+	}
+
+	res = e.DB.WithContext(ctx).Model(&Object{}).Count(&result.ObjectCount)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	res = e.DB.WithContext(ctx).Model(&Object{}).Select("SUM(size) as file_size_total").Scan(&result.FileSizeTotal)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	return result, nil
 }
 
 func saveRawObject(tx *gorm.DB, obj *types.Object) error {

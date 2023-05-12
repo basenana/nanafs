@@ -44,6 +44,12 @@ type sqliteMetaStore struct {
 
 var _ Meta = &sqliteMetaStore{}
 
+func (s *sqliteMetaStore) SystemInfo(ctx context.Context) (*types.SystemInfo, error) {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
+	return s.dbStore.SystemInfo(ctx)
+}
+
 func (s *sqliteMetaStore) GetObject(ctx context.Context, id int64) (*types.Object, error) {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
@@ -134,6 +140,54 @@ func (s *sqliteMetaStore) DeleteFinishedTask(ctx context.Context, aliveTime time
 	return s.dbStore.DeleteFinishedTask(ctx, aliveTime)
 }
 
+func (s *sqliteMetaStore) GetWorkflow(ctx context.Context, wfID string) (*types.WorkflowSpec, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.GetWorkflow(ctx, wfID)
+}
+
+func (s *sqliteMetaStore) ListWorkflow(ctx context.Context) ([]*types.WorkflowSpec, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.ListWorkflow(ctx)
+}
+
+func (s *sqliteMetaStore) DeleteWorkflow(ctx context.Context, wfID string) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.DeleteWorkflow(ctx, wfID)
+}
+
+func (s *sqliteMetaStore) GetWorkflowJob(ctx context.Context, wfJobID string) (*types.WorkflowJob, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.GetWorkflowJob(ctx, wfJobID)
+}
+
+func (s *sqliteMetaStore) ListWorkflowJob(ctx context.Context, wfID string) ([]*types.WorkflowJob, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.ListWorkflowJob(ctx, wfID)
+}
+
+func (s *sqliteMetaStore) SaveWorkflow(ctx context.Context, wf *types.WorkflowSpec) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.SaveWorkflow(ctx, wf)
+}
+
+func (s *sqliteMetaStore) SaveWorkflowJob(ctx context.Context, wf *types.WorkflowJob) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.SaveWorkflowJob(ctx, wf)
+}
+
+func (s *sqliteMetaStore) DeleteWorkflowJob(ctx context.Context, wfJobID ...string) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.DeleteWorkflowJob(ctx, wfJobID...)
+}
+
 func (s *sqliteMetaStore) PluginRecorder(plugin types.PlugScope) PluginRecorder {
 	return &sqlPluginRecorder{
 		pluginRecordHandler: s,
@@ -197,6 +251,10 @@ var _ Meta = &sqlMetaStore{}
 
 func buildSqlMetaStore(entity *db.Entity) *sqlMetaStore {
 	return &sqlMetaStore{dbEntity: entity, logger: logger.NewLogger("dbStore")}
+}
+
+func (s *sqlMetaStore) SystemInfo(ctx context.Context) (*types.SystemInfo, error) {
+	return s.dbEntity.SystemInfo(ctx)
 }
 
 func (s *sqlMetaStore) GetObject(ctx context.Context, id int64) (*types.Object, error) {
@@ -315,6 +373,78 @@ func (s *sqlMetaStore) SaveTask(ctx context.Context, task *types.ScheduledTask) 
 func (s *sqlMetaStore) DeleteFinishedTask(ctx context.Context, aliveTime time.Duration) error {
 	defer trace.StartRegion(ctx, "metastore.sql.DeleteFinishedTask").End()
 	return db.SqlError2Error(s.dbEntity.DeleteFinishedScheduledTask(ctx, aliveTime))
+}
+
+func (s *sqlMetaStore) GetWorkflow(ctx context.Context, wfID string) (*types.WorkflowSpec, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.GetWorkflow").End()
+	wf, err := s.dbEntity.GetWorkflow(ctx, wfID)
+	if err != nil {
+		return nil, db.SqlError2Error(err)
+	}
+	return wf, nil
+}
+
+func (s *sqlMetaStore) ListWorkflow(ctx context.Context) ([]*types.WorkflowSpec, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.ListWorkflow").End()
+	wfList, err := s.dbEntity.ListWorkflow(ctx)
+	if err != nil {
+		return nil, db.SqlError2Error(err)
+	}
+	return wfList, nil
+}
+
+func (s *sqlMetaStore) DeleteWorkflow(ctx context.Context, wfID string) error {
+	defer trace.StartRegion(ctx, "metastore.sql.DeleteWorkflow").End()
+	err := s.dbEntity.DeleteWorkflow(ctx, wfID)
+	if err != nil {
+		return db.SqlError2Error(err)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) GetWorkflowJob(ctx context.Context, wfJobID string) (*types.WorkflowJob, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.GetWorkflowJob").End()
+	job, err := s.dbEntity.GetWorkflowJob(ctx, wfJobID)
+	if err != nil {
+		return nil, db.SqlError2Error(err)
+	}
+	return job, nil
+}
+
+func (s *sqlMetaStore) ListWorkflowJob(ctx context.Context, wfID string) ([]*types.WorkflowJob, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.ListWorkflowJob").End()
+	jobList, err := s.dbEntity.ListWorkflowJob(ctx, wfID)
+	if err != nil {
+		return nil, db.SqlError2Error(err)
+	}
+	return jobList, nil
+}
+
+func (s *sqlMetaStore) SaveWorkflow(ctx context.Context, wf *types.WorkflowSpec) error {
+	defer trace.StartRegion(ctx, "metastore.sql.SaveWorkflow").End()
+	err := s.dbEntity.SaveWorkflow(ctx, wf)
+	if err != nil {
+		return db.SqlError2Error(err)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) SaveWorkflowJob(ctx context.Context, wf *types.WorkflowJob) error {
+	defer trace.StartRegion(ctx, "metastore.sql.SaveWorkflowJob").End()
+	err := s.dbEntity.SaveWorkflowJob(ctx, wf)
+	if err != nil {
+		return db.SqlError2Error(err)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) DeleteWorkflowJob(ctx context.Context, wfJobID ...string) error {
+	defer trace.StartRegion(ctx, "metastore.sql.DeleteWorkflowJob").End()
+	err := s.dbEntity.DeleteWorkflowJob(ctx, wfJobID...)
+	if err != nil {
+		return db.SqlError2Error(err)
+	}
+	return nil
 }
 
 func (s *sqlMetaStore) PluginRecorder(plugin types.PlugScope) PluginRecorder {
