@@ -25,7 +25,9 @@ BINDIR=$2
 build() {
   echo "build OS=$1 Arch=$2"
   mkdir -p $BINDIR/$1/$2
-  CGO_ENABLED=0 GOOS=$1 GOARCH=$2 go build -ldflags="-s -w" -o $BINDIR/$1/$2/nanafs $PKG
+  CGO_ENABLED=0 GOOS=$1 GOARCH=$2 go build \
+    -ldflags="-s -w -X github.com/basenana/nanafs/config.gitCommit=${GIT_COMMIT} -X github.com/basenana/nanafs/config.gitTag=${GIT_TAG}" \
+    -o $BINDIR/$1/$2/nanafs $PKG
 }
 
 main(){
