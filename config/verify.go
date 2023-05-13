@@ -32,11 +32,15 @@ var verifiers = []verifier{
 	checkStorageConfigs,
 	checkEncryptionConfig,
 	checkLocalCache,
+	checkMetricConfig,
 }
 
 func setDefaultValue(config *Config) error {
 	if config.FS == nil {
 		config.FS = defaultFsConfig()
+	}
+	if config.Metric == nil || config.Metric.Type == DefaultMetricConfig {
+		config.Metric = loadDefaultMetric()
 	}
 	return nil
 }
@@ -191,6 +195,20 @@ func checkLocalCache(config *Config) error {
 		return fmt.Errorf("cache size must more than 0")
 	}
 	return nil
+}
+
+func checkMetricConfig(config *Config) error {
+	switch config.Metric.Type {
+	case DefaultMetricConfig:
+		return nil
+	case DisableMetricConfig:
+		config.Metric = nil
+		return nil
+	case CustomMetricConfig:
+		return fmt.Errorf("metric customization is not currently supported")
+	default:
+		return fmt.Errorf("unknown metric config type: %s", config.Metric.Type)
+	}
 }
 
 func Verify(cfg *Config) error {

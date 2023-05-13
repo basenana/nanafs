@@ -17,9 +17,11 @@
 package main
 
 import (
+	"fmt"
 	"github.com/basenana/nanafs/cmd/apps"
 	"github.com/basenana/nanafs/utils/logger"
 	"math/rand"
+	"os"
 	"time"
 )
 
@@ -30,6 +32,7 @@ func main() {
 	defer logger.Sync()
 
 	if err := apps.RootCmd.Execute(); err != nil {
-		panic(err)
+		fmt.Println(err)
+		os.Exit(1)
 	}
 }

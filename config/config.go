@@ -21,15 +21,14 @@ type Config struct {
 	FUSE   FUSE    `json:"fuse"`
 	Webdav *Webdav `json:"webdav,omitempty"`
 
+	Meta             Meta       `json:"meta"`
+	Storages         []Storage  `json:"storages"`
+	GlobalEncryption Encryption `json:"global_encryption"`
+
 	Workflow Workflow `json:"workflow"`
 	Plugin   *Plugin  `json:"plugin,omitempty"`
-
-	FS *FS `json:"fs,omitempty"`
-
-	Meta     Meta      `json:"meta"`
-	Storages []Storage `json:"storages"`
-
-	GlobalEncryption Encryption `json:"global_encryption"`
+	FS       *FS      `json:"fs,omitempty"`
+	Metric   *Metric  `json:"metric,omitempty"`
 
 	CacheDir  string `json:"cache_dir,omitempty"`
 	CacheSize int    `json:"cache_size,omitempty"`

@@ -34,7 +34,7 @@ func init() {
 
 var RunCmd = &cobra.Command{
 	Use:   "config",
-	Short: "NanaFS config management",
+	Short: "Viewing and modifying local configurations",
 	Run: func(cmd *cobra.Command, args []string) {
 		configPath := localConfigFilePath(WorkSpace)
 		fmt.Printf("Workspace Config: %s\n\n", configPath)
