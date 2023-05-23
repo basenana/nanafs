@@ -14,4 +14,16 @@
  limitations under the License.
 */
 
-package group
+package rule
+
+import (
+	"encoding/json"
+	"github.com/basenana/nanafs/pkg/types"
+)
+
+func objectToMap(obj *types.Object) map[string]interface{} {
+	raw, _ := json.Marshal(obj)
+	result := make(map[string]interface{})
+	_ = json.Unmarshal(raw, &result)
+	return result
+}

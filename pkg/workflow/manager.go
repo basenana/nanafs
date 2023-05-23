@@ -18,18 +18,20 @@ package workflow
 
 import (
 	"context"
+	"fmt"
 	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
-	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"time"
 )
 
 type Manager interface {
 	ListWorkflows(ctx context.Context) ([]*types.WorkflowSpec, error)
 	GetWorkflow(ctx context.Context, wfId string) (*types.WorkflowSpec, error)
-	SaveWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error)
+	CreateWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error)
+	UpdateWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error)
 	DeleteWorkflow(ctx context.Context, wfId string) error
 	ListJobs(ctx context.Context, wfId string) ([]*types.WorkflowJob, error)
 
@@ -74,10 +76,25 @@ func (m *manager) GetWorkflow(ctx context.Context, wfId string) (*types.Workflow
 	return m.recorder.GetWorkflow(ctx, wfId)
 }
 
-func (m *manager) SaveWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error) {
-	if spec.Id == "" {
-		spec.Id = uuid.New().String()
+func (m *manager) CreateWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error) {
+	if spec.Name == "" {
+		return nil, fmt.Errorf("workflow name is empty")
 	}
+	spec = initWorkflow(spec)
+	if err := m.recorder.SaveWorkflow(ctx, spec); err != nil {
+		return nil, err
+	}
+	return spec, nil
+}
+
+func (m *manager) UpdateWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error) {
+	if spec.Id == "" {
+		return nil, fmt.Errorf("workflow id is empty")
+	}
+	if spec.Name == "" {
+		return nil, fmt.Errorf("workflow name is empty")
+	}
+	spec.UpdatedAt = time.Now()
 	if err := m.recorder.SaveWorkflow(ctx, spec); err != nil {
 		return nil, err
 	}
@@ -85,6 +102,18 @@ func (m *manager) SaveWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*
 }
 
 func (m *manager) DeleteWorkflow(ctx context.Context, wfId string) error {
+	jobs, err := m.ListJobs(ctx, wfId)
+	if err != nil {
+		return err
+	}
+	for _, j := range jobs {
+		if j.Status == flow.PausedStatus || j.Status == flow.RunningStatus {
+			err = m.CancelWorkflowJob(ctx, wfId)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	return m.recorder.DeleteWorkflow(ctx, wfId)
 }
 

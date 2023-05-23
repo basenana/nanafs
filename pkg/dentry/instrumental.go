@@ -50,6 +50,10 @@ func (i *instrumentalFile) RemoveExtendField(ctx context.Context, fKey string) e
 	return i.file.RemoveExtendField(ctx, fKey)
 }
 
+func (i *instrumentalFile) RuleMatched(ctx context.Context, ruleSpec types.Rule) bool {
+	return i.file.RuleMatched(ctx, ruleSpec)
+}
+
 func (i *instrumentalFile) IsGroup() bool {
 	return i.file.IsGroup()
 }

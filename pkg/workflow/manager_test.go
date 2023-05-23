@@ -46,7 +46,7 @@ var _ = Describe("TestWorkflowManage", func() {
 	Context("create a workflow", func() {
 		It("should be succeed", func() {
 			var err error
-			wf, err = mgr.SaveWorkflow(context.TODO(), wf)
+			wf, err = mgr.CreateWorkflow(context.TODO(), wf)
 			Expect(err).Should(BeNil())
 			Expect(wf.Id).ShouldNot(BeEmpty())
 		})
@@ -61,6 +61,22 @@ var _ = Describe("TestWorkflowManage", func() {
 			wfList, err := mgr.ListWorkflows(context.TODO())
 			Expect(err).Should(BeNil())
 			Expect(len(wfList) > 0).Should(BeTrue())
+		})
+	})
+
+	Context("update a workflow", func() {
+		var old *types.WorkflowSpec
+		It("get workflow should be succeed", func() {
+			var err error
+			old, err = mgr.GetWorkflow(context.TODO(), wf.Id)
+			Expect(err).Should(BeNil())
+		})
+		It("update should be succeed", func() {
+			old.Name = "test-update-workflow-1"
+			newWf, err := mgr.UpdateWorkflow(context.TODO(), old)
+			Expect(err).Should(BeNil())
+			Expect(newWf.Id).Should(Equal(old.Id))
+			Expect(newWf.Name).Should(Equal("test-update-workflow-1"))
 		})
 	})
 
@@ -98,7 +114,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 	Context("trigger a workflow", func() {
 		It("create workflow should be succeed", func() {
 			var err error
-			wf, err = mgr.SaveWorkflow(context.TODO(), wf)
+			wf, err = mgr.CreateWorkflow(context.TODO(), wf)
 			Expect(err).Should(BeNil())
 			Expect(wf.Id).ShouldNot(BeEmpty())
 		})

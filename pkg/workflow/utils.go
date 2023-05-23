@@ -15,3 +15,16 @@
 */
 
 package workflow
+
+import (
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/google/uuid"
+	"time"
+)
+
+func initWorkflow(wf *types.WorkflowSpec) *types.WorkflowSpec {
+	wf.Id = uuid.New().String()
+	wf.CreatedAt = time.Now()
+	wf.UpdatedAt = time.Now()
+	return wf
+}

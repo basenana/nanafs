@@ -19,6 +19,7 @@ package dentry
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/rule"
 	"github.com/basenana/nanafs/pkg/types"
 	"runtime/trace"
 	"sync"
@@ -37,6 +38,7 @@ type Entry interface {
 	GetExtendField(ctx context.Context, fKey string) (*string, error)
 	SetExtendField(ctx context.Context, fKey, fVal string) error
 	RemoveExtendField(ctx context.Context, fKey string) error
+	RuleMatched(ctx context.Context, ruleSpec types.Rule) bool
 	IsGroup() bool
 	IsMirror() bool
 	Group() Group
@@ -131,6 +133,15 @@ func (r *rawEntry) UpdateExtendData(ctx context.Context, ed types.ExtendData) er
 	r.obj.ExtendDataChanged = true
 	r.obj.ExtendData = &ed
 	return r.store.SaveObjects(ctx, r.obj)
+}
+
+func (r *rawEntry) RuleMatched(ctx context.Context, ruleSpec types.Rule) bool {
+	_, err := r.GetExtendData(ctx)
+	if err != nil {
+		return false
+	}
+	// TODO: fetch labels
+	return rule.ObjectFilter(ruleSpec, r.obj)
 }
 
 func (r *rawEntry) IsGroup() bool {

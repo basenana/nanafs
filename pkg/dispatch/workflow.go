@@ -18,10 +18,16 @@ package dispatch
 
 import (
 	"context"
+	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
+	"go.uber.org/zap"
 )
 
 type workflowAction struct {
+	entry    dentry.Manager
+	recorder metastore.ScheduledTaskRecorder
+	logger   *zap.SugaredLogger
 }
 
 func (w workflowAction) handleEvent(ctx context.Context, evt *types.Event) error {

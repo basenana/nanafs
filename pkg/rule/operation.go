@@ -14,10 +14,9 @@
  limitations under the License.
 */
 
-package group
+package rule
 
 import (
-	"encoding/json"
 	"github.com/basenana/nanafs/pkg/types"
 	"regexp"
 	"strings"
@@ -29,11 +28,11 @@ const (
 	itemDelimiter = ","
 )
 
-type RuleOperation interface {
-	Apply(value *types.Object) bool
+type Operation interface {
+	Apply(value map[string]interface{}) bool
 }
 
-func NewRuleOperation(opType types.RuleOperation, col, val string) RuleOperation {
+func NewRuleOperation(opType, col, val string) Operation {
 	switch opType {
 	case types.RuleOpEqual:
 		return Equal{ColumnKey: col, Content: val}
@@ -44,12 +43,7 @@ func NewRuleOperation(opType types.RuleOperation, col, val string) RuleOperation
 	case types.RuleOpBefore, types.RuleOpAfter:
 		t, err := time.Parse(timeOpFmt, val)
 		if err != nil {
-			if opType == types.RuleOpBefore {
-				return Before{ColumnKey: col, Time: nil}
-			}
-			if opType == types.RuleOpAfter {
-				return After{ColumnKey: col, Time: nil}
-			}
+			return AlwaysFalse{}
 		}
 		if opType == types.RuleOpBefore {
 			return Before{ColumnKey: col, Time: &t}
@@ -71,8 +65,8 @@ type Equal struct {
 	Content   string
 }
 
-func (m Equal) Apply(value *types.Object) bool {
-	return Get(m.ColumnKey, value).(string) == m.Content
+func (m Equal) Apply(value map[string]interface{}) bool {
+	return Get(m.ColumnKey, value) == m.Content
 }
 
 type Pattern struct {
@@ -80,8 +74,8 @@ type Pattern struct {
 	Content   string
 }
 
-func (p Pattern) Apply(value *types.Object) bool {
-	matched, _ := regexp.Match(p.Content, []byte(Get(p.ColumnKey, value).(string)))
+func (p Pattern) Apply(value map[string]interface{}) bool {
+	matched, _ := regexp.Match(p.Content, []byte(Get(p.ColumnKey, value)))
 	return matched
 }
 
@@ -90,8 +84,8 @@ type BeginWith struct {
 	Content   string
 }
 
-func (b BeginWith) Apply(value *types.Object) bool {
-	return strings.HasPrefix(Get(b.ColumnKey, value).(string), b.Content)
+func (b BeginWith) Apply(value map[string]interface{}) bool {
+	return strings.HasPrefix(Get(b.ColumnKey, value), b.Content)
 }
 
 type Before struct {
@@ -99,11 +93,11 @@ type Before struct {
 	Time      *time.Time
 }
 
-func (b Before) Apply(value *types.Object) bool {
+func (b Before) Apply(value map[string]interface{}) bool {
 	if b.Time == nil {
 		return false
 	}
-	t, err := time.Parse("2006-01-02T15:04:05Z07:00", Get(b.ColumnKey, value).(string))
+	t, err := time.Parse(time.RFC3339, Get(b.ColumnKey, value))
 	if err != nil {
 		return false
 	}
@@ -115,11 +109,11 @@ type After struct {
 	Time      *time.Time
 }
 
-func (a After) Apply(value *types.Object) bool {
+func (a After) Apply(value map[string]interface{}) bool {
 	if a.Time == nil {
 		return false
 	}
-	t, err := time.Parse("2006-01-02T15:04:05Z07:00", Get(a.ColumnKey, value).(string))
+	t, err := time.Parse(time.RFC3339, Get(a.ColumnKey, value))
 	if err != nil {
 		return false
 	}
@@ -131,8 +125,8 @@ type In struct {
 	Content   []string
 }
 
-func (i In) Apply(value *types.Object) bool {
-	v := Get(i.ColumnKey, value).(string)
+func (i In) Apply(value map[string]interface{}) bool {
+	v := Get(i.ColumnKey, value)
 	for _, c := range i.Content {
 		if v == c {
 			return true
@@ -141,31 +135,56 @@ func (i In) Apply(value *types.Object) bool {
 	return false
 }
 
-func Get(columnKey string, o *types.Object) interface{} {
-	res, err := json.Marshal(o)
-	if err != nil {
-		return nil
-	}
+type AlwaysFalse struct{}
 
-	return getVal(columnKey, res)
+func (a AlwaysFalse) Apply(value map[string]interface{}) bool {
+	return false
 }
 
-func getVal(key string, data []byte) interface{} {
-	resMap := make(map[string]interface{})
-	err := json.Unmarshal(data, &resMap)
-	if err != nil {
-		return nil
+func Get(columnKey string, o map[string]interface{}) string {
+	result, ok := getVal(columnKey, o).(string)
+	if !ok {
+		return ""
 	}
+	return result
+}
 
+func getVal(key string, resMap map[string]interface{}) interface{} {
 	keyParts := strings.SplitN(key, ".", 1)
 	subKey := keyParts[0]
 	if len(keyParts) == 1 {
 		return resMap[subKey]
 	}
 
-	res, err := json.Marshal(resMap[subKey])
-	if err != nil {
-		return nil
+	return getVal(keyParts[1], resMap[subKey].(map[string]interface{}))
+}
+
+func labelOperation(labels *types.Labels, match *types.LabelMatch) bool {
+	if labels == nil {
+		labels = &types.Labels{}
 	}
-	return getVal(keyParts[1], res)
+
+	if match == nil {
+		return false
+	}
+
+	needInclude := map[string]string{}
+	needExclude := map[string]struct{}{}
+	for _, in := range match.Include {
+		needInclude[in.Key] = in.Value
+	}
+	for _, exKey := range match.Exclude {
+		needExclude[exKey] = struct{}{}
+	}
+
+	for _, l := range labels.Labels {
+		inVal, has := needInclude[l.Key]
+		if has && inVal == l.Value {
+			delete(needInclude, l.Key)
+		}
+		if _, hasEx := needExclude[l.Key]; hasEx {
+			return false
+		}
+	}
+	return len(needInclude) == 0
 }

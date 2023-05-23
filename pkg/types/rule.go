@@ -16,23 +16,11 @@
 
 package types
 
-type Rule struct {
-	Filters  RuleFilter `json:"filters"`
-	Selector LabelMatch `json:"selector"`
-}
-
-type RuleFilter struct {
-	Logic   RuleFilterLogic `json:"logic,omitempty"`
-	Filters []RuleFilter    `json:"filters,omitempty"`
-
-	Operation RuleOperation `json:"operation,omitempty"`
-	Column    string        `json:"column,omitempty"`
-	Value     string        `json:"value,omitempty"`
-}
-
-type RuleOperation string
-
 const (
+	RuleLogicAll = "all"
+	RuleLogicAny = "any"
+	RuleLogicNot = "not"
+
 	RuleOpEqual     = "equal"
 	RuleOpBeginWith = "prefix"
 	RuleOpPattern   = "pattern"
@@ -41,9 +29,13 @@ const (
 	RuleOpIn        = "in"
 )
 
-type RuleFilterLogic string
+type Rule struct {
+	Logic string `json:"logic,omitempty"`
+	Rules []Rule `json:"rules,omitempty"`
 
-const (
-	RuleLogicAll = "all"
-	RuleLogicAny = "any"
-)
+	Operation string `json:"operation,omitempty"`
+	Column    string `json:"column,omitempty"`
+	Value     string `json:"value,omitempty"`
+
+	Labels *LabelMatch `json:"labels,omitempty"`
+}
