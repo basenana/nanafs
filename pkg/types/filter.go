@@ -26,6 +26,13 @@ type Filter struct {
 	Label     LabelMatch
 }
 
+type JobFilter struct {
+	WorkFlowID  string
+	JobID       string
+	Status      string
+	TargetEntry int64
+}
+
 type LabelMatch struct {
 	Include []Label  `json:"include"`
 	Exclude []string `json:"exclude"`

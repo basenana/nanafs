@@ -39,18 +39,6 @@ type maintainExecutor struct {
 	logger   *zap.SugaredLogger
 }
 
-func (m *maintainExecutor) getWaitingTask(ctx context.Context, taskID string, evt *types.Event) (*types.ScheduledTask, error) {
-	tasks, err := m.recorder.ListTask(ctx, taskID,
-		types.ScheduledTaskFilter{RefType: evt.RefType, RefID: evt.RefID, Status: []string{types.ScheduledTaskInitial, types.ScheduledTaskWait}})
-	if err != nil {
-		return nil, fmt.Errorf("list waiting task error: %s", err)
-	}
-	if len(tasks) == 0 {
-		return nil, nil
-	}
-	return tasks[0], nil
-}
-
 type compactExecutor struct {
 	*maintainExecutor
 }
@@ -59,7 +47,7 @@ func (c *compactExecutor) handleEvent(ctx context.Context, evt *types.Event) err
 	if evt.Type != events.ActionTypeCompact {
 		return nil
 	}
-	task, err := c.getWaitingTask(ctx, maintainTaskIDChunkCompact, evt)
+	task, err := getWaitingTask(ctx, c.recorder, maintainTaskIDChunkCompact, evt)
 	if err != nil {
 		c.logger.Errorw("[compactExecutor] list scheduled task error", "entry", evt.RefID, "err", err.Error())
 		return err
@@ -128,7 +116,7 @@ func (c *entryCleanExecutor) handleEvent(ctx context.Context, evt *types.Event) 
 		return nil
 	}
 
-	task, err := c.getWaitingTask(ctx, maintainTaskIDEntryCleanup, evt)
+	task, err := getWaitingTask(ctx, c.recorder, maintainTaskIDEntryCleanup, evt)
 	if err != nil {
 		return err
 	}

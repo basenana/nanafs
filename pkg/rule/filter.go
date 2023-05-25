@@ -18,8 +18,8 @@ package rule
 
 import "github.com/basenana/nanafs/pkg/types"
 
-func ObjectFilter(filter types.Rule, obj *types.Object) bool {
-	return objectFilter(filter, objectToMap(obj), obj.Labels)
+func ObjectFilter(filter types.Rule, md *types.Metadata, ex *types.ExtendData, label *types.Labels) bool {
+	return objectFilter(filter, objectToMap(&object{Metadata: md, ExtendData: ex, Labels: label}), label)
 }
 
 func objectFilter(filter types.Rule, obj map[string]interface{}, labels *types.Labels) bool {
@@ -56,4 +56,10 @@ func objectFilter(filter types.Rule, obj map[string]interface{}, labels *types.L
 		return true
 	}
 	return false
+}
+
+type object struct {
+	*types.Metadata
+	*types.ExtendData
+	*types.Labels
 }

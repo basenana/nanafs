@@ -118,7 +118,7 @@ func (m *manager) DeleteWorkflow(ctx context.Context, wfId string) error {
 }
 
 func (m *manager) ListJobs(ctx context.Context, wfId string) ([]*types.WorkflowJob, error) {
-	result, err := m.recorder.ListWorkflowJob(ctx, wfId)
+	result, err := m.recorder.ListWorkflowJob(ctx, types.JobFilter{WorkFlowID: wfId})
 	if err != nil {
 		return nil, err
 	}

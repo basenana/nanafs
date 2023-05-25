@@ -107,14 +107,17 @@ func (r *Runner) triggerJob(ctx context.Context, job *Job) {
 }
 
 func (r *Runner) GetFlow(flowId flow.FID) (flow.Flow, error) {
-	wfJob, err := r.recorder.GetWorkflowJob(context.Background(), string(flowId))
+	wfJob, err := r.recorder.ListWorkflowJob(context.Background(), types.JobFilter{JobID: string(flowId)})
 	if err != nil {
 		r.logger.Errorw("load job failed", "err", err)
 		return nil, err
 	}
+	if len(wfJob) == 0 {
+		return nil, types.ErrNotFound
+	}
 
 	job := &Job{
-		WorkflowJob: wfJob,
+		WorkflowJob: wfJob[0],
 		logger:      r.logger.With(zap.String("job", string(flowId))),
 	}
 	return job, nil

@@ -31,7 +31,7 @@ func TestRule_Apply(t *testing.T) {
 		Value     string
 	}
 	type args struct {
-		value *types.Object
+		value *object
 	}
 	tests := []struct {
 		name   string
@@ -42,61 +42,61 @@ func TestRule_Apply(t *testing.T) {
 		{
 			name:   "test-equal",
 			fields: fields{Operation: types.RuleOpEqual, Column: "name", Value: "abc"},
-			args:   args{value: &types.Object{Metadata: types.Metadata{ID: 1024, Name: "abc"}}},
+			args:   args{value: &object{Metadata: &types.Metadata{ID: 1024, Name: "abc"}}},
 			want:   true,
 		},
 		{
 			name:   "test-not-equal",
 			fields: fields{Operation: types.RuleOpEqual, Column: "name", Value: "abc"},
-			args:   args{value: &types.Object{Metadata: types.Metadata{Name: "aaa"}}},
+			args:   args{value: &object{Metadata: &types.Metadata{Name: "aaa"}}},
 			want:   false,
 		},
 		{
 			name:   "test-pattern",
 			fields: fields{Operation: types.RuleOpPattern, Column: "name", Value: "[a-z]+"},
-			args:   args{value: &types.Object{Metadata: types.Metadata{Name: "aaa"}}},
+			args:   args{value: &object{Metadata: &types.Metadata{Name: "aaa"}}},
 			want:   true,
 		},
 		{
 			name:   "test-not-pattern",
 			fields: fields{Operation: types.RuleOpPattern, Column: "name", Value: "[a-z]+"},
-			args:   args{value: &types.Object{Metadata: types.Metadata{Name: "AAA"}}},
+			args:   args{value: &object{Metadata: &types.Metadata{Name: "AAA"}}},
 			want:   false,
 		},
 		{
 			name:   "test-in",
 			fields: fields{Operation: types.RuleOpIn, Column: "name", Value: "aaa,bbb"},
-			args:   args{value: &types.Object{Metadata: types.Metadata{Name: "aaa"}}},
+			args:   args{value: &object{Metadata: &types.Metadata{Name: "aaa"}}},
 			want:   true,
 		},
 		{
 			name:   "test-not-in",
 			fields: fields{Operation: types.RuleOpIn, Column: "name", Value: "aaa,bbb"},
-			args:   args{value: &types.Object{Metadata: types.Metadata{Name: "abc"}}},
+			args:   args{value: &object{Metadata: &types.Metadata{Name: "abc"}}},
 			want:   false,
 		},
 		{
 			name:   "test-before",
 			fields: fields{Operation: types.RuleOpBefore, Column: "created_at", Value: time.Now().AddDate(1, 1, 1).Format(timeOpFmt)},
-			args:   args{value: &types.Object{Metadata: types.Metadata{CreatedAt: time.Now()}}},
+			args:   args{value: &object{Metadata: &types.Metadata{CreatedAt: time.Now()}}},
 			want:   true,
 		},
 		{
 			name:   "test-not-before",
 			fields: fields{Operation: types.RuleOpBefore, Column: "created_at", Value: time.Now().Format(timeOpFmt)},
-			args:   args{value: &types.Object{Metadata: types.Metadata{CreatedAt: time.Now().AddDate(1, 1, 1)}}},
+			args:   args{value: &object{Metadata: &types.Metadata{CreatedAt: time.Now().AddDate(1, 1, 1)}}},
 			want:   false,
 		},
 		{
 			name:   "test-after",
 			fields: fields{Operation: types.RuleOpAfter, Column: "created_at", Value: time.Now().Format(timeOpFmt)},
-			args:   args{value: &types.Object{Metadata: types.Metadata{CreatedAt: time.Now().AddDate(1, 1, 1)}}},
+			args:   args{value: &object{Metadata: &types.Metadata{CreatedAt: time.Now().AddDate(1, 1, 1)}}},
 			want:   true,
 		},
 		{
 			name:   "test-not-after",
 			fields: fields{Operation: types.RuleOpAfter, Column: "created_at", Value: time.Now().AddDate(1, 1, 1).Format(timeOpFmt)},
-			args:   args{value: &types.Object{Metadata: types.Metadata{CreatedAt: time.Now()}}},
+			args:   args{value: &object{Metadata: &types.Metadata{CreatedAt: time.Now()}}},
 			want:   false,
 		},
 	}

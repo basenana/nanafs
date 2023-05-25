@@ -136,12 +136,14 @@ func (r *rawEntry) UpdateExtendData(ctx context.Context, ed types.ExtendData) er
 }
 
 func (r *rawEntry) RuleMatched(ctx context.Context, ruleSpec types.Rule) bool {
-	_, err := r.GetExtendData(ctx)
-	if err != nil {
-		return false
+	if r.obj.ExtendData == nil {
+		_, err := r.GetExtendData(ctx)
+		if err != nil {
+			return false
+		}
 	}
 	// TODO: fetch labels
-	return rule.ObjectFilter(ruleSpec, r.obj)
+	return rule.ObjectFilter(ruleSpec, &r.obj.Metadata, r.obj.ExtendData, r.obj.Labels)
 }
 
 func (r *rawEntry) IsGroup() bool {

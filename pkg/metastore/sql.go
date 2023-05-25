@@ -158,16 +158,10 @@ func (s *sqliteMetaStore) DeleteWorkflow(ctx context.Context, wfID string) error
 	return s.dbStore.DeleteWorkflow(ctx, wfID)
 }
 
-func (s *sqliteMetaStore) GetWorkflowJob(ctx context.Context, wfJobID string) (*types.WorkflowJob, error) {
+func (s *sqliteMetaStore) ListWorkflowJob(ctx context.Context, filter types.JobFilter) ([]*types.WorkflowJob, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.GetWorkflowJob(ctx, wfJobID)
-}
-
-func (s *sqliteMetaStore) ListWorkflowJob(ctx context.Context, wfID string) ([]*types.WorkflowJob, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.ListWorkflowJob(ctx, wfID)
+	return s.dbStore.ListWorkflowJob(ctx, filter)
 }
 
 func (s *sqliteMetaStore) SaveWorkflow(ctx context.Context, wf *types.WorkflowSpec) error {
@@ -402,18 +396,9 @@ func (s *sqlMetaStore) DeleteWorkflow(ctx context.Context, wfID string) error {
 	return nil
 }
 
-func (s *sqlMetaStore) GetWorkflowJob(ctx context.Context, wfJobID string) (*types.WorkflowJob, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.GetWorkflowJob").End()
-	job, err := s.dbEntity.GetWorkflowJob(ctx, wfJobID)
-	if err != nil {
-		return nil, db.SqlError2Error(err)
-	}
-	return job, nil
-}
-
-func (s *sqlMetaStore) ListWorkflowJob(ctx context.Context, wfID string) ([]*types.WorkflowJob, error) {
+func (s *sqlMetaStore) ListWorkflowJob(ctx context.Context, filter types.JobFilter) ([]*types.WorkflowJob, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListWorkflowJob").End()
-	jobList, err := s.dbEntity.ListWorkflowJob(ctx, wfID)
+	jobList, err := s.dbEntity.ListWorkflowJob(ctx, filter)
 	if err != nil {
 		return nil, db.SqlError2Error(err)
 	}
