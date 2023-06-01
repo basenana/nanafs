@@ -511,7 +511,22 @@ func (e *Entity) DeleteWorkflow(ctx context.Context, wfID string) error {
 
 func (e *Entity) ListWorkflowJob(ctx context.Context, filter types.JobFilter) ([]*types.WorkflowJob, error) {
 	jobList := make([]WorkflowJob, 0)
-	res := e.DB.WithContext(ctx).Where("workflow = ?", filter.WorkFlowID).Order("created_at desc").Find(&jobList)
+	query := e.DB.WithContext(ctx)
+
+	if filter.JobID != "" {
+		query = query.Where("id = ?", filter.JobID)
+	}
+	if filter.WorkFlowID != "" {
+		query = query.Where("workflow = ?", filter.WorkFlowID)
+	}
+	if filter.Status != "" {
+		query = query.Where("status = ?", filter.Status)
+	}
+	if filter.TargetEntry != 0 {
+		query = query.Where("target_entry = ?", filter.TargetEntry)
+	}
+
+	res := query.Order("created_at desc").Find(&jobList)
 	if res.Error != nil {
 		return nil, res.Error
 	}

@@ -23,6 +23,7 @@ import (
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/pkg/workflow"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"runtime/trace"
@@ -58,8 +59,9 @@ type controller struct {
 	cfg       config.Config
 	cfgLoader config.Loader
 
-	entry dentry.Manager
-	cache *entryCache
+	entry    dentry.Manager
+	workflow workflow.Manager
+	cache    *entryCache
 
 	logger *zap.SugaredLogger
 }

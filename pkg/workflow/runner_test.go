@@ -21,6 +21,7 @@ import (
 	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/nanafs/pkg/plugin/common"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"time"
@@ -34,26 +35,31 @@ var _ = Describe("TestWorkflowTrigger", func() {
 		Parameters: map[string]string{},
 	}
 	caller.mockResponse(ps, func() (*common.Response, error) { return &common.Response{IsSucceed: true}, nil })
+	WID := uuid.New().String()
 
 	Context("with a single workflow", func() {
 		It("should be succeed", func() {
-			job, err := runner.WorkFlowHandler(context.TODO(), &types.WorkflowSpec{
+			job, err := assembleWorkflowJob(&types.WorkflowSpec{
+				Id:   WID,
 				Name: "test-workflow",
 				Rule: types.Rule{},
 				Steps: []types.WorkflowStepSpec{{
 					Name:   "dummy-1",
 					Plugin: ps,
 				}},
-			})
-			if err != nil {
-				Expect(err).Should(BeNil())
-				return
-			}
+			}, 0)
+			Expect(err).Should(BeNil())
 
+			runner.triggerJob(context.TODO(), job)
 			Eventually(func() string {
-				f, err := runner.GetFlow(flow.FID(job.Id))
+				jobs, err := mgr.ListJobs(context.TODO(), job.Workflow)
 				Expect(err).Should(BeNil())
-				return string(f.GetStatus())
+				for _, j := range jobs {
+					if j.Id == job.Id {
+						return j.Status
+					}
+				}
+				return ""
 			}, time.Minute, time.Second).Should(Equal(string(flow.SucceedStatus)))
 		})
 	})

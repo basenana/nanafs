@@ -124,7 +124,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 		var job *types.WorkflowJob
 		It("trigger workflow should be succeed", func() {
 			var err error
-			job, err = mgr.TriggerWorkflow(context.TODO(), wf.Id)
+			job, err = mgr.TriggerWorkflow(context.TODO(), wf.Id, 0)
 			Expect(err).Should(BeNil())
 			Expect(job.Id).ShouldNot(BeEmpty())
 		})
@@ -214,7 +214,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 		var job *types.WorkflowJob
 		It("trigger workflow should be succeed", func() {
 			var err error
-			job, err = mgr.TriggerWorkflow(context.TODO(), wf.Id)
+			job, err = mgr.TriggerWorkflow(context.TODO(), wf.Id, 0)
 			Expect(err).Should(BeNil())
 			Expect(job.Id).ShouldNot(BeEmpty())
 

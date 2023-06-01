@@ -292,7 +292,7 @@ type WorkflowJob struct {
 	TargetEntry   int64     `gorm:"column:target_entry;index:job_tgt_en"`
 	Target        string    `gorm:"column:target"`
 	Steps         string    `gorm:"column:steps"`
-	Status        string    `gorm:"column:status"`
+	Status        string    `gorm:"column:status;index:job_status"`
 	Message       string    `gorm:"column:message"`
 	Executor      string    `gorm:"column:executor;index:job_executor"`
 	StartAt       time.Time `gorm:"column:start_at"`
