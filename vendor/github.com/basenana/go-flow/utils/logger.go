@@ -14,7 +14,7 @@
    limitations under the License.
 */
 
-package log
+package utils
 
 import (
 	"fmt"
@@ -26,6 +26,18 @@ const (
 	defaultLogName = ""
 	defaultLogFmt  = " [%s] %v\n"
 )
+
+type Logger interface {
+	Error(interface{})
+	Errorf(string, ...interface{})
+	Warn(interface{})
+	Warnf(string, ...interface{})
+	Info(interface{})
+	Infof(string, ...interface{})
+	Debug(interface{})
+	Debugf(string, ...interface{})
+	With(string) Logger
+}
 
 type defaultLog struct {
 	name string

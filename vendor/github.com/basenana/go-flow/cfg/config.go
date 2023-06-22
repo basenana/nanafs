@@ -1,5 +1,5 @@
 /*
-   Copyright 2022 Go-Flow Authors
+   Copyright 2023 Go-Flow Authors
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -14,24 +14,9 @@
    limitations under the License.
 */
 
-package storage
+package cfg
 
-import (
-	"github.com/basenana/go-flow/flow"
-	"github.com/basenana/go-flow/fsm"
+var (
+	LocalWorkdirBase   = "/tmp"
+	LocalPythonVersion = "2"
 )
-
-type FlowMeta struct {
-	Type       flow.FType
-	Id         flow.FID
-	Status     fsm.Status
-	TaskStatus map[flow.TName]fsm.Status
-}
-
-func (f FlowMeta) QueryTaskStatus(taskName flow.TName) (fsm.Status, error) {
-	status, ok := f.TaskStatus[taskName]
-	if !ok {
-		return "", NotFound
-	}
-	return status, nil
-}

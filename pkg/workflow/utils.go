@@ -20,8 +20,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/go-flow/flow"
-	"github.com/basenana/go-flow/fsm"
-	flowstorage "github.com/basenana/go-flow/storage"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
@@ -45,8 +43,10 @@ type storageWrapper struct {
 	logger   *zap.SugaredLogger
 }
 
-func (s *storageWrapper) GetFlow(flowId flow.FID) (flow.Flow, error) {
-	wfJob, err := s.recorder.ListWorkflowJob(context.Background(), types.JobFilter{JobID: string(flowId)})
+var _ flow.Storage = &storageWrapper{}
+
+func (s *storageWrapper) GetFlow(ctx context.Context, flowId string) (*flow.Flow, error) {
+	wfJob, err := s.recorder.ListWorkflowJob(ctx, types.JobFilter{JobID: flowId})
 	if err != nil {
 		s.logger.Errorw("load job failed", "err", err)
 		return nil, err
@@ -54,44 +54,35 @@ func (s *storageWrapper) GetFlow(flowId flow.FID) (flow.Flow, error) {
 	if len(wfJob) == 0 {
 		return nil, types.ErrNotFound
 	}
+	wf := wfJob[0]
 
-	job := &Job{
-		WorkflowJob: wfJob[0],
-		logger:      s.logger.With(zap.String("job", string(flowId))),
-	}
-	return job, nil
+	return assembleFlow(wf)
 }
 
-func (s *storageWrapper) GetFlowMeta(flowId flow.FID) (*flowstorage.FlowMeta, error) {
-	flowJob, err := s.GetFlow(flowId)
+func (s *storageWrapper) SaveFlow(ctx context.Context, flow *flow.Flow) error {
+	wfJob, err := s.recorder.ListWorkflowJob(ctx, types.JobFilter{JobID: flow.ID})
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("query workflow job failed: %s", err)
 	}
+	if len(wfJob) == 0 {
+		return fmt.Errorf("query workflow job failed: %s not found", flow.ID)
+	}
+	wf := wfJob[0]
 
-	job, ok := flowJob.(*Job)
-	if !ok {
-		return nil, ErrJobNotFound
+	wf.Status = flow.Status
+	wf.Message = flow.Message
+	for i, step := range wf.Steps {
+		for _, task := range flow.Tasks {
+			if step.StepName == task.Name {
+				wf.Steps[i].Status = task.Status
+				wf.Steps[i].Message = task.Message
+				break
+			}
+		}
 	}
+	wf.UpdatedAt = time.Now()
 
-	result := &flowstorage.FlowMeta{
-		Type:       job.Type(),
-		Id:         job.ID(),
-		Status:     job.GetStatus(),
-		TaskStatus: map[flow.TName]fsm.Status{},
-	}
-	for _, step := range job.Steps {
-		result.TaskStatus[flow.TName(step.StepName)] = fsm.Status(step.Status)
-	}
-	return result, nil
-}
-
-func (s *storageWrapper) SaveFlow(flow flow.Flow) error {
-	job, ok := flow.(*Job)
-	if !ok {
-		return fmt.Errorf("flow %s not a Job object", flow.ID())
-	}
-
-	err := s.recorder.SaveWorkflowJob(context.Background(), job.WorkflowJob)
+	err = s.recorder.SaveWorkflowJob(ctx, wf)
 	if err != nil {
 		s.logger.Errorw("save job to metadb failed", "err", err)
 		return err
@@ -100,8 +91,8 @@ func (s *storageWrapper) SaveFlow(flow flow.Flow) error {
 	return nil
 }
 
-func (s *storageWrapper) DeleteFlow(flowId flow.FID) error {
-	err := s.recorder.DeleteWorkflowJob(context.Background(), string(flowId))
+func (s *storageWrapper) DeleteFlow(ctx context.Context, flowId string) error {
+	err := s.recorder.DeleteWorkflowJob(ctx, flowId)
 	if err != nil {
 		s.logger.Errorw("delete job to metadb failed", "err", err)
 		return err
@@ -109,35 +100,27 @@ func (s *storageWrapper) DeleteFlow(flowId flow.FID) error {
 	return nil
 }
 
-func (s *storageWrapper) SaveTask(flowId flow.FID, task flow.Task) error {
-	flowJob, err := s.GetFlow(flowId)
+func (s *storageWrapper) SaveTask(ctx context.Context, flowId string, task *flow.Task) error {
+	flowJob, err := s.GetFlow(ctx, flowId)
 	if err != nil {
 		return err
 	}
 
-	job, ok := flowJob.(*Job)
-	if !ok {
-		return ErrJobNotFound
-	}
-
-	for i, step := range job.Steps {
-		if step.StepName == string(task.Name()) {
-			job.Steps[i].Status = string(task.GetStatus())
-			job.Steps[i].Message = task.GetMessage()
+	for i, t := range flowJob.Tasks {
+		if t.Name == task.Name {
+			flowJob.Tasks[i] = *task
 			break
 		}
 	}
 
-	return s.SaveFlow(job)
+	return s.SaveFlow(ctx, flowJob)
 }
 
-func (s *storageWrapper) DeleteTask(flowId flow.FID, taskName flow.TName) error {
-	return nil
-}
-
-func copyEntryToJobWorkDir(ctx context.Context, base, jobID string, entry dentry.File) (string, error) {
-	filePath := path.Join(jobWorkdir(base, jobID), entry.Metadata().Name)
-
+func copyEntryToJobWorkDir(ctx context.Context, workDir, entryPath string, entry dentry.File) (string, error) {
+	if entryPath == "" {
+		entryPath = entry.Metadata().Name
+	}
+	filePath := path.Join(workDir, entryPath)
 	f, err := os.OpenFile(filePath, os.O_RDWR, 0755)
 	if err != nil {
 		return "", err
@@ -165,39 +148,4 @@ func copyEntryToJobWorkDir(ctx context.Context, base, jobID string, entry dentry
 	}
 
 	return filePath, nil
-}
-
-func initJobWorkDir(base, jobID string) error {
-	dir := jobWorkdir(base, jobID)
-	s, err := os.Stat(dir)
-	if err != nil && err != os.ErrNotExist {
-		return err
-	}
-	if err == nil {
-		if s.IsDir() {
-			return nil
-		}
-		return types.ErrNoGroup
-	}
-	return os.MkdirAll(dir, 0755)
-}
-
-func cleanUpJobWorkDir(base, jobID string) error {
-	dir := jobWorkdir(base, jobID)
-	s, err := os.Stat(dir)
-	if err != nil {
-		if err == os.ErrNotExist {
-			return nil
-		}
-		return err
-	}
-	if !s.IsDir() {
-		return types.ErrNoGroup
-	}
-
-	return os.RemoveAll(dir)
-}
-
-func jobWorkdir(base, jobID string) string {
-	return path.Join(base, "jobs", jobID)
 }

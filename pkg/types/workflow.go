@@ -16,7 +16,9 @@
 
 package types
 
-import "time"
+import (
+	"time"
+)
 
 type WorkflowSpec struct {
 	Id              string             `json:"id"`
@@ -30,8 +32,9 @@ type WorkflowSpec struct {
 }
 
 type WorkflowStepSpec struct {
-	Name   string    `json:"name"`
-	Plugin PlugScope `json:"plugin"`
+	Name   string              `json:"name"`
+	Plugin *PlugScope          `json:"plugin,omitempty"`
+	Script *WorkflowStepScript `json:"script,omitempty"`
 }
 
 type WorkflowJob struct {
@@ -49,13 +52,30 @@ type WorkflowJob struct {
 }
 
 type WorkflowJobStep struct {
-	StepName string    `json:"step_name"`
-	Message  string    `json:"message"`
-	Status   string    `json:"status"`
-	Plugin   PlugScope `json:"plugin"`
+	StepName string               `json:"step_name"`
+	Message  string               `json:"message"`
+	Status   string               `json:"status"`
+	Plugin   *PlugScope           `json:"plugin,omitempty"`
+	Operator *WorkflowJobOperator `json:"operator,omitempty"`
+	Script   *WorkflowStepScript  `json:"script,omitempty"`
 }
 
 type WorkflowTarget struct {
 	EntryID *int64 `json:"entry_id,omitempty"`
 	Rule    *Rule  `json:"rule,omitempty"`
+}
+
+type WorkflowStepScript struct {
+	Type    string            `json:"type"`
+	Content string            `json:"content,omitempty"`
+	Command []string          `json:"command,omitempty"`
+	Env     map[string]string `json:"env,omitempty"`
+}
+
+type WorkflowJobOperator struct {
+	Name       string            `json:"name"`
+	Parameters map[string]string `json:"parameters"`
+}
+
+type WorkflowEntryResult struct {
 }

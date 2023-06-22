@@ -34,7 +34,6 @@ import (
 var (
 	stopCh = make(chan struct{})
 	caller = &pluginCaller{response: map[string]func() (*common.Response, error){}}
-	runner *Runner
 	mgr    Manager
 )
 
@@ -50,9 +49,6 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 	mgr, err = NewManager(memMeta)
 	Expect(err).Should(BeNil())
-
-	runner = mgr.(*manager).runner
-	Expect(runner.Start(stopCh)).Should(BeNil())
 
 	pluginCall = caller.call
 })

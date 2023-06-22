@@ -1,13 +1,13 @@
 # github.com/aliyun/aliyun-oss-go-sdk v2.2.7+incompatible
 ## explicit
 github.com/aliyun/aliyun-oss-go-sdk/oss
-# github.com/basenana/go-flow v0.0.0-20220322140457-971dcb315a41
+# github.com/basenana/go-flow v0.0.0-20230622071750-10d0710704a8
 ## explicit; go 1.15
-github.com/basenana/go-flow/controller
+github.com/basenana/go-flow/cfg
+github.com/basenana/go-flow/exec
 github.com/basenana/go-flow/flow
 github.com/basenana/go-flow/fsm
-github.com/basenana/go-flow/log
-github.com/basenana/go-flow/storage
+github.com/basenana/go-flow/utils
 # github.com/bluele/gcache v0.0.2
 ## explicit; go 1.15
 github.com/bluele/gcache

@@ -17,10 +17,10 @@
 package fsm
 
 import (
-	"github.com/basenana/go-flow/log"
+	"github.com/basenana/go-flow/utils"
 )
 
 type Option struct {
 	Obj    Stateful
-	Logger log.Logger
+	Logger utils.Logger
 }
