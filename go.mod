@@ -9,16 +9,16 @@ require (
 	github.com/glebarez/sqlite v1.7.0
 	github.com/go-gormigrate/gormigrate/v2 v2.0.2
 	github.com/google/uuid v1.3.0
-	github.com/hanwen/go-fuse/v2 v2.2.0
+	github.com/hanwen/go-fuse/v2 v2.3.0
 	github.com/hyponet/eventbus v1.0.0
 	github.com/minio/minio-go/v7 v7.0.52
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.27.2
 	github.com/pierrec/lz4/v4 v4.1.17
-	github.com/studio-b12/gowebdav v0.0.0-20230203202212-3282f94193f2
+	github.com/studio-b12/gowebdav v0.9.0
 	go.uber.org/zap v1.24.0
 	golang.org/x/net v0.7.0
-	golang.org/x/sys v0.5.0
+	golang.org/x/sys v0.9.0
 	gorm.io/driver/postgres v1.3.7
 )
 
