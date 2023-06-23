@@ -121,11 +121,15 @@ func copyEntryToJobWorkDir(ctx context.Context, workDir, entryPath string, entry
 		entryPath = entry.Metadata().Name
 	}
 	filePath := path.Join(workDir, entryPath)
-	f, err := os.OpenFile(filePath, os.O_RDWR, 0755)
+	f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0755)
 	if err != nil {
 		return "", err
 	}
 	defer f.Close()
+
+	if err = f.Truncate(0); err != nil {
+		return "", err
+	}
 
 	var (
 		buf = make([]byte, 1024)
@@ -138,6 +142,7 @@ func copyEntryToJobWorkDir(ctx context.Context, workDir, entryPath string, entry
 			if wErr != nil {
 				return "", wErr
 			}
+			off += n
 		}
 		if rErr != nil {
 			if rErr == io.EOF {

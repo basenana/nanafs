@@ -33,7 +33,7 @@ var _ = Describe("TestWorkflowManage", func() {
 		Steps: []types.WorkflowStepSpec{
 			{
 				Name: "step-1",
-				Plugin: types.PlugScope{
+				Plugin: &types.PlugScope{
 					PluginName: "test-process-plugin-succeed",
 					Version:    "1.0",
 					PluginType: types.TypeProcess,
@@ -92,7 +92,7 @@ var _ = Describe("TestWorkflowManage", func() {
 })
 
 var _ = Describe("TestWorkflowJobManage", func() {
-	ps := types.PlugScope{
+	ps := &types.PlugScope{
 		PluginName: "test-sleep-plugin-succeed",
 		Version:    "1.0",
 		PluginType: types.TypeProcess,
@@ -107,8 +107,8 @@ var _ = Describe("TestWorkflowJobManage", func() {
 			{Name: "step-2", Plugin: ps},
 		},
 	}
-	caller.mockResponse(ps, func() (*common.Response, error) {
-		time.Sleep(time.Second)
+	caller.mockResponse(*ps, func() (*common.Response, error) {
+		time.Sleep(time.Second * 5)
 		return &common.Response{IsSucceed: true}, nil
 	})
 	Context("trigger a workflow", func() {
@@ -144,71 +144,71 @@ var _ = Describe("TestWorkflowJobManage", func() {
 		})
 	})
 
-	//Context("pause workflow job", func() {
-	//	var job types.WorkflowJob
-	//	It("trigger workflow should be succeed", func() {
-	//		var err error
-	//		job, err = mgr.TriggerWorkflow(context.TODO(), wf.Id)
-	//		Expect(err).Should(BeNil())
-	//		Expect(job.Id).ShouldNot(BeEmpty())
-	//
-	//		Eventually(func() string {
-	//			jobList, err := mgr.ListJobs(context.TODO(), wf.Id)
-	//			Expect(err).Should(BeNil())
-	//
-	//			for _, j := range jobList {
-	//				if j.Id == job.Id {
-	//					return j.Status
-	//				}
-	//			}
-	//			return ""
-	//		}, time.Minute, time.Second).Should(Equal(string(flow.RunningStatus)))
-	//	})
-	//
-	//	It("pause job should be succeed", func() {
-	//		Expect(mgr.PauseWorkflowJob(context.TODO(), job.Id)).Should(BeNil())
-	//		Eventually(func() string {
-	//			jobList, err := mgr.ListJobs(context.TODO(), wf.Id)
-	//			Expect(err).Should(BeNil())
-	//
-	//			for _, j := range jobList {
-	//				if j.Id == job.Id {
-	//					return j.Status
-	//				}
-	//			}
-	//			return ""
-	//		}, time.Minute, time.Second).Should(Equal(string(flow.PausedStatus)))
-	//	})
-	//
-	//	It("resume job should be succeed", func() {
-	//		Expect(mgr.ResumeWorkflowJob(context.TODO(), job.Id)).Should(BeNil())
-	//		Eventually(func() string {
-	//			jobList, err := mgr.ListJobs(context.TODO(), wf.Id)
-	//			Expect(err).Should(BeNil())
-	//
-	//			for _, j := range jobList {
-	//				if j.Id == job.Id {
-	//					return j.Status
-	//				}
-	//			}
-	//			return ""
-	//		}, time.Minute, time.Second).Should(Equal(string(flow.RunningStatus)))
-	//	})
-	//
-	//	It("job should be succeed", func() {
-	//		Eventually(func() string {
-	//			jobList, err := mgr.ListJobs(context.TODO(), wf.Id)
-	//			Expect(err).Should(BeNil())
-	//
-	//			for _, j := range jobList {
-	//				if j.Id == job.Id {
-	//					return j.Status
-	//				}
-	//			}
-	//			return ""
-	//		}, time.Minute, time.Second).Should(Equal(string(flow.SucceedStatus)))
-	//	})
-	//})
+	Context("pause workflow job", func() {
+		var job *types.WorkflowJob
+		It("trigger workflow should be succeed", func() {
+			var err error
+			job, err = mgr.TriggerWorkflow(context.TODO(), wf.Id, 0)
+			Expect(err).Should(BeNil())
+			Expect(job.Id).ShouldNot(BeEmpty())
+
+			Eventually(func() string {
+				jobList, err := mgr.ListJobs(context.TODO(), wf.Id)
+				Expect(err).Should(BeNil())
+
+				for _, j := range jobList {
+					if j.Id == job.Id {
+						return j.Status
+					}
+				}
+				return ""
+			}, time.Minute, time.Second).Should(Equal(string(flow.RunningStatus)))
+		})
+
+		It("pause job should be succeed", func() {
+			Expect(mgr.PauseWorkflowJob(context.TODO(), job.Id)).Should(BeNil())
+			Eventually(func() string {
+				jobList, err := mgr.ListJobs(context.TODO(), wf.Id)
+				Expect(err).Should(BeNil())
+
+				for _, j := range jobList {
+					if j.Id == job.Id {
+						return j.Status
+					}
+				}
+				return ""
+			}, time.Minute, time.Second).Should(Equal(string(flow.PausedStatus)))
+		})
+
+		It("resume job should be succeed", func() {
+			Expect(mgr.ResumeWorkflowJob(context.TODO(), job.Id)).Should(BeNil())
+			Eventually(func() string {
+				jobList, err := mgr.ListJobs(context.TODO(), wf.Id)
+				Expect(err).Should(BeNil())
+
+				for _, j := range jobList {
+					if j.Id == job.Id {
+						return j.Status
+					}
+				}
+				return ""
+			}, time.Minute, time.Second).Should(Equal(string(flow.RunningStatus)))
+		})
+
+		It("job should be succeed", func() {
+			Eventually(func() string {
+				jobList, err := mgr.ListJobs(context.TODO(), wf.Id)
+				Expect(err).Should(BeNil())
+
+				for _, j := range jobList {
+					if j.Id == job.Id {
+						return j.Status
+					}
+				}
+				return ""
+			}, time.Minute, time.Second).Should(Equal(string(flow.SucceedStatus)))
+		})
+	})
 
 	Context("cancel workflow job", func() {
 		var job *types.WorkflowJob

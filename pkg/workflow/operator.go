@@ -25,6 +25,7 @@ import (
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/plugin/common"
 	"github.com/basenana/nanafs/pkg/types"
+	"strconv"
 )
 
 const (
@@ -33,8 +34,10 @@ const (
 	opPluginCall   = "pluginCall"
 )
 
-func registerOperators() error {
-	b := operatorBuilder{}
+func registerOperators(entryMgr dentry.Manager) error {
+	b := operatorBuilder{
+		entryMgr: entryMgr,
+	}
 	if err := exec.RegisterLocalOperatorBuilder(opEntryInit, b.buildEntryInitOperator); err != nil {
 		return err
 	}
@@ -48,10 +51,24 @@ func registerOperators() error {
 }
 
 type operatorBuilder struct {
+	entryMgr dentry.Manager
 }
 
 func (b *operatorBuilder) buildEntryInitOperator(operatorSpec flow.Spec) (flow.Operator, error) {
-	return &entryInitOperator{}, nil
+	op := &entryInitOperator{
+		entryMgr:  b.entryMgr,
+		entryPath: operatorSpec.Parameter[paramEntryPathKey],
+	}
+
+	entryIDStr := operatorSpec.Parameter[paramEntryIdKey]
+	if entryIDStr != "" {
+		entryID, err := strconv.ParseInt(entryIDStr, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("parse entry id failed: %s", err)
+		}
+		op.entryID = entryID
+	}
+	return op, nil
 }
 
 func (b *operatorBuilder) buildEntryCollectOperator(operatorSpec flow.Spec) (flow.Operator, error) {
@@ -59,7 +76,15 @@ func (b *operatorBuilder) buildEntryCollectOperator(operatorSpec flow.Spec) (flo
 }
 
 func (b *operatorBuilder) buildPluginCallOperator(operatorSpec flow.Spec) (flow.Operator, error) {
-	return &pluginCallOperator{}, nil
+	return &pluginCallOperator{
+		plugin: types.PlugScope{
+			PluginName: operatorSpec.Parameter[paramPluginName],
+			Version:    operatorSpec.Parameter[paramPluginVersion],
+			PluginType: types.PluginType(operatorSpec.Parameter[paramPluginType]),
+			Parameters: operatorSpec.Parameter,
+		},
+		entryPath: "",
+	}, nil
 }
 
 const (
@@ -108,6 +133,8 @@ func (e *pluginCallOperator) Do(ctx context.Context, param flow.Parameter) error
 	req := common.NewRequest()
 	req.WorkPath = param.Workdir
 	req.EntryPath = e.entryPath
-	_, err := plugin.Call(ctx, e.plugin, req)
+	_, err := pluginCall(ctx, e.plugin, req)
 	return err
 }
+
+var pluginCall = plugin.Call

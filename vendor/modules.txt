@@ -1,7 +1,7 @@
 # github.com/aliyun/aliyun-oss-go-sdk v2.2.7+incompatible
 ## explicit
 github.com/aliyun/aliyun-oss-go-sdk/oss
-# github.com/basenana/go-flow v0.0.0-20230622071750-10d0710704a8
+# github.com/basenana/go-flow v0.0.0-20230623070418-938658d1ad30
 ## explicit; go 1.15
 github.com/basenana/go-flow/cfg
 github.com/basenana/go-flow/exec

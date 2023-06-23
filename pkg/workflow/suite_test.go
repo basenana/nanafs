@@ -19,11 +19,13 @@ package workflow
 import (
 	"context"
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin/common"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
+	"os"
 	"sync"
 	"testing"
 
@@ -32,9 +34,11 @@ import (
 )
 
 var (
-	stopCh = make(chan struct{})
-	caller = &pluginCaller{response: map[string]func() (*common.Response, error){}}
-	mgr    Manager
+	stopCh   = make(chan struct{})
+	caller   = &pluginCaller{response: map[string]func() (*common.Response, error){}}
+	tempDir  string
+	entryMgr dentry.Manager
+	mgr      Manager
 )
 
 func TestWorkflow(t *testing.T) {
@@ -45,9 +49,23 @@ func TestWorkflow(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
+	var err error
+	tempDir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-wf-")
+	Expect(err).Should(BeNil())
+
 	memMeta, err := metastore.NewMetaStorage(storage.MemoryStorage, config.Meta{})
 	Expect(err).Should(BeNil())
-	mgr, err = NewManager(memMeta)
+
+	storage.InitLocalCache(config.Config{CacheDir: tempDir, CacheSize: 1})
+	entryMgr, err = dentry.NewManager(memMeta, config.Config{
+		FS: &config.FS{},
+		Storages: []config.Storage{{
+			ID:   storage.MemoryStorage,
+			Type: storage.MemoryStorage,
+		}},
+	})
+	Expect(err).Should(BeNil())
+	mgr, err = NewManager(entryMgr, memMeta, config.Workflow{Enable: true, JobWorkdir: tempDir})
 	Expect(err).Should(BeNil())
 
 	pluginCall = caller.call

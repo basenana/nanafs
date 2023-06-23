@@ -54,6 +54,7 @@ func init() {
 
 type manager struct {
 	ctrl     *flow.Controller
+	entryMgr dentry.Manager
 	recorder metastore.ScheduledTaskRecorder
 	config   config.Workflow
 	logger   *zap.SugaredLogger
@@ -61,7 +62,7 @@ type manager struct {
 
 var _ Manager = &manager{}
 
-func NewManager(recorder metastore.ScheduledTaskRecorder, config config.Workflow) (Manager, error) {
+func NewManager(entryMgr dentry.Manager, recorder metastore.ScheduledTaskRecorder, config config.Workflow) (Manager, error) {
 	wdInfo, err := os.Stat(config.JobWorkdir)
 	if err != nil {
 		return nil, err
@@ -74,14 +75,16 @@ func NewManager(recorder metastore.ScheduledTaskRecorder, config config.Workflow
 
 	l := logger.NewLogger("workflow")
 	_ = logger.NewFlowLogger(l)
-	if err = registerOperators(); err != nil {
+	if err = registerOperators(entryMgr); err != nil {
 		return nil, fmt.Errorf("register operators failed: %s", err)
 	}
 	flowCtrl := flow.NewFlowController(&storageWrapper{recorder: recorder, logger: l})
 
 	mgr := &manager{
 		ctrl:     flowCtrl,
+		entryMgr: entryMgr,
 		recorder: recorder,
+		config:   config,
 		logger:   l,
 	}
 	return mgr, nil
@@ -157,7 +160,11 @@ func (m *manager) TriggerWorkflow(ctx context.Context, wfId string, entryID int6
 	m.logger.Infow("receive workflow", "workflow", workflow.Name, "entryID", entryID)
 	var en dentry.Entry
 	if entryID != 0 {
-		// TODO
+		en, err = m.entryMgr.GetEntry(ctx, entryID)
+		if err != nil {
+			m.logger.Errorw("query entry failed", "workflow", workflow.Name, "entryID", entryID, "err", err)
+			return nil, err
+		}
 	}
 	job, err := assembleWorkflowJob(workflow, en)
 	if err != nil {
@@ -333,15 +340,6 @@ func assembleFlow(job *types.WorkflowJob) (*flow.Flow, error) {
 		}
 		f.Tasks = append(f.Tasks, t)
 	}
-
-	f.Tasks = append(f.Tasks, flow.Task{
-		Name: opEntryCollect,
-		OperatorSpec: flow.Spec{
-			Type:      opEntryCollect,
-			Parameter: map[string]string{},
-		},
-		RetryOnFailed: 1,
-	})
 
 	for i := 1; i < len(f.Tasks); i++ {
 		f.Tasks[i-1].Next.OnSucceed = f.Tasks[i].Name

@@ -18,7 +18,6 @@ package dentry
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/types"
 )
 
@@ -87,6 +86,5 @@ func (i *instrumentalFile) Flush(ctx context.Context) error {
 }
 
 func (i *instrumentalFile) Close(ctx context.Context) (err error) {
-	defer PublicFileActionEvent(events.ActionTypeClose, i.file)
 	return i.file.Close(ctx)
 }

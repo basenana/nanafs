@@ -167,7 +167,7 @@ func (r *runner) handleFlowPause(event fsm.Event) error {
 	r.logger.Info("flow pause")
 
 	if err := r.storage.SaveFlow(r.ctx, r.Flow); err != nil {
-		r.logger.Errorf("save flow status failed: %s", err.Error())
+		r.logger.Errorf("save flow status failed: %s", err)
 		return err
 	}
 	return nil
@@ -177,7 +177,7 @@ func (r *runner) handleFlowResume(event fsm.Event) error {
 	r.logger.Info("flow resume")
 
 	if err := r.storage.SaveFlow(r.ctx, r.Flow); err != nil {
-		r.logger.Errorf("save flow status failed: %s", err.Error())
+		r.logger.Errorf("save flow status failed: %s", err)
 		return err
 	}
 
@@ -186,36 +186,33 @@ func (r *runner) handleFlowResume(event fsm.Event) error {
 
 func (r *runner) handleFlowSucceed(event fsm.Event) error {
 	r.logger.Info("flow succeed")
-	r.close("succeed")
 
 	if err := r.storage.SaveFlow(r.ctx, r.Flow); err != nil {
-		r.logger.Errorf("save flow status failed: %s", err.Error())
+		r.logger.Errorf("save flow status failed: %s", err)
 		return err
 	}
+	r.close("succeed")
 	return nil
 }
 
 func (r *runner) handleFlowFailed(event fsm.Event) error {
 	r.logger.Info("flow failed")
-	r.close(event.Message)
 
 	if err := r.storage.SaveFlow(r.ctx, r.Flow); err != nil {
-		r.logger.Errorf("save flow status failed: %s", err.Error())
+		r.logger.Errorf("save flow status failed: %s", err)
 		return err
 	}
+	r.close(event.Message)
 	return nil
 }
 
 func (r *runner) handleFlowCancel(event fsm.Event) error {
 	r.logger.Info("flow cancel")
-
-	r.close(event.Message)
-
 	if err := r.storage.SaveFlow(r.ctx, r.Flow); err != nil {
-		r.logger.Errorf("save flow status failed: %s", err.Error())
+		r.logger.Errorf("save flow status failed: %s", err)
 		return err
 	}
-
+	r.close(event.Message)
 	return nil
 }
 

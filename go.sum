@@ -5,6 +5,8 @@ github.com/aliyun/aliyun-oss-go-sdk v2.2.7+incompatible h1:KpbJFXwhVeuxNtBJ74MCG
 github.com/aliyun/aliyun-oss-go-sdk v2.2.7+incompatible/go.mod h1:T/Aws4fEfogEE9v+HPhhw+CntffsBHJ8nXQCwKr0/g8=
 github.com/basenana/go-flow v0.0.0-20230622071750-10d0710704a8 h1:PzUgj55a+rjFLfre3Db5Yd0BgmV+0shIgUgReA8vMks=
 github.com/basenana/go-flow v0.0.0-20230622071750-10d0710704a8/go.mod h1:d6f0RzwxQaT/BhFWhbXYPRbAzN/GIxyequNJe6KnvCY=
+github.com/basenana/go-flow v0.0.0-20230623070418-938658d1ad30 h1:LDDTHB11DYPPsDi8iaOTr83O5VTfWTqaS+CbhQFU9oA=
+github.com/basenana/go-flow v0.0.0-20230623070418-938658d1ad30/go.mod h1:d6f0RzwxQaT/BhFWhbXYPRbAzN/GIxyequNJe6KnvCY=
 github.com/benbjohnson/clock v1.1.0 h1:Q92kusRqC1XV2MjkWETPvjJVqKetz1OzxZB7mHJLju8=
 github.com/bluele/gcache v0.0.2 h1:WcbfdXICg7G/DGBh1PFfcirkWOQV+v077yF1pSy3DGw=
 github.com/bluele/gcache v0.0.2/go.mod h1:m15KV+ECjptwSPxKhOhQoAFQVtUFjTVkc3H8o0t/fp0=

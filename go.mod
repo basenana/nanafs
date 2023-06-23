@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/aliyun/aliyun-oss-go-sdk v2.2.7+incompatible
-	github.com/basenana/go-flow v0.0.0-20230622071750-10d0710704a8
+	github.com/basenana/go-flow v0.0.0-20230623070418-938658d1ad30
 	github.com/bluele/gcache v0.0.2
 	github.com/glebarez/sqlite v1.7.0
 	github.com/go-gormigrate/gormigrate/v2 v2.0.2
