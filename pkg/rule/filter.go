@@ -14,40 +14,52 @@
  limitations under the License.
 */
 
-package group
+package rule
 
 import "github.com/basenana/nanafs/pkg/types"
 
-func objectFilter(filter types.RuleFilter, value *types.Object) bool {
+func ObjectFilter(filter types.Rule, md *types.Metadata, ex *types.ExtendData, label *types.Labels) bool {
+	return objectFilter(filter, objectToMap(&object{Metadata: md, ExtendData: ex, Labels: label}), label)
+}
+
+func objectFilter(filter types.Rule, obj map[string]interface{}, labels *types.Labels) bool {
 	if filter.Operation != "" {
 		op := NewRuleOperation(filter.Operation, filter.Column, filter.Value)
-		return op.Apply(value)
+		return op.Apply(obj)
+	}
+
+	if filter.Labels != nil {
+		return labelOperation(labels, filter.Labels)
 	}
 
 	switch filter.Logic {
 	case types.RuleLogicAll:
-		for _, f := range filter.Filters {
-			if !objectFilter(f, value) {
+		for _, f := range filter.Rules {
+			if !objectFilter(f, obj, labels) {
 				return false
 			}
 		}
 		return true
 	case types.RuleLogicAny:
-		for _, f := range filter.Filters {
-			if objectFilter(f, value) {
+		for _, f := range filter.Rules {
+			if objectFilter(f, obj, labels) {
 				return true
 			}
 		}
 		return false
-
+	case types.RuleLogicNot:
+		for _, f := range filter.Rules {
+			if objectFilter(f, obj, labels) {
+				return false
+			}
+		}
+		return true
 	}
 	return false
 }
 
-func RuleMatch(rule *types.Rule, value *types.Object) bool {
-	return objectFilter(rule.Filters, value)
-}
-
-func validateRuleSpec(rule *types.Rule) error {
-	return nil
+type object struct {
+	*types.Metadata
+	*types.ExtendData
+	*types.Labels
 }

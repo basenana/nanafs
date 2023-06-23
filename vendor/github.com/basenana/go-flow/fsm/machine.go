@@ -18,49 +18,49 @@ package fsm
 
 import (
 	"fmt"
-	"github.com/basenana/go-flow/log"
+	"github.com/basenana/go-flow/utils"
 	"sync"
 )
 
 type edge struct {
-	from Status
-	to   Status
-	when EventType
+	from string
+	to   string
+	when string
 	do   Handler
 	next *edge
 }
 
 type edgeBuilder struct {
-	from []Status
-	to   Status
-	when EventType
+	from []string
+	to   string
+	when string
 	do   Handler
 }
 
 type FSM struct {
 	obj   Stateful
-	graph map[EventType]*edge
+	graph map[string]*edge
 
 	crtBuilder *edgeBuilder
 	mux        sync.Mutex
-	logger     log.Logger
+	logger     utils.Logger
 }
 
-func (m *FSM) From(statues []Status) *FSM {
+func (m *FSM) From(statues []string) *FSM {
 	m.buildWarp(func(builder *edgeBuilder) {
 		builder.from = statues
 	})
 	return m
 }
 
-func (m *FSM) To(status Status) *FSM {
+func (m *FSM) To(status string) *FSM {
 	m.buildWarp(func(builder *edgeBuilder) {
 		builder.to = status
 	})
 	return m
 }
 
-func (m *FSM) When(event EventType) *FSM {
+func (m *FSM) When(event string) *FSM {
 	m.buildWarp(func(builder *edgeBuilder) {
 		builder.when = event
 	})
@@ -155,7 +155,7 @@ func (m *FSM) buildWarp(f func(builder *edgeBuilder)) {
 func New(option Option) *FSM {
 	f := &FSM{
 		obj:    option.Obj,
-		graph:  map[EventType]*edge{},
+		graph:  map[string]*edge{},
 		logger: option.Logger,
 	}
 	return f

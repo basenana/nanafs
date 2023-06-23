@@ -4,19 +4,21 @@ go 1.18
 
 require (
 	github.com/aliyun/aliyun-oss-go-sdk v2.2.7+incompatible
-	github.com/basenana/go-flow v0.0.0-20220322140457-971dcb315a41
+	github.com/basenana/go-flow v0.0.0-20230623070418-938658d1ad30
 	github.com/bluele/gcache v0.0.2
 	github.com/glebarez/sqlite v1.7.0
 	github.com/go-gormigrate/gormigrate/v2 v2.0.2
 	github.com/google/uuid v1.3.0
-	github.com/hanwen/go-fuse/v2 v2.2.0
+	github.com/hanwen/go-fuse/v2 v2.3.0
 	github.com/hyponet/eventbus v1.0.0
 	github.com/minio/minio-go/v7 v7.0.52
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.27.2
-	github.com/studio-b12/gowebdav v0.0.0-20230203202212-3282f94193f2
+	github.com/pierrec/lz4/v4 v4.1.17
+	github.com/studio-b12/gowebdav v0.9.0
 	go.uber.org/zap v1.24.0
-	golang.org/x/sys v0.5.0
+	golang.org/x/net v0.7.0
+	golang.org/x/sys v0.9.0
 	gorm.io/driver/postgres v1.3.7
 )
 
@@ -49,13 +51,11 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/nxadm/tail v1.4.8 // indirect
-	github.com/pierrec/lz4/v4 v4.1.17 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230126093431-47fa9a501578 // indirect
 	github.com/rs/xid v1.4.0 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
-	golang.org/x/net v0.7.0 // indirect
 	golang.org/x/text v0.7.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect

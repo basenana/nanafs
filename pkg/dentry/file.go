@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/bio"
+	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
@@ -125,6 +126,7 @@ func (f *file) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error
 
 func (f *file) Close(ctx context.Context) (err error) {
 	defer trace.StartRegion(ctx, "dentry.file.Close").End()
+	defer PublicFileActionEvent(events.ActionTypeClose, f)
 	defer decreaseOpenedFile(f.Metadata().ID)
 	defer f.reader.Close()
 	if f.attr.Write {
@@ -208,6 +210,7 @@ func (s *symlink) Flush(ctx context.Context) (err error) {
 
 func (s *symlink) Close(ctx context.Context) (err error) {
 	defer trace.StartRegion(ctx, "dentry.symlink.Close").End()
+	defer PublicFileActionEvent(events.ActionTypeClose, s)
 	defer decreaseOpenedFile(s.Metadata().ID)
 	return s.Flush(ctx)
 }

@@ -1,5 +1,5 @@
 /*
-   Copyright 2022 Go-Flow Authors
+   Copyright 2023 Go-Flow Authors
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -14,17 +14,10 @@
    limitations under the License.
 */
 
-package storage
+package flow
 
 import (
-	"github.com/basenana/go-flow/flow"
+	"github.com/basenana/go-flow/utils"
 )
 
-type Interface interface {
-	GetFlow(flowId flow.FID) (flow.Flow, error)
-	GetFlowMeta(flowId flow.FID) (*FlowMeta, error)
-	SaveFlow(flow flow.Flow) error
-	DeleteFlow(flowId flow.FID) error
-	SaveTask(flowId flow.FID, task flow.Task) error
-	DeleteTask(flowId flow.FID, taskName flow.TName) error
-}
+var logger = utils.NewLogger("go-flow")

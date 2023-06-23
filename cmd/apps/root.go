@@ -41,8 +41,8 @@ func init() {
 
 var RootCmd = &cobra.Command{
 	Use:   "nanafs",
-	Short: "nanafs daemon",
-	Long:  `Everything is an object, everything can be thrown into workflows`,
+	Short: "NanaFS engine server",
+	Long:  `FS-style workflow engine for unified data management.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		_ = cmd.Help()
 	},
@@ -54,7 +54,7 @@ func init() {
 
 var daemonCmd = &cobra.Command{
 	Use:   "serve",
-	Short: "NanaFS server run",
+	Short: "Start server service",
 	PreRun: func(cmd *cobra.Command, args []string) {
 
 	},
@@ -140,7 +140,7 @@ func run(ctrl controller.Controller, cfg config.Config, stopCh chan struct{}) {
 
 var versionCmd = &cobra.Command{
 	Use:   "version",
-	Short: "NanaFS version info",
+	Short: "View version information",
 	Run: func(cmd *cobra.Command, args []string) {
 		vInfo := config.VersionInfo()
 		fmt.Printf("Version: %s\n", vInfo.Version())

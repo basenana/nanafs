@@ -16,8 +16,6 @@
 
 package types
 
-import "time"
-
 type Filter struct {
 	ID        int64
 	Name      string
@@ -28,64 +26,14 @@ type Filter struct {
 	Label     LabelMatch
 }
 
+type JobFilter struct {
+	WorkFlowID  string
+	JobID       string
+	Status      string
+	TargetEntry int64
+}
+
 type LabelMatch struct {
 	Include []Label  `json:"include"`
 	Exclude []string `json:"exclude"`
-}
-
-func IsObjectFiltered(obj *Object, filter Filter) bool {
-	if filter.ID != 0 {
-		return obj.ID == filter.ID
-	}
-	if filter.ParentID != 0 {
-		return obj.ParentID == filter.ParentID
-	}
-	if filter.Kind != "" {
-		return obj.Kind == filter.Kind
-	}
-	if filter.RefID != 0 {
-		return obj.RefID == filter.RefID
-	}
-	if filter.Namespace != "" {
-		return obj.Namespace == filter.Namespace
-	}
-	return false
-}
-
-type WorkflowFilter struct {
-	ID        string
-	Synced    bool
-	UpdatedAt *time.Time
-}
-
-type ObjectMapper struct {
-	Key       string
-	Value     interface{}
-	Operation string
-}
-
-func WorkflowFilterObjectMapper(f WorkflowFilter) []ObjectMapper {
-	result := []ObjectMapper{}
-	if f.ID != "" {
-		result = append(result, ObjectMapper{
-			Key:       "id",
-			Value:     f.ID,
-			Operation: "=",
-		})
-	}
-	if !f.Synced {
-		result = append(result, ObjectMapper{
-			Key:       "synced",
-			Value:     f.Synced,
-			Operation: "=",
-		})
-	}
-	if f.UpdatedAt != nil {
-		result = append(result, ObjectMapper{
-			Key:       "updated_at",
-			Value:     f.UpdatedAt,
-			Operation: "<",
-		})
-	}
-	return result
 }

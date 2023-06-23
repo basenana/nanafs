@@ -17,8 +17,8 @@
 package fsm
 
 type Stateful interface {
-	GetStatus() Status
-	SetStatus(status Status)
+	GetStatus() string
+	SetStatus(status string)
 	GetMessage() string
 	SetMessage(msg string)
 }

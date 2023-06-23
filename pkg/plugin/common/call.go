@@ -28,9 +28,10 @@ const (
 )
 
 type Request struct {
-	CallType string
-	WorkPath string
-	Entry    Entry
+	CallType  string
+	WorkPath  string
+	EntryPath string
+	Entry     Entry
 }
 
 func NewRequest() *Request {

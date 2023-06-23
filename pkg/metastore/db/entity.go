@@ -509,18 +509,24 @@ func (e *Entity) DeleteWorkflow(ctx context.Context, wfID string) error {
 	})
 }
 
-func (e *Entity) GetWorkflowJob(ctx context.Context, wfJobID string) (*types.WorkflowJob, error) {
-	job := &WorkflowJob{}
-	res := e.DB.WithContext(ctx).Where("id = ?", wfJobID).First(job)
-	if res.Error != nil {
-		return nil, res.Error
-	}
-	return job.ToWorkflowJobSpec()
-}
-
-func (e *Entity) ListWorkflowJob(ctx context.Context, wfID string) ([]*types.WorkflowJob, error) {
+func (e *Entity) ListWorkflowJob(ctx context.Context, filter types.JobFilter) ([]*types.WorkflowJob, error) {
 	jobList := make([]WorkflowJob, 0)
-	res := e.DB.WithContext(ctx).Where("workflow = ?", wfID).Order("created_at desc").Find(&jobList)
+	query := e.DB.WithContext(ctx)
+
+	if filter.JobID != "" {
+		query = query.Where("id = ?", filter.JobID)
+	}
+	if filter.WorkFlowID != "" {
+		query = query.Where("workflow = ?", filter.WorkFlowID)
+	}
+	if filter.Status != "" {
+		query = query.Where("status = ?", filter.Status)
+	}
+	if filter.TargetEntry != 0 {
+		query = query.Where("target_entry = ?", filter.TargetEntry)
+	}
+
+	res := query.Order("created_at desc").Find(&jobList)
 	if res.Error != nil {
 		return nil, res.Error
 	}

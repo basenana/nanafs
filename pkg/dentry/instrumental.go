@@ -18,7 +18,6 @@ package dentry
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/types"
 )
 
@@ -48,6 +47,10 @@ func (i *instrumentalFile) SetExtendField(ctx context.Context, fKey, fVal string
 
 func (i *instrumentalFile) RemoveExtendField(ctx context.Context, fKey string) error {
 	return i.file.RemoveExtendField(ctx, fKey)
+}
+
+func (i *instrumentalFile) RuleMatched(ctx context.Context, ruleSpec types.Rule) bool {
+	return i.file.RuleMatched(ctx, ruleSpec)
 }
 
 func (i *instrumentalFile) IsGroup() bool {
@@ -83,6 +86,5 @@ func (i *instrumentalFile) Flush(ctx context.Context) error {
 }
 
 func (i *instrumentalFile) Close(ctx context.Context) (err error) {
-	defer PublicFileActionEvent(events.ActionTypeClose, i.file)
 	return i.file.Close(ctx)
 }

@@ -14,4 +14,15 @@
  limitations under the License.
 */
 
-package group
+package rule
+
+import (
+	"encoding/json"
+)
+
+func objectToMap(obj *object) map[string]interface{} {
+	raw, _ := json.Marshal(obj)
+	result := make(map[string]interface{})
+	_ = json.Unmarshal(raw, &result)
+	return result
+}

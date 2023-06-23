@@ -16,13 +16,9 @@
 
 package fsm
 
-type EventType string
-
-type Status string
-
 type Event struct {
-	Type    EventType
-	Status  Status
+	Type    string
+	Status  string
 	Message string
 	Obj     Stateful
 }
