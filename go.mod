@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/aliyun/aliyun-oss-go-sdk v2.2.7+incompatible
-	github.com/basenana/go-flow v0.0.0-20230623070418-938658d1ad30
+	github.com/basenana/go-flow v0.0.0-20230623131125-436c54eb816d
 	github.com/bluele/gcache v0.0.2
 	github.com/glebarez/sqlite v1.7.0
 	github.com/go-gormigrate/gormigrate/v2 v2.0.2
@@ -24,7 +24,6 @@ require (
 
 require (
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect
-	github.com/coreos/etcd v2.3.8+incompatible // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/glebarez/go-sqlite v1.20.3 // indirect

@@ -22,15 +22,16 @@ import (
 )
 
 const (
-	MemoryMeta    = "memory"
-	SqliteMeta    = "sqlite"
-	PostgresMeta  = "postgres"
-	OSSStorage    = "oss"
-	MinioStorage  = "minio"
-	WebdavStorage = "webdav"
-	LocalStorage  = "local"
-	MemoryStorage = "memory"
-	AESEncryption = "AES"
+	MemoryMeta         = "memory"
+	SqliteMeta         = "sqlite"
+	PostgresMeta       = "postgres"
+	OSSStorage         = "oss"
+	MinioStorage       = "minio"
+	WebdavStorage      = "webdav"
+	LocalStorage       = "local"
+	MemoryStorage      = "memory"
+	AESEncryption      = "AES"
+	ChaCha20Encryption = "ChaCha20"
 )
 
 type FS struct {

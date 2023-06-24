@@ -18,6 +18,10 @@ package storage
 
 import (
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/sha256"
+	"encoding/binary"
 	"github.com/pierrec/lz4/v4"
 	"io"
 	"runtime/trace"
@@ -27,6 +31,7 @@ type nodeUsingInfo struct {
 	filename string
 	node     CacheNode
 	index    int
+	ref      int32
 	updateAt int64
 }
 
@@ -65,21 +70,19 @@ func (pq *priorityNodeQueue) Pop() interface{} {
 	return item
 }
 
-func compress(ctx context.Context, in io.Reader, out io.WriteCloser) error {
+func compress(ctx context.Context, in io.Reader, out io.Writer) error {
 	defer trace.StartRegion(ctx, "storage.localCache.compress").End()
 	zw := lz4.NewWriter(out)
 	defer zw.Close()
-	defer out.Close()
 	if _, err := io.Copy(zw, in); err != nil {
 		return err
 	}
 	return nil
 }
 
-func decompress(ctx context.Context, in io.ReadCloser, out io.Writer) error {
+func decompress(ctx context.Context, in io.Reader, out io.Writer) error {
 	defer trace.StartRegion(ctx, "storage.localCache.decompress").End()
 	zr := lz4.NewReader(in)
-	defer in.Close()
 	if _, err := io.Copy(out, zr); err != nil {
 		if err == io.EOF {
 			// https://github.com/golang/go/issues/44411
@@ -89,6 +92,62 @@ func decompress(ctx context.Context, in io.ReadCloser, out io.Writer) error {
 	}
 
 	return nil
+}
+
+func encrypt(ctx context.Context, segIDKey int64, method, secretKey string, in io.Reader, out io.Writer) error {
+	aesCipher, err := aes.NewCipher([]byte(secretKey))
+	if err != nil {
+		return err
+	}
+	stream := cipher.NewCTR(aesCipher, cipherIV(segIDKey, aesCipher.BlockSize()))
+	return cipherXOR(ctx, stream, in, out)
+}
+
+func decrypt(ctx context.Context, segIDKey int64, method, secretKey string, in io.Reader, out io.Writer) error {
+	aesCipher, err := aes.NewCipher([]byte(secretKey))
+	if err != nil {
+		return err
+	}
+	stream := cipher.NewCTR(aesCipher, cipherIV(segIDKey, aesCipher.BlockSize()))
+	return cipherXOR(ctx, stream, in, out)
+}
+
+func cipherIV(segIDKey int64, blkSize int) []byte {
+	idKeyBuf := make([]byte, 8)
+	binary.BigEndian.PutUint64(idKeyBuf, uint64(segIDKey))
+	idKeyHash := sha256.Sum256(idKeyBuf)
+
+	iv := make([]byte, blkSize)
+	n := copy(iv, idKeyHash[:sha256.Size])
+	if n < blkSize {
+		for i := n; i < blkSize; i++ {
+			iv[i] = 0
+		}
+	}
+	return iv
+}
+
+func cipherXOR(ctx context.Context, s cipher.Stream, in io.Reader, out io.Writer) error {
+	var (
+		inBuf  = make([]byte, 512)
+		outBuf = make([]byte, 512)
+	)
+
+	for {
+		rN, err := in.Read(inBuf)
+		if rN > 0 {
+			s.XORKeyStream(outBuf[:rN], inBuf[:rN])
+			if _, err = out.Write(outBuf[:rN]); err != nil {
+				return err
+			}
+		}
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		}
+	}
 }
 
 func reverseString(s string) string {

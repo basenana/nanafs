@@ -178,12 +178,10 @@ func (c *chunkReader) Close() {
 }
 
 type segReader struct {
-	r            *chunkReader
-	st           *segTree
-	chunkID      int64
-	farthestPage int64
-	readBackCtn  int
-	mux          sync.Mutex
+	r       *chunkReader
+	st      *segTree
+	chunkID int64
+	mux     sync.Mutex
 }
 
 func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
@@ -273,15 +271,6 @@ func (c *segReader) readPage(ctx context.Context, segments []segment, pageIndex,
 	pageStart := pageSize * pageIndex
 	var page *pageNode
 
-	if pageIndex > c.farthestPage {
-		c.farthestPage = pageIndex
-	} else {
-		c.readBackCtn += 1
-		if c.readBackCtn > 100 {
-			c.readBackCtn = 100
-		}
-	}
-
 	defer func() {
 		if rErr := utils.Recover(); rErr != nil {
 			c.r.logger.Errorw("read chunk page panic", "entry", c.r.entry.ID, "chunk", c.chunkID, "err", err)
@@ -312,7 +301,7 @@ func (c *segReader) readPage(ctx context.Context, segments []segment, pageIndex,
 				crt = readEnd
 				continue
 			}
-			openedCachedNode, innerErr = c.r.cache.OpenCacheNode(ctx, seg.id, pageIndex, c.readBackCtn)
+			openedCachedNode, innerErr = c.r.cache.OpenCacheNode(ctx, seg.id, pageIndex)
 			for innerErr != nil {
 				return innerErr
 			}
@@ -642,6 +631,8 @@ func (w *segWriter) flushData(ctx context.Context, seg *uncommittedSeg, page *un
 		return
 	}
 
+	// TODO: close page itself?
+	defer page.node.Close()
 	if err = w.cache.CommitTemporaryNode(ctx, segID, page.idx, page.node); err != nil {
 		page.err = err
 		w.logger.Errorw("commit page data error", "entry", w.entry.ID, "chunk", w.chunkID, "page", page.idx, "err", err)

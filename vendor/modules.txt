@@ -1,7 +1,7 @@
 # github.com/aliyun/aliyun-oss-go-sdk v2.2.7+incompatible
 ## explicit
 github.com/aliyun/aliyun-oss-go-sdk/oss
-# github.com/basenana/go-flow v0.0.0-20230623070418-938658d1ad30
+# github.com/basenana/go-flow v0.0.0-20230623131125-436c54eb816d
 ## explicit; go 1.15
 github.com/basenana/go-flow/cfg
 github.com/basenana/go-flow/exec
@@ -38,27 +38,6 @@ github.com/bytedance/sonic/utf8
 # github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311
 ## explicit; go 1.15
 github.com/chenzhuoyu/base64x
-# github.com/coreos/etcd v2.3.8+incompatible
-## explicit
-github.com/coreos/etcd/Godeps/_workspace/src/github.com/gogo/protobuf/proto
-github.com/coreos/etcd/Godeps/_workspace/src/github.com/golang/protobuf/proto
-github.com/coreos/etcd/Godeps/_workspace/src/golang.org/x/net/context
-github.com/coreos/etcd/Godeps/_workspace/src/golang.org/x/net/http2
-github.com/coreos/etcd/Godeps/_workspace/src/golang.org/x/net/http2/hpack
-github.com/coreos/etcd/Godeps/_workspace/src/golang.org/x/net/internal/timeseries
-github.com/coreos/etcd/Godeps/_workspace/src/golang.org/x/net/trace
-github.com/coreos/etcd/Godeps/_workspace/src/google.golang.org/grpc
-github.com/coreos/etcd/Godeps/_workspace/src/google.golang.org/grpc/codes
-github.com/coreos/etcd/Godeps/_workspace/src/google.golang.org/grpc/credentials
-github.com/coreos/etcd/Godeps/_workspace/src/google.golang.org/grpc/grpclog
-github.com/coreos/etcd/Godeps/_workspace/src/google.golang.org/grpc/metadata
-github.com/coreos/etcd/Godeps/_workspace/src/google.golang.org/grpc/naming
-github.com/coreos/etcd/Godeps/_workspace/src/google.golang.org/grpc/peer
-github.com/coreos/etcd/Godeps/_workspace/src/google.golang.org/grpc/transport
-github.com/coreos/etcd/clientv3
-github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes
-github.com/coreos/etcd/etcdserver/etcdserverpb
-github.com/coreos/etcd/storage/storagepb
 # github.com/dustin/go-humanize v1.0.1
 ## explicit; go 1.16
 github.com/dustin/go-humanize

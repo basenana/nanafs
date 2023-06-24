@@ -14,22 +14,20 @@
  limitations under the License.
 */
 
-package utils
+package storage
 
-import "io"
+import (
+	"github.com/basenana/nanafs/utils/logger"
+	"testing"
 
-type dataReader struct {
-	reader io.Reader
-}
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+)
 
-func (d dataReader) Read(p []byte) (n int, err error) {
-	return d.reader.Read(p)
-}
+func TestStorage(t *testing.T) {
+	logger.InitLogger()
+	defer logger.Sync()
+	RegisterFailHandler(Fail)
 
-func (d dataReader) Close() error {
-	return nil
-}
-
-func NewDateReader(reader io.Reader) io.ReadCloser {
-	return dataReader{reader: reader}
+	RunSpecs(t, "Storage Suite")
 }
