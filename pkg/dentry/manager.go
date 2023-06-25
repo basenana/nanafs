@@ -91,8 +91,8 @@ func (m *manager) Root(ctx context.Context) (Entry, error) {
 		return nil, err
 	}
 	root = initRootEntryObject()
-	root.Access.UID = m.cfg.FS.OwnerUid
-	root.Access.GID = m.cfg.FS.OwnerGid
+	root.Access.UID = m.cfg.FS.Owner.Uid
+	root.Access.GID = m.cfg.FS.Owner.Gid
 	root.Storage = m.cfg.Storages[0].ID
 	return buildEntry(root, m.store), m.store.SaveObjects(ctx, root)
 }

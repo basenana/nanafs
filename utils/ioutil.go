@@ -18,6 +18,7 @@ package utils
 
 import (
 	"fmt"
+	"io"
 	"os"
 )
 
@@ -37,3 +38,69 @@ func Mkdir(path string) error {
 
 	return fmt.Errorf("%s not dir", path)
 }
+
+type dataReader struct {
+	reader io.Reader
+}
+
+func (d dataReader) Read(p []byte) (n int, err error) {
+	return d.reader.Read(p)
+}
+
+func (d dataReader) Close() error {
+	return nil
+}
+
+func NewDateReader(reader io.Reader) io.ReadCloser {
+	return dataReader{reader: reader}
+}
+
+type wrapperReader struct {
+	r   io.ReaderAt
+	off int64
+}
+
+func (w *wrapperReader) Read(p []byte) (n int, err error) {
+	n, err = w.r.ReadAt(p, w.off)
+	w.off += int64(n)
+	return
+}
+
+func NewReader(reader io.ReaderAt) io.Reader {
+	return &wrapperReader{r: reader}
+}
+
+func NewReaderWithOffset(reader io.ReaderAt, off int64) io.Reader {
+	return &wrapperReader{r: reader, off: off}
+}
+
+type wrapperWriter struct {
+	w   io.WriterAt
+	off int64
+}
+
+func (w *wrapperWriter) Write(p []byte) (n int, err error) {
+	n, err = w.w.WriteAt(p, w.off)
+	w.off += int64(n)
+	return
+}
+
+func NewWriter(writer io.WriterAt) io.Writer {
+	return &wrapperWriter{w: writer}
+}
+
+func NewWriterWithOffset(writer io.WriterAt, off int64) io.Writer {
+	return &wrapperWriter{w: writer, off: off}
+}
+
+type zeroDevice struct{}
+
+func (z zeroDevice) Read(p []byte) (n int, err error) {
+	for i := 0; i < len(p); i++ {
+		p[i] = 0
+		n++
+	}
+	return
+}
+
+var ZeroDevice = zeroDevice{}

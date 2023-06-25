@@ -30,7 +30,7 @@ var verifiers = []verifier{
 	checkWebdavConfig,
 	checkMetaConfig,
 	checkStorageConfigs,
-	checkEncryptionConfig,
+	checkGlobalEncryptionConfig,
 	checkLocalCache,
 	checkMetricConfig,
 }
@@ -111,21 +111,36 @@ func checkStorageConfigs(config *Config) error {
 		if err := checkStorageConfig(s); err != nil {
 			return fmt.Errorf("storages[%d].%s: %s", i, s.ID, err)
 		}
+		if s.Encryption != nil {
+			if err := checkEncryptionConfig(*s.Encryption); err != nil {
+				return fmt.Errorf("storages[%d].%s: encryption config %s", i, s.ID, err)
+			}
+		}
 	}
 	return nil
 }
 
-func checkEncryptionConfig(config *Config) error {
+func checkGlobalEncryptionConfig(config *Config) error {
 	if !config.GlobalEncryption.Enable {
 		return nil
 	}
 	enCfg := config.GlobalEncryption
-	if enCfg.Method != AESEncryption {
-		return fmt.Errorf("only supports the AES encryption method")
+	return checkEncryptionConfig(enCfg)
+}
+
+func checkEncryptionConfig(enCfg Encryption) error {
+	switch enCfg.Method {
+	case AESEncryption:
+		skLen := len([]byte(enCfg.SecretKey))
+		if skLen != 16 && skLen != 32 {
+			return fmt.Errorf("the length of the encryption.secret_key needs to be 16 or 32")
+		}
+	case ChaCha20Encryption:
+		return fmt.Errorf("only supports the AESEncryption encryption method")
+	default:
+		return fmt.Errorf("unsupports encryption method %s", enCfg.Method)
 	}
-	if len(enCfg.SecretKey) != 16 || len(enCfg.SecretKey) != 32 {
-		return fmt.Errorf("the length of the encryption.secret_key needs to be 16 or 32")
-	}
+
 	return nil
 }
 
@@ -191,8 +206,8 @@ func checkLocalCache(config *Config) error {
 	if config.CacheDir == "" {
 		return fmt.Errorf("cache dir is empty")
 	}
-	if config.CacheSize <= 0 {
-		return fmt.Errorf("cache size must more than 0")
+	if config.CacheSize < 0 {
+		config.CacheSize = 0
 	}
 	return nil
 }

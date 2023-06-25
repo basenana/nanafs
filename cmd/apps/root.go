@@ -22,6 +22,7 @@ import (
 	configapp "github.com/basenana/nanafs/cmd/apps/config"
 	"github.com/basenana/nanafs/cmd/apps/fs"
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/bio"
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
@@ -78,6 +79,7 @@ var daemonCmd = &cobra.Command{
 			panic("storage must config")
 		}
 
+		bio.InitPageCache(cfg.FS)
 		storage.InitLocalCache(cfg)
 
 		ctrl, err := controller.New(loader, meta)
