@@ -70,6 +70,10 @@ func NewReader(reader io.ReaderAt) io.Reader {
 	return &wrapperReader{r: reader}
 }
 
+func NewReaderWithOffset(reader io.ReaderAt, off int64) io.Reader {
+	return &wrapperReader{r: reader, off: off}
+}
+
 type wrapperWriter struct {
 	w   io.WriterAt
 	off int64
@@ -84,3 +88,19 @@ func (w *wrapperWriter) Write(p []byte) (n int, err error) {
 func NewWriter(writer io.WriterAt) io.Writer {
 	return &wrapperWriter{w: writer}
 }
+
+func NewWriterWithOffset(writer io.WriterAt, off int64) io.Writer {
+	return &wrapperWriter{w: writer, off: off}
+}
+
+type zeroDevice struct{}
+
+func (z zeroDevice) Read(p []byte) (n int, err error) {
+	for i := 0; i < len(p); i++ {
+		p[i] = 0
+		n++
+	}
+	return
+}
+
+var ZeroDevice = zeroDevice{}

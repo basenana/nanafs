@@ -26,9 +26,10 @@ const (
 
 var (
 	memoryBlockPools = map[int]*sync.Pool{
-		2: {New: func() any { return make([]byte, memoryBlockSize*2) }},
-		4: {New: func() any { return make([]byte, memoryBlockSize*4) }},
-		8: {New: func() any { return make([]byte, memoryBlockSize*8) }},
+		2:  {New: func() any { return make([]byte, memoryBlockSize*2) }},
+		4:  {New: func() any { return make([]byte, memoryBlockSize*4) }},
+		8:  {New: func() any { return make([]byte, memoryBlockSize*8) }},
+		16: {New: func() any { return make([]byte, memoryBlockSize*16) }},
 	}
 )
 

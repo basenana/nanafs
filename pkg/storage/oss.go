@@ -200,8 +200,8 @@ func newOSSStorage(storageID string, cfg *config.OSSConfig) (Storage, error) {
 		sid:        storageID,
 		cli:        cli,
 		cfg:        cfg,
-		readLimit:  make(chan struct{}, 90),
-		writeLimit: make(chan struct{}, 30),
+		readLimit:  make(chan struct{}, 30),
+		writeLimit: make(chan struct{}, 15),
 		logger:     logger.NewLogger("OSS"),
 	}
 	return s, s.initOSSBucket(context.Background())

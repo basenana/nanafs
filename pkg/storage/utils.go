@@ -29,9 +29,8 @@ import (
 
 type nodeUsingInfo struct {
 	filename string
-	node     CacheNode
+	node     *cacheNode
 	index    int
-	ref      int32
 	updateAt int64
 }
 
@@ -99,7 +98,7 @@ func encrypt(ctx context.Context, segIDKey int64, method, secretKey string, in i
 	if err != nil {
 		return err
 	}
-	stream := cipher.NewCTR(aesCipher, cipherIV(segIDKey, aesCipher.BlockSize()))
+	stream := cipher.NewCTR(aesCipher, aesCipherIV(segIDKey, aesCipher.BlockSize()))
 	return cipherXOR(ctx, stream, in, out)
 }
 
@@ -108,13 +107,13 @@ func decrypt(ctx context.Context, segIDKey int64, method, secretKey string, in i
 	if err != nil {
 		return err
 	}
-	stream := cipher.NewCTR(aesCipher, cipherIV(segIDKey, aesCipher.BlockSize()))
+	stream := cipher.NewCTR(aesCipher, aesCipherIV(segIDKey, aesCipher.BlockSize()))
 	return cipherXOR(ctx, stream, in, out)
 }
 
-func cipherIV(segIDKey int64, blkSize int) []byte {
+func aesCipherIV(segIDKey int64, blkSize int) []byte {
 	idKeyBuf := make([]byte, 8)
-	binary.BigEndian.PutUint64(idKeyBuf, uint64(segIDKey))
+	binary.BigEndian.PutUint64(idKeyBuf, uint64(segIDKey^0x0092094024))
 	idKeyHash := sha256.Sum256(idKeyBuf)
 
 	iv := make([]byte, blkSize)

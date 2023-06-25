@@ -19,6 +19,8 @@ package bio
 import (
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils"
 	"runtime/trace"
 	"sync"
@@ -30,14 +32,13 @@ const (
 	pageModeEmpty   = 0
 	pageModeData    = 1
 	pageModeInvalid = 1 << 1
-	pageModeDirty   = 1 << 2
 	pageTreeShift   = 6
 	pageTreeSize    = 1 << pageTreeShift
 	pageTreeMask    = pageTreeSize - 1
-	pageSize        = 1 << 21 // 2M
 )
 
 var (
+	pageSize            int64 = 1 << 22 // 4M
 	crtPageCacheTotal   int32 = 0
 	maxPageCacheTotal         = 1024
 	pageCacheMux              = sync.Mutex{}
@@ -45,8 +46,19 @@ var (
 	pageCacheReleaseQ         = make(chan *pageNode, maxPageCacheTotal/2)
 	pageCacheCond             = sync.NewCond(&pageCacheMux)
 	pageCacheLFU              = utils.NewLFUPool(maxPageCacheTotal - 1)
-	pageCacheDataPool         = sync.Pool{New: func() any { return make([]byte, pageSize) }}
 )
+
+func InitPageCache(cfg *config.FS) {
+	if cfg == nil {
+		return
+	}
+	switch cfg.PageSize {
+	case 2:
+		pageSize = 1 << 21 // 2M
+	case 4:
+		pageSize = 1 << 22 // 4M default
+	}
+}
 
 type pageCache struct {
 	entryID   int64
@@ -79,9 +91,6 @@ func (p *pageCache) read(ctx context.Context, pageIndex int64, initDataFn func(*
 	atomic.AddInt32(&page.ref, 1)
 	page.mux.Lock()
 	if page.mode&pageModeInvalid > 0 {
-		for page.data == nil {
-			page.data = pageCacheDataPool.Get().([]byte)
-		}
 		err = initDataFn(page)
 		if err != nil {
 			page.mode |= pageModeInvalid
@@ -140,6 +149,10 @@ func (p *pageCache) invalid(pageStartIndex, pageEndIndex int64) {
 		}
 		page.mux.Lock()
 		page.mode |= pageModeInvalid
+		if page.node != nil {
+			_ = page.node.Close()
+			page.node = nil
+		}
 		page.mux.Unlock()
 	}
 }
@@ -228,7 +241,7 @@ type pageNode struct {
 	parent *pageNode
 	shift  int
 	pos    int64
-	data   []byte
+	node   storage.CacheNode
 	length int64
 	ref    int32
 	mode   int8
@@ -237,12 +250,6 @@ type pageNode struct {
 
 func (n *pageNode) release() {
 	atomic.AddInt32(&n.ref, -1)
-}
-
-func (n *pageNode) commit() {
-	n.mode |= pageModeInvalid
-	n.mode &^= pageModeDirty
-	n.release()
 }
 
 func newPage(shift int, pageSize int64, mode int8) *pageNode {
@@ -275,9 +282,9 @@ func releasePage(pNode *pageNode) {
 	atomic.AddInt32(&crtPageCacheTotal, -1)
 	pNode.mux.Lock()
 	pNode.mode |= pageModeInvalid
-	if pNode.data != nil {
-		pageCacheDataPool.Put(pNode.data)
-		pNode.data = nil
+	if pNode.node != nil {
+		_ = pNode.node.Close()
+		pNode.node = nil
 	}
 	pNode.mux.Unlock()
 	pageCacheCond.Signal()

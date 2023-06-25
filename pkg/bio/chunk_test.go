@@ -318,8 +318,8 @@ type simpleSegment struct {
 	End   int64
 }
 
-func buildRandomData(pageNum int, moreData float64) []byte {
-	dataSize := pageNum*pageSize + int(moreData*pageSize)
+func buildRandomData(pageNum int64, moreData float64) []byte {
+	dataSize := pageNum*pageSize + int64(moreData*float64(pageSize))
 	data := make([]byte, dataSize)
 	_, err := rand.Read(data)
 	if err != nil {

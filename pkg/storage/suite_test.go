@@ -18,16 +18,25 @@ package storage
 
 import (
 	"github.com/basenana/nanafs/utils/logger"
+	"os"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
+var (
+	tempDir string
+)
+
 func TestStorage(t *testing.T) {
 	logger.InitLogger()
 	defer logger.Sync()
 	RegisterFailHandler(Fail)
+
+	var err error
+	tempDir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-stg-")
+	Expect(err).Should(BeNil())
 
 	RunSpecs(t, "Storage Suite")
 }

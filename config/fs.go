@@ -35,9 +35,14 @@ const (
 )
 
 type FS struct {
-	OwnerUid  int64 `json:"owner_uid"`
-	OwnerGid  int64 `json:"owner_gid"`
-	Writeback bool  `json:"writeback,omitempty"`
+	Owner     FSOwner `json:"owner,omitempty"`
+	Writeback bool    `json:"writeback,omitempty"`
+	PageSize  int     `json:"page_size,omitempty"`
+}
+
+type FSOwner struct {
+	Uid int64 `json:"uid"`
+	Gid int64 `json:"gid"`
 }
 
 type Meta struct {
@@ -85,8 +90,8 @@ func defaultFsConfig() *FS {
 	if err != nil {
 		return nil
 	}
-	result := &FS{}
-	result.OwnerUid, _ = strconv.ParseInt(u.Uid, 10, 64)
-	result.OwnerGid, _ = strconv.ParseInt(u.Gid, 10, 64)
-	return result
+	owner := FSOwner{}
+	owner.Uid, _ = strconv.ParseInt(u.Uid, 10, 64)
+	owner.Gid, _ = strconv.ParseInt(u.Gid, 10, 64)
+	return &FS{Owner: owner}
 }

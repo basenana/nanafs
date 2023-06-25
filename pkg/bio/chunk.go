@@ -34,8 +34,8 @@ import (
 )
 
 const (
-	fileChunkSize          = 1 << 26 // 64MB
-	fileChunkCommitTimeout = time.Minute
+	fileChunkSize          int64 = 1 << 26 // 64MB
+	fileChunkCommitTimeout       = time.Minute
 )
 
 var (
@@ -101,7 +101,7 @@ func (c *chunkReader) ReadAt(ctx context.Context, dest []byte, off int64) (n int
 
 	var (
 		wg      = &sync.WaitGroup{}
-		reqList = make([]*ioReq, 0, len(dest)/fileChunkSize+1)
+		reqList = make([]*ioReq, 0, int64(len(dest))/fileChunkSize+1)
 	)
 	for {
 		index, _ := computeChunkIndex(off, fileChunkSize)
@@ -247,8 +247,8 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 		}
 	}
 
-	preRead := len(req.data)/pageSize + 1
-	maxPage := int64(fileChunkSize / pageSize)
+	preRead := int64(len(req.data))/pageSize + 1
+	maxPage := fileChunkSize / pageSize
 	for preRead > 0 {
 		preRead -= 1
 		pageIdx += 1
@@ -279,55 +279,69 @@ func (c *segReader) readPage(ctx context.Context, segments []segment, pageIndex,
 	}()
 
 	page, err = c.r.page.read(ctx, pageIndex, func(page *pageNode) error {
-		var (
-			crt, readEnd     int64
-			onceRead         int
-			innerErr         error
-			openedCachedNode storage.CacheNode
-		)
-		for _, seg := range segments {
-			for i := crt; i < seg.off-pageStart; i++ {
-				page.data[i] = 0
-			}
-			crt = seg.off - pageStart
-			readEnd = crt + seg.len
-			if readEnd > pageSize {
-				readEnd = pageSize
-			}
-			if seg.id == 0 {
-				for i := crt; i < readEnd; i++ {
-					page.data[i] = 0
-				}
-				crt = readEnd
-				continue
-			}
-			openedCachedNode, innerErr = c.r.cache.OpenCacheNode(ctx, seg.id, pageIndex)
+		if len(segments) == 1 && segments[0].id > 0 {
+			openedCachedNode, innerErr := c.r.cache.OpenCacheNode(ctx, segments[0].id, pageIndex)
 			for innerErr != nil {
 				return innerErr
 			}
-			onceRead, innerErr = openedCachedNode.ReadAt(page.data[crt:readEnd], seg.off-pageStart)
-			for innerErr != nil {
-				_ = openedCachedNode.Close()
-				return innerErr
-			}
-			if onceRead == 0 {
-				c.r.logger.Warnw("read cached node error: got empty", "segment", seg.id, "page", pageIndex)
-			}
-			_ = openedCachedNode.Close()
-			crt += int64(onceRead)
+			page.node = openedCachedNode
+			return nil
 		}
-		page.length = crt
-		return nil
+		return c.mergePage(ctx, pageIndex, page, segments)
 	})
 	if err != nil {
 		return err
 	}
 	defer page.release()
-	if dest != nil {
+	if len(dest) > 0 {
 		page.mux.RLock()
 		defer page.mux.RUnlock()
-		copy(dest, page.data[off-pageStart:page.length])
+		_, err = page.node.ReadAt(dest, off-pageStart)
+		return err
 	}
+	return nil
+}
+
+func (c *segReader) mergePage(ctx context.Context, pageIndex int64, page *pageNode, segments []segment) error {
+	var (
+		crt, readEnd     int64
+		onceRead         int64
+		innerErr         error
+		pageStart        = pageSize * pageIndex
+		openedCachedNode storage.CacheNode
+	)
+	node := storage.NewMemCacheNode(pageIndex > 1)
+	for _, seg := range segments {
+		crt = seg.off - pageStart
+		readEnd = crt + seg.len
+		if readEnd > pageSize {
+			readEnd = pageSize
+		}
+		if seg.id == 0 {
+			_, _ = io.CopyN(utils.NewWriterWithOffset(node, crt), utils.ZeroDevice, readEnd-crt)
+			crt = readEnd
+			continue
+		}
+		openedCachedNode, innerErr = c.r.cache.OpenCacheNode(ctx, seg.id, pageIndex)
+		for innerErr != nil {
+			_ = node.Close()
+			return innerErr
+		}
+
+		onceRead, innerErr = io.CopyN(utils.NewWriterWithOffset(node, crt), utils.NewReaderWithOffset(openedCachedNode, seg.off-pageStart), readEnd-crt)
+		for innerErr != nil {
+			_ = openedCachedNode.Close()
+			_ = node.Close()
+			return innerErr
+		}
+		if onceRead == 0 {
+			c.r.logger.Warnw("read cached node error: got empty", "segment", seg.id, "page", pageIndex)
+		}
+		_ = openedCachedNode.Close()
+		crt += onceRead
+	}
+	page.node = node
+	page.length = crt
 	return nil
 }
 
@@ -370,7 +384,7 @@ func (c *chunkWriter) WriteAt(ctx context.Context, data []byte, off int64) (n in
 	var (
 		wg      = &sync.WaitGroup{}
 		fileLen = c.entry.Size
-		reqList = make([]*ioReq, 0, len(data)/fileChunkSize+1)
+		reqList = make([]*ioReq, 0, int64(len(data))/fileChunkSize+1)
 	)
 	writeEnd := off + int64(len(data))
 	for {

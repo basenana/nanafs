@@ -28,7 +28,7 @@ import (
 )
 
 var cfg = config.Config{
-	FS:       &config.FS{OwnerUid: 0, OwnerGid: 0, Writeback: false},
+	FS:       &config.FS{Owner: config.FSOwner{Uid: 0, Gid: 0}, Writeback: false},
 	Meta:     config.Meta{Type: metastore.MemoryMeta},
 	Storages: []config.Storage{{ID: "test-memory-0", Type: storage.MemoryStorage}},
 }
