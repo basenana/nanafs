@@ -36,19 +36,23 @@ type Storage interface {
 	Head(ctx context.Context, key int64, idx int64) (Info, error)
 }
 
-func NewStorage(storageID, storageType string, cfg config.Storage) (Storage, error) {
+func NewStorage(storageID, storageType string, cfg config.Storage) (s Storage, err error) {
 	switch storageType {
 	case OSSStorage:
-		return newOSSStorage(storageID, cfg.OSS)
+		s, err = newOSSStorage(storageID, cfg.OSS)
 	case MinioStorage:
-		return newMinioStorage(storageID, cfg.MinIO)
+		s, err = newMinioStorage(storageID, cfg.MinIO)
 	case WebdavStorage:
-		return newWebdavStorage(storageID, cfg.Webdav)
+		s, err = newWebdavStorage(storageID, cfg.Webdav)
 	case LocalStorage:
-		return newLocalStorage(storageID, cfg.LocalDir)
+		s, err = newLocalStorage(storageID, cfg.LocalDir)
 	case MemoryStorage:
-		return newMemoryStorage(storageID), nil
+		s = newMemoryStorage(storageID)
 	default:
-		return nil, fmt.Errorf("unknow storage id: %s", storageID)
+		err = fmt.Errorf("unknow storage id: %s", storageID)
 	}
+	if err != nil {
+		return nil, logErr(storageOperationErrorCounter, err, storageID, "init")
+	}
+	return instrumentalStorage{s: s}, nil
 }

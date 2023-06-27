@@ -45,7 +45,7 @@ type Entry interface {
 }
 
 func buildEntry(obj *types.Object, store metastore.ObjectStore) Entry {
-	return &rawEntry{obj: obj, store: store}
+	return instrumentalEntry{en: &rawEntry{obj: obj, store: store}}
 }
 
 type rawEntry struct {
@@ -167,7 +167,7 @@ func (r *rawEntry) Group() Group {
 		}
 		switch r.obj.Kind {
 		case types.GroupKind:
-			return grp
+			return instrumentalGroup{Entry: instrumentalEntry{en: r}, grp: grp}
 		case types.SmartGroupKind:
 			return &dynamicGroup{stdGroup: grp}
 		case types.MirrorGroupKind:

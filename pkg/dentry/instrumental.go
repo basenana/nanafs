@@ -19,72 +19,219 @@ package dentry
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/prometheus/client_golang/prometheus"
+	"time"
 )
 
+var (
+	entryOperationLatency = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "dentry_operation_latency_seconds",
+			Help:    "The latency of entry operation.",
+			Buckets: prometheus.ExponentialBuckets(0.01, 2, 10),
+		},
+		[]string{"operation"},
+	)
+	entryOperationErrorCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "dentry_operation_errors",
+			Help: "This count of entry operation encountering errors",
+		},
+		[]string{"operation"},
+	)
+	fileOperationLatency = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "dentry_file_operation_latency_seconds",
+			Help:    "The latency of file operation.",
+			Buckets: prometheus.ExponentialBuckets(0.01, 2, 15),
+		},
+		[]string{"operation"},
+	)
+	fileOperationErrorCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "dentry_file_operation_errors",
+			Help: "This count of file operation encountering errors",
+		},
+		[]string{"operation"},
+	)
+	groupOperationLatency = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "dentry_group_operation_latency_seconds",
+			Help:    "The latency of group operation.",
+			Buckets: prometheus.ExponentialBuckets(0.01, 2, 10),
+		},
+		[]string{"operation"},
+	)
+	groupOperationErrorCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "dentry_group_operation_errors",
+			Help: "This count of group operation encountering errors",
+		},
+		[]string{"operation"},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(
+		entryOperationLatency,
+		entryOperationErrorCounter,
+		fileOperationLatency,
+		fileOperationErrorCounter,
+		groupOperationLatency,
+		groupOperationErrorCounter,
+	)
+}
+
+type instrumentalEntry struct {
+	en Entry
+}
+
+func (i instrumentalEntry) Metadata() *types.Metadata {
+	return i.en.Metadata()
+}
+
+func (i instrumentalEntry) GetExtendData(ctx context.Context) (types.ExtendData, error) {
+	const operation = "get_extend_data"
+	defer logOperationLatency(entryOperationLatency, operation, time.Now())
+	ed, err := i.en.GetExtendData(ctx)
+	return ed, logOperationError(entryOperationErrorCounter, operation, err)
+}
+
+func (i instrumentalEntry) UpdateExtendData(ctx context.Context, ed types.ExtendData) error {
+	const operation = "update_extend_data"
+	defer logOperationLatency(entryOperationLatency, operation, time.Now())
+	err := i.en.UpdateExtendData(ctx, ed)
+	return logOperationError(entryOperationErrorCounter, operation, err)
+}
+
+func (i instrumentalEntry) GetExtendField(ctx context.Context, fKey string) (*string, error) {
+	const operation = "get_extend_filed"
+	defer logOperationLatency(entryOperationLatency, operation, time.Now())
+	s, err := i.GetExtendField(ctx, fKey)
+	return s, logOperationError(entryOperationErrorCounter, operation, err)
+}
+
+func (i instrumentalEntry) SetExtendField(ctx context.Context, fKey, fVal string) error {
+	const operation = "set_extend_filed"
+	defer logOperationLatency(entryOperationLatency, operation, time.Now())
+	err := i.en.SetExtendField(ctx, fKey, fVal)
+	return logOperationError(entryOperationErrorCounter, operation, err)
+}
+
+func (i instrumentalEntry) RemoveExtendField(ctx context.Context, fKey string) error {
+	const operation = "remove_extend_filed"
+	defer logOperationLatency(entryOperationLatency, operation, time.Now())
+	err := i.RemoveExtendField(ctx, fKey)
+	return logOperationError(entryOperationErrorCounter, operation, err)
+}
+
+func (i instrumentalEntry) RuleMatched(ctx context.Context, ruleSpec types.Rule) bool {
+	return i.en.RuleMatched(ctx, ruleSpec)
+}
+
+func (i instrumentalEntry) IsGroup() bool {
+	return i.en.IsGroup()
+}
+
+func (i instrumentalEntry) IsMirror() bool {
+	return i.en.IsMirror()
+}
+
+func (i instrumentalEntry) Group() Group {
+	return i.en.Group()
+}
+
 type instrumentalFile struct {
+	Entry
 	file File
 }
 
-func (i *instrumentalFile) Metadata() *types.Metadata {
-	return i.file.Metadata()
-}
-
-func (i *instrumentalFile) GetExtendData(ctx context.Context) (types.ExtendData, error) {
-	return i.file.GetExtendData(ctx)
-}
-
-func (i *instrumentalFile) UpdateExtendData(ctx context.Context, ed types.ExtendData) error {
-	return i.file.UpdateExtendData(ctx, ed)
-}
-
-func (i *instrumentalFile) GetExtendField(ctx context.Context, fKey string) (*string, error) {
-	return i.file.GetExtendField(ctx, fKey)
-}
-
-func (i *instrumentalFile) SetExtendField(ctx context.Context, fKey, fVal string) error {
-	return i.file.SetExtendField(ctx, fKey, fVal)
-}
-
-func (i *instrumentalFile) RemoveExtendField(ctx context.Context, fKey string) error {
-	return i.file.RemoveExtendField(ctx, fKey)
-}
-
-func (i *instrumentalFile) RuleMatched(ctx context.Context, ruleSpec types.Rule) bool {
-	return i.file.RuleMatched(ctx, ruleSpec)
-}
-
-func (i *instrumentalFile) IsGroup() bool {
-	return i.file.IsGroup()
-}
-
-func (i *instrumentalFile) IsMirror() bool {
-	return i.file.IsMirror()
-}
-
-func (i *instrumentalFile) Group() Group {
-	return i.file.Group()
-}
-
-func (i *instrumentalFile) GetAttr() Attr {
+func (i instrumentalFile) GetAttr() Attr {
 	return i.file.GetAttr()
 }
 
-func (i *instrumentalFile) WriteAt(ctx context.Context, data []byte, off int64) (int64, error) {
-	return i.file.WriteAt(ctx, data, off)
+func (i instrumentalFile) WriteAt(ctx context.Context, data []byte, off int64) (int64, error) {
+	const operation = "write_at"
+	defer logOperationLatency(fileOperationLatency, operation, time.Now())
+	n, err := i.file.WriteAt(ctx, data, off)
+	return n, logOperationError(fileOperationErrorCounter, operation, err)
 }
 
-func (i *instrumentalFile) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error) {
-	return i.file.ReadAt(ctx, dest, off)
+func (i instrumentalFile) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error) {
+	const operation = "read_at"
+	defer logOperationLatency(fileOperationLatency, operation, time.Now())
+	n, err := i.file.ReadAt(ctx, dest, off)
+	return n, logOperationError(fileOperationErrorCounter, operation, err)
 }
 
-func (i *instrumentalFile) Fsync(ctx context.Context) error {
-	return i.file.Fsync(ctx)
+func (i instrumentalFile) Fsync(ctx context.Context) error {
+	const operation = "fsync"
+	defer logOperationLatency(fileOperationLatency, operation, time.Now())
+	err := i.file.Fsync(ctx)
+	return logOperationError(fileOperationErrorCounter, operation, err)
 }
 
-func (i *instrumentalFile) Flush(ctx context.Context) error {
-	return i.file.Flush(ctx)
+func (i instrumentalFile) Flush(ctx context.Context) error {
+	const operation = "flush"
+	defer logOperationLatency(fileOperationLatency, operation, time.Now())
+	err := i.file.Flush(ctx)
+	return logOperationError(fileOperationErrorCounter, operation, err)
 }
 
-func (i *instrumentalFile) Close(ctx context.Context) (err error) {
-	return i.file.Close(ctx)
+func (i instrumentalFile) Close(ctx context.Context) error {
+	const operation = "close"
+	defer logOperationLatency(fileOperationLatency, operation, time.Now())
+	err := i.file.Close(ctx)
+	return logOperationError(fileOperationErrorCounter, operation, err)
+}
+
+type instrumentalGroup struct {
+	Entry
+	grp Group
+}
+
+func (i instrumentalGroup) FindEntry(ctx context.Context, name string) (Entry, error) {
+	const operation = "find_entry"
+	defer logOperationLatency(groupOperationLatency, operation, time.Now())
+	en, err := i.grp.FindEntry(ctx, name)
+	return en, logOperationError(groupOperationErrorCounter, operation, err)
+}
+
+func (i instrumentalGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, error) {
+	const operation = "create_entry"
+	defer logOperationLatency(groupOperationLatency, operation, time.Now())
+	en, err := i.grp.CreateEntry(ctx, attr)
+	return en, logOperationError(groupOperationErrorCounter, operation, err)
+}
+
+func (i instrumentalGroup) UpdateEntry(ctx context.Context, en Entry) error {
+	const operation = "update_entry"
+	defer logOperationLatency(groupOperationLatency, operation, time.Now())
+	err := i.grp.UpdateEntry(ctx, en)
+	return logOperationError(groupOperationErrorCounter, operation, err)
+}
+
+func (i instrumentalGroup) RemoveEntry(ctx context.Context, en Entry) error {
+	const operation = "remove_entry"
+	defer logOperationLatency(groupOperationLatency, operation, time.Now())
+	err := i.grp.RemoveEntry(ctx, en)
+	return logOperationError(groupOperationErrorCounter, operation, err)
+}
+
+func (i instrumentalGroup) ListChildren(ctx context.Context) ([]Entry, error) {
+	const operation = "list_children"
+	defer logOperationLatency(groupOperationLatency, operation, time.Now())
+	enList, err := i.grp.ListChildren(ctx)
+	return enList, logOperationError(groupOperationErrorCounter, operation, err)
+}
+
+func logOperationLatency(h *prometheus.HistogramVec, operation string, startAt time.Time) {
+	h.WithLabelValues(operation).Observe(time.Since(startAt).Seconds())
+}
+
+func logOperationError(counter *prometheus.CounterVec, operation string, err error) error {
+	if err != nil {
+		counter.WithLabelValues(operation).Inc()
+	}
+	return err
 }

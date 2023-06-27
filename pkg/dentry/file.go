@@ -147,14 +147,14 @@ func openFile(en Entry, attr Attr, store metastore.ObjectStore, fileStorage stor
 		cfg:   cfg,
 	}
 	if fileStorage == nil {
-		return nil, fmt.Errorf("storage %s not found", en.Metadata().Storage)
+		return nil, logOperationError(fileOperationErrorCounter, "init", fmt.Errorf("storage %s not found", en.Metadata().Storage))
 	}
 	f.reader = bio.NewChunkReader(en.Metadata(), store.(metastore.ChunkStore), fileStorage)
 	if attr.Write {
 		f.writer = bio.NewChunkWriter(f.reader)
 	}
 	increaseOpenedFile(en.Metadata().ID)
-	return f, nil
+	return instrumentalFile{Entry: en, file: f}, nil
 
 }
 
@@ -223,7 +223,7 @@ func openSymlink(en Entry, attr Attr) (File, error) {
 	var raw []byte
 	eData, err := en.GetExtendData(context.TODO())
 	if err != nil {
-		return nil, err
+		return nil, logOperationError(fileOperationErrorCounter, "init", err)
 	}
 	if eData.Symlink != "" {
 		raw = []byte(eData.Symlink)
@@ -234,7 +234,10 @@ func openSymlink(en Entry, attr Attr) (File, error) {
 	}
 
 	increaseOpenedFile(en.Metadata().ID)
-	return &symlink{Entry: en, data: raw, attr: attr}, nil
+	return instrumentalFile{
+		Entry: en,
+		file:  &symlink{Entry: en, data: raw, attr: attr},
+	}, nil
 }
 
 type Attr struct {

@@ -18,6 +18,7 @@ package fs
 
 import (
 	"encoding/base64"
+	"github.com/prometheus/client_golang/prometheus"
 	"os"
 	"syscall"
 
@@ -32,6 +33,31 @@ import (
 const (
 	fileBlockSize = 1 << 12 // 4k
 )
+
+var (
+	operationLatency = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "fuse_operation_latency_seconds",
+			Help:    "The latency of fuse operation.",
+			Buckets: prometheus.ExponentialBuckets(0.01, 2, 15),
+		},
+		[]string{"operation"},
+	)
+	operationErrorCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "fuse_operation_errors",
+			Help: "This count of fuse operation encountering errors",
+		},
+		[]string{"operation"},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(
+		operationLatency,
+		operationErrorCounter,
+	)
+}
 
 func idFromStat(dev uint64, st *syscall.Stat_t) fs.StableAttr {
 	//swapped := (uint64(st.Dev) << 32) | (uint64(st.Dev) >> 32)

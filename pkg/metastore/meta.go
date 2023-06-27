@@ -21,16 +21,21 @@ import (
 	"github.com/basenana/nanafs/config"
 )
 
-func NewMetaStorage(metaType string, meta config.Meta) (Meta, error) {
+func NewMetaStorage(metaType string, meta config.Meta) (m Meta, err error) {
 	switch metaType {
 	case MemoryMeta:
 		meta.Path = ":memory:"
-		return newSqliteMetaStore(meta)
+		m, err = newSqliteMetaStore(meta)
 	case SqliteMeta:
-		return newSqliteMetaStore(meta)
+		m, err = newSqliteMetaStore(meta)
 	case PostgresMeta:
-		return newPostgresMetaStore(meta)
+		m, err = newPostgresMetaStore(meta)
 	default:
-		return nil, fmt.Errorf("unknow meta store type: %s", metaType)
+		err = fmt.Errorf("unknow meta store type: %s", metaType)
 	}
+	if err != nil {
+		logOperationError("init", err)
+		return nil, err
+	}
+	return instrumentalStore{store: m}, nil
 }

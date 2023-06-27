@@ -147,6 +147,7 @@ func (c *chunkReader) prepareData(ctx context.Context, index, off int64, dest []
 
 	maxReadChunkTaskParallel.Go(func() {
 		defer req.Done()
+		defer logLatency(chunkReaderLatency, "read_chunk", time.Now())
 		reader.readChunkRange(ctx, req)
 	})
 	return req
@@ -192,7 +193,7 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 		if err != nil {
 			c.mux.Unlock()
 			c.r.logger.Errorw("list segment reader", "entry", c.r.entry.ID, "chunk", c.chunkID, "err", err)
-			req.err = err
+			req.err = logErr(chunkReadErrorCounter, err, "read_chunk")
 			return
 		}
 
@@ -230,8 +231,10 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 			readEnd = off + bufLeft
 		}
 		req.Add(1)
+		chunkReadingGauge.Inc()
 		go func(ctx context.Context, segments []segment, pageID, off int64, dest []byte) {
 			maxReadChunkTaskParallel.BlockedGo(func() {
+				defer chunkReadingGauge.Dec()
 				defer req.Done()
 				if err := c.readPage(ctx, segments, pageID, off, dest); err != nil && req.err == nil {
 					req.err = err
@@ -255,8 +258,10 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 		if pageIdx >= maxPage || pageIdx*pageSize > c.r.entry.Size {
 			break
 		}
+		chunkReadingGauge.Inc()
 		go func(ctx context.Context, segments []segment, pageID int64) {
 			maxReadChunkTaskParallel.BlockedGo(func() {
+				defer chunkReadingGauge.Dec()
 				if err := c.readPage(ctx, segments, pageID, 0, nil); err != nil {
 					c.r.logger.Errorw("pre-read chunk page error", "entry", c.r.entry.ID, "chunk", c.chunkID, "page", pageIdx, "err", err)
 					return
@@ -267,6 +272,7 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 }
 
 func (c *segReader) readPage(ctx context.Context, segments []segment, pageIndex, off int64, dest []byte) (err error) {
+	defer logLatency(chunkReaderLatency, "read_page", time.Now())
 	defer trace.StartRegion(ctx, "bio.segReader.readPage").End()
 	pageStart := pageSize * pageIndex
 	var page *pageNode
@@ -287,17 +293,18 @@ func (c *segReader) readPage(ctx context.Context, segments []segment, pageIndex,
 			page.node = openedCachedNode
 			return nil
 		}
+		chunkMergePageCounter.Inc()
 		return c.mergePage(ctx, pageIndex, page, segments)
 	})
 	if err != nil {
-		return err
+		return logErr(chunkReadErrorCounter, err, "read_page")
 	}
 	defer page.release()
 	if len(dest) > 0 {
 		page.mux.RLock()
 		defer page.mux.RUnlock()
 		_, err = page.node.ReadAt(dest, off-pageStart)
-		return err
+		return logErr(chunkReadErrorCounter, err, "read_page")
 	}
 	return nil
 }
@@ -325,14 +332,14 @@ func (c *segReader) mergePage(ctx context.Context, pageIndex int64, page *pageNo
 		openedCachedNode, innerErr = c.r.cache.OpenCacheNode(ctx, seg.id, pageIndex)
 		for innerErr != nil {
 			_ = node.Close()
-			return innerErr
+			return logErr(chunkReadErrorCounter, innerErr, "merge_page")
 		}
 
 		onceRead, innerErr = io.CopyN(utils.NewWriterWithOffset(node, crt), utils.NewReaderWithOffset(openedCachedNode, seg.off-pageStart), readEnd-crt)
 		for innerErr != nil {
 			_ = openedCachedNode.Close()
 			_ = node.Close()
-			return innerErr
+			return logErr(chunkReadErrorCounter, innerErr, "merge_page")
 		}
 		if onceRead == 0 {
 			c.r.logger.Warnw("read cached node error: got empty", "segment", seg.id, "page", pageIndex)
@@ -425,6 +432,7 @@ func (c *chunkWriter) WriteAt(ctx context.Context, data []byte, off int64) (n in
 }
 
 func (c *chunkWriter) writeSegData(ctx context.Context, index int64, req *ioReq) (err error) {
+	defer logLatency(chunkWriterLatency, "write_segment", time.Now())
 	defer trace.StartRegion(ctx, "bio.chunkWriter.writeSegData").End()
 	defer req.Done()
 	c.writerMux.Lock()
@@ -546,6 +554,7 @@ func (w *segWriter) put(ctx context.Context, pageIdx, pagePos int64, req *ioReq,
 		w.uncommitted = append(w.uncommitted, seg)
 		atomic.AddInt32(&w.unready, 1)
 		if len(w.uncommitted) == 1 {
+			chunkUncommittedGauge.Inc()
 			go w.commitSegment(ctx)
 		}
 	}
@@ -558,7 +567,7 @@ func (w *segWriter) put(ctx context.Context, pageIdx, pagePos int64, req *ioReq,
 		page.node, err = w.cache.OpenTemporaryNode(ctx, w.entry.ID, pageIdx*pageSize+pagePos)
 		if err != nil {
 			w.logger.Errorw("open temporary node error", "entry", w.entry.ID, "chunk", w.chunkID, "err", err)
-			req.err = err
+			req.err = logErr(chunkWriteErrorCounter, err, "write_dirty_page")
 			return
 		}
 		seg.pages = append(seg.pages, page)
@@ -573,6 +582,7 @@ func (w *segWriter) put(ctx context.Context, pageIdx, pagePos int64, req *ioReq,
 	})
 }
 func (w *segWriter) preWrite(ctx context.Context, pagePos int64, seg *uncommittedSeg, page *uncommittedPage, req *ioReq, data []byte) {
+	defer logLatency(chunkWriterLatency, "write_dirty_page", time.Now())
 	defer trace.StartRegion(ctx, "bio.segWriter.preWrite").End()
 	defer seg.uploads.Done()
 	defer func() {
@@ -585,7 +595,7 @@ func (w *segWriter) preWrite(ctx context.Context, pagePos int64, seg *uncommitte
 	n, err := page.node.WriteAt(data, pagePos)
 	if err != nil {
 		req.Done()
-		req.err = err
+		req.err = logErr(chunkWriteErrorCounter, err, "write_dirty_page")
 		w.logger.Errorw("write to cache node error", "entry", w.entry.ID, "chunk", w.chunkID, "err", err)
 		page.mux.Unlock()
 		atomic.AddInt32(&page.visitor, -1)
@@ -596,6 +606,7 @@ func (w *segWriter) preWrite(ctx context.Context, pagePos int64, seg *uncommitte
 	dataEnd := page.idx*pageSize + pagePos + int64(n)
 	if dataEnd == (page.idx+1)*pageSize && !page.committed {
 		seg.uploads.Add(1)
+		chunkDirtyPageGauge.Inc()
 		page.committed = true
 		go w.flushData(ctx, seg, page)
 	}
@@ -615,11 +626,13 @@ func (w *segWriter) preWrite(ctx context.Context, pagePos int64, seg *uncommitte
 }
 
 func (w *segWriter) flushData(ctx context.Context, seg *uncommittedSeg, page *uncommittedPage) {
+	defer logLatency(chunkWriterLatency, "flush_dirty_page", time.Now())
 	defer trace.StartRegion(ctx, "bio.segWriter.flushData").End()
+	defer chunkDirtyPageGauge.Dec()
 	defer seg.uploads.Done()
 	defer func() {
 		if page.err != nil {
-			w.chunkErr = page.err
+			w.chunkErr = logErr(chunkWriteErrorCounter, page.err, "flush_dirty_page")
 		}
 	}()
 	waitingTime := 0
@@ -695,12 +708,17 @@ func (w *segWriter) findUncommittedPage(ctx context.Context, pageIdx, off int64)
 }
 
 func (w *segWriter) commitSegment(ctx context.Context) {
-	defer trace.StartRegion(ctx, "bio.segWriter.commitSegment").End()
+	defer chunkUncommittedGauge.Dec()
+	defer logLatency(chunkWriterLatency, "commit_segment", time.Now())
 	defer logger.CostLog(w.logger.With(zap.Int64("chunk", w.chunkID)), "commit segment data")()
+
+	ctx, task := trace.NewTask(ctx, "bio.segWriter.commitSegment")
+	defer task.End()
+
 	for len(w.uncommitted) > 0 {
 		select {
 		case <-ctx.Done():
-			w.logger.Errorw("commit segment error", "entry", w.entry.ID, "chunk", w.chunkID, "err", ctx.Err())
+			w.logger.Errorw("[DISCARD] commit segment closed", "entry", w.entry.ID, "chunk", w.chunkID, "err", ctx.Err())
 			return
 		default:
 
@@ -719,7 +737,9 @@ func (w *segWriter) commitSegment(ctx context.Context) {
 		if uploadErr := seg.uploaded(); uploadErr != nil {
 			w.uncommitted = w.uncommitted[1:]
 			atomic.AddInt32(&w.unready, -1)
-			w.logger.Errorw("upload segment error, discard segment info", "entry", w.entry.ID, "chunk", w.chunkID, "err", uploadErr)
+			w.logger.Errorw("[DISCARD] upload segment error, discard segment info", "entry", w.entry.ID, "chunk", w.chunkID, "err", uploadErr)
+			w.chunkErr = logErr(chunkWriteErrorCounter, uploadErr, "commit_segment")
+			chunkDiscardSegmentCounter.Inc()
 			continue
 		}
 
@@ -732,8 +752,9 @@ func (w *segWriter) commitSegment(ctx context.Context) {
 			State:    0,
 		})
 		if err != nil {
-			w.logger.Errorw("append segment error", "entry", w.entry.ID, "chunk", w.chunkID, "err", err)
-			w.chunkErr = err
+			w.logger.Errorw("[DISCARD] append segment error", "entry", w.entry.ID, "chunk", w.chunkID, "err", err)
+			w.chunkErr = logErr(chunkWriteErrorCounter, err, "commit_segment")
+			chunkDiscardSegmentCounter.Inc()
 			continue
 		}
 		w.invalidate(w.chunkID)
@@ -768,6 +789,7 @@ func (s *uncommittedSeg) tryCommit(ctx context.Context) {
 		}
 		page.committed = true
 		s.uploads.Add(1)
+		chunkDirtyPageGauge.Inc()
 		go s.w.flushData(ctx, s, page)
 		page.mux.Unlock()
 	}

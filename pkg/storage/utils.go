@@ -94,6 +94,7 @@ func decompress(ctx context.Context, in io.Reader, out io.Writer) error {
 }
 
 func encrypt(ctx context.Context, segIDKey int64, method, secretKey string, in io.Reader, out io.Writer) error {
+	defer trace.StartRegion(ctx, "storage.localCache.encrypt").End()
 	aesCipher, err := aes.NewCipher([]byte(secretKey))
 	if err != nil {
 		return err
@@ -103,6 +104,7 @@ func encrypt(ctx context.Context, segIDKey int64, method, secretKey string, in i
 }
 
 func decrypt(ctx context.Context, segIDKey int64, method, secretKey string, in io.Reader, out io.Writer) error {
+	defer trace.StartRegion(ctx, "storage.localCache.decrypt").End()
 	aesCipher, err := aes.NewCipher([]byte(secretKey))
 	if err != nil {
 		return err
