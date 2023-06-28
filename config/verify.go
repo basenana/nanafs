@@ -66,7 +66,7 @@ func checkFuseConfig(config *Config) error {
 
 func checkWebdavConfig(config *Config) error {
 	wCfg := config.Webdav
-	if !wCfg.Enable {
+	if wCfg == nil || !wCfg.Enable {
 		return nil
 	}
 	if wCfg.Host == "" || wCfg.Port == 0 {
