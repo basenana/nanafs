@@ -28,7 +28,6 @@ type Config struct {
 	Workflow Workflow `json:"workflow"`
 	Plugin   *Plugin  `json:"plugin,omitempty"`
 	FS       *FS      `json:"fs,omitempty"`
-	Metric   *Metric  `json:"metric,omitempty"`
 
 	CacheDir  string `json:"cache_dir,omitempty"`
 	CacheSize int    `json:"cache_size,omitempty"`
@@ -36,10 +35,11 @@ type Config struct {
 }
 
 type Api struct {
-	Enable bool   `json:"enable"`
-	Host   string `json:"host"`
-	Port   int    `json:"port"`
-	Pprof  bool   `json:"pprof"`
+	Enable  bool   `json:"enable"`
+	Host    string `json:"host"`
+	Port    int    `json:"port"`
+	Pprof   bool   `json:"pprof"`
+	Metrics bool   `json:"metrics"`
 }
 
 type Webdav struct {

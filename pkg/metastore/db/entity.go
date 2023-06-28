@@ -20,6 +20,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/basenana/nanafs/utils/logger"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -28,6 +32,8 @@ import (
 
 	"github.com/basenana/nanafs/pkg/types"
 )
+
+var initMetrics sync.Once
 
 type Entity struct {
 	*gorm.DB
@@ -54,6 +60,19 @@ func NewDbEntity(db *gorm.DB) (*Entity, error) {
 			return nil, res.Error
 		}
 	}
+
+	initMetrics.Do(func() {
+		l := logger.NewLogger("initDbMetrics")
+		goDb, innerErr := db.DB()
+		if innerErr == nil {
+			registerErr := prometheus.Register(collectors.NewDBStatsCollector(goDb, db.Name()))
+			if registerErr != nil {
+				l.Warnf("register dbstats collector failed: %s", err)
+			}
+			return
+		}
+		l.Warnf("init db metrics failed: %s", err)
+	})
 
 	return ent, nil
 }

@@ -58,6 +58,14 @@ github.com/gabriel-vasile/mimetype
 github.com/gabriel-vasile/mimetype/internal/charset
 github.com/gabriel-vasile/mimetype/internal/json
 github.com/gabriel-vasile/mimetype/internal/magic
+# github.com/getsentry/sentry-go v0.22.0
+## explicit; go 1.18
+github.com/getsentry/sentry-go
+github.com/getsentry/sentry-go/internal/debug
+github.com/getsentry/sentry-go/internal/otel/baggage
+github.com/getsentry/sentry-go/internal/otel/baggage/internal/baggage
+github.com/getsentry/sentry-go/internal/ratelimit
+github.com/getsentry/sentry-go/internal/traceparser
 # github.com/gin-contrib/pprof v1.4.0
 ## explicit; go 1.14
 github.com/gin-contrib/pprof
@@ -263,7 +271,9 @@ github.com/pierrec/lz4/v4/internal/xxh32
 # github.com/prometheus/client_golang v1.16.0
 ## explicit; go 1.17
 github.com/prometheus/client_golang/prometheus
+github.com/prometheus/client_golang/prometheus/collectors
 github.com/prometheus/client_golang/prometheus/internal
+github.com/prometheus/client_golang/prometheus/promhttp
 # github.com/prometheus/client_model v0.3.0
 ## explicit; go 1.9
 github.com/prometheus/client_model/go
@@ -363,6 +373,7 @@ golang.org/x/net/webdav/internal/xml
 # golang.org/x/sys v0.9.0
 ## explicit; go 1.17
 golang.org/x/sys/cpu
+golang.org/x/sys/execabs
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix
 golang.org/x/sys/windows

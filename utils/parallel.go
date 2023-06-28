@@ -18,6 +18,7 @@ package utils
 
 import (
 	"fmt"
+	"github.com/getsentry/sentry-go"
 	"runtime/debug"
 )
 
@@ -58,6 +59,7 @@ func NewMaximumParallel(num int) *MaximumParallel {
 func Recover() error {
 	if panicErr := recover(); panicErr != nil {
 		debug.PrintStack()
+		sentry.CurrentHub().Recover(panicErr)
 		return fmt.Errorf("panic: %v", panicErr)
 	}
 	return nil

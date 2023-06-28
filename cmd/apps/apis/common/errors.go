@@ -61,8 +61,6 @@ func Error2ApiErrorCode(err error) (int, ApiErrorCode) {
 		return http.StatusForbidden, ApiNoPermits
 	case types.ErrNameTooLong:
 		return http.StatusBadRequest, ApiArgsError
-	case types.ErrOutOfFS:
-		return http.StatusBadRequest, ApiArgsError
 	}
 	return http.StatusInternalServerError, ApiInternalError
 }

@@ -30,7 +30,7 @@ var (
 		prometheus.HistogramOpts{
 			Name:    "storage_operation_latency_seconds",
 			Help:    "The latency of storage operation.",
-			Buckets: prometheus.ExponentialBuckets(0.01, 1.5, 30),
+			Buckets: prometheus.ExponentialBuckets(0.01, 2, 15),
 		},
 		[]string{"storage_id", "operation"},
 	)
@@ -58,13 +58,13 @@ var (
 	)
 	localCachedNodeGauge = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "local_cache_nodes_gauge",
+			Name: "local_cache_nodes",
 			Help: "This count of local cached nodes",
 		},
 	)
 	localCachedUsageGauge = prometheus.NewGaugeFunc(
 		prometheus.GaugeOpts{
-			Name: "local_cache_usage_bytes_gauge",
+			Name: "local_cache_usage_bytes",
 			Help: "This usage of local cached nodes",
 		},
 		func() float64 {
@@ -73,7 +73,7 @@ var (
 	)
 	localCachedLimitGauge = prometheus.NewGaugeFunc(
 		prometheus.GaugeOpts{
-			Name: "local_cache_limit_bytes_gauge",
+			Name: "local_cache_limit_bytes",
 			Help: "This limit of local cached nodes",
 		},
 		func() float64 {
@@ -82,7 +82,7 @@ var (
 	)
 	localCacheFetchingGauge = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "local_cache_fetching_gauge",
+			Name: "local_cache_fetching_node",
 			Help: "This count of cache fetching",
 		},
 	)
@@ -133,7 +133,7 @@ func (i instrumentalStorage) Delete(ctx context.Context, key int64) error {
 func (i instrumentalStorage) Head(ctx context.Context, key int64, idx int64) (Info, error) {
 	const headOperation = "head"
 	defer logStorageOperationLatency(i.ID(), headOperation, time.Now())
-	info, err := i.Head(ctx, key, idx)
+	info, err := i.s.Head(ctx, key, idx)
 	return info, logErr(storageOperationErrorCounter, err, i.ID(), headOperation)
 }
 

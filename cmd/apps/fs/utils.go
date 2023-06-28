@@ -21,6 +21,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"os"
 	"syscall"
+	"time"
 
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
@@ -32,6 +33,11 @@ import (
 
 const (
 	fileBlockSize = 1 << 12 // 4k
+	NoErr         = syscall.Errno(0)
+
+	RenameNoreplace = 0x1
+	RenameExchange  = 0x2
+	RenameWhiteout  = 0x4
 )
 
 var (
@@ -39,14 +45,14 @@ var (
 		prometheus.HistogramOpts{
 			Name:    "fuse_operation_latency_seconds",
 			Help:    "The latency of fuse operation.",
-			Buckets: prometheus.ExponentialBuckets(0.01, 2, 15),
+			Buckets: prometheus.ExponentialBuckets(0.00001, 5, 10),
 		},
 		[]string{"operation"},
 	)
-	operationErrorCounter = prometheus.NewCounterVec(
+	unexpectedErrorCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "fuse_operation_errors",
-			Help: "This count of fuse operation encountering errors",
+			Name: "fuse_unexpected_errors",
+			Help: "This count of fuse operation encountering unexpected errors",
 		},
 		[]string{"operation"},
 	)
@@ -55,8 +61,36 @@ var (
 func init() {
 	prometheus.MustRegister(
 		operationLatency,
-		operationErrorCounter,
+		unexpectedErrorCounter,
 	)
+}
+
+func Error2FuseSysError(operation string, err error) syscall.Errno {
+	if err == nil {
+		return NoErr
+	}
+	switch err {
+	case types.ErrNotFound:
+		return syscall.ENOENT
+	case types.ErrIsExist:
+		return syscall.EEXIST
+	case types.ErrNoGroup:
+		return syscall.Errno(20)
+	case types.ErrNotEmpty:
+		return syscall.ENOTEMPTY
+	case types.ErrIsGroup:
+		return syscall.EISDIR
+	case types.ErrNoAccess:
+		return syscall.EACCES
+	case types.ErrNoPerm:
+		return syscall.EPERM
+	case types.ErrNameTooLong:
+		return syscall.ENAMETOOLONG
+	case types.ErrUnsupported:
+		return syscall.EBADF
+	}
+	unexpectedErrorCounter.WithLabelValues(operation).Inc()
+	return syscall.EIO
 }
 
 func idFromStat(dev uint64, st *syscall.Stat_t) fs.StableAttr {
@@ -230,4 +264,8 @@ func xattrRawData2Content(raw []byte) string {
 
 func xattrContent2RawData(data string) ([]byte, error) {
 	return base64.StdEncoding.DecodeString(data)
+}
+
+func logOperationLatency(operation string, startAt time.Time) {
+	operationLatency.WithLabelValues(operation).Observe(time.Since(startAt).Seconds())
 }

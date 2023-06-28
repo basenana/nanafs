@@ -103,7 +103,7 @@ func (i instrumentalStore) DestroyObject(ctx context.Context, src, obj *types.Ob
 func (i instrumentalStore) ListChildren(ctx context.Context, obj *types.Object) (Iterator, error) {
 	const operation = "list_children"
 	defer logOperationLatency(operation, time.Now())
-	iter, err := i.ListChildren(ctx, obj)
+	iter, err := i.store.ListChildren(ctx, obj)
 	logOperationError(operation, err)
 	return iter, err
 }
@@ -111,7 +111,7 @@ func (i instrumentalStore) ListChildren(ctx context.Context, obj *types.Object) 
 func (i instrumentalStore) MirrorObject(ctx context.Context, srcObj, dstParent, object *types.Object) error {
 	const operation = "mirror_object"
 	defer logOperationLatency(operation, time.Now())
-	err := i.MirrorObject(ctx, srcObj, dstParent, object)
+	err := i.store.MirrorObject(ctx, srcObj, dstParent, object)
 	logOperationError(operation, err)
 	return err
 }
@@ -135,7 +135,7 @@ func (i instrumentalStore) NextSegmentID(ctx context.Context) (int64, error) {
 func (i instrumentalStore) ListSegments(ctx context.Context, oid, chunkID int64, allChunk bool) ([]types.ChunkSeg, error) {
 	const operation = "list_segments"
 	defer logOperationLatency(operation, time.Now())
-	segList, err := i.ListSegments(ctx, oid, chunkID, allChunk)
+	segList, err := i.store.ListSegments(ctx, oid, chunkID, allChunk)
 	logOperationError(operation, err)
 	return segList, err
 }

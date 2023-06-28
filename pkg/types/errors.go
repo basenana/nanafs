@@ -27,6 +27,5 @@ var (
 	ErrIsGroup     = errors.New("this object is a group")
 	ErrNoAccess    = errors.New("no access")
 	ErrNoPerm      = errors.New("no permission")
-	ErrOutOfFS     = errors.New("out of nanafs control")
 	ErrUnsupported = errors.New("unsupported operation")
 )

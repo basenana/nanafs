@@ -18,11 +18,16 @@ package common
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	metrics "github.com/slok/go-http-metrics/metrics/prometheus"
 	"github.com/slok/go-http-metrics/middleware"
 	"github.com/slok/go-http-metrics/middleware/std"
 	"net/http"
 )
+
+func init() {
+	prometheus.MustRegister(collectors.NewBuildInfoCollector())
+}
 
 func MetricMiddleware(handlerID string, handler http.Handler) http.Handler {
 	mdlw := middleware.New(middleware.Config{

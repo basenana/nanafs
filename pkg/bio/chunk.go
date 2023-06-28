@@ -25,6 +25,7 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
+	"github.com/getsentry/sentry-go"
 	"go.uber.org/zap"
 	"io"
 	"runtime/trace"
@@ -626,7 +627,7 @@ func (w *segWriter) preWrite(ctx context.Context, pagePos int64, seg *uncommitte
 }
 
 func (w *segWriter) flushData(ctx context.Context, seg *uncommittedSeg, page *uncommittedPage) {
-	defer logLatency(chunkWriterLatency, "flush_dirty_page", time.Now())
+	defer logLatency(chunkCommitSegmentLatency, "flush_dirty_page", time.Now())
 	defer trace.StartRegion(ctx, "bio.segWriter.flushData").End()
 	defer chunkDirtyPageGauge.Dec()
 	defer seg.uploads.Done()
@@ -709,7 +710,7 @@ func (w *segWriter) findUncommittedPage(ctx context.Context, pageIdx, off int64)
 
 func (w *segWriter) commitSegment(ctx context.Context) {
 	defer chunkUncommittedGauge.Dec()
-	defer logLatency(chunkWriterLatency, "commit_segment", time.Now())
+	defer logLatency(chunkCommitSegmentLatency, "commit_segment", time.Now())
 	defer logger.CostLog(w.logger.With(zap.Int64("chunk", w.chunkID)), "commit segment data")()
 
 	ctx, task := trace.NewTask(ctx, "bio.segWriter.commitSegment")
@@ -719,6 +720,9 @@ func (w *segWriter) commitSegment(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			w.logger.Errorw("[DISCARD] commit segment closed", "entry", w.entry.ID, "chunk", w.chunkID, "err", ctx.Err())
+			if ctx.Err() == context.DeadlineExceeded {
+				sentry.CaptureMessage("commit segment closed: deadline exceeded")
+			}
 			return
 		default:
 
@@ -739,6 +743,7 @@ func (w *segWriter) commitSegment(ctx context.Context) {
 			atomic.AddInt32(&w.unready, -1)
 			w.logger.Errorw("[DISCARD] upload segment error, discard segment info", "entry", w.entry.ID, "chunk", w.chunkID, "err", uploadErr)
 			w.chunkErr = logErr(chunkWriteErrorCounter, uploadErr, "commit_segment")
+			sentry.CaptureException(w.chunkErr)
 			chunkDiscardSegmentCounter.Inc()
 			continue
 		}
@@ -754,6 +759,7 @@ func (w *segWriter) commitSegment(ctx context.Context) {
 		if err != nil {
 			w.logger.Errorw("[DISCARD] append segment error", "entry", w.entry.ID, "chunk", w.chunkID, "err", err)
 			w.chunkErr = logErr(chunkWriteErrorCounter, err, "commit_segment")
+			sentry.CaptureException(w.chunkErr)
 			chunkDiscardSegmentCounter.Inc()
 			continue
 		}

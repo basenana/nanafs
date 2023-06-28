@@ -14,8 +14,21 @@
  limitations under the License.
 */
 
-package fs
+package metrics
 
-const RENAME_NOREPLACE = 0x1
-const RENAME_EXCHANGE = 0x2
-const RENAME_WHITEOUT = 0x4
+import (
+	"github.com/getsentry/sentry-go"
+	"os"
+)
+
+const defaultSentryDSN = "https://7e72df9c77f94e4e8e2af74c81992436@o4505437525901312.ingest.sentry.io/4505437540188160"
+
+func init() {
+	sentryDSN, hasConfig := os.LookupEnv("SENTRY_DSN")
+	if !hasConfig {
+		sentryDSN = defaultSentryDSN
+	}
+	if sentryDSN != "" {
+		_ = sentry.Init(sentry.ClientOptions{Dsn: sentryDSN, TracesSampleRate: 0.6})
+	}
+}

@@ -27,7 +27,7 @@ var (
 		prometheus.HistogramOpts{
 			Name:    "io_chunk_reader_latency_seconds",
 			Help:    "The latency of chunk reader.",
-			Buckets: prometheus.ExponentialBuckets(0.01, 2, 15),
+			Buckets: prometheus.ExponentialBuckets(0.00001, 5, 10),
 		},
 		[]string{"step"},
 	)
@@ -35,6 +35,14 @@ var (
 		prometheus.HistogramOpts{
 			Name:    "io_chunk_writer_latency_seconds",
 			Help:    "The latency of chunk writer.",
+			Buckets: prometheus.ExponentialBuckets(0.0000001, 5, 10),
+		},
+		[]string{"step"},
+	)
+	chunkCommitSegmentLatency = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "io_chunk_commit_segment_latency_seconds",
+			Help:    "The latency of commit chunk segment.",
 			Buckets: prometheus.ExponentialBuckets(0.01, 2, 15),
 		},
 		[]string{"step"},
@@ -55,38 +63,38 @@ var (
 	)
 	chunkDiscardSegmentCounter = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "io_chunk_discard_segment",
+			Name: "io_chunk_discard_segments",
 			Help: "This count of chunk upload segment failed.",
 		},
 	)
 	chunkReadingGauge = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "io_chunk_reading_gauge",
+			Name: "io_chunk_reading",
 			Help: "This count of reading goroutines.",
 		},
 	)
 	chunkMergePageCounter = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "io_chunk_reader_merge_pages",
+			Name: "io_chunk_reader_merge",
 			Help: "This count of reader merge pages.",
 		},
 	)
 	chunkDirtyPageGauge = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "io_chunk_dirty_page_gauge",
+			Name: "io_chunk_dirty_pages",
 			Help: "This count of dirty page.",
 		},
 	)
 	chunkUncommittedGauge = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "io_chunk_uncommitted_gauge",
+			Name: "io_chunk_uncommitted_segments",
 			Help: "This count of uncommitted segments.",
 		},
 	)
 	pageCacheCountGauge = prometheus.NewGaugeFunc(
 		prometheus.GaugeOpts{
-			Name: "io_page_cache_count_gauge",
-			Help: "This count of page caches,",
+			Name: "io_current_page_caches",
+			Help: "This current count of page caches",
 		},
 		func() float64 {
 			return float64(atomic.LoadInt32(&crtPageCacheTotal))
@@ -94,7 +102,7 @@ var (
 	)
 	pageCacheLimitGauge = prometheus.NewGaugeFunc(
 		prometheus.GaugeOpts{
-			Name: "io_page_cache_limit_gauge",
+			Name: "io_page_cache_limit_bytes",
 			Help: "This limit count of page caches,",
 		},
 		func() float64 {
@@ -107,6 +115,7 @@ func init() {
 	prometheus.MustRegister(
 		chunkReaderLatency,
 		chunkWriterLatency,
+		chunkCommitSegmentLatency,
 		chunkReadErrorCounter,
 		chunkWriteErrorCounter,
 		chunkDiscardSegmentCounter,

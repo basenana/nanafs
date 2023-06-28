@@ -28,7 +28,7 @@ var (
 		prometheus.HistogramOpts{
 			Name:    "dentry_operation_latency_seconds",
 			Help:    "The latency of entry operation.",
-			Buckets: prometheus.ExponentialBuckets(0.01, 2, 10),
+			Buckets: prometheus.ExponentialBuckets(0.0001, 5, 5),
 		},
 		[]string{"operation"},
 	)
@@ -43,7 +43,7 @@ var (
 		prometheus.HistogramOpts{
 			Name:    "dentry_file_operation_latency_seconds",
 			Help:    "The latency of file operation.",
-			Buckets: prometheus.ExponentialBuckets(0.01, 2, 15),
+			Buckets: prometheus.ExponentialBuckets(0.0001, 2.5, 15),
 		},
 		[]string{"operation"},
 	)
@@ -58,7 +58,7 @@ var (
 		prometheus.HistogramOpts{
 			Name:    "dentry_group_operation_latency_seconds",
 			Help:    "The latency of group operation.",
-			Buckets: prometheus.ExponentialBuckets(0.01, 2, 10),
+			Buckets: prometheus.ExponentialBuckets(0.001, 2, 10),
 		},
 		[]string{"operation"},
 	)
@@ -107,7 +107,7 @@ func (i instrumentalEntry) UpdateExtendData(ctx context.Context, ed types.Extend
 func (i instrumentalEntry) GetExtendField(ctx context.Context, fKey string) (*string, error) {
 	const operation = "get_extend_filed"
 	defer logOperationLatency(entryOperationLatency, operation, time.Now())
-	s, err := i.GetExtendField(ctx, fKey)
+	s, err := i.en.GetExtendField(ctx, fKey)
 	return s, logOperationError(entryOperationErrorCounter, operation, err)
 }
 
@@ -121,7 +121,7 @@ func (i instrumentalEntry) SetExtendField(ctx context.Context, fKey, fVal string
 func (i instrumentalEntry) RemoveExtendField(ctx context.Context, fKey string) error {
 	const operation = "remove_extend_filed"
 	defer logOperationLatency(entryOperationLatency, operation, time.Now())
-	err := i.RemoveExtendField(ctx, fKey)
+	err := i.en.RemoveExtendField(ctx, fKey)
 	return logOperationError(entryOperationErrorCounter, operation, err)
 }
 

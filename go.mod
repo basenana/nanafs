@@ -6,6 +6,7 @@ require (
 	github.com/aliyun/aliyun-oss-go-sdk v2.2.7+incompatible
 	github.com/basenana/go-flow v0.0.0-20230623131125-436c54eb816d
 	github.com/bluele/gcache v0.0.2
+	github.com/getsentry/sentry-go v0.22.0
 	github.com/glebarez/sqlite v1.7.0
 	github.com/go-gormigrate/gormigrate/v2 v2.0.2
 	github.com/google/uuid v1.3.0
