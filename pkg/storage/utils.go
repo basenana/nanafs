@@ -25,6 +25,7 @@ import (
 	"github.com/pierrec/lz4/v4"
 	"io"
 	"runtime/trace"
+	"strconv"
 )
 
 type nodeUsingInfo struct {
@@ -94,6 +95,7 @@ func decompress(ctx context.Context, in io.Reader, out io.Writer) error {
 }
 
 func encrypt(ctx context.Context, segIDKey int64, method, secretKey string, in io.Reader, out io.Writer) error {
+	defer trace.StartRegion(ctx, "storage.localCache.encrypt").End()
 	aesCipher, err := aes.NewCipher([]byte(secretKey))
 	if err != nil {
 		return err
@@ -103,6 +105,7 @@ func encrypt(ctx context.Context, segIDKey int64, method, secretKey string, in i
 }
 
 func decrypt(ctx context.Context, segIDKey int64, method, secretKey string, in io.Reader, out io.Writer) error {
+	defer trace.StartRegion(ctx, "storage.localCache.decrypt").End()
 	aesCipher, err := aes.NewCipher([]byte(secretKey))
 	if err != nil {
 		return err
@@ -155,4 +158,16 @@ func reverseString(s string) string {
 		r[i], r[j] = r[j], r[i]
 	}
 	return string(r)
+}
+
+func str2Int(s string, defaultVal int) int {
+	if s == "" {
+		return defaultVal
+	}
+
+	val, err := strconv.Atoi(s)
+	if err == nil {
+		return val
+	}
+	return defaultVal
 }

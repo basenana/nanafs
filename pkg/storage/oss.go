@@ -21,25 +21,29 @@ import (
 	"fmt"
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"io"
+	"os"
 	"runtime/trace"
 	"strconv"
 )
 
 const (
-	OSSStorage = config.OSSStorage
+	OSSStorage          = config.OSSStorage
+	ossReadLimitEnvKey  = "STORAGE_OSS_READ_LIMIT"
+	ossWriteLimitEnvKey = "STORAGE_OSS_WRITE_LIMIT"
 )
 
 type aliyunOSSStorage struct {
-	sid        string
-	cli        *oss.Client
-	bucket     *oss.Bucket
-	cfg        *config.OSSConfig
-	readLimit  chan struct{}
-	writeLimit chan struct{}
-	logger     *zap.SugaredLogger
+	sid       string
+	cli       *oss.Client
+	bucket    *oss.Bucket
+	cfg       *config.OSSConfig
+	readRate  *utils.ParallelLimiter
+	writeRate *utils.ParallelLimiter
+	logger    *zap.SugaredLogger
 }
 
 var _ Storage = &aliyunOSSStorage{}
@@ -50,10 +54,10 @@ func (a *aliyunOSSStorage) ID() string {
 
 func (a *aliyunOSSStorage) Get(ctx context.Context, key, idx int64) (io.ReadCloser, error) {
 	defer trace.StartRegion(ctx, "storage.oss.Get").End()
-	a.readLimit <- struct{}{}
-	defer func() {
-		<-a.readLimit
-	}()
+	if err := a.readRate.Acquire(ctx); err != nil {
+		return nil, err
+	}
+	defer a.readRate.Release()
 	r, err := a.bucket.GetObject(ossObjectName(key, idx))
 	if err != nil {
 		a.logger.Errorw("get oss object error", "object", ossObjectName(key, idx), "err", err)
@@ -64,10 +68,10 @@ func (a *aliyunOSSStorage) Get(ctx context.Context, key, idx int64) (io.ReadClos
 
 func (a *aliyunOSSStorage) Put(ctx context.Context, key, idx int64, dataReader io.Reader) error {
 	defer trace.StartRegion(ctx, "storage.oss.Put").End()
-	a.writeLimit <- struct{}{}
-	defer func() {
-		<-a.writeLimit
-	}()
+	if err := a.writeRate.Acquire(ctx); err != nil {
+		return err
+	}
+	defer a.writeRate.Release()
 	err := a.bucket.PutObject(ossObjectName(key, idx), dataReader)
 	if err != nil {
 		a.logger.Errorw("put object to oss error", "object", ossObjectName(key, idx), "err", err)
@@ -197,12 +201,12 @@ func newOSSStorage(storageID string, cfg *config.OSSConfig) (Storage, error) {
 	}
 
 	s := &aliyunOSSStorage{
-		sid:        storageID,
-		cli:        cli,
-		cfg:        cfg,
-		readLimit:  make(chan struct{}, 30),
-		writeLimit: make(chan struct{}, 15),
-		logger:     logger.NewLogger("OSS"),
+		sid:       storageID,
+		cli:       cli,
+		cfg:       cfg,
+		readRate:  utils.NewParallelLimiter(str2Int(os.Getenv(ossReadLimitEnvKey), 25)),
+		writeRate: utils.NewParallelLimiter(str2Int(os.Getenv(ossWriteLimitEnvKey), 10)),
+		logger:    logger.NewLogger("OSS"),
 	}
 	return s, s.initOSSBucket(context.Background())
 }

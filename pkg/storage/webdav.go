@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/studio-b12/gowebdav"
 	"go.uber.org/zap"
@@ -36,13 +37,13 @@ const (
 )
 
 type webdavStorage struct {
-	sid        string
-	basePath   string
-	cli        *gowebdav.Client
-	readLimit  chan struct{}
-	writeLimit chan struct{}
-	dirLock    sync.Mutex
-	logger     *zap.SugaredLogger
+	sid       string
+	basePath  string
+	cli       *gowebdav.Client
+	readRate  *utils.ParallelLimiter
+	writeRate *utils.ParallelLimiter
+	dirLock   sync.Mutex
+	logger    *zap.SugaredLogger
 }
 
 var _ Storage = &webdavStorage{}
@@ -53,10 +54,10 @@ func (w *webdavStorage) ID() string {
 
 func (w *webdavStorage) Get(ctx context.Context, key, idx int64) (io.ReadCloser, error) {
 	defer trace.StartRegion(ctx, "storage.webdav.Get").End()
-	w.readLimit <- struct{}{}
-	defer func() {
-		<-w.readLimit
-	}()
+	if err := w.readRate.Acquire(ctx); err != nil {
+		return nil, err
+	}
+	defer w.readRate.Release()
 	fileReader, err := w.cli.ReadStream(webdavObjectPath(key, idx))
 	if err != nil {
 		w.logger.Errorw("get file from server failed", "path", webdavObjectPath(key, idx), "err", err)
@@ -67,11 +68,10 @@ func (w *webdavStorage) Get(ctx context.Context, key, idx int64) (io.ReadCloser,
 
 func (w *webdavStorage) Put(ctx context.Context, key, idx int64, dataReader io.Reader) error {
 	defer trace.StartRegion(ctx, "storage.webdav.Put").End()
-	w.writeLimit <- struct{}{}
-	defer func() {
-		<-w.writeLimit
-	}()
-
+	if err := w.writeRate.Acquire(ctx); err != nil {
+		return err
+	}
+	defer w.writeRate.Release()
 	err := func() error {
 		// concurrent creation will result in a 403 error.
 		w.dirLock.Lock()
@@ -114,10 +114,6 @@ func (w *webdavStorage) Delete(ctx context.Context, key int64) error {
 
 func (w *webdavStorage) Head(ctx context.Context, key int64, idx int64) (Info, error) {
 	defer trace.StartRegion(ctx, "storage.webdav.Head").End()
-	w.readLimit <- struct{}{}
-	defer func() {
-		<-w.readLimit
-	}()
 	info, err := w.cli.Stat(webdavObjectPath(key, idx))
 	if err != nil {
 		w.logger.Errorw("stat file from server failed", "path", webdavObjectPath(key, idx), "err", err)
@@ -163,11 +159,11 @@ func newWebdavStorage(storageID string, cfg *config.WebdavStorageConfig) (Storag
 	cli.SetTransport(t)
 
 	s := &webdavStorage{
-		sid:        storageID,
-		cli:        cli,
-		readLimit:  make(chan struct{}, 10),
-		writeLimit: make(chan struct{}, 5),
-		logger:     logger.NewLogger("webdav"),
+		sid:       storageID,
+		cli:       cli,
+		readRate:  utils.NewParallelLimiter(10),
+		writeRate: utils.NewParallelLimiter(5),
+		logger:    logger.NewLogger("webdav"),
 	}
 	return s, nil
 }

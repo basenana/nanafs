@@ -21,7 +21,49 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/prometheus/client_golang/prometheus"
+	"time"
 )
+
+var (
+	taskExecutionLatency = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "dispatch_task_execution_latency_seconds",
+			Help:    "The latency of dispatch task execution.",
+			Buckets: prometheus.ExponentialBuckets(0.1, 2, 15),
+		},
+		[]string{"id"},
+	)
+	taskExecutionErrorCounter = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "dispatch_task_execution_errors",
+			Help: "This count of dispatch task encountering errors",
+		},
+	)
+	taskFinishStatusCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "dispatch_task_finished",
+			Help: "This count of storage encountering errors",
+		},
+		[]string{"id", "status"},
+	)
+	taskCurrentRunningGauge = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "dispatch_task_current_running",
+			Help: "This count of waiting or running tasks",
+		},
+		[]string{"id", "status"},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(
+		taskExecutionLatency,
+		taskExecutionErrorCounter,
+		taskFinishStatusCounter,
+		taskCurrentRunningGauge,
+	)
+}
 
 func getWaitingTask(ctx context.Context, recorder metastore.ScheduledTaskRecorder, taskID string, evt *types.Event) (*types.ScheduledTask, error) {
 	tasks, err := recorder.ListTask(ctx, taskID,
@@ -33,4 +75,8 @@ func getWaitingTask(ctx context.Context, recorder metastore.ScheduledTaskRecorde
 		return nil, nil
 	}
 	return tasks[0], nil
+}
+
+func logTaskExecutionLatency(id string, startAt time.Time) {
+	taskExecutionLatency.WithLabelValues(id).Observe(time.Since(startAt).Seconds())
 }

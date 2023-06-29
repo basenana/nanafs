@@ -26,6 +26,7 @@ import (
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 	"net/http"
 	"time"
@@ -36,13 +37,13 @@ const (
 )
 
 type Server struct {
-	engine *gin.Engine
-	cfg    config.Config
-	logger *zap.SugaredLogger
+	engine    *gin.Engine
+	apiConfig config.Api
+	logger    *zap.SugaredLogger
 }
 
 func (s *Server) Run(stopCh chan struct{}) {
-	addr := fmt.Sprintf("%s:%d", s.cfg.Api.Host, s.cfg.Api.Port)
+	addr := fmt.Sprintf("%s:%d", s.apiConfig.Host, s.apiConfig.Port)
 	s.logger.Infof("http server on %s", addr)
 
 	httpServer := &http.Server{
@@ -79,22 +80,27 @@ func NewPathEntryManager(ctrl controller.Controller) (*pathmgr.PathManager, erro
 }
 
 func NewApiServer(mgr *pathmgr.PathManager, cfg config.Config) (*Server, error) {
-	if cfg.Api.Port == 0 {
+	apiConfig := cfg.Api
+	if apiConfig.Enable && apiConfig.Port == 0 {
 		return nil, fmt.Errorf("http port not set")
 	}
-	if cfg.Api.Host == "" {
+	if apiConfig.Enable && apiConfig.Host == "" {
 		cfg.Api.Host = "127.0.0.1"
 	}
 
 	s := &Server{
-		engine: gin.New(),
-		cfg:    cfg,
-		logger: logger.NewLogger("api"),
+		engine:    gin.New(),
+		apiConfig: apiConfig,
+		logger:    logger.NewLogger("api"),
 	}
-	s.engine.GET("/_ping", s.Ping)
-	s.engine.Use()
 
-	if cfg.Api.Pprof {
+	s.engine.GET("/_ping", s.Ping)
+
+	if apiConfig.Metrics {
+		s.engine.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	}
+
+	if apiConfig.Pprof {
 		pprof.Register(s.engine)
 	}
 

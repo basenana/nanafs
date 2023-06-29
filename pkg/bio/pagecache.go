@@ -97,9 +97,6 @@ func (p *pageCache) read(ctx context.Context, pageIndex int64, initDataFn func(*
 			page.mux.Unlock()
 			return nil, err
 		}
-		if page.length == 0 {
-			return nil, fmt.Errorf("page data init not finish")
-		}
 		page.mode &^= pageModeInvalid
 	}
 	page.mux.Unlock()

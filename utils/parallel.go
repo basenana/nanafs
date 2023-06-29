@@ -17,9 +17,35 @@
 package utils
 
 import (
+	"context"
 	"fmt"
+	"github.com/getsentry/sentry-go"
 	"runtime/debug"
 )
+
+type ParallelLimiter struct {
+	q chan struct{}
+}
+
+func (l *ParallelLimiter) Acquire(ctx context.Context) error {
+	select {
+	case l.q <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (l *ParallelLimiter) Release() {
+	select {
+	case <-l.q:
+	default:
+	}
+}
+
+func NewParallelLimiter(ctn int) *ParallelLimiter {
+	return &ParallelLimiter{q: make(chan struct{}, ctn)}
+}
 
 type MaximumParallel struct {
 	q chan struct{}
@@ -58,6 +84,7 @@ func NewMaximumParallel(num int) *MaximumParallel {
 func Recover() error {
 	if panicErr := recover(); panicErr != nil {
 		debug.PrintStack()
+		sentry.CurrentHub().Recover(panicErr)
 		return fmt.Errorf("panic: %v", panicErr)
 	}
 	return nil

@@ -38,8 +38,8 @@ import (
 
 const (
 	cacheNodeBaseSize = 1 << 21 // 2M
-	retryInterval     = time.Millisecond * 100
-	retryTimes        = 50
+	retryInterval     = time.Second
+	retryTimes        = 100
 )
 
 var (
@@ -113,7 +113,10 @@ func NewLocalCache(s Storage) *LocalCache {
 }
 
 func (c *LocalCache) OpenTemporaryNode(ctx context.Context, oid, off int64) (CacheNode, error) {
+	const opOpenTemporaryNode = "open_temporary_node"
+	defer logLocalCacheOperationLatency(opOpenTemporaryNode, time.Now())
 	defer trace.StartRegion(ctx, "storage.localCache.OpenTemporaryNode").End()
+
 	size := int64(cacheNodeBaseSize)
 	if off > size {
 		size *= 2
@@ -122,9 +125,11 @@ func (c *LocalCache) OpenTemporaryNode(ctx context.Context, oid, off int64) (Cac
 }
 
 func (c *LocalCache) CommitTemporaryNode(ctx context.Context, segID, idx int64, node CacheNode) error {
+	const opCommitTemporaryNode = "commit_temporary_node"
+	defer logLocalCacheOperationLatency(opCommitTemporaryNode, time.Now())
 	defer trace.StartRegion(ctx, "storage.localCache.CommitTemporaryNode").End()
-	no := node.(*memCacheNode)
 
+	no := node.(*memCacheNode)
 	upload := func() error {
 		pr, pw := io.Pipe()
 		var encodeErr error
@@ -144,21 +149,29 @@ func (c *LocalCache) CommitTemporaryNode(ctx context.Context, segID, idx int64, 
 	}
 
 	var err error
+Retry:
 	for i := 0; i < retryTimes; i++ {
-		if err = upload(); err == nil {
-			break
+		select {
+		case <-ctx.Done():
+			err = ctx.Err()
+		default:
+			if err = upload(); err == nil {
+				break Retry
+			}
+			time.Sleep(retryInterval)
+			cacheLog.Errorw("upload chunk page error, try again", "segment", segID, "page", idx, "tryTime", i+1)
 		}
-		time.Sleep(retryInterval)
-		cacheLog.Errorw("upload chunk page error, try again", "segment", segID, "page", idx, "tryTime", i+1)
 	}
 	if err != nil {
-		return err
+		return logErr(localCacheOperationErrorCounter, err, opCommitTemporaryNode)
 	}
 
 	return nil
 }
 
 func (c *LocalCache) OpenCacheNode(ctx context.Context, key, idx int64) (CacheNode, error) {
+	const opOpenCacheNode = "open_cache_node"
+	defer logLocalCacheOperationLatency(opOpenCacheNode, time.Now())
 	defer trace.StartRegion(ctx, "storage.localCache.OpenCacheNode").End()
 	if c.isLocal || localCacheSizeLimit == 0 {
 		return c.openDirectNode(ctx, key, idx)
@@ -170,74 +183,90 @@ func (c *LocalCache) OpenCacheNode(ctx context.Context, key, idx int64) (CacheNo
 	)
 	node, err = cachedFile.fetchCacheNode(ctx, key, idx, c.makeLocalCache, c.openLocalCache)
 	if err != nil {
-		return nil, err
+		return nil, logErr(localCacheOperationErrorCounter, err, opOpenCacheNode)
 	}
 	return node, nil
 }
 
 func (c *LocalCache) openDirectNode(ctx context.Context, key, idx int64) (CacheNode, error) {
+	const opOpenDirectNode = "open_direct_node"
+	defer logLocalCacheOperationLatency(opOpenDirectNode, time.Now())
 	defer trace.StartRegion(ctx, "storage.localCache.openDirectNode").End()
 	info, err := c.s.Head(ctx, key, idx)
 	if err != nil {
-		return nil, err
+		return nil, logErr(localCacheOperationErrorCounter, err, opOpenDirectNode)
 	}
 
 	var (
 		reader io.ReadCloser
 		node   = &memCacheNode{data: utils.NewMemoryBlock(info.Size)}
 	)
+Retry:
 	for i := 0; i < retryTimes; i++ {
-		reader, err = c.s.Get(ctx, key, idx)
-		if err == nil {
-			break
+		select {
+		case <-ctx.Done():
+			err = ctx.Err()
+		default:
+			reader, err = c.s.Get(ctx, key, idx)
+			if err == nil {
+				break Retry
+			}
+			time.Sleep(retryInterval)
+			cacheLog.Errorw("read chunk page error, try again", "segment", key, "page", idx, "tryTime", i+1)
 		}
-		time.Sleep(retryInterval)
-		cacheLog.Errorw("read chunk page error, try again", "segment", key, "page", idx, "tryTime", i+1)
 	}
 	if err != nil {
-		return nil, err
+		return nil, logErr(localCacheOperationErrorCounter, err, opOpenDirectNode)
 	}
 	defer reader.Close()
 	if decodeErr := c.nodeDataDecode(ctx, key^idx, reader, utils.NewWriter(node)); decodeErr != nil {
 		cacheLog.Errorw("decode direct node data error", "segment", key, "page", idx, "err", decodeErr)
-		return nil, decodeErr
+		return nil, logErr(localCacheOperationErrorCounter, decodeErr, opOpenDirectNode)
 	}
 
 	return node, nil
 }
 
 func (c *LocalCache) makeLocalCache(ctx context.Context, key, idx int64, filename string) (*cacheNode, error) {
+	const opMakeLocalCache = "make_local_cache"
+	defer logLocalCacheOperationLatency(opMakeLocalCache, time.Now())
 	defer trace.StartRegion(ctx, "storage.localCache.makeLocalCache").End()
 	info, err := c.s.Head(ctx, key, idx)
 	if err != nil {
 		cacheLog.Errorw("head segment failed", "segment", key, "page", idx, "err", err)
-		return nil, err
+		return nil, logErr(localCacheOperationErrorCounter, err, opMakeLocalCache)
 	}
 
 	if err = c.mustAccountCacheUsage(ctx, info.Size); err != nil {
 		cacheLog.Errorw("account cache usage failed", "segment", key, "page", idx, "err", err)
-		return nil, err
+		return nil, logErr(localCacheOperationErrorCounter, err, opMakeLocalCache)
 	}
 
 	cacheFilePath := localCacheFilePath(filename)
 	f, err := os.Create(cacheFilePath)
 	if err != nil {
 		cacheLog.Errorw("create cache file failed", "segment", key, "page", idx, "err", err)
-		return nil, err
+		return nil, logErr(localCacheOperationErrorCounter, err, opMakeLocalCache)
 	}
 	defer f.Close()
 
 	var reader io.ReadCloser
+Retry:
 	for i := 0; i < retryTimes; i++ {
-		reader, err = c.s.Get(ctx, key, idx)
-		if err == nil {
-			break
+		select {
+		case <-ctx.Done():
+			err = ctx.Err()
+		default:
+			reader, err = c.s.Get(ctx, key, idx)
+			if err == nil {
+				break Retry
+			}
+			time.Sleep(retryInterval)
+			cacheLog.Errorw("read chunk page error, try again", "segment", key, "page", idx, "tryTime", i+1, "err", err)
 		}
-		time.Sleep(retryInterval)
-		cacheLog.Errorw("read chunk page error, try again", "segment", key, "page", idx, "tryTime", i+1, "err", err)
 	}
 	if err != nil {
-		return nil, err
+		return nil, logErr(localCacheOperationErrorCounter, err, opMakeLocalCache)
 	}
 	defer reader.Close()
 
@@ -260,12 +289,12 @@ func (c *LocalCache) makeLocalCache(ctx context.Context, key, idx int64, filenam
 	err = c.nodeDataDecode(ctx, key^idx, pipeOut, utils.NewWriter(memCache))
 	if err != nil {
 		cacheLog.Errorw("node data encode error", "segment", key, "page", idx, "err", err)
-		return nil, err
+		return nil, logErr(localCacheOperationErrorCounter, err, opMakeLocalCache)
 	}
 
 	err = <-errCh
 	if err != nil {
-		return nil, err
+		return nil, logErr(localCacheOperationErrorCounter, err, opMakeLocalCache)
 	}
 
 	node := &cacheNode{memCacheNode: memCache, ref: 1, path: cacheFilePath}
@@ -273,30 +302,34 @@ func (c *LocalCache) makeLocalCache(ctx context.Context, key, idx int64, filenam
 }
 
 func (c *LocalCache) openLocalCache(ctx context.Context, key, idx int64, cacheFilePath string) (*memCacheNode, error) {
+	const opOpenLocalCache = "open_local_cache"
+	defer logLocalCacheOperationLatency(opOpenLocalCache, time.Now())
 	f, err := os.Open(cacheFilePath)
 	if err != nil {
 		cacheLog.Errorw("open cache file failed", "segment", key, "page", idx, "err", err)
-		return nil, err
+		return nil, logErr(localCacheOperationErrorCounter, err, opOpenLocalCache)
 	}
 	defer f.Close()
 
 	fInfo, err := f.Stat()
 	if err != nil {
 		cacheLog.Errorw("stat cache file error", "segment", key, "page", idx, "err", err)
-		return nil, err
+		return nil, logErr(localCacheOperationErrorCounter, err, opOpenLocalCache)
 	}
 
 	memCache := &memCacheNode{data: utils.NewMemoryBlock(fInfo.Size())}
 	err = c.nodeDataDecode(ctx, key^idx, f, utils.NewWriter(memCache))
 	if err != nil {
 		cacheLog.Errorw("node data encode error", "segment", key, "page", idx, "err", err)
-		return nil, err
+		return nil, logErr(localCacheOperationErrorCounter, err, opOpenLocalCache)
 	}
 
 	return memCache, nil
 }
 
 func (c *LocalCache) mustAccountCacheUsage(ctx context.Context, usage int64) error {
+	const opAccountCacheUsage = "account_cache_usage"
+	defer logLocalCacheOperationLatency(opAccountCacheUsage, time.Now())
 	defer trace.StartRegion(ctx, "storage.localCache.mustAccountCacheUsage").End()
 	rmCacheFile := 1
 	for {
@@ -307,7 +340,7 @@ func (c *LocalCache) mustAccountCacheUsage(ctx context.Context, usage int64) err
 			crtCached := atomic.LoadInt64(&localCacheSizeUsage)
 			if crtCached+usage > localCacheSizeLimit {
 				if err := c.cleanSpace(rmCacheFile); err != nil {
-					return err
+					return logErr(localCacheOperationErrorCounter, err, opAccountCacheUsage)
 				}
 				rmCacheFile += 1
 				continue
@@ -342,6 +375,8 @@ func (c *LocalCache) nodeDataEncode(ctx context.Context, segIDKey int64, in io.R
 				_ = cryptOut.Close()
 			}()
 			if err = encrypt(ctx, segIDKey, encryptCfg.Method, encryptCfg.SecretKey, cryptOut, out); err != nil {
+				cacheLog.Errorw("encrypt segment failed", "err", err)
+				_ = logErr(localCacheOperationErrorCounter, err, "node_data_encrypt")
 				return
 			}
 		}()
@@ -356,6 +391,8 @@ func (c *LocalCache) nodeDataEncode(ctx context.Context, segIDKey int64, in io.R
 			}
 		}()
 		if err = compress(ctx, in, pipeOut); err != nil {
+			cacheLog.Errorw("compress segment failed", "err", err)
+			_ = logErr(localCacheOperationErrorCounter, err, "node_data_compress")
 			return
 		}
 	}()
@@ -386,6 +423,8 @@ func (c *LocalCache) nodeDataDecode(ctx context.Context, segIDKey int64, in io.R
 				_ = cryptIn.Close()
 			}()
 			if err = decrypt(ctx, segIDKey, encryptCfg.Method, encryptCfg.SecretKey, in, cryptIn); err != nil {
+				cacheLog.Errorw("decrypt segment failed", "err", err)
+				_ = logErr(localCacheOperationErrorCounter, err, "node_data_decrypt")
 				return
 			}
 		}()
@@ -400,12 +439,14 @@ func (c *LocalCache) nodeDataDecode(ctx context.Context, segIDKey int64, in io.R
 			}
 		}()
 		if err = decompress(ctx, pipeIn, out); err != nil {
+			cacheLog.Errorw("decompress segment failed", "err", err)
+			_ = logErr(localCacheOperationErrorCounter, err, "node_data_decompress")
 			return
 		}
 	}()
 
 	wg.Wait()
-	return nil
+	return
 }
 
 func (c *LocalCache) releaseCacheUsage(usage int64) {
@@ -416,7 +457,7 @@ func (c *LocalCache) cleanSpace(fileCount int) error {
 	var err error
 	for i := 0; i < fileCount; i++ {
 		if err = cachedFile.removeNextCacheFile(); err != nil {
-			return err
+			return logErr(localCacheOperationErrorCounter, err, "clean_space")
 		}
 	}
 	return nil
@@ -542,6 +583,7 @@ func (c *cachedFileMapper) load(cacheDir string) error {
 		c.cachedNode[filename] = &nodeUsingInfo{filename: filename, node: node, updateAt: time.Now().UnixNano()}
 		heap.Push(c.unusedNodeQ, c.cachedNode[filename])
 		atomic.AddInt64(&localCacheSizeUsage, info.Size())
+		localCachedNodeGauge.Inc()
 		return nil
 	})
 }
@@ -550,8 +592,12 @@ type cacheBuilder func(ctx context.Context, key, idx int64, filename string) (*c
 type cacheOpener func(ctx context.Context, key, idx int64, cacheFilePath string) (*memCacheNode, error)
 
 func (c *cachedFileMapper) fetchCacheNode(ctx context.Context, key int64, idx int64, builder cacheBuilder, opener cacheOpener) (CacheNode, error) {
-	fileName := c.filename(key, idx)
+	const opFetchCacheNode = "fetch_cache_node"
+	defer logLocalCacheOperationLatency(opFetchCacheNode, time.Now())
+	localCacheFetchingGauge.Inc()
+	defer localCacheFetchingGauge.Dec()
 
+	fileName := c.filename(key, idx)
 	openHandler := func(path string) (*memCacheNode, error) {
 		return opener(ctx, key, idx, path)
 	}
@@ -564,7 +610,7 @@ func (c *cachedFileMapper) fetchCacheNode(ctx context.Context, key int64, idx in
 			vNode.index = -1
 		}
 		c.mux.Unlock()
-		return vNode.node, vNode.node.Open(openHandler)
+		return vNode.node, logErr(localCacheOperationErrorCounter, vNode.node.Open(openHandler), opFetchCacheNode)
 	}
 
 	_, stillFetching := c.pending[fileName]
@@ -578,7 +624,7 @@ func (c *cachedFileMapper) fetchCacheNode(ctx context.Context, key int64, idx in
 		if vNode == nil {
 			return nil, fmt.Errorf("cached node not found")
 		}
-		return vNode.node, vNode.node.Open(openHandler)
+		return vNode.node, logErr(localCacheOperationErrorCounter, vNode.node.Open(openHandler), opFetchCacheNode)
 	} else {
 		// try fetch
 		c.pending[fileName] = struct{}{}
@@ -591,9 +637,10 @@ func (c *cachedFileMapper) fetchCacheNode(ctx context.Context, key int64, idx in
 		delete(c.pending, fileName)
 		c.mux.Unlock()
 		c.cond.Broadcast()
-		return nil, err
+		return nil, logErr(localCacheOperationErrorCounter, err, opFetchCacheNode)
 	}
 
+	localCachedNodeGauge.Inc()
 	c.mux.Lock()
 	delete(c.pending, fileName)
 	c.cachedNode[fileName] = &nodeUsingInfo{filename: fileName, node: node, updateAt: time.Now().UnixNano()}
@@ -640,6 +687,7 @@ func (c *cachedFileMapper) removeNextCacheFile() error {
 	delete(c.cachedNode, filename)
 	c.mux.Unlock()
 	atomic.AddInt64(&localCacheSizeUsage, -1*info.Size())
+	localCachedNodeGauge.Dec()
 	return nil
 }
 

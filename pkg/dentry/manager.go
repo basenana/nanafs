@@ -334,7 +334,7 @@ func (m *manager) Open(ctx context.Context, en Entry, attr Attr) (File, error) {
 		return nil, err
 	}
 	PublicFileActionEvent(events.ActionTypeOpen, en)
-	return &instrumentalFile{file: f}, nil
+	return instrumentalFile{Entry: en, file: f}, nil
 }
 
 func (m *manager) ChunkCompact(ctx context.Context, en Entry) error {

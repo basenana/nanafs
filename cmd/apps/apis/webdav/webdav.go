@@ -45,9 +45,12 @@ func (w *Webdav) Run(stopCh chan struct{}) {
 	addr := fmt.Sprintf("%s:%d", w.cfg.Host, w.cfg.Port)
 	w.logger.Infof("webdav server on %s", addr)
 
+	handler := common.BasicAuthHandler(w.handler, w.cfg.OverwriteUsers)
+	handler = common.MetricMiddleware("webdav", handler)
+
 	httpServer := &http.Server{
 		Addr:         addr,
-		Handler:      common.BasicAuthHandler(w.handler, w.cfg.OverwriteUsers),
+		Handler:      handler,
 		ReadTimeout:  time.Hour,
 		WriteTimeout: time.Hour,
 	}

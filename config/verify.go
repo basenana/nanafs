@@ -32,15 +32,11 @@ var verifiers = []verifier{
 	checkStorageConfigs,
 	checkGlobalEncryptionConfig,
 	checkLocalCache,
-	checkMetricConfig,
 }
 
 func setDefaultValue(config *Config) error {
 	if config.FS == nil {
 		config.FS = defaultFsConfig()
-	}
-	if config.Metric == nil || config.Metric.Type == DefaultMetricConfig {
-		config.Metric = loadDefaultMetric()
 	}
 	return nil
 }
@@ -70,7 +66,7 @@ func checkFuseConfig(config *Config) error {
 
 func checkWebdavConfig(config *Config) error {
 	wCfg := config.Webdav
-	if !wCfg.Enable {
+	if wCfg == nil || !wCfg.Enable {
 		return nil
 	}
 	if wCfg.Host == "" || wCfg.Port == 0 {
@@ -210,20 +206,6 @@ func checkLocalCache(config *Config) error {
 		config.CacheSize = 0
 	}
 	return nil
-}
-
-func checkMetricConfig(config *Config) error {
-	switch config.Metric.Type {
-	case DefaultMetricConfig:
-		return nil
-	case DisableMetricConfig:
-		config.Metric = nil
-		return nil
-	case CustomMetricConfig:
-		return fmt.Errorf("metric customization is not currently supported")
-	default:
-		return fmt.Errorf("unknown metric config type: %s", config.Metric.Type)
-	}
 }
 
 func Verify(cfg *Config) error {
