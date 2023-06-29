@@ -38,8 +38,8 @@ import (
 
 const (
 	cacheNodeBaseSize = 1 << 21 // 2M
-	retryInterval     = time.Millisecond * 100
-	retryTimes        = 50
+	retryInterval     = time.Second
+	retryTimes        = 100
 )
 
 var (
@@ -149,12 +149,18 @@ func (c *LocalCache) CommitTemporaryNode(ctx context.Context, segID, idx int64, 
 	}
 
 	var err error
+Retry:
 	for i := 0; i < retryTimes; i++ {
-		if err = upload(); err == nil {
-			break
+		select {
+		case <-ctx.Done():
+			err = ctx.Err()
+		default:
+			if err = upload(); err == nil {
+				break Retry
+			}
+			time.Sleep(retryInterval)
+			cacheLog.Errorw("upload chunk page error, try again", "segment", segID, "page", idx, "tryTime", i+1)
 		}
-		time.Sleep(retryInterval)
-		cacheLog.Errorw("upload chunk page error, try again", "segment", segID, "page", idx, "tryTime", i+1)
 	}
 	if err != nil {
 		return logErr(localCacheOperationErrorCounter, err, opCommitTemporaryNode)
@@ -195,13 +201,19 @@ func (c *LocalCache) openDirectNode(ctx context.Context, key, idx int64) (CacheN
 		reader io.ReadCloser
 		node   = &memCacheNode{data: utils.NewMemoryBlock(info.Size)}
 	)
+Retry:
 	for i := 0; i < retryTimes; i++ {
-		reader, err = c.s.Get(ctx, key, idx)
-		if err == nil {
-			break
+		select {
+		case <-ctx.Done():
+			err = ctx.Err()
+		default:
+			reader, err = c.s.Get(ctx, key, idx)
+			if err == nil {
+				break Retry
+			}
+			time.Sleep(retryInterval)
+			cacheLog.Errorw("read chunk page error, try again", "segment", key, "page", idx, "tryTime", i+1)
 		}
-		time.Sleep(retryInterval)
-		cacheLog.Errorw("read chunk page error, try again", "segment", key, "page", idx, "tryTime", i+1)
 	}
 	if err != nil {
 		return nil, logErr(localCacheOperationErrorCounter, err, opOpenDirectNode)
@@ -239,13 +251,19 @@ func (c *LocalCache) makeLocalCache(ctx context.Context, key, idx int64, filenam
 	defer f.Close()
 
 	var reader io.ReadCloser
+Retry:
 	for i := 0; i < retryTimes; i++ {
-		reader, err = c.s.Get(ctx, key, idx)
-		if err == nil {
-			break
+		select {
+		case <-ctx.Done():
+			err = ctx.Err()
+		default:
+			reader, err = c.s.Get(ctx, key, idx)
+			if err == nil {
+				break Retry
+			}
+			time.Sleep(retryInterval)
+			cacheLog.Errorw("read chunk page error, try again", "segment", key, "page", idx, "tryTime", i+1, "err", err)
 		}
-		time.Sleep(retryInterval)
-		cacheLog.Errorw("read chunk page error, try again", "segment", key, "page", idx, "tryTime", i+1, "err", err)
 	}
 	if err != nil {
 		return nil, logErr(localCacheOperationErrorCounter, err, opMakeLocalCache)
@@ -357,6 +375,7 @@ func (c *LocalCache) nodeDataEncode(ctx context.Context, segIDKey int64, in io.R
 				_ = cryptOut.Close()
 			}()
 			if err = encrypt(ctx, segIDKey, encryptCfg.Method, encryptCfg.SecretKey, cryptOut, out); err != nil {
+				cacheLog.Errorw("encrypt segment failed", "err", err)
 				_ = logErr(localCacheOperationErrorCounter, err, "node_data_encrypt")
 				return
 			}
@@ -372,6 +391,7 @@ func (c *LocalCache) nodeDataEncode(ctx context.Context, segIDKey int64, in io.R
 			}
 		}()
 		if err = compress(ctx, in, pipeOut); err != nil {
+			cacheLog.Errorw("compress segment failed", "err", err)
 			_ = logErr(localCacheOperationErrorCounter, err, "node_data_compress")
 			return
 		}
@@ -403,6 +423,7 @@ func (c *LocalCache) nodeDataDecode(ctx context.Context, segIDKey int64, in io.R
 				_ = cryptIn.Close()
 			}()
 			if err = decrypt(ctx, segIDKey, encryptCfg.Method, encryptCfg.SecretKey, in, cryptIn); err != nil {
+				cacheLog.Errorw("decrypt segment failed", "err", err)
 				_ = logErr(localCacheOperationErrorCounter, err, "node_data_decrypt")
 				return
 			}
@@ -418,6 +439,7 @@ func (c *LocalCache) nodeDataDecode(ctx context.Context, segIDKey int64, in io.R
 			}
 		}()
 		if err = decompress(ctx, pipeIn, out); err != nil {
+			cacheLog.Errorw("decompress segment failed", "err", err)
 			_ = logErr(localCacheOperationErrorCounter, err, "node_data_decompress")
 			return
 		}

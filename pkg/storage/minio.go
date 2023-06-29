@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -28,22 +29,25 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"runtime/trace"
 	"time"
 )
 
 const (
-	MinioStorage = config.MinioStorage
+	MinioStorage          = config.MinioStorage
+	minioReadLimitEnvKey  = "STORAGE_MINIO_READ_LIMIT"
+	minioWriteLimitEnvKey = "STORAGE_MINIO_WRITE_LIMIT"
 )
 
 type minioStorage struct {
-	sid        string
-	bucket     string
-	cli        *minio.Client
-	cfg        *config.MinIOConfig
-	readLimit  chan struct{}
-	writeLimit chan struct{}
-	logger     *zap.SugaredLogger
+	sid       string
+	bucket    string
+	cli       *minio.Client
+	cfg       *config.MinIOConfig
+	readRate  *utils.ParallelLimiter
+	writeRate *utils.ParallelLimiter
+	logger    *zap.SugaredLogger
 }
 
 var _ Storage = &minioStorage{}
@@ -54,10 +58,10 @@ func (m *minioStorage) ID() string {
 
 func (m *minioStorage) Get(ctx context.Context, key, idx int64) (io.ReadCloser, error) {
 	defer trace.StartRegion(ctx, "storage.minio.Get").End()
-	m.readLimit <- struct{}{}
-	defer func() {
-		<-m.readLimit
-	}()
+	if err := m.readRate.Acquire(ctx); err != nil {
+		return nil, err
+	}
+	defer m.readRate.Release()
 	obj, err := m.cli.GetObject(ctx, m.bucket, minioObjectName(key, idx), minio.GetObjectOptions{})
 	if err != nil {
 		m.logger.Errorw("get object failed", "object", minioObjectName(key, idx), "err", err)
@@ -68,10 +72,10 @@ func (m *minioStorage) Get(ctx context.Context, key, idx int64) (io.ReadCloser, 
 
 func (m *minioStorage) Put(ctx context.Context, key, idx int64, dataReader io.Reader) error {
 	defer trace.StartRegion(ctx, "storage.minio.Put").End()
-	m.writeLimit <- struct{}{}
-	defer func() {
-		<-m.writeLimit
-	}()
+	if err := m.writeRate.Acquire(ctx); err != nil {
+		return err
+	}
+	defer m.writeRate.Release()
 	data, err := ioutil.ReadAll(dataReader)
 	if err != nil {
 		return err
@@ -181,13 +185,13 @@ func newMinioStorage(storageID string, cfg *config.MinIOConfig) (Storage, error)
 		return nil, err
 	}
 	s := &minioStorage{
-		sid:        storageID,
-		bucket:     cfg.BucketName,
-		cli:        minioClient,
-		cfg:        cfg,
-		readLimit:  make(chan struct{}, 30),
-		writeLimit: make(chan struct{}, 15),
-		logger:     logger.NewLogger("minio"),
+		sid:       storageID,
+		bucket:    cfg.BucketName,
+		cli:       minioClient,
+		cfg:       cfg,
+		readRate:  utils.NewParallelLimiter(str2Int(os.Getenv(minioReadLimitEnvKey), 10)),
+		writeRate: utils.NewParallelLimiter(str2Int(os.Getenv(minioWriteLimitEnvKey), 5)),
+		logger:    logger.NewLogger("minio"),
 	}
 	return s, s.initBucket(context.TODO())
 }

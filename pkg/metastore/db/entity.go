@@ -324,7 +324,7 @@ func (e *Entity) InsertChunkSegment(ctx context.Context, seg types.ChunkSeg) (*t
 		err    error
 	)
 	err = e.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := tx.First(objMod)
+		res := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(objMod)
 		if res.Error != nil {
 			return res.Error
 		}

@@ -88,7 +88,7 @@ func initDefaultConfig() {
 		},
 		GlobalEncryption: config.Encryption{
 			Enable:    false,
-			Method:    config.ChaCha20Encryption,
+			Method:    config.AESEncryption,
 			SecretKey: sk,
 		},
 		CacheDir:  cacheDir,

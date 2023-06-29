@@ -355,10 +355,11 @@ func (c *segReader) mergePage(ctx context.Context, pageIndex int64, page *pageNo
 
 type chunkWriter struct {
 	*chunkReader
-	unready   int32
-	writers   map[int64]*segWriter
-	ref       int32
-	writerMux sync.Mutex
+	unready     int32
+	writers     map[int64]*segWriter
+	ref         int32
+	commitLimit int32
+	writerMux   sync.Mutex
 }
 
 func NewChunkWriter(reader Reader) Writer {
@@ -556,7 +557,17 @@ func (w *segWriter) put(ctx context.Context, pageIdx, pagePos int64, req *ioReq,
 		atomic.AddInt32(&w.unready, 1)
 		if len(w.uncommitted) == 1 {
 			chunkUncommittedGauge.Inc()
-			go w.commitSegment(ctx)
+			for {
+				canCommit := atomic.LoadInt32(&w.commitLimit)
+				if canCommit >= 5 {
+					time.Sleep(time.Second * 5)
+					continue
+				}
+				if atomic.CompareAndSwapInt32(&w.commitLimit, canCommit, canCommit+1) {
+					go w.commitSegment(ctx)
+					break
+				}
+			}
 		}
 	}
 	w.mux.Unlock()
@@ -578,9 +589,7 @@ func (w *segWriter) put(ctx context.Context, pageIdx, pagePos int64, req *ioReq,
 	seg.uploads.Add(1)
 	page.mux.Lock()
 	req.Add(1)
-	maxWriteChunkTaskParallel.Go(func() {
-		w.preWrite(ctx, pagePos, seg, page, req, data)
-	})
+	go w.preWrite(ctx, pagePos, seg, page, req, data)
 }
 func (w *segWriter) preWrite(ctx context.Context, pagePos int64, seg *uncommittedSeg, page *uncommittedPage, req *ioReq, data []byte) {
 	defer logLatency(chunkWriterLatency, "write_dirty_page", time.Now())
@@ -606,10 +615,12 @@ func (w *segWriter) preWrite(ctx context.Context, pagePos int64, seg *uncommitte
 
 	dataEnd := page.idx*pageSize + pagePos + int64(n)
 	if dataEnd == (page.idx+1)*pageSize && !page.committed {
-		seg.uploads.Add(1)
-		chunkDirtyPageGauge.Inc()
 		page.committed = true
-		go w.flushData(ctx, seg, page)
+		chunkDirtyPageGauge.Inc()
+		seg.uploads.Add(1)
+		maxWriteChunkTaskParallel.Go(func() {
+			w.flushData(ctx, seg, page)
+		})
 	}
 	page.mux.Unlock()
 	atomic.AddInt32(&page.visitor, -1)
@@ -715,6 +726,7 @@ func (w *segWriter) commitSegment(ctx context.Context) {
 
 	ctx, task := trace.NewTask(ctx, "bio.segWriter.commitSegment")
 	defer task.End()
+	defer atomic.AddInt32(&w.commitLimit, -1)
 
 	for len(w.uncommitted) > 0 {
 		select {
@@ -757,7 +769,7 @@ func (w *segWriter) commitSegment(ctx context.Context) {
 			State:    0,
 		})
 		if err != nil {
-			w.logger.Errorw("[DISCARD] append segment error", "entry", w.entry.ID, "chunk", w.chunkID, "err", err)
+			w.logger.Errorw("append segment error", "entry", w.entry.ID, "chunk", w.chunkID, "err", err)
 			w.chunkErr = logErr(chunkWriteErrorCounter, err, "commit_segment")
 			sentry.CaptureException(w.chunkErr)
 			chunkDiscardSegmentCounter.Inc()
@@ -796,7 +808,9 @@ func (s *uncommittedSeg) tryCommit(ctx context.Context) {
 		page.committed = true
 		s.uploads.Add(1)
 		chunkDirtyPageGauge.Inc()
-		go s.w.flushData(ctx, s, page)
+		maxWriteChunkTaskParallel.Go(func() {
+			s.w.flushData(ctx, s, page)
+		})
 		page.mux.Unlock()
 	}
 	s.readyToCommit = true

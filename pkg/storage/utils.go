@@ -25,6 +25,7 @@ import (
 	"github.com/pierrec/lz4/v4"
 	"io"
 	"runtime/trace"
+	"strconv"
 )
 
 type nodeUsingInfo struct {
@@ -157,4 +158,16 @@ func reverseString(s string) string {
 		r[i], r[j] = r[j], r[i]
 	}
 	return string(r)
+}
+
+func str2Int(s string, defaultVal int) int {
+	if s == "" {
+		return defaultVal
+	}
+
+	val, err := strconv.Atoi(s)
+	if err == nil {
+		return val
+	}
+	return defaultVal
 }
