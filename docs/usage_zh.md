@@ -211,6 +211,49 @@ Bucket 中。
 }
 ```
 
+### 数据块加密
+
+注意事项：
+
+1. 开启加密后，请妥善保管密钥，密钥遗失会导致数据不可读
+2. 不支持在配置文件修改密钥，如果需要修改密钥，需要新增一个新的 storage，并通过文件拷贝的方式迁移
+
+NanaFS 支持将存储到云上的数据块加密，如果开启了加密选项，数据缓存和传输均是使用加密后的数据块。
+当前仅支持 AES 对称加密，可以通过下述命令生成一个随机的加密密钥：
+
+```bash
+openssl rand -hex 16
+```
+
+开启数据块加密有两种方式，第一种是全局的加密开启，在配置中的 `global_encryption` 项可以进行如下配置：
+
+```json
+{
+  "global_encryption": {
+    "enable": true,
+    "method": "AES",
+    "secret_key": "<secret_key>"
+  }
+}
+```
+
+第二种方式是仅对某个 storage 存储的数据进行加密，当同时配置了 `global_encryption` 和 `storages.encryption` 时，会优先使用
+storage 自己的加密配置：
+
+```json
+{
+  "storages": [
+    {
+      "encryption": {
+        "enable": true,
+        "method": "AES",
+        "secret_key": "<secret_key>"
+      }
+    }
+  ]
+}
+```
+
 ## Deployment
 
 ### Systemd
