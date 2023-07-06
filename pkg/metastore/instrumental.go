@@ -245,7 +245,7 @@ func logOperationLatency(operation string, startAt time.Time) {
 }
 
 func logOperationError(operation string, err error) {
-	if err != nil {
+	if err != nil && err != context.Canceled {
 		metaOperationErrorCounter.WithLabelValues(operation).Inc()
 	}
 }

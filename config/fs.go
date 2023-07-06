@@ -25,6 +25,7 @@ const (
 	MemoryMeta         = "memory"
 	SqliteMeta         = "sqlite"
 	PostgresMeta       = "postgres"
+	S3Storage          = "s3"
 	OSSStorage         = "oss"
 	MinioStorage       = "minio"
 	WebdavStorage      = "webdav"
@@ -55,10 +56,14 @@ type Storage struct {
 	ID         string               `json:"id"`
 	Type       string               `json:"type"`
 	LocalDir   string               `json:"local_dir,omitempty"`
+	S3         *S3Config            `json:"s3,omitempty"`
 	MinIO      *MinIOConfig         `json:"minio,omitempty"`
 	OSS        *OSSConfig           `json:"oss,omitempty"`
 	Webdav     *WebdavStorageConfig `json:"webdav,omitempty"`
 	Encryption *Encryption          `json:"encryption,omitempty"`
+}
+
+type S3Config struct {
 }
 
 type MinIOConfig struct {

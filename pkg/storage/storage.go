@@ -38,6 +38,8 @@ type Storage interface {
 
 func NewStorage(storageID, storageType string, cfg config.Storage) (s Storage, err error) {
 	switch storageType {
+	case S3Storage:
+		s, err = newS3Storage(storageID, cfg.S3)
 	case OSSStorage:
 		s, err = newOSSStorage(storageID, cfg.OSS)
 	case MinioStorage:

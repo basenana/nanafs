@@ -230,7 +230,7 @@ func logOperationLatency(h *prometheus.HistogramVec, operation string, startAt t
 }
 
 func logOperationError(counter *prometheus.CounterVec, operation string, err error) error {
-	if err != nil {
+	if err != nil && err != context.Canceled {
 		counter.WithLabelValues(operation).Inc()
 	}
 	return err

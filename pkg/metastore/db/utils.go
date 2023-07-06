@@ -84,7 +84,7 @@ func (l *Logger) Error(ctx context.Context, s string, i ...interface{}) {
 
 func (l *Logger) Trace(ctx context.Context, begin time.Time, fc func() (sql string, rowsAffected int64), err error) {
 	switch {
-	case err != nil && err != gorm.ErrRecordNotFound:
+	case err != nil && err != gorm.ErrRecordNotFound && err != context.Canceled:
 		sqlContent, rows := fc()
 		l.Warnw("trace error", "sql", sqlContent, "rows", rows, "err", err)
 	case time.Since(begin) > time.Second:
