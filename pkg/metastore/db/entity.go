@@ -604,6 +604,11 @@ func (e *Entity) SystemInfo(ctx context.Context) (*types.SystemInfo, error) {
 	if res.Error != nil {
 		return nil, res.Error
 	}
+
+	if result.ObjectCount == 0 {
+		return result, nil
+	}
+
 	res = e.DB.WithContext(ctx).Model(&Object{}).Select("SUM(size) as file_size_total").Scan(&result.FileSizeTotal)
 	if res.Error != nil {
 		return nil, res.Error

@@ -146,7 +146,7 @@ func logLocalCacheOperationLatency(operation string, startAt time.Time) {
 }
 
 func logErr(counter *prometheus.CounterVec, err error, labels ...string) error {
-	if err != nil {
+	if err != nil && err != context.Canceled {
 		counter.WithLabelValues(labels...).Inc()
 	}
 	return err

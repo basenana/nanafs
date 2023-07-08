@@ -17,6 +17,7 @@
 package bio
 
 import (
+	"context"
 	"github.com/prometheus/client_golang/prometheus"
 	"sync/atomic"
 	"time"
@@ -132,7 +133,7 @@ func logLatency(h *prometheus.HistogramVec, step string, startAt time.Time) {
 }
 
 func logErr(counter *prometheus.CounterVec, err error, step string) error {
-	if err != nil {
+	if err != nil && err != context.Canceled {
 		counter.WithLabelValues(step).Inc()
 	}
 	return err
