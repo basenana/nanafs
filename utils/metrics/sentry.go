@@ -21,14 +21,26 @@ import (
 	"os"
 )
 
-const defaultSentryDSN = "https://7e72df9c77f94e4e8e2af74c81992436@o4505437525901312.ingest.sentry.io/4505437540188160"
+const (
+	defaultSentryDSN           = "https://7e72df9c77f94e4e8e2af74c81992436@o4505437525901312.ingest.sentry.io/4505437540188160"
+	DisableSentryCollectEnvKey = "DISABLE_SENTRY_COLLECT"
+)
 
 func init() {
+	if os.Getenv(DisableSentryCollectEnvKey) == "1" {
+		return
+	}
+
 	sentryDSN, hasConfig := os.LookupEnv("SENTRY_DSN")
 	if !hasConfig {
 		sentryDSN = defaultSentryDSN
 	}
 	if sentryDSN != "" {
-		_ = sentry.Init(sentry.ClientOptions{Dsn: sentryDSN, TracesSampleRate: 0.6})
+		_ = sentry.Init(sentry.ClientOptions{
+			Dsn:                sentryDSN,
+			EnableTracing:      true,
+			TracesSampleRate:   0.6,
+			ProfilesSampleRate: 0.6,
+		})
 	}
 }

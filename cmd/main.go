@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/cmd/apps"
 	"github.com/basenana/nanafs/utils/logger"
+	"github.com/getsentry/sentry-go"
 	"math/rand"
 	"os"
 	"time"
@@ -30,6 +31,7 @@ func main() {
 
 	logger.InitLogger()
 	defer logger.Sync()
+	defer sentry.Flush(time.Second * 5)
 
 	if err := apps.RootCmd.Execute(); err != nil {
 		fmt.Println(err)
