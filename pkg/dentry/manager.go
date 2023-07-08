@@ -200,7 +200,7 @@ func (m *manager) CleanEntryData(ctx context.Context, en Entry) error {
 		return nil
 	}
 
-	m.logger.Infow("delete chunk data", "entry", md.ID)
+	defer logger.CostLog(m.logger.With(zap.Int64("entry", md.ID)), "clean entry data")()
 	err := bio.DeleteChunksData(ctx, md, cs, s)
 	if err != nil {
 		m.logger.Errorw("delete chunk data failed", "entry", md.ID, "err", err)

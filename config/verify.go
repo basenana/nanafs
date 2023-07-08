@@ -150,6 +150,23 @@ func checkStorageConfig(sConfig Storage) error {
 		if sConfig.LocalDir == "" {
 			return fmt.Errorf("local path is empty")
 		}
+	case S3Storage:
+		cfg := sConfig.S3
+		if cfg == nil {
+			return fmt.Errorf("s3 is nil")
+		}
+		if cfg.Region == "" {
+			return fmt.Errorf("s3 config region is empty")
+		}
+		if cfg.AccessKeyID == "" {
+			return fmt.Errorf("s3 config access_key_id is empty")
+		}
+		if cfg.SecretAccessKey == "" {
+			return fmt.Errorf("s3 config secret_access_key is empty")
+		}
+		if cfg.BucketName == "" {
+			return fmt.Errorf("s3 config bucket_name is empty")
+		}
 	case MinioStorage:
 		cfg := sConfig.MinIO
 		if cfg == nil {
@@ -164,6 +181,9 @@ func checkStorageConfig(sConfig Storage) error {
 		if cfg.SecretAccessKey == "" {
 			return fmt.Errorf("minio config secret_access_key is empty")
 		}
+		if cfg.BucketName == "" {
+			return fmt.Errorf("minio config bucket_name is empty")
+		}
 	case OSSStorage:
 		cfg := sConfig.OSS
 		if cfg == nil {
@@ -177,6 +197,9 @@ func checkStorageConfig(sConfig Storage) error {
 		}
 		if cfg.AccessKeySecret == "" {
 			return fmt.Errorf("OSS access_key_secret is empty")
+		}
+		if cfg.BucketName == "" {
+			return fmt.Errorf("OSS config bucket_name is empty")
 		}
 	case WebdavStorage:
 		cfg := sConfig.Webdav

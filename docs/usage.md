@@ -155,6 +155,29 @@ in the specified directory.
 }
 ```
 
+#### AWS S3
+
+`type=s3` is a storage method based on AWS S3. When using this configuration,
+the data in NanaFS will be stored in the specified Bucket.
+
+```json
+{
+  "storages": [
+    {
+      "id": "aws-s3-0",
+      "type": "s3",
+      "s3": {
+        "region": "",
+        "access_key_id": "",
+        "secret_access_key": "",
+        "bucket_name": "",
+        "use_path_style": false
+      }
+    }
+  ]
+}
+```
+
 #### MinIO
 
 `type=minio` is a storage method based on MinIO. MinIO is a widely used open-source object storage that also supports

@@ -64,6 +64,11 @@ type Storage struct {
 }
 
 type S3Config struct {
+	AccessKeyID     string `json:"access_key_id"`
+	SecretAccessKey string `json:"secret_access_key"`
+	Region          string `json:"region"`
+	BucketName      string `json:"bucket_name"`
+	UsePathStyle    bool   `json:"use_path_style"`
 }
 
 type MinIOConfig struct {
