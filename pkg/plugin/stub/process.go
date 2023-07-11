@@ -14,7 +14,7 @@
  limitations under the License.
 */
 
-package common
+package stub
 
 const (
 	// CallTrigger process & source Plugin

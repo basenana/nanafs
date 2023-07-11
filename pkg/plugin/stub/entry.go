@@ -14,7 +14,7 @@
  limitations under the License.
 */
 
-package common
+package stub
 
 import (
 	"bytes"
@@ -137,4 +137,11 @@ type fileWriter struct {
 func (f *fileWriter) Close() error {
 	f.ent.content = f.Bytes()
 	return nil
+}
+
+type EntryAttr struct {
+	Name   string
+	Dev    int64
+	Kind   types.Kind
+	Access types.Access
 }

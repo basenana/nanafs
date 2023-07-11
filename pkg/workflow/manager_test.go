@@ -19,7 +19,7 @@ package workflow
 import (
 	"context"
 	"github.com/basenana/go-flow/flow"
-	"github.com/basenana/nanafs/pkg/plugin/common"
+	"github.com/basenana/nanafs/pkg/plugin/stub"
 	"github.com/basenana/nanafs/pkg/types"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -107,9 +107,9 @@ var _ = Describe("TestWorkflowJobManage", func() {
 			{Name: "step-2", Plugin: ps},
 		},
 	}
-	caller.mockResponse(*ps, func() (*common.Response, error) {
+	caller.mockResponse(*ps, func() (*stub.Response, error) {
 		time.Sleep(time.Second * 5)
-		return &common.Response{IsSucceed: true}, nil
+		return &stub.Response{IsSucceed: true}, nil
 	})
 	Context("trigger a workflow", func() {
 		It("create workflow should be succeed", func() {

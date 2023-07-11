@@ -20,7 +20,7 @@ import (
 	"context"
 	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/plugin/common"
+	"github.com/basenana/nanafs/pkg/plugin/stub"
 	"github.com/basenana/nanafs/pkg/types"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -109,9 +109,9 @@ var _ = Describe("TestPluginCallOperator", func() {
 		Parameters: map[string]string{},
 	}
 
-	caller.mockResponse(*ps, func() (*common.Response, error) {
+	caller.mockResponse(*ps, func() (*stub.Response, error) {
 		time.Sleep(time.Second)
-		return &common.Response{IsSucceed: true}, nil
+		return &stub.Response{IsSucceed: true}, nil
 	})
 
 	Context("operator do", func() {

@@ -21,7 +21,7 @@ import (
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/pkg/plugin/common"
+	"github.com/basenana/nanafs/pkg/plugin/stub"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
@@ -35,7 +35,7 @@ import (
 
 var (
 	stopCh   = make(chan struct{})
-	caller   = &pluginCaller{response: map[string]func() (*common.Response, error){}}
+	caller   = &pluginCaller{response: map[string]func() (*stub.Response, error){}}
 	tempDir  string
 	entryMgr dentry.Manager
 	mgr      Manager
@@ -76,17 +76,17 @@ var _ = AfterSuite(func() {
 })
 
 type pluginCaller struct {
-	response map[string]func() (*common.Response, error)
+	response map[string]func() (*stub.Response, error)
 	mux      sync.Mutex
 }
 
-func (c *pluginCaller) mockResponse(ps types.PlugScope, getter func() (*common.Response, error)) {
+func (c *pluginCaller) mockResponse(ps types.PlugScope, getter func() (*stub.Response, error)) {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 	c.response[ps.PluginName] = getter
 }
 
-func (c *pluginCaller) call(ctx context.Context, ps types.PlugScope, req *common.Request) (*common.Response, error) {
+func (c *pluginCaller) call(ctx context.Context, ps types.PlugScope, req *stub.Request) (*stub.Response, error) {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 	respGetter, ok := c.response[ps.PluginName]

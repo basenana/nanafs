@@ -19,7 +19,7 @@ package workflow
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/plugin"
-	"github.com/basenana/nanafs/pkg/plugin/common"
+	"github.com/basenana/nanafs/pkg/plugin/stub"
 	"github.com/basenana/nanafs/pkg/types"
 )
 
@@ -32,24 +32,85 @@ type MirrorPlugin struct {
 	Manager
 }
 
-func (w *MirrorPlugin) Name() string {
-	return MirrorPluginName
-}
-
-func (w *MirrorPlugin) Type() types.PluginType {
-	return types.TypeMirror
-}
-
-func (w *MirrorPlugin) Version() string {
-	return MirrorPluginVersion
-}
-
-func (w *MirrorPlugin) Run(ctx context.Context, request *common.Request, params map[string]string) (*common.Response, error) {
+func (m MirrorPlugin) Name() string {
 	//TODO implement me
 	panic("implement me")
 }
 
-func InitWorkflowMirrorPlugin(mgr Manager) {
-	plugin.Register(context.Background(), &MirrorPlugin{Manager: mgr})
-	return
+func (m MirrorPlugin) Type() types.PluginType {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m MirrorPlugin) Version() string {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m MirrorPlugin) IsGroup(ctx context.Context) (bool, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m MirrorPlugin) FindEntry(ctx context.Context, name string) (stub.Entry, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m MirrorPlugin) CreateEntry(ctx context.Context, attr stub.EntryAttr) (stub.Entry, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m MirrorPlugin) UpdateEntry(ctx context.Context, en stub.Entry) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m MirrorPlugin) RemoveEntry(ctx context.Context, en stub.Entry) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m MirrorPlugin) ListChildren(ctx context.Context) ([]stub.Entry, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m MirrorPlugin) WriteAt(ctx context.Context, data []byte, off int64) (int64, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m MirrorPlugin) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m MirrorPlugin) Fsync(ctx context.Context) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m MirrorPlugin) Flush(ctx context.Context) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m MirrorPlugin) Close(ctx context.Context) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+var mirrorPlugin = types.PluginSpec{
+	Name:       MirrorPluginName,
+	Version:    MirrorPluginVersion,
+	Type:       types.TypeMirror,
+	Parameters: map[string]string{},
+}
+
+func buildWorkflowMirrorPlugin(mgr Manager) plugin.Builder {
+	return func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (plugin.Plugin, error) {
+		return &MirrorPlugin{Manager: mgr}, nil
+	}
 }

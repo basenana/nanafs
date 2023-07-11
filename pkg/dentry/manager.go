@@ -324,11 +324,21 @@ func (m *manager) Open(ctx context.Context, en Entry, attr Attr) (File, error) {
 		f   File
 		err error
 	)
-	switch md.Kind {
-	case types.SymLinkKind:
-		f, err = openSymlink(en, attr)
-	default:
-		f, err = openFile(en, attr, m.store, m.storages[en.Metadata().Storage], m.cacheReset, m.cfg.FS)
+	if md.Storage == externalStorage {
+		var ed types.ExtendData
+		ed, err = en.GetExtendData(ctx)
+		if err != nil {
+			m.logger.Errorw("get entry extend data failed", "entry", en.Metadata().ID, "err", err)
+			return nil, err
+		}
+		f, err = openExternalFile(en, ed.PlugScope, attr, m.cfg.FS)
+	} else {
+		switch md.Kind {
+		case types.SymLinkKind:
+			f, err = openSymlink(en, attr)
+		default:
+			f, err = openFile(en, attr, m.store, m.storages[en.Metadata().Storage], m.cacheReset, m.cfg.FS)
+		}
 	}
 	if err != nil {
 		return nil, err

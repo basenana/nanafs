@@ -23,7 +23,7 @@ import (
 	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/plugin"
-	"github.com/basenana/nanafs/pkg/plugin/common"
+	"github.com/basenana/nanafs/pkg/plugin/stub"
 	"github.com/basenana/nanafs/pkg/types"
 	"strconv"
 )
@@ -130,7 +130,7 @@ type pluginCallOperator struct {
 }
 
 func (e *pluginCallOperator) Do(ctx context.Context, param flow.Parameter) error {
-	req := common.NewRequest()
+	req := stub.NewRequest()
 	req.WorkPath = param.Workdir
 	req.EntryPath = e.entryPath
 	_, err := pluginCall(ctx, e.plugin, req)

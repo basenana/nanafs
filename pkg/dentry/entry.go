@@ -27,8 +27,9 @@ import (
 )
 
 const (
-	RootEntryID   = 1
-	RootEntryName = "root"
+	RootEntryID     = 1
+	RootEntryName   = "root"
+	externalStorage = "[ext]"
 )
 
 type Entry interface {
@@ -45,7 +46,11 @@ type Entry interface {
 }
 
 func buildEntry(obj *types.Object, store metastore.ObjectStore) Entry {
-	return instrumentalEntry{en: &rawEntry{obj: obj, store: store}}
+	var en Entry = &rawEntry{obj: obj, store: store}
+	if obj.Storage == externalStorage {
+		en = &extEntry{rawEntry: en.(*rawEntry)}
+	}
+	return instrumentalEntry{en: en}
 }
 
 type rawEntry struct {
@@ -147,12 +152,7 @@ func (r *rawEntry) RuleMatched(ctx context.Context, ruleSpec types.Rule) bool {
 }
 
 func (r *rawEntry) IsGroup() bool {
-	switch r.obj.Kind {
-	case types.GroupKind, types.SmartGroupKind, types.MirrorGroupKind:
-		return true
-	default:
-		return false
-	}
+	return types.IsGroup(r.obj.Kind)
 }
 
 func (r *rawEntry) IsMirror() bool {
@@ -170,9 +170,26 @@ func (r *rawEntry) Group() Group {
 			return instrumentalGroup{Entry: instrumentalEntry{en: r}, grp: grp}
 		case types.SmartGroupKind:
 			return &dynamicGroup{stdGroup: grp}
-		case types.MirrorGroupKind:
-			return &mirroredGroup{stdGroup: grp}
+		case types.ExternalGroupKind:
+			return &extGroup{stdGroup: grp}
 		}
+	}
+	return nil
+}
+
+type extEntry struct {
+	*rawEntry
+}
+
+func (e *extEntry) IsMirror() bool {
+	return true
+}
+
+func (e *extEntry) Group() Group {
+	if e.IsGroup() {
+		grp := &stdGroup{Entry: e, store: e.store}
+		en := instrumentalEntry{en: e}
+		return instrumentalGroup{Entry: en, grp: &extGroup{stdGroup: grp}}
 	}
 	return nil
 }

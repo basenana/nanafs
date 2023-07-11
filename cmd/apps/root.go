@@ -88,7 +88,7 @@ var daemonCmd = &cobra.Command{
 		}
 		stop := utils.HandleTerminalSignal()
 
-		if err := plugin.Init(cfg, meta); err != nil {
+		if err := plugin.Init(cfg.Plugin, meta); err != nil {
 			panic(err)
 		}
 

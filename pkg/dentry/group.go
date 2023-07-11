@@ -159,6 +159,26 @@ type dynamicGroup struct {
 	*stdGroup
 }
 
-type mirroredGroup struct {
+type extGroup struct {
 	*stdGroup
+}
+
+func (e *extGroup) FindEntry(ctx context.Context, name string) (Entry, error) {
+	return e.stdGroup.FindEntry(ctx, name)
+}
+
+func (e *extGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, error) {
+	return e.stdGroup.CreateEntry(ctx, attr)
+}
+
+func (e *extGroup) UpdateEntry(ctx context.Context, en Entry) error {
+	return e.stdGroup.UpdateEntry(ctx, en)
+}
+
+func (e *extGroup) RemoveEntry(ctx context.Context, en Entry) error {
+	return e.stdGroup.RemoveEntry(ctx, en)
+}
+
+func (e *extGroup) ListChildren(ctx context.Context) ([]Entry, error) {
+	return e.stdGroup.ListChildren(ctx)
 }

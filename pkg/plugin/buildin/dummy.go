@@ -19,7 +19,7 @@ package buildin
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/plugin/common"
+	"github.com/basenana/nanafs/pkg/plugin/stub"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"io"
@@ -28,10 +28,6 @@ import (
 )
 
 type DummySourcePlugin struct{}
-
-func InitDummySourcePlugin() *DummySourcePlugin {
-	return &DummySourcePlugin{}
-}
 
 func (d *DummySourcePlugin) Name() string {
 	return "dummy-source-plugin"
@@ -45,21 +41,17 @@ func (d *DummySourcePlugin) Version() string {
 	return "1.0"
 }
 
-func (d *DummySourcePlugin) Run(ctx context.Context, request *common.Request, params map[string]string) (*common.Response, error) {
-	resp := common.NewResponse()
+func (d *DummySourcePlugin) Run(ctx context.Context, request *stub.Request, params map[string]string) (*stub.Response, error) {
+	resp := stub.NewResponse()
 	resp.IsSucceed = true
-	mockedEntries := make([]common.Entry, 0)
-	mockedEntries = append(mockedEntries, common.NewFileEntry("dummy-file-1.json", []byte(`{"key": "value"}`)))
-	mockedEntries = append(mockedEntries, common.NewFileEntry("dummy-file-2.json", []byte(`{"key": "value"}`)))
+	mockedEntries := make([]stub.Entry, 0)
+	mockedEntries = append(mockedEntries, stub.NewFileEntry("dummy-file-1.json", []byte(`{"key": "value"}`)))
+	mockedEntries = append(mockedEntries, stub.NewFileEntry("dummy-file-2.json", []byte(`{"key": "value"}`)))
 	resp.Entries = mockedEntries
 	return resp, nil
 }
 
 type DummyProcessPlugin struct{}
-
-func InitDummyProcessPlugin() *DummyProcessPlugin {
-	return &DummyProcessPlugin{}
-}
 
 func (d *DummyProcessPlugin) Name() string {
 	return "dummy-process-plugin"
@@ -73,20 +65,13 @@ func (d *DummyProcessPlugin) Version() string {
 	return "1.0"
 }
 
-func (d *DummyProcessPlugin) Run(ctx context.Context, request *common.Request, params map[string]string) (*common.Response, error) {
+func (d *DummyProcessPlugin) Run(ctx context.Context, request *stub.Request, params map[string]string) (*stub.Response, error) {
 	time.Sleep(time.Second * 2)
-	return &common.Response{IsSucceed: true}, nil
+	return &stub.Response{IsSucceed: true}, nil
 }
 
 type DummyMirrorPlugin struct {
-	dataSets *common.GroupEntry
-}
-
-func InitDummyMirrorPlugin() *DummyMirrorPlugin {
-	entry := common.NewGroupEntry("/")
-	return &DummyMirrorPlugin{
-		dataSets: entry.(*common.GroupEntry),
-	}
+	dataSets *stub.GroupEntry
 }
 
 func (d *DummyMirrorPlugin) Name() string {
@@ -101,33 +86,33 @@ func (d *DummyMirrorPlugin) Version() string {
 	return "1.0"
 }
 
-func (d *DummyMirrorPlugin) Run(ctx context.Context, request *common.Request, params map[string]string) (*common.Response, error) {
+func (d *DummyMirrorPlugin) Run(ctx context.Context, request *stub.Request, params map[string]string) (*stub.Response, error) {
 	switch request.CallType {
-	case common.CallListEntries:
+	case stub.CallListEntries:
 		return d.handleList(ctx, request, params)
-	case common.CallAddEntry:
+	case stub.CallAddEntry:
 		return d.handleAdd(ctx, request, params)
-	case common.CallUpdateEntry:
+	case stub.CallUpdateEntry:
 		return d.handleUpdate(ctx, request, params)
-	case common.CallDeleteEntry:
+	case stub.CallDeleteEntry:
 		return d.handleDelete(ctx, request, params)
 	default:
 		return nil, fmt.Errorf("unknow callType: %s", request.CallType)
 	}
 }
 
-func (d *DummyMirrorPlugin) handleList(ctx context.Context, request *common.Request, params map[string]string) (*common.Response, error) {
+func (d *DummyMirrorPlugin) handleList(ctx context.Context, request *stub.Request, params map[string]string) (*stub.Response, error) {
 	workdir, err := d.currentWorkDir(ctx, request.WorkPath)
 	if err != nil {
 		return nil, err
 	}
-	resp := common.NewResponse()
+	resp := stub.NewResponse()
 	resp.IsSucceed = true
 	resp.Entries = workdir.SubEntries()
 	return resp, nil
 }
 
-func (d *DummyMirrorPlugin) handleAdd(ctx context.Context, request *common.Request, params map[string]string) (*common.Response, error) {
+func (d *DummyMirrorPlugin) handleAdd(ctx context.Context, request *stub.Request, params map[string]string) (*stub.Response, error) {
 	workdir, err := d.currentWorkDir(ctx, request.WorkPath)
 	if err != nil {
 		return nil, err
@@ -137,18 +122,18 @@ func (d *DummyMirrorPlugin) handleAdd(ctx context.Context, request *common.Reque
 	if err := workdir.NewEntries(newEntry); err != nil {
 		return nil, err
 	}
-	resp := common.NewResponse()
+	resp := stub.NewResponse()
 	resp.IsSucceed = true
 	return resp, nil
 }
 
-func (d *DummyMirrorPlugin) handleUpdate(ctx context.Context, request *common.Request, params map[string]string) (*common.Response, error) {
+func (d *DummyMirrorPlugin) handleUpdate(ctx context.Context, request *stub.Request, params map[string]string) (*stub.Response, error) {
 	workdir, err := d.currentWorkDir(ctx, request.WorkPath)
 	if err != nil {
 		return nil, err
 	}
 	ent := request.Entry
-	var oldEnt common.Entry
+	var oldEnt stub.Entry
 	subEntries := workdir.SubEntries()
 
 	for i := range subEntries {
@@ -166,7 +151,7 @@ func (d *DummyMirrorPlugin) handleUpdate(ctx context.Context, request *common.Re
 		return nil, types.ErrIsGroup
 	}
 
-	fileEnt, ok := oldEnt.(*common.FileEntry)
+	fileEnt, ok := oldEnt.(*stub.FileEntry)
 	if !ok {
 		return nil, fmt.Errorf("no file entry")
 	}
@@ -187,14 +172,14 @@ func (d *DummyMirrorPlugin) handleUpdate(ctx context.Context, request *common.Re
 	if err != nil {
 		return nil, err
 	}
-	resp := common.NewResponse()
+	resp := stub.NewResponse()
 	resp.IsSucceed = true
-	resp.Entries = []common.Entry{fileEnt}
+	resp.Entries = []stub.Entry{fileEnt}
 
 	return resp, nil
 }
 
-func (d *DummyMirrorPlugin) handleDelete(ctx context.Context, request *common.Request, params map[string]string) (*common.Response, error) {
+func (d *DummyMirrorPlugin) handleDelete(ctx context.Context, request *stub.Request, params map[string]string) (*stub.Response, error) {
 	workdir, err := d.currentWorkDir(ctx, request.WorkPath)
 	if err != nil {
 		return nil, err
@@ -204,13 +189,13 @@ func (d *DummyMirrorPlugin) handleDelete(ctx context.Context, request *common.Re
 		return nil, err
 	}
 
-	resp := common.NewResponse()
+	resp := stub.NewResponse()
 	resp.IsSucceed = true
 	return resp, nil
 }
 
-func (d *DummyMirrorPlugin) currentWorkDir(ctx context.Context, workDir string) (*common.GroupEntry, error) {
-	crtEntry := common.Entry(d.dataSets)
+func (d *DummyMirrorPlugin) currentWorkDir(ctx context.Context, workDir string) (*stub.GroupEntry, error) {
+	crtEntry := stub.Entry(d.dataSets)
 	if workDir == crtEntry.Name() {
 		return d.dataSets, nil
 	}
@@ -239,5 +224,5 @@ SEARCH:
 	if !crtEntry.IsGroup() {
 		return nil, types.ErrNoGroup
 	}
-	return crtEntry.(*common.GroupEntry), nil
+	return crtEntry.(*stub.GroupEntry), nil
 }

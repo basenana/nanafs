@@ -23,6 +23,7 @@ import (
 	"github.com/basenana/nanafs/pkg/bio"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"go.uber.org/zap"
@@ -155,7 +156,6 @@ func openFile(en Entry, attr Attr, store metastore.ObjectStore, fileStorage stor
 	}
 	increaseOpenedFile(en.Metadata().ID)
 	return instrumentalFile{Entry: en, file: f}, nil
-
 }
 
 type symlink struct {
@@ -237,6 +237,54 @@ func openSymlink(en Entry, attr Attr) (File, error) {
 	return instrumentalFile{
 		Entry: en,
 		file:  &symlink{Entry: en, data: raw, attr: attr},
+	}, nil
+}
+
+type extFile struct {
+	Entry
+
+	attr Attr
+	cfg  *config.FS
+	stub plugin.MirrorPlugin
+}
+
+func (e *extFile) GetAttr() Attr {
+	return e.attr
+}
+
+func (e *extFile) WriteAt(ctx context.Context, data []byte, off int64) (int64, error) {
+	return e.stub.WriteAt(ctx, data, off)
+}
+
+func (e *extFile) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error) {
+	return e.stub.ReadAt(ctx, dest, off)
+}
+
+func (e *extFile) Fsync(ctx context.Context) error {
+	return e.stub.Fsync(ctx)
+}
+
+func (e *extFile) Flush(ctx context.Context) error {
+	return e.stub.Fsync(ctx)
+}
+
+func (e *extFile) Close(ctx context.Context) error {
+	return e.stub.Close(ctx)
+}
+
+func openExternalFile(en Entry, ps *types.PlugScope, attr Attr, cfg *config.FS) (File, error) {
+	if ps == nil {
+		return nil, fmt.Errorf("extend entry has no plug scop")
+	}
+	stub, err := plugin.NewMirrorPlugin(context.TODO(), *ps)
+	if err != nil {
+		return nil, fmt.Errorf("build mirror plugin failed %s", err)
+	}
+	return &extFile{
+		Entry: en,
+		attr:  attr,
+		cfg:   cfg,
+		stub:  stub,
 	}, nil
 }
 

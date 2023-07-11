@@ -18,7 +18,7 @@ package plugin
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/plugin/common"
+	"github.com/basenana/nanafs/pkg/plugin/stub"
 	"github.com/basenana/nanafs/pkg/types"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -33,10 +33,10 @@ var _ = Describe("TestSourcePluginCall", func() {
 		Parameters: map[string]string{},
 	}
 
-	var req *common.Request
+	var req *stub.Request
 	BeforeEach(func() {
-		req = &common.Request{
-			CallType: common.CallTrigger,
+		req = &stub.Request{
+			CallType: stub.CallTrigger,
 			WorkPath: "/",
 		}
 	})
@@ -58,10 +58,10 @@ var _ = Describe("TestProcessPluginCall", func() {
 		Parameters: map[string]string{},
 	}
 
-	var req *common.Request
+	var req *stub.Request
 	BeforeEach(func() {
-		req = &common.Request{
-			CallType: common.CallTrigger,
+		req = &stub.Request{
+			CallType: stub.CallTrigger,
 			WorkPath: "/",
 		}
 	})
@@ -83,9 +83,9 @@ var _ = Describe("TestMirrorPluginCall", func() {
 		Parameters: map[string]string{},
 	}
 
-	var req *common.Request
+	var req *stub.Request
 	BeforeEach(func() {
-		req = &common.Request{
+		req = &stub.Request{
 			WorkPath: "/",
 		}
 	})
@@ -94,23 +94,23 @@ var _ = Describe("TestMirrorPluginCall", func() {
 
 	Context("with a normal call", func() {
 		It("list should be succeed", func() {
-			req.CallType = common.CallListEntries
+			req.CallType = stub.CallListEntries
 			resp, err := Call(context.TODO(), ps, req)
 			Expect(err).Should(BeNil())
 			Expect(resp.IsSucceed).Should(BeTrue())
 		})
 		It("add testfile.txt should be succeed", func() {
 			var (
-				resp *common.Response
+				resp *stub.Response
 				err  error
 			)
-			req.CallType = common.CallAddEntry
-			req.Entry = common.NewFileEntry(fileName, []byte{})
+			req.CallType = stub.CallAddEntry
+			req.Entry = stub.NewFileEntry(fileName, []byte{})
 			resp, err = Call(context.TODO(), ps, req)
 			Expect(err).Should(BeNil())
 			Expect(resp.IsSucceed).Should(BeTrue())
 
-			req.CallType = common.CallListEntries
+			req.CallType = stub.CallListEntries
 			resp, err = Call(context.TODO(), ps, req)
 			Expect(err).Should(BeNil())
 			Expect(resp.IsSucceed).Should(BeTrue())
@@ -125,21 +125,21 @@ var _ = Describe("TestMirrorPluginCall", func() {
 			Expect(searched).Should(BeTrue())
 		})
 		It("update should be succeed", func() {
-			req.CallType = common.CallUpdateEntry
-			req.Entry = common.NewFileEntry(fileName, []byte("hello1"))
+			req.CallType = stub.CallUpdateEntry
+			req.Entry = stub.NewFileEntry(fileName, []byte("hello1"))
 			resp, err := Call(context.TODO(), ps, req)
 			Expect(err).Should(BeNil())
 			Expect(resp.IsSucceed).Should(BeTrue())
 
-			req.CallType = common.CallListEntries
+			req.CallType = stub.CallListEntries
 			resp, err = Call(context.TODO(), ps, req)
 			Expect(err).Should(BeNil())
 			Expect(resp.IsSucceed).Should(BeTrue())
 
-			var newFile *common.FileEntry
+			var newFile *stub.FileEntry
 			for _, en := range resp.Entries {
 				if en.Name() == fileName {
-					newFile = en.(*common.FileEntry)
+					newFile = en.(*stub.FileEntry)
 					break
 				}
 			}
@@ -152,11 +152,11 @@ var _ = Describe("TestMirrorPluginCall", func() {
 		})
 		It("delete should be succeed", func() {
 			var (
-				resp     *common.Response
+				resp     *stub.Response
 				err      error
 				searched bool
 			)
-			req.CallType = common.CallListEntries
+			req.CallType = stub.CallListEntries
 			resp, err = Call(context.TODO(), ps, req)
 			Expect(err).Should(BeNil())
 			Expect(resp.IsSucceed).Should(BeTrue())
@@ -169,8 +169,8 @@ var _ = Describe("TestMirrorPluginCall", func() {
 			}
 			Expect(searched).Should(BeTrue())
 
-			req.CallType = common.CallDeleteEntry
-			req.Entry = common.NewFileEntry(fileName, nil)
+			req.CallType = stub.CallDeleteEntry
+			req.Entry = stub.NewFileEntry(fileName, nil)
 			resp, err = Call(context.TODO(), ps, req)
 			Expect(err).Should(BeNil())
 			Expect(resp.IsSucceed).Should(BeTrue())

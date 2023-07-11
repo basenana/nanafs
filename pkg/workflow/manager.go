@@ -25,6 +25,7 @@ import (
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/google/uuid"
@@ -87,6 +88,7 @@ func NewManager(entryMgr dentry.Manager, recorder metastore.ScheduledTaskRecorde
 		config:   config,
 		logger:   l,
 	}
+	plugin.Register(mirrorPlugin, buildWorkflowMirrorPlugin(mgr))
 	return mgr, nil
 }
 
