@@ -24,83 +24,13 @@ import (
 )
 
 const (
-	MirrorPluginName    = "workflow"
-	MirrorPluginVersion = "1.0"
+	MirrorPluginName          = "workflow"
+	MirrorPluginVersion       = "1.0"
+	MirrorDirWorkflows        = "workflows"
+	MirrorDirJobs             = "jobs"
+	MirrorFileType            = ".yaml"
+	MirrorFileMaxSize   int64 = 1 << 22 // 4M
 )
-
-type MirrorPlugin struct {
-	Manager
-}
-
-func (m MirrorPlugin) Name() string {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m MirrorPlugin) Type() types.PluginType {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m MirrorPlugin) Version() string {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m MirrorPlugin) IsGroup(ctx context.Context) (bool, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m MirrorPlugin) FindEntry(ctx context.Context, name string) (stub.Entry, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m MirrorPlugin) CreateEntry(ctx context.Context, attr stub.EntryAttr) (stub.Entry, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m MirrorPlugin) UpdateEntry(ctx context.Context, en stub.Entry) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m MirrorPlugin) RemoveEntry(ctx context.Context, en stub.Entry) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m MirrorPlugin) ListChildren(ctx context.Context) ([]stub.Entry, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m MirrorPlugin) WriteAt(ctx context.Context, data []byte, off int64) (int64, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m MirrorPlugin) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m MirrorPlugin) Fsync(ctx context.Context) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m MirrorPlugin) Flush(ctx context.Context) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m MirrorPlugin) Close(ctx context.Context) error {
-	//TODO implement me
-	panic("implement me")
-}
 
 var mirrorPlugin = types.PluginSpec{
 	Name:       MirrorPluginName,
@@ -109,8 +39,121 @@ var mirrorPlugin = types.PluginSpec{
 	Parameters: map[string]string{},
 }
 
-func buildWorkflowMirrorPlugin(mgr Manager) plugin.Builder {
-	return func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (plugin.Plugin, error) {
-		return &MirrorPlugin{Manager: mgr}, nil
+type MirrorPlugin struct {
+	*dirHandler
+	*fileHandler
+}
+
+var _ plugin.MirrorPlugin = &MirrorPlugin{}
+
+func (m *MirrorPlugin) Name() string {
+	return MirrorPluginName
+}
+
+func (m *MirrorPlugin) Type() types.PluginType {
+	return types.TypeMirror
+}
+
+func (m *MirrorPlugin) Version() string {
+	return MirrorPluginVersion
+}
+
+func (m *MirrorPlugin) build(ctx context.Context, _ types.PluginSpec, scope types.PlugScope) (plugin.Plugin, error) {
+	return nil, nil
+}
+
+type dirHandler struct {
+	mgr     Manager
+	dirKind string
+	path    string
+}
+
+func (d *dirHandler) IsGroup(ctx context.Context) (bool, error) {
+	if d == nil {
+		return false, nil
 	}
+	return true, nil
+}
+
+func (d *dirHandler) FindEntry(ctx context.Context, name string) (*stub.Entry, error) {
+	if d == nil {
+		return nil, types.ErrNoGroup
+	}
+	return nil, nil
+}
+
+func (d *dirHandler) CreateEntry(ctx context.Context, attr stub.EntryAttr) (*stub.Entry, error) {
+	if d == nil {
+		return nil, types.ErrNoGroup
+	}
+	return nil, nil
+}
+
+func (d *dirHandler) UpdateEntry(ctx context.Context, en *stub.Entry) error {
+	if d == nil {
+		return types.ErrNoGroup
+	}
+	return nil
+}
+
+func (d *dirHandler) RemoveEntry(ctx context.Context, en *stub.Entry) error {
+	if d == nil {
+		return types.ErrNoGroup
+	}
+	return nil
+}
+
+func (d *dirHandler) ListChildren(ctx context.Context) ([]*stub.Entry, error) {
+	if d == nil {
+		return nil, types.ErrNoGroup
+	}
+	return nil, nil
+}
+
+type fileHandler struct {
+	mgr     Manager
+	data    []byte
+	dirKind string
+	path    string
+	err     error
+}
+
+func (f *fileHandler) WriteAt(ctx context.Context, data []byte, off int64) (int64, error) {
+	if f == nil {
+		return 0, types.ErrIsGroup
+	}
+	return 0, nil
+}
+
+func (f *fileHandler) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error) {
+	if f == nil {
+		return 0, types.ErrIsGroup
+	}
+	return 0, nil
+}
+
+func (f *fileHandler) Fsync(ctx context.Context) error {
+	if f == nil {
+		return types.ErrIsGroup
+	}
+	return nil
+}
+
+func (f *fileHandler) Flush(ctx context.Context) error {
+	if f == nil {
+		return types.ErrIsGroup
+	}
+	return nil
+}
+
+func (f *fileHandler) Close(ctx context.Context) error {
+	if f == nil {
+		return types.ErrIsGroup
+	}
+	return nil
+}
+
+func buildWorkflowMirrorPlugin(mgr Manager) plugin.Builder {
+	mp := &MirrorPlugin{dirHandler: &dirHandler{mgr: mgr, path: "/"}}
+	return mp.build
 }

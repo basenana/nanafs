@@ -17,18 +17,11 @@
 package adaptors
 
 import (
-	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
-	goplugin "plugin"
 )
 
 const (
-	ExecTypeGoPlugin = "goplugin"
-
-	goPluginSymTarget  = "Plugin"
-	goVersionSymTarget = "Version"
-
-	currentGoPluginVersion = "1.0"
+	AdaptorTypeGoPlugin = "goplugin"
 )
 
 type GoPluginAdaptor struct {
@@ -49,27 +42,6 @@ func (g GoPluginAdaptor) Version() string {
 	panic("implement me")
 }
 
-func NewGoPluginAdaptor(spec types.PluginSpec) (*GoPluginAdaptor, error) {
-	p, err := goplugin.Open(spec.Path)
-	if err != nil {
-		return nil, err
-	}
-
-	ver, err := p.Lookup(goVersionSymTarget)
-	if err != nil {
-		return nil, err
-	}
-	versionInfo, ok := ver.(string)
-	if !ok {
-		return nil, fmt.Errorf("no plugin version found")
-	}
-	if versionInfo != currentGoPluginVersion {
-		return nil, fmt.Errorf("plugin version %s too low", versionInfo)
-	}
-
-	_, err = p.Lookup(goPluginSymTarget)
-	if err != nil {
-		return nil, err
-	}
+func NewGoPluginAdaptor(spec types.PluginSpec, scope types.PlugScope) (*GoPluginAdaptor, error) {
 	return &GoPluginAdaptor{}, nil
 }

@@ -160,7 +160,7 @@ type dynamicGroup struct {
 }
 
 type extGroup struct {
-	*stdGroup
+	stdGroup *stdGroup
 }
 
 func (e *extGroup) FindEntry(ctx context.Context, name string) (Entry, error) {

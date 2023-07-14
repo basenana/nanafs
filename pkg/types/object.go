@@ -85,6 +85,11 @@ type ExtendData struct {
 	PlugScope   *PlugScope `json:"plug_scope,omitempty"`
 }
 
+const (
+	PlugScopeEntryName = "entry.name"
+	PlugScopeEntryPath = "entry.path" // relative path
+)
+
 type PlugScope struct {
 	PluginName string            `json:"plugin_name"`
 	Version    string            `json:"version"`

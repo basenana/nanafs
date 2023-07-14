@@ -21,15 +21,8 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/pkg/plugin/stub"
 	"github.com/basenana/nanafs/pkg/types"
-	"time"
+	"io"
 )
-
-const (
-	DefaultPluginPath     = "/var/lib/nanafs/registry"
-	DefaultRegisterPeriod = time.Minute * 1
-)
-
-var ()
 
 type Plugin interface {
 	Name() string
@@ -60,11 +53,11 @@ type MirrorPlugin interface {
 	Plugin
 
 	IsGroup(ctx context.Context) (bool, error)
-	FindEntry(ctx context.Context, name string) (stub.Entry, error)
-	CreateEntry(ctx context.Context, attr stub.EntryAttr) (stub.Entry, error)
-	UpdateEntry(ctx context.Context, en stub.Entry) error
-	RemoveEntry(ctx context.Context, en stub.Entry) error
-	ListChildren(ctx context.Context) ([]stub.Entry, error)
+	FindEntry(ctx context.Context, name string) (*stub.Entry, error)
+	CreateEntry(ctx context.Context, attr stub.EntryAttr) (*stub.Entry, error)
+	UpdateEntry(ctx context.Context, en *stub.Entry) error
+	RemoveEntry(ctx context.Context, en *stub.Entry) error
+	ListChildren(ctx context.Context) ([]*stub.Entry, error)
 
 	WriteAt(ctx context.Context, data []byte, off int64) (int64, error)
 	ReadAt(ctx context.Context, dest []byte, off int64) (int64, error)
@@ -88,4 +81,6 @@ func NewMirrorPlugin(ctx context.Context, ps types.PlugScope) (MirrorPlugin, err
 
 type SourcePlugin interface {
 	Plugin
+	Fresh(ctx context.Context, opt stub.FreshOption) ([]*stub.Entry, error)
+	Open(ctx context.Context, entry *stub.Entry) (io.ReadCloser, error)
 }

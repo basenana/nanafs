@@ -22,27 +22,28 @@ import (
 )
 
 const (
-	ExecTypeScript = "script"
+	AdaptorTypeGoFlow = "goflow"
 )
 
-type ScriptPluginAdaptor struct {
+type GoFlowPluginAdaptor struct {
+	spec types.PluginSpec
 }
 
-func (s ScriptPluginAdaptor) Name() string {
+func (b GoFlowPluginAdaptor) Name() string {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (s ScriptPluginAdaptor) Type() types.PluginType {
+func (b GoFlowPluginAdaptor) Type() types.PluginType {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (s ScriptPluginAdaptor) Version() string {
+func (b GoFlowPluginAdaptor) Version() string {
 	//TODO implement me
 	panic("implement me")
 }
 
-func NewScriptAdaptor(spec types.PluginSpec) (*ScriptPluginAdaptor, error) {
+func NewGoFlowPluginAdaptor(spec types.PluginSpec, scope types.PlugScope) (*GoFlowPluginAdaptor, error) {
 	return nil, fmt.Errorf("no support")
 }

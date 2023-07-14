@@ -67,6 +67,10 @@ func Init(cfg *config.Plugin, recorderGetter metastore.PluginRecorderGetter) err
 	return r.load()
 }
 
+func MustShutdown() {
+	return
+}
+
 type registry struct {
 	basePath string
 	plugins  map[string]*pluginInfo

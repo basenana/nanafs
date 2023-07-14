@@ -18,12 +18,9 @@ package buildin
 
 import (
 	"context"
-	"fmt"
 	"github.com/basenana/nanafs/pkg/plugin/stub"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
 	"io"
-	"strings"
 	"time"
 )
 
@@ -41,14 +38,14 @@ func (d *DummySourcePlugin) Version() string {
 	return "1.0"
 }
 
-func (d *DummySourcePlugin) Run(ctx context.Context, request *stub.Request, params map[string]string) (*stub.Response, error) {
-	resp := stub.NewResponse()
-	resp.IsSucceed = true
-	mockedEntries := make([]stub.Entry, 0)
-	mockedEntries = append(mockedEntries, stub.NewFileEntry("dummy-file-1.json", []byte(`{"key": "value"}`)))
-	mockedEntries = append(mockedEntries, stub.NewFileEntry("dummy-file-2.json", []byte(`{"key": "value"}`)))
-	resp.Entries = mockedEntries
-	return resp, nil
+func (d *DummySourcePlugin) Fresh(ctx context.Context, opt stub.FreshOption) ([]*stub.Entry, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (d *DummySourcePlugin) Open(ctx context.Context, entry *stub.Entry) (io.ReadCloser, error) {
+	//TODO implement me
+	panic("implement me")
 }
 
 type DummyProcessPlugin struct{}
@@ -70,9 +67,7 @@ func (d *DummyProcessPlugin) Run(ctx context.Context, request *stub.Request, par
 	return &stub.Response{IsSucceed: true}, nil
 }
 
-type DummyMirrorPlugin struct {
-	dataSets *stub.GroupEntry
-}
+type DummyMirrorPlugin struct{}
 
 func (d *DummyMirrorPlugin) Name() string {
 	return "dummy-mirror-plugin"
@@ -86,143 +81,57 @@ func (d *DummyMirrorPlugin) Version() string {
 	return "1.0"
 }
 
-func (d *DummyMirrorPlugin) Run(ctx context.Context, request *stub.Request, params map[string]string) (*stub.Response, error) {
-	switch request.CallType {
-	case stub.CallListEntries:
-		return d.handleList(ctx, request, params)
-	case stub.CallAddEntry:
-		return d.handleAdd(ctx, request, params)
-	case stub.CallUpdateEntry:
-		return d.handleUpdate(ctx, request, params)
-	case stub.CallDeleteEntry:
-		return d.handleDelete(ctx, request, params)
-	default:
-		return nil, fmt.Errorf("unknow callType: %s", request.CallType)
-	}
+func (d *DummyMirrorPlugin) IsGroup(ctx context.Context) (bool, error) {
+	//TODO implement me
+	panic("implement me")
 }
 
-func (d *DummyMirrorPlugin) handleList(ctx context.Context, request *stub.Request, params map[string]string) (*stub.Response, error) {
-	workdir, err := d.currentWorkDir(ctx, request.WorkPath)
-	if err != nil {
-		return nil, err
-	}
-	resp := stub.NewResponse()
-	resp.IsSucceed = true
-	resp.Entries = workdir.SubEntries()
-	return resp, nil
+func (d *DummyMirrorPlugin) FindEntry(ctx context.Context, name string) (*stub.Entry, error) {
+	//TODO implement me
+	panic("implement me")
 }
 
-func (d *DummyMirrorPlugin) handleAdd(ctx context.Context, request *stub.Request, params map[string]string) (*stub.Response, error) {
-	workdir, err := d.currentWorkDir(ctx, request.WorkPath)
-	if err != nil {
-		return nil, err
-	}
-	newEntry := request.Entry
-	// overwrite old file if newEntry's name already existed
-	if err := workdir.NewEntries(newEntry); err != nil {
-		return nil, err
-	}
-	resp := stub.NewResponse()
-	resp.IsSucceed = true
-	return resp, nil
+func (d *DummyMirrorPlugin) CreateEntry(ctx context.Context, attr stub.EntryAttr) (*stub.Entry, error) {
+	//TODO implement me
+	panic("implement me")
 }
 
-func (d *DummyMirrorPlugin) handleUpdate(ctx context.Context, request *stub.Request, params map[string]string) (*stub.Response, error) {
-	workdir, err := d.currentWorkDir(ctx, request.WorkPath)
-	if err != nil {
-		return nil, err
-	}
-	ent := request.Entry
-	var oldEnt stub.Entry
-	subEntries := workdir.SubEntries()
-
-	for i := range subEntries {
-		tmpEnt := subEntries[i]
-		if tmpEnt.Name() == ent.Name() {
-			oldEnt = tmpEnt
-			break
-		}
-	}
-	if oldEnt == nil {
-		return nil, types.ErrNotFound
-	}
-	if oldEnt.IsGroup() || ent.IsGroup() {
-
-		return nil, types.ErrIsGroup
-	}
-
-	fileEnt, ok := oldEnt.(*stub.FileEntry)
-	if !ok {
-		return nil, fmt.Errorf("no file entry")
-	}
-
-	r, err := ent.OpenReader()
-	if err != nil {
-		return nil, err
-	}
-	defer r.Close()
-
-	w, err := fileEnt.OpenWrite()
-	if err != nil {
-		return nil, err
-	}
-	defer w.Close()
-
-	_, err = io.Copy(w, r)
-	if err != nil {
-		return nil, err
-	}
-	resp := stub.NewResponse()
-	resp.IsSucceed = true
-	resp.Entries = []stub.Entry{fileEnt}
-
-	return resp, nil
+func (d *DummyMirrorPlugin) UpdateEntry(ctx context.Context, en *stub.Entry) error {
+	//TODO implement me
+	panic("implement me")
 }
 
-func (d *DummyMirrorPlugin) handleDelete(ctx context.Context, request *stub.Request, params map[string]string) (*stub.Response, error) {
-	workdir, err := d.currentWorkDir(ctx, request.WorkPath)
-	if err != nil {
-		return nil, err
-	}
-	ent := request.Entry
-	if err = workdir.DeleteEntries(ent); err != nil {
-		return nil, err
-	}
-
-	resp := stub.NewResponse()
-	resp.IsSucceed = true
-	return resp, nil
+func (d *DummyMirrorPlugin) RemoveEntry(ctx context.Context, en *stub.Entry) error {
+	//TODO implement me
+	panic("implement me")
 }
 
-func (d *DummyMirrorPlugin) currentWorkDir(ctx context.Context, workDir string) (*stub.GroupEntry, error) {
-	crtEntry := stub.Entry(d.dataSets)
-	if workDir == crtEntry.Name() {
-		return d.dataSets, nil
-	}
+func (d *DummyMirrorPlugin) ListChildren(ctx context.Context) ([]*stub.Entry, error) {
+	//TODO implement me
+	panic("implement me")
+}
 
-	subEntryNames := strings.Split(workDir, utils.PathSeparator)
-SEARCH:
-	for _, sub := range subEntryNames {
-		if crtEntry.Name() == sub {
-			break
-		}
+func (d *DummyMirrorPlugin) WriteAt(ctx context.Context, data []byte, off int64) (int64, error) {
+	//TODO implement me
+	panic("implement me")
+}
 
-		if !crtEntry.IsGroup() {
-			return nil, types.ErrNoGroup
-		}
+func (d *DummyMirrorPlugin) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error) {
+	//TODO implement me
+	panic("implement me")
+}
 
-		subEntries := crtEntry.SubEntries()
-		for i := range subEntries {
-			ent := subEntries[i]
-			if ent.Name() == sub {
-				crtEntry = ent
-				continue SEARCH
-			}
-		}
-		return nil, types.ErrNotFound
-	}
-	if !crtEntry.IsGroup() {
-		return nil, types.ErrNoGroup
-	}
-	return crtEntry.(*stub.GroupEntry), nil
+func (d *DummyMirrorPlugin) Fsync(ctx context.Context) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (d *DummyMirrorPlugin) Flush(ctx context.Context) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (d *DummyMirrorPlugin) Close(ctx context.Context) error {
+	//TODO implement me
+	panic("implement me")
 }

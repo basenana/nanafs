@@ -17,8 +17,10 @@
 package plugin
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/basenana/nanafs/pkg/plugin/adaptors"
 	"github.com/basenana/nanafs/pkg/types"
 	"os"
 	"path/filepath"
@@ -50,12 +52,37 @@ func readPluginSpec(basePath, pluginSpecFile string) (types.PluginSpec, Builder,
 		return types.PluginSpec{}, nil, fmt.Errorf("plugin name was empty")
 	}
 
-	if spec.Path != "" {
+	var builder Builder
+	switch spec.Adaptor {
+	case adaptors.AdaptorTypeGoFlow:
+		builder = goflowAdaptorBuilder()
+		if spec.Operator == "" {
+			return types.PluginSpec{}, nil, fmt.Errorf("operator is empty")
+		}
+	case adaptors.AdaptorTypeGoPlugin:
+		if spec.Path == "" {
+			return types.PluginSpec{}, nil, fmt.Errorf("path is empty")
+		}
 		_, err = os.Stat(spec.Path)
 		if err != nil {
-			return types.PluginSpec{}, nil, fmt.Errorf("stat plugin failed: %s", err.Error())
+			return types.PluginSpec{}, nil, fmt.Errorf("stat plugin path failed: %s", err)
 		}
+		builder = gopluginAdaptorBuilder()
+	default:
+		return types.PluginSpec{}, nil, fmt.Errorf("unknow adaptor %s", spec.Adaptor)
 	}
 
-	return spec, nil, nil
+	return spec, builder, nil
+}
+
+func goflowAdaptorBuilder() Builder {
+	return func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
+		return adaptors.NewGoFlowPluginAdaptor(spec, scope)
+	}
+}
+
+func gopluginAdaptorBuilder() Builder {
+	return func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
+		return adaptors.NewGoPluginAdaptor(spec, scope)
+	}
 }
