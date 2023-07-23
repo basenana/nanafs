@@ -14,60 +14,48 @@
  limitations under the License.
 */
 
-package buildin
+package plugin
 
 import (
 	"context"
+	"fmt"
 	"github.com/basenana/nanafs/pkg/plugin/stub"
 	"github.com/basenana/nanafs/pkg/types"
-	"io"
-	"time"
 )
 
-type DummySourcePlugin struct{}
+type MirrorPlugin interface {
+	Plugin
 
-func (d *DummySourcePlugin) Name() string {
-	return "dummy-source-plugin"
+	IsGroup(ctx context.Context) (bool, error)
+	FindEntry(ctx context.Context, name string) (*stub.Entry, error)
+	CreateEntry(ctx context.Context, attr stub.EntryAttr) (*stub.Entry, error)
+	UpdateEntry(ctx context.Context, en *stub.Entry) error
+	RemoveEntry(ctx context.Context, en *stub.Entry) error
+	ListChildren(ctx context.Context) ([]*stub.Entry, error)
+
+	WriteAt(ctx context.Context, data []byte, off int64) (int64, error)
+	ReadAt(ctx context.Context, dest []byte, off int64) (int64, error)
+	Fsync(ctx context.Context) error
+	Flush(ctx context.Context) error
+	Close(ctx context.Context) error
 }
 
-func (d *DummySourcePlugin) Type() types.PluginType {
-	return types.TypeSource
-}
+func NewMirrorPlugin(ctx context.Context, ps types.PlugScope) (MirrorPlugin, error) {
+	plugin, err := BuildPlugin(ctx, ps)
+	if err != nil {
+		return nil, err
+	}
 
-func (d *DummySourcePlugin) Version() string {
-	return "1.0"
-}
-
-func (d *DummySourcePlugin) Fresh(ctx context.Context, opt stub.FreshOption) ([]*stub.Entry, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (d *DummySourcePlugin) Open(ctx context.Context, entry *stub.Entry) (io.ReadCloser, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-type DummyProcessPlugin struct{}
-
-func (d *DummyProcessPlugin) Name() string {
-	return "dummy-process-plugin"
-}
-
-func (d *DummyProcessPlugin) Type() types.PluginType {
-	return types.TypeProcess
-}
-
-func (d *DummyProcessPlugin) Version() string {
-	return "1.0"
-}
-
-func (d *DummyProcessPlugin) Run(ctx context.Context, request *stub.Request, params map[string]string) (*stub.Response, error) {
-	time.Sleep(time.Second * 2)
-	return &stub.Response{IsSucceed: true}, nil
+	mirrorPlugin, ok := plugin.(MirrorPlugin)
+	if !ok {
+		return nil, fmt.Errorf("not mirror plugin")
+	}
+	return mirrorPlugin, nil
 }
 
 type DummyMirrorPlugin struct{}
+
+var _ MirrorPlugin = &DummyMirrorPlugin{}
 
 func (d *DummyMirrorPlugin) Name() string {
 	return "dummy-mirror-plugin"

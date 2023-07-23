@@ -35,6 +35,12 @@ var (
 	ErrNotFound    = errors.New("PluginNotFound")
 )
 
+type Plugin interface {
+	Name() string
+	Type() types.PluginType
+	Version() string
+}
+
 type Builder func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error)
 
 func Register(spec types.PluginSpec, builder Builder) {

@@ -17,14 +17,26 @@
 package utils
 
 import (
-	"fmt"
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
 	"github.com/bwmarrin/snowflake"
 	"math/rand"
+	"os"
 	"time"
 )
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
+}
+
+func RandString(length int) (string, error) {
+	bytes := make([]byte, length)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	randomString := hex.EncodeToString(bytes)
+	return randomString[:length], nil
 }
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -40,11 +52,22 @@ func RandStringRunes(n int) string {
 var idGenerator *snowflake.Node
 
 func init() {
-	var err error
-	idGenerator, err = snowflake.NewNode(1)
+	hostname, err := os.Hostname()
 	if err != nil {
-		fmt.Println(err)
-		return
+		hostname = RandStringRunes(8)
+	}
+
+	h := sha256.New()
+	h.Write([]byte(hostname))
+	hashedHostName := h.Sum(nil)
+
+	idTmp := make([]byte, 8)
+	copy(idTmp, hashedHostName)
+	nodeId := int64(binary.BigEndian.Uint64(idTmp))
+
+	idGenerator, err = snowflake.NewNode(nodeId)
+	if err != nil {
+		panic(err)
 	}
 }
 

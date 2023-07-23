@@ -14,18 +14,18 @@
  limitations under the License.
 */
 
-package utils
+package plugin
 
 import (
-	"crypto/rand"
-	"encoding/hex"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
-func RandString(length int) (string, error) {
-	bytes := make([]byte, length)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", err
-	}
-	randomString := hex.EncodeToString(bytes)
-	return randomString[:length], nil
-}
+var _ = Describe("TestSourcePlugin", func() {
+	Context("with a normal call", func() {
+		It("should be succeed", func() {
+			// TODO
+			Expect(nil).Should(BeNil())
+		})
+	})
+})

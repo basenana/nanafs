@@ -39,22 +39,6 @@ func Mkdir(path string) error {
 	return fmt.Errorf("%s not dir", path)
 }
 
-type dataReader struct {
-	reader io.Reader
-}
-
-func (d dataReader) Read(p []byte) (n int, err error) {
-	return d.reader.Read(p)
-}
-
-func (d dataReader) Close() error {
-	return nil
-}
-
-func NewDateReader(reader io.Reader) io.ReadCloser {
-	return dataReader{reader: reader}
-}
-
 type wrapperReader struct {
 	r   io.ReaderAt
 	off int64

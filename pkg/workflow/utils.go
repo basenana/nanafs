@@ -28,11 +28,26 @@ import (
 	"io"
 	"os"
 	"path"
+	"regexp"
 	"time"
 )
 
+var (
+	workflowIDPattern = "^[A-zA-Z][a-zA-Z0-9-_.]{5,31}$"
+	wfIDRegexp        = regexp.MustCompile(workflowIDPattern)
+)
+
+func isValidID(idStr string) error {
+	if wfIDRegexp.MatchString(idStr) {
+		return nil
+	}
+	return fmt.Errorf("invalid ID, pattern: %s", workflowIDPattern)
+}
+
 func initWorkflow(wf *types.WorkflowSpec) *types.WorkflowSpec {
-	wf.Id = uuid.New().String()
+	if wf.Id == "" {
+		wf.Id = uuid.New().String()
+	}
 	wf.CreatedAt = time.Now()
 	wf.UpdatedAt = time.Now()
 	return wf

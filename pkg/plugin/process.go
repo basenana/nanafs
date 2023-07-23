@@ -21,14 +21,8 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/pkg/plugin/stub"
 	"github.com/basenana/nanafs/pkg/types"
-	"io"
+	"time"
 )
-
-type Plugin interface {
-	Name() string
-	Type() types.PluginType
-	Version() string
-}
 
 type ProcessPlugin interface {
 	Plugin
@@ -49,38 +43,23 @@ func Call(ctx context.Context, ps types.PlugScope, req *stub.Request) (resp *stu
 	return runnablePlugin.Run(ctx, req, ps.Parameters)
 }
 
-type MirrorPlugin interface {
-	Plugin
+type DummyProcessPlugin struct{}
 
-	IsGroup(ctx context.Context) (bool, error)
-	FindEntry(ctx context.Context, name string) (*stub.Entry, error)
-	CreateEntry(ctx context.Context, attr stub.EntryAttr) (*stub.Entry, error)
-	UpdateEntry(ctx context.Context, en *stub.Entry) error
-	RemoveEntry(ctx context.Context, en *stub.Entry) error
-	ListChildren(ctx context.Context) ([]*stub.Entry, error)
+var _ ProcessPlugin = &DummyProcessPlugin{}
 
-	WriteAt(ctx context.Context, data []byte, off int64) (int64, error)
-	ReadAt(ctx context.Context, dest []byte, off int64) (int64, error)
-	Fsync(ctx context.Context) error
-	Flush(ctx context.Context) error
-	Close(ctx context.Context) error
+func (d *DummyProcessPlugin) Name() string {
+	return "dummy-process-plugin"
 }
 
-func NewMirrorPlugin(ctx context.Context, ps types.PlugScope) (MirrorPlugin, error) {
-	plugin, err := BuildPlugin(ctx, ps)
-	if err != nil {
-		return nil, err
-	}
-
-	mirrorPlugin, ok := plugin.(MirrorPlugin)
-	if !ok {
-		return nil, fmt.Errorf("not mirror plugin")
-	}
-	return mirrorPlugin, nil
+func (d *DummyProcessPlugin) Type() types.PluginType {
+	return types.TypeProcess
 }
 
-type SourcePlugin interface {
-	Plugin
-	Fresh(ctx context.Context, opt stub.FreshOption) ([]*stub.Entry, error)
-	Open(ctx context.Context, entry *stub.Entry) (io.ReadCloser, error)
+func (d *DummyProcessPlugin) Version() string {
+	return "1.0"
+}
+
+func (d *DummyProcessPlugin) Run(ctx context.Context, request *stub.Request, params map[string]string) (*stub.Response, error) {
+	time.Sleep(time.Second * 2)
+	return &stub.Response{IsSucceed: true}, nil
 }

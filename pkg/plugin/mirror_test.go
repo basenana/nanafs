@@ -21,19 +21,11 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("TestSourcePlugin", func() {
+var _ = Describe("TestMirrorPlugin", func() {
 	Context("with a normal call", func() {
 		It("should be succeed", func() {
 			// TODO
 			Expect(nil).Should(BeNil())
 		})
 	})
-})
-
-var _ = Describe("TestProcessPlugin", func() {
-	// TODO
-})
-
-var _ = Describe("TestMirrorPlugin", func() {
-	// TODO
 })
