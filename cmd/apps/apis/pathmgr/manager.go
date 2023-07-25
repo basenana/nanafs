@@ -104,7 +104,6 @@ func (m *PathManager) CreateFile(ctx context.Context, parentDir string, attr typ
 		return nil, types.ErrNoGroup
 	}
 
-	attr.Dev = parent.Metadata().Dev
 	en, err = m.ctrl.CreateEntry(ctx, parent, attr)
 	if err != nil {
 		return nil, err
@@ -135,7 +134,7 @@ func (m *PathManager) CreateAll(ctx context.Context, entryPath string, attr dent
 
 		if err == types.ErrNotFound {
 			pp, base := path.Split(dirPath)
-			en, err = m.ctrl.CreateEntry(ctx, parent, types.ObjectAttr{Name: base, Kind: types.GroupKind, Dev: parent.Metadata().Dev, Access: attr.Access})
+			en, err = m.ctrl.CreateEntry(ctx, parent, types.ObjectAttr{Name: base, Kind: types.GroupKind, Access: attr.Access})
 			if err != nil {
 				return nil, err
 			}

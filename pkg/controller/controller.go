@@ -129,7 +129,6 @@ func (c *controller) CreateEntry(ctx context.Context, parent dentry.Entry, attr 
 
 	entry, err := c.entry.CreateEntry(ctx, parent, dentry.EntryAttr{
 		Name:   attr.Name,
-		Dev:    attr.Dev,
 		Kind:   attr.Kind,
 		Access: attr.Access,
 	})
@@ -206,7 +205,6 @@ func (c *controller) MirrorEntry(ctx context.Context, src, dstParent dentry.Entr
 
 	entry, err := c.entry.MirrorEntry(ctx, src, dstParent, dentry.EntryAttr{
 		Name:   attr.Name,
-		Dev:    attr.Dev,
 		Kind:   attr.Kind,
 		Access: attr.Access,
 	})

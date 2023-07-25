@@ -60,7 +60,7 @@ func nanaNode2Stat(entry dentry.Entry) *syscall.Stat_t {
 		Nlink:   uint64(meta.RefCount),
 		Uid:     uint32(meta.Access.UID),
 		Gid:     uint32(meta.Access.GID),
-		Rdev:    uint64(meta.Dev),
+		Rdev:    uint64(MountDev),
 	}
 }
 

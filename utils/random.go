@@ -64,8 +64,11 @@ func init() {
 	idTmp := make([]byte, 8)
 	copy(idTmp, hashedHostName)
 	nodeId := int64(binary.BigEndian.Uint64(idTmp))
+	if nodeId < 0 {
+		nodeId *= -1
+	}
 
-	idGenerator, err = snowflake.NewNode(nodeId)
+	idGenerator, err = snowflake.NewNode(nodeId % 1024)
 	if err != nil {
 		panic(err)
 	}

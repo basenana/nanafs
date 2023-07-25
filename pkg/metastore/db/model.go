@@ -40,9 +40,8 @@ type Object struct {
 	RefID      int64  `gorm:"column:ref_id;index:ref_id"`
 	RefCount   int    `gorm:"column:ref_count"`
 	Kind       string `gorm:"column:kind"`
-	Hash       string `gorm:"column:hash"`
 	Size       int64  `gorm:"column:size"`
-	Dev        int64  `gorm:"column:dev"`
+	Version    int64  `gorm:"column:version"`
 	Owner      int64  `gorm:"column:owner"`
 	GroupOwner int64  `gorm:"column:group_owner"`
 	Permission int64  `gorm:"column:permission"`
@@ -66,9 +65,8 @@ func (o *Object) Update(obj *types.Object) {
 	o.RefID = obj.RefID
 	o.RefCount = obj.RefCount
 	o.Kind = string(obj.Kind)
-	o.Hash = obj.Hash
 	o.Size = obj.Size
-	o.Dev = obj.Dev
+	o.Version = obj.Version
 	o.Storage = obj.Storage
 	o.Namespace = obj.Namespace
 	o.CreatedAt = obj.CreatedAt.UnixNano()
@@ -90,9 +88,8 @@ func (o *Object) Object() *types.Object {
 			RefID:      o.RefID,
 			RefCount:   o.RefCount,
 			Kind:       types.Kind(o.Kind),
-			Hash:       o.Hash,
 			Size:       o.Size,
-			Dev:        o.Dev,
+			Version:    o.Version,
 			Storage:    o.Storage,
 			Namespace:  o.Namespace,
 			CreatedAt:  time.Unix(0, o.CreatedAt),

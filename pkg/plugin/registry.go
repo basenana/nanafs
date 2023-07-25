@@ -69,6 +69,10 @@ func Init(cfg *config.Plugin, recorderGetter metastore.PluginRecorderGetter) err
 		logger:   logger.NewLogger("registry"),
 	}
 
+	// register build-in plugins
+	registerMemfsPlugin(r)
+	register3BodyPlugin(r)
+
 	pluginRegistry = r
 	return r.load()
 }

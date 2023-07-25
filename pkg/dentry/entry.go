@@ -214,7 +214,6 @@ func initRootEntryObject() *types.Object {
 func initMirrorEntryObject(src, newParent *types.Metadata, attr EntryAttr) (*types.Object, error) {
 	obj, err := types.InitNewObject(newParent, types.ObjectAttr{
 		Name:   attr.Name,
-		Dev:    attr.Dev,
 		Kind:   attr.Kind,
 		Access: attr.Access,
 	})

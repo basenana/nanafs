@@ -33,7 +33,6 @@ var _ = Describe("TestManageGroupEntry", func() {
 			var err error
 			group1, err = entryManager.CreateEntry(context.TODO(), root, EntryAttr{
 				Name:   "test_group_manage_group1",
-				Dev:    0,
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
 			})
@@ -45,7 +44,6 @@ var _ = Describe("TestManageGroupEntry", func() {
 			var err error
 			file1, err = entryManager.CreateEntry(context.TODO(), group1, EntryAttr{
 				Name:   "test_group_manage_file1",
-				Dev:    0,
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
 			})
@@ -55,7 +53,6 @@ var _ = Describe("TestManageGroupEntry", func() {
 		It("create file2 should be succeed", func() {
 			_, err := entryManager.CreateEntry(context.TODO(), group1, EntryAttr{
 				Name:   "test_group_manage_file2",
-				Dev:    0,
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
 			})
@@ -109,4 +106,87 @@ var _ = Describe("TestManageGroupEntry", func() {
 			Expect(err).Should(Equal(types.ErrNotFound))
 		})
 	})
+})
+
+var _ = Describe("TestExtGroupEntry", func() {
+	var (
+		extGrp   Group
+		extGrpEn Entry
+	)
+	Context("init ext group", func() {
+		It("init group should be succeed", func() {
+			var err error
+			extGrpEn, err = entryManager.CreateEntry(context.TODO(), root, EntryAttr{
+				Name:   "test_ext_memfs",
+				Kind:   types.ExternalGroupKind,
+				Access: accessPermissions,
+				PlugScope: &types.PlugScope{
+					PluginName: "memfs",
+					Version:    "1.0",
+					PluginType: types.TypeMirror,
+				},
+			})
+			Expect(err).Should(BeNil())
+			Expect(extGrpEn).ShouldNot(BeNil())
+
+			extGrp = extGrpEn.Group()
+			Expect(extGrp).ShouldNot(BeNil())
+		})
+	})
+
+	Context("create file", func() {
+		It("create file1.yaml should be succeed", func() {
+		})
+		It("write and read file1.yaml should be succeed", func() {
+		})
+		It("create file2.yaml should be succeed", func() {
+		})
+		It("write and read file2.yaml should be succeed", func() {
+		})
+		It("create file1.yaml should already existed", func() {
+		})
+	})
+
+	Context("delete file", func() {
+		It("list files should be succeed", func() {
+		})
+		It("delete file2.yaml should be succeed", func() {
+		})
+		It("list files and file2.yaml should gone", func() {
+		})
+	})
+
+	Context("sync file", func() {
+		It("insert sync_file1.yaml to memfs should be succeed", func() {
+		})
+		It("list files should contain sync_file1.yaml", func() {
+		})
+		It("insert sync_file2.yaml to memfs should be succeed", func() {
+		})
+		It("read sync_file2.yaml should be succeed", func() {
+		})
+	})
+
+	Context("mv file", func() {
+		It("rename file1.yaml in same ext group should be succeed", func() {
+		})
+		It("create test_ext_group_file_1.yaml in root dir should be succeed", func() {
+		})
+		It("mv /test_ext_group_file_1.yaml to ext group should be succeed", func() {
+		})
+	})
+
+	Context("ext group dir", func() {
+		It("create dir1 should be succeed", func() {
+		})
+		It("create dir1/file1.yaml should be succeed", func() {
+		})
+		It("delete dir1 should be failed(dir not empty)", func() {
+		})
+		It("delete dir1/file1.yaml should be succeed", func() {
+		})
+		It("delete dir1 should be succeed", func() {
+		})
+	})
+
 })

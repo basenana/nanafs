@@ -20,8 +20,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/plugin"
+	"github.com/basenana/nanafs/pkg/plugin/stub"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
+	"path"
 	"runtime/trace"
 	"strings"
 	"time"
@@ -75,16 +78,26 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, erro
 		return nil, types.ErrIsExist
 	}
 	groupMd := g.Metadata()
-	// FIXME: use same attr object
 	obj, err := types.InitNewObject(groupMd, types.ObjectAttr{
 		Name:   attr.Name,
-		Dev:    attr.Dev,
 		Kind:   attr.Kind,
 		Access: attr.Access,
 	})
 	if err != nil {
 		return nil, err
 	}
+	if obj.Kind == types.ExternalGroupKind {
+		if attr.PlugScope.Parameters == nil {
+			attr.PlugScope.Parameters = map[string]string{}
+		}
+		obj.PlugScope = attr.PlugScope
+		obj.PlugScope.Parameters[types.PlugScopeEntryName] = attr.Name
+		obj.PlugScope.Parameters[types.PlugScopeEntryPath] = "/"
+	}
+	if obj.Kind == types.SmartGroupKind {
+		obj.GroupFilter = attr.GroupFilter
+	}
+
 	if obj.IsGroup() {
 		groupMd.RefCount += 1
 	}
@@ -161,24 +174,193 @@ type dynamicGroup struct {
 
 type extGroup struct {
 	stdGroup *stdGroup
+	mirror   plugin.MirrorPlugin
 }
 
 func (e *extGroup) FindEntry(ctx context.Context, name string) (Entry, error) {
-	return e.stdGroup.FindEntry(ctx, name)
+	mirrorEn, err := e.mirror.FindEntry(ctx, name)
+	if err != nil && err != types.ErrNotFound {
+		return nil, err
+	}
+
+	en, err := e.stdGroup.FindEntry(ctx, name)
+	if err != nil && err != types.ErrNotFound {
+		return nil, err
+	}
+	return e.syncEntry(ctx, mirrorEn, en)
 }
 
 func (e *extGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, error) {
-	return e.stdGroup.CreateEntry(ctx, attr)
+	mirrorEn, err := e.mirror.CreateEntry(ctx, stub.EntryAttr{
+		Name:   attr.Name,
+		Kind:   attr.Kind,
+		Access: attr.Access,
+	})
+	if err != nil {
+		return nil, err
+	}
+	en, err := e.stdGroup.FindEntry(ctx, attr.Name)
+	if err != nil && err != types.ErrNotFound {
+		return nil, err
+	}
+	return e.syncEntry(ctx, mirrorEn, en)
 }
 
 func (e *extGroup) UpdateEntry(ctx context.Context, en Entry) error {
-	return e.stdGroup.UpdateEntry(ctx, en)
+	md := en.Metadata()
+	mirrorEn, err := e.mirror.FindEntry(ctx, md.Name)
+	if err != nil {
+		return err
+	}
+
+	// TODO: do update
+
+	// query old and write back
+	en, err = e.stdGroup.FindEntry(ctx, md.Name)
+	if err != nil {
+		return err
+	}
+
+	err = e.mirror.UpdateEntry(ctx, mirrorEn)
+	if err != nil {
+		return err
+	}
+
+	_, err = e.syncEntry(ctx, mirrorEn, en)
+	return err
 }
 
 func (e *extGroup) RemoveEntry(ctx context.Context, en Entry) error {
-	return e.stdGroup.RemoveEntry(ctx, en)
+	md := en.Metadata()
+	mirrorEn, err := e.mirror.FindEntry(ctx, md.Name)
+	if err != nil {
+		return err
+	}
+
+	err = e.mirror.RemoveEntry(ctx, mirrorEn)
+	if err != nil {
+		return err
+	}
+
+	en, err = e.stdGroup.FindEntry(ctx, md.Name)
+	if err != nil {
+		if err == types.ErrNotFound {
+			return nil
+		}
+		return err
+	}
+
+	_, err = e.syncEntry(ctx, nil, en)
+	return err
 }
 
 func (e *extGroup) ListChildren(ctx context.Context) ([]Entry, error) {
-	return e.stdGroup.ListChildren(ctx)
+	recordChild, err := e.stdGroup.ListChildren(ctx)
+	if err != nil {
+		return nil, err
+	}
+	actualChild, err := e.mirror.ListChildren(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	recordChildMap := make(map[string]Entry)
+	actualChildMap := make(map[string]*stub.Entry)
+	for i := range recordChild {
+		recordChildMap[recordChild[i].Metadata().Name] = recordChild[i]
+	}
+	for i := range actualChild {
+		actualChildMap[actualChild[i].Name] = actualChild[i]
+	}
+
+	result := make([]Entry, 0, len(actualChild))
+	for k := range actualChildMap {
+		en, err := e.syncEntry(ctx, actualChildMap[k], recordChildMap[k])
+		if err != nil {
+			return nil, err
+		}
+		if en != nil {
+			result = append(result, en)
+		}
+		delete(actualChildMap, k)
+		delete(recordChildMap, k)
+	}
+
+	for k := range recordChildMap {
+		_, err = e.syncEntry(ctx, nil, recordChildMap[k])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return result, nil
+}
+
+func (e *extGroup) syncEntry(ctx context.Context, mirrored *stub.Entry, crt Entry) (en Entry, err error) {
+	var (
+		grpMd = e.stdGroup.Metadata()
+		grpEd types.ExtendData
+	)
+	grpEd, err = crt.GetExtendData(ctx)
+	if err != nil {
+		return
+	}
+	if grpEd.PlugScope == nil {
+		err = fmt.Errorf("not ext group")
+		return
+	}
+
+	if mirrored != nil && crt != nil && mirrored.IsGroup != crt.IsGroup() {
+		// FIXME
+		return nil, fmt.Errorf("entry and mirrored entry incorrect")
+	}
+
+	if mirrored == nil {
+		err = types.ErrNotFound
+		if crt != nil {
+			// clean
+			md := crt.Metadata()
+			_ = e.stdGroup.store.DestroyObject(ctx, &types.Object{Metadata: *grpMd}, &types.Object{Metadata: *md})
+		}
+		return nil, err
+	}
+
+	if crt == nil {
+		// create mirror record
+		var obj *types.Object
+		obj, err = types.InitNewObject(grpMd, types.ObjectAttr{
+			Name:   mirrored.Name,
+			Kind:   mirrored.Kind,
+			Access: grpMd.Access,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		obj.PlugScope = &types.PlugScope{
+			PluginName: grpEd.PlugScope.PluginName,
+			Version:    grpEd.PlugScope.Version,
+			PluginType: grpEd.PlugScope.PluginType,
+			Parameters: map[string]string{},
+		}
+		for k, v := range grpEd.PlugScope.Parameters {
+			obj.PlugScope.Parameters[k] = v
+		}
+		obj.PlugScope.Parameters[types.PlugScopeEntryName] = mirrored.Name
+		obj.PlugScope.Parameters[types.PlugScopeEntryPath] = path.Join(grpEd.PlugScope.Parameters[types.PlugScopeEntryPath], mirrored.Name)
+
+		if obj.IsGroup() {
+			grpMd.RefCount += 1
+		}
+		grpMd.ChangedAt = time.Now()
+		grpMd.ModifiedAt = time.Now()
+		if err = e.stdGroup.store.SaveObjects(ctx, &types.Object{Metadata: *grpMd}, obj); err != nil {
+			return nil, err
+		}
+		en = buildEntry(obj, e.stdGroup.store)
+		return
+	}
+
+	// TODO: update mirror record
+	en = crt
+	return
 }

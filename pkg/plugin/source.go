@@ -17,10 +17,16 @@
 package plugin
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"github.com/basenana/nanafs/pkg/plugin/stub"
 	"github.com/basenana/nanafs/pkg/types"
 	"io"
+	"io/ioutil"
+	"strconv"
+	"strings"
+	"time"
 )
 
 type SourcePlugin interface {
@@ -29,28 +35,64 @@ type SourcePlugin interface {
 	Open(ctx context.Context, entry *stub.Entry) (io.ReadCloser, error)
 }
 
-type DummySourcePlugin struct{}
+const (
+	the3BodyPluginName    = "three_body"
+	the3BodyPluginVersion = "1.0"
+)
 
-var _ SourcePlugin = &DummySourcePlugin{}
+type ThreeBodyPlugin struct{}
 
-func (d *DummySourcePlugin) Name() string {
-	return "dummy-source-plugin"
+var _ SourcePlugin = &ThreeBodyPlugin{}
+
+func (d *ThreeBodyPlugin) Name() string {
+	return the3BodyPluginName
 }
 
-func (d *DummySourcePlugin) Type() types.PluginType {
+func (d *ThreeBodyPlugin) Type() types.PluginType {
 	return types.TypeSource
 }
 
-func (d *DummySourcePlugin) Version() string {
-	return "1.0"
+func (d *ThreeBodyPlugin) Version() string {
+	return the3BodyPluginVersion
 }
 
-func (d *DummySourcePlugin) Fresh(ctx context.Context, opt stub.FreshOption) ([]*stub.Entry, error) {
-	//TODO implement me
-	panic("implement me")
+func (d *ThreeBodyPlugin) Fresh(ctx context.Context, opt stub.FreshOption) ([]*stub.Entry, error) {
+	crtAt := time.Now().Unix()
+	result := make([]*stub.Entry, 0)
+	for i := crtAt - 60; i < crtAt; i += 60 {
+		if i <= opt.LastFreshAt.Unix() {
+			continue
+		}
+		result = append(result, &stub.Entry{
+			Name:    fmt.Sprintf("3_body_%d.txt", i),
+			Kind:    types.RawKind,
+			IsGroup: false,
+		})
+	}
+	return result, nil
 }
 
-func (d *DummySourcePlugin) Open(ctx context.Context, entry *stub.Entry) (io.ReadCloser, error) {
-	//TODO implement me
-	panic("implement me")
+func (d *ThreeBodyPlugin) Open(ctx context.Context, entry *stub.Entry) (io.ReadCloser, error) {
+	fileNameParts := strings.Split(entry.Name, "_")
+	sendAtStr := fileNameParts[len(fileNameParts)-1]
+
+	sendAt, err := strconv.ParseInt(sendAtStr, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("parse send time failed: %s", err)
+	}
+
+	buf := &bytes.Buffer{}
+	for i := 0; i < 3; i++ {
+		buf.WriteString(fmt.Sprintf("%d - Do not answer!\n", sendAt))
+	}
+	return ioutil.NopCloser(buf), nil
+}
+
+func threeBodyBuilder(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
+	return &ThreeBodyPlugin{}, nil
+}
+
+func register3BodyPlugin(r *registry) {
+	r.Register(the3BodyPluginName, types.PluginSpec{Name: the3BodyPluginName, Version: the3BodyPluginVersion,
+		Type: types.TypeSource, Parameters: map[string]string{}}, threeBodyBuilder)
 }

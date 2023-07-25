@@ -46,10 +46,9 @@ type Metadata struct {
 	RefID      int64     `json:"ref_id,omitempty"`
 	RefCount   int       `json:"ref_count,omitempty"`
 	Kind       Kind      `json:"kind"`
-	Hash       string    `json:"hash"`
 	Size       int64     `json:"size"`
 	Inode      uint64    `json:"inode"`
-	Dev        int64     `json:"dev"`
+	Version    int64     `json:"version"`
 	Namespace  string    `json:"namespace,omitempty"`
 	Storage    string    `json:"storage"`
 	CreatedAt  time.Time `json:"created_at"`
@@ -206,7 +205,6 @@ func InitNewObject(parent *Metadata, attr ObjectAttr) (*Object, error) {
 		UID:         attr.Access.UID,
 		GID:         attr.Access.GID,
 	}
-	md.Dev = attr.Dev
 
 	newObj := &Object{
 		Metadata: md,

@@ -18,7 +18,6 @@ package types
 
 type ObjectAttr struct {
 	Name   string
-	Dev    int64
 	Kind   Kind
 	Access Access
 }

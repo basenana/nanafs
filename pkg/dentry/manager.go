@@ -368,10 +368,11 @@ func (m *manager) SetCacheResetter(r CacheResetter) {
 }
 
 type EntryAttr struct {
-	Name   string
-	Dev    int64
-	Kind   types.Kind
-	Access types.Access
+	Name        string
+	Kind        types.Kind
+	Access      types.Access
+	PlugScope   *types.PlugScope
+	GroupFilter *types.Rule
 }
 
 type ChangeParentAttr struct {
