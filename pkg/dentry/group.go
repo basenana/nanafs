@@ -38,6 +38,30 @@ type Group interface {
 	ListChildren(ctx context.Context) ([]Entry, error)
 }
 
+type emptyGroup struct{}
+
+var _ Group = emptyGroup{}
+
+func (e emptyGroup) FindEntry(ctx context.Context, name string) (Entry, error) {
+	return nil, types.ErrNotFound
+}
+
+func (e emptyGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, error) {
+	return nil, types.ErrNoAccess
+}
+
+func (e emptyGroup) UpdateEntry(ctx context.Context, en Entry) error {
+	return types.ErrNoAccess
+}
+
+func (e emptyGroup) RemoveEntry(ctx context.Context, en Entry) error {
+	return types.ErrNoAccess
+}
+
+func (e emptyGroup) ListChildren(ctx context.Context) ([]Entry, error) {
+	return make([]Entry, 0), nil
+}
+
 type stdGroup struct {
 	Entry
 	store metastore.ObjectStore
@@ -87,6 +111,7 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, erro
 		return nil, err
 	}
 	if obj.Kind == types.ExternalGroupKind {
+		obj.Storage = externalStorage
 		if attr.PlugScope.Parameters == nil {
 			attr.PlugScope.Parameters = map[string]string{}
 		}
@@ -242,16 +267,19 @@ func (e *extGroup) RemoveEntry(ctx context.Context, en Entry) error {
 		return err
 	}
 
-	en, err = e.stdGroup.FindEntry(ctx, md.Name)
+	objects, err := e.stdGroup.store.ListObjects(ctx, types.Filter{Name: md.Name, ParentID: md.ParentID})
 	if err != nil {
+		return err
+	}
+	if len(objects) > 0 {
+		en = buildEntry(objects[0], e.stdGroup.store)
+		_, err = e.syncEntry(ctx, nil, en)
 		if err == types.ErrNotFound {
 			return nil
 		}
 		return err
 	}
-
-	_, err = e.syncEntry(ctx, nil, en)
-	return err
+	return nil
 }
 
 func (e *extGroup) ListChildren(ctx context.Context) ([]Entry, error) {
@@ -300,7 +328,7 @@ func (e *extGroup) syncEntry(ctx context.Context, mirrored *stub.Entry, crt Entr
 		grpMd = e.stdGroup.Metadata()
 		grpEd types.ExtendData
 	)
-	grpEd, err = crt.GetExtendData(ctx)
+	grpEd, err = e.stdGroup.GetExtendData(ctx)
 	if err != nil {
 		return
 	}

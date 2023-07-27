@@ -19,6 +19,7 @@ package dentry
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/rule"
 	"github.com/basenana/nanafs/pkg/types"
 	"runtime/trace"
@@ -166,13 +167,10 @@ func (r *rawEntry) Group() Group {
 			store: r.store,
 		}
 		switch r.obj.Kind {
-		case types.GroupKind:
-			return instrumentalGroup{Entry: instrumentalEntry{en: r}, grp: grp}
 		case types.SmartGroupKind:
 			return &dynamicGroup{stdGroup: grp}
-		case types.ExternalGroupKind:
-			return &extGroup{stdGroup: grp}
 		}
+		return instrumentalGroup{Entry: instrumentalEntry{en: r}, grp: grp}
 	}
 	return nil
 }
@@ -182,14 +180,24 @@ type extEntry struct {
 }
 
 func (e *extEntry) IsMirror() bool {
-	return true
+	return false
 }
 
 func (e *extEntry) Group() Group {
 	if e.IsGroup() {
+		ed, err := e.GetExtendData(context.TODO())
+		if err != nil || ed.PlugScope == nil {
+			return emptyGroup{}
+		}
+
+		mirror, err := plugin.NewMirrorPlugin(context.TODO(), *ed.PlugScope)
+		if err != nil {
+			return emptyGroup{}
+		}
+
 		grp := &stdGroup{Entry: e, store: e.store}
 		en := instrumentalEntry{en: e}
-		return instrumentalGroup{Entry: en, grp: &extGroup{stdGroup: grp}}
+		return instrumentalGroup{Entry: en, grp: &extGroup{stdGroup: grp, mirror: mirror}}
 	}
 	return nil
 }

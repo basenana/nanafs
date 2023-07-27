@@ -150,7 +150,7 @@ func checkStorageConfig(sConfig Storage) error {
 	if sConfig.ID == "" {
 		return fmt.Errorf("storage.id is empty")
 	}
-	if storageIDRegexp.MatchString(sConfig.ID) {
+	if !storageIDRegexp.MatchString(sConfig.ID) {
 		return fmt.Errorf("storage.id must match %s", storageIDPattern)
 	}
 	switch sConfig.Type {

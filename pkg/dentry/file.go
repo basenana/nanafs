@@ -278,7 +278,7 @@ func openExternalFile(en Entry, ps *types.PlugScope, attr Attr, cfg *config.FS) 
 	}
 	stub, err := plugin.NewMirrorPlugin(context.TODO(), *ps)
 	if err != nil {
-		return nil, fmt.Errorf("build mirror plugin failed %s", err)
+		return nil, fmt.Errorf("build mirror plugin failed: %s", err)
 	}
 	return &extFile{
 		Entry: en,

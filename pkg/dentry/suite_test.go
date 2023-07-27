@@ -20,6 +20,7 @@ import (
 	"context"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils/logger"
 	"os"
@@ -62,5 +63,9 @@ var _ = BeforeSuite(func() {
 
 	// init root
 	root, err = entryManager.Root(context.TODO())
+	Expect(err).Should(BeNil())
+
+	// init plugin
+	err = plugin.Init(&config.Plugin{}, memMeta)
 	Expect(err).Should(BeNil())
 })

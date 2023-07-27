@@ -145,6 +145,7 @@ func (d *MemFSPlugin) CreateEntry(ctx context.Context, attr stub.EntryAttr) (*st
 
 	child = append(child, attr.Name)
 	d.fs.groups[d.path] = child
+	d.fs.files[path.Join(d.path, attr.Name)] = newMemFile(attr.Name)
 
 	if types.IsGroup(attr.Kind) {
 		d.fs.groups[path.Join(d.path, attr.Name)] = make([]string, 0)
@@ -199,6 +200,7 @@ func (d *MemFSPlugin) RemoveEntry(ctx context.Context, en *stub.Entry) error {
 	if ok && len(needDeleteChild) > 0 {
 		return types.ErrNotEmpty
 	}
+	d.fs.groups[d.path] = newChild
 	return nil
 }
 
@@ -269,15 +271,23 @@ type MemFS struct {
 	mux    sync.Mutex
 }
 
+const (
+	memFileMaxSize int64 = 1 << 24 // 16M
+)
+
 type memFile struct {
 	name string
 	data []byte
 	off  int64
 }
 
-const (
-	memFileMaxSize int64 = 1 << 24 // 16M
-)
+func newMemFile(name string) *memFile {
+	return &memFile{
+		name: name,
+		data: utils.NewMemoryBlock(memFileMaxSize / 16), // 1M
+		off:  0,
+	}
+}
 
 func (m *memFile) WriteAt(data []byte, off int64) (n int, err error) {
 	if m.data == nil {
@@ -293,7 +303,9 @@ func (m *memFile) WriteAt(data []byte, off int64) (n int, err error) {
 		utils.ReleaseMemoryBlock(m.data)
 		m.data = blk
 	}
-	return copy(m.data[off:], data), nil
+	n = copy(m.data[off:], data)
+	m.off += int64(n)
+	return
 }
 
 func (m *memFile) ReadAt(dest []byte, off int64) (n int, err error) {
@@ -304,7 +316,7 @@ func (m *memFile) ReadAt(dest []byte, off int64) (n int, err error) {
 	if off >= m.off {
 		return 0, io.EOF
 	}
-	return copy(dest, m.data[off:]), nil
+	return copy(dest, m.data[off:m.off]), nil
 }
 
 func registerMemfsPlugin(r *registry) {
@@ -312,6 +324,7 @@ func registerMemfsPlugin(r *registry) {
 		path: "/",
 		fs:   &MemFS{files: map[string]*memFile{}, groups: map[string][]string{}},
 	}
+	plugin.fs.groups["/"] = make([]string, 0)
 	r.Register(memFSPluginName, types.PluginSpec{Name: memFSPluginName, Version: memFSPluginVersion,
 		Type: types.TypeMirror, Parameters: map[string]string{}}, plugin.build)
 }

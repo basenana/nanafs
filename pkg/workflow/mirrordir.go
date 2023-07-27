@@ -508,7 +508,9 @@ func (m *memFile) WriteAt(data []byte, off int64) (n int, err error) {
 		utils.ReleaseMemoryBlock(m.data)
 		m.data = blk
 	}
-	return copy(m.data[off:], data), nil
+	n = copy(m.data[off:], data)
+	m.off += int64(n)
+	return
 }
 
 func (m *memFile) ReadAt(dest []byte, off int64) (n int, err error) {
@@ -519,7 +521,7 @@ func (m *memFile) ReadAt(dest []byte, off int64) (n int, err error) {
 	if off >= m.off {
 		return 0, io.EOF
 	}
-	return copy(dest, m.data[off:]), nil
+	return copy(dest, m.data[off:m.off]), nil
 }
 
 func (m *memFile) reset() {

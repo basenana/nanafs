@@ -64,6 +64,7 @@ func NewMetadata(name string, kind Kind) Metadata {
 		Name:       name,
 		Namespace:  objectDefaultNamespace,
 		Kind:       kind,
+		Version:    1,
 		RefCount:   1,
 		CreatedAt:  time.Now(),
 		AccessAt:   time.Now(),

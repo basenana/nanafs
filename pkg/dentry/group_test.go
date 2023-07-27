@@ -110,8 +110,10 @@ var _ = Describe("TestManageGroupEntry", func() {
 
 var _ = Describe("TestExtGroupEntry", func() {
 	var (
-		extGrp   Group
-		extGrpEn Entry
+		extGrp       Group
+		extGrpEn     Entry
+		file1, file2 Entry
+		err          error
 	)
 	Context("init ext group", func() {
 		It("init group should be succeed", func() {
@@ -135,24 +137,108 @@ var _ = Describe("TestExtGroupEntry", func() {
 	})
 
 	Context("create file", func() {
+
 		It("create file1.yaml should be succeed", func() {
+			file1, err = entryManager.CreateEntry(context.TODO(), extGrpEn, EntryAttr{
+				Name:   "file1.yaml",
+				Kind:   types.RawKind,
+				Access: accessPermissions,
+			})
+			Expect(err).Should(BeNil())
+			Expect(file1).ShouldNot(BeNil())
 		})
 		It("write and read file1.yaml should be succeed", func() {
+			var f File
+			f, err = entryManager.Open(context.TODO(), file1, Attr{Read: true, Write: true})
+			Expect(err).Should(BeNil())
+
+			_, err = f.WriteAt(context.TODO(), []byte("file1: hello world!"), 0)
+			Expect(err).Should(BeNil())
+			err = f.Close(context.TODO())
+			Expect(err).Should(BeNil())
+
+			f, err = entryManager.Open(context.TODO(), file1, Attr{Read: true, Write: true})
+			Expect(err).Should(BeNil())
+
+			var (
+				buf   = make([]byte, 32)
+				readN int64
+			)
+			readN, err = f.ReadAt(context.TODO(), buf, 0)
+			Expect(err).Should(BeNil())
+			Expect(string(buf[:readN])).Should(Equal("file1: hello world!"))
 		})
 		It("create file2.yaml should be succeed", func() {
+			file2, err = entryManager.CreateEntry(context.TODO(), extGrpEn, EntryAttr{
+				Name:   "file2.yaml",
+				Kind:   types.RawKind,
+				Access: accessPermissions,
+			})
+			Expect(err).Should(BeNil())
+			Expect(file1).ShouldNot(BeNil())
 		})
 		It("write and read file2.yaml should be succeed", func() {
+			var f File
+			f, err = entryManager.Open(context.TODO(), file2, Attr{Read: true, Write: true})
+			Expect(err).Should(BeNil())
+
+			_, err = f.WriteAt(context.TODO(), []byte("file2: hello world!"), 0)
+			Expect(err).Should(BeNil())
+			err = f.Close(context.TODO())
+			Expect(err).Should(BeNil())
+
+			f, err = entryManager.Open(context.TODO(), file2, Attr{Read: true, Write: true})
+			Expect(err).Should(BeNil())
+
+			var (
+				buf   = make([]byte, 32)
+				readN int64
+			)
+			readN, err = f.ReadAt(context.TODO(), buf, 0)
+			Expect(err).Should(BeNil())
+			Expect(string(buf[:readN])).Should(Equal("file2: hello world!"))
 		})
 		It("create file1.yaml should already existed", func() {
+			_, err = entryManager.CreateEntry(context.TODO(), extGrpEn, EntryAttr{
+				Name:   "file1.yaml",
+				Kind:   types.RawKind,
+				Access: accessPermissions,
+			})
+			Expect(err).Should(Equal(types.ErrIsExist))
 		})
 	})
 
 	Context("delete file", func() {
 		It("list files should be succeed", func() {
+			extGrp = extGrpEn.Group()
+			Expect(extGrp).ShouldNot(BeNil())
+			child, err := extGrp.ListChildren(context.TODO())
+			Expect(err).Should(BeNil())
+			Expect(len(child)).Should(Equal(2))
+
+			need := map[string]struct{}{"file1.yaml": {}, "file2.yaml": {}}
+			for _, ch := range child {
+				delete(need, ch.Metadata().Name)
+			}
+			Expect(len(need)).Should(Equal(0))
 		})
 		It("delete file2.yaml should be succeed", func() {
+			err = entryManager.RemoveEntry(context.TODO(), extGrpEn, file2)
+			Expect(err).Should(BeNil())
 		})
 		It("list files and file2.yaml should gone", func() {
+			extGrp = extGrpEn.Group()
+			Expect(extGrp).ShouldNot(BeNil())
+
+			child, err := extGrp.ListChildren(context.TODO())
+			Expect(err).Should(BeNil())
+			Expect(len(child)).Should(Equal(1))
+
+			need := map[string]struct{}{"file1.yaml": {}}
+			for _, ch := range child {
+				delete(need, ch.Metadata().Name)
+			}
+			Expect(len(need)).Should(Equal(0))
 		})
 	})
 

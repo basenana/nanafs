@@ -22,6 +22,5 @@ type Workflow struct {
 }
 
 type Plugin struct {
-	BasePath     string `json:"base_path"`
-	DummyPlugins bool   `json:"dummy_plugins"`
+	BasePath string `json:"base_path"`
 }
