@@ -145,10 +145,11 @@ func (d *MemFSPlugin) CreateEntry(ctx context.Context, attr stub.EntryAttr) (*st
 
 	child = append(child, attr.Name)
 	d.fs.groups[d.path] = child
-	d.fs.files[path.Join(d.path, attr.Name)] = newMemFile(attr.Name)
 
 	if types.IsGroup(attr.Kind) {
 		d.fs.groups[path.Join(d.path, attr.Name)] = make([]string, 0)
+	} else {
+		d.fs.files[path.Join(d.path, attr.Name)] = newMemFile(attr.Name)
 	}
 
 	return &stub.Entry{
@@ -197,8 +198,12 @@ func (d *MemFSPlugin) RemoveEntry(ctx context.Context, en *stub.Entry) error {
 	}
 
 	needDeleteChild, ok := d.fs.groups[path.Join(d.path, en.Name)]
-	if ok && len(needDeleteChild) > 0 {
-		return types.ErrNotEmpty
+	if ok {
+		if len(needDeleteChild) > 0 {
+			return types.ErrNotEmpty
+		}
+	} else {
+		delete(d.fs.files, path.Join(d.path, en.Name))
 	}
 	d.fs.groups[d.path] = newChild
 	return nil

@@ -18,6 +18,8 @@ package dentry
 
 import (
 	"context"
+	"github.com/basenana/nanafs/pkg/plugin"
+	"github.com/basenana/nanafs/pkg/plugin/stub"
 	"github.com/basenana/nanafs/pkg/types"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -137,7 +139,6 @@ var _ = Describe("TestExtGroupEntry", func() {
 	})
 
 	Context("create file", func() {
-
 		It("create file1.yaml should be succeed", func() {
 			file1, err = entryManager.CreateEntry(context.TODO(), extGrpEn, EntryAttr{
 				Name:   "file1.yaml",
@@ -242,14 +243,124 @@ var _ = Describe("TestExtGroupEntry", func() {
 		})
 	})
 
+	Context("ext group dir", func() {
+		var (
+			dir1       Entry
+			innerFile1 Entry
+		)
+		It("create dir1 should be succeed", func() {
+			dir1, err = entryManager.CreateEntry(context.TODO(), extGrpEn, EntryAttr{
+				Name:   "dir1",
+				Kind:   types.ExternalGroupKind,
+				Access: accessPermissions,
+			})
+			Expect(err).Should(BeNil())
+			Expect(dir1).ShouldNot(BeNil())
+		})
+		It("create dir1/file1.yaml should be succeed", func() {
+			innerFile1, err = entryManager.CreateEntry(context.TODO(), dir1, EntryAttr{
+				Name:   "file1.yaml",
+				Kind:   types.RawKind,
+				Access: accessPermissions,
+			})
+			Expect(err).Should(BeNil())
+			Expect(innerFile1).ShouldNot(BeNil())
+		})
+		It("delete dir1 should be failed(dir not empty)", func() {
+			err = entryManager.RemoveEntry(context.TODO(), extGrpEn, dir1)
+			Expect(err).Should(Equal(types.ErrNotEmpty))
+		})
+		It("delete dir1/file1.yaml should be succeed", func() {
+			err = entryManager.RemoveEntry(context.TODO(), dir1, innerFile1)
+			Expect(err).Should(BeNil())
+		})
+		It("delete dir1 should be succeed", func() {
+			err = entryManager.RemoveEntry(context.TODO(), extGrpEn, dir1)
+			Expect(err).Should(BeNil())
+		})
+	})
+
 	Context("sync file", func() {
+		var memFS plugin.MirrorPlugin
+
+		It("load memfs should succeed", func() {
+			var ed types.ExtendData
+			ed, err = extGrpEn.GetExtendData(context.TODO())
+			memFS, err = plugin.NewMirrorPlugin(context.TODO(), *ed.PlugScope)
+			Expect(err).Should(BeNil())
+		})
+		It("only file1.yaml in ext group", func() {
+			extGrp = extGrpEn.Group()
+			Expect(extGrp).ShouldNot(BeNil())
+
+			child, err := extGrp.ListChildren(context.TODO())
+			Expect(err).Should(BeNil())
+
+			need := map[string]struct{}{"file1.yaml": {}}
+			for _, ch := range child {
+				delete(need, ch.Metadata().Name)
+			}
+			Expect(len(need)).Should(Equal(0))
+		})
 		It("insert sync_file1.yaml to memfs should be succeed", func() {
+			_, err = memFS.CreateEntry(context.TODO(), stub.EntryAttr{
+				Name:   "sync_file1.yaml",
+				Kind:   types.RawKind,
+				Access: extGrpEn.Metadata().Access,
+			})
+			Expect(err).Should(BeNil())
 		})
 		It("list files should contain sync_file1.yaml", func() {
+			extGrp = extGrpEn.Group()
+			Expect(extGrp).ShouldNot(BeNil())
+
+			child, err := extGrp.ListChildren(context.TODO())
+			Expect(err).Should(BeNil())
+
+			need := map[string]struct{}{"file1.yaml": {}, "sync_file1.yaml": {}}
+			for _, ch := range child {
+				delete(need, ch.Metadata().Name)
+			}
+			Expect(len(need)).Should(Equal(0))
 		})
 		It("insert sync_file2.yaml to memfs should be succeed", func() {
+			_, err = memFS.CreateEntry(context.TODO(), stub.EntryAttr{
+				Name:   "sync_file2.yaml",
+				Kind:   types.RawKind,
+				Access: extGrpEn.Metadata().Access,
+			})
+			Expect(err).Should(BeNil())
+
+			extGrp = extGrpEn.Group()
+			Expect(extGrp).ShouldNot(BeNil())
+
+			child, err := extGrp.ListChildren(context.TODO())
+			Expect(err).Should(BeNil())
+
+			need := map[string]struct{}{"file1.yaml": {}, "sync_file1.yaml": {}, "sync_file2.yaml": {}}
+			for _, ch := range child {
+				delete(need, ch.Metadata().Name)
+			}
+			Expect(len(need)).Should(Equal(0))
 		})
-		It("read sync_file2.yaml should be succeed", func() {
+		It("delete sync_file2.yaml should be succeed", func() {
+			err = memFS.RemoveEntry(context.TODO(), &stub.Entry{
+				Name: "sync_file2.yaml",
+				Kind: types.RawKind,
+			})
+			Expect(err).Should(BeNil())
+
+			extGrp = extGrpEn.Group()
+			Expect(extGrp).ShouldNot(BeNil())
+
+			child, err := extGrp.ListChildren(context.TODO())
+			Expect(err).Should(BeNil())
+
+			need := map[string]struct{}{"file1.yaml": {}, "sync_file1.yaml": {}}
+			for _, ch := range child {
+				delete(need, ch.Metadata().Name)
+			}
+			Expect(len(need)).Should(Equal(0))
 		})
 	})
 
@@ -259,19 +370,6 @@ var _ = Describe("TestExtGroupEntry", func() {
 		It("create test_ext_group_file_1.yaml in root dir should be succeed", func() {
 		})
 		It("mv /test_ext_group_file_1.yaml to ext group should be succeed", func() {
-		})
-	})
-
-	Context("ext group dir", func() {
-		It("create dir1 should be succeed", func() {
-		})
-		It("create dir1/file1.yaml should be succeed", func() {
-		})
-		It("delete dir1 should be failed(dir not empty)", func() {
-		})
-		It("delete dir1/file1.yaml should be succeed", func() {
-		})
-		It("delete dir1 should be succeed", func() {
 		})
 	})
 

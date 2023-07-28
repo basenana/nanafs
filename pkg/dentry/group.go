@@ -304,7 +304,7 @@ func (e *extGroup) ListChildren(ctx context.Context) ([]Entry, error) {
 	result := make([]Entry, 0, len(actualChild))
 	for k := range actualChildMap {
 		en, err := e.syncEntry(ctx, actualChildMap[k], recordChildMap[k])
-		if err != nil {
+		if err != nil && err != types.ErrNotFound {
 			return nil, err
 		}
 		if en != nil {
@@ -316,7 +316,7 @@ func (e *extGroup) ListChildren(ctx context.Context) ([]Entry, error) {
 
 	for k := range recordChildMap {
 		_, err = e.syncEntry(ctx, nil, recordChildMap[k])
-		if err != nil {
+		if err != nil && err != types.ErrNotFound {
 			return nil, err
 		}
 	}
