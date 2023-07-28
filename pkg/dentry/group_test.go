@@ -365,11 +365,97 @@ var _ = Describe("TestExtGroupEntry", func() {
 	})
 
 	Context("mv file", func() {
-		It("rename file1.yaml in same ext group should be succeed", func() {
+		var (
+			outDir    Entry
+			outFile   Entry
+			innerDir1 Entry
+			movedEn   Entry
+		)
+		It("init dir1", func() {
+			innerDir1, err = entryManager.CreateEntry(context.TODO(), extGrpEn, EntryAttr{
+				Name:   "dir1",
+				Kind:   types.ExternalGroupKind,
+				Access: accessPermissions,
+			})
+			Expect(err).Should(BeNil())
+			Expect(innerDir1).ShouldNot(BeNil())
 		})
-		It("create test_ext_group_file_1.yaml in root dir should be succeed", func() {
+		It("move file1.yaml to dir1/moved_file1.yaml in same ext group should be succeed", func() {
+			err = entryManager.ChangeEntryParent(context.TODO(), file1, nil, extGrpEn, innerDir1, "moved_file1.yaml", ChangeParentAttr{})
+			Expect(err).Should(BeNil())
+
+			var (
+				file1F File
+			)
+			movedEn, err = extGrpEn.Group().FindEntry(context.TODO(), "moved_file1.yaml")
+			Expect(err).Should(BeNil())
+
+			file1F, err = entryManager.Open(context.TODO(), movedEn, Attr{Write: true})
+			Expect(err).Should(BeNil())
+
+			var (
+				buf = make([]byte, 64)
+				n   int64
+			)
+			n, err = file1F.ReadAt(context.TODO(), buf, 0)
+			Expect(err).Should(BeNil())
+			err = file1F.Close(context.TODO())
+			Expect(err).Should(BeNil())
+
+			Expect(string(buf[:n])).Should(Equal("file1: hello world!"))
 		})
-		It("mv /test_ext_group_file_1.yaml to ext group should be succeed", func() {
+		It("create test_ext_group_file_1.yaml in /out_dir should be succeed", func() {
+			outDir, err = entryManager.CreateEntry(context.TODO(), root, EntryAttr{
+				Name:   "out_dir",
+				Kind:   types.GroupKind,
+				Access: accessPermissions,
+			})
+			Expect(err).Should(BeNil())
+			Expect(innerDir1).ShouldNot(BeNil())
+
+			outFile, err = entryManager.CreateEntry(context.TODO(), outDir, EntryAttr{
+				Name:   "test_ext_group_file_1.yaml",
+				Kind:   types.RawKind,
+				Access: accessPermissions,
+			})
+			Expect(err).Should(BeNil())
+			Expect(outFile).ShouldNot(BeNil())
+
+			var outFile1F File
+			outFile1F, err = entryManager.Open(context.TODO(), outFile, Attr{Write: true})
+			Expect(err).Should(BeNil())
+			_, err = outFile1F.WriteAt(context.TODO(), []byte("test_ext_group_file_1: hello world!"), 0)
+			Expect(err).Should(BeNil())
+			err = outFile1F.Close(context.TODO())
+			Expect(err).Should(BeNil())
+		})
+		It("overwrite /out_dir/test_ext_group_file_1.yaml to ext group should be succeed", func() {
+			movedEn, err = extGrpEn.Group().FindEntry(context.TODO(), "moved_file1.yaml")
+			Expect(err).Should(BeNil())
+
+			err = entryManager.ChangeEntryParent(context.TODO(), file1, movedEn, extGrpEn, innerDir1, "moved_file1.yaml", ChangeParentAttr{})
+			Expect(err).Should(BeNil())
+
+			var (
+				overwritedEn   Entry
+				overwritedFile File
+			)
+			overwritedEn, err = extGrpEn.Group().FindEntry(context.TODO(), "moved_file1.yaml")
+			Expect(err).Should(BeNil())
+
+			overwritedFile, err = entryManager.Open(context.TODO(), overwritedEn, Attr{Write: true})
+			Expect(err).Should(BeNil())
+
+			var (
+				buf = make([]byte, 64)
+				n   int64
+			)
+			n, err = overwritedFile.ReadAt(context.TODO(), buf, 0)
+			Expect(err).Should(BeNil())
+			err = overwritedFile.Close(context.TODO())
+			Expect(err).Should(BeNil())
+
+			Expect(string(buf[:n])).Should(Equal("test_ext_group_file_1: hello world!"))
 		})
 	})
 
