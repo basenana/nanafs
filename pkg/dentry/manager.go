@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/utils"
+	"io"
 	"runtime/trace"
 	"sync"
 	"time"
@@ -286,6 +288,10 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntry, overwriteE
 		PublicEntryActionEvent(events.ActionTypeDestroy, overwriteEntry)
 	}
 
+	if oldParentMd.Kind == types.ExternalGroupKind || newParentMd.Kind == types.ExternalGroupKind {
+		return m.changeEntryParentByFileCopy(ctx, targetEntry, oldParent, newParent, newName, opt)
+	}
+
 	entryMd.Name = newName
 
 	oldParentMd.ChangedAt = time.Now()
@@ -301,6 +307,60 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntry, overwriteE
 	err := m.store.ChangeParent(ctx, &types.Object{Metadata: *oldParentMd}, &types.Object{Metadata: *newParentMd}, &types.Object{Metadata: *entryMd}, types.ChangeParentOption{})
 	if err != nil {
 		m.logger.Errorw("change object parent failed", "entry", entryMd.ID, "newParent", newParentMd.ID, "newName", newName, "err", err.Error())
+		return err
+	}
+	return nil
+}
+
+func (m *manager) changeEntryParentByFileCopy(ctx context.Context, targetEntry, oldParent, newParent Entry, newName string, _ ChangeParentAttr) error {
+	var (
+		targetMd = targetEntry.Metadata()
+	)
+
+	newParentEd, err := newParent.GetExtendData(ctx)
+	if err != nil {
+		m.logger.Errorw("change entry parent by file copy error, query new parent extend data failed", "err", err)
+		return err
+	}
+
+	if targetEntry.IsGroup() {
+		// TODO: move file with scheduled task
+		return types.ErrUnsupported
+	}
+
+	// step 1: create new file
+	attr := EntryAttr{
+		Name:      newName,
+		Kind:      targetMd.Kind,
+		Access:    targetMd.Access,
+		PlugScope: newParentEd.PlugScope,
+	}
+	en, err := m.CreateEntry(ctx, newParent, attr)
+	if err != nil {
+		m.logger.Errorw("change entry parent by file copy error, create new entry failed", "err", err)
+		return err
+	}
+
+	// step 2: copy old to new file
+	oldFileReader, err := m.Open(ctx, targetEntry, Attr{Read: true})
+	if err != nil {
+		m.logger.Errorw("change entry parent by file copy error, open old file failed", "err", err)
+		return err
+	}
+	newFileWriter, err := m.Open(ctx, en, Attr{Write: true})
+	if err != nil {
+		m.logger.Errorw("change entry parent by file copy error, open new file failed", "err", err)
+		return err
+	}
+	_, err = io.Copy(utils.NewWriterWithContextWriter(newFileWriter), utils.NewReaderWithContextReaderAt(oldFileReader))
+	if err != nil {
+		m.logger.Errorw("change entry parent by file copy error, copy file content failed", "err", err)
+		return err
+	}
+
+	// step 3: delete old file
+	if err = m.RemoveEntry(ctx, oldParent, targetEntry); err != nil {
+		m.logger.Errorw("change entry parent by file copy error, clean up old file failed", "err", err)
 		return err
 	}
 	return nil

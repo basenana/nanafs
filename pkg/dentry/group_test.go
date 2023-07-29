@@ -387,8 +387,12 @@ var _ = Describe("TestExtGroupEntry", func() {
 			var (
 				file1F File
 			)
-			movedEn, err = extGrpEn.Group().FindEntry(context.TODO(), "moved_file1.yaml")
+			movedEn, err = innerDir1.Group().FindEntry(context.TODO(), "moved_file1.yaml")
 			Expect(err).Should(BeNil())
+
+			ed, err := movedEn.GetExtendData(context.TODO())
+			Expect(err).Should(BeNil())
+			Expect(ed.PlugScope).ShouldNot(BeNil())
 
 			file1F, err = entryManager.Open(context.TODO(), movedEn, Attr{Write: true})
 			Expect(err).Should(BeNil())
@@ -430,17 +434,17 @@ var _ = Describe("TestExtGroupEntry", func() {
 			Expect(err).Should(BeNil())
 		})
 		It("overwrite /out_dir/test_ext_group_file_1.yaml to ext group should be succeed", func() {
-			movedEn, err = extGrpEn.Group().FindEntry(context.TODO(), "moved_file1.yaml")
+			movedEn, err = innerDir1.Group().FindEntry(context.TODO(), "moved_file1.yaml")
 			Expect(err).Should(BeNil())
 
-			err = entryManager.ChangeEntryParent(context.TODO(), file1, movedEn, extGrpEn, innerDir1, "moved_file1.yaml", ChangeParentAttr{})
+			err = entryManager.ChangeEntryParent(context.TODO(), outFile, movedEn, outDir, innerDir1, "moved_file1.yaml", ChangeParentAttr{Replace: true})
 			Expect(err).Should(BeNil())
 
 			var (
 				overwritedEn   Entry
 				overwritedFile File
 			)
-			overwritedEn, err = extGrpEn.Group().FindEntry(context.TODO(), "moved_file1.yaml")
+			overwritedEn, err = innerDir1.Group().FindEntry(context.TODO(), "moved_file1.yaml")
 			Expect(err).Should(BeNil())
 
 			overwritedFile, err = entryManager.Open(context.TODO(), overwritedEn, Attr{Write: true})

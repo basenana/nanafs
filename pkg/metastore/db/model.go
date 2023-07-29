@@ -143,7 +143,7 @@ func (o *ObjectExtend) Update(obj *types.Object) {
 		if obj.ExtendData.GroupFilter != nil {
 			o.GroupFilter, _ = json.Marshal(obj.ExtendData.GroupFilter)
 		}
-		if obj.ExtendData.GroupFilter != nil {
+		if obj.ExtendData.PlugScope != nil {
 			o.PlugScope, _ = json.Marshal(obj.ExtendData.PlugScope)
 		}
 	}

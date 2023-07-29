@@ -364,6 +364,7 @@ func (e *extGroup) syncEntry(ctx context.Context, mirrored *stub.Entry, crt Entr
 			return nil, err
 		}
 
+		obj.Storage = externalStorage
 		obj.PlugScope = &types.PlugScope{
 			PluginName: grpEd.PlugScope.PluginName,
 			Version:    grpEd.PlugScope.Version,
