@@ -192,6 +192,10 @@ func (m *manager) DestroyEntry(ctx context.Context, en Entry) error {
 
 func (m *manager) CleanEntryData(ctx context.Context, en Entry) error {
 	md := en.Metadata()
+	if md.Storage == externalStorage {
+		return nil
+	}
+
 	s, ok := m.storages[md.Storage]
 	if !ok {
 		return fmt.Errorf("storage %s not register", md.Storage)
@@ -324,6 +328,16 @@ func (m *manager) changeEntryParentByFileCopy(ctx context.Context, targetEntry, 
 	}
 
 	if targetEntry.IsGroup() {
+		if oldParent.Metadata().ID == newParent.Metadata().ID {
+			// only rename
+			targetMd.Name = newName
+			err = m.store.SaveObjects(ctx, &types.Object{Metadata: *targetMd})
+			if err != nil {
+				m.logger.Errorw("change entry parent by file copy error, rename dir failed", "err", err)
+				return err
+			}
+			return nil
+		}
 		// TODO: move file with scheduled task
 		return types.ErrUnsupported
 	}
@@ -369,7 +383,7 @@ func (m *manager) changeEntryParentByFileCopy(ctx context.Context, targetEntry, 
 func (m *manager) Open(ctx context.Context, en Entry, attr Attr) (File, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.Open").End()
 	md := en.Metadata()
-	if attr.Trunc {
+	if attr.Trunc && md.Storage != externalStorage {
 		if err := m.CleanEntryData(ctx, en); err != nil {
 			m.logger.Errorw("clean entry with trunc error", "entry", en.Metadata().ID, "err", err)
 		}
@@ -391,7 +405,7 @@ func (m *manager) Open(ctx context.Context, en Entry, attr Attr) (File, error) {
 			m.logger.Errorw("get entry extend data failed", "entry", en.Metadata().ID, "err", err)
 			return nil, err
 		}
-		f, err = openExternalFile(en, ed.PlugScope, attr, m.cfg.FS)
+		f, err = openExternalFile(en, ed.PlugScope, attr, m.store, m.cfg.FS)
 	} else {
 		switch md.Kind {
 		case types.SymLinkKind:

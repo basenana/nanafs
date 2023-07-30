@@ -40,7 +40,7 @@ type MirrorPlugin interface {
 	WriteAt(ctx context.Context, data []byte, off int64) (int64, error)
 	ReadAt(ctx context.Context, dest []byte, off int64) (int64, error)
 	Fsync(ctx context.Context) error
-	Flush(ctx context.Context) error
+	Trunc(ctx context.Context) error
 	Close(ctx context.Context) error
 }
 
@@ -122,6 +122,11 @@ func (d *MemFSPlugin) FindEntry(ctx context.Context, name string) (*stub.Entry, 
 		if _, ok = d.fs.groups[path.Join(d.path, name)]; ok {
 			en.Kind = types.ExternalGroupKind
 			en.IsGroup = true
+		} else {
+			file, ok := d.fs.files[path.Join(d.path, name)]
+			if ok {
+				en.Size = file.off
+			}
 		}
 		return en, nil
 	}
@@ -168,9 +173,18 @@ func (d *MemFSPlugin) UpdateEntry(ctx context.Context, en *stub.Entry) error {
 	}
 
 	for _, chName := range child {
-		if chName == en.Name {
-			return nil
+		if chName != en.Name {
+			continue
 		}
+		if en.Size == 0 {
+			mf, ok := d.fs.files[path.Join(d.path, chName)]
+			if !ok {
+				return types.ErrNotFound
+			}
+			mf.off = 0
+			d.fs.files[d.path] = mf
+		}
+		return nil
 	}
 	return types.ErrNotFound
 }
@@ -227,6 +241,11 @@ func (d *MemFSPlugin) ListChildren(ctx context.Context) ([]*stub.Entry, error) {
 		if _, isDir := d.fs.groups[path.Join(d.path, chName)]; isDir {
 			result[i].Kind = types.ExternalGroupKind
 			result[i].IsGroup = true
+		} else {
+			file, ok := d.fs.files[path.Join(d.path, chName)]
+			if ok {
+				result[i].Size = file.off
+			}
 		}
 	}
 	return result, nil
@@ -258,11 +277,19 @@ func (d *MemFSPlugin) ReadAt(ctx context.Context, dest []byte, off int64) (int64
 	return int64(n), err
 }
 
-func (d *MemFSPlugin) Fsync(ctx context.Context) error {
+func (d *MemFSPlugin) Trunc(ctx context.Context) error {
+	d.fs.mux.Lock()
+	defer d.fs.mux.Unlock()
+	mf, ok := d.fs.files[d.path]
+	if !ok {
+		return types.ErrNotFound
+	}
+	mf.off = 0
+	d.fs.files[d.path] = mf
 	return nil
 }
 
-func (d *MemFSPlugin) Flush(ctx context.Context) error {
+func (d *MemFSPlugin) Fsync(ctx context.Context) error {
 	return nil
 }
 
@@ -274,6 +301,10 @@ type MemFS struct {
 	files  map[string]*memFile
 	groups map[string][]string
 	mux    sync.Mutex
+}
+
+func NewMemFS() *MemFS {
+	return &MemFS{files: map[string]*memFile{}, groups: map[string][]string{}}
 }
 
 const (
@@ -299,7 +330,7 @@ func (m *memFile) WriteAt(data []byte, off int64) (n int, err error) {
 		err = types.ErrNotFound
 		return
 	}
-	if off+int64(len(data)) > int64(len(data)) {
+	if off+int64(len(data)) > int64(len(m.data)) {
 		if off+int64(len(data)) > memFileMaxSize {
 			return 0, io.ErrShortBuffer
 		}
@@ -309,7 +340,9 @@ func (m *memFile) WriteAt(data []byte, off int64) (n int, err error) {
 		m.data = blk
 	}
 	n = copy(m.data[off:], data)
-	m.off += int64(n)
+	if off+int64(n) > m.off {
+		m.off = off + int64(n)
+	}
 	return
 }
 
@@ -324,11 +357,13 @@ func (m *memFile) ReadAt(dest []byte, off int64) (n int, err error) {
 	return copy(dest, m.data[off:m.off]), nil
 }
 
+func NewMemFSPlugin() *MemFSPlugin {
+	plugin := &MemFSPlugin{path: "/", fs: NewMemFS()}
+	return plugin
+}
+
 func registerMemfsPlugin(r *registry) {
-	plugin := &MemFSPlugin{
-		path: "/",
-		fs:   &MemFS{files: map[string]*memFile{}, groups: map[string][]string{}},
-	}
+	plugin := NewMemFSPlugin()
 	plugin.fs.groups["/"] = make([]string, 0)
 	r.Register(memFSPluginName, types.PluginSpec{Name: memFSPluginName, Version: memFSPluginVersion,
 		Type: types.TypeMirror, Parameters: map[string]string{}}, plugin.build)

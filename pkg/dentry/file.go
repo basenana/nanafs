@@ -183,6 +183,7 @@ func (s *symlink) WriteAt(ctx context.Context, data []byte, offset int64) (n int
 
 	n = int64(copy(s.data[offset:], data))
 	s.Metadata().Size = size
+	s.Metadata().ModifiedAt = time.Now()
 	_ = s.Flush(ctx)
 	return
 }
@@ -243,9 +244,11 @@ func openSymlink(en Entry, attr Attr) (File, error) {
 type extFile struct {
 	Entry
 
-	attr Attr
-	cfg  *config.FS
-	stub plugin.MirrorPlugin
+	attr  Attr
+	cfg   *config.FS
+	size  int64
+	store metastore.ObjectStore
+	stub  plugin.MirrorPlugin
 }
 
 func (e *extFile) GetAttr() Attr {
@@ -253,7 +256,12 @@ func (e *extFile) GetAttr() Attr {
 }
 
 func (e *extFile) WriteAt(ctx context.Context, data []byte, off int64) (int64, error) {
-	return e.stub.WriteAt(ctx, data, off)
+	n, err := e.stub.WriteAt(ctx, data, off)
+	if off+n > e.size {
+		e.size = off + n
+	}
+	e.Metadata().ModifiedAt = time.Now()
+	return n, err
 }
 
 func (e *extFile) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error) {
@@ -261,6 +269,14 @@ func (e *extFile) ReadAt(ctx context.Context, dest []byte, off int64) (int64, er
 }
 
 func (e *extFile) Fsync(ctx context.Context) error {
+	if e.Metadata().Size < e.size {
+		md := e.Metadata()
+		md.Size = e.size
+		err := e.store.SaveObjects(ctx, &types.Object{Metadata: *md})
+		if err != nil {
+			return err
+		}
+	}
 	return e.stub.Fsync(ctx)
 }
 
@@ -269,10 +285,14 @@ func (e *extFile) Flush(ctx context.Context) error {
 }
 
 func (e *extFile) Close(ctx context.Context) error {
+	err := e.Fsync(ctx)
+	if err != nil {
+		return err
+	}
 	return e.stub.Close(ctx)
 }
 
-func openExternalFile(en Entry, ps *types.PlugScope, attr Attr, cfg *config.FS) (File, error) {
+func openExternalFile(en Entry, ps *types.PlugScope, attr Attr, store metastore.ObjectStore, cfg *config.FS) (File, error) {
 	if ps == nil {
 		return nil, fmt.Errorf("extend entry has no plug scop")
 	}
@@ -280,12 +300,16 @@ func openExternalFile(en Entry, ps *types.PlugScope, attr Attr, cfg *config.FS) 
 	if err != nil {
 		return nil, fmt.Errorf("build mirror plugin failed: %s", err)
 	}
-	return &extFile{
-		Entry: en,
-		attr:  attr,
-		cfg:   cfg,
-		stub:  stub,
-	}, nil
+	eFile := &extFile{Entry: en, attr: attr, size: en.Metadata().Size, store: store, cfg: cfg, stub: stub}
+	if attr.Trunc || en.Metadata().Size == 0 {
+		err = stub.Trunc(context.TODO())
+		if err != nil {
+			return nil, err
+		}
+		en.Metadata().Size = 0
+		eFile.size = 0
+	}
+	return eFile, nil
 }
 
 type Attr struct {

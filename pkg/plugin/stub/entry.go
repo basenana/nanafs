@@ -24,6 +24,7 @@ import (
 type Entry struct {
 	Name    string
 	Kind    types.Kind
+	Size    int64
 	IsGroup bool
 }
 

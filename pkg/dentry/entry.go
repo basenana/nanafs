@@ -22,6 +22,7 @@ import (
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/rule"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils/logger"
 	"runtime/trace"
 	"sync"
 	"time"
@@ -187,11 +188,13 @@ func (e *extEntry) Group() Group {
 	if e.IsGroup() {
 		ed, err := e.GetExtendData(context.TODO())
 		if err != nil || ed.PlugScope == nil {
+			logger.NewLogger("extEntry").Warnw("build ext group error, query extend data failed", "err", err, "hasPlugScope", ed.PlugScope != nil)
 			return emptyGroup{}
 		}
 
 		mirror, err := plugin.NewMirrorPlugin(context.TODO(), *ed.PlugScope)
 		if err != nil {
+			logger.NewLogger("extEntry").Warnw("build ext group error, new mirror plugin failed", "err", err, "pluginName", ed.PlugScope.PluginName)
 			return emptyGroup{}
 		}
 

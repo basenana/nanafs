@@ -40,6 +40,7 @@ type Object struct {
 	RefID      int64  `gorm:"column:ref_id;index:ref_id"`
 	RefCount   int    `gorm:"column:ref_count"`
 	Kind       string `gorm:"column:kind"`
+	KindMap    int64  `gorm:"column:kind_map"`
 	Size       int64  `gorm:"column:size"`
 	Version    int64  `gorm:"column:version"`
 	Owner      int64  `gorm:"column:owner"`
@@ -65,6 +66,7 @@ func (o *Object) Update(obj *types.Object) {
 	o.RefID = obj.RefID
 	o.RefCount = obj.RefCount
 	o.Kind = string(obj.Kind)
+	o.KindMap = obj.KindMap
 	o.Size = obj.Size
 	o.Version = obj.Version
 	o.Storage = obj.Storage
@@ -88,6 +90,7 @@ func (o *Object) Object() *types.Object {
 			RefID:      o.RefID,
 			RefCount:   o.RefCount,
 			Kind:       types.Kind(o.Kind),
+			KindMap:    o.KindMap,
 			Size:       o.Size,
 			Version:    o.Version,
 			Storage:    o.Storage,

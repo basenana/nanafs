@@ -46,6 +46,7 @@ type Metadata struct {
 	RefID      int64     `json:"ref_id,omitempty"`
 	RefCount   int       `json:"ref_count,omitempty"`
 	Kind       Kind      `json:"kind"`
+	KindMap    int64     `json:"kind_map"`
 	Size       int64     `json:"size"`
 	Inode      uint64    `json:"inode"`
 	Version    int64     `json:"version"`
@@ -64,6 +65,7 @@ func NewMetadata(name string, kind Kind) Metadata {
 		Name:       name,
 		Namespace:  objectDefaultNamespace,
 		Kind:       kind,
+		KindMap:    KindMap(kind),
 		Version:    1,
 		RefCount:   1,
 		CreatedAt:  time.Now(),

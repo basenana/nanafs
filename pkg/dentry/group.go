@@ -238,7 +238,7 @@ func (e *extGroup) UpdateEntry(ctx context.Context, en Entry) error {
 		return err
 	}
 
-	// TODO: do update
+	mirrorEn.Size = en.Metadata().Size
 
 	// query old and write back
 	en, err = e.stdGroup.FindEntry(ctx, md.Name)
@@ -389,7 +389,13 @@ func (e *extGroup) syncEntry(ctx context.Context, mirrored *stub.Entry, crt Entr
 		return
 	}
 
-	// TODO: update mirror record
+	// update mirror record
+	md := crt.Metadata()
+	md.Size = mirrored.Size
+	if err = e.stdGroup.store.SaveObjects(ctx, &types.Object{Metadata: *grpMd}, &types.Object{Metadata: *md}); err != nil {
+		return nil, err
+	}
+
 	en = crt
 	return
 }

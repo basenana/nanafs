@@ -23,54 +23,57 @@ const (
 	/*
 		system-wide kind
 	*/
-	GroupKind         = "group"
-	SmartGroupKind    = "smtgroup"
-	ExternalGroupKind = "extgroup"
+	GroupKind            = "group"
+	SmartGroupKind       = "smtgroup"
+	ExternalGroupKind    = "extgroup"
+	GroupKindMap         = 0x02000
+	SmartGroupKindMap    = 0x02001
+	ExternalGroupKindMap = 0x02002
 
 	/*
 		text based file kind
 	*/
-	TextKind = "text"
+	TextKind    = "text"
+	TextKindMap = 0x01001
 
 	/*
 		format doc kind
 	*/
-	FmtDocKind = "fmtdoc"
+	FmtDocKind    = "fmtdoc"
+	FmtDocKindMap = 0x01002
 
 	/*
 		media file kind
 	*/
-	ImageKind = "image"
-	VideoKind = "video"
-	AudioKind = "audio"
+	ImageKind    = "image"
+	VideoKind    = "video"
+	AudioKind    = "audio"
+	ImageKindMap = 0x01003
+	VideoKindMap = 0x01004
+	AudioKindMap = 0x01005
 
 	/*
 		web based file kind
 	*/
-	WebArchiveKind = "web"
-
-	/*
-		workflow kind
-	*/
-	WorkflowKind = "workflow"
-	JobKind      = "job"
-
-	/*
-		time management system object kind
-	*/
-	TodoActionItemKind = "tdaction"
-	TodoProjectKind    = "tdproject"
-	TodoGroupKind      = "tdgroup"
+	WebArchiveKind    = "web"
+	WebArchiveKindMap = 0x01006
 
 	/*
 		ungrouped files
 	*/
-	RawKind     = "raw"
-	FIFOKind    = "fifo"
-	SocketKind  = "socket"
-	SymLinkKind = "symlink"
-	BlkDevKind  = "blk"
-	CharDevKind = "chr"
+	RawKind    = "raw"
+	RawKindMap = 0x01000
+
+	FIFOKind       = "fifo"
+	SocketKind     = "socket"
+	SymLinkKind    = "symlink"
+	BlkDevKind     = "blk"
+	CharDevKind    = "chr"
+	FIFOKindMap    = 0x03001
+	SocketKindMap  = 0x03002
+	SymLinkKindMap = 0x03003
+	BlkDevKindMap  = 0x03004
+	CharDevKindMap = 0x03005
 )
 
 func IsGroup(k Kind) bool {
@@ -79,4 +82,20 @@ func IsGroup(k Kind) bool {
 		return true
 	}
 	return false
+}
+
+var kindMap = map[Kind]int64{
+	RawKind:           RawKindMap,
+	GroupKind:         GroupKindMap,
+	SmartGroupKind:    SmartGroupKindMap,
+	ExternalGroupKind: ExternalGroupKindMap,
+	FIFOKind:          FIFOKindMap,
+	SocketKind:        SocketKindMap,
+	SymLinkKind:       SymLinkKindMap,
+	BlkDevKind:        BlkDevKindMap,
+	CharDevKind:       CharDevKindMap,
+}
+
+func KindMap(k Kind) int64 {
+	return kindMap[k]
 }
