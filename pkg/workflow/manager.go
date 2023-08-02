@@ -30,7 +30,6 @@ import (
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
-	"os"
 	"strconv"
 	"time"
 )
@@ -64,19 +63,24 @@ type manager struct {
 var _ Manager = &manager{}
 
 func NewManager(entryMgr dentry.Manager, recorder metastore.ScheduledTaskRecorder, config config.Workflow) (Manager, error) {
-	wdInfo, err := os.Stat(config.JobWorkdir)
-	if err != nil {
-		return nil, err
-	}
-	if !wdInfo.IsDir() {
-		return nil, fmt.Errorf("%s not a dir", config.JobWorkdir)
+	//wdInfo, err := os.Stat(config.JobWorkdir)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//if !wdInfo.IsDir() {
+	//	return nil, fmt.Errorf("%s not a dir", config.JobWorkdir)
+	//}
+
+	if !config.Enable {
+		return disabledManager{}, nil
 	}
 
 	cfg.LocalWorkdirBase = config.JobWorkdir
 
 	l := logger.NewLogger("workflow")
 	_ = logger.NewFlowLogger(l)
-	if err = registerOperators(entryMgr); err != nil {
+
+	if err := registerOperators(entryMgr); err != nil {
 		return nil, fmt.Errorf("register operators failed: %s", err)
 	}
 	flowCtrl := flow.NewFlowController(&storageWrapper{recorder: recorder, logger: l})
@@ -88,7 +92,19 @@ func NewManager(entryMgr dentry.Manager, recorder metastore.ScheduledTaskRecorde
 		config:   config,
 		logger:   l,
 	}
-	plugin.Register(mirrorPlugin, buildWorkflowMirrorPlugin(mgr))
+
+	root, err := entryMgr.Root(context.Background())
+	if err != nil {
+		mgr.logger.Errorw("query root failed", "err", err)
+		return nil, err
+	}
+
+	mgr.logger.Infof("init workflow mirror dir to %s", MirrorRootDirName)
+	plugin.Register(mirrorPlugin, buildWorkflowMirrorPlugin(root, mgr))
+	if err := initWorkflowMirrorDir(root, entryMgr); err != nil {
+		return nil, fmt.Errorf("init workflow mirror dir failed: %s", err)
+	}
+
 	return mgr, nil
 }
 
@@ -226,6 +242,48 @@ func (m *manager) CancelWorkflowJob(ctx context.Context, jobId string) error {
 		return fmt.Errorf("canceling is not supported in finished state")
 	}
 	return m.ctrl.CancelFlow(jobId)
+}
+
+type disabledManager struct{}
+
+func (d disabledManager) ListWorkflows(ctx context.Context) ([]*types.WorkflowSpec, error) {
+	return make([]*types.WorkflowSpec, 0), nil
+}
+
+func (d disabledManager) GetWorkflow(ctx context.Context, wfId string) (*types.WorkflowSpec, error) {
+	return nil, types.ErrNotFound
+}
+
+func (d disabledManager) CreateWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error) {
+	return nil, fmt.Errorf("workflow is disabled")
+}
+
+func (d disabledManager) UpdateWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error) {
+	return nil, types.ErrNotFound
+}
+
+func (d disabledManager) DeleteWorkflow(ctx context.Context, wfId string) error {
+	return types.ErrNotFound
+}
+
+func (d disabledManager) ListJobs(ctx context.Context, wfId string) ([]*types.WorkflowJob, error) {
+	return nil, types.ErrNotFound
+}
+
+func (d disabledManager) TriggerWorkflow(ctx context.Context, wfId string, entryID int64) (*types.WorkflowJob, error) {
+	return nil, types.ErrNotFound
+}
+
+func (d disabledManager) PauseWorkflowJob(ctx context.Context, jobId string) error {
+	return types.ErrNotFound
+}
+
+func (d disabledManager) ResumeWorkflowJob(ctx context.Context, jobId string) error {
+	return types.ErrNotFound
+}
+
+func (d disabledManager) CancelWorkflowJob(ctx context.Context, jobId string) error {
+	return types.ErrNotFound
 }
 
 func assembleWorkflowJob(spec *types.WorkflowSpec, entry dentry.Entry) (*types.WorkflowJob, error) {

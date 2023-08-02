@@ -20,26 +20,24 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/go-flow/flow"
+	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/plugin/stub"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"gopkg.in/yaml.v3"
-	"io"
-	ospath "path"
 	"strings"
-	"sync"
 	"time"
 )
 
 const (
-	MirrorPluginName          = "workflow"
-	MirrorPluginVersion       = "1.0"
-	MirrorDirRoot             = "root"
-	MirrorDirWorkflows        = "workflows"
-	MirrorDirJobs             = "jobs"
-	MirrorFileType            = ".yaml"
-	MirrorFileMaxSize   int64 = 1 << 22 // 4M
+	MirrorPluginName    = "workflow"
+	MirrorPluginVersion = "1.0"
+	MirrorDirRoot       = "root"
+	MirrorDirWorkflows  = "workflows"
+	MirrorDirJobs       = "jobs"
+	MirrorFileType      = ".yaml"
+	MirrorRootDirName   = ".workflow"
 )
 
 var mirrorPlugin = types.PluginSpec{
@@ -63,6 +61,10 @@ var mirrorPlugin = types.PluginSpec{
 
 */
 type MirrorPlugin struct {
+	path string
+	fs   *plugin.MemFS
+	mgr  Manager
+
 	*dirHandler
 	*fileHandler
 }
@@ -82,24 +84,46 @@ func (m *MirrorPlugin) Version() string {
 }
 
 func (m *MirrorPlugin) build(ctx context.Context, _ types.PluginSpec, scope types.PlugScope) (plugin.Plugin, error) {
-	defer m.memfs.release()
+	if scope.Parameters == nil {
+		scope.Parameters = map[string]string{}
+	}
+	enPath := scope.Parameters[types.PlugScopeEntryPath]
+	if enPath == "" {
+		return nil, fmt.Errorf("path is empty")
+	}
 
-	return nil, nil
+	en, err := m.fs.GetEntry(enPath)
+	if err != nil {
+		return nil, err
+	}
+
+	dirKind, wfID, err := parseFilePath(enPath)
+	if err != nil {
+		return nil, fmt.Errorf("unexcpect dir path %s", dirKind)
+	}
+
+	mp := &MirrorPlugin{path: enPath, fs: m.fs, mgr: m.mgr}
+	if en.IsGroup {
+		mp.dirHandler = &dirHandler{plugin: mp, dirKind: dirKind, wfID: wfID}
+	} else {
+		mp.fileHandler = &fileHandler{plugin: mp, dirKind: dirKind, wfID: wfID}
+	}
+
+	return mp, nil
 }
 
 type dirHandler struct {
-	mgr     Manager
-	path    string
+	plugin  *MirrorPlugin
 	dirKind string
 	wfID    string
-	memfs   *memFS
 }
 
 func (d *dirHandler) IsGroup(ctx context.Context) (bool, error) {
-	if d == nil {
-		return false, nil
+	en, err := d.plugin.fs.GetEntry(d.plugin.path)
+	if err != nil {
+		return false, err
 	}
-	return true, nil
+	return en.IsGroup, nil
 }
 
 func (d *dirHandler) FindEntry(ctx context.Context, name string) (*stub.Entry, error) {
@@ -116,12 +140,17 @@ func (d *dirHandler) FindEntry(ctx context.Context, name string) (*stub.Entry, e
 		}
 	}
 
-	if d.memfs.Exist(ospath.Join(d.path, name)) {
-		return &stub.Entry{Name: name, Kind: types.RawKind, IsGroup: false}, nil
+	// memfs cached entry
+	en, err := d.plugin.fs.GetEntry(d.plugin.path)
+	if err != nil && err != types.ErrNotFound {
+		return nil, err
+	}
+	if en != nil {
+		return en, nil
 	}
 
 	if d.dirKind == MirrorDirWorkflows {
-		_, err := d.mgr.GetWorkflow(ctx, mirrorFile2ID(name))
+		_, err := d.plugin.mgr.GetWorkflow(ctx, mirrorFile2ID(name))
 		if err != nil {
 			return nil, err
 		}
@@ -130,7 +159,7 @@ func (d *dirHandler) FindEntry(ctx context.Context, name string) (*stub.Entry, e
 
 	if d.dirKind == MirrorDirJobs {
 		if d.wfID == "" {
-			_, err := d.mgr.GetWorkflow(ctx, name)
+			_, err := d.plugin.mgr.GetWorkflow(ctx, name)
 			if err != nil {
 				return nil, err
 			}
@@ -151,24 +180,20 @@ func (d *dirHandler) FindEntry(ctx context.Context, name string) (*stub.Entry, e
 }
 
 func (d *dirHandler) CreateEntry(ctx context.Context, attr stub.EntryAttr) (*stub.Entry, error) {
-	if d == nil {
-		return nil, types.ErrNoGroup
-	}
 	if d.dirKind == MirrorDirRoot {
 		return nil, types.ErrNoAccess
 	}
 	if d.dirKind == MirrorDirJobs && d.wfID == "" {
 		return nil, types.ErrNoAccess
 	}
-
-	return &stub.Entry{Name: attr.Name, Kind: attr.Kind, IsGroup: false}, nil
+	if types.IsGroup(attr.Kind) {
+		return nil, types.ErrNoAccess
+	}
+	return d.plugin.fs.CreateEntry(d.plugin.path, attr)
 }
 
 func (d *dirHandler) UpdateEntry(ctx context.Context, en *stub.Entry) error {
-	if d == nil {
-		return types.ErrNoGroup
-	}
-	return nil
+	return d.plugin.fs.UpdateEntry(d.plugin.path, en)
 }
 
 func (d *dirHandler) RemoveEntry(ctx context.Context, en *stub.Entry) error {
@@ -176,17 +201,17 @@ func (d *dirHandler) RemoveEntry(ctx context.Context, en *stub.Entry) error {
 		return types.ErrNoGroup
 	}
 
-	path := ospath.Join(d.path, en.Name)
-	if d.memfs.Exist(path) {
-		d.memfs.Remove(path)
+	cachedEn, err := d.plugin.fs.GetEntry(d.plugin.path)
+	if err == nil {
+		_ = d.plugin.fs.RemoveEntry(d.plugin.path, cachedEn)
 	}
 
 	if d.dirKind == MirrorDirWorkflows {
-		wf, err := d.mgr.GetWorkflow(ctx, mirrorFile2ID(en.Name))
+		wf, err := d.plugin.mgr.GetWorkflow(ctx, mirrorFile2ID(en.Name))
 		if err != nil {
 			return err
 		}
-		return d.mgr.DeleteWorkflow(ctx, wf.Id)
+		return d.plugin.mgr.DeleteWorkflow(ctx, wf.Id)
 	}
 
 	return types.ErrNoAccess
@@ -204,7 +229,7 @@ func (d *dirHandler) ListChildren(ctx context.Context) ([]*stub.Entry, error) {
 			&stub.Entry{Name: MirrorDirWorkflows, Kind: types.ExternalGroupKind, IsGroup: true})
 
 	case d.dirKind == MirrorDirWorkflows:
-		wfList, err := d.mgr.ListWorkflows(ctx)
+		wfList, err := d.plugin.mgr.ListWorkflows(ctx)
 		if err != nil {
 			return children, err
 		}
@@ -212,7 +237,7 @@ func (d *dirHandler) ListChildren(ctx context.Context) ([]*stub.Entry, error) {
 			children = append(children, &stub.Entry{Name: id2MirrorFile(wf.Id), Kind: types.RawKind, IsGroup: false})
 		}
 	case d.dirKind == MirrorDirJobs && d.wfID == "":
-		wfList, err := d.mgr.ListWorkflows(ctx)
+		wfList, err := d.plugin.mgr.ListWorkflows(ctx)
 		if err != nil {
 			return children, err
 		}
@@ -220,7 +245,7 @@ func (d *dirHandler) ListChildren(ctx context.Context) ([]*stub.Entry, error) {
 			children = append(children, &stub.Entry{Name: wf.Id, Kind: types.ExternalGroupKind, IsGroup: true})
 		}
 	case d.dirKind == MirrorDirJobs && d.wfID != "":
-		jobList, err := d.mgr.ListJobs(ctx, d.wfID)
+		jobList, err := d.plugin.mgr.ListJobs(ctx, d.wfID)
 		if err != nil {
 			return children, err
 		}
@@ -229,85 +254,91 @@ func (d *dirHandler) ListChildren(ctx context.Context) ([]*stub.Entry, error) {
 		}
 	}
 
-	for _, f := range d.memfs.ListPrefix(d.path) {
-		children = append(children, &stub.Entry{Name: f.name, Kind: types.RawKind, IsGroup: false})
+	cachedChild, err := d.plugin.fs.ListChildren(d.plugin.path)
+	if err != nil {
+		return nil, err
 	}
+	children = append(children, cachedChild...)
 
 	return children, nil
 }
 
 type fileHandler struct {
-	mgr           Manager
-	path          string
-	file          *memFile
-	err           error
+	plugin        *MirrorPlugin
 	dirKind, wfID string
+	err           error
 }
 
 func (f *fileHandler) WriteAt(ctx context.Context, data []byte, off int64) (int64, error) {
-	if f == nil {
-		return 0, types.ErrIsGroup
-	}
-	n, err := f.file.WriteAt(data, off)
-	return int64(n), err
+	return f.plugin.fs.WriteAt(f.plugin.path, data, off)
 }
 
 func (f *fileHandler) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error) {
-	if f == nil {
-		return 0, types.ErrIsGroup
-	}
-	n, err := f.file.ReadAt(dest, off)
-	return int64(n), err
+	return f.plugin.fs.ReadAt(f.plugin.path, dest, off)
+}
+
+func (f *fileHandler) Fsync(ctx context.Context) error {
+	return nil
+}
+
+func (f *fileHandler) Trunc(ctx context.Context) error {
+	return f.plugin.fs.Trunc(f.plugin.path)
 }
 
 func (f *fileHandler) Close(ctx context.Context) error {
 	if f == nil {
 		return types.ErrIsGroup
 	}
-	if strings.HasPrefix(f.file.name, ".") {
+
+	en, err := f.plugin.fs.GetEntry(f.plugin.path)
+	if err != nil {
+		return err
+	}
+
+	if strings.HasPrefix(en.Name, ".") {
 		return nil
 	}
 
 	switch {
 	case f.dirKind == MirrorDirWorkflows:
-		f.err = f.createOrUpdateWorkflow(ctx)
+		f.err = f.createOrUpdateWorkflow(ctx, en)
 	case f.dirKind == MirrorDirJobs && f.wfID != "":
-		f.err = f.updateWorkflowJob(ctx)
+		f.err = f.updateWorkflowJob(ctx, en)
 	}
 
 	if f.err != nil {
-		_, _ = fmt.Fprintf(utils.NewWriterWithOffset(f.file, f.file.off), "\n// error: %s\n", f.err)
+		_, _ = f.plugin.fs.WriteAt(f.plugin.path, []byte(fmt.Sprintf("\n# error: %s\n", f.err)), en.Size)
 	}
 
 	return nil
 }
 
-func (f *fileHandler) createOrUpdateWorkflow(ctx context.Context) error {
+func (f *fileHandler) createOrUpdateWorkflow(ctx context.Context, en *stub.Entry) error {
 	wf := &types.WorkflowSpec{}
-	decodeErr := yaml.NewDecoder(utils.NewReader(f.file)).Decode(wf)
+	decodeErr := yaml.NewDecoder(&memfsFile{filePath: f.plugin.path, entry: en, memfs: f.plugin.fs}).Decode(wf)
 	if decodeErr == nil {
 		return decodeErr
 	}
 
-	wfID := mirrorFile2ID(f.file.name)
+	wfID := mirrorFile2ID(en.Name)
 	if err := isValidID(wfID); err != nil {
 		return err
 	}
 	wf.Id = wfID
 
-	oldWf, err := f.mgr.GetWorkflow(ctx, wfID)
+	oldWf, err := f.plugin.mgr.GetWorkflow(ctx, wfID)
 	if err != nil && err != types.ErrNotFound {
 		return err
 	}
 
 	// do create
 	if err == types.ErrNotFound {
-		wf, err = f.mgr.CreateWorkflow(ctx, initWorkflow(wf))
+		wf, err = f.plugin.mgr.CreateWorkflow(ctx, initWorkflow(wf))
 		if err != nil {
 			return err
 		}
-		f.file.reset()
-		_ = yaml.NewEncoder(utils.NewWriter(f.file)).Encode(wf)
+		_ = f.plugin.fs.Trunc(f.plugin.path)
+		_ = yaml.NewEncoder(&memfsFile{filePath: f.plugin.path, entry: en, memfs: f.plugin.fs}).Encode(wf)
 		return nil
 	}
 
@@ -319,28 +350,28 @@ func (f *fileHandler) createOrUpdateWorkflow(ctx context.Context) error {
 	oldWf.Steps = wf.Steps
 	oldWf.UpdatedAt = time.Now()
 
-	oldWf, err = f.mgr.UpdateWorkflow(ctx, oldWf)
+	oldWf, err = f.plugin.mgr.UpdateWorkflow(ctx, oldWf)
 	if err != nil {
 		return err
 	}
-	f.file.reset()
-	_ = yaml.NewEncoder(utils.NewWriter(f.file)).Encode(oldWf)
+	_ = f.plugin.fs.Trunc(f.plugin.path)
+	_ = yaml.NewEncoder(&memfsFile{filePath: f.plugin.path, entry: en, memfs: f.plugin.fs}).Encode(oldWf)
 	return nil
 }
 
-func (f *fileHandler) updateWorkflowJob(ctx context.Context) error {
+func (f *fileHandler) updateWorkflowJob(ctx context.Context, en *stub.Entry) error {
 	wfJob := &types.WorkflowJob{}
-	decodeErr := yaml.NewDecoder(utils.NewReader(f.file)).Decode(wfJob)
+	decodeErr := yaml.NewDecoder(&memfsFile{filePath: f.plugin.path, entry: en, memfs: f.plugin.fs}).Decode(wfJob)
 	if decodeErr == nil {
 		return decodeErr
 	}
 
-	jobID := mirrorFile2ID(f.file.name)
+	jobID := mirrorFile2ID(en.Name)
 	if err := isValidID(jobID); err != nil {
 		return err
 	}
 
-	jobs, err := f.mgr.ListJobs(ctx, f.wfID)
+	jobs, err := f.plugin.mgr.ListJobs(ctx, f.wfID)
 	if err != nil {
 		return err
 	}
@@ -357,11 +388,11 @@ func (f *fileHandler) updateWorkflowJob(ctx context.Context) error {
 		if wfJob.Status != oldJob.Status && !oldJob.FinishAt.IsZero() {
 			switch {
 			case wfJob.Status == flow.PausedStatus && oldJob.Status == flow.RunningStatus:
-				err = f.mgr.PauseWorkflowJob(ctx, jobID)
+				err = f.plugin.mgr.PauseWorkflowJob(ctx, jobID)
 			case wfJob.Status == flow.RunningStatus && oldJob.Status == flow.PausedStatus:
-				err = f.mgr.ResumeWorkflowJob(ctx, jobID)
+				err = f.plugin.mgr.ResumeWorkflowJob(ctx, jobID)
 			case wfJob.Status == flow.CanceledStatus:
-				err = f.mgr.CancelWorkflowJob(ctx, jobID)
+				err = f.plugin.mgr.CancelWorkflowJob(ctx, jobID)
 			default:
 				err = fmt.Errorf("the current state is %s and cannot be changed to %s", oldJob.Status, wfJob.Status)
 			}
@@ -372,11 +403,11 @@ func (f *fileHandler) updateWorkflowJob(ctx context.Context) error {
 	// do create
 	target := wfJob.Target
 	if target.EntryID != nil {
-		wfJob, err = f.mgr.TriggerWorkflow(ctx, f.wfID, *target.EntryID)
+		wfJob, err = f.plugin.mgr.TriggerWorkflow(ctx, f.wfID, *target.EntryID)
 		if err != nil {
 			return err
 		}
-		encodeErr := yaml.NewEncoder(utils.NewWriter(f.file)).Encode(wfJob)
+		encodeErr := yaml.NewEncoder(&memfsFile{filePath: f.plugin.path, entry: en, memfs: f.plugin.fs}).Encode(wfJob)
 		if encodeErr != nil {
 			return encodeErr
 		}
@@ -385,23 +416,64 @@ func (f *fileHandler) updateWorkflowJob(ctx context.Context) error {
 	return nil
 }
 
-func (f *fileHandler) Fsync(ctx context.Context) error {
-	if f == nil {
-		return types.ErrIsGroup
-	}
-	return nil
+type memfsFile struct {
+	filePath string
+	entry    *stub.Entry
+	memfs    *plugin.MemFS
+	off      int64
 }
 
-func (f *fileHandler) Flush(ctx context.Context) error {
-	if f == nil {
-		return types.ErrIsGroup
-	}
-	return nil
+func (m *memfsFile) Write(p []byte) (int, error) {
+	n64, err := m.memfs.WriteAt(m.filePath, p, m.off)
+	m.off += n64
+	return int(n64), err
 }
 
-func buildWorkflowMirrorPlugin(mgr Manager) plugin.Builder {
-	mp := &MirrorPlugin{dirHandler: &dirHandler{mgr: mgr, path: "/", dirKind: MirrorDirRoot}}
+func (m *memfsFile) Read(p []byte) (int, error) {
+	n64, err := m.memfs.ReadAt(m.filePath, p, m.off)
+	m.off += n64
+	return int(n64), err
+}
+
+func buildWorkflowMirrorPlugin(root dentry.Entry, mgr Manager) plugin.Builder {
+	mp := &MirrorPlugin{path: "/", fs: plugin.NewMemFS(), mgr: mgr}
+	mp.dirHandler = &dirHandler{plugin: mp, dirKind: MirrorDirRoot}
+
+	_, _ = mp.fs.CreateEntry("/", stub.EntryAttr{
+		Name:   MirrorDirJobs,
+		Kind:   types.ExternalGroupKind,
+		Access: root.Metadata().Access,
+	})
+
+	_, _ = mp.fs.CreateEntry("/", stub.EntryAttr{
+		Name:   MirrorDirWorkflows,
+		Kind:   types.ExternalGroupKind,
+		Access: root.Metadata().Access,
+	})
 	return mp.build
+}
+
+func initWorkflowMirrorDir(root dentry.Entry, entryMgr dentry.Manager) error {
+	oldDir, err := root.Group().FindEntry(context.Background(), ".workflow")
+	if err != nil && err != types.ErrNotFound {
+		return err
+	}
+	if oldDir != nil {
+		return nil
+	}
+
+	_, err = entryMgr.CreateEntry(context.Background(), root, dentry.EntryAttr{
+		Name:   MirrorRootDirName,
+		Kind:   types.ExternalGroupKind,
+		Access: root.Metadata().Access,
+		PlugScope: &types.PlugScope{
+			PluginName: MirrorPluginName,
+			Version:    MirrorPluginVersion,
+			PluginType: types.TypeMirror,
+			Parameters: map[string]string{},
+		},
+	})
+	return err
 }
 
 func mirrorFile2ID(fileName string) string {
@@ -418,116 +490,22 @@ func id2MirrorFile(idStr string) string {
 	return idStr + MirrorFileType
 }
 
-type memFS struct {
-	files  map[string]*memFile
-	mux    sync.Mutex
-	scanAt time.Time
-}
-
-func (m *memFS) Exist(path string) bool {
-	m.mux.Lock()
-	defer m.mux.Unlock()
-	_, ok := m.files[path]
-	return ok
-}
-
-func (m *memFS) Open(path string) *memFile {
-	m.mux.Lock()
-	defer m.mux.Unlock()
-	f, ok := m.files[path]
-	if !ok {
-		f = &memFile{name: ospath.Base(path), data: utils.NewMemoryBlock(MirrorFileMaxSize / 4), cachedAt: time.Now()}
+func parseFilePath(enPath string) (dirKind, wfID string, err error) {
+	if enPath == "/" {
+		dirKind = MirrorDirRoot
+		return
 	}
-	return f
-}
+	enPath = strings.TrimPrefix(enPath, utils.PathSeparator)
+	pathParts := strings.SplitN(enPath, utils.PathSeparator, 3)
 
-func (m *memFS) ListPrefix(path string) []*memFile {
-	m.mux.Lock()
-	defer m.mux.Unlock()
-
-	result := make([]*memFile, 0)
-	for p := range m.files {
-		if ospath.Dir(p) == path {
-			result = append(result, m.files[p])
-		}
-	}
-	return result
-}
-
-func (m *memFS) Remove(path string) {
-	m.mux.Lock()
-	defer m.mux.Unlock()
-
-	f, ok := m.files[path]
-	if !ok {
+	dirKind = pathParts[0]
+	if dirKind != MirrorDirJobs && dirKind != MirrorDirWorkflows {
+		err = fmt.Errorf("unknown dir %s", dirKind)
 		return
 	}
 
-	utils.ReleaseMemoryBlock(f.data)
-	f.data = nil
-	delete(m.files, path)
-}
-
-func (m *memFS) release() {
-	m.mux.Lock()
-	defer m.mux.Unlock()
-
-	if time.Since(m.scanAt) < time.Hour {
-		return
+	if len(pathParts) > 1 {
+		wfID = mirrorFile2ID(pathParts[1])
 	}
-	m.scanAt = time.Now()
-
-	for k, f := range m.files {
-		if time.Since(f.cachedAt) < time.Hour {
-			continue
-		}
-		utils.ReleaseMemoryBlock(f.data)
-		f.data = nil
-		delete(m.files, k)
-	}
-}
-
-type memFile struct {
-	name     string
-	data     []byte
-	off      int64
-	cachedAt time.Time
-}
-
-func (m *memFile) WriteAt(data []byte, off int64) (n int, err error) {
-	if m.data == nil {
-		err = types.ErrNotFound
-		return
-	}
-	if off+int64(len(data)) > int64(len(data)) {
-		if off+int64(len(data)) > MirrorFileMaxSize {
-			return 0, io.ErrShortBuffer
-		}
-		blk := utils.NewMemoryBlock(off + int64(len(data)) + 1)
-		copy(blk, m.data[:m.off])
-		utils.ReleaseMemoryBlock(m.data)
-		m.data = blk
-	}
-	n = copy(m.data[off:], data)
-	m.off += int64(n)
 	return
-}
-
-func (m *memFile) ReadAt(dest []byte, off int64) (n int, err error) {
-	if m.data == nil {
-		err = types.ErrNotFound
-		return
-	}
-	if off >= m.off {
-		return 0, io.EOF
-	}
-	return copy(dest, m.data[off:m.off]), nil
-}
-
-func (m *memFile) reset() {
-	m.off = 0
-}
-
-func initMemFS() *memFS {
-	return &memFS{files: map[string]*memFile{}}
 }

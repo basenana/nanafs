@@ -89,204 +89,51 @@ func (d *MemFSPlugin) build(ctx context.Context, spec types.PluginSpec, scope ty
 		return nil, fmt.Errorf("path is empty")
 	}
 
-	d.fs.mux.Lock()
-	_, isDir := d.fs.groups[enPath]
-	_, isFile := d.fs.files[enPath]
-	d.fs.mux.Unlock()
-	if isDir || isFile {
-		return &MemFSPlugin{path: enPath, fs: d.fs}, nil
+	_, err := d.fs.GetEntry(enPath)
+	if err != nil {
+		return nil, err
 	}
-	return nil, types.ErrNotFound
+	return &MemFSPlugin{path: enPath, fs: d.fs}, nil
 }
 
 func (d *MemFSPlugin) IsGroup(ctx context.Context) (bool, error) {
-	d.fs.mux.Lock()
-	defer d.fs.mux.Unlock()
-	_, ok := d.fs.groups[d.path]
-	return ok, nil
+	en, err := d.fs.GetEntry(d.path)
+	if err != nil {
+		return false, err
+	}
+	return en.IsGroup, nil
 }
 
 func (d *MemFSPlugin) FindEntry(ctx context.Context, name string) (*stub.Entry, error) {
-	d.fs.mux.Lock()
-	defer d.fs.mux.Unlock()
-	child, ok := d.fs.groups[d.path]
-	if !ok {
-		return nil, types.ErrNoGroup
-	}
-
-	for _, chName := range child {
-		if chName != name {
-			continue
-		}
-		en := &stub.Entry{Name: chName, Kind: types.RawKind}
-		if _, ok = d.fs.groups[path.Join(d.path, name)]; ok {
-			en.Kind = types.ExternalGroupKind
-			en.IsGroup = true
-		} else {
-			file, ok := d.fs.files[path.Join(d.path, name)]
-			if ok {
-				en.Size = file.off
-			}
-		}
-		return en, nil
-	}
-
-	return nil, types.ErrNotFound
+	return d.fs.FindEntry(d.path, name)
 }
 
 func (d *MemFSPlugin) CreateEntry(ctx context.Context, attr stub.EntryAttr) (*stub.Entry, error) {
-	d.fs.mux.Lock()
-	defer d.fs.mux.Unlock()
-	child, ok := d.fs.groups[d.path]
-	if !ok {
-		return nil, types.ErrNoGroup
-	}
-
-	for _, chName := range child {
-		if chName == attr.Name {
-			return nil, types.ErrIsExist
-		}
-	}
-
-	child = append(child, attr.Name)
-	d.fs.groups[d.path] = child
-
-	if types.IsGroup(attr.Kind) {
-		d.fs.groups[path.Join(d.path, attr.Name)] = make([]string, 0)
-	} else {
-		d.fs.files[path.Join(d.path, attr.Name)] = newMemFile(attr.Name)
-	}
-
-	return &stub.Entry{
-		Name:    attr.Name,
-		Kind:    attr.Kind,
-		IsGroup: types.IsGroup(attr.Kind),
-	}, nil
+	return d.fs.CreateEntry(d.path, attr)
 }
 
 func (d *MemFSPlugin) UpdateEntry(ctx context.Context, en *stub.Entry) error {
-	d.fs.mux.Lock()
-	defer d.fs.mux.Unlock()
-	child, ok := d.fs.groups[d.path]
-	if !ok {
-		return types.ErrNoGroup
-	}
-
-	for _, chName := range child {
-		if chName != en.Name {
-			continue
-		}
-		if en.Size == 0 {
-			mf, ok := d.fs.files[path.Join(d.path, chName)]
-			if !ok {
-				return types.ErrNotFound
-			}
-			mf.off = 0
-			d.fs.files[d.path] = mf
-		}
-		return nil
-	}
-	return types.ErrNotFound
+	return d.fs.UpdateEntry(d.path, en)
 }
 
 func (d *MemFSPlugin) RemoveEntry(ctx context.Context, en *stub.Entry) error {
-	d.fs.mux.Lock()
-	defer d.fs.mux.Unlock()
-	child, ok := d.fs.groups[d.path]
-	if !ok {
-		return types.ErrNoGroup
-	}
-
-	newChild := make([]string, 0, len(child))
-	found := false
-	for _, chName := range child {
-		if chName == en.Name {
-			found = true
-			continue
-		}
-		newChild = append(newChild, chName)
-	}
-
-	if !found {
-		return types.ErrNotFound
-	}
-
-	needDeleteChild, ok := d.fs.groups[path.Join(d.path, en.Name)]
-	if ok {
-		if len(needDeleteChild) > 0 {
-			return types.ErrNotEmpty
-		}
-	} else {
-		delete(d.fs.files, path.Join(d.path, en.Name))
-	}
-	d.fs.groups[d.path] = newChild
-	return nil
+	return d.fs.RemoveEntry(d.path, en)
 }
 
 func (d *MemFSPlugin) ListChildren(ctx context.Context) ([]*stub.Entry, error) {
-	d.fs.mux.Lock()
-	defer d.fs.mux.Unlock()
-	child, ok := d.fs.groups[d.path]
-	if !ok {
-		return nil, types.ErrNoGroup
-	}
-
-	result := make([]*stub.Entry, len(child))
-	for i, chName := range child {
-		result[i] = &stub.Entry{
-			Name:    chName,
-			Kind:    types.RawKind,
-			IsGroup: false,
-		}
-		if _, isDir := d.fs.groups[path.Join(d.path, chName)]; isDir {
-			result[i].Kind = types.ExternalGroupKind
-			result[i].IsGroup = true
-		} else {
-			file, ok := d.fs.files[path.Join(d.path, chName)]
-			if ok {
-				result[i].Size = file.off
-			}
-		}
-	}
-	return result, nil
+	return d.fs.ListChildren(d.path)
 }
 
 func (d *MemFSPlugin) WriteAt(ctx context.Context, data []byte, off int64) (int64, error) {
-	d.fs.mux.Lock()
-	defer d.fs.mux.Unlock()
-
-	mf, ok := d.fs.files[d.path]
-	if !ok {
-		return 0, types.ErrNotFound
-	}
-
-	n, err := mf.WriteAt(data, off)
-	return int64(n), err
+	return d.fs.WriteAt(d.path, data, off)
 }
 
 func (d *MemFSPlugin) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error) {
-	d.fs.mux.Lock()
-	defer d.fs.mux.Unlock()
-
-	mf, ok := d.fs.files[d.path]
-	if !ok {
-		return 0, types.ErrNotFound
-	}
-
-	n, err := mf.ReadAt(dest, off)
-	return int64(n), err
+	return d.fs.ReadAt(d.path, dest, off)
 }
 
 func (d *MemFSPlugin) Trunc(ctx context.Context) error {
-	d.fs.mux.Lock()
-	defer d.fs.mux.Unlock()
-	mf, ok := d.fs.files[d.path]
-	if !ok {
-		return types.ErrNotFound
-	}
-	mf.off = 0
-	d.fs.files[d.path] = mf
-	return nil
+	return d.fs.Trunc(d.path)
 }
 
 func (d *MemFSPlugin) Fsync(ctx context.Context) error {
@@ -298,13 +145,188 @@ func (d *MemFSPlugin) Close(ctx context.Context) error {
 }
 
 type MemFS struct {
-	files  map[string]*memFile
-	groups map[string][]string
-	mux    sync.Mutex
+	entries map[string]*stub.Entry
+	files   map[string]*memFile
+	groups  map[string][]string
+	mux     sync.Mutex
+}
+
+func (m *MemFS) GetEntry(enPath string) (*stub.Entry, error) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+
+	en, ok := m.entries[enPath]
+	if !ok {
+		return nil, types.ErrNotFound
+	}
+	return en, nil
+}
+
+func (m *MemFS) FindEntry(parentPath string, name string) (*stub.Entry, error) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+
+	en, ok := m.entries[path.Join(parentPath, name)]
+	if !ok {
+		return nil, types.ErrNotFound
+	}
+	return en, nil
+}
+
+func (m *MemFS) CreateEntry(parentPath string, attr stub.EntryAttr) (*stub.Entry, error) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+
+	parent, ok := m.entries[parentPath]
+	if !ok {
+		return nil, types.ErrNotFound
+	}
+	if !parent.IsGroup {
+		return nil, types.ErrNoGroup
+	}
+
+	child := m.groups[parentPath]
+	for _, chName := range child {
+		if chName == attr.Name {
+			return nil, types.ErrIsExist
+		}
+	}
+
+	child = append(child, attr.Name)
+	m.groups[parentPath] = child
+
+	en := &stub.Entry{
+		Name:    attr.Name,
+		Kind:    attr.Kind,
+		IsGroup: types.IsGroup(attr.Kind),
+	}
+	enPath := path.Join(parentPath, attr.Name)
+	if en.IsGroup {
+		m.groups[enPath] = make([]string, 0)
+	} else {
+		m.files[enPath] = newMemFile(en)
+	}
+	m.entries[enPath] = en
+	return en, nil
+}
+
+func (m *MemFS) UpdateEntry(parentPath string, en *stub.Entry) error {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+
+	enPath := path.Join(parentPath, en.Name)
+	old, ok := m.entries[enPath]
+	if !ok {
+		return types.ErrNotFound
+	}
+
+	// do update
+	old.Size = en.Size
+	return nil
+}
+
+func (m *MemFS) RemoveEntry(parentPath string, en *stub.Entry) error {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+
+	enPath := path.Join(parentPath, en.Name)
+	en, ok := m.entries[enPath]
+	if !ok {
+		return types.ErrNotFound
+	}
+
+	if en.IsGroup {
+		if len(m.groups[enPath]) > 0 {
+			return types.ErrNotEmpty
+		}
+		delete(m.groups, enPath)
+	} else {
+		f := m.files[enPath]
+		if f != nil {
+			f.release()
+			delete(m.files, enPath)
+		}
+	}
+
+	child := m.groups[parentPath]
+	newChild := make([]string, 0, len(child)-1)
+	for _, chName := range child {
+		if chName == en.Name {
+			continue
+		}
+		newChild = append(newChild, chName)
+	}
+	m.groups[parentPath] = newChild
+
+	delete(m.entries, enPath)
+	return nil
+}
+
+func (m *MemFS) ListChildren(enPath string) ([]*stub.Entry, error) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+
+	en, ok := m.entries[enPath]
+	if !ok {
+		return nil, types.ErrNotFound
+	}
+
+	if !en.IsGroup {
+		return nil, types.ErrNoGroup
+	}
+
+	childNames := m.groups[enPath]
+	result := make([]*stub.Entry, len(childNames))
+	for i, chName := range childNames {
+		result[i] = m.entries[path.Join(enPath, chName)]
+	}
+	return result, nil
+}
+
+func (m *MemFS) WriteAt(filePath string, data []byte, off int64) (int64, error) {
+	m.mux.Lock()
+
+	mf, ok := m.files[filePath]
+	if !ok {
+		m.mux.Unlock()
+		return 0, types.ErrNotFound
+	}
+	m.mux.Unlock()
+	n, err := mf.WriteAt(data, off)
+	return int64(n), err
+}
+
+func (m *MemFS) ReadAt(filePath string, dest []byte, off int64) (int64, error) {
+	m.mux.Lock()
+
+	mf, ok := m.files[filePath]
+	if !ok {
+		m.mux.Unlock()
+		return 0, types.ErrNotFound
+	}
+	m.mux.Unlock()
+	n, err := mf.ReadAt(dest, off)
+	return int64(n), err
+}
+
+func (m *MemFS) Trunc(filePath string) error {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	mf, ok := m.files[filePath]
+	if !ok {
+		return types.ErrNotFound
+	}
+	mf.Size = 0
+	return nil
 }
 
 func NewMemFS() *MemFS {
-	return &MemFS{files: map[string]*memFile{}, groups: map[string][]string{}}
+	fs := &MemFS{
+		entries: map[string]*stub.Entry{"/": {Name: ".", Kind: types.ExternalGroupKind, Size: 0, IsGroup: true}},
+		groups:  map[string][]string{"/": {}},
+		files:   map[string]*memFile{},
+	}
+	return fs
 }
 
 const (
@@ -312,16 +334,14 @@ const (
 )
 
 type memFile struct {
-	name string
+	*stub.Entry
 	data []byte
-	off  int64
 }
 
-func newMemFile(name string) *memFile {
+func newMemFile(entry *stub.Entry) *memFile {
 	return &memFile{
-		name: name,
-		data: utils.NewMemoryBlock(memFileMaxSize / 16), // 1M
-		off:  0,
+		Entry: entry,
+		data:  utils.NewMemoryBlock(memFileMaxSize / 16), // 1M
 	}
 }
 
@@ -335,13 +355,13 @@ func (m *memFile) WriteAt(data []byte, off int64) (n int, err error) {
 			return 0, io.ErrShortBuffer
 		}
 		blk := utils.NewMemoryBlock(off + int64(len(data)) + 1)
-		copy(blk, m.data[:m.off])
+		copy(blk, m.data[:m.Size])
 		utils.ReleaseMemoryBlock(m.data)
 		m.data = blk
 	}
 	n = copy(m.data[off:], data)
-	if off+int64(n) > m.off {
-		m.off = off + int64(n)
+	if off+int64(n) > m.Size {
+		m.Size = off + int64(n)
 	}
 	return
 }
@@ -351,10 +371,17 @@ func (m *memFile) ReadAt(dest []byte, off int64) (n int, err error) {
 		err = types.ErrNotFound
 		return
 	}
-	if off >= m.off {
+	if off >= m.Size {
 		return 0, io.EOF
 	}
-	return copy(dest, m.data[off:m.off]), nil
+	return copy(dest, m.data[off:m.Size]), nil
+}
+
+func (m *memFile) release() {
+	if m.data != nil {
+		utils.ReleaseMemoryBlock(m.data)
+		m.data = nil
+	}
 }
 
 func NewMemFSPlugin() *MemFSPlugin {

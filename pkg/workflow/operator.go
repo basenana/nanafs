@@ -38,13 +38,13 @@ func registerOperators(entryMgr dentry.Manager) error {
 	b := operatorBuilder{
 		entryMgr: entryMgr,
 	}
-	if err := exec.RegisterLocalOperatorBuilder(opEntryInit, b.buildEntryInitOperator); err != nil {
+	if err := exec.RegisterLocalOperatorBuilder(opEntryInit, b.buildEntryInitOperator); err != nil && err != exec.OperatorIsExisted {
 		return err
 	}
-	if err := exec.RegisterLocalOperatorBuilder(opEntryCollect, b.buildEntryCollectOperator); err != nil {
+	if err := exec.RegisterLocalOperatorBuilder(opEntryCollect, b.buildEntryCollectOperator); err != nil && err != exec.OperatorIsExisted {
 		return err
 	}
-	if err := exec.RegisterLocalOperatorBuilder(opPluginCall, b.buildPluginCallOperator); err != nil {
+	if err := exec.RegisterLocalOperatorBuilder(opPluginCall, b.buildPluginCallOperator); err != nil && err != exec.OperatorIsExisted {
 		return err
 	}
 	return nil

@@ -296,6 +296,12 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	ctl.workflow, err = workflow.NewManager(ctl.entry, meta, cfg.Workflow)
+	if err != nil {
+		return nil, err
+	}
+
 	ctl.entry.SetCacheResetter(ctl.cache)
 	return ctl, nil
 }
