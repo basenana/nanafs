@@ -222,6 +222,7 @@ func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode u
 		Name:   name,
 		Kind:   fileKindFromMode(mode),
 		Access: *acc,
+		Dev:    int64(MountDev),
 	})
 	if err != nil {
 		return nil, nil, 0, Error2FuseSysError("entry_create", err)
@@ -331,6 +332,7 @@ func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fus
 		Name:   name,
 		Kind:   types.GroupKind,
 		Access: *acc,
+		Dev:    int64(MountDev),
 	})
 	if err != nil {
 		return nil, Error2FuseSysError("entry_mkdir", err)
@@ -369,6 +371,7 @@ func (n *NanaNode) Mknod(ctx context.Context, name string, mode uint32, dev uint
 		Name:   name,
 		Kind:   fileKindFromMode(mode),
 		Access: *acc,
+		Dev:    int64(dev),
 	})
 	if err != nil {
 		return nil, Error2FuseSysError("entry_mknod", err)
@@ -429,6 +432,7 @@ func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.E
 		Name:   name,
 		Kind:   types.SymLinkKind,
 		Access: entry.Metadata().Access,
+		Dev:    int64(MountDev),
 	})
 	if err != nil {
 		return nil, Error2FuseSysError("entry_symlink", err)

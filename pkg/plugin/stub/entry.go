@@ -22,10 +22,11 @@ import (
 )
 
 type Entry struct {
-	Name    string
-	Kind    types.Kind
-	Size    int64
-	IsGroup bool
+	Name       string
+	Kind       types.Kind
+	Size       int64
+	IsGroup    bool
+	Parameters map[string]string
 }
 
 type EntryAttr struct {

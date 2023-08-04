@@ -110,6 +110,7 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, erro
 	if err != nil {
 		return nil, err
 	}
+	obj.Dev = attr.Dev
 	if obj.Kind == types.ExternalGroupKind {
 		obj.Storage = externalStorage
 		if attr.PlugScope.Parameters == nil {
@@ -370,6 +371,11 @@ func (e *extGroup) syncEntry(ctx context.Context, mirrored *stub.Entry, crt Entr
 			Version:    grpEd.PlugScope.Version,
 			PluginType: grpEd.PlugScope.PluginType,
 			Parameters: map[string]string{},
+		}
+		if mirrored.Parameters != nil {
+			for k, v := range mirrored.Parameters {
+				obj.PlugScope.Parameters[k] = v
+			}
 		}
 		for k, v := range grpEd.PlugScope.Parameters {
 			obj.PlugScope.Parameters[k] = v

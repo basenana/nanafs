@@ -20,6 +20,7 @@ type ObjectAttr struct {
 	Name   string
 	Kind   Kind
 	Access Access
+	Dev    int64
 }
 
 type DestroyObjectAttr struct {

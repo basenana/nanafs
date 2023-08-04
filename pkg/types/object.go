@@ -50,6 +50,7 @@ type Metadata struct {
 	Size       int64     `json:"size"`
 	Inode      uint64    `json:"inode"`
 	Version    int64     `json:"version"`
+	Dev        int64     `json:"dev"`
 	Namespace  string    `json:"namespace,omitempty"`
 	Storage    string    `json:"storage"`
 	CreatedAt  time.Time `json:"created_at"`
@@ -88,8 +89,10 @@ type ExtendData struct {
 }
 
 const (
-	PlugScopeEntryName = "entry.name"
-	PlugScopeEntryPath = "entry.path" // relative path
+	PlugScopeEntryName     = "entry.name"
+	PlugScopeEntryPath     = "entry.path" // relative path
+	PlugScopeWorkflowID    = "workflow.id"
+	PlugScopeWorkflowJobID = "workflow.job.id"
 )
 
 type PlugScope struct {

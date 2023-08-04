@@ -43,23 +43,76 @@ func Call(ctx context.Context, ps types.PlugScope, req *stub.Request) (resp *stu
 	return runnablePlugin.Run(ctx, req, ps.Parameters)
 }
 
-type DummyProcessPlugin struct{}
+const (
+	delayPluginName    = "delay"
+	delayPluginVersion = "1.0"
+)
 
-var _ ProcessPlugin = &DummyProcessPlugin{}
+type DelayProcessPlugin struct{}
 
-func (d *DummyProcessPlugin) Name() string {
-	return "dummy-process-plugin"
+var _ ProcessPlugin = &DelayProcessPlugin{}
+
+func (d *DelayProcessPlugin) Name() string {
+	return delayPluginName
 }
 
-func (d *DummyProcessPlugin) Type() types.PluginType {
+func (d *DelayProcessPlugin) Type() types.PluginType {
 	return types.TypeProcess
 }
 
-func (d *DummyProcessPlugin) Version() string {
-	return "1.0"
+func (d *DelayProcessPlugin) Version() string {
+	return delayPluginVersion
 }
 
-func (d *DummyProcessPlugin) Run(ctx context.Context, request *stub.Request, params map[string]string) (*stub.Response, error) {
-	time.Sleep(time.Second * 2)
+func (d *DelayProcessPlugin) Run(ctx context.Context, request *stub.Request, params map[string]string) (*stub.Response, error) {
+	var (
+		until   time.Time
+		nowTime = time.Now()
+	)
+	switch request.Action {
+
+	case "delay":
+		delayDurationStr := params["delay"]
+		duration, err := time.ParseDuration(delayDurationStr)
+		if err != nil {
+			return nil, fmt.Errorf("parse delay duration [%s] failed: %s", delayDurationStr, err)
+		}
+		until = time.Now().Add(duration)
+
+	case "until":
+		var err error
+		untilStr := params["until"]
+		until, err = time.Parse(untilStr, time.RFC3339)
+		if err != nil {
+			return nil, fmt.Errorf("parse delay until [%s] failed: %s", untilStr, err)
+		}
+
+	default:
+		resp := stub.NewResponse()
+		resp.Message = fmt.Sprintf("unknown action: %s", request.Action)
+		return resp, nil
+	}
+
+	if nowTime.Before(until) {
+		timer := time.NewTimer(until.Sub(nowTime))
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+			return &stub.Response{IsSucceed: true}, nil
+		case <-ctx.Done():
+			return &stub.Response{IsSucceed: false, Message: ctx.Err().Error()}, nil
+		}
+	}
+
 	return &stub.Response{IsSucceed: true}, nil
+}
+
+func registerDelayPlugin(r *registry) {
+	r.Register(
+		delayPluginName,
+		types.PluginSpec{Name: delayPluginName, Version: delayPluginVersion, Type: types.TypeProcess, Parameters: map[string]string{}},
+		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
+			return &DelayProcessPlugin{}, nil
+		},
+	)
 }

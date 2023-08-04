@@ -189,7 +189,15 @@ func (d *dirHandler) CreateEntry(ctx context.Context, attr stub.EntryAttr) (*stu
 	if types.IsGroup(attr.Kind) {
 		return nil, types.ErrNoAccess
 	}
-	return d.plugin.fs.CreateEntry(d.plugin.path, attr)
+	en, err := d.plugin.fs.CreateEntry(d.plugin.path, attr)
+	if err != nil {
+		return nil, err
+	}
+	if en.Parameters == nil {
+		en.Parameters = map[string]string{}
+	}
+	en.Parameters[types.PlugScopeWorkflowID] = d.wfID
+	return en, nil
 }
 
 func (d *dirHandler) UpdateEntry(ctx context.Context, en *stub.Entry) error {

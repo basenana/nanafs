@@ -43,6 +43,7 @@ type Object struct {
 	KindMap    int64  `gorm:"column:kind_map"`
 	Size       int64  `gorm:"column:size"`
 	Version    int64  `gorm:"column:version"`
+	Dev        int64  `gorm:"column:dev"`
 	Owner      int64  `gorm:"column:owner"`
 	GroupOwner int64  `gorm:"column:group_owner"`
 	Permission int64  `gorm:"column:permission"`
@@ -69,6 +70,7 @@ func (o *Object) Update(obj *types.Object) {
 	o.KindMap = obj.KindMap
 	o.Size = obj.Size
 	o.Version = obj.Version
+	o.Dev = obj.Dev
 	o.Storage = obj.Storage
 	o.Namespace = obj.Namespace
 	o.CreatedAt = obj.CreatedAt.UnixNano()
@@ -93,6 +95,7 @@ func (o *Object) Object() *types.Object {
 			KindMap:    o.KindMap,
 			Size:       o.Size,
 			Version:    o.Version,
+			Dev:        o.Dev,
 			Storage:    o.Storage,
 			Namespace:  o.Namespace,
 			CreatedAt:  time.Unix(0, o.CreatedAt),

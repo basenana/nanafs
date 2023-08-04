@@ -131,6 +131,7 @@ func (c *controller) CreateEntry(ctx context.Context, parent dentry.Entry, attr 
 		Name:   attr.Name,
 		Kind:   attr.Kind,
 		Access: attr.Access,
+		Dev:    attr.Dev,
 	})
 	if err != nil {
 		c.logger.Errorw("create entry error", "parent", parent.Metadata().ID, "entryName", attr.Name, "err", err.Error())

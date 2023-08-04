@@ -445,6 +445,7 @@ type EntryAttr struct {
 	Name        string
 	Kind        types.Kind
 	Access      types.Access
+	Dev         int64
 	PlugScope   *types.PlugScope
 	GroupFilter *types.Rule
 }
