@@ -19,6 +19,7 @@ package flow
 import (
 	"context"
 	"errors"
+	"sync"
 )
 
 var (
@@ -44,29 +45,23 @@ func newExecutor(name string, flow *Flow) (Executor, error) {
 
 type Executor interface {
 	Setup(ctx context.Context) error
-	DoOperation(ctx context.Context, operatorSpec Spec) error
+	DoOperation(ctx context.Context, task Task, operatorSpec Spec) error
 	Teardown(ctx context.Context)
 }
 
 type Operator interface {
-	Do(ctx context.Context, param Parameter) error
-}
-
-type Spec struct {
-	Type      string
-	Script    *Script
-	Parameter map[string]string
-	Env       map[string]string
-}
-
-type Script struct {
-	Content string
-	Command []string
+	Do(ctx context.Context, param *Parameter) error
 }
 
 type Parameter struct {
 	FlowID  string
 	Workdir string
+	Result  *ResultData
+}
+
+type ResultData struct {
+	Result   sync.Map
+	TempData sync.Map
 }
 
 type executorBuilder struct {

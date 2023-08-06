@@ -20,12 +20,10 @@ import (
 	"context"
 	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/plugin/common"
 	"github.com/basenana/nanafs/pkg/types"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"strconv"
-	"time"
 )
 
 var _ = Describe("TestEntryInitOperator", func() {
@@ -58,17 +56,19 @@ var _ = Describe("TestEntryInitOperator", func() {
 		})
 		It("create be succeed", func() {
 			b := operatorBuilder{entryMgr: entryMgr}
-			op, err = b.buildEntryInitOperator(flow.Spec{
-				Type: opEntryInit,
-				Parameter: map[string]string{
-					paramEntryIdKey:   strconv.FormatInt(en.Metadata().ID, 10),
-					paramEntryPathKey: en.Metadata().Name,
-				},
-			})
+			op, err = b.buildEntryInitOperator(
+				flow.Task{},
+				flow.Spec{
+					Type: opEntryInit,
+					Parameters: map[string]string{
+						paramEntryIdKey:   strconv.FormatInt(en.Metadata().ID, 10),
+						paramEntryPathKey: en.Metadata().Name,
+					},
+				})
 			Expect(err).Should(BeNil())
 		})
 		It("do be succeed", func() {
-			err = op.Do(context.Background(), flow.Parameter{
+			err = op.Do(context.Background(), &flow.Parameter{
 				FlowID:  "mocked-flow-1",
 				Workdir: tempDir,
 			})
@@ -85,14 +85,16 @@ var _ = Describe("TestEntryCollectOperator", func() {
 		)
 		It("create be succeed", func() {
 			b := operatorBuilder{entryMgr: entryMgr}
-			op, err = b.buildEntryCollectOperator(flow.Spec{
-				Type:      opEntryCollect,
-				Parameter: map[string]string{},
-			})
+			op, err = b.buildEntryCollectOperator(
+				flow.Task{},
+				flow.Spec{
+					Type:       opEntryCollect,
+					Parameters: map[string]string{},
+				})
 			Expect(err).Should(BeNil())
 		})
 		It("do be succeed", func() {
-			err = op.Do(context.Background(), flow.Parameter{
+			err = op.Do(context.Background(), &flow.Parameter{
 				FlowID:  "mocked-flow-1",
 				Workdir: tempDir,
 			})
@@ -103,16 +105,11 @@ var _ = Describe("TestEntryCollectOperator", func() {
 
 var _ = Describe("TestPluginCallOperator", func() {
 	ps := &types.PlugScope{
-		PluginName: "test-sleep-plugin-succeed",
+		PluginName: "delay",
 		Version:    "1.0",
+		Action:     "delay",
 		PluginType: types.TypeProcess,
-		Parameters: map[string]string{},
 	}
-
-	caller.mockResponse(*ps, func() (*common.Response, error) {
-		time.Sleep(time.Second)
-		return &common.Response{IsSucceed: true}, nil
-	})
 
 	Context("operator do", func() {
 		var (
@@ -121,19 +118,24 @@ var _ = Describe("TestPluginCallOperator", func() {
 		)
 		It("create be succeed", func() {
 			b := operatorBuilder{entryMgr: entryMgr}
-			op, err = b.buildPluginCallOperator(flow.Spec{
-				Type: opPluginCall,
-				Parameter: map[string]string{
-					paramPluginName:    ps.PluginName,
-					paramPluginVersion: ps.Version,
-					paramPluginType:    string(types.TypeProcess),
-				},
-			})
+			op, err = b.buildPluginCallOperator(
+				flow.Task{},
+				flow.Spec{
+					Type: opPluginCall,
+					Parameters: map[string]string{
+						paramPluginName:    ps.PluginName,
+						paramPluginVersion: ps.Version,
+						paramPluginType:    string(types.TypeProcess),
+						paramPluginAction:  ps.Action,
+						paramEntryIdKey:    "0",
+						"delay":            "1s",
+					},
+				})
 			Expect(err).Should(BeNil())
 		})
 
 		It("do be succeed", func() {
-			err = op.Do(context.Background(), flow.Parameter{
+			err = op.Do(context.Background(), &flow.Parameter{
 				FlowID:  "mocked-flow-1",
 				Workdir: tempDir,
 			})

@@ -14,18 +14,26 @@
  limitations under the License.
 */
 
-package utils
+package stub
 
-import (
-	"crypto/rand"
-	"encoding/hex"
-)
+type Request struct {
+	Action    string
+	WorkPath  string
+	EntryId   int64
+	EntryPath string
+	Parameter map[string]string
+}
 
-func RandString(length int) (string, error) {
-	bytes := make([]byte, length)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", err
-	}
-	randomString := hex.EncodeToString(bytes)
-	return randomString[:length], nil
+func NewRequest() *Request {
+	return &Request{}
+}
+
+type Response struct {
+	IsSucceed bool
+	Message   string
+	Entries   []Entry
+}
+
+func NewResponse() *Response {
+	return &Response{}
 }

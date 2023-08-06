@@ -17,10 +17,19 @@
 package utils
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
 )
+
+type ContextWriterAt interface {
+	WriteAt(ctx context.Context, data []byte, off int64) (int64, error)
+}
+
+type ContextReaderAt interface {
+	ReadAt(ctx context.Context, dest []byte, off int64) (int64, error)
+}
 
 func Mkdir(path string) error {
 	d, err := os.Stat(path)
@@ -37,22 +46,6 @@ func Mkdir(path string) error {
 	}
 
 	return fmt.Errorf("%s not dir", path)
-}
-
-type dataReader struct {
-	reader io.Reader
-}
-
-func (d dataReader) Read(p []byte) (n int, err error) {
-	return d.reader.Read(p)
-}
-
-func (d dataReader) Close() error {
-	return nil
-}
-
-func NewDateReader(reader io.Reader) io.ReadCloser {
-	return dataReader{reader: reader}
 }
 
 type wrapperReader struct {
@@ -91,6 +84,42 @@ func NewWriter(writer io.WriterAt) io.Writer {
 
 func NewWriterWithOffset(writer io.WriterAt, off int64) io.Writer {
 	return &wrapperWriter{w: writer, off: off}
+}
+
+type wrapperContextReader struct {
+	ctx context.Context
+	r   ContextReaderAt
+	off int64
+}
+
+func (w *wrapperContextReader) Read(p []byte) (n int, err error) {
+	var n64 int64
+	n64, err = w.r.ReadAt(w.ctx, p, w.off)
+	w.off += n64
+	n = int(n64)
+	return
+}
+
+func NewReaderWithContextReaderAt(ctx context.Context, reader ContextReaderAt) io.Reader {
+	return &wrapperContextReader{ctx: ctx, r: reader}
+}
+
+type wrapperContextWriter struct {
+	ctx context.Context
+	w   ContextWriterAt
+	off int64
+}
+
+func (w *wrapperContextWriter) Write(p []byte) (n int, err error) {
+	var n64 int64
+	n64, err = w.w.WriteAt(w.ctx, p, w.off)
+	w.off += n64
+	n = int(n64)
+	return
+}
+
+func NewWriterWithContextWriter(ctx context.Context, writer ContextWriterAt) io.Writer {
+	return &wrapperContextWriter{ctx: ctx, w: writer}
 }
 
 type zeroDevice struct{}

@@ -39,7 +39,6 @@ type NanaFS struct {
 	controller.Controller
 
 	Path      string
-	Dev       uint64
 	Display   string
 	MountOpts []string
 
@@ -132,17 +131,13 @@ func (n *NanaFS) newFsNode(ctx context.Context, parent *NanaNode, entry dentry.E
 		}
 	}
 
-	if entry.Metadata().Dev == 0 {
-		entry.Metadata().Dev = int64(n.Dev)
-	}
-
 	node := &NanaNode{
 		oid:    entry.Metadata().ID,
 		R:      n,
 		logger: n.logger.With(zap.Int64("entry", entry.Metadata().ID)),
 	}
 	if parent != nil {
-		parent.NewInode(ctx, node, idFromStat(n.Dev, nanaNode2Stat(entry)))
+		parent.NewInode(ctx, node, idFromStat(nanaNode2Stat(entry)))
 	}
 
 	return node, nil
@@ -207,13 +202,13 @@ func NewNanaFsRoot(cfg config.FUSE, controller controller.Controller) (*NanaFS, 
 		cfg.DisplayName = fsName
 	}
 
+	MountDev = uint64(st.Dev)
 	root := &NanaFS{
 		Controller: controller,
 		Path:       cfg.RootPath,
 		Display:    cfg.DisplayName,
 		MountOpts:  cfg.MountOptions,
 		cfg:        cfg,
-		Dev:        uint64(st.Dev),
 		logger:     logger.NewLogger("fs"),
 	}
 

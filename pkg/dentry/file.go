@@ -23,6 +23,7 @@ import (
 	"github.com/basenana/nanafs/pkg/bio"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"go.uber.org/zap"
@@ -155,7 +156,6 @@ func openFile(en Entry, attr Attr, store metastore.ObjectStore, fileStorage stor
 	}
 	increaseOpenedFile(en.Metadata().ID)
 	return instrumentalFile{Entry: en, file: f}, nil
-
 }
 
 type symlink struct {
@@ -183,6 +183,7 @@ func (s *symlink) WriteAt(ctx context.Context, data []byte, offset int64) (n int
 
 	n = int64(copy(s.data[offset:], data))
 	s.Metadata().Size = size
+	s.Metadata().ModifiedAt = time.Now()
 	_ = s.Flush(ctx)
 	return
 }
@@ -238,6 +239,77 @@ func openSymlink(en Entry, attr Attr) (File, error) {
 		Entry: en,
 		file:  &symlink{Entry: en, data: raw, attr: attr},
 	}, nil
+}
+
+type extFile struct {
+	Entry
+
+	attr  Attr
+	cfg   *config.FS
+	size  int64
+	store metastore.ObjectStore
+	stub  plugin.MirrorPlugin
+}
+
+func (e *extFile) GetAttr() Attr {
+	return e.attr
+}
+
+func (e *extFile) WriteAt(ctx context.Context, data []byte, off int64) (int64, error) {
+	n, err := e.stub.WriteAt(ctx, data, off)
+	if off+n > e.size {
+		e.size = off + n
+	}
+	e.Metadata().ModifiedAt = time.Now()
+	return n, err
+}
+
+func (e *extFile) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error) {
+	return e.stub.ReadAt(ctx, dest, off)
+}
+
+func (e *extFile) Fsync(ctx context.Context) error {
+	if e.Metadata().Size < e.size {
+		md := e.Metadata()
+		md.Size = e.size
+		err := e.store.SaveObjects(ctx, &types.Object{Metadata: *md})
+		if err != nil {
+			return err
+		}
+	}
+	return e.stub.Fsync(ctx)
+}
+
+func (e *extFile) Flush(ctx context.Context) error {
+	return e.stub.Fsync(ctx)
+}
+
+func (e *extFile) Close(ctx context.Context) error {
+	err := e.Fsync(ctx)
+	if err != nil {
+		return err
+	}
+	return e.stub.Close(ctx)
+}
+
+func openExternalFile(en Entry, ps *types.PlugScope, attr Attr, store metastore.ObjectStore, cfg *config.FS) (File, error) {
+	if ps == nil {
+		return nil, fmt.Errorf("extend entry has no plug scop")
+	}
+	stub, err := plugin.NewMirrorPlugin(context.TODO(), *ps)
+	if err != nil {
+		return nil, fmt.Errorf("build mirror plugin failed: %s", err)
+	}
+	eFile := &extFile{Entry: en, attr: attr, size: en.Metadata().Size, store: store, cfg: cfg, stub: stub}
+	if attr.Trunc || en.Metadata().Size == 0 {
+		err = stub.Trunc(context.TODO())
+		if err != nil {
+			return nil, err
+		}
+		en.Metadata().Size = 0
+		eFile.size = 0
+	}
+	return eFile, nil
 }
 
 type Attr struct {

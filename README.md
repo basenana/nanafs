@@ -33,8 +33,8 @@ The following storage options are already supported or planned to be supported:
 ### POSIX Compatibility
 
 NanaFS offers a file system interface that complies with the POSIX standard through FUSE.
-This makes it easy to mount NanaFS onto the directory tree and manage NanaFS data using tools such as Finder on Linux
-and MacOS operating systems.
+This makes it easy to mount NanaFS onto the directory tree and manage NanaFS data using tools such as Finder on MacOS
+and Linux.
 
 Additionally, NanaFS has passed the majority of pjdfstest's compatibility tests, ensuring compatibility with Linux/Unix
 systems.

@@ -14,27 +14,26 @@
  limitations under the License.
 */
 
-package plugin
+package stub
 
 import (
-	"context"
-	"github.com/basenana/nanafs/pkg/plugin/common"
 	"github.com/basenana/nanafs/pkg/types"
+	"time"
 )
 
-type Plugin interface {
-	Name() string
-	Type() types.PluginType
-	Version() string
+type Entry struct {
+	Name       string
+	Kind       types.Kind
+	Size       int64
+	IsGroup    bool
+	Parameters map[string]string
 }
 
-type RunnablePlugin interface {
-	Plugin
-	Run(ctx context.Context, request *common.Request, params map[string]string) (*common.Response, error)
+type EntryAttr struct {
+	Name string
+	Kind types.Kind
 }
 
-type pluginInfo struct {
-	Plugin
-	disable bool
-	buildIn bool
+type FreshOption struct {
+	LastFreshAt time.Time
 }

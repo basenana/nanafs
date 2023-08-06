@@ -14,13 +14,12 @@
  limitations under the License.
 */
 
-package config
+package utils
 
-type Workflow struct {
-	Enable     bool   `json:"enable"`
-	JobWorkdir string `json:"job_workdir"`
-}
+import (
+	"os"
+)
 
-type Plugin struct {
-	BasePath string `json:"base_path"`
-}
+const (
+	PathSeparator = string(os.PathSeparator)
+)

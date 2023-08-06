@@ -17,9 +17,16 @@
 package exec
 
 import (
+	"errors"
 	"fmt"
+	"github.com/basenana/go-flow/flow"
 	"os"
 	"path"
+)
+
+var (
+	OperatorNotFound  = errors.New("operator not found")
+	OperatorIsExisted = errors.New("operator is existed")
 )
 
 func initFlowWorkDir(base, flowID string) error {
@@ -56,4 +63,18 @@ func cleanUpFlowWorkDir(base, flowID string) error {
 
 func flowWorkdir(base, flowID string) string {
 	return path.Join(base, "flows", flowID)
+}
+
+func setTaskResult(data *flow.ResultData, taskName, result string) {
+	data.Result.Store(taskName, result)
+}
+
+func getTaskResult(data *flow.ResultData, taskName string) string {
+	rawResult, ok := data.Result.Load(taskName)
+	if ok {
+		if result, isStr := rawResult.(string); isStr {
+			return result
+		}
+	}
+	return ""
 }

@@ -17,16 +17,13 @@
 package workflow
 
 import (
-	"context"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/pkg/plugin/common"
+	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/storage"
-	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"os"
-	"sync"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
@@ -35,7 +32,6 @@ import (
 
 var (
 	stopCh   = make(chan struct{})
-	caller   = &pluginCaller{response: map[string]func() (*common.Response, error){}}
 	tempDir  string
 	entryMgr dentry.Manager
 	mgr      Manager
@@ -65,33 +61,14 @@ var _ = BeforeSuite(func() {
 		}},
 	})
 	Expect(err).Should(BeNil())
-	mgr, err = NewManager(entryMgr, memMeta, config.Workflow{Enable: true, JobWorkdir: tempDir})
-	Expect(err).Should(BeNil())
 
-	pluginCall = caller.call
+	// init plugin
+	Expect(plugin.Init(&config.Plugin{}, memMeta)).Should(BeNil())
+
+	mgr, err = NewManager(entryMgr, memMeta, config.Workflow{Enable: true, JobWorkdir: tempDir}, config.FUSE{})
+	Expect(err).Should(BeNil())
 })
 
 var _ = AfterSuite(func() {
 	close(stopCh)
 })
-
-type pluginCaller struct {
-	response map[string]func() (*common.Response, error)
-	mux      sync.Mutex
-}
-
-func (c *pluginCaller) mockResponse(ps types.PlugScope, getter func() (*common.Response, error)) {
-	c.mux.Lock()
-	defer c.mux.Unlock()
-	c.response[ps.PluginName] = getter
-}
-
-func (c *pluginCaller) call(ctx context.Context, ps types.PlugScope, req *common.Request) (*common.Response, error) {
-	c.mux.Lock()
-	defer c.mux.Unlock()
-	respGetter, ok := c.response[ps.PluginName]
-	if !ok {
-		return nil, types.ErrNotFound
-	}
-	return respGetter()
-}

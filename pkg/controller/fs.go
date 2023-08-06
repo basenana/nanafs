@@ -19,8 +19,10 @@ package controller
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/dispatch"
+	"github.com/basenana/nanafs/pkg/plugin"
 	"math"
 	"runtime/trace"
+	"sync"
 	"time"
 )
 
@@ -79,8 +81,21 @@ func (c *controller) SetupShutdownHandler(stopCh chan struct{}) chan struct{} {
 	shutdownSafe := make(chan struct{})
 	go func() {
 		<-stopCh
-		c.logger.Warn("waiting all entry closed")
-		c.entry.MustCloseAll()
+		wg := sync.WaitGroup{}
+		wg.Add(2)
+
+		go func() {
+			defer wg.Done()
+			c.logger.Warn("waiting all entry closed")
+			c.entry.MustCloseAll()
+		}()
+		go func() {
+			defer wg.Done()
+			c.logger.Warn("waiting all plugin shutdown")
+			plugin.MustShutdown()
+		}()
+
+		wg.Wait()
 		close(shutdownSafe)
 	}()
 	return shutdownSafe

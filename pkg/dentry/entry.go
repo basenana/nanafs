@@ -19,16 +19,19 @@ package dentry
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/rule"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils/logger"
 	"runtime/trace"
 	"sync"
 	"time"
 )
 
 const (
-	RootEntryID   = 1
-	RootEntryName = "root"
+	RootEntryID     = 1
+	RootEntryName   = "root"
+	externalStorage = "[ext]"
 )
 
 type Entry interface {
@@ -45,7 +48,11 @@ type Entry interface {
 }
 
 func buildEntry(obj *types.Object, store metastore.ObjectStore) Entry {
-	return instrumentalEntry{en: &rawEntry{obj: obj, store: store}}
+	var en Entry = &rawEntry{obj: obj, store: store}
+	if obj.Storage == externalStorage {
+		en = &extEntry{rawEntry: en.(*rawEntry)}
+	}
+	return instrumentalEntry{en: en}
 }
 
 type rawEntry struct {
@@ -147,12 +154,7 @@ func (r *rawEntry) RuleMatched(ctx context.Context, ruleSpec types.Rule) bool {
 }
 
 func (r *rawEntry) IsGroup() bool {
-	switch r.obj.Kind {
-	case types.GroupKind, types.SmartGroupKind, types.MirrorGroupKind:
-		return true
-	default:
-		return false
-	}
+	return types.IsGroup(r.obj.Kind)
 }
 
 func (r *rawEntry) IsMirror() bool {
@@ -166,13 +168,39 @@ func (r *rawEntry) Group() Group {
 			store: r.store,
 		}
 		switch r.obj.Kind {
-		case types.GroupKind:
-			return instrumentalGroup{Entry: instrumentalEntry{en: r}, grp: grp}
 		case types.SmartGroupKind:
 			return &dynamicGroup{stdGroup: grp}
-		case types.MirrorGroupKind:
-			return &mirroredGroup{stdGroup: grp}
 		}
+		return instrumentalGroup{Entry: instrumentalEntry{en: r}, grp: grp}
+	}
+	return nil
+}
+
+type extEntry struct {
+	*rawEntry
+}
+
+func (e *extEntry) IsMirror() bool {
+	return false
+}
+
+func (e *extEntry) Group() Group {
+	if e.IsGroup() {
+		ed, err := e.GetExtendData(context.TODO())
+		if err != nil || ed.PlugScope == nil {
+			logger.NewLogger("extEntry").Warnw("build ext group error, query extend data failed", "err", err, "hasPlugScope", ed.PlugScope != nil)
+			return emptyGroup{}
+		}
+
+		mirror, err := plugin.NewMirrorPlugin(context.TODO(), *ed.PlugScope)
+		if err != nil {
+			logger.NewLogger("extEntry").Warnw("build ext group error, new mirror plugin failed", "err", err, "pluginName", ed.PlugScope.PluginName)
+			return emptyGroup{}
+		}
+
+		grp := &stdGroup{Entry: e, store: e.store}
+		en := instrumentalEntry{en: e}
+		return instrumentalGroup{Entry: en, grp: &extGroup{stdGroup: grp, mirror: mirror}}
 	}
 	return nil
 }
@@ -197,7 +225,6 @@ func initRootEntryObject() *types.Object {
 func initMirrorEntryObject(src, newParent *types.Metadata, attr EntryAttr) (*types.Object, error) {
 	obj, err := types.InitNewObject(newParent, types.ObjectAttr{
 		Name:   attr.Name,
-		Dev:    attr.Dev,
 		Kind:   attr.Kind,
 		Access: attr.Access,
 	})

@@ -18,27 +18,24 @@ package flow
 
 import (
 	"fmt"
-	"github.com/basenana/go-flow/utils"
 	"sync"
+
+	"github.com/basenana/go-flow/utils"
 )
 
 type taskToward struct {
-	taskName        string
-	status          string
-	onSucceed       string
-	onFailed        string
-	activeOnFailure bool
+	taskName  string
+	status    string
+	onSucceed string
+	onFailed  string
 }
 
 type DAG struct {
 	// tasks contain all task
-	tasks map[string]taskToward
+	tasks map[string]*taskToward
 
 	// crtBatch contain current task batch need to trigger
-	crtBatch []taskToward
-
-	// onFailure contain all the tasks that need to be executed after a task failure
-	onFailure []taskToward
+	crtBatch []*taskToward
 
 	hasFailed bool
 	mux       sync.Mutex
@@ -59,7 +56,7 @@ func (g *DAG) updateTaskStatus(taskName, status string) {
 	return
 }
 
-func (g *DAG) nextBatchTasks() []taskToward {
+func (g *DAG) nextBatchTasks() []*taskToward {
 	g.mux.Lock()
 	defer g.mux.Unlock()
 	for _, t := range g.crtBatch {
@@ -69,7 +66,7 @@ func (g *DAG) nextBatchTasks() []taskToward {
 		}
 	}
 
-	nextBatch := make([]taskToward, 0)
+	nextBatch := make([]*taskToward, 0)
 	for _, t := range g.crtBatch {
 		if t.status == SucceedStatus && t.onSucceed != "" {
 			nextBatch = append(nextBatch, g.tasks[t.onSucceed])
@@ -84,28 +81,21 @@ func (g *DAG) nextBatchTasks() []taskToward {
 		return g.crtBatch
 	}
 
-	if g.hasFailed && len(g.onFailure) > 0 {
-		g.crtBatch = g.onFailure
-		g.onFailure = nil
-		return g.crtBatch
-	}
-
 	return nil
 }
 
 func buildDAG(tasks []Task) (*DAG, error) {
-	dag := &DAG{tasks: map[string]taskToward{}}
+	dag := &DAG{tasks: map[string]*taskToward{}}
 
 	for _, t := range tasks {
 		if _, exist := dag.tasks[t.Name]; exist {
 			return nil, fmt.Errorf("duplicate task %s definition", t.Name)
 		}
-		dag.tasks[t.Name] = taskToward{
-			taskName:        t.Name,
-			status:          t.Status,
-			onSucceed:       t.Next.OnSucceed,
-			onFailed:        t.Next.OnFailed,
-			activeOnFailure: t.ActiveOnFailure,
+		dag.tasks[t.Name] = &taskToward{
+			taskName:  t.Name,
+			status:    t.Status,
+			onSucceed: t.Next.OnSucceed,
+			onFailed:  t.Next.OnFailed,
 		}
 	}
 
@@ -130,10 +120,6 @@ func buildDAG(tasks []Task) (*DAG, error) {
 	firstTaskNameSet := utils.NewStringSet(firstTaskName...)
 	for i, t := range dag.tasks {
 		if firstTaskNameSet.Has(t.taskName) {
-			if t.activeOnFailure {
-				dag.onFailure = append(dag.onFailure, dag.tasks[i])
-				continue
-			}
 			dag.crtBatch = append(dag.crtBatch, dag.tasks[i])
 		}
 	}
@@ -207,7 +193,7 @@ func (t *taskDep) order(firstTask string, nextTasks []string) {
 	}
 }
 
-func newDagChecker(tasks map[string]taskToward) *taskDep {
+func newDagChecker(tasks map[string]*taskToward) *taskDep {
 	c := &taskDep{
 		taskSet:   utils.NewStringSet(),
 		taskEdges: map[string][]string{},

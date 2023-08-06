@@ -56,6 +56,8 @@ var (
 		},
 		[]string{"operation"},
 	)
+
+	MountDev uint64
 )
 
 func init() {
@@ -93,7 +95,7 @@ func Error2FuseSysError(operation string, err error) syscall.Errno {
 	return syscall.EIO
 }
 
-func idFromStat(dev uint64, st *syscall.Stat_t) fs.StableAttr {
+func idFromStat(st *syscall.Stat_t) fs.StableAttr {
 	//swapped := (uint64(st.Dev) << 32) | (uint64(st.Dev) >> 32)
 	//swappedRootDev := (dev << 32) | (dev >> 32)
 	return fs.StableAttr{
@@ -225,7 +227,7 @@ func modeFromFileKind(kind types.Kind) uint32 {
 	switch kind {
 	case types.RawKind:
 		return syscall.S_IFREG
-	case types.GroupKind:
+	case types.GroupKind, types.ExternalGroupKind:
 		return syscall.S_IFDIR
 	case types.SymLinkKind:
 		return syscall.S_IFLNK

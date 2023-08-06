@@ -14,13 +14,18 @@
  limitations under the License.
 */
 
-package config
+package plugin
 
-type Workflow struct {
-	Enable     bool   `json:"enable"`
-	JobWorkdir string `json:"job_workdir"`
-}
+import (
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+)
 
-type Plugin struct {
-	BasePath string `json:"base_path"`
-}
+var _ = Describe("TestProcessPlugin", func() {
+	Context("with a normal call", func() {
+		It("should be succeed", func() {
+			// TODO
+			Expect(nil).Should(BeNil())
+		})
+	})
+})

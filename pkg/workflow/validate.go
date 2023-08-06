@@ -14,10 +14,32 @@
  limitations under the License.
 */
 
-package utils
+package workflow
 
-import "os"
-
-const (
-	PathSeparator = string(os.PathSeparator)
+import (
+	"fmt"
+	"github.com/basenana/nanafs/pkg/types"
+	"regexp"
 )
+
+var (
+	workflowIDPattern = "^[A-zA-Z][a-zA-Z0-9-_.]{5,31}$"
+	wfIDRegexp        = regexp.MustCompile(workflowIDPattern)
+)
+
+func isValidID(idStr string) error {
+	if wfIDRegexp.MatchString(idStr) {
+		return nil
+	}
+	return fmt.Errorf("invalid ID, pattern: %s", workflowIDPattern)
+}
+
+func validateWorkflowSpec(spec *types.WorkflowSpec) error {
+	if spec.Id == "" {
+		return fmt.Errorf("workflow id is empty")
+	}
+	if spec.Name == "" {
+		return fmt.Errorf("workflow name is empty")
+	}
+	return nil
+}

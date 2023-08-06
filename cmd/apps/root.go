@@ -82,15 +82,15 @@ var daemonCmd = &cobra.Command{
 		bio.InitPageCache(cfg.FS)
 		storage.InitLocalCache(cfg)
 
+		if err := plugin.Init(cfg.Plugin, meta); err != nil {
+			panic(err)
+		}
+
 		ctrl, err := controller.New(loader, meta)
 		if err != nil {
 			panic(err)
 		}
 		stop := utils.HandleTerminalSignal()
-
-		if err := plugin.Init(cfg, meta); err != nil {
-			panic(err)
-		}
 
 		run(ctrl, cfg, stop)
 	},

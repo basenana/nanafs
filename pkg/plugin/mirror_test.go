@@ -14,36 +14,18 @@
  limitations under the License.
 */
 
-package adaptors
+package plugin
 
 import (
-	"fmt"
-	"github.com/basenana/nanafs/pkg/types"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
-const (
-	ExecTypeBin = "bin"
-)
-
-type BinPluginAdaptor struct {
-	spec types.PluginSpec
-}
-
-func (b BinPluginAdaptor) Name() string {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (b BinPluginAdaptor) Type() types.PluginType {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (b BinPluginAdaptor) Version() string {
-	//TODO implement me
-	panic("implement me")
-}
-
-func NewBinPluginAdaptor(spec types.PluginSpec) (*BinPluginAdaptor, error) {
-	return nil, fmt.Errorf("no support")
-}
+var _ = Describe("TestMirrorPlugin", func() {
+	Context("with a normal call", func() {
+		It("should be succeed", func() {
+			// TODO
+			Expect(nil).Should(BeNil())
+		})
+	})
+})

@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/utils"
+	"io"
 	"runtime/trace"
 	"sync"
 	"time"
@@ -190,6 +192,10 @@ func (m *manager) DestroyEntry(ctx context.Context, en Entry) error {
 
 func (m *manager) CleanEntryData(ctx context.Context, en Entry) error {
 	md := en.Metadata()
+	if md.Storage == externalStorage {
+		return nil
+	}
+
 	s, ok := m.storages[md.Storage]
 	if !ok {
 		return fmt.Errorf("storage %s not register", md.Storage)
@@ -286,6 +292,10 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntry, overwriteE
 		PublicEntryActionEvent(events.ActionTypeDestroy, overwriteEntry)
 	}
 
+	if oldParentMd.Kind == types.ExternalGroupKind || newParentMd.Kind == types.ExternalGroupKind {
+		return m.changeEntryParentByFileCopy(ctx, targetEntry, oldParent, newParent, newName, opt)
+	}
+
 	entryMd.Name = newName
 
 	oldParentMd.ChangedAt = time.Now()
@@ -306,10 +316,74 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntry, overwriteE
 	return nil
 }
 
+func (m *manager) changeEntryParentByFileCopy(ctx context.Context, targetEntry, oldParent, newParent Entry, newName string, _ ChangeParentAttr) error {
+	var (
+		targetMd = targetEntry.Metadata()
+	)
+
+	newParentEd, err := newParent.GetExtendData(ctx)
+	if err != nil {
+		m.logger.Errorw("change entry parent by file copy error, query new parent extend data failed", "err", err)
+		return err
+	}
+
+	if targetEntry.IsGroup() {
+		if oldParent.Metadata().ID == newParent.Metadata().ID {
+			// only rename
+			targetMd.Name = newName
+			err = m.store.SaveObjects(ctx, &types.Object{Metadata: *targetMd})
+			if err != nil {
+				m.logger.Errorw("change entry parent by file copy error, rename dir failed", "err", err)
+				return err
+			}
+			return nil
+		}
+		// TODO: move file with scheduled task
+		return types.ErrUnsupported
+	}
+
+	// step 1: create new file
+	attr := EntryAttr{
+		Name:      newName,
+		Kind:      targetMd.Kind,
+		Access:    targetMd.Access,
+		PlugScope: newParentEd.PlugScope,
+	}
+	en, err := m.CreateEntry(ctx, newParent, attr)
+	if err != nil {
+		m.logger.Errorw("change entry parent by file copy error, create new entry failed", "err", err)
+		return err
+	}
+
+	// step 2: copy old to new file
+	oldFileReader, err := m.Open(ctx, targetEntry, Attr{Read: true})
+	if err != nil {
+		m.logger.Errorw("change entry parent by file copy error, open old file failed", "err", err)
+		return err
+	}
+	newFileWriter, err := m.Open(ctx, en, Attr{Write: true})
+	if err != nil {
+		m.logger.Errorw("change entry parent by file copy error, open new file failed", "err", err)
+		return err
+	}
+	_, err = io.Copy(utils.NewWriterWithContextWriter(ctx, newFileWriter), utils.NewReaderWithContextReaderAt(ctx, oldFileReader))
+	if err != nil {
+		m.logger.Errorw("change entry parent by file copy error, copy file content failed", "err", err)
+		return err
+	}
+
+	// step 3: delete old file
+	if err = m.RemoveEntry(ctx, oldParent, targetEntry); err != nil {
+		m.logger.Errorw("change entry parent by file copy error, clean up old file failed", "err", err)
+		return err
+	}
+	return nil
+}
+
 func (m *manager) Open(ctx context.Context, en Entry, attr Attr) (File, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.Open").End()
 	md := en.Metadata()
-	if attr.Trunc {
+	if attr.Trunc && md.Storage != externalStorage {
 		if err := m.CleanEntryData(ctx, en); err != nil {
 			m.logger.Errorw("clean entry with trunc error", "entry", en.Metadata().ID, "err", err)
 		}
@@ -324,11 +398,21 @@ func (m *manager) Open(ctx context.Context, en Entry, attr Attr) (File, error) {
 		f   File
 		err error
 	)
-	switch md.Kind {
-	case types.SymLinkKind:
-		f, err = openSymlink(en, attr)
-	default:
-		f, err = openFile(en, attr, m.store, m.storages[en.Metadata().Storage], m.cacheReset, m.cfg.FS)
+	if md.Storage == externalStorage {
+		var ed types.ExtendData
+		ed, err = en.GetExtendData(ctx)
+		if err != nil {
+			m.logger.Errorw("get entry extend data failed", "entry", en.Metadata().ID, "err", err)
+			return nil, err
+		}
+		f, err = openExternalFile(en, ed.PlugScope, attr, m.store, m.cfg.FS)
+	} else {
+		switch md.Kind {
+		case types.SymLinkKind:
+			f, err = openSymlink(en, attr)
+		default:
+			f, err = openFile(en, attr, m.store, m.storages[en.Metadata().Storage], m.cacheReset, m.cfg.FS)
+		}
 	}
 	if err != nil {
 		return nil, err
@@ -358,10 +442,12 @@ func (m *manager) SetCacheResetter(r CacheResetter) {
 }
 
 type EntryAttr struct {
-	Name   string
-	Dev    int64
-	Kind   types.Kind
-	Access types.Access
+	Name        string
+	Kind        types.Kind
+	Access      types.Access
+	Dev         int64
+	PlugScope   *types.PlugScope
+	GroupFilter *types.Rule
 }
 
 type ChangeParentAttr struct {

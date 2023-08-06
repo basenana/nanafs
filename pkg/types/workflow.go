@@ -61,8 +61,7 @@ type WorkflowJobStep struct {
 }
 
 type WorkflowTarget struct {
-	EntryID *int64 `json:"entry_id,omitempty"`
-	Rule    *Rule  `json:"rule,omitempty"`
+	EntryID int64 `json:"entry_id"`
 }
 
 type WorkflowStepScript struct {

@@ -17,140 +17,95 @@
 package workflow
 
 import (
+	"bytes"
 	"context"
-	"fmt"
-	"github.com/basenana/go-flow/flow"
+	"github.com/basenana/go-flow/cfg"
+	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"io"
 	"os"
-	"path"
+	"runtime"
 	"time"
 )
 
+var (
+	defaultLinuxWorkdir = "/var/lib/nanafs/workflow"
+	wfLogger            *zap.SugaredLogger
+)
+
+func initWorkflowJobRootWorkdir(wfCfg *config.Workflow) error {
+	if wfCfg.JobWorkdir == "" {
+		switch runtime.GOOS {
+		case "linux":
+			wfCfg.JobWorkdir = defaultLinuxWorkdir
+		default:
+			wfCfg.JobWorkdir = os.TempDir()
+		}
+	}
+	wfLogger.Infof("job root workdir: %s", wfCfg.JobWorkdir)
+	cfg.LocalWorkdirBase = wfCfg.JobWorkdir
+	return os.MkdirAll(wfCfg.JobWorkdir, 0755)
+}
+
 func initWorkflow(wf *types.WorkflowSpec) *types.WorkflowSpec {
-	wf.Id = uuid.New().String()
+	if wf.Id == "" {
+		wf.Id = uuid.New().String()
+	}
 	wf.CreatedAt = time.Now()
 	wf.UpdatedAt = time.Now()
 	return wf
 }
 
-type storageWrapper struct {
-	recorder metastore.ScheduledTaskRecorder
-	logger   *zap.SugaredLogger
-}
-
-var _ flow.Storage = &storageWrapper{}
-
-func (s *storageWrapper) GetFlow(ctx context.Context, flowId string) (*flow.Flow, error) {
-	wfJob, err := s.recorder.ListWorkflowJob(ctx, types.JobFilter{JobID: flowId})
-	if err != nil {
-		s.logger.Errorw("load job failed", "err", err)
-		return nil, err
-	}
-	if len(wfJob) == 0 {
-		return nil, types.ErrNotFound
-	}
-	wf := wfJob[0]
-
-	return assembleFlow(wf)
-}
-
-func (s *storageWrapper) SaveFlow(ctx context.Context, flow *flow.Flow) error {
-	wfJob, err := s.recorder.ListWorkflowJob(ctx, types.JobFilter{JobID: flow.ID})
-	if err != nil {
-		return fmt.Errorf("query workflow job failed: %s", err)
-	}
-	if len(wfJob) == 0 {
-		return fmt.Errorf("query workflow job failed: %s not found", flow.ID)
-	}
-	wf := wfJob[0]
-
-	wf.Status = flow.Status
-	wf.Message = flow.Message
-	for i, step := range wf.Steps {
-		for _, task := range flow.Tasks {
-			if step.StepName == task.Name {
-				wf.Steps[i].Status = task.Status
-				wf.Steps[i].Message = task.Message
-				break
-			}
-		}
-	}
-	wf.UpdatedAt = time.Now()
-
-	err = s.recorder.SaveWorkflowJob(ctx, wf)
-	if err != nil {
-		s.logger.Errorw("save job to metadb failed", "err", err)
-		return err
-	}
-
-	return nil
-}
-
-func (s *storageWrapper) DeleteFlow(ctx context.Context, flowId string) error {
-	err := s.recorder.DeleteWorkflowJob(ctx, flowId)
-	if err != nil {
-		s.logger.Errorw("delete job to metadb failed", "err", err)
-		return err
-	}
-	return nil
-}
-
-func (s *storageWrapper) SaveTask(ctx context.Context, flowId string, task *flow.Task) error {
-	flowJob, err := s.GetFlow(ctx, flowId)
-	if err != nil {
-		return err
-	}
-
-	for i, t := range flowJob.Tasks {
-		if t.Name == task.Name {
-			flowJob.Tasks[i] = *task
-			break
-		}
-	}
-
-	return s.SaveFlow(ctx, flowJob)
-}
-
-func copyEntryToJobWorkDir(ctx context.Context, workDir, entryPath string, entry dentry.File) (string, error) {
-	if entryPath == "" {
-		entryPath = entry.Metadata().Name
-	}
-	filePath := path.Join(workDir, entryPath)
-	f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0755)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	if err = f.Truncate(0); err != nil {
-		return "", err
+func entryID2FusePath(ctx context.Context, entryID int64, mgr dentry.Manager, fuseCfg config.FUSE) (string, error) {
+	if !fuseCfg.Enable || fuseCfg.RootPath == "" {
+		return "", nil
 	}
 
 	var (
-		buf = make([]byte, 1024)
-		off int64
+		parent dentry.Entry
+		err    error
+
+		reversedNames []string
 	)
 	for {
-		n, rErr := entry.ReadAt(ctx, buf, off)
-		if n > 0 {
-			_, wErr := f.Write(buf[:n])
-			if wErr != nil {
-				return "", wErr
-			}
-			off += n
+		parent, err = mgr.GetEntry(ctx, entryID)
+		if err != nil {
+			return "", err
 		}
-		if rErr != nil {
-			if rErr == io.EOF {
-				break
-			}
-			return "", rErr
+		entryID = parent.Metadata().ParentID
+		if entryID == 0 {
+			return "", types.ErrNotFound
 		}
+		if entryID == 1 {
+			break
+		}
+		reversedNames = append(reversedNames, parent.Metadata().Name)
 	}
 
-	return filePath, nil
+	buf := &bytes.Buffer{}
+	buf.WriteString("/")
+	for i := len(reversedNames) - 1; i >= 0; i -= 1 {
+		buf.WriteString("/")
+		buf.WriteString(reversedNames[i])
+	}
+
+	return buf.String(), nil
+}
+
+func copyEntryToJobWorkDir(ctx context.Context, entryPath string, entry dentry.File) error {
+	if entryPath == "" {
+		entryPath = entry.Metadata().Name
+	}
+	f, err := os.OpenFile(entryPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	_, err = io.Copy(utils.NewWriterWithContextWriter(ctx, entry), f)
+	return err
 }

@@ -129,9 +129,9 @@ func (c *controller) CreateEntry(ctx context.Context, parent dentry.Entry, attr 
 
 	entry, err := c.entry.CreateEntry(ctx, parent, dentry.EntryAttr{
 		Name:   attr.Name,
-		Dev:    attr.Dev,
 		Kind:   attr.Kind,
 		Access: attr.Access,
+		Dev:    attr.Dev,
 	})
 	if err != nil {
 		c.logger.Errorw("create entry error", "parent", parent.Metadata().ID, "entryName", attr.Name, "err", err.Error())
@@ -206,7 +206,6 @@ func (c *controller) MirrorEntry(ctx context.Context, src, dstParent dentry.Entr
 
 	entry, err := c.entry.MirrorEntry(ctx, src, dstParent, dentry.EntryAttr{
 		Name:   attr.Name,
-		Dev:    attr.Dev,
 		Kind:   attr.Kind,
 		Access: attr.Access,
 	})
@@ -298,6 +297,12 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	ctl.workflow, err = workflow.NewManager(ctl.entry, meta, cfg.Workflow, cfg.FUSE)
+	if err != nil {
+		return nil, err
+	}
+
 	ctl.entry.SetCacheResetter(ctl.cache)
 	return ctl, nil
 }

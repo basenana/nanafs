@@ -29,6 +29,9 @@ type PluginSpec struct {
 	Name       string            `json:"name"`
 	Version    string            `json:"version"`
 	Type       PluginType        `json:"type"`
-	Path       string            `json:"path,omitempty"`
 	Parameters map[string]string `json:"parameters"`
+
+	Adaptor  string `json:"adaptor"`
+	Path     string `json:"path,omitempty"`     // goplugin
+	Operator string `json:"operator,omitempty"` // goflow
 }

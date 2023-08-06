@@ -35,7 +35,7 @@ func TestPlugin(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	// init plugin plugins
+	// init plugin registry
 	mem, _ := metastore.NewMetaStorage(storage.MemoryStorage, config.Meta{})
-	Expect(Init(config.Config{Plugin: &config.Plugin{DummyPlugins: true}}, mem)).Should(BeNil())
+	Expect(Init(&config.Plugin{}, mem)).Should(BeNil())
 })

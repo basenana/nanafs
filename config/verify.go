@@ -19,6 +19,12 @@ package config
 import (
 	"fmt"
 	"os"
+	"regexp"
+)
+
+var (
+	storageIDPattern = "^[A-zA-Z][a-zA-Z0-9-_.]{3,31}$"
+	storageIDRegexp  = regexp.MustCompile(storageIDPattern)
 )
 
 type verifier func(config *Config) error
@@ -143,6 +149,9 @@ func checkEncryptionConfig(enCfg Encryption) error {
 func checkStorageConfig(sConfig Storage) error {
 	if sConfig.ID == "" {
 		return fmt.Errorf("storage.id is empty")
+	}
+	if !storageIDRegexp.MatchString(sConfig.ID) {
+		return fmt.Errorf("storage.id must match %s", storageIDPattern)
 	}
 	switch sConfig.Type {
 	case MemoryStorage:

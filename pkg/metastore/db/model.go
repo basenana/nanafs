@@ -40,8 +40,9 @@ type Object struct {
 	RefID      int64  `gorm:"column:ref_id;index:ref_id"`
 	RefCount   int    `gorm:"column:ref_count"`
 	Kind       string `gorm:"column:kind"`
-	Hash       string `gorm:"column:hash"`
+	KindMap    int64  `gorm:"column:kind_map"`
 	Size       int64  `gorm:"column:size"`
+	Version    int64  `gorm:"column:version"`
 	Dev        int64  `gorm:"column:dev"`
 	Owner      int64  `gorm:"column:owner"`
 	GroupOwner int64  `gorm:"column:group_owner"`
@@ -66,8 +67,9 @@ func (o *Object) Update(obj *types.Object) {
 	o.RefID = obj.RefID
 	o.RefCount = obj.RefCount
 	o.Kind = string(obj.Kind)
-	o.Hash = obj.Hash
+	o.KindMap = obj.KindMap
 	o.Size = obj.Size
+	o.Version = obj.Version
 	o.Dev = obj.Dev
 	o.Storage = obj.Storage
 	o.Namespace = obj.Namespace
@@ -90,8 +92,9 @@ func (o *Object) Object() *types.Object {
 			RefID:      o.RefID,
 			RefCount:   o.RefCount,
 			Kind:       types.Kind(o.Kind),
-			Hash:       o.Hash,
+			KindMap:    o.KindMap,
 			Size:       o.Size,
+			Version:    o.Version,
 			Dev:        o.Dev,
 			Storage:    o.Storage,
 			Namespace:  o.Namespace,
@@ -146,7 +149,7 @@ func (o *ObjectExtend) Update(obj *types.Object) {
 		if obj.ExtendData.GroupFilter != nil {
 			o.GroupFilter, _ = json.Marshal(obj.ExtendData.GroupFilter)
 		}
-		if obj.ExtendData.GroupFilter != nil {
+		if obj.ExtendData.PlugScope != nil {
 			o.PlugScope, _ = json.Marshal(obj.ExtendData.PlugScope)
 		}
 	}
@@ -321,9 +324,7 @@ func (o *WorkflowJob) Update(job *types.WorkflowJob) error {
 	if err != nil {
 		return fmt.Errorf("marshal workflow job target failed: %s", err)
 	}
-	if job.Target.EntryID != nil {
-		o.TargetEntry = *job.Target.EntryID
-	}
+	o.TargetEntry = job.Target.EntryID
 	o.Target = string(rawTarget)
 
 	rawStep, err := json.Marshal(job.Steps)

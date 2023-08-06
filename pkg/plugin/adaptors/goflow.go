@@ -17,31 +17,33 @@
 package adaptors
 
 import (
+	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
 )
 
 const (
-	AdaptorTypeGoPlugin = "goplugin"
+	AdaptorTypeGoFlow = "goflow"
 )
 
-type GoPluginAdaptor struct {
+type GoFlowPluginAdaptor struct {
+	spec types.PluginSpec
 }
 
-func (g GoPluginAdaptor) Name() string {
+func (b GoFlowPluginAdaptor) Name() string {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (g GoPluginAdaptor) Type() types.PluginType {
+func (b GoFlowPluginAdaptor) Type() types.PluginType {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (g GoPluginAdaptor) Version() string {
+func (b GoFlowPluginAdaptor) Version() string {
 	//TODO implement me
 	panic("implement me")
 }
 
-func NewGoPluginAdaptor(spec types.PluginSpec, scope types.PlugScope) (*GoPluginAdaptor, error) {
-	return &GoPluginAdaptor{}, nil
+func NewGoFlowPluginAdaptor(spec types.PluginSpec, scope types.PlugScope) (*GoFlowPluginAdaptor, error) {
+	return nil, fmt.Errorf("no support")
 }

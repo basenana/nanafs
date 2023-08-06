@@ -48,6 +48,11 @@ func nanaNode2Stat(entry dentry.Entry) *syscall.Stat_t {
 	accMod := dentry.Access2Mode(meta.Access)
 	mode |= accMod
 
+	rdev := int32(MountDev)
+	if meta.Dev != 0 {
+		rdev = int32(meta.Dev)
+	}
+
 	return &syscall.Stat_t{
 		Size:      meta.Size,
 		Blocks:    meta.Size/fileBlockSize + 1,
@@ -60,7 +65,7 @@ func nanaNode2Stat(entry dentry.Entry) *syscall.Stat_t {
 		Nlink:     uint16(meta.RefCount),
 		Uid:       uint32(meta.Access.UID),
 		Gid:       uint32(meta.Access.GID),
-		Rdev:      int32(meta.Dev),
+		Rdev:      rdev,
 	}
 }
 

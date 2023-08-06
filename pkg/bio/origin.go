@@ -14,34 +14,42 @@
  limitations under the License.
 */
 
-package adaptors
+package bio
 
 import (
-	"github.com/basenana/nanafs/pkg/types"
+	"context"
 )
 
-const (
-	AdaptorTypeGoPlugin = "goplugin"
-)
+type originReader struct{}
 
-type GoPluginAdaptor struct {
-}
-
-func (g GoPluginAdaptor) Name() string {
+func (o originReader) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (g GoPluginAdaptor) Type() types.PluginType {
+func (o originReader) Close() {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (g GoPluginAdaptor) Version() string {
+type originWriter struct{}
+
+func (o originWriter) WriteAt(ctx context.Context, data []byte, off int64) (int64, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func NewGoPluginAdaptor(spec types.PluginSpec, scope types.PlugScope) (*GoPluginAdaptor, error) {
-	return &GoPluginAdaptor{}, nil
+func (o originWriter) Flush(ctx context.Context) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (o originWriter) Fsync(ctx context.Context) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (o originWriter) Close() {
+	//TODO implement me
+	panic("implement me")
 }

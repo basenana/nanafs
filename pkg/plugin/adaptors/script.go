@@ -17,12 +17,11 @@
 package adaptors
 
 import (
-	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
 )
 
 const (
-	ExecTypeScript = "script"
+	AdaptorTypeScriptPlugin = "script"
 )
 
 type ScriptPluginAdaptor struct {
@@ -43,6 +42,6 @@ func (s ScriptPluginAdaptor) Version() string {
 	panic("implement me")
 }
 
-func NewScriptAdaptor(spec types.PluginSpec) (*ScriptPluginAdaptor, error) {
-	return nil, fmt.Errorf("no support")
+func NewScriptPluginAdaptor(spec types.PluginSpec, scope types.PlugScope) (*GoPluginAdaptor, error) {
+	return &GoPluginAdaptor{}, nil
 }

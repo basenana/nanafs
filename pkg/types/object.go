@@ -46,9 +46,10 @@ type Metadata struct {
 	RefID      int64     `json:"ref_id,omitempty"`
 	RefCount   int       `json:"ref_count,omitempty"`
 	Kind       Kind      `json:"kind"`
-	Hash       string    `json:"hash"`
+	KindMap    int64     `json:"kind_map"`
 	Size       int64     `json:"size"`
 	Inode      uint64    `json:"inode"`
+	Version    int64     `json:"version"`
 	Dev        int64     `json:"dev"`
 	Namespace  string    `json:"namespace,omitempty"`
 	Storage    string    `json:"storage"`
@@ -65,6 +66,8 @@ func NewMetadata(name string, kind Kind) Metadata {
 		Name:       name,
 		Namespace:  objectDefaultNamespace,
 		Kind:       kind,
+		KindMap:    KindMap(kind),
+		Version:    1,
 		RefCount:   1,
 		CreatedAt:  time.Now(),
 		AccessAt:   time.Now(),
@@ -85,10 +88,18 @@ type ExtendData struct {
 	PlugScope   *PlugScope `json:"plug_scope,omitempty"`
 }
 
+const (
+	PlugScopeEntryName     = "entry.name"
+	PlugScopeEntryPath     = "entry.path" // relative path
+	PlugScopeWorkflowID    = "workflow.id"
+	PlugScopeWorkflowJobID = "workflow.job.id"
+)
+
 type PlugScope struct {
 	PluginName string            `json:"plugin_name"`
 	Version    string            `json:"version"`
 	PluginType PluginType        `json:"plugin_type"`
+	Action     string            `json:"action,omitempty"`
 	Parameters map[string]string `json:"parameters"`
 }
 
@@ -201,7 +212,6 @@ func InitNewObject(parent *Metadata, attr ObjectAttr) (*Object, error) {
 		UID:         attr.Access.UID,
 		GID:         attr.Access.GID,
 	}
-	md.Dev = attr.Dev
 
 	newObj := &Object{
 		Metadata: md,

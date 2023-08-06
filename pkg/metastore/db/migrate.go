@@ -58,6 +58,15 @@ func buildMigrations() []*gormigrate.Migration {
 				return db.Migrator().DropTable(&Workflow{}, &WorkflowJob{}, &Notification{})
 			},
 		},
+		{
+			ID: "2023072200",
+			Migrate: func(db *gorm.DB) error {
+				return db.AutoMigrate(&Object{})
+			},
+			Rollback: func(db *gorm.DB) error {
+				return nil
+			},
+		},
 	}
 }
 
