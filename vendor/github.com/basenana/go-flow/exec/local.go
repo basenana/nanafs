@@ -19,51 +19,34 @@ package exec
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
-	"github.com/basenana/go-flow/cfg"
-	"github.com/basenana/go-flow/flow"
-	"github.com/basenana/go-flow/utils"
 	"os"
 	"os/exec"
 	"path"
-	"sync"
 	"time"
+
+	"github.com/basenana/go-flow/cfg"
+	"github.com/basenana/go-flow/flow"
+	"github.com/basenana/go-flow/utils"
 )
 
 const (
-	ShellOperator    = "shell"
-	PythonOperator   = "python"
-	MySQLOperator    = "mysql"
-	PostgresOperator = "postgres"
+	ShellOperator  = "shell"
+	PythonOperator = "python"
 )
 
-var (
-	OperatorNotFound  = errors.New("operator not found")
-	OperatorIsExisted = errors.New("operator is existed")
+func NewLocalOperatorBuilderRegister() *Registry {
+	r := NewPipeOperatorBuilderRegister()
+	_ = r.Register(ShellOperator, newLocalShellOperator)
+	_ = r.Register(PythonOperator, newLocalPythonOperator)
 
-	localOperatorBuilder = map[string]func(operatorSpec flow.Spec) (flow.Operator, error){
-		ShellOperator:    newLocalShellOperator,
-		PythonOperator:   newLocalPythonOperator,
-		MySQLOperator:    newLocalMySQLOperator,
-		PostgresOperator: newLocalPostgresOperator,
-	}
-	localOperatorBuilderMux sync.Mutex
-)
-
-func RegisterLocalOperatorBuilder(name string, builder func(operatorSpec flow.Spec) (flow.Operator, error)) error {
-	localOperatorBuilderMux.Lock()
-	defer localOperatorBuilderMux.Unlock()
-	if _, ok := localOperatorBuilder[name]; ok {
-		return OperatorIsExisted
-	}
-	localOperatorBuilder[name] = builder
-	return nil
+	return r
 }
 
 type LocalExecutor struct {
-	flow   *flow.Flow
-	logger utils.Logger
+	flow     *flow.Flow
+	registry *Registry
+	logger   utils.Logger
 }
 
 func (l *LocalExecutor) Setup(ctx context.Context) error {
@@ -81,22 +64,21 @@ func (l *LocalExecutor) Teardown(ctx context.Context) {
 	}
 }
 
-func (l *LocalExecutor) DoOperation(ctx context.Context, operatorSpec flow.Spec) error {
-	localOperatorBuilderMux.Lock()
-	builder, ok := localOperatorBuilder[operatorSpec.Type]
-	localOperatorBuilderMux.Unlock()
-	if !ok {
-		return OperatorNotFound
+func (l *LocalExecutor) DoOperation(ctx context.Context, task flow.Task, operatorSpec flow.Spec) error {
+	builder, err := l.registry.FindBuilder(operatorSpec.Type)
+	if err != nil {
+		return err
 	}
-	operator, err := builder(operatorSpec)
+	operator, err := builder(task, operatorSpec)
 	if err != nil {
 		l.logger.Errorf("build operator %s failed: %s", operatorSpec.Type, err)
 		return err
 	}
 
-	param := flow.Parameter{
+	param := &flow.Parameter{
 		FlowID:  l.flow.ID,
 		Workdir: flowWorkdir(cfg.LocalWorkdirBase, l.flow.ID),
+		Result:  &flow.ResultData{},
 	}
 	err = operator.Do(ctx, param)
 	if err != nil {
@@ -106,8 +88,12 @@ func (l *LocalExecutor) DoOperation(ctx context.Context, operatorSpec flow.Spec)
 	return nil
 }
 
-func NewLocalExecutor(flow *flow.Flow) flow.Executor {
-	return &LocalExecutor{flow: flow, logger: utils.NewLogger("local").With(flow.ID)}
+func NewLocalExecutor(flow *flow.Flow, registry *Registry) flow.Executor {
+	return &LocalExecutor{
+		flow:     flow,
+		registry: registry,
+		logger:   utils.NewLogger("local").With(flow.ID),
+	}
 }
 
 type localShellOperator struct {
@@ -115,7 +101,7 @@ type localShellOperator struct {
 	spec    flow.Spec
 }
 
-func (l *localShellOperator) Do(ctx context.Context, param flow.Parameter) error {
+func (l *localShellOperator) Do(ctx context.Context, param *flow.Parameter) error {
 	command := l.command
 	if command == "" {
 		command = "sh"
@@ -124,7 +110,7 @@ func (l *localShellOperator) Do(ctx context.Context, param flow.Parameter) error
 	shellFile := fmt.Sprintf("script_%d.sh", time.Now().Unix())
 	shellFilePath := path.Join(param.Workdir, shellFile)
 
-	if l.spec.Script != nil && l.spec.Script.Content != "" {
+	if l.spec.Script.Content != "" {
 		shF, err := os.Create(shellFilePath)
 		if err != nil {
 			return err
@@ -158,7 +144,7 @@ func (l *localShellOperator) Do(ctx context.Context, param flow.Parameter) error
 	}
 
 	env := os.Environ()
-	for k, v := range l.spec.Env {
+	for k, v := range l.spec.Script.Env {
 		env = append(env, fmt.Sprintf("%s=%s", k, v))
 	}
 	cmd.Env = env
@@ -172,7 +158,10 @@ func (l *localShellOperator) Do(ctx context.Context, param flow.Parameter) error
 	return nil
 }
 
-func newLocalShellOperator(operatorSpec flow.Spec) (flow.Operator, error) {
+func newLocalShellOperator(task flow.Task, operatorSpec flow.Spec) (flow.Operator, error) {
+	if operatorSpec.Script == nil {
+		return nil, fmt.Errorf("shell is nil")
+	}
 	return &localShellOperator{spec: operatorSpec}, nil
 }
 
@@ -180,7 +169,7 @@ type localPythonOperator struct {
 	spec flow.Spec
 }
 
-func (l *localPythonOperator) Do(ctx context.Context, param flow.Parameter) error {
+func (l *localPythonOperator) Do(ctx context.Context, param *flow.Parameter) error {
 	pythonBin := "python"
 	if cfg.LocalPythonVersion == "3" {
 		pythonBin = "python3"
@@ -189,28 +178,6 @@ func (l *localPythonOperator) Do(ctx context.Context, param flow.Parameter) erro
 	return op.Do(ctx, param)
 }
 
-func newLocalPythonOperator(operatorSpec flow.Spec) (flow.Operator, error) {
+func newLocalPythonOperator(task flow.Task, operatorSpec flow.Spec) (flow.Operator, error) {
 	return &localPythonOperator{spec: operatorSpec}, nil
-}
-
-type localMySQLOperator struct{}
-
-func (l *localMySQLOperator) Do(ctx context.Context, param flow.Parameter) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func newLocalMySQLOperator(operatorSpec flow.Spec) (flow.Operator, error) {
-	return &localMySQLOperator{}, nil
-}
-
-type localPostgresOperator struct{}
-
-func (l *localPostgresOperator) Do(ctx context.Context, param flow.Parameter) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func newLocalPostgresOperator(operatorSpec flow.Spec) (flow.Operator, error) {
-	return &localPostgresOperator{}, nil
 }

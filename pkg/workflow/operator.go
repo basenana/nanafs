@@ -25,7 +25,10 @@ import (
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/plugin/stub"
 	"github.com/basenana/nanafs/pkg/types"
+	"os"
+	"path"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -35,18 +38,22 @@ const (
 )
 
 func registerOperators(entryMgr dentry.Manager) error {
-	b := operatorBuilder{
-		entryMgr: entryMgr,
-	}
-	if err := exec.RegisterLocalOperatorBuilder(opEntryInit, b.buildEntryInitOperator); err != nil && err != exec.OperatorIsExisted {
+	b := operatorBuilder{entryMgr: entryMgr}
+	r := exec.NewLocalOperatorBuilderRegister()
+
+	if err := r.Register(opEntryInit, b.buildEntryInitOperator); err != nil && err != exec.OperatorIsExisted {
 		return err
 	}
-	if err := exec.RegisterLocalOperatorBuilder(opEntryCollect, b.buildEntryCollectOperator); err != nil && err != exec.OperatorIsExisted {
+	if err := r.Register(opEntryCollect, b.buildEntryCollectOperator); err != nil && err != exec.OperatorIsExisted {
 		return err
 	}
-	if err := exec.RegisterLocalOperatorBuilder(opPluginCall, b.buildPluginCallOperator); err != nil && err != exec.OperatorIsExisted {
+	if err := r.Register(opPluginCall, b.buildPluginCallOperator); err != nil && err != exec.OperatorIsExisted {
 		return err
 	}
+
+	flow.RegisterExecutorBuilder("local", func(flow *flow.Flow) flow.Executor {
+		return exec.NewLocalExecutor(flow, r)
+	})
 	return nil
 }
 
@@ -54,45 +61,52 @@ type operatorBuilder struct {
 	entryMgr dentry.Manager
 }
 
-func (b *operatorBuilder) buildEntryInitOperator(operatorSpec flow.Spec) (flow.Operator, error) {
+func (b *operatorBuilder) buildEntryInitOperator(task flow.Task, operatorSpec flow.Spec) (flow.Operator, error) {
 	op := &entryInitOperator{
 		entryMgr:  b.entryMgr,
-		entryPath: operatorSpec.Parameter[paramEntryPathKey],
+		entryPath: operatorSpec.Parameters[paramEntryPathKey],
 	}
 
-	entryIDStr := operatorSpec.Parameter[paramEntryIdKey]
-	if entryIDStr != "" {
-		entryID, err := strconv.ParseInt(entryIDStr, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("parse entry id failed: %s", err)
-		}
-		op.entryID = entryID
+	entryIDStr := operatorSpec.Parameters[paramEntryIdKey]
+	entryID, err := strconv.ParseInt(entryIDStr, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("parse entry id failed: %s", err)
 	}
+	op.entryID = entryID
 	return op, nil
 }
 
-func (b *operatorBuilder) buildEntryCollectOperator(operatorSpec flow.Spec) (flow.Operator, error) {
+func (b *operatorBuilder) buildEntryCollectOperator(task flow.Task, operatorSpec flow.Spec) (flow.Operator, error) {
 	return &entryCollectOperator{}, nil
 }
 
-func (b *operatorBuilder) buildPluginCallOperator(operatorSpec flow.Spec) (flow.Operator, error) {
+func (b *operatorBuilder) buildPluginCallOperator(task flow.Task, operatorSpec flow.Spec) (flow.Operator, error) {
+	entryIDStr := operatorSpec.Parameters[paramEntryIdKey]
+	entryID, err := strconv.ParseInt(entryIDStr, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
 	return &pluginCallOperator{
 		plugin: types.PlugScope{
-			PluginName: operatorSpec.Parameter[paramPluginName],
-			Version:    operatorSpec.Parameter[paramPluginVersion],
-			PluginType: types.PluginType(operatorSpec.Parameter[paramPluginType]),
-			Parameters: operatorSpec.Parameter,
+			PluginName: operatorSpec.Parameters[paramPluginName],
+			Version:    operatorSpec.Parameters[paramPluginVersion],
+			PluginType: types.PluginType(operatorSpec.Parameters[paramPluginType]),
+			Action:     operatorSpec.Parameters[paramPluginAction],
+			Parameters: operatorSpec.Parameters,
 		},
-		entryPath: "",
+		entryID:   entryID,
+		entryPath: operatorSpec.Parameters[paramEntryPathKey],
 	}, nil
 }
 
 const (
-	paramEntryIdKey    = "nanafs.internal.entry_id"
-	paramEntryPathKey  = "nanafs.internal.entry_path"
-	paramPluginName    = "nanafs.internal.plugin_name"
-	paramPluginVersion = "nanafs.internal.plugin_version"
-	paramPluginType    = "nanafs.internal.plugin_type"
+	paramEntryIdKey    = "nanafs.workflow.entry_id"
+	paramEntryPathKey  = "nanafs.workflow.entry_path"
+	paramPluginName    = "nanafs.workflow.plugin_name"
+	paramPluginVersion = "nanafs.workflow.plugin_version"
+	paramPluginType    = "nanafs.workflow.plugin_type"
+	paramPluginAction  = "nanafs.workflow.plugin_action"
 )
 
 type entryInitOperator struct {
@@ -101,7 +115,26 @@ type entryInitOperator struct {
 	entryPath string
 }
 
-func (e *entryInitOperator) Do(ctx context.Context, param flow.Parameter) error {
+func (e *entryInitOperator) Do(ctx context.Context, param *flow.Parameter) error {
+	entryPath := e.entryPath
+	if !path.IsAbs(e.entryPath) {
+		entryPath = path.Join(param.Workdir, path.Base(e.entryPath))
+	}
+
+	enInfo, err := os.Stat(entryPath)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	if enInfo != nil {
+		return nil
+	}
+
+	if !strings.HasPrefix(entryPath, param.Workdir) {
+		wfLogger.Warnf("init entry unexpected, entryPath=%s, workdir=%s", entryPath, param.Workdir)
+		return types.ErrNotFound
+	}
+
 	entry, err := e.entryMgr.GetEntry(ctx, e.entryID)
 	if err != nil {
 		return fmt.Errorf("load entry failed: %s", err)
@@ -110,9 +143,9 @@ func (e *entryInitOperator) Do(ctx context.Context, param flow.Parameter) error 
 	if err != nil {
 		return fmt.Errorf("open entry failed: %s", err)
 	}
-
 	defer f.Close(ctx)
-	if _, err = copyEntryToJobWorkDir(ctx, param.Workdir, e.entryPath, f); err != nil {
+
+	if err = copyEntryToJobWorkDir(ctx, entryPath, f); err != nil {
 		return fmt.Errorf("copy entry file failed: %s", err)
 	}
 	return nil
@@ -120,21 +153,29 @@ func (e *entryInitOperator) Do(ctx context.Context, param flow.Parameter) error 
 
 type entryCollectOperator struct{}
 
-func (e *entryCollectOperator) Do(ctx context.Context, param flow.Parameter) error {
+func (e *entryCollectOperator) Do(ctx context.Context, param *flow.Parameter) error {
 	return nil
 }
 
 type pluginCallOperator struct {
 	plugin    types.PlugScope
+	entryID   int64
 	entryPath string
 }
 
-func (e *pluginCallOperator) Do(ctx context.Context, param flow.Parameter) error {
+func (e *pluginCallOperator) Do(ctx context.Context, param *flow.Parameter) error {
 	req := stub.NewRequest()
 	req.WorkPath = param.Workdir
+	req.EntryId = e.entryID
 	req.EntryPath = e.entryPath
-	_, err := pluginCall(ctx, e.plugin, req)
-	return err
+	req.Action = e.plugin.Action
+	req.Parameter = e.plugin.Parameters
+	resp, err := plugin.Call(ctx, e.plugin, req)
+	if err != nil {
+		return fmt.Errorf("plugin action error: %s", err)
+	}
+	if !resp.IsSucceed {
+		return fmt.Errorf("plugin action failed: %s", resp.Message)
+	}
+	return nil
 }
-
-var pluginCall = plugin.Call

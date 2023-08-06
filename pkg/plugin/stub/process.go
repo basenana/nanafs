@@ -19,8 +19,9 @@ package stub
 type Request struct {
 	Action    string
 	WorkPath  string
+	EntryId   int64
 	EntryPath string
-	Entry     Entry
+	Parameter map[string]string
 }
 
 func NewRequest() *Request {

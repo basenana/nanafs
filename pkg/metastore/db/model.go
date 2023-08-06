@@ -324,9 +324,7 @@ func (o *WorkflowJob) Update(job *types.WorkflowJob) error {
 	if err != nil {
 		return fmt.Errorf("marshal workflow job target failed: %s", err)
 	}
-	if job.Target.EntryID != nil {
-		o.TargetEntry = *job.Target.EntryID
-	}
+	o.TargetEntry = job.Target.EntryID
 	o.Target = string(rawTarget)
 
 	rawStep, err := json.Marshal(job.Steps)

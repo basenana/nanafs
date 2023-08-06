@@ -87,37 +87,39 @@ func NewWriterWithOffset(writer io.WriterAt, off int64) io.Writer {
 }
 
 type wrapperContextReader struct {
+	ctx context.Context
 	r   ContextReaderAt
 	off int64
 }
 
 func (w *wrapperContextReader) Read(p []byte) (n int, err error) {
 	var n64 int64
-	n64, err = w.r.ReadAt(context.TODO(), p, w.off)
+	n64, err = w.r.ReadAt(w.ctx, p, w.off)
 	w.off += n64
 	n = int(n64)
 	return
 }
 
-func NewReaderWithContextReaderAt(reader ContextReaderAt) io.Reader {
-	return &wrapperContextReader{r: reader}
+func NewReaderWithContextReaderAt(ctx context.Context, reader ContextReaderAt) io.Reader {
+	return &wrapperContextReader{ctx: ctx, r: reader}
 }
 
 type wrapperContextWriter struct {
+	ctx context.Context
 	w   ContextWriterAt
 	off int64
 }
 
 func (w *wrapperContextWriter) Write(p []byte) (n int, err error) {
 	var n64 int64
-	n64, err = w.w.WriteAt(context.TODO(), p, w.off)
+	n64, err = w.w.WriteAt(w.ctx, p, w.off)
 	w.off += n64
 	n = int(n64)
 	return
 }
 
-func NewWriterWithContextWriter(writer ContextWriterAt) io.Writer {
-	return &wrapperContextWriter{w: writer}
+func NewWriterWithContextWriter(ctx context.Context, writer ContextWriterAt) io.Writer {
+	return &wrapperContextWriter{ctx: ctx, w: writer}
 }
 
 type zeroDevice struct{}

@@ -366,7 +366,7 @@ func (m *manager) changeEntryParentByFileCopy(ctx context.Context, targetEntry, 
 		m.logger.Errorw("change entry parent by file copy error, open new file failed", "err", err)
 		return err
 	}
-	_, err = io.Copy(utils.NewWriterWithContextWriter(newFileWriter), utils.NewReaderWithContextReaderAt(oldFileReader))
+	_, err = io.Copy(utils.NewWriterWithContextWriter(ctx, newFileWriter), utils.NewReaderWithContextReaderAt(ctx, oldFileReader))
 	if err != nil {
 		m.logger.Errorw("change entry parent by file copy error, copy file content failed", "err", err)
 		return err

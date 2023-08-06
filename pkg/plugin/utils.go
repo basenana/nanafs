@@ -94,3 +94,7 @@ func gopluginAdaptorBuilder() Builder {
 		return adaptors.NewGoPluginAdaptor(spec, scope)
 	}
 }
+
+func IsBuildInPlugin(pluginNames ...string) bool {
+	return false
+}

@@ -18,6 +18,7 @@ package dispatch
 
 import (
 	"context"
+	"fmt"
 	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/events"
@@ -73,7 +74,7 @@ func (w workflowAction) handleEvent(ctx context.Context, evt *types.Event) error
 		}
 
 		// trigger workflow
-		job, err = w.manager.TriggerWorkflow(ctx, wf.Id, evt.RefID)
+		job, err = w.manager.TriggerWorkflow(ctx, wf.Id, evt.RefID, workflow.JobAttr{Reason: fmt.Sprintf("event: %s", evt.Type)})
 		if err != nil {
 			w.logger.Errorw("[workflowAction] workflow trigger failed", "entry", evt.RefID, "workflow", wf.Id, "err", err)
 			continue

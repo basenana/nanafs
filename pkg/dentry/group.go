@@ -218,9 +218,8 @@ func (e *extGroup) FindEntry(ctx context.Context, name string) (Entry, error) {
 
 func (e *extGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, error) {
 	mirrorEn, err := e.mirror.CreateEntry(ctx, stub.EntryAttr{
-		Name:   attr.Name,
-		Kind:   attr.Kind,
-		Access: attr.Access,
+		Name: attr.Name,
+		Kind: attr.Kind,
 	})
 	if err != nil {
 		return nil, err

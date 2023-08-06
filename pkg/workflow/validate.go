@@ -14,26 +14,32 @@
  limitations under the License.
 */
 
-package stub
+package workflow
 
 import (
+	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
-	"time"
+	"regexp"
 )
 
-type Entry struct {
-	Name       string
-	Kind       types.Kind
-	Size       int64
-	IsGroup    bool
-	Parameters map[string]string
+var (
+	workflowIDPattern = "^[A-zA-Z][a-zA-Z0-9-_.]{5,31}$"
+	wfIDRegexp        = regexp.MustCompile(workflowIDPattern)
+)
+
+func isValidID(idStr string) error {
+	if wfIDRegexp.MatchString(idStr) {
+		return nil
+	}
+	return fmt.Errorf("invalid ID, pattern: %s", workflowIDPattern)
 }
 
-type EntryAttr struct {
-	Name string
-	Kind types.Kind
-}
-
-type FreshOption struct {
-	LastFreshAt time.Time
+func validateWorkflowSpec(spec *types.WorkflowSpec) error {
+	if spec.Id == "" {
+		return fmt.Errorf("workflow id is empty")
+	}
+	if spec.Name == "" {
+		return fmt.Errorf("workflow name is empty")
+	}
+	return nil
 }

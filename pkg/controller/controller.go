@@ -298,7 +298,7 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 		return nil, err
 	}
 
-	ctl.workflow, err = workflow.NewManager(ctl.entry, meta, cfg.Workflow)
+	ctl.workflow, err = workflow.NewManager(ctl.entry, meta, cfg.Workflow, cfg.FUSE)
 	if err != nil {
 		return nil, err
 	}

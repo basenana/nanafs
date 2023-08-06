@@ -26,6 +26,7 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"gopkg.in/yaml.v3"
+	"path"
 	"strings"
 	"time"
 )
@@ -71,17 +72,11 @@ type MirrorPlugin struct {
 
 var _ plugin.MirrorPlugin = &MirrorPlugin{}
 
-func (m *MirrorPlugin) Name() string {
-	return MirrorPluginName
-}
+func (m *MirrorPlugin) Name() string { return MirrorPluginName }
 
-func (m *MirrorPlugin) Type() types.PluginType {
-	return types.TypeMirror
-}
+func (m *MirrorPlugin) Type() types.PluginType { return types.TypeMirror }
 
-func (m *MirrorPlugin) Version() string {
-	return MirrorPluginVersion
-}
+func (m *MirrorPlugin) Version() string { return MirrorPluginVersion }
 
 func (m *MirrorPlugin) build(ctx context.Context, _ types.PluginSpec, scope types.PlugScope) (plugin.Plugin, error) {
 	if scope.Parameters == nil {
@@ -131,17 +126,8 @@ func (d *dirHandler) FindEntry(ctx context.Context, name string) (*stub.Entry, e
 		return nil, types.ErrNoGroup
 	}
 
-	if d.dirKind == MirrorDirRoot {
-		switch name {
-		case MirrorDirWorkflows, MirrorDirJobs:
-			return &stub.Entry{Name: name, Kind: types.ExternalGroupKind, IsGroup: true}, nil
-		default:
-			return nil, types.ErrNotFound
-		}
-	}
-
 	// memfs cached entry
-	en, err := d.plugin.fs.GetEntry(d.plugin.path)
+	en, err := d.plugin.fs.GetEntry(path.Join(d.plugin.path, name))
 	if err != nil && err != types.ErrNotFound {
 		return nil, err
 	}
@@ -149,12 +135,21 @@ func (d *dirHandler) FindEntry(ctx context.Context, name string) (*stub.Entry, e
 		return en, nil
 	}
 
+	if d.dirKind == MirrorDirRoot {
+		switch name {
+		case MirrorDirWorkflows, MirrorDirJobs:
+			return d.plugin.fs.CreateEntry(d.plugin.path, stub.EntryAttr{Name: name, Kind: types.ExternalGroupKind})
+		default:
+			return nil, types.ErrNotFound
+		}
+	}
+
 	if d.dirKind == MirrorDirWorkflows {
-		_, err := d.plugin.mgr.GetWorkflow(ctx, mirrorFile2ID(name))
+		_, err = d.plugin.mgr.GetWorkflow(ctx, mirrorFile2ID(name))
 		if err != nil {
 			return nil, err
 		}
-		return &stub.Entry{Name: name, Kind: types.RawKind, IsGroup: false}, nil
+		return d.plugin.fs.CreateEntry(d.plugin.path, stub.EntryAttr{Name: name, Kind: types.RawKind})
 	}
 
 	if d.dirKind == MirrorDirJobs {
@@ -163,7 +158,7 @@ func (d *dirHandler) FindEntry(ctx context.Context, name string) (*stub.Entry, e
 			if err != nil {
 				return nil, err
 			}
-			return &stub.Entry{Name: name, Kind: types.RawKind, IsGroup: false}, nil
+			return d.plugin.fs.CreateEntry(d.plugin.path, stub.EntryAttr{Name: name, Kind: types.ExternalGroupKind})
 		} else {
 			jobs, err := d.ListChildren(ctx)
 			if err != nil {
@@ -209,7 +204,11 @@ func (d *dirHandler) RemoveEntry(ctx context.Context, en *stub.Entry) error {
 		return types.ErrNoGroup
 	}
 
-	cachedEn, err := d.plugin.fs.GetEntry(d.plugin.path)
+	if en.IsGroup {
+		return types.ErrNotEmpty
+	}
+
+	cachedEn, err := d.plugin.fs.GetEntry(path.Join(d.plugin.path, en.Name))
 	if err == nil {
 		_ = d.plugin.fs.RemoveEntry(d.plugin.path, cachedEn)
 	}
@@ -217,24 +216,53 @@ func (d *dirHandler) RemoveEntry(ctx context.Context, en *stub.Entry) error {
 	if d.dirKind == MirrorDirWorkflows {
 		wf, err := d.plugin.mgr.GetWorkflow(ctx, mirrorFile2ID(en.Name))
 		if err != nil {
+			if err == types.ErrNotFound {
+				return nil
+			}
 			return err
 		}
 		return d.plugin.mgr.DeleteWorkflow(ctx, wf.Id)
 	}
 
-	return types.ErrNoAccess
+	return nil
 }
 
 func (d *dirHandler) ListChildren(ctx context.Context) ([]*stub.Entry, error) {
 	if d == nil {
 		return nil, types.ErrNoGroup
 	}
+	cachedChild, err := d.plugin.fs.ListChildren(d.plugin.path)
+	if err != nil {
+		return nil, err
+	}
+
 	children := make([]*stub.Entry, 0)
+	cachedChildMap := make(map[string]struct{})
+	for i, ch := range cachedChild {
+		cachedChildMap[ch.Name] = struct{}{}
+		children = append(children, cachedChild[i])
+	}
+
 	switch {
 	case d.dirKind == MirrorDirRoot:
-		children = append(children,
-			&stub.Entry{Name: MirrorDirJobs, Kind: types.ExternalGroupKind, IsGroup: true},
-			&stub.Entry{Name: MirrorDirWorkflows, Kind: types.ExternalGroupKind, IsGroup: true})
+
+		if _, ok := cachedChildMap[MirrorDirJobs]; !ok {
+			child, err := d.plugin.fs.CreateEntry(d.plugin.path, stub.EntryAttr{Name: MirrorDirJobs, Kind: types.ExternalGroupKind})
+			if err != nil {
+				wfLogger.Errorf("init mirror dir %s error: %s", MirrorDirJobs, err)
+				return nil, err
+			}
+			children = append(children, child)
+		}
+
+		if _, ok := cachedChildMap[MirrorDirWorkflows]; !ok {
+			child, err := d.plugin.fs.CreateEntry(d.plugin.path, stub.EntryAttr{Name: MirrorDirWorkflows, Kind: types.ExternalGroupKind})
+			if err != nil {
+				wfLogger.Errorf("init mirror dir %s error: %s", MirrorDirWorkflows, err)
+				return nil, err
+			}
+			children = append(children, child)
+		}
 
 	case d.dirKind == MirrorDirWorkflows:
 		wfList, err := d.plugin.mgr.ListWorkflows(ctx)
@@ -242,7 +270,14 @@ func (d *dirHandler) ListChildren(ctx context.Context) ([]*stub.Entry, error) {
 			return children, err
 		}
 		for _, wf := range wfList {
-			children = append(children, &stub.Entry{Name: id2MirrorFile(wf.Id), Kind: types.RawKind, IsGroup: false})
+			if _, ok := cachedChildMap[id2MirrorFile(wf.Id)]; !ok {
+				child, err := d.plugin.fs.CreateEntry(d.plugin.path, stub.EntryAttr{Name: id2MirrorFile(wf.Id), Kind: types.RawKind})
+				if err != nil {
+					wfLogger.Errorf("init mirror workflow file %s error: %s", id2MirrorFile(wf.Id), err)
+					return nil, err
+				}
+				children = append(children, child)
+			}
 		}
 	case d.dirKind == MirrorDirJobs && d.wfID == "":
 		wfList, err := d.plugin.mgr.ListWorkflows(ctx)
@@ -250,7 +285,14 @@ func (d *dirHandler) ListChildren(ctx context.Context) ([]*stub.Entry, error) {
 			return children, err
 		}
 		for _, wf := range wfList {
-			children = append(children, &stub.Entry{Name: wf.Id, Kind: types.ExternalGroupKind, IsGroup: true})
+			if _, ok := cachedChildMap[wf.Id]; !ok {
+				child, err := d.plugin.fs.CreateEntry(d.plugin.path, stub.EntryAttr{Name: wf.Id, Kind: types.ExternalGroupKind})
+				if err != nil {
+					wfLogger.Errorf("init mirror jobs workflow group %s error: %s", wf.Id, err)
+					return nil, err
+				}
+				children = append(children, child)
+			}
 		}
 	case d.dirKind == MirrorDirJobs && d.wfID != "":
 		jobList, err := d.plugin.mgr.ListJobs(ctx, d.wfID)
@@ -258,15 +300,16 @@ func (d *dirHandler) ListChildren(ctx context.Context) ([]*stub.Entry, error) {
 			return children, err
 		}
 		for _, j := range jobList {
-			children = append(children, &stub.Entry{Name: id2MirrorFile(j.Id), Kind: types.ExternalGroupKind, IsGroup: true})
+			if _, ok := cachedChildMap[id2MirrorFile(j.Id)]; !ok {
+				child, err := d.plugin.fs.CreateEntry(d.plugin.path, stub.EntryAttr{Name: id2MirrorFile(j.Id), Kind: types.RawKind})
+				if err != nil {
+					wfLogger.Errorf("init mirror job file %s error: %s", id2MirrorFile(j.Id), err)
+					return nil, err
+				}
+				children = append(children, child)
+			}
 		}
 	}
-
-	cachedChild, err := d.plugin.fs.ListChildren(d.plugin.path)
-	if err != nil {
-		return nil, err
-	}
-	children = append(children, cachedChild...)
 
 	return children, nil
 }
@@ -307,14 +350,18 @@ func (f *fileHandler) Close(ctx context.Context) error {
 		return nil
 	}
 
+	op := "unknown"
 	switch {
 	case f.dirKind == MirrorDirWorkflows:
+		op = "create or update workflow"
 		f.err = f.createOrUpdateWorkflow(ctx, en)
 	case f.dirKind == MirrorDirJobs && f.wfID != "":
-		f.err = f.updateWorkflowJob(ctx, en)
+		op = "update workflow job"
+		f.err = f.triggerOrUpdateWorkflowJob(ctx, en)
 	}
 
 	if f.err != nil {
+		wfLogger.Errorf("%s failed: %s", op, f.err)
 		_, _ = f.plugin.fs.WriteAt(f.plugin.path, []byte(fmt.Sprintf("\n# error: %s\n", f.err)), en.Size)
 	}
 
@@ -324,7 +371,7 @@ func (f *fileHandler) Close(ctx context.Context) error {
 func (f *fileHandler) createOrUpdateWorkflow(ctx context.Context, en *stub.Entry) error {
 	wf := &types.WorkflowSpec{}
 	decodeErr := yaml.NewDecoder(&memfsFile{filePath: f.plugin.path, entry: en, memfs: f.plugin.fs}).Decode(wf)
-	if decodeErr == nil {
+	if decodeErr != nil {
 		return decodeErr
 	}
 
@@ -346,8 +393,7 @@ func (f *fileHandler) createOrUpdateWorkflow(ctx context.Context, en *stub.Entry
 			return err
 		}
 		_ = f.plugin.fs.Trunc(f.plugin.path)
-		_ = yaml.NewEncoder(&memfsFile{filePath: f.plugin.path, entry: en, memfs: f.plugin.fs}).Encode(wf)
-		return nil
+		return yaml.NewEncoder(&memfsFile{filePath: f.plugin.path, entry: en, memfs: f.plugin.fs}).Encode(wf)
 	}
 
 	// do update
@@ -367,10 +413,10 @@ func (f *fileHandler) createOrUpdateWorkflow(ctx context.Context, en *stub.Entry
 	return nil
 }
 
-func (f *fileHandler) updateWorkflowJob(ctx context.Context, en *stub.Entry) error {
+func (f *fileHandler) triggerOrUpdateWorkflowJob(ctx context.Context, en *stub.Entry) error {
 	wfJob := &types.WorkflowJob{}
 	decodeErr := yaml.NewDecoder(&memfsFile{filePath: f.plugin.path, entry: en, memfs: f.plugin.fs}).Decode(wfJob)
-	if decodeErr == nil {
+	if decodeErr != nil {
 		return decodeErr
 	}
 
@@ -393,7 +439,7 @@ func (f *fileHandler) updateWorkflowJob(ctx context.Context, en *stub.Entry) err
 
 	// do update
 	if oldJob != nil {
-		if wfJob.Status != oldJob.Status && !oldJob.FinishAt.IsZero() {
+		if wfJob.Status != oldJob.Status && oldJob.FinishAt.IsZero() {
 			switch {
 			case wfJob.Status == flow.PausedStatus && oldJob.Status == flow.RunningStatus:
 				err = f.plugin.mgr.PauseWorkflowJob(ctx, jobID)
@@ -410,16 +456,13 @@ func (f *fileHandler) updateWorkflowJob(ctx context.Context, en *stub.Entry) err
 
 	// do create
 	target := wfJob.Target
-	if target.EntryID != nil {
-		wfJob, err = f.plugin.mgr.TriggerWorkflow(ctx, f.wfID, *target.EntryID)
-		if err != nil {
-			return err
-		}
-		encodeErr := yaml.NewEncoder(&memfsFile{filePath: f.plugin.path, entry: en, memfs: f.plugin.fs}).Encode(wfJob)
-		if encodeErr != nil {
-			return encodeErr
-		}
-		return nil
+	wfJob, err = f.plugin.mgr.TriggerWorkflow(ctx, f.wfID, target.EntryID, JobAttr{JobID: jobID})
+	if err != nil {
+		return err
+	}
+	encodeErr := yaml.NewEncoder(&memfsFile{filePath: f.plugin.path, entry: en, memfs: f.plugin.fs}).Encode(wfJob)
+	if encodeErr != nil {
+		return encodeErr
 	}
 	return nil
 }
@@ -443,20 +486,18 @@ func (m *memfsFile) Read(p []byte) (int, error) {
 	return int(n64), err
 }
 
-func buildWorkflowMirrorPlugin(root dentry.Entry, mgr Manager) plugin.Builder {
+func buildWorkflowMirrorPlugin(mgr Manager) plugin.Builder {
 	mp := &MirrorPlugin{path: "/", fs: plugin.NewMemFS(), mgr: mgr}
 	mp.dirHandler = &dirHandler{plugin: mp, dirKind: MirrorDirRoot}
 
 	_, _ = mp.fs.CreateEntry("/", stub.EntryAttr{
-		Name:   MirrorDirJobs,
-		Kind:   types.ExternalGroupKind,
-		Access: root.Metadata().Access,
+		Name: MirrorDirJobs,
+		Kind: types.ExternalGroupKind,
 	})
 
 	_, _ = mp.fs.CreateEntry("/", stub.EntryAttr{
-		Name:   MirrorDirWorkflows,
-		Kind:   types.ExternalGroupKind,
-		Access: root.Metadata().Access,
+		Name: MirrorDirWorkflows,
+		Kind: types.ExternalGroupKind,
 	})
 	return mp.build
 }

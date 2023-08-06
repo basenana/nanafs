@@ -304,9 +304,8 @@ var _ = Describe("TestExtGroupEntry", func() {
 		})
 		It("insert sync_file1.yaml to memfs should be succeed", func() {
 			_, err = memFS.CreateEntry(context.TODO(), stub.EntryAttr{
-				Name:   "sync_file1.yaml",
-				Kind:   types.RawKind,
-				Access: extGrpEn.Metadata().Access,
+				Name: "sync_file1.yaml",
+				Kind: types.RawKind,
 			})
 			Expect(err).Should(BeNil())
 		})
@@ -325,9 +324,8 @@ var _ = Describe("TestExtGroupEntry", func() {
 		})
 		It("insert sync_file2.yaml to memfs should be succeed", func() {
 			_, err = memFS.CreateEntry(context.TODO(), stub.EntryAttr{
-				Name:   "sync_file2.yaml",
-				Kind:   types.RawKind,
-				Access: extGrpEn.Metadata().Access,
+				Name: "sync_file2.yaml",
+				Kind: types.RawKind,
 			})
 			Expect(err).Should(BeNil())
 

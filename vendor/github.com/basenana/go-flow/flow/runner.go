@@ -268,7 +268,7 @@ func (r *runner) taskRun(ctx context.Context, task *Task) (needCancel bool) {
 
 	for {
 		currentTryTimes += 1
-		err = r.executor.DoOperation(ctx, task.OperatorSpec)
+		err = r.executor.DoOperation(ctx, *task, task.OperatorSpec)
 		if err == nil {
 			r.logger.Infof("task %s succeed", task.Name)
 			break

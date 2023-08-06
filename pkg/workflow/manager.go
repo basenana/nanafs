@@ -19,8 +19,6 @@ package workflow
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/go-flow/cfg"
-	"github.com/basenana/go-flow/exec"
 	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
@@ -28,9 +26,8 @@ import (
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
-	"github.com/google/uuid"
 	"go.uber.org/zap"
-	"strconv"
+	"strings"
 	"time"
 )
 
@@ -42,14 +39,13 @@ type Manager interface {
 	DeleteWorkflow(ctx context.Context, wfId string) error
 	ListJobs(ctx context.Context, wfId string) ([]*types.WorkflowJob, error)
 
-	TriggerWorkflow(ctx context.Context, wfId string, entryID int64) (*types.WorkflowJob, error)
+	TriggerWorkflow(ctx context.Context, wfId string, entryID int64, attr JobAttr) (*types.WorkflowJob, error)
 	PauseWorkflowJob(ctx context.Context, jobId string) error
 	ResumeWorkflowJob(ctx context.Context, jobId string) error
 	CancelWorkflowJob(ctx context.Context, jobId string) error
 }
 
 func init() {
-	flow.RegisterExecutorBuilder("local", exec.NewLocalExecutor)
 }
 
 type manager struct {
@@ -57,42 +53,30 @@ type manager struct {
 	entryMgr dentry.Manager
 	recorder metastore.ScheduledTaskRecorder
 	config   config.Workflow
+	fuse     config.FUSE
 	logger   *zap.SugaredLogger
 }
 
 var _ Manager = &manager{}
 
-func NewManager(entryMgr dentry.Manager, recorder metastore.ScheduledTaskRecorder, config config.Workflow) (Manager, error) {
-	//wdInfo, err := os.Stat(config.JobWorkdir)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//if !wdInfo.IsDir() {
-	//	return nil, fmt.Errorf("%s not a dir", config.JobWorkdir)
-	//}
+func NewManager(entryMgr dentry.Manager, recorder metastore.ScheduledTaskRecorder, config config.Workflow, fuse config.FUSE) (Manager, error) {
+	wfLogger = logger.NewLogger("workflow")
+	_ = logger.NewFlowLogger(wfLogger)
 
 	if !config.Enable {
 		return disabledManager{}, nil
 	}
 
-	cfg.LocalWorkdirBase = config.JobWorkdir
-
-	l := logger.NewLogger("workflow")
-	_ = logger.NewFlowLogger(l)
+	if err := initWorkflowJobRootWorkdir(&config); err != nil {
+		return nil, fmt.Errorf("init workflow job root workdir error: %s", err)
+	}
 
 	if err := registerOperators(entryMgr); err != nil {
 		return nil, fmt.Errorf("register operators failed: %s", err)
 	}
-	flowCtrl := flow.NewFlowController(&storageWrapper{recorder: recorder, logger: l})
 
-	mgr := &manager{
-		ctrl:     flowCtrl,
-		entryMgr: entryMgr,
-		recorder: recorder,
-		config:   config,
-		logger:   l,
-	}
-
+	flowCtrl := flow.NewFlowController(&storageWrapper{recorder: recorder, logger: wfLogger})
+	mgr := &manager{ctrl: flowCtrl, entryMgr: entryMgr, recorder: recorder, config: config, fuse: fuse, logger: wfLogger}
 	root, err := entryMgr.Root(context.Background())
 	if err != nil {
 		mgr.logger.Errorw("query root failed", "err", err)
@@ -100,7 +84,7 @@ func NewManager(entryMgr dentry.Manager, recorder metastore.ScheduledTaskRecorde
 	}
 
 	mgr.logger.Infof("init workflow mirror dir to %s", MirrorRootDirName)
-	plugin.Register(mirrorPlugin, buildWorkflowMirrorPlugin(root, mgr))
+	plugin.Register(mirrorPlugin, buildWorkflowMirrorPlugin(mgr))
 	if err := initWorkflowMirrorDir(root, entryMgr); err != nil {
 		return nil, fmt.Errorf("init workflow mirror dir failed: %s", err)
 	}
@@ -125,21 +109,24 @@ func (m *manager) CreateWorkflow(ctx context.Context, spec *types.WorkflowSpec) 
 		return nil, fmt.Errorf("workflow name is empty")
 	}
 	spec = initWorkflow(spec)
-	if err := m.recorder.SaveWorkflow(ctx, spec); err != nil {
+	err := validateWorkflowSpec(spec)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = m.recorder.SaveWorkflow(ctx, spec); err != nil {
 		return nil, err
 	}
 	return spec, nil
 }
 
 func (m *manager) UpdateWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error) {
-	if spec.Id == "" {
-		return nil, fmt.Errorf("workflow id is empty")
-	}
-	if spec.Name == "" {
-		return nil, fmt.Errorf("workflow name is empty")
+	err := validateWorkflowSpec(spec)
+	if err != nil {
+		return nil, err
 	}
 	spec.UpdatedAt = time.Now()
-	if err := m.recorder.SaveWorkflow(ctx, spec); err != nil {
+	if err = m.recorder.SaveWorkflow(ctx, spec); err != nil {
 		return nil, err
 	}
 	return spec, nil
@@ -150,13 +137,15 @@ func (m *manager) DeleteWorkflow(ctx context.Context, wfId string) error {
 	if err != nil {
 		return err
 	}
+
+	runningJobs := make([]string, 0)
 	for _, j := range jobs {
 		if j.Status == flow.PausedStatus || j.Status == flow.RunningStatus {
-			err = m.CancelWorkflowJob(ctx, wfId)
-			if err != nil {
-				return err
-			}
+			runningJobs = append(runningJobs, j.Id)
 		}
+	}
+	if len(runningJobs) > 0 {
+		return fmt.Errorf("has running jobs: [%s]", strings.Join(runningJobs, ","))
 	}
 	return m.recorder.DeleteWorkflow(ctx, wfId)
 }
@@ -169,26 +158,43 @@ func (m *manager) ListJobs(ctx context.Context, wfId string) ([]*types.WorkflowJ
 	return result, nil
 }
 
-func (m *manager) TriggerWorkflow(ctx context.Context, wfId string, entryID int64) (*types.WorkflowJob, error) {
+func (m *manager) TriggerWorkflow(ctx context.Context, wfId string, entryID int64, attr JobAttr) (*types.WorkflowJob, error) {
 	workflow, err := m.GetWorkflow(ctx, wfId)
 	if err != nil {
 		return nil, err
 	}
+	if entryID == 0 {
+		return nil, fmt.Errorf("no entry martch")
+	}
 
 	m.logger.Infow("receive workflow", "workflow", workflow.Name, "entryID", entryID)
 	var en dentry.Entry
-	if entryID != 0 {
-		en, err = m.entryMgr.GetEntry(ctx, entryID)
-		if err != nil {
-			m.logger.Errorw("query entry failed", "workflow", workflow.Name, "entryID", entryID, "err", err)
-			return nil, err
-		}
+	en, err = m.entryMgr.GetEntry(ctx, entryID)
+	if err != nil {
+		m.logger.Errorw("query entry failed", "workflow", workflow.Name, "entryID", entryID, "err", err)
+		return nil, err
 	}
-	job, err := assembleWorkflowJob(workflow, en)
+
+	job, err := assembleWorkflowJob(ctx, m.entryMgr, workflow, en, m.fuse)
 	if err != nil {
 		m.logger.Errorw("assemble job failed", "workflow", workflow.Name, "err", err)
 		return nil, err
 	}
+
+	if attr.JobID != "" {
+		// TODO: improve this
+		jobs, err := m.ListJobs(ctx, wfId)
+		if err != nil {
+			return nil, err
+		}
+		for _, j := range jobs {
+			if j.Id == attr.JobID {
+				return nil, fmt.Errorf("job id %s is already existes", attr.JobID)
+			}
+		}
+		job.Id = attr.JobID
+	}
+	job.TriggerReason = attr.Reason
 
 	err = m.recorder.SaveWorkflowJob(ctx, job)
 	if err != nil {
@@ -208,7 +214,7 @@ func (m *manager) PauseWorkflowJob(ctx context.Context, jobId string) error {
 		return err
 	}
 	if len(jobs) == 0 {
-		return nil
+		return types.ErrNotFound
 	}
 	if jobs[0].Status != flow.RunningStatus {
 		return fmt.Errorf("pausing is not supported in non-running state")
@@ -222,7 +228,7 @@ func (m *manager) ResumeWorkflowJob(ctx context.Context, jobId string) error {
 		return err
 	}
 	if len(jobs) == 0 {
-		return nil
+		return types.ErrNotFound
 	}
 	if jobs[0].Status != flow.PausedStatus {
 		return fmt.Errorf("resuming is not supported in non-paused state")
@@ -236,7 +242,7 @@ func (m *manager) CancelWorkflowJob(ctx context.Context, jobId string) error {
 		return err
 	}
 	if len(jobs) == 0 {
-		return nil
+		return types.ErrNotFound
 	}
 	if !jobs[0].FinishAt.IsZero() {
 		return fmt.Errorf("canceling is not supported in finished state")
@@ -270,7 +276,7 @@ func (d disabledManager) ListJobs(ctx context.Context, wfId string) ([]*types.Wo
 	return nil, types.ErrNotFound
 }
 
-func (d disabledManager) TriggerWorkflow(ctx context.Context, wfId string, entryID int64) (*types.WorkflowJob, error) {
+func (d disabledManager) TriggerWorkflow(ctx context.Context, wfId string, entryID int64, attr JobAttr) (*types.WorkflowJob, error) {
 	return nil, types.ErrNotFound
 }
 
@@ -284,126 +290,4 @@ func (d disabledManager) ResumeWorkflowJob(ctx context.Context, jobId string) er
 
 func (d disabledManager) CancelWorkflowJob(ctx context.Context, jobId string) error {
 	return types.ErrNotFound
-}
-
-func assembleWorkflowJob(spec *types.WorkflowSpec, entry dentry.Entry) (*types.WorkflowJob, error) {
-	j := &types.WorkflowJob{
-		Id:        uuid.New().String(),
-		Workflow:  spec.Id,
-		Target:    types.WorkflowTarget{Rule: &spec.Rule},
-		Status:    flow.InitializingStatus,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
-
-	globalParam := map[string]string{}
-	if entry != nil {
-		globalParam[paramEntryIdKey] = strconv.FormatInt(entry.Metadata().ID, 10)
-		globalParam[paramEntryPathKey] = entry.Metadata().Name
-		j.Target.EntryID = &entry.Metadata().ID
-		j.Steps = append(j.Steps, types.WorkflowJobStep{
-			StepName: opEntryInit,
-			Status:   flow.InitializingStatus,
-			Operator: &types.WorkflowJobOperator{
-				Name:       opEntryInit,
-				Parameters: globalParam,
-			},
-		})
-	}
-
-	for _, stepSpec := range spec.Steps {
-		if stepSpec.Plugin != nil {
-			for k, v := range globalParam {
-				stepSpec.Plugin.Parameters[k] = v
-			}
-		}
-		j.Steps = append(j.Steps,
-			types.WorkflowJobStep{
-				StepName: stepSpec.Name,
-				Status:   flow.InitializingStatus,
-				Plugin:   stepSpec.Plugin,
-				Script:   stepSpec.Script,
-			},
-		)
-	}
-
-	j.Steps = append(j.Steps, types.WorkflowJobStep{
-		StepName: opEntryCollect,
-		Status:   flow.InitializingStatus,
-		Operator: &types.WorkflowJobOperator{
-			Name:       opEntryCollect,
-			Parameters: globalParam,
-		},
-	})
-
-	return j, nil
-}
-
-func assembleFlow(job *types.WorkflowJob) (*flow.Flow, error) {
-	f := &flow.Flow{
-		ID:            job.Id,
-		Executor:      "local",
-		Status:        job.Status,
-		Message:       job.Message,
-		ControlPolicy: flow.ControlPolicy{FailedPolicy: flow.PolicyFastFailed},
-	}
-
-	for _, step := range job.Steps {
-		var t flow.Task
-		switch {
-		case step.Plugin != nil:
-			param := map[string]string{
-				paramPluginName:    step.Plugin.PluginName,
-				paramPluginVersion: step.Plugin.Version,
-				paramPluginType:    string(step.Plugin.PluginType),
-			}
-			for k, v := range step.Plugin.Parameters {
-				if _, ok := param[k]; ok {
-					continue
-				}
-				param[k] = v
-			}
-			t = flow.Task{
-				Name:    step.StepName,
-				Status:  step.Status,
-				Message: step.Message,
-				OperatorSpec: flow.Spec{
-					Type:      opPluginCall,
-					Parameter: param,
-				},
-				RetryOnFailed: 1,
-			}
-		case step.Operator != nil:
-			t = flow.Task{
-				Name: step.Operator.Name,
-				OperatorSpec: flow.Spec{
-					Type:      step.Operator.Name,
-					Parameter: step.Operator.Parameters,
-				},
-				RetryOnFailed: 1,
-			}
-		case step.Script != nil:
-			if step.Script.Type == exec.ShellOperator || step.Script.Type == exec.PythonOperator {
-				t = flow.Task{
-					Name: step.Operator.Name,
-					OperatorSpec: flow.Spec{
-						Type:   step.Script.Type,
-						Script: &flow.Script{Content: step.Script.Content, Command: step.Script.Command},
-						Env:    step.Script.Env,
-					},
-					RetryOnFailed: 1,
-				}
-			} else {
-				return nil, fmt.Errorf("step has unknown script type %s", step.Script.Type)
-			}
-
-		}
-		f.Tasks = append(f.Tasks, t)
-	}
-
-	for i := 1; i < len(f.Tasks); i++ {
-		f.Tasks[i-1].Next.OnSucceed = f.Tasks[i].Name
-	}
-
-	return f, nil
 }
