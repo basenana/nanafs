@@ -186,12 +186,17 @@ var _ = Describe("TestMirrorPlugin", func() {
 
 			Expect(f.Close(ctx)).Should(BeNil())
 
-			// query job
-			jobs, err := mgr.ListJobs(ctx, workflowID1)
-			Expect(err).Should(BeNil())
-			Expect(len(jobs)).Should(Equal(1))
+			// query job and wait job running
+			Eventually(func() string {
+				jobs, err := mgr.ListJobs(ctx, workflowID1)
+				Expect(err).Should(BeNil())
+				Expect(len(jobs)).Should(Equal(1))
+				job := jobs[0]
+				Expect(jobs[0].Id).Should(Equal(jobID))
+				Expect(job.Status).ShouldNot(Equal(flow.SucceedStatus))
+				return job.Status
+			}, time.Second*10, time.Second).Should(Equal(flow.RunningStatus))
 
-			Expect(jobs[0].Id).Should(Equal(jobID))
 		})
 		It("pause workflow job should be succeed", func() {
 			jobs, err := mgr.ListJobs(ctx, workflowID1)
@@ -214,6 +219,7 @@ var _ = Describe("TestMirrorPlugin", func() {
 				Expect(err).Should(BeNil())
 				Expect(len(jobs)).Should(Equal(1))
 				job := jobs[0]
+				Expect(job.Status).ShouldNot(Equal(flow.SucceedStatus))
 				return job.Status
 			}, time.Minute, time.Second).Should(Equal(flow.PausedStatus))
 		})
@@ -238,6 +244,7 @@ var _ = Describe("TestMirrorPlugin", func() {
 				Expect(err).Should(BeNil())
 				Expect(len(jobs)).Should(Equal(1))
 				job := jobs[0]
+				Expect(job.Status).ShouldNot(Equal(flow.SucceedStatus))
 				return job.Status
 			}, time.Minute, time.Second).Should(Equal(flow.RunningStatus))
 		})
@@ -265,7 +272,7 @@ func init() {
 			Version:    "1.0",
 			PluginType: types.TypeProcess,
 			Action:     "delay",
-			Parameters: map[string]string{"delay": "10s"},
+			Parameters: map[string]string{"delay": "5s"},
 		}
 		wf = &types.WorkflowSpec{
 			Name: "test-workflow-mirror-dir-1",
