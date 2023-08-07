@@ -33,26 +33,26 @@ func (i SystemInfo) TableName() string {
 }
 
 type Object struct {
-	ID         int64  `gorm:"column:id;primaryKey"`
-	Name       string `gorm:"column:name;index:obj_name"`
-	Aliases    string `gorm:"column:aliases"`
-	ParentID   int64  `gorm:"column:parent_id;index:parent_id"`
-	RefID      int64  `gorm:"column:ref_id;index:ref_id"`
-	RefCount   int    `gorm:"column:ref_count"`
-	Kind       string `gorm:"column:kind"`
-	KindMap    int64  `gorm:"column:kind_map"`
-	Size       int64  `gorm:"column:size"`
-	Version    int64  `gorm:"column:version"`
-	Dev        int64  `gorm:"column:dev"`
-	Owner      int64  `gorm:"column:owner"`
-	GroupOwner int64  `gorm:"column:group_owner"`
-	Permission int64  `gorm:"column:permission"`
-	Storage    string `gorm:"column:storage"`
-	Namespace  string `gorm:"column:namespace;index:obj_ns"`
-	CreatedAt  int64  `gorm:"column:created_at"`
-	ChangedAt  int64  `gorm:"column:changed_at"`
-	ModifiedAt int64  `gorm:"column:modified_at"`
-	AccessAt   int64  `gorm:"column:access_at"`
+	ID         int64   `gorm:"column:id;primaryKey"`
+	Name       string  `gorm:"column:name;index:obj_name"`
+	Aliases    *string `gorm:"column:aliases"`
+	ParentID   *int64  `gorm:"column:parent_id;index:parent_id"`
+	RefID      *int64  `gorm:"column:ref_id;index:ref_id"`
+	RefCount   *int    `gorm:"column:ref_count"`
+	Kind       string  `gorm:"column:kind"`
+	KindMap    *int64  `gorm:"column:kind_map"`
+	Size       *int64  `gorm:"column:size"`
+	Version    int64   `gorm:"column:version;index:obj_version"`
+	Dev        int64   `gorm:"column:dev"`
+	Owner      *int64  `gorm:"column:owner"`
+	GroupOwner *int64  `gorm:"column:group_owner"`
+	Permission *int64  `gorm:"column:permission"`
+	Storage    string  `gorm:"column:storage"`
+	Namespace  string  `gorm:"column:namespace;index:obj_ns"`
+	CreatedAt  int64   `gorm:"column:created_at"`
+	ChangedAt  int64   `gorm:"column:changed_at"`
+	ModifiedAt int64   `gorm:"column:modified_at"`
+	AccessAt   int64   `gorm:"column:access_at"`
 }
 
 func (o *Object) TableName() string {
@@ -62,13 +62,13 @@ func (o *Object) TableName() string {
 func (o *Object) Update(obj *types.Object) {
 	o.ID = obj.ID
 	o.Name = obj.Name
-	o.Aliases = obj.Aliases
-	o.ParentID = obj.ParentID
-	o.RefID = obj.RefID
-	o.RefCount = obj.RefCount
+	o.Aliases = &obj.Aliases
+	o.ParentID = &obj.ParentID
+	o.RefID = &obj.RefID
+	o.RefCount = &obj.RefCount
 	o.Kind = string(obj.Kind)
-	o.KindMap = obj.KindMap
-	o.Size = obj.Size
+	o.KindMap = &obj.KindMap
+	o.Size = &obj.Size
 	o.Version = obj.Version
 	o.Dev = obj.Dev
 	o.Storage = obj.Storage
@@ -77,8 +77,8 @@ func (o *Object) Update(obj *types.Object) {
 	o.ChangedAt = obj.ChangedAt.UnixNano()
 	o.ModifiedAt = obj.ModifiedAt.UnixNano()
 	o.AccessAt = obj.AccessAt.UnixNano()
-	o.Owner = obj.Access.UID
-	o.GroupOwner = obj.Access.GID
+	o.Owner = &obj.Access.UID
+	o.GroupOwner = &obj.Access.GID
 	o.Permission = updateObjectPermission(obj.Access)
 }
 
@@ -87,13 +87,7 @@ func (o *Object) Object() *types.Object {
 		Metadata: types.Metadata{
 			ID:         o.ID,
 			Name:       o.Name,
-			Aliases:    o.Aliases,
-			ParentID:   o.ParentID,
-			RefID:      o.RefID,
-			RefCount:   o.RefCount,
 			Kind:       types.Kind(o.Kind),
-			KindMap:    o.KindMap,
-			Size:       o.Size,
 			Version:    o.Version,
 			Dev:        o.Dev,
 			Storage:    o.Storage,
@@ -104,6 +98,25 @@ func (o *Object) Object() *types.Object {
 			AccessAt:   time.Unix(0, o.AccessAt),
 			Access:     buildObjectAccess(o.Permission, o.Owner, o.GroupOwner),
 		},
+	}
+
+	if o.Aliases != nil {
+		result.Aliases = *o.Aliases
+	}
+	if o.ParentID != nil {
+		result.ParentID = *o.ParentID
+	}
+	if o.RefID != nil {
+		result.RefID = *o.RefID
+	}
+	if o.RefCount != nil {
+		result.RefCount = *o.RefCount
+	}
+	if o.KindMap != nil {
+		result.KindMap = *o.KindMap
+	}
+	if o.Size != nil {
+		result.Size = *o.Size
 	}
 	return result
 }

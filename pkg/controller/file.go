@@ -61,7 +61,6 @@ func (c *controller) OpenFile(ctx context.Context, en dentry.Entry, attr dentry.
 	if err = c.SaveEntry(ctx, nil, en); err != nil {
 		return nil, err
 	}
-	c.cache.putEntry(en)
 	return file, nil
 }
 
@@ -90,11 +89,5 @@ func (c *controller) CloseFile(ctx context.Context, file dentry.File) (err error
 		c.logger.Errorw("close file error", "file", file.Metadata().ID, "err", err.Error())
 		return err
 	}
-	en, err := c.GetEntry(ctx, file.Metadata().ID)
-	if err != nil {
-		c.logger.Errorw("query fresh entry error", "file", file.Metadata().ID, "err", err.Error())
-		return err
-	}
-	c.cache.delEntry(en.Metadata().ID)
 	return nil
 }

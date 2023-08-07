@@ -48,7 +48,6 @@ type Metadata struct {
 	Kind       Kind      `json:"kind"`
 	KindMap    int64     `json:"kind_map"`
 	Size       int64     `json:"size"`
-	Inode      uint64    `json:"inode"`
 	Version    int64     `json:"version"`
 	Dev        int64     `json:"dev"`
 	Namespace  string    `json:"namespace,omitempty"`

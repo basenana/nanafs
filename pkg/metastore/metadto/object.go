@@ -14,19 +14,32 @@
  limitations under the License.
 */
 
-package types
+package metadto
 
-import "errors"
+import "github.com/basenana/nanafs/pkg/types"
 
-var (
-	ErrNotFound    = errors.New("no record")
-	ErrNameTooLong = errors.New("name too long")
-	ErrIsExist     = errors.New("record existed")
-	ErrNotEmpty    = errors.New("group not empty")
-	ErrNoGroup     = errors.New("not group")
-	ErrIsGroup     = errors.New("this object is a group")
-	ErrNoAccess    = errors.New("no access")
-	ErrNoPerm      = errors.New("no permission")
-	ErrConflict    = errors.New("operation conflict")
-	ErrUnsupported = errors.New("unsupported operation")
-)
+type Object struct {
+	ID         int64
+	Name       *string
+	Aliases    *string
+	ParentID   *int64
+	RefID      *int64
+	RefCount   *int
+	Kind       *string
+	KindMap    *int64
+	Size       *int64
+	Version    *int64
+	Dev        *int64
+	Owner      *int64
+	GroupOwner *int64
+	Permission *int64
+	Storage    *string
+	Namespace  *string
+	CreatedAt  *int64
+	ChangedAt  *int64
+	ModifiedAt *int64
+	AccessAt   *int64
+
+	*types.ExtendData
+	*types.Labels
+}

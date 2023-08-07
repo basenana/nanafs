@@ -35,7 +35,9 @@ type ChangeParentAttr struct {
 	Exchange bool
 }
 
-type ChangeParentOption struct{}
+type ChangeParentOption struct {
+	Name string
+}
 
 type OpenAttr struct {
 	Read   bool

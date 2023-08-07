@@ -54,10 +54,9 @@ type file struct {
 	reader bio.Reader
 	writer bio.Writer
 
-	attr  Attr
-	reset CacheResetter
-	cfg   *config.FS
-	mux   sync.Mutex
+	attr Attr
+	cfg  *config.FS
+	mux  sync.Mutex
 }
 
 var _ File = &file{}
@@ -80,9 +79,7 @@ func (f *file) WriteAt(ctx context.Context, data []byte, off int64) (int64, erro
 	if meta.Size < off+n {
 		meta.Size = off + n
 	}
-	if f.reset != nil {
-		f.reset.ResetEntry(f)
-	}
+	cacheStore.delEntryCache(f.Metadata().ID)
 	return n, err
 }
 
@@ -95,9 +92,7 @@ func (f *file) Flush(ctx context.Context) error {
 	if err != nil {
 		fileEntryLogger.Errorw("flush file error", "entry", f.Entry.Metadata().ID, "err", err)
 	}
-	if f.reset != nil {
-		f.reset.ResetEntry(f)
-	}
+	cacheStore.delEntryCache(f.Metadata().ID)
 	return err
 }
 
@@ -140,13 +135,8 @@ func (f *file) Close(ctx context.Context) (err error) {
 	return nil
 }
 
-func openFile(en Entry, attr Attr, store metastore.ObjectStore, fileStorage storage.Storage, cacheReset CacheResetter, cfg *config.FS) (File, error) {
-	f := &file{
-		Entry: en,
-		attr:  attr,
-		reset: cacheReset,
-		cfg:   cfg,
-	}
+func openFile(en Entry, attr Attr, store metastore.ObjectStore, fileStorage storage.Storage, cfg *config.FS) (File, error) {
+	f := &file{Entry: en, attr: attr, cfg: cfg}
 	if fileStorage == nil {
 		return nil, logOperationError(fileOperationErrorCounter, "init", fmt.Errorf("storage %s not found", en.Metadata().Storage))
 	}
@@ -271,8 +261,10 @@ func (e *extFile) ReadAt(ctx context.Context, dest []byte, off int64) (int64, er
 func (e *extFile) Fsync(ctx context.Context) error {
 	if e.Metadata().Size < e.size {
 		md := e.Metadata()
-		md.Size = e.size
-		err := e.store.SaveObjects(ctx, &types.Object{Metadata: *md})
+		err := cacheStore.updateEntry(ctx, entryPatch{entryID: md.ID, handler: func(old *types.Object) {
+			old.Size = e.size
+			old.ModifiedAt = md.ModifiedAt
+		}})
 		if err != nil {
 			return err
 		}

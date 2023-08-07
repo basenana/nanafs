@@ -14,19 +14,23 @@
  limitations under the License.
 */
 
-package types
+package dentry
 
-import "errors"
+import "github.com/basenana/nanafs/pkg/types"
 
-var (
-	ErrNotFound    = errors.New("no record")
-	ErrNameTooLong = errors.New("name too long")
-	ErrIsExist     = errors.New("record existed")
-	ErrNotEmpty    = errors.New("group not empty")
-	ErrNoGroup     = errors.New("not group")
-	ErrIsGroup     = errors.New("this object is a group")
-	ErrNoAccess    = errors.New("no access")
-	ErrNoPerm      = errors.New("no permission")
-	ErrConflict    = errors.New("operation conflict")
-	ErrUnsupported = errors.New("unsupported operation")
-)
+func patchChangeableMetadata(oldMd, newMd *types.Metadata) {
+	oldMd.Name = newMd.Name
+	oldMd.Aliases = newMd.Aliases
+	oldMd.ParentID = newMd.ParentID
+	oldMd.RefID = newMd.RefID
+	oldMd.RefCount = newMd.RefCount
+	oldMd.Size = newMd.Size
+	oldMd.Dev = newMd.Dev
+	oldMd.Storage = newMd.Storage
+	oldMd.Namespace = newMd.Namespace
+	oldMd.CreatedAt = newMd.CreatedAt
+	oldMd.ChangedAt = newMd.ChangedAt
+	oldMd.ModifiedAt = newMd.ModifiedAt
+	oldMd.AccessAt = newMd.AccessAt
+	oldMd.Access = newMd.Access
+}

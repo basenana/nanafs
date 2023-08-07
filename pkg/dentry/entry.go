@@ -136,10 +136,14 @@ func (r *rawEntry) GetExtendData(ctx context.Context) (types.ExtendData, error) 
 
 func (r *rawEntry) UpdateExtendData(ctx context.Context, ed types.ExtendData) error {
 	defer trace.StartRegion(ctx, "dentry.rawEntry.UpdateExtendData").End()
-	r.obj.ChangedAt = time.Now()
-	r.obj.ExtendDataChanged = true
-	r.obj.ExtendData = &ed
-	return r.store.SaveObjects(ctx, r.obj)
+	return cacheStore.updateEntry(ctx, entryPatch{
+		entryID: r.obj.ID,
+		handler: func(old *types.Object) {
+			old.ChangedAt = time.Now()
+			old.ExtendDataChanged = true
+			old.ExtendData = &ed
+		},
+	})
 }
 
 func (r *rawEntry) RuleMatched(ctx context.Context, ruleSpec types.Rule) bool {
