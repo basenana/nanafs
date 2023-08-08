@@ -31,49 +31,49 @@ import (
 )
 
 type Group interface {
-	FindEntry(ctx context.Context, name string) (Entry, error)
-	CreateEntry(ctx context.Context, attr EntryAttr) (Entry, error)
-	UpdateEntry(ctx context.Context, en Entry) error
-	RemoveEntry(ctx context.Context, en Entry) error
-	ListChildren(ctx context.Context) ([]Entry, error)
+	FindEntry(ctx context.Context, name string) (*types.Metadata, error)
+	CreateEntry(ctx context.Context, attr EntryAttr) (*types.Metadata, error)
+	PatchEntry(ctx context.Context, entryID int64, patch *types.Metadata) error
+	RemoveEntry(ctx context.Context, entryID int64) error
+	ListChildren(ctx context.Context) ([]*types.Metadata, error)
 }
 
 type emptyGroup struct{}
 
 var _ Group = emptyGroup{}
 
-func (e emptyGroup) FindEntry(ctx context.Context, name string) (Entry, error) {
+func (e emptyGroup) FindEntry(ctx context.Context, name string) (*types.Metadata, error) {
 	return nil, types.ErrNotFound
 }
 
-func (e emptyGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, error) {
+func (e emptyGroup) CreateEntry(ctx context.Context, attr EntryAttr) (*types.Metadata, error) {
 	return nil, types.ErrNoAccess
 }
 
-func (e emptyGroup) UpdateEntry(ctx context.Context, en Entry) error {
+func (e emptyGroup) PatchEntry(ctx context.Context, entryID int64, patch *types.Metadata) error {
 	return types.ErrNoAccess
 }
 
-func (e emptyGroup) RemoveEntry(ctx context.Context, en Entry) error {
+func (e emptyGroup) RemoveEntry(ctx context.Context, enId int64) error {
 	return types.ErrNoAccess
 }
 
-func (e emptyGroup) ListChildren(ctx context.Context) ([]Entry, error) {
-	return make([]Entry, 0), nil
+func (e emptyGroup) ListChildren(ctx context.Context) ([]*types.Metadata, error) {
+	return make([]*types.Metadata, 0), nil
 }
 
 type stdGroup struct {
-	Entry
+	meta  *types.Metadata
 	store metastore.ObjectStore
 }
 
 var _ Group = &stdGroup{}
 
-func (g *stdGroup) FindEntry(ctx context.Context, name string) (Entry, error) {
+func (g *stdGroup) FindEntry(ctx context.Context, name string) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.FindEntry").End()
 	entryLifecycleLock.RLock()
 	defer entryLifecycleLock.RUnlock()
-	objects, err := g.store.ListObjects(ctx, types.Filter{Name: name, ParentID: g.Metadata().ID})
+	objects, err := g.store.ListObjects(ctx, types.Filter{Name: name, ParentID: g.meta.ID})
 	if err != nil {
 		return nil, err
 	}
@@ -85,24 +85,30 @@ func (g *stdGroup) FindEntry(ctx context.Context, name string) (Entry, error) {
 		for i, obj := range objects {
 			objNames[i] = fmt.Sprintf(`{"id":%d,"name":"%s"}`, obj.ID, obj.Name)
 		}
-		logger.NewLogger("stdGroup").Warnf("lookup group %s with name %s, got objects: %s", g.Metadata().Name, name, strings.Join(objNames, ","))
+		logger.NewLogger("stdGroup").Warnf("lookup group %s with name %s, got objects: %s", g.meta.Name, name, strings.Join(objNames, ","))
 	}
-	return buildEntry(objects[0], g.store), nil
+	obj := objects[0]
+	return &obj.Metadata, nil
 }
 
-func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, error) {
+func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.CreateEntry").End()
 	entryLifecycleLock.Lock()
 	defer entryLifecycleLock.Unlock()
-	objects, err := g.store.ListObjects(ctx, types.Filter{Name: attr.Name, ParentID: g.Metadata().ID})
+	objects, err := g.store.ListObjects(ctx, types.Filter{Name: attr.Name, ParentID: g.meta.ID})
 	if err != nil {
 		return nil, err
 	}
 	if len(objects) > 0 {
 		return nil, types.ErrIsExist
 	}
-	groupMd := g.Metadata()
-	obj, err := types.InitNewObject(groupMd, types.ObjectAttr{
+
+	group, err := cacheStore.getEntry(ctx, g.meta.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	obj, err := types.InitNewObject(group, types.ObjectAttr{
 		Name:   attr.Name,
 		Kind:   attr.Kind,
 		Access: attr.Access,
@@ -125,29 +131,23 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, erro
 	}
 
 	nowTime := time.Now()
-	if err = cacheStore.createEntry(ctx, obj, entryPatch{entryID: groupMd.ID, handler: func(old *types.Object) {
+	if err = cacheStore.createEntry(ctx, obj, entryPatch{entryID: group.ID, handler: func(old *types.Object) {
 		if obj.IsGroup() {
-			groupMd.RefCount += 1
+			old.RefCount += 1
 		}
-		groupMd.ChangedAt = nowTime
-		groupMd.ModifiedAt = nowTime
+		old.ChangedAt = nowTime
+		old.ModifiedAt = nowTime
 	}}); err != nil {
 		return nil, err
 	}
-	en := buildEntry(obj, g.store)
-	return en, nil
+	return &obj.Metadata, nil
 }
 
-func (g *stdGroup) UpdateEntry(ctx context.Context, en Entry) error {
+func (g *stdGroup) PatchEntry(ctx context.Context, entryId int64, patch *types.Metadata) error {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.UpdateEntry").End()
-	grpMd := g.Metadata()
-	md := en.Metadata()
 	err := cacheStore.updateEntry(ctx,
-		entryPatch{entryID: grpMd.ID, handler: func(old *types.Object) {
-			patchChangeableMetadata(&old.Metadata, grpMd)
-		}},
-		entryPatch{entryID: md.ID, handler: func(old *types.Object) {
-			patchChangeableMetadata(&old.Metadata, md)
+		entryPatch{entryID: entryId, handler: func(old *types.Object) {
+			patchChangeableMetadata(&old.Metadata, patch)
 		}},
 	)
 	if err != nil {
@@ -156,16 +156,25 @@ func (g *stdGroup) UpdateEntry(ctx context.Context, en Entry) error {
 	return nil
 }
 
-func (g *stdGroup) RemoveEntry(ctx context.Context, en Entry) error {
+func (g *stdGroup) RemoveEntry(ctx context.Context, entryId int64) error {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.RemoveEntry").End()
-	md := en.Metadata()
-	if md.RefID != 0 {
+	group, err := cacheStore.getEntry(ctx, g.meta.ID)
+	if err != nil {
+		return err
+	}
+
+	entry, err := cacheStore.getEntry(ctx, entryId)
+	if err != nil {
+		return err
+	}
+
+	if entry.RefID != 0 {
 		return types.ErrUnsupported
 	}
-	if en.IsGroup() && md.RefCount > 2 {
+	if types.IsGroup(entry.Kind) && entry.RefCount > 2 {
 		return types.ErrNotEmpty
 	}
-	if !en.IsGroup() && md.RefCount > 1 {
+	if !types.IsGroup(entry.Kind) && entry.RefCount > 1 {
 		return types.ErrUnsupported
 	}
 
@@ -173,7 +182,7 @@ func (g *stdGroup) RemoveEntry(ctx context.Context, en Entry) error {
 		changes = make([]entryPatch, 0, 2)
 		nowTime = time.Now()
 	)
-	changes = append(changes, entryPatch{entryID: md.ID, handler: func(old *types.Object) {
+	changes = append(changes, entryPatch{entryID: entry.ID, handler: func(old *types.Object) {
 		if !old.IsGroup() && old.RefCount > 0 {
 			old.RefCount -= 1
 			old.ChangedAt = nowTime
@@ -181,9 +190,8 @@ func (g *stdGroup) RemoveEntry(ctx context.Context, en Entry) error {
 		old.ParentID = 0
 	}})
 
-	grpMd := g.Metadata()
-	changes = append(changes, entryPatch{entryID: grpMd.ID, handler: func(old *types.Object) {
-		if en.IsGroup() {
+	changes = append(changes, entryPatch{entryID: group.ID, handler: func(old *types.Object) {
+		if types.IsGroup(entry.Kind) {
 			old.RefCount -= 1
 		}
 		old.ChangedAt = nowTime
@@ -196,19 +204,19 @@ func (g *stdGroup) RemoveEntry(ctx context.Context, en Entry) error {
 	return nil
 }
 
-func (g *stdGroup) ListChildren(ctx context.Context) ([]Entry, error) {
+func (g *stdGroup) ListChildren(ctx context.Context) ([]*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.ListChildren").End()
-	it, err := g.store.ListChildren(ctx, &types.Object{Metadata: *g.Metadata()})
+	it, err := g.store.ListChildren(ctx, &types.Object{Metadata: *g.meta})
 	if err != nil {
 		return nil, err
 	}
-	result := make([]Entry, 0)
+	result := make([]*types.Metadata, 0)
 	for it.HasNext() {
 		next := it.Next()
 		if next.ID == next.ParentID {
 			continue
 		}
-		result = append(result, buildEntry(next, g.store))
+		result = append(result, &next.Metadata)
 	}
 	return result, nil
 }
@@ -218,11 +226,12 @@ type dynamicGroup struct {
 }
 
 type extGroup struct {
+	mgr      Manager
 	stdGroup *stdGroup
 	mirror   plugin.MirrorPlugin
 }
 
-func (e *extGroup) FindEntry(ctx context.Context, name string) (Entry, error) {
+func (e *extGroup) FindEntry(ctx context.Context, name string) (*types.Metadata, error) {
 	mirrorEn, err := e.mirror.FindEntry(ctx, name)
 	if err != nil && err != types.ErrNotFound {
 		return nil, err
@@ -235,7 +244,7 @@ func (e *extGroup) FindEntry(ctx context.Context, name string) (Entry, error) {
 	return e.syncEntry(ctx, mirrorEn, en)
 }
 
-func (e *extGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, error) {
+func (e *extGroup) CreateEntry(ctx context.Context, attr EntryAttr) (*types.Metadata, error) {
 	mirrorEn, err := e.mirror.CreateEntry(ctx, stub.EntryAttr{
 		Name: attr.Name,
 		Kind: attr.Kind,
@@ -250,17 +259,20 @@ func (e *extGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, erro
 	return e.syncEntry(ctx, mirrorEn, en)
 }
 
-func (e *extGroup) UpdateEntry(ctx context.Context, en Entry) error {
-	md := en.Metadata()
-	mirrorEn, err := e.mirror.FindEntry(ctx, md.Name)
+func (e *extGroup) PatchEntry(ctx context.Context, entryId int64, patch *types.Metadata) error {
+	group, err := cacheStore.getEntry(ctx, e.stdGroup.meta.ID)
+	if err != nil {
+		return err
+	}
+	mirrorEn, err := e.mirror.FindEntry(ctx, group.Name)
 	if err != nil {
 		return err
 	}
 
-	mirrorEn.Size = en.Metadata().Size
+	mirrorEn.Size = patch.Size
 
 	// query old and write back
-	en, err = e.stdGroup.FindEntry(ctx, md.Name)
+	entry, err := cacheStore.getEntry(ctx, entryId)
 	if err != nil {
 		return err
 	}
@@ -270,13 +282,16 @@ func (e *extGroup) UpdateEntry(ctx context.Context, en Entry) error {
 		return err
 	}
 
-	_, err = e.syncEntry(ctx, mirrorEn, en)
+	_, err = e.syncEntry(ctx, mirrorEn, entry)
 	return err
 }
 
-func (e *extGroup) RemoveEntry(ctx context.Context, en Entry) error {
-	md := en.Metadata()
-	mirrorEn, err := e.mirror.FindEntry(ctx, md.Name)
+func (e *extGroup) RemoveEntry(ctx context.Context, entryId int64) error {
+	entry, err := cacheStore.getEntry(ctx, entryId)
+	if err != nil {
+		return err
+	}
+	mirrorEn, err := e.mirror.FindEntry(ctx, entry.Name)
 	if err != nil {
 		return err
 	}
@@ -286,13 +301,13 @@ func (e *extGroup) RemoveEntry(ctx context.Context, en Entry) error {
 		return err
 	}
 
-	objects, err := e.stdGroup.store.ListObjects(ctx, types.Filter{Name: md.Name, ParentID: md.ParentID})
+	objects, err := e.stdGroup.store.ListObjects(ctx, types.Filter{Name: entry.Name, ParentID: entry.ID})
 	if err != nil {
 		return err
 	}
 	if len(objects) > 0 {
-		en = buildEntry(objects[0], e.stdGroup.store)
-		_, err = e.syncEntry(ctx, nil, en)
+		obj := objects[0]
+		_, err = e.syncEntry(ctx, nil, &obj.Metadata)
 		if err == types.ErrNotFound {
 			return nil
 		}
@@ -301,7 +316,7 @@ func (e *extGroup) RemoveEntry(ctx context.Context, en Entry) error {
 	return nil
 }
 
-func (e *extGroup) ListChildren(ctx context.Context) ([]Entry, error) {
+func (e *extGroup) ListChildren(ctx context.Context) ([]*types.Metadata, error) {
 	recordChild, err := e.stdGroup.ListChildren(ctx)
 	if err != nil {
 		return nil, err
@@ -311,16 +326,16 @@ func (e *extGroup) ListChildren(ctx context.Context) ([]Entry, error) {
 		return nil, err
 	}
 
-	recordChildMap := make(map[string]Entry)
+	recordChildMap := make(map[string]*types.Metadata)
 	actualChildMap := make(map[string]*stub.Entry)
 	for i := range recordChild {
-		recordChildMap[recordChild[i].Metadata().Name] = recordChild[i]
+		recordChildMap[recordChild[i].Name] = recordChild[i]
 	}
 	for i := range actualChild {
 		actualChildMap[actualChild[i].Name] = actualChild[i]
 	}
 
-	result := make([]Entry, 0, len(actualChild))
+	result := make([]*types.Metadata, 0, len(actualChild))
 	for k := range actualChildMap {
 		en, err := e.syncEntry(ctx, actualChildMap[k], recordChildMap[k])
 		if err != nil && err != types.ErrNotFound {
@@ -342,12 +357,12 @@ func (e *extGroup) ListChildren(ctx context.Context) ([]Entry, error) {
 	return result, nil
 }
 
-func (e *extGroup) syncEntry(ctx context.Context, mirrored *stub.Entry, crt Entry) (en Entry, err error) {
+func (e *extGroup) syncEntry(ctx context.Context, mirrored *stub.Entry, crt *types.Metadata) (en *types.Metadata, err error) {
 	var (
-		grpMd = e.stdGroup.Metadata()
+		grpMd = e.stdGroup.meta
 		grpEd types.ExtendData
 	)
-	grpEd, err = e.stdGroup.GetExtendData(ctx)
+	grpEd, err = e.mgr.GetEntryExtendData(ctx, e.stdGroup.meta.ID)
 	if err != nil {
 		return
 	}
@@ -356,7 +371,7 @@ func (e *extGroup) syncEntry(ctx context.Context, mirrored *stub.Entry, crt Entr
 		return
 	}
 
-	if mirrored != nil && crt != nil && mirrored.IsGroup != crt.IsGroup() {
+	if mirrored != nil && crt != nil && mirrored.IsGroup != types.IsGroup(crt.Kind) {
 		// FIXME
 		return nil, fmt.Errorf("entry and mirrored entry incorrect")
 	}
@@ -365,9 +380,8 @@ func (e *extGroup) syncEntry(ctx context.Context, mirrored *stub.Entry, crt Entr
 		err = types.ErrNotFound
 		if crt != nil {
 			// clean
-			md := crt.Metadata()
-			_ = e.stdGroup.store.DestroyObject(ctx, &types.Object{Metadata: *grpMd}, &types.Object{Metadata: *md})
-			cacheStore.delEntryCache(md.ID)
+			_ = e.stdGroup.store.DestroyObject(ctx, &types.Object{Metadata: *grpMd}, &types.Object{Metadata: *crt})
+			cacheStore.delEntryCache(crt.ID)
 			cacheStore.delEntryCache(grpMd.ID)
 		}
 		return nil, err
@@ -411,18 +425,17 @@ func (e *extGroup) syncEntry(ctx context.Context, mirrored *stub.Entry, crt Entr
 		if err = e.stdGroup.store.SaveObjects(ctx, &types.Object{Metadata: *grpMd}, obj); err != nil {
 			return nil, err
 		}
-		en = buildEntry(obj, e.stdGroup.store)
+		en = &obj.Metadata
 		return
 	}
 
 	// update mirror record
-	md := crt.Metadata()
-	md.Size = mirrored.Size
+	crt.Size = mirrored.Size
 	if err = cacheStore.updateEntry(ctx, entryPatch{entryID: grpMd.ID, handler: func(old *types.Object) {
 		patchChangeableMetadata(&old.Metadata, grpMd)
 	},
-	}, entryPatch{entryID: md.ID, handler: func(old *types.Object) {
-		patchChangeableMetadata(&old.Metadata, md)
+	}, entryPatch{entryID: crt.ID, handler: func(old *types.Object) {
+		patchChangeableMetadata(&old.Metadata, crt)
 	}}); err != nil {
 		return nil, err
 	}

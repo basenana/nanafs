@@ -21,6 +21,7 @@ package fs
 import (
 	"fmt"
 	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/hanwen/go-fuse/v2/fuse"
 	"golang.org/x/sys/unix"
 	"syscall"
@@ -38,8 +39,7 @@ func fsMountOptions(displayName string, ops []string) []string {
 	return options
 }
 
-func nanaNode2Stat(entry dentry.Entry) *syscall.Stat_t {
-	meta := entry.Metadata()
+func nanaNode2Stat(meta *types.Metadata) *syscall.Stat_t {
 	aTime, _ := unix.TimeToTimespec(meta.AccessAt)
 	mTime, _ := unix.TimeToTimespec(meta.ModifiedAt)
 	cTime, _ := unix.TimeToTimespec(meta.ChangedAt)
@@ -69,8 +69,7 @@ func nanaNode2Stat(entry dentry.Entry) *syscall.Stat_t {
 	}
 }
 
-func updateCachedStat(s *syscall.Stat_t, entry dentry.Entry) *syscall.Stat_t {
-	meta := entry.Metadata()
+func updateCachedStat(s *syscall.Stat_t, meta *types.Metadata) *syscall.Stat_t {
 	mTime, _ := unix.TimeToTimespec(meta.ModifiedAt)
 	s.Size = meta.Size
 	s.Mtimespec = syscall.Timespec{Sec: mTime.Sec, Nsec: mTime.Nsec}

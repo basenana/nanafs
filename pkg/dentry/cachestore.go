@@ -27,38 +27,35 @@ import (
 type patchHandler func(old *types.Object)
 
 var (
-	cacheStore *lfuCache
+	cacheStore *metaCache
 )
 
-type lfuCache struct {
+type metaCache struct {
 	metastore metastore.ObjectStore
 	lfu       *utils.LFUPool
 }
 
-func (c *lfuCache) getEntry(ctx context.Context, entryID int64) (Entry, error) {
+func (c *metaCache) getEntry(ctx context.Context, entryID int64) (*types.Metadata, error) {
 	enRaw := c.lfu.Get(c.entryKey(entryID))
 	if enRaw != nil {
-		return enRaw.(Entry), nil
+		return enRaw.(*types.Metadata), nil
 	}
 
 	obj, err := c.metastore.GetObject(ctx, entryID)
 	if err != nil {
 		return nil, err
 	}
-	en := buildEntry(obj, c.metastore)
-	if err != nil {
-		return nil, err
-	}
-	c.putEntry2Cache(en)
-	return en, nil
+	md := obj.Metadata
+	c.putEntry2Cache(&md)
+	return &md, nil
 }
 
-func (c *lfuCache) createEntry(ctx context.Context, newObj *types.Object, parentPatch entryPatch) error {
+func (c *metaCache) createEntry(ctx context.Context, newObj *types.Object, parentPatch entryPatch) error {
 	parentEn, err := c.getEntry(ctx, parentPatch.entryID)
 	if err != nil {
 		return err
 	}
-	parentObj := &types.Object{Metadata: *parentEn.Metadata()}
+	parentObj := &types.Object{Metadata: *parentEn}
 	parentPatch.handler(parentObj)
 
 	err = c.metastore.SaveObjects(ctx, newObj, parentObj)
@@ -70,7 +67,7 @@ func (c *lfuCache) createEntry(ctx context.Context, newObj *types.Object, parent
 	return nil
 }
 
-func (c *lfuCache) updateEntry(ctx context.Context, patches ...entryPatch) error {
+func (c *metaCache) updateEntry(ctx context.Context, patches ...entryPatch) error {
 	err := c.updateEntryNoRetry(ctx, patches...)
 	if err == types.ErrConflict {
 		return c.updateEntryNoRetry(ctx, patches...)
@@ -78,11 +75,11 @@ func (c *lfuCache) updateEntry(ctx context.Context, patches ...entryPatch) error
 	return err
 }
 
-func (c *lfuCache) updateEntryNoRetry(ctx context.Context, patches ...entryPatch) error {
+func (c *metaCache) updateEntryNoRetry(ctx context.Context, patches ...entryPatch) error {
 	var (
 		objList = make([]*types.Object, len(patches))
 		err     error
-		en      Entry
+		en      *types.Metadata
 	)
 
 	for i, patch := range patches {
@@ -91,7 +88,7 @@ func (c *lfuCache) updateEntryNoRetry(ctx context.Context, patches ...entryPatch
 		if err != nil {
 			return err
 		}
-		obj = &types.Object{Metadata: *en.Metadata()}
+		obj = &types.Object{Metadata: *en}
 		patch.handler(obj)
 		objList[i] = obj
 	}
@@ -111,20 +108,20 @@ func (c *lfuCache) updateEntryNoRetry(ctx context.Context, patches ...entryPatch
 	return nil
 }
 
-func (c *lfuCache) putEntry2Cache(entry Entry) {
-	c.lfu.Put(c.entryKey(entry.Metadata().ID), entry)
+func (c *metaCache) putEntry2Cache(entry *types.Metadata) {
+	c.lfu.Put(c.entryKey(entry.ID), entry)
 }
 
-func (c *lfuCache) delEntryCache(eid int64) {
+func (c *metaCache) delEntryCache(eid int64) {
 	c.lfu.Remove(c.entryKey(eid))
 }
 
-func (c *lfuCache) entryKey(eid int64) string {
+func (c *metaCache) entryKey(eid int64) string {
 	return fmt.Sprintf("entry_%d", eid)
 }
 
-func newCacheStore(metastore metastore.ObjectStore) *lfuCache {
-	cacheStore = &lfuCache{metastore: metastore, lfu: utils.NewLFUPool(8192)}
+func newCacheStore(metastore metastore.ObjectStore) *metaCache {
+	cacheStore = &metaCache{metastore: metastore, lfu: utils.NewLFUPool(8192)}
 	return cacheStore
 }
 

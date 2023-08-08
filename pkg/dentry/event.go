@@ -24,16 +24,15 @@ import (
 	"time"
 )
 
-func PublicEntryActionEvent(actionType string, en Entry) {
+func PublicEntryActionEvent(actionType string, en *types.Metadata) {
 	events.Publish(events.EntryActionTopic(events.TopicEntryActionFmt, actionType), BuildEntryEvent(actionType, en))
 }
 
-func PublicFileActionEvent(actionType string, en Entry) {
+func PublicFileActionEvent(actionType string, en *types.Metadata) {
 	events.Publish(events.EntryActionTopic(events.TopicFileActionFmt, actionType), BuildEntryEvent(actionType, en))
 }
 
-func BuildEntryEvent(actionType string, en Entry) *types.Event {
-	md := en.Metadata()
+func BuildEntryEvent(actionType string, md *types.Metadata) *types.Event {
 	return &types.Event{
 		Id:              uuid.New().String(),
 		Type:            actionType,

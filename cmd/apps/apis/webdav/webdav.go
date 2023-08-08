@@ -96,7 +96,7 @@ func (o FsOperator) OpenFile(ctx context.Context, name string, flag int, perm os
 		if err != nil {
 			return nil, error2FsError(err)
 		}
-		f, err := openFile(en, o.mgr, openAttr)
+		f, err := openFile(name, en, o.mgr, openAttr)
 		if err != nil {
 			return nil, error2FsError(err)
 		}
@@ -123,7 +123,7 @@ func (o FsOperator) OpenFile(ctx context.Context, name string, flag int, perm os
 	if err != nil {
 		return nil, error2FsError(err)
 	}
-	f, err := openFile(en, o.mgr, openAttr)
+	f, err := openFile(name, en, o.mgr, openAttr)
 	if err != nil {
 		return nil, error2FsError(err)
 	}
@@ -146,7 +146,7 @@ func (o FsOperator) Stat(ctx context.Context, name string) (os.FileInfo, error) 
 	if err != nil {
 		return nil, error2FsError(err)
 	}
-	return Stat(en.Metadata()), nil
+	return Stat(en), nil
 }
 
 func NewWebdavServer(mgr *pathmgr.PathManager, cfg config.Webdav) (*Webdav, error) {

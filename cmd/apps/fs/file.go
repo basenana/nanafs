@@ -39,6 +39,7 @@ type fileOperation interface {
 
 type File struct {
 	node *NanaNode
+	meta *types.Metadata
 	file dentry.File
 }
 
@@ -51,7 +52,7 @@ func (f *File) Getattr(ctx context.Context, out *fuse.AttrOut) syscall.Errno {
 	if err != nil {
 		if err == types.ErrNotFound && f.file != nil {
 			f.file.Metadata().RefCount = 0
-			st := nanaNode2Stat(f.file)
+			st := nanaNode2Stat(f.meta)
 			updateAttrOut(st, &out.Attr)
 			return NoErr
 		}
@@ -59,7 +60,7 @@ func (f *File) Getattr(ctx context.Context, out *fuse.AttrOut) syscall.Errno {
 	}
 
 	st := nanaNode2Stat(entry)
-	updateCachedStat(st, f.file)
+	updateCachedStat(st, f.meta)
 	updateAttrOut(st, &out.Attr)
 	return NoErr
 }

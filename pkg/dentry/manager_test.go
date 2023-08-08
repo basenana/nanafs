@@ -60,18 +60,18 @@ var _ = Describe("TestRootEntryInit", func() {
 		It("feat root should be succeed", func() {
 			r, err := mgr.Root(context.TODO())
 			Expect(err).Should(BeNil())
-			Expect(time.Since(r.Metadata().CreatedAt) > time.Second).Should(BeTrue())
+			Expect(time.Since(r.CreatedAt) > time.Second).Should(BeTrue())
 
 		})
 	})
 })
 
 var _ = Describe("TestEntryManage", func() {
-	var grp1 Entry
+	var grp1 *types.Metadata
 	Context("create group entry", func() {
 		It("create should be succeed", func() {
 			var err error
-			grp1, err = entryManager.CreateEntry(context.TODO(), root, EntryAttr{
+			grp1, err = entryManager.CreateEntry(context.TODO(), root.ID, EntryAttr{
 				Name:   "test_create_grp1",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
@@ -79,44 +79,55 @@ var _ = Describe("TestEntryManage", func() {
 			Expect(err).Should(BeNil())
 		})
 		It("query should be succeed", func() {
-			_, err := root.Group().FindEntry(context.TODO(), "test_create_grp1")
+			grp, err := entryManager.OpenGroup(context.TODO(), root.ID)
+			Expect(err).Should(BeNil())
+			_, err = grp.FindEntry(context.TODO(), "test_create_grp1")
 			Expect(err).Should(BeNil())
 		})
 	})
 	Context("create file entry", func() {
 		It("create should be succeed", func() {
-			_, err := entryManager.CreateEntry(context.TODO(), grp1, EntryAttr{
+			_, err := entryManager.CreateEntry(context.TODO(), grp1.ID, EntryAttr{
 				Name:   "test_create_file1",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
 
-			_, err = grp1.Group().FindEntry(context.TODO(), "test_create_file1")
+			grp, err := entryManager.OpenGroup(context.TODO(), grp1.ID)
+			Expect(err).Should(BeNil())
+			_, err = grp.FindEntry(context.TODO(), "test_create_file1")
 			Expect(err).Should(BeNil())
 		})
 	})
 	Context("delete file entry", func() {
 		It("delete should be succeed", func() {
-			file1, err := grp1.Group().FindEntry(context.TODO(), "test_create_file1")
+			grp, err := entryManager.OpenGroup(context.TODO(), grp1.ID)
 			Expect(err).Should(BeNil())
-			err = entryManager.RemoveEntry(context.TODO(), grp1, file1)
+			file1, err := grp.FindEntry(context.TODO(), "test_create_file1")
+			Expect(err).Should(BeNil())
+			err = entryManager.RemoveEntry(context.TODO(), grp1.ID, file1.ID)
 			Expect(err).Should(BeNil())
 
-			_, err = grp1.Group().FindEntry(context.TODO(), "test_create_file1")
+			grp, err = entryManager.OpenGroup(context.TODO(), grp1.ID)
+			Expect(err).Should(BeNil())
+			_, err = grp.FindEntry(context.TODO(), "test_create_file1")
 			Expect(err).Should(Equal(types.ErrNotFound))
 		})
 	})
 	Context("delete group entry", func() {
 		It("delete should be succeed", func() {
-			var err error
-			grp1, err = root.Group().FindEntry(context.TODO(), "test_create_grp1")
+			grp, err := entryManager.OpenGroup(context.TODO(), root.ID)
 			Expect(err).Should(BeNil())
-			err = entryManager.RemoveEntry(context.TODO(), root, grp1)
+			grp1, err = grp.FindEntry(context.TODO(), "test_create_grp1")
+			Expect(err).Should(BeNil())
+			err = entryManager.RemoveEntry(context.TODO(), root.ID, grp1.ID)
 			Expect(err).Should(BeNil())
 		})
 		It("query should be failed", func() {
-			_, err := root.Group().FindEntry(context.TODO(), "test_create_grp1")
+			grp, err := entryManager.OpenGroup(context.TODO(), root.ID)
+			Expect(err).Should(BeNil())
+			_, err = grp.FindEntry(context.TODO(), "test_create_grp1")
 			Expect(err).Should(Equal(types.ErrNotFound))
 		})
 	})
@@ -124,7 +135,7 @@ var _ = Describe("TestEntryManage", func() {
 
 var _ = Describe("TestMirrorEntryManage", func() {
 	var (
-		grp1        Entry
+		grp1        *types.Metadata
 		sourceFile  = "test_mirror_grp1_file1"
 		mirrorFile2 = "test_mirror_grp1_file2"
 		mirrorFile3 = "test_mirror_grp1_file3"
@@ -132,18 +143,20 @@ var _ = Describe("TestMirrorEntryManage", func() {
 	Context("create group mirror entry mirror_grp1", func() {
 		It("create should be succeed", func() {
 			var err error
-			grp1, err = entryManager.CreateEntry(context.TODO(), root, EntryAttr{
+			grp1, err = entryManager.CreateEntry(context.TODO(), root.ID, EntryAttr{
 				Name:   "test_mirror_grp1",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
 
-			_, err = root.Group().FindEntry(context.TODO(), "test_mirror_grp1")
+			grp, err := entryManager.OpenGroup(context.TODO(), root.ID)
+			Expect(err).Should(BeNil())
+			_, err = grp.FindEntry(context.TODO(), "test_mirror_grp1")
 			Expect(err).Should(BeNil())
 		})
 		It("should be file", func() {
-			_, err := entryManager.MirrorEntry(context.TODO(), grp1, root, EntryAttr{
+			_, err := entryManager.MirrorEntry(context.TODO(), grp1.ID, root.ID, EntryAttr{
 				Name:   "mirror_grp1",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
@@ -154,7 +167,7 @@ var _ = Describe("TestMirrorEntryManage", func() {
 	Context("create file entry in test_mirror_grp1", func() {
 		It("create should be succeed", func() {
 			var err error
-			_, err = entryManager.CreateEntry(context.TODO(), grp1, EntryAttr{
+			_, err = entryManager.CreateEntry(context.TODO(), grp1.ID, EntryAttr{
 				Name:   sourceFile,
 				Kind:   types.RawKind,
 				Access: accessPermissions,
@@ -163,68 +176,91 @@ var _ = Describe("TestMirrorEntryManage", func() {
 
 		})
 		It("mirror file should be succeed", func() {
-			sFile, err := grp1.Group().FindEntry(context.TODO(), sourceFile)
+			grp, err := entryManager.OpenGroup(context.TODO(), grp1.ID)
+			Expect(err).Should(BeNil())
+			sFile, err := grp.FindEntry(context.TODO(), sourceFile)
 			Expect(err).Should(BeNil())
 
-			mFile2, err := entryManager.MirrorEntry(context.TODO(), mustGetSourceEntry(sFile), grp1, EntryAttr{
+			mFile2, err := entryManager.MirrorEntry(context.TODO(), mustGetSourceEntry(sFile).ID, grp1.ID, EntryAttr{
 				Name:   mirrorFile2,
 				Kind:   types.RawKind,
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
-			Expect(mustGetSourceEntry(mFile2).Metadata().RefCount).Should(Equal(2))
+			Expect(mustGetSourceEntry(mFile2).RefCount).Should(Equal(2))
 
-			sFile, err = grp1.Group().FindEntry(context.TODO(), sourceFile)
+			grp, err = entryManager.OpenGroup(context.TODO(), grp1.ID)
 			Expect(err).Should(BeNil())
-			Expect(mustGetSourceEntry(sFile).Metadata().RefCount).Should(Equal(2))
+			sFile, err = grp.FindEntry(context.TODO(), sourceFile)
+			Expect(err).Should(BeNil())
+			Expect(mustGetSourceEntry(sFile).RefCount).Should(Equal(2))
 		})
 		It("mirror mirrored file should be succeed", func() {
-			mFile2, err := grp1.Group().FindEntry(context.TODO(), mirrorFile2)
+			grp, err := entryManager.OpenGroup(context.TODO(), grp1.ID)
 			Expect(err).Should(BeNil())
-			_, err = entryManager.MirrorEntry(context.TODO(), mustGetSourceEntry(mFile2), grp1, EntryAttr{
+			mFile2, err := grp.FindEntry(context.TODO(), mirrorFile2)
+			Expect(err).Should(BeNil())
+			_, err = entryManager.MirrorEntry(context.TODO(), mustGetSourceEntry(mFile2).ID, grp1.ID, EntryAttr{
 				Name:   mirrorFile3,
 				Kind:   types.RawKind,
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
 
-			sFile, err := grp1.Group().FindEntry(context.TODO(), sourceFile)
+			grp, err = entryManager.OpenGroup(context.TODO(), grp1.ID)
 			Expect(err).Should(BeNil())
-			Expect(mustGetSourceEntry(sFile).Metadata().RefCount).Should(Equal(3))
+			sFile, err := grp.FindEntry(context.TODO(), sourceFile)
+			Expect(err).Should(BeNil())
+			Expect(mustGetSourceEntry(sFile).RefCount).Should(Equal(3))
 		})
 		It("delete file should be succeed", func() {
-			sFile, err := grp1.Group().FindEntry(context.TODO(), sourceFile)
+			grp, err := entryManager.OpenGroup(context.TODO(), grp1.ID)
+			Expect(err).Should(BeNil())
+			sFile, err := grp.FindEntry(context.TODO(), sourceFile)
 			Expect(err).Should(BeNil())
 
-			err = entryManager.RemoveEntry(context.TODO(), grp1, sFile)
+			err = entryManager.RemoveEntry(context.TODO(), grp1.ID, sFile.ID)
 			Expect(err).Should(BeNil())
 
-			_, err = grp1.Group().FindEntry(context.TODO(), sourceFile)
+			grp, err = entryManager.OpenGroup(context.TODO(), grp1.ID)
+			Expect(err).Should(BeNil())
+			_, err = grp.FindEntry(context.TODO(), sourceFile)
 			Expect(err).Should(Equal(types.ErrNotFound))
-			f2, err := grp1.Group().FindEntry(context.TODO(), mirrorFile2)
+
+			grp, err = entryManager.OpenGroup(context.TODO(), grp1.ID)
 			Expect(err).Should(BeNil())
-			Expect(mustGetSourceEntry(f2).Metadata().RefCount).Should(Equal(2))
+			f2, err := grp.FindEntry(context.TODO(), mirrorFile2)
+			Expect(err).Should(BeNil())
+			Expect(mustGetSourceEntry(f2).RefCount).Should(Equal(2))
 		})
 		It("delete mirror file should be succeed", func() {
-			mFile2, err := grp1.Group().FindEntry(context.TODO(), mirrorFile2)
+			grp, err := entryManager.OpenGroup(context.TODO(), grp1.ID)
 			Expect(err).Should(BeNil())
-			err = entryManager.RemoveEntry(context.TODO(), grp1, mFile2)
+			mFile2, err := grp.FindEntry(context.TODO(), mirrorFile2)
+			Expect(err).Should(BeNil())
+			err = entryManager.RemoveEntry(context.TODO(), grp1.ID, mFile2.ID)
 			Expect(err).Should(BeNil())
 
-			_, err = grp1.Group().FindEntry(context.TODO(), mirrorFile2)
-			Expect(err).Should(Equal(types.ErrNotFound))
-			mFile3, err := grp1.Group().FindEntry(context.TODO(), mirrorFile3)
+			grp, err = entryManager.OpenGroup(context.TODO(), grp1.ID)
 			Expect(err).Should(BeNil())
-			Expect(mustGetSourceEntry(mFile3).Metadata().RefCount).Should(Equal(1))
+			_, err = grp.FindEntry(context.TODO(), mirrorFile2)
+			Expect(err).Should(Equal(types.ErrNotFound))
+			mFile3, err := grp.FindEntry(context.TODO(), mirrorFile3)
+			Expect(err).Should(BeNil())
+			Expect(mustGetSourceEntry(mFile3).RefCount).Should(Equal(1))
 		})
 		It("delete mirror file should be succeed", func() {
-			mirroredFile, err := grp1.Group().FindEntry(context.TODO(), mirrorFile3)
+			grp, err := entryManager.OpenGroup(context.TODO(), grp1.ID)
+			Expect(err).Should(BeNil())
+			mirroredFile, err := grp.FindEntry(context.TODO(), mirrorFile3)
 			Expect(err).Should(BeNil())
 
-			err = entryManager.RemoveEntry(context.TODO(), grp1, mirroredFile)
+			err = entryManager.RemoveEntry(context.TODO(), grp1.ID, mirroredFile.ID)
 			Expect(err).Should(BeNil())
 
-			_, err = grp1.Group().FindEntry(context.TODO(), mirrorFile3)
+			grp, err = entryManager.OpenGroup(context.TODO(), grp1.ID)
+			Expect(err).Should(BeNil())
+			_, err = grp.FindEntry(context.TODO(), mirrorFile3)
 			Expect(err).Should(Equal(types.ErrNotFound))
 		})
 	})
@@ -232,29 +268,29 @@ var _ = Describe("TestMirrorEntryManage", func() {
 
 var _ = Describe("TestChangeEntryParent", func() {
 	var (
-		grp1      Entry
-		grp1File1 Entry
-		grp1File2 Entry
-		grp2File2 Entry
-		grp2      Entry
+		grp1      *types.Metadata
+		grp1File1 *types.Metadata
+		grp1File2 *types.Metadata
+		grp2File2 *types.Metadata
+		grp2      *types.Metadata
 	)
 
 	Context("create grp and files", func() {
 		It("create grp1 and files should be succeed", func() {
 			var err error
-			grp1, err = entryManager.CreateEntry(context.TODO(), root, EntryAttr{
+			grp1, err = entryManager.CreateEntry(context.TODO(), root.ID, EntryAttr{
 				Name:   "test_mv_grp1",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
-			grp1File1, err = entryManager.CreateEntry(context.TODO(), grp1, EntryAttr{
+			grp1File1, err = entryManager.CreateEntry(context.TODO(), grp1.ID, EntryAttr{
 				Name:   "test_mv_grp1_file1",
 				Kind:   types.RawKind,
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
-			grp1File2, err = entryManager.CreateEntry(context.TODO(), grp1, EntryAttr{
+			grp1File2, err = entryManager.CreateEntry(context.TODO(), grp1.ID, EntryAttr{
 				Name:   "test_mv_grp1_file2",
 				Kind:   types.RawKind,
 				Access: accessPermissions,
@@ -263,13 +299,13 @@ var _ = Describe("TestChangeEntryParent", func() {
 		})
 		It("create grp2 and files should be succeed", func() {
 			var err error
-			grp2, err = entryManager.CreateEntry(context.TODO(), root, EntryAttr{
+			grp2, err = entryManager.CreateEntry(context.TODO(), root.ID, EntryAttr{
 				Name:   "test_mv_grp2",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
-			grp2File2, err = entryManager.CreateEntry(context.TODO(), grp2, EntryAttr{
+			grp2File2, err = entryManager.CreateEntry(context.TODO(), grp2.ID, EntryAttr{
 				Name:   "test_mv_grp2_file2",
 				Kind:   types.RawKind,
 				Access: accessPermissions,
@@ -279,23 +315,23 @@ var _ = Describe("TestChangeEntryParent", func() {
 	})
 	Context("mv file src grp1 and files", func() {
 		It("should be succeed", func() {
-			err := entryManager.ChangeEntryParent(context.TODO(), grp1File1, nil, grp1, grp2, "test_mv_grp2_file1", ChangeParentAttr{})
+			err := entryManager.ChangeEntryParent(context.TODO(), grp1File1.ID, nil, grp1.ID, grp2.ID, "test_mv_grp2_file1", ChangeParentAttr{})
 			Expect(err).Should(BeNil())
 		})
 		It("has existed file should be failed", func() {
-			err := entryManager.ChangeEntryParent(context.TODO(), grp1File2, grp2File2, grp1, grp2, "test_mv_grp2_file2", ChangeParentAttr{})
+			err := entryManager.ChangeEntryParent(context.TODO(), grp1File2.ID, &grp2File2.ID, grp1.ID, grp2.ID, "test_mv_grp2_file2", ChangeParentAttr{})
 			Expect(err).Should(Equal(types.ErrIsExist))
 		})
 		It("has existed file should be succeed if enable replace", func() {
-			err := entryManager.ChangeEntryParent(context.TODO(), grp1File2, grp2File2, grp1, grp2, "test_mv_grp2_file2", ChangeParentAttr{Replace: true})
+			err := entryManager.ChangeEntryParent(context.TODO(), grp1File2.ID, &grp2File2.ID, grp1.ID, grp2.ID, "test_mv_grp2_file2", ChangeParentAttr{Replace: true})
 			Expect(err).Should(BeNil())
 		})
 	})
 })
 
-func mustGetSourceEntry(en Entry) Entry {
+func mustGetSourceEntry(md *types.Metadata) *types.Metadata {
 	var (
-		md  = en.Metadata()
+		en  *types.Metadata
 		err error
 	)
 	for md.RefID != 0 && md.RefID != md.ID {
@@ -303,7 +339,6 @@ func mustGetSourceEntry(en Entry) Entry {
 		if err != nil {
 			panic(err)
 		}
-		md = en.Metadata()
 	}
 	return en
 }

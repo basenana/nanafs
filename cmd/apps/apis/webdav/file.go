@@ -29,7 +29,7 @@ import (
 
 type File struct {
 	mgr   *pathmgr.PathManager
-	entry dentry.Entry
+	entry *types.Metadata
 	file  dentry.File
 	attr  dentry.Attr
 	off   int64
@@ -66,13 +66,13 @@ func (f *File) Seek(offset int64, whence int) (int64, error) {
 	case io.SeekCurrent:
 		f.off += offset
 	case io.SeekEnd:
-		f.off = f.entry.Metadata().Size + offset
+		f.off = f.entry.Size + offset
 	}
 	return f.off, nil
 }
 
 func (f *File) Stat() (fs.FileInfo, error) {
-	info := Stat(f.entry.Metadata())
+	info := Stat(f.entry)
 	info.size = f.size
 	return info, nil
 }
@@ -81,7 +81,7 @@ func (f *File) Close() error {
 	if f.file == nil {
 		return nil
 	}
-	log.Infow("close file", "entry", f.entry.Metadata().ID, "name", f.entry.Metadata().Name)
+	log.Infow("close file", "entry", f.entry.ID, "name", f.entry.Name)
 	return f.file.Close(context.TODO())
 }
 
@@ -91,31 +91,33 @@ func (f *File) Readdir(count int) ([]fs.FileInfo, error) {
 
 func (f *File) open() (err error) {
 	if f.file == nil {
-		f.file, err = f.mgr.Open(context.TODO(), f.entry, f.attr)
+		f.file, err = f.mgr.Open(context.TODO(), f.entry.ID, f.attr)
 		if err != nil {
-			log.Errorw("open file error", "entry", f.entry.Metadata().ID, "err", err)
+			log.Errorw("open file error", "entry", f.entry.ID, "err", err)
 			return err
 		}
-		log.Infow("open file", "entry", f.entry.Metadata().ID, "name", f.entry.Metadata().Name)
+		log.Infow("open file", "entry", f.entry.ID, "name", f.entry.Name)
 	}
 	return nil
 }
 
 type Dir struct {
-	group dentry.Entry
+	path  string
+	mgr   *pathmgr.PathManager
+	group *types.Metadata
 }
 
 func (d *Dir) Readdir(count int) ([]fs.FileInfo, error) {
-	if !d.group.IsGroup() {
+	if !types.IsGroup(d.group.Kind) {
 		return nil, types.ErrNoGroup
 	}
-	children, err := d.group.Group().ListChildren(context.TODO())
+	children, err := d.mgr.ListEntry(context.TODO(), d.path)
 	if err != nil {
 		return nil, err
 	}
 	infos := make([]fs.FileInfo, len(children))
 	for i := range children {
-		infos[i] = Stat(children[i].Metadata())
+		infos[i] = Stat(children[i])
 	}
 
 	if count <= 0 {
@@ -128,7 +130,7 @@ func (d *Dir) Readdir(count int) ([]fs.FileInfo, error) {
 }
 
 func (d *Dir) Stat() (fs.FileInfo, error) {
-	return Stat(d.group.Metadata()), nil
+	return Stat(d.group), nil
 }
 
 func (d *Dir) Write(p []byte) (int, error) {
@@ -147,15 +149,15 @@ func (d *Dir) Close() error {
 	return nil
 }
 
-func openFile(entry dentry.Entry, mgr *pathmgr.PathManager, attr dentry.Attr) (webdav.File, error) {
-	if entry.IsGroup() {
-		return &Dir{group: entry}, nil
+func openFile(enPath string, entry *types.Metadata, mgr *pathmgr.PathManager, attr dentry.Attr) (webdav.File, error) {
+	if types.IsGroup(entry.Kind) {
+		return &Dir{path: enPath, mgr: mgr, group: entry}, nil
 	}
 	return &File{
 		entry: entry,
 		mgr:   mgr,
 		attr:  attr,
-		size:  entry.Metadata().Size,
+		size:  entry.Size,
 	}, nil
 }
 

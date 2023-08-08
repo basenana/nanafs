@@ -46,19 +46,20 @@ func resetFileChunk() {
 	copy(fileChunk4, []byte(""))
 }
 
-func newMockFileEntry(name string) Entry {
-	en, err := root.Group().FindEntry(context.TODO(), name)
+func newMockFileEntry(name string) *types.Metadata {
+	grp, err := entryManager.OpenGroup(context.TODO(), root.ID)
+	Expect(err).Should(BeNil())
+	en, err := grp.FindEntry(context.TODO(), name)
 	if err == nil {
 		return en
 	}
-	en, err = entryManager.CreateEntry(context.TODO(), root, EntryAttr{Name: name, Kind: types.RawKind, Access: types.Access{}})
+	en, err = entryManager.CreateEntry(context.TODO(), root.ID, EntryAttr{Name: name, Kind: types.RawKind, Access: types.Access{}})
 	if err != nil {
 		panic(fmt.Errorf("init file entry failed: %s", err))
 	}
-	newMeta := en.Metadata()
-	newMeta.Size = fileChunkSize * 4
-	newMeta.Storage = storage.MemoryStorage
-	err = root.Group().UpdateEntry(context.TODO(), en)
+	en.Size = fileChunkSize * 4
+	en.Storage = storage.MemoryStorage
+	err = grp.PatchEntry(context.TODO(), en.ID, en)
 	if err != nil {
 		panic(fmt.Errorf("update file entry failed: %s", err))
 	}
@@ -70,7 +71,7 @@ var _ = Describe("TestFileIO", func() {
 		name = "test-file-key"
 	)
 	BeforeEach(func() {
-		f, err := entryManager.Open(context.Background(), newMockFileEntry(name), Attr{Read: true, Write: true})
+		f, err := entryManager.Open(context.Background(), newMockFileEntry(name).ID, Attr{Read: true, Write: true})
 		Expect(err).Should(BeNil())
 		resetFileChunk()
 		var off int64
@@ -92,7 +93,7 @@ var _ = Describe("TestFileIO", func() {
 	Describe("test file open", func() {
 		Context("open a file", func() {
 			It("should be ok", func() {
-				f, err := entryManager.Open(context.Background(), newMockFileEntry(name), Attr{Read: true})
+				f, err := entryManager.Open(context.Background(), newMockFileEntry(name).ID, Attr{Read: true})
 				Expect(err).Should(BeNil())
 				Expect(f.Close(context.Background())).Should(BeNil())
 			})
@@ -105,7 +106,7 @@ var _ = Describe("TestFileIO", func() {
 			err error
 		)
 		BeforeEach(func() {
-			f, err = entryManager.Open(context.Background(), newMockFileEntry(name), Attr{Read: true})
+			f, err = entryManager.Open(context.Background(), newMockFileEntry(name).ID, Attr{Read: true})
 			Expect(err).Should(BeNil())
 		})
 		Context("read file succeed", func() {
@@ -133,7 +134,7 @@ var _ = Describe("TestFileIO", func() {
 		Context("read file failed", func() {
 			It("should be no perm", func() {
 				buf := make([]byte, 1024)
-				f, err = entryManager.Open(context.Background(), newMockFileEntry(name), Attr{Write: true})
+				f, err = entryManager.Open(context.Background(), newMockFileEntry(name).ID, Attr{Write: true})
 				Expect(err).Should(BeNil())
 				_, err = f.ReadAt(context.Background(), buf, 0)
 				Expect(err).ShouldNot(BeNil())
@@ -149,7 +150,7 @@ var _ = Describe("TestFileIO", func() {
 		)
 		Context("write new content to file", func() {
 			It("should be ok", func() {
-				f, err = entryManager.Open(context.Background(), newMockFileEntry(name), Attr{Write: true})
+				f, err = entryManager.Open(context.Background(), newMockFileEntry(name).ID, Attr{Write: true})
 				Expect(err).Should(BeNil())
 
 				_, err = f.WriteAt(context.Background(), data, 0)
@@ -158,7 +159,7 @@ var _ = Describe("TestFileIO", func() {
 				Expect(f.Close(context.Background())).Should(BeNil())
 				time.Sleep(time.Second)
 
-				f, err = entryManager.Open(context.Background(), newMockFileEntry(name), Attr{Read: true})
+				f, err = entryManager.Open(context.Background(), newMockFileEntry(name).ID, Attr{Read: true})
 				Expect(err).Should(BeNil())
 
 				buf := make([]byte, 10)
@@ -180,7 +181,7 @@ var _ = Describe("TestFileIO", func() {
 
 		Context("create and write a new file", func() {
 			It("should be ok", func() {
-				f, err = entryManager.Open(context.Background(), newMockFileEntry("test-create-new-file"), Attr{Write: true, Create: true})
+				f, err = entryManager.Open(context.Background(), newMockFileEntry("test-create-new-file").ID, Attr{Write: true, Create: true})
 				Expect(err).Should(BeNil())
 				_, err = f.WriteAt(context.Background(), data, 0)
 				Expect(err).Should(BeNil())
@@ -188,7 +189,7 @@ var _ = Describe("TestFileIO", func() {
 				Expect(f.Close(context.Background())).Should(BeNil())
 				time.Sleep(time.Second)
 
-				f, err = entryManager.Open(context.Background(), newMockFileEntry("test-create-new-file"), Attr{Read: true})
+				f, err = entryManager.Open(context.Background(), newMockFileEntry("test-create-new-file").ID, Attr{Read: true})
 				Expect(err).Should(BeNil())
 				buf := make([]byte, 10)
 				n, err := f.ReadAt(context.Background(), buf, 0)

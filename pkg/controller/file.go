@@ -24,41 +24,43 @@ import (
 	"time"
 )
 
-func (c *controller) OpenFile(ctx context.Context, en dentry.Entry, attr dentry.Attr) (dentry.File, error) {
+func (c *controller) OpenFile(ctx context.Context, entryID int64, attr dentry.Attr) (dentry.File, error) {
 	defer trace.StartRegion(ctx, "controller.OpenFile").End()
-	md := en.Metadata()
-	c.logger.Debugw("open file", "file", md.ID, "name", md.Name, "attr", attr)
-	if en.IsGroup() {
+	entry, err := c.GetEntry(ctx, entryID)
+	if err != nil {
+		return nil, err
+	}
+	c.logger.Debugw("open file", "file", entry.ID, "name", entry.Name, "attr", attr)
+	if types.IsGroup(entry.Kind) {
 		return nil, types.ErrIsGroup
 	}
 
-	var err error
-	for en.IsMirror() {
-		var sourceEn dentry.Entry
-		sourceEn, err = c.entry.GetEntry(ctx, md.RefID)
+	for types.IsMirrored(entry) {
+		var sourceEn *types.Metadata
+		sourceEn, err = c.entry.GetEntryMetadata(ctx, entry.RefID)
 		if err != nil {
-			c.logger.Errorw("query source object error", "entry", md.ID, "sourceEntry", md.RefID, "err", err.Error())
+			c.logger.Errorw("query source object error", "entry", entry.ID, "sourceEntry", entry.RefID, "err", err)
 			return nil, err
 		}
-		en = sourceEn
-		md = sourceEn.Metadata()
-		c.logger.Infow("replace source object", "sourceEntry", md.ID)
+		entry = sourceEn
+		c.logger.Infow("replace source object", "sourceEntry", entry.ID)
 	}
 
 	if attr.Trunc {
-		md.Size = 0
+		entry.Size = 0
 	}
 
-	file, err := c.entry.Open(ctx, en, attr)
+	file, err := c.entry.Open(ctx, entry.ID, attr)
 	if err != nil {
-		c.logger.Errorw("open file error", "entry", md.ID, "err", err.Error())
+		c.logger.Errorw("open file error", "entry", entry.ID, "err", err.Error())
 		return nil, err
 	}
+	patch := &types.Metadata{}
 	if attr.Write {
-		md.ModifiedAt = time.Now()
+		patch.ModifiedAt = time.Now()
 	}
-	md.AccessAt = time.Now()
-	if err = c.SaveEntry(ctx, nil, en); err != nil {
+	patch.AccessAt = time.Now()
+	if err = c.SaveEntry(ctx, entryID, patch); err != nil {
 		return nil, err
 	}
 	return file, nil

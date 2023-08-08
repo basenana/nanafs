@@ -18,6 +18,39 @@ package dentry
 
 import "github.com/basenana/nanafs/pkg/types"
 
+func initRootEntryObject() *types.Object {
+	acc := types.Access{
+		Permissions: []types.Permission{
+			types.PermOwnerRead,
+			types.PermOwnerWrite,
+			types.PermOwnerExec,
+			types.PermGroupRead,
+			types.PermGroupWrite,
+			types.PermOthersRead,
+		},
+	}
+	root, _ := types.InitNewObject(nil, types.ObjectAttr{Name: RootEntryName, Kind: types.GroupKind, Access: acc})
+	root.ID = RootEntryID
+	root.ParentID = root.ID
+	return root
+}
+
+func initMirrorEntryObject(src, newParent *types.Metadata, attr EntryAttr) (*types.Object, error) {
+	obj, err := types.InitNewObject(newParent, types.ObjectAttr{
+		Name:   attr.Name,
+		Kind:   attr.Kind,
+		Access: attr.Access,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	obj.Metadata.Kind = src.Kind
+	obj.Metadata.Namespace = src.Namespace
+	obj.RefID = src.ID
+	return obj, nil
+}
+
 func patchChangeableMetadata(oldMd, newMd *types.Metadata) {
 	oldMd.Name = newMd.Name
 	oldMd.Aliases = newMd.Aliases

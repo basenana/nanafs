@@ -78,16 +78,16 @@ var _ = Describe("TestPathSplit", func() {
 
 var _ = Describe("TestPathMgr", func() {
 	ctrl := NewMockController()
-	var root dentry.Entry
+	var root *types.Metadata
 	Context("init test file", func() {
 		It("should be succeed", func() {
 			var err error
 			root, err = ctrl.LoadRootEntry(context.Background())
 			Expect(err).Should(BeNil())
-			_, err = ctrl.CreateEntry(context.Background(), root, types.ObjectAttr{
+			_, err = ctrl.CreateEntry(context.Background(), root.ID, types.ObjectAttr{
 				Name:   "file1.txt",
 				Kind:   types.RawKind,
-				Access: root.Metadata().Access,
+				Access: root.Access,
 			})
 			Expect(err).Should(BeNil())
 		})
@@ -98,14 +98,14 @@ var _ = Describe("TestPathMgr", func() {
 		It("should be succeed", func() {
 			en, err := mgr.FindEntry(context.Background(), "/file1.txt")
 			Expect(err).Should(BeNil())
-			Expect(en.Metadata().Name).Should(Equal("file1.txt"))
+			Expect(en.Name).Should(Equal("file1.txt"))
 		})
 	})
 	Context("test FindParentEntry", func() {
 		It("should be succeed", func() {
 			en, err := mgr.FindParentEntry(context.Background(), "/file1.txt")
 			Expect(err).Should(BeNil())
-			Expect(en.Metadata().ID).Should(Equal(int64(dentry.RootEntryID)))
+			Expect(en.ID).Should(Equal(int64(dentry.RootEntryID)))
 		})
 	})
 	Context("test Open file", func() {
@@ -116,9 +116,9 @@ var _ = Describe("TestPathMgr", func() {
 		It("write new should be succeed", func() {
 			en, err := mgr.CreateFile(context.Background(), "/", types.ObjectAttr{Name: "file2.txt"})
 			Expect(err).Should(BeNil())
-			enID := en.Metadata().ID
+			enID := en.ID
 
-			f, err := mgr.Open(context.Background(), en, dentry.Attr{Write: true})
+			f, err := mgr.Open(context.Background(), enID, dentry.Attr{Write: true})
 			Expect(err).Should(BeNil())
 
 			n, err := f.WriteAt(context.Background(), []byte("abc"), 10)
@@ -128,35 +128,35 @@ var _ = Describe("TestPathMgr", func() {
 
 			en, err = mgr.FindEntry(context.Background(), "/file2.txt")
 			Expect(err).Should(BeNil())
-			Expect(en.Metadata().ID).Should(Equal(enID))
+			Expect(en.ID).Should(Equal(enID))
 		})
 	})
 	Context("test CreateAll", func() {
 		It("create dir2 should be succeed", func() {
-			dir2, err := mgr.CreateAll(context.Background(), "/dir1/dir2", dentry.EntryAttr{Access: root.Metadata().Access})
+			dir2, err := mgr.CreateAll(context.Background(), "/dir1/dir2", dentry.EntryAttr{Access: root.Access})
 			Expect(err).Should(BeNil())
-			Expect(dir2.Metadata().Name).Should(Equal("dir2"))
+			Expect(dir2.Name).Should(Equal("dir2"))
 
 			en1, err := mgr.FindEntry(context.Background(), "/dir1")
 			Expect(err).Should(BeNil())
-			Expect(en1.Metadata().Name).Should(Equal("dir1"))
+			Expect(en1.Name).Should(Equal("dir1"))
 			en2, err := mgr.FindEntry(context.Background(), "/dir1/dir2")
 			Expect(err).Should(BeNil())
-			Expect(en2.Metadata().Name).Should(Equal("dir2"))
+			Expect(en2.Name).Should(Equal("dir2"))
 
-			Expect(dir2.Metadata().ID).Should(Equal(en2.Metadata().ID))
-			Expect(dir2.Metadata().ParentID).Should(Equal(en1.Metadata().ID))
+			Expect(dir2.ID).Should(Equal(en2.ID))
+			Expect(dir2.ParentID).Should(Equal(en1.ID))
 		})
 		It("create dir5 should be succeed", func() {
-			_, err := mgr.CreateAll(context.Background(), "/dir1/dir2/dir3/dir4/dir5", dentry.EntryAttr{Access: root.Metadata().Access})
+			_, err := mgr.CreateAll(context.Background(), "/dir1/dir2/dir3/dir4/dir5", dentry.EntryAttr{Access: root.Access})
 			Expect(err).Should(BeNil())
 		})
 		It("create dir3 should be succeed", func() {
-			_, err := mgr.CreateAll(context.Background(), "/dir1/dir2/dir3", dentry.EntryAttr{Access: root.Metadata().Access})
+			_, err := mgr.CreateAll(context.Background(), "/dir1/dir2/dir3", dentry.EntryAttr{Access: root.Access})
 			Expect(err).Should(BeNil())
 		})
 		It("create dir2.1 should be succeed", func() {
-			_, err := mgr.CreateAll(context.Background(), "/dir1/dir2.1/dir3.1/dir4.1/dir5.1", dentry.EntryAttr{Access: root.Metadata().Access})
+			_, err := mgr.CreateAll(context.Background(), "/dir1/dir2.1/dir3.1/dir4.1/dir5.1", dentry.EntryAttr{Access: root.Access})
 			Expect(err).Should(BeNil())
 		})
 	})

@@ -22,6 +22,7 @@ import (
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/storage"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"os"
 	"testing"
@@ -33,7 +34,7 @@ import (
 var (
 	objStore     metastore.ObjectStore
 	entryManager Manager
-	root         Entry
+	root         *types.Metadata
 
 	workdir string
 )
