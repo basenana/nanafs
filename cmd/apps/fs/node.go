@@ -118,9 +118,8 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 	if err := updateNanaNodeWithAttr(in, entry, int64(uid), int64(gid), attr); err != nil {
 		return Error2FuseSysError("entry_set_attr", err)
 	}
-
 	entry.ChangedAt = time.Now()
-	if err := n.R.SaveEntry(ctx, n.oid, entry); err != nil {
+	if err := n.R.PatchEntry(ctx, n.oid, entry); err != nil {
 		return Error2FuseSysError("entry_set_attr", err)
 	}
 	return n.Getattr(ctx, f, out)
@@ -402,7 +401,7 @@ func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.E
 	if err = f.Close(ctx); err != nil {
 		return nil, Error2FuseSysError("entry_symlink", err)
 	}
-	if err = n.R.SaveEntry(ctx, newLink.ID, newLink); err != nil {
+	if err = n.R.PatchEntry(ctx, newLink.ID, newLink); err != nil {
 		return nil, Error2FuseSysError("entry_symlink", err)
 	}
 

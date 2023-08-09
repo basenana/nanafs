@@ -94,19 +94,23 @@ var _ Manager = &manager{}
 
 func (m *manager) Root(ctx context.Context) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.Root").End()
-	root, err := m.metastore.GetObject(ctx, RootEntryID)
+	root, err := m.GetEntry(ctx, RootEntryID)
 	if err == nil {
-		return &root.Metadata, nil
+		return root, nil
 	}
 	if err != types.ErrNotFound {
 		m.logger.Errorw("load root object error", "err", err.Error())
 		return nil, err
 	}
-	root = initRootEntryObject()
-	root.Access.UID = m.cfg.FS.Owner.Uid
-	root.Access.GID = m.cfg.FS.Owner.Gid
-	root.Storage = m.cfg.Storages[0].ID
-	return &root.Metadata, m.metastore.SaveObjects(ctx, root)
+	rootObj := initRootEntryObject()
+	rootObj.Access.UID = m.cfg.FS.Owner.Uid
+	rootObj.Access.GID = m.cfg.FS.Owner.Gid
+	rootObj.Storage = m.cfg.Storages[0].ID
+	err = m.cache.createEntry(ctx, rootObj, nil)
+	if err != nil {
+		return nil, err
+	}
+	return m.GetEntry(ctx, RootEntryID)
 }
 
 func (m *manager) GetEntry(ctx context.Context, id int64) (*types.Metadata, error) {
@@ -227,7 +231,7 @@ func (m *manager) RemoveEntry(ctx context.Context, parentId, entryId int64) erro
 	defer entryLifecycleLock.Unlock()
 
 	var (
-		changes = make([]entryPatch, 0, 3)
+		patches = make([]*types.Metadata, 2, 3)
 		nowTime = time.Now()
 	)
 
@@ -236,28 +240,16 @@ func (m *manager) RemoveEntry(ctx context.Context, parentId, entryId int64) erro
 		return err
 	}
 
+	patches[0] = &types.Metadata{ID: parentId, ModifiedAt: nowTime}
+	if types.IsGroup(entry.Kind) {
+		patches[0].RefCount -= 1
+	}
+	patches[1] = &types.Metadata{ID: entryId, ParentID: 0, RefCount: entry.RefCount - 1, ModifiedAt: nowTime}
 	if srcObj != nil {
-		changes = append(changes, entryPatch{entryID: srcObj.ID, handler: func(old *types.Object) {
-			old.RefCount -= 1
-			old.ChangedAt = nowTime
-			old.ModifiedAt = nowTime
-		}})
+		patches = append(patches, &types.Metadata{ID: srcObj.ID, RefCount: srcObj.RefCount - 1, ModifiedAt: nowTime})
 	}
 
-	changes = append(changes, entryPatch{entryID: parentId, handler: func(old *types.Object) {
-		if types.IsGroup(entry.Kind) {
-			old.RefCount -= 1
-		}
-		old.ChangedAt = nowTime
-		old.ModifiedAt = nowTime
-	}})
-
-	changes = append(changes, entryPatch{entryID: entryId, handler: func(old *types.Object) {
-		old.ParentID = 0
-		old.RefCount -= 1
-		old.ChangedAt = nowTime
-	}})
-	if err = m.cache.updateEntry(ctx, changes...); err != nil {
+	if err = m.cache.patchEntryMeta(ctx, patches...); err != nil {
 		m.logger.Errorw("destroy object from meta server error", "entry", entry.ID, "err", err)
 		return err
 	}
@@ -433,12 +425,7 @@ func (m *manager) changeEntryParentByFileCopy(ctx context.Context, targetEntry, 
 	if types.IsGroup(targetEntry.Kind) {
 		if oldParent.ID == newParent.ID {
 			// only rename
-			err = m.cache.updateEntry(ctx, entryPatch{
-				entryID: targetEntry.ID,
-				handler: func(old *types.Object) {
-					old.Name = newName
-				},
-			})
+			err = m.cache.patchEntryMeta(ctx, &types.Metadata{ID: targetEntry.ID, Name: newName})
 			if err != nil {
 				m.logger.Errorw("change entry parent by file copy error, rename dir failed", "err", err)
 				return err
@@ -497,12 +484,7 @@ func (m *manager) Open(ctx context.Context, entryId int64, attr Attr) (File, err
 		if err := m.CleanEntryData(ctx, entryId); err != nil {
 			m.logger.Errorw("clean entry with trunc error", "entry", entryId, "err", err)
 		}
-		if err := m.cache.updateEntry(ctx, entryPatch{
-			entryID: entryId,
-			handler: func(old *types.Object) {
-				old.Size = 0
-			},
-		}); err != nil {
+		if err = m.cache.patchEntryMeta(ctx, &types.Metadata{ID: entryId, Size: 0}); err != nil {
 			m.logger.Errorw("update entry size to zero error", "entry", entryId, "err", err)
 		}
 		PublicFileActionEvent(events.ActionTypeTrunc, entry)

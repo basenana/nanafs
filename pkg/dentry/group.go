@@ -130,14 +130,11 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (*types.Meta
 		obj.GroupFilter = attr.GroupFilter
 	}
 
-	nowTime := time.Now()
-	if err = cacheStore.createEntry(ctx, obj, entryPatch{entryID: group.ID, handler: func(old *types.Object) {
-		if obj.IsGroup() {
-			old.RefCount += 1
-		}
-		old.ChangedAt = nowTime
-		old.ModifiedAt = nowTime
-	}}); err != nil {
+	parentPatch := &types.Metadata{ID: group.ID, ModifiedAt: time.Now()}
+	if obj.IsGroup() {
+		parentPatch.RefCount += 1
+	}
+	if err = cacheStore.createEntry(ctx, obj, parentPatch); err != nil {
 		return nil, err
 	}
 	return &obj.Metadata, nil
@@ -145,12 +142,8 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (*types.Meta
 
 func (g *stdGroup) PatchEntry(ctx context.Context, entryId int64, patch *types.Metadata) error {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.UpdateEntry").End()
-	err := cacheStore.updateEntry(ctx,
-		entryPatch{entryID: entryId, handler: func(old *types.Object) {
-			patchChangeableMetadata(&old.Metadata, patch)
-		}},
-	)
-	if err != nil {
+	patch.ID = entryId
+	if err := cacheStore.patchEntryMeta(ctx, patch); err != nil {
 		return err
 	}
 	return nil
@@ -178,27 +171,16 @@ func (g *stdGroup) RemoveEntry(ctx context.Context, entryId int64) error {
 		return types.ErrUnsupported
 	}
 
-	var (
-		changes = make([]entryPatch, 0, 2)
-		nowTime = time.Now()
-	)
-	changes = append(changes, entryPatch{entryID: entry.ID, handler: func(old *types.Object) {
-		if !old.IsGroup() && old.RefCount > 0 {
-			old.RefCount -= 1
-			old.ChangedAt = nowTime
-		}
-		old.ParentID = 0
-	}})
-
-	changes = append(changes, entryPatch{entryID: group.ID, handler: func(old *types.Object) {
-		if types.IsGroup(entry.Kind) {
-			old.RefCount -= 1
-		}
-		old.ChangedAt = nowTime
-		old.ModifiedAt = nowTime
-	}})
-
-	if err := cacheStore.updateEntry(ctx, changes...); err != nil {
+	var patches = make([]*types.Metadata, 2)
+	patches[0] = &types.Metadata{ID: entry.ID, ParentID: 0}
+	if !types.IsGroup(entry.Kind) && entry.RefCount > 0 {
+		patches[0].RefCount -= 1
+	}
+	patches[1] = &types.Metadata{ID: group.ID, ModifiedAt: time.Now()}
+	if types.IsGroup(entry.Kind) {
+		patches[1].RefCount -= 1
+	}
+	if err := cacheStore.patchEntryMeta(ctx, patches...); err != nil {
 		return err
 	}
 	return nil
@@ -417,12 +399,11 @@ func (e *extGroup) syncEntry(ctx context.Context, mirrored *stub.Entry, crt *typ
 		obj.PlugScope.Parameters[types.PlugScopeEntryName] = mirrored.Name
 		obj.PlugScope.Parameters[types.PlugScopeEntryPath] = path.Join(grpEd.PlugScope.Parameters[types.PlugScopeEntryPath], mirrored.Name)
 
+		grpPatch := &types.Metadata{ID: grpMd.ID, ModifiedAt: time.Now(), ChangedAt: time.Now()}
 		if obj.IsGroup() {
-			grpMd.RefCount += 1
+			grpPatch.RefCount = grpMd.RefCount + 1
 		}
-		grpMd.ChangedAt = time.Now()
-		grpMd.ModifiedAt = time.Now()
-		if err = e.stdGroup.store.SaveObjects(ctx, &types.Object{Metadata: *grpMd}, obj); err != nil {
+		if err = cacheStore.createEntry(ctx, obj, grpPatch); err != nil {
 			return nil, err
 		}
 		en = &obj.Metadata
@@ -431,12 +412,13 @@ func (e *extGroup) syncEntry(ctx context.Context, mirrored *stub.Entry, crt *typ
 
 	// update mirror record
 	crt.Size = mirrored.Size
-	if err = cacheStore.updateEntry(ctx, entryPatch{entryID: grpMd.ID, handler: func(old *types.Object) {
-		patchChangeableMetadata(&old.Metadata, grpMd)
-	},
-	}, entryPatch{entryID: crt.ID, handler: func(old *types.Object) {
-		patchChangeableMetadata(&old.Metadata, crt)
-	}}); err != nil {
+	var (
+		grpPatch = &types.Metadata{ID: grpMd.ID}
+		enPatch  = &types.Metadata{ID: crt.ID}
+	)
+	patchChangeableMetadata(grpPatch, grpMd)
+	patchChangeableMetadata(enPatch, crt)
+	if err = cacheStore.patchEntryMeta(ctx, grpPatch, enPatch); err != nil {
 		return nil, err
 	}
 	en = crt

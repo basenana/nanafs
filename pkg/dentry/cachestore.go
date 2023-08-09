@@ -22,9 +22,8 @@ import (
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
+	"time"
 )
-
-type patchHandler func(old *types.Object)
 
 var (
 	cacheStore *metaCache
@@ -50,24 +49,25 @@ func (c *metaCache) getEntry(ctx context.Context, entryID int64) (*types.Metadat
 	return &md, nil
 }
 
-func (c *metaCache) createEntry(ctx context.Context, newObj *types.Object, parentPatch entryPatch) error {
-	parentEn, err := c.getEntry(ctx, parentPatch.entryID)
+func (c *metaCache) createEntry(ctx context.Context, newObj *types.Object, parentPatch *types.Metadata) error {
+	objects := make([]*types.Object, 1, 2)
+	objects[0] = newObj
+	if parentPatch != nil {
+		objects[1] = &types.Object{Metadata: *parentPatch}
+	}
+	err := c.metastore.SaveObjects(ctx, objects...)
 	if err != nil {
 		return err
 	}
-	parentObj := &types.Object{Metadata: *parentEn}
-	parentPatch.handler(parentObj)
 
-	err = c.metastore.SaveObjects(ctx, newObj, parentObj)
-	if err != nil {
+	c.putEntry2Cache(&newObj.Metadata)
+	if parentPatch != nil {
 		c.delEntryCache(newObj.ParentID)
-		return err
 	}
-	c.delEntryCache(newObj.ParentID)
 	return nil
 }
 
-func (c *metaCache) updateEntry(ctx context.Context, patches ...entryPatch) error {
+func (c *metaCache) patchEntryMeta(ctx context.Context, patches ...*types.Metadata) error {
 	err := c.updateEntryNoRetry(ctx, patches...)
 	if err == types.ErrConflict {
 		return c.updateEntryNoRetry(ctx, patches...)
@@ -75,7 +75,7 @@ func (c *metaCache) updateEntry(ctx context.Context, patches ...entryPatch) erro
 	return err
 }
 
-func (c *metaCache) updateEntryNoRetry(ctx context.Context, patches ...entryPatch) error {
+func (c *metaCache) updateEntryNoRetry(ctx context.Context, patches ...*types.Metadata) error {
 	var (
 		objList = make([]*types.Object, len(patches))
 		err     error
@@ -83,28 +83,30 @@ func (c *metaCache) updateEntryNoRetry(ctx context.Context, patches ...entryPatc
 	)
 
 	for i, patch := range patches {
-		var obj *types.Object
-		en, err = c.getEntry(ctx, patch.entryID)
+		if patch.ID == 0 {
+			return types.ErrNotFound
+		}
+		en, err = c.getEntry(ctx, patch.ID)
 		if err != nil {
 			return err
 		}
-		obj = &types.Object{Metadata: *en}
-		patch.handler(obj)
+		patch.Version = en.Version
+		obj := &types.Object{Metadata: *patch}
+		obj.ChangedAt = time.Now()
 		objList[i] = obj
 	}
+
+	defer func() {
+		for _, patch := range patches {
+			c.delEntryCache(patch.ID)
+		}
+	}()
 
 	err = c.metastore.SaveObjects(ctx, objList...)
 	if err != nil {
 		return err
 	}
 
-	for _, patch := range patches {
-		enRaw := c.lfu.Get(c.entryKey(patch.entryID))
-		if enRaw == nil {
-			continue
-		}
-		patch.handler(&types.Object{Metadata: *enRaw.(Entry).Metadata()})
-	}
 	return nil
 }
 
@@ -123,9 +125,4 @@ func (c *metaCache) entryKey(eid int64) string {
 func newCacheStore(metastore metastore.ObjectStore) *metaCache {
 	cacheStore = &metaCache{metastore: metastore, lfu: utils.NewLFUPool(8192)}
 	return cacheStore
-}
-
-type entryPatch struct {
-	entryID int64
-	handler patchHandler
 }

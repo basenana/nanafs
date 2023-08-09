@@ -37,7 +37,7 @@ func (c *controller) OpenFile(ctx context.Context, entryID int64, attr dentry.At
 
 	for types.IsMirrored(entry) {
 		var sourceEn *types.Metadata
-		sourceEn, err = c.entry.GetEntryMetadata(ctx, entry.RefID)
+		sourceEn, err = c.entry.GetEntry(ctx, entry.RefID)
 		if err != nil {
 			c.logger.Errorw("query source object error", "entry", entry.ID, "sourceEntry", entry.RefID, "err", err)
 			return nil, err
@@ -60,7 +60,7 @@ func (c *controller) OpenFile(ctx context.Context, entryID int64, attr dentry.At
 		patch.ModifiedAt = time.Now()
 	}
 	patch.AccessAt = time.Now()
-	if err = c.SaveEntry(ctx, entryID, patch); err != nil {
+	if err = c.PatchEntry(ctx, entryID, patch); err != nil {
 		return nil, err
 	}
 	return file, nil

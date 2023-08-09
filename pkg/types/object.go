@@ -234,3 +234,7 @@ type ChunkSeg struct {
 	Len      int64
 	State    int16
 }
+
+func IsMirrored(md *Metadata) bool {
+	return !IsGroup(md.Kind) && md.RefID != 0 && md.RefID != md.ID
+}

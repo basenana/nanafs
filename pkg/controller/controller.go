@@ -38,7 +38,7 @@ type Controller interface {
 	FindEntry(ctx context.Context, parentId int64, name string) (*types.Metadata, error)
 	GetEntry(ctx context.Context, id int64) (*types.Metadata, error)
 	CreateEntry(ctx context.Context, parentId int64, attr types.ObjectAttr) (*types.Metadata, error)
-	SaveEntry(ctx context.Context, entryId int64, entry *types.Metadata) error
+	PatchEntry(ctx context.Context, entryId int64, patch *types.Metadata) error
 	DestroyEntry(ctx context.Context, parentId, entryId int64, attr types.DestroyObjectAttr) error
 	MirrorEntry(ctx context.Context, srcEntryId, dstParentId int64, attr types.ObjectAttr) (*types.Metadata, error)
 	ListEntryChildren(ctx context.Context, entryId int64) ([]*types.Metadata, error)
@@ -87,7 +87,7 @@ func (c *controller) FindEntry(ctx context.Context, parentId int64, name string)
 	if len(name) > entryNameMaxLength {
 		return nil, types.ErrNameTooLong
 	}
-	group, err := c.entry.OpenDir(ctx, parentId)
+	group, err := c.entry.OpenGroup(ctx, parentId)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +103,7 @@ func (c *controller) FindEntry(ctx context.Context, parentId int64, name string)
 
 func (c *controller) GetEntry(ctx context.Context, id int64) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "controller.GetEntry").End()
-	result, err := c.entry.GetEntryMetadata(ctx, id)
+	result, err := c.entry.GetEntry(ctx, id)
 	if err != nil {
 		if err != types.ErrNotFound {
 			c.logger.Errorw("get entry error", "entry", id, "err", err.Error())
@@ -134,14 +134,14 @@ func (c *controller) CreateEntry(ctx context.Context, parentId int64, attr types
 	return entry, nil
 }
 
-func (c *controller) SaveEntry(ctx context.Context, entryID int64, patch *types.Metadata) error {
-	defer trace.StartRegion(ctx, "controller.SaveEntry").End()
+func (c *controller) PatchEntry(ctx context.Context, entryID int64, patch *types.Metadata) error {
+	defer trace.StartRegion(ctx, "controller.PatchEntry").End()
 	en, err := c.GetEntry(ctx, entryID)
 	if err != nil {
 		return err
 	}
 
-	parent, err := c.entry.OpenDir(ctx, en.ParentID)
+	parent, err := c.entry.OpenGroup(ctx, en.ParentID)
 	if err != nil {
 		return err
 	}
@@ -209,7 +209,7 @@ func (c *controller) MirrorEntry(ctx context.Context, srcId, dstParentId int64, 
 
 func (c *controller) ListEntryChildren(ctx context.Context, parentId int64) ([]*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "controller.ListEntryChildren").End()
-	parent, err := c.entry.OpenDir(ctx, parentId)
+	parent, err := c.entry.OpenGroup(ctx, parentId)
 	if err != nil {
 		return nil, err
 	}

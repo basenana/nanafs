@@ -20,7 +20,6 @@ import (
 	"context"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
-	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/hanwen/go-fuse/v2/fs"
@@ -188,7 +187,7 @@ func (n *NanaFS) GetSourceEntry(ctx context.Context, id int64) (*types.Metadata,
 	}
 }
 
-func (n *NanaFS) releaseFsNode(ctx context.Context, entry dentry.Entry) {
+func (n *NanaFS) releaseFsNode(ctx context.Context, entryId int64) {
 }
 
 func NewNanaFsRoot(cfg config.FUSE, controller controller.Controller) (*NanaFS, error) {
