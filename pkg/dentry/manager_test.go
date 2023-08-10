@@ -329,13 +329,13 @@ var _ = Describe("TestChangeEntryParent", func() {
 	})
 })
 
-func mustGetSourceEntry(md *types.Metadata) *types.Metadata {
+func mustGetSourceEntry(entry *types.Metadata) *types.Metadata {
 	var (
 		en  *types.Metadata
 		err error
 	)
-	for md.RefID != 0 && md.RefID != md.ID {
-		en, err = entryManager.GetEntry(context.TODO(), md.RefID)
+	for entry.RefID != 0 && entry.RefID != entry.ID {
+		en, err = entryManager.GetEntry(context.TODO(), entry.RefID)
 		if err != nil {
 			panic(err)
 		}

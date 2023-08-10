@@ -33,36 +33,39 @@ import (
 var _ = Describe("TestMirrorPlugin", func() {
 	var (
 		ctx         = context.TODO()
-		workflowDir dentry.Entry
-		jobDir      dentry.Entry
+		workflowDir *types.Metadata
+		jobDir      *types.Metadata
 
 		workflowID1 = "test-workflow-1"
 		workflowID2 = "test-workflow-delete"
-		workflow1   dentry.Entry
-		workflow2   dentry.Entry
+		workflow1   *types.Metadata
+		workflow2   *types.Metadata
 	)
 	Context("init mirror plugin", func() {
 		It("list root should has jobs and workflows", func() {
 			root, err := entryMgr.Root(ctx)
 			Expect(err).Should(BeNil())
 
-			child, err := root.Group().ListChildren(ctx)
+			rootGrp, err := entryMgr.OpenGroup(ctx, root.ID)
+			Expect(err).Should(BeNil())
+			child, err := rootGrp.ListChildren(ctx)
 			Expect(err).Should(BeNil())
 
-			var workflowRoot dentry.Entry
+			var workflowRoot *types.Metadata
 			for i, dir := range child {
-				if dir.Metadata().Name == MirrorRootDirName {
+				if dir.Name == MirrorRootDirName {
 					workflowRoot = child[i]
 					break
 				}
 			}
 			Expect(workflowRoot).ShouldNot(BeNil())
 
-			child, err = workflowRoot.Group().ListChildren(ctx)
+			workflowRootGrp, err := entryMgr.OpenGroup(ctx, workflowRoot.ID)
+			Expect(err).Should(BeNil())
+			child, err = workflowRootGrp.ListChildren(ctx)
 			Expect(err).Should(BeNil())
 			for i, ch := range child {
-				md := ch.Metadata()
-				switch md.Name {
+				switch ch.Name {
 				case MirrorDirWorkflows:
 					workflowDir = child[i]
 				case MirrorDirJobs:
@@ -76,14 +79,14 @@ var _ = Describe("TestMirrorPlugin", func() {
 	Context("manage workflow", func() {
 		It("create workflow should be succeed", func() {
 			var err error
-			workflow1, err = entryMgr.CreateEntry(ctx, workflowDir, dentry.EntryAttr{
+			workflow1, err = entryMgr.CreateEntry(ctx, workflowDir.ID, dentry.EntryAttr{
 				Name:   id2MirrorFile(workflowID1),
 				Kind:   types.RawKind,
-				Access: workflowDir.Metadata().Access,
+				Access: workflowDir.Access,
 			})
 			Expect(err).Should(BeNil())
 
-			f, err := entryMgr.Open(ctx, workflow1, dentry.Attr{Write: true})
+			f, err := entryMgr.Open(ctx, workflow1.ID, dentry.Attr{Write: true})
 			Expect(err).Should(BeNil())
 
 			_, err = io.Copy(utils.NewWriterWithContextWriter(ctx, f), bytes.NewBuffer([]byte(workflowPayload1)))
@@ -94,14 +97,14 @@ var _ = Describe("TestMirrorPlugin", func() {
 			_, err = mgr.GetWorkflow(ctx, workflowID1)
 			Expect(err).Should(BeNil())
 
-			workflow2, err = entryMgr.CreateEntry(ctx, workflowDir, dentry.EntryAttr{
+			workflow2, err = entryMgr.CreateEntry(ctx, workflowDir.ID, dentry.EntryAttr{
 				Name:   id2MirrorFile(workflowID2),
 				Kind:   types.RawKind,
-				Access: workflowDir.Metadata().Access,
+				Access: workflowDir.Access,
 			})
 			Expect(err).Should(BeNil())
 
-			f, err = entryMgr.Open(ctx, workflow2, dentry.Attr{Write: true})
+			f, err = entryMgr.Open(ctx, workflow2.ID, dentry.Attr{Write: true})
 			Expect(err).Should(BeNil())
 
 			_, err = io.Copy(utils.NewWriterWithContextWriter(ctx, f), bytes.NewBuffer([]byte(workflowPayload1)))
@@ -113,7 +116,7 @@ var _ = Describe("TestMirrorPlugin", func() {
 			Expect(err).Should(BeNil())
 		})
 		It("update workflow should be succeed", func() {
-			f, err := entryMgr.Open(ctx, workflow1, dentry.Attr{Write: true, Trunc: true})
+			f, err := entryMgr.Open(ctx, workflow1.ID, dentry.Attr{Write: true, Trunc: true})
 			Expect(err).Should(BeNil())
 
 			_, err = io.Copy(utils.NewWriterWithContextWriter(ctx, f), bytes.NewBuffer([]byte(workflowPayload2)))
@@ -128,7 +131,9 @@ var _ = Describe("TestMirrorPlugin", func() {
 			_, err := mgr.GetWorkflow(ctx, workflowID2)
 			Expect(err).Should(BeNil())
 
-			err = workflowDir.Group().RemoveEntry(ctx, workflow2)
+			workflowDirGrp, err := entryMgr.OpenGroup(ctx, workflowDir.ID)
+			Expect(err).Should(BeNil())
+			err = workflowDirGrp.RemoveEntry(ctx, workflow2.ID)
 			Expect(err).Should(BeNil())
 
 			_, err = mgr.GetWorkflow(ctx, workflowID2)
@@ -138,19 +143,19 @@ var _ = Describe("TestMirrorPlugin", func() {
 
 	var (
 		jobID               = "test-workflow-1-job-1"
-		workflowJob         dentry.Entry
-		jobWorkflowGroupDir dentry.Entry
+		workflowJob         *types.Metadata
+		jobWorkflowGroupDir *types.Metadata
 
-		targetEn dentry.Entry
+		targetEn *types.Metadata
 	)
 	Context("trigger workflow", func() {
 		It("create dummy entry should be succeed", func() {
 			root, err := entryMgr.Root(ctx)
 			Expect(err).Should(BeNil())
-			targetEn, err = entryMgr.CreateEntry(ctx, root, dentry.EntryAttr{Name: "test_workflow_mirror_dir.txt", Kind: types.RawKind, Access: root.Metadata().Access})
+			targetEn, err = entryMgr.CreateEntry(ctx, root.ID, dentry.EntryAttr{Name: "test_workflow_mirror_dir.txt", Kind: types.RawKind, Access: root.Access})
 			Expect(err).Should(BeNil())
 
-			f, err := entryMgr.Open(ctx, targetEn, dentry.Attr{Write: true})
+			f, err := entryMgr.Open(ctx, targetEn.ID, dentry.Attr{Write: true})
 			Expect(err).Should(BeNil())
 			_, err = f.WriteAt(ctx, []byte("Hello World!"), 0)
 			Expect(err).Should(BeNil())
@@ -160,23 +165,25 @@ var _ = Describe("TestMirrorPlugin", func() {
 			var err error
 
 			// get job workflow group
-			jobWorkflowGroupDir, err = jobDir.Group().FindEntry(ctx, workflowID1)
+			jobDirGrp, err := entryMgr.OpenGroup(ctx, jobDir.ID)
+			Expect(err).Should(BeNil())
+			jobWorkflowGroupDir, err = jobDirGrp.FindEntry(ctx, workflowID1)
 			Expect(err).Should(BeNil())
 
 			// trigger workflow
-			workflowJob, err = entryMgr.CreateEntry(ctx, jobWorkflowGroupDir, dentry.EntryAttr{
+			workflowJob, err = entryMgr.CreateEntry(ctx, jobWorkflowGroupDir.ID, dentry.EntryAttr{
 				Name:   id2MirrorFile(jobID),
 				Kind:   types.RawKind,
-				Access: workflowDir.Metadata().Access,
+				Access: workflowDir.Access,
 			})
 			Expect(err).Should(BeNil())
 
-			f, err := entryMgr.Open(ctx, workflowJob, dentry.Attr{Write: true})
+			f, err := entryMgr.Open(ctx, workflowJob.ID, dentry.Attr{Write: true})
 			Expect(err).Should(BeNil())
 
 			job := &types.WorkflowJob{
 				TriggerReason: "unit test",
-				Target:        types.WorkflowTarget{EntryID: targetEn.Metadata().ID},
+				Target:        types.WorkflowTarget{EntryID: targetEn.ID},
 			}
 			jobContent, err := yaml.Marshal(job)
 			Expect(err).Should(BeNil())
@@ -206,7 +213,7 @@ var _ = Describe("TestMirrorPlugin", func() {
 			job := jobs[0]
 			job.Status = flow.PausedStatus
 
-			f, err := entryMgr.Open(ctx, workflowJob, dentry.Attr{Write: true, Trunc: true})
+			f, err := entryMgr.Open(ctx, workflowJob.ID, dentry.Attr{Write: true, Trunc: true})
 			Expect(err).Should(BeNil())
 
 			encoder := yaml.NewEncoder(utils.NewWriterWithContextWriter(ctx, f))
@@ -231,7 +238,7 @@ var _ = Describe("TestMirrorPlugin", func() {
 			job := jobs[0]
 			job.Status = flow.RunningStatus
 
-			f, err := entryMgr.Open(ctx, workflowJob, dentry.Attr{Write: true, Trunc: true})
+			f, err := entryMgr.Open(ctx, workflowJob.ID, dentry.Attr{Write: true, Trunc: true})
 			Expect(err).Should(BeNil())
 
 			encoder := yaml.NewEncoder(utils.NewWriterWithContextWriter(ctx, f))

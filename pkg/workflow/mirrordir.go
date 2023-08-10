@@ -502,8 +502,12 @@ func buildWorkflowMirrorPlugin(mgr Manager) plugin.Builder {
 	return mp.build
 }
 
-func initWorkflowMirrorDir(root dentry.Entry, entryMgr dentry.Manager) error {
-	oldDir, err := root.Group().FindEntry(context.Background(), ".workflow")
+func initWorkflowMirrorDir(root *types.Metadata, entryMgr dentry.Manager) error {
+	rootGrp, err := entryMgr.OpenGroup(context.TODO(), root.ID)
+	if err != nil {
+		return fmt.Errorf("open root group failed: %s", err)
+	}
+	oldDir, err := rootGrp.FindEntry(context.Background(), ".workflow")
 	if err != nil && err != types.ErrNotFound {
 		return err
 	}
@@ -511,10 +515,10 @@ func initWorkflowMirrorDir(root dentry.Entry, entryMgr dentry.Manager) error {
 		return nil
 	}
 
-	_, err = entryMgr.CreateEntry(context.Background(), root, dentry.EntryAttr{
+	_, err = entryMgr.CreateEntry(context.Background(), root.ID, dentry.EntryAttr{
 		Name:   MirrorRootDirName,
 		Kind:   types.ExternalGroupKind,
-		Access: root.Metadata().Access,
+		Access: root.Access,
 		PlugScope: &types.PlugScope{
 			PluginName: MirrorPluginName,
 			Version:    MirrorPluginVersion,

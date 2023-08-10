@@ -38,9 +38,9 @@ type fileOperation interface {
 }
 
 type File struct {
-	node *NanaNode
-	meta *types.Metadata
-	file dentry.File
+	node  *NanaNode
+	entry *types.Metadata
+	file  dentry.File
 }
 
 var _ fileOperation = &File{}
@@ -48,11 +48,11 @@ var _ fileOperation = &File{}
 func (f *File) Getattr(ctx context.Context, out *fuse.AttrOut) syscall.Errno {
 	defer trace.StartRegion(ctx, "fs.file.Getattr").End()
 	defer logOperationLatency("file_get_attr", time.Now())
-	entry, err := f.node.R.GetEntry(ctx, f.file.Metadata().ID)
+	entry, err := f.node.R.GetEntry(ctx, f.entry.ID)
 	if err != nil {
 		if err == types.ErrNotFound && f.file != nil {
-			f.file.Metadata().RefCount = 0
-			st := nanaNode2Stat(f.meta)
+			f.entry.RefCount = 0
+			st := nanaNode2Stat(f.entry)
 			updateAttrOut(st, &out.Attr)
 			return NoErr
 		}
@@ -60,7 +60,7 @@ func (f *File) Getattr(ctx context.Context, out *fuse.AttrOut) syscall.Errno {
 	}
 
 	st := nanaNode2Stat(entry)
-	updateCachedStat(st, f.meta)
+	updateCachedStat(st, f.entry)
 	updateAttrOut(st, &out.Attr)
 	return NoErr
 }

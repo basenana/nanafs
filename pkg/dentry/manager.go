@@ -138,6 +138,7 @@ func (m *manager) UpdateEntryExtendData(ctx context.Context, id int64, ed types.
 	if err != nil {
 		return err
 	}
+	entry.ChangedAt = time.Now()
 	err = m.metastore.GetObjectExtendData(ctx, &types.Object{Metadata: *entry, ExtendData: &ed})
 	if err != nil {
 		return err
@@ -523,7 +524,7 @@ func (m *manager) OpenGroup(ctx context.Context, groupId int64) (Group, error) {
 		return nil, types.ErrNoGroup
 	}
 	var (
-		stdGrp       = &stdGroup{meta: entry, store: m.metastore}
+		stdGrp       = &stdGroup{entry: entry, store: m.metastore}
 		grp    Group = stdGrp
 	)
 	switch entry.Kind {

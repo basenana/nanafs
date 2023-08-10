@@ -31,20 +31,20 @@ var _ = Describe("TestEntryInitOperator", func() {
 		var (
 			op  flow.Operator
 			err error
-			en  dentry.Entry
+			en  *types.Metadata
 		)
 		It("init file entry should be succeed", func() {
 			root, err := entryMgr.Root(context.Background())
 			Expect(err).Should(BeNil())
 
-			en, err = entryMgr.CreateEntry(context.Background(), root, dentry.EntryAttr{
+			en, err = entryMgr.CreateEntry(context.Background(), root.ID, dentry.EntryAttr{
 				Name:   "test-file.txt",
 				Kind:   types.RawKind,
-				Access: root.Metadata().Access,
+				Access: root.Access,
 			})
 			Expect(err).Should(BeNil())
 
-			f, err := entryMgr.Open(context.Background(), en, dentry.Attr{Read: true, Write: true})
+			f, err := entryMgr.Open(context.Background(), en.ID, dentry.Attr{Read: true, Write: true})
 			Expect(err).Should(BeNil())
 			defer f.Close(context.Background())
 
@@ -61,8 +61,8 @@ var _ = Describe("TestEntryInitOperator", func() {
 				flow.Spec{
 					Type: opEntryInit,
 					Parameters: map[string]string{
-						paramEntryIdKey:   strconv.FormatInt(en.Metadata().ID, 10),
-						paramEntryPathKey: en.Metadata().Name,
+						paramEntryIdKey:   strconv.FormatInt(en.ID, 10),
+						paramEntryPathKey: en.Name,
 					},
 				})
 			Expect(err).Should(BeNil())

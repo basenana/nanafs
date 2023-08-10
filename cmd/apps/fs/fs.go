@@ -132,9 +132,9 @@ func (n *NanaFS) newFsNode(ctx context.Context, parent *NanaNode, entry *types.M
 	}
 
 	node := &NanaNode{
-		oid:    entry.ID,
-		R:      n,
-		logger: n.logger.With(zap.Int64("entry", entry.ID)),
+		entryID: entry.ID,
+		R:       n,
+		logger:  n.logger.With(zap.Int64("entry", entry.ID)),
 	}
 	if parent != nil {
 		parent.NewInode(ctx, node, idFromStat(nanaNode2Stat(entry)))

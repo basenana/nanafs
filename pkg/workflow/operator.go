@@ -139,13 +139,13 @@ func (e *entryInitOperator) Do(ctx context.Context, param *flow.Parameter) error
 	if err != nil {
 		return fmt.Errorf("load entry failed: %s", err)
 	}
-	f, err := e.entryMgr.Open(ctx, entry, dentry.Attr{Read: true})
+	f, err := e.entryMgr.Open(ctx, entry.ID, dentry.Attr{Read: true})
 	if err != nil {
 		return fmt.Errorf("open entry failed: %s", err)
 	}
 	defer f.Close(ctx)
 
-	if err = copyEntryToJobWorkDir(ctx, entryPath, f); err != nil {
+	if err = copyEntryToJobWorkDir(ctx, entryPath, entry, f); err != nil {
 		return fmt.Errorf("copy entry file failed: %s", err)
 	}
 	return nil

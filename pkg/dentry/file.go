@@ -47,7 +47,7 @@ type File interface {
 }
 
 type file struct {
-	meta *types.Metadata
+	entry *types.Metadata
 
 	reader bio.Reader
 	writer bio.Writer
@@ -70,13 +70,13 @@ func (f *file) WriteAt(ctx context.Context, data []byte, off int64) (int64, erro
 	}
 	n, err := f.writer.WriteAt(ctx, data, off)
 	if err != nil {
-		fileEntryLogger.Errorw("write file error", "entry", f.meta.ID, "off", off, "err", err)
+		fileEntryLogger.Errorw("write file error", "entry", f.entry.ID, "off", off, "err", err)
 	}
-	f.meta.ModifiedAt = time.Now()
-	if f.meta.Size < off+n {
-		f.meta.Size = off + n
+	f.entry.ModifiedAt = time.Now()
+	if f.entry.Size < off+n {
+		f.entry.Size = off + n
 	}
-	cacheStore.delEntryCache(f.meta.ID)
+	cacheStore.delEntryCache(f.entry.ID)
 	return n, err
 }
 
@@ -87,9 +87,9 @@ func (f *file) Flush(ctx context.Context) error {
 	}
 	err := f.writer.Flush(ctx)
 	if err != nil {
-		fileEntryLogger.Errorw("flush file error", "entry", f.meta.ID, "err", err)
+		fileEntryLogger.Errorw("flush file error", "entry", f.entry.ID, "err", err)
 	}
-	cacheStore.delEntryCache(f.meta.ID)
+	cacheStore.delEntryCache(f.entry.ID)
 	return err
 }
 
@@ -100,7 +100,7 @@ func (f *file) Fsync(ctx context.Context) error {
 	}
 	err := f.writer.Flush(ctx)
 	if err != nil {
-		fileEntryLogger.Errorw("fsync file error", "entry", f.meta.ID, "err", err)
+		fileEntryLogger.Errorw("fsync file error", "entry", f.entry.ID, "err", err)
 	}
 	return err
 }
@@ -112,15 +112,15 @@ func (f *file) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error
 	}
 	n, err := f.reader.ReadAt(ctx, dest, off)
 	if err != nil && err != io.EOF {
-		fileEntryLogger.Errorw("read file error", "entry", f.meta.ID, "off", off, "err", err)
+		fileEntryLogger.Errorw("read file error", "entry", f.entry.ID, "off", off, "err", err)
 	}
 	return n, err
 }
 
 func (f *file) Close(ctx context.Context) (err error) {
 	defer trace.StartRegion(ctx, "dentry.file.Close").End()
-	defer PublicFileActionEvent(events.ActionTypeClose, f.meta)
-	defer decreaseOpenedFile(f.meta.ID)
+	defer PublicFileActionEvent(events.ActionTypeClose, f.entry)
+	defer decreaseOpenedFile(f.entry.ID)
 	defer f.reader.Close()
 	if f.attr.Write {
 		defer f.writer.Close()
@@ -133,7 +133,7 @@ func (f *file) Close(ctx context.Context) (err error) {
 }
 
 func openFile(en *types.Metadata, attr Attr, store metastore.ObjectStore, fileStorage storage.Storage, cfg *config.FS) (File, error) {
-	f := &file{meta: en, attr: attr, cfg: cfg}
+	f := &file{entry: en, attr: attr, cfg: cfg}
 	if fileStorage == nil {
 		return nil, logOperationError(fileOperationErrorCounter, "init", fmt.Errorf("storage %s not found", en.Storage))
 	}
@@ -146,8 +146,8 @@ func openFile(en *types.Metadata, attr Attr, store metastore.ObjectStore, fileSt
 }
 
 type symlink struct {
-	meta *types.Metadata
-	mgr  Manager
+	entry *types.Metadata
+	mgr   Manager
 
 	data []byte
 	attr Attr
@@ -170,8 +170,8 @@ func (s *symlink) WriteAt(ctx context.Context, data []byte, offset int64) (n int
 	}
 
 	n = int64(copy(s.data[offset:], data))
-	s.meta.Size = size
-	s.meta.ModifiedAt = time.Now()
+	s.entry.Size = size
+	s.entry.ModifiedAt = time.Now()
 	_ = s.Flush(ctx)
 	return
 }
@@ -189,18 +189,18 @@ func (s *symlink) Fsync(ctx context.Context) error {
 func (s *symlink) Flush(ctx context.Context) (err error) {
 	defer trace.StartRegion(ctx, "dentry.symlink.Flush").End()
 	deviceInfo := s.data
-	eData, err := s.mgr.GetEntryExtendData(ctx, s.meta.ID)
+	eData, err := s.mgr.GetEntryExtendData(ctx, s.entry.ID)
 	if err != nil {
 		return err
 	}
 	eData.Symlink = string(deviceInfo)
-	return s.mgr.UpdateEntryExtendData(ctx, s.meta.ID, eData)
+	return s.mgr.UpdateEntryExtendData(ctx, s.entry.ID, eData)
 }
 
 func (s *symlink) Close(ctx context.Context) (err error) {
 	defer trace.StartRegion(ctx, "dentry.symlink.Close").End()
-	defer PublicFileActionEvent(events.ActionTypeClose, s.meta)
-	defer decreaseOpenedFile(s.meta.ID)
+	defer PublicFileActionEvent(events.ActionTypeClose, s.entry)
+	defer decreaseOpenedFile(s.entry.ID)
 	return s.Flush(ctx)
 }
 
@@ -223,11 +223,11 @@ func openSymlink(mgr Manager, en *types.Metadata, attr Attr) (File, error) {
 	}
 
 	increaseOpenedFile(en.ID)
-	return &symlink{meta: en, data: raw, attr: attr}, nil
+	return &symlink{entry: en, data: raw, attr: attr}, nil
 }
 
 type extFile struct {
-	meta  *types.Metadata
+	entry *types.Metadata
 	attr  Attr
 	cfg   *config.FS
 	size  int64
@@ -244,7 +244,7 @@ func (e *extFile) WriteAt(ctx context.Context, data []byte, off int64) (int64, e
 	if off+n > e.size {
 		e.size = off + n
 	}
-	e.meta.ModifiedAt = time.Now()
+	e.entry.ModifiedAt = time.Now()
 	return n, err
 }
 
@@ -253,8 +253,8 @@ func (e *extFile) ReadAt(ctx context.Context, dest []byte, off int64) (int64, er
 }
 
 func (e *extFile) Fsync(ctx context.Context) error {
-	if e.meta.Size < e.size {
-		err := cacheStore.patchEntryMeta(ctx, &types.Metadata{Size: e.size, ModifiedAt: e.meta.ModifiedAt})
+	if e.entry.Size < e.size {
+		err := cacheStore.patchEntryMeta(ctx, &types.Metadata{Size: e.size, ModifiedAt: e.entry.ModifiedAt})
 		if err != nil {
 			return err
 		}
@@ -282,7 +282,7 @@ func openExternalFile(en *types.Metadata, ps *types.PlugScope, attr Attr, store 
 	if err != nil {
 		return nil, fmt.Errorf("build mirror plugin failed: %s", err)
 	}
-	eFile := &extFile{meta: en, attr: attr, size: en.Size, store: store, cfg: cfg, stub: stub}
+	eFile := &extFile{entry: en, attr: attr, size: en.Size, store: store, cfg: cfg, stub: stub}
 	if attr.Trunc || en.Size == 0 {
 		err = stub.Trunc(context.TODO())
 		if err != nil {

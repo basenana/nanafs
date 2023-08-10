@@ -16,29 +16,8 @@
 
 package dentry
 
-import (
-	"context"
-	"github.com/basenana/nanafs/pkg/types"
-)
-
 const (
 	RootEntryID     = 1
 	RootEntryName   = "root"
 	externalStorage = "[ext]"
 )
-
-type Entry interface {
-	ID() int64
-	GetExtendData(ctx context.Context) (types.ExtendData, error)
-	UpdateExtendData(ctx context.Context, ed types.ExtendData) error
-	GetExtendField(ctx context.Context, fKey string) (*string, error)
-	SetExtendField(ctx context.Context, fKey, fVal string) error
-	RemoveExtendField(ctx context.Context, fKey string) error
-	RuleMatched(ctx context.Context, ruleSpec types.Rule) bool
-	IsGroup() bool
-	IsMirror() bool
-	Group() Group
-
-	// Deprecated: remove this
-	Metadata() *types.Metadata
-}

@@ -51,19 +51,19 @@ func initMirrorEntryObject(src, newParent *types.Metadata, attr EntryAttr) (*typ
 	return obj, nil
 }
 
-func patchChangeableMetadata(oldMd, newMd *types.Metadata) {
-	oldMd.Name = newMd.Name
-	oldMd.Aliases = newMd.Aliases
-	oldMd.ParentID = newMd.ParentID
-	oldMd.RefID = newMd.RefID
-	oldMd.RefCount = newMd.RefCount
-	oldMd.Size = newMd.Size
-	oldMd.Dev = newMd.Dev
-	oldMd.Storage = newMd.Storage
-	oldMd.Namespace = newMd.Namespace
-	oldMd.CreatedAt = newMd.CreatedAt
-	oldMd.ChangedAt = newMd.ChangedAt
-	oldMd.ModifiedAt = newMd.ModifiedAt
-	oldMd.AccessAt = newMd.AccessAt
-	oldMd.Access = newMd.Access
+func patchChangeableMetadata(oldEntry, newEntry *types.Metadata) {
+	oldEntry.Name = newEntry.Name
+	oldEntry.Aliases = newEntry.Aliases
+	oldEntry.ParentID = newEntry.ParentID
+	oldEntry.RefID = newEntry.RefID
+	oldEntry.RefCount = newEntry.RefCount
+	oldEntry.Size = newEntry.Size
+	oldEntry.Dev = newEntry.Dev
+	oldEntry.Storage = newEntry.Storage
+	oldEntry.Namespace = newEntry.Namespace
+	oldEntry.CreatedAt = newEntry.CreatedAt
+	oldEntry.ChangedAt = newEntry.ChangedAt
+	oldEntry.ModifiedAt = newEntry.ModifiedAt
+	oldEntry.AccessAt = newEntry.AccessAt
+	oldEntry.Access = newEntry.Access
 }

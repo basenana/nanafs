@@ -57,22 +57,22 @@ type chunkReader struct {
 	needCompact bool
 }
 
-func NewChunkReader(md *types.Metadata, chunkStore metastore.ChunkStore, dataStore storage.Storage) Reader {
+func NewChunkReader(entry *types.Metadata, chunkStore metastore.ChunkStore, dataStore storage.Storage) Reader {
 	fileChunkMux.Lock()
 	defer fileChunkMux.Unlock()
 
-	r, ok := fileChunkReaders[md.ID]
+	r, ok := fileChunkReaders[entry.ID]
 	if !ok {
 		cr := &chunkReader{
-			entry:   md,
-			page:    newPageCache(md.ID, fileChunkSize),
+			entry:   entry,
+			page:    newPageCache(entry.ID, fileChunkSize),
 			store:   chunkStore,
 			cache:   storage.NewLocalCache(dataStore),
 			ref:     1,
 			readers: map[int64]*segReader{},
-			logger:  logger.NewLogger("chunkIO").With("entry", md.ID),
+			logger:  logger.NewLogger("chunkIO").With("entry", entry.ID),
 		}
-		fileChunkReaders[md.ID] = cr
+		fileChunkReaders[entry.ID] = cr
 		return cr
 	}
 
@@ -952,8 +952,8 @@ type segment struct {
 	len int64 // segment remaining length after pos
 }
 
-func CompactChunksData(ctx context.Context, md *types.Metadata, chunkStore metastore.ChunkStore, dataStore storage.Storage) (resultErr error) {
-	maxChunkID := (md.Size / fileChunkSize) + 1
+func CompactChunksData(ctx context.Context, entry *types.Metadata, chunkStore metastore.ChunkStore, dataStore storage.Storage) (resultErr error) {
+	maxChunkID := (entry.Size / fileChunkSize) + 1
 	var (
 		reader Reader
 		writer Writer
@@ -961,7 +961,7 @@ func CompactChunksData(ctx context.Context, md *types.Metadata, chunkStore metas
 		readN  int64
 	)
 	for cid := int64(0); cid < maxChunkID; cid++ {
-		chunkSegment, err := chunkStore.ListSegments(ctx, md.ID, cid, false)
+		chunkSegment, err := chunkStore.ListSegments(ctx, entry.ID, cid, false)
 		if err != nil {
 			resultErr = err
 			continue
@@ -975,8 +975,8 @@ func CompactChunksData(ctx context.Context, md *types.Metadata, chunkStore metas
 		// compact chunk
 		chunkStart := cid * fileChunkSize
 		chunkEnd := (cid + 1) * fileChunkSize
-		if chunkEnd > md.Size {
-			chunkEnd = md.Size
+		if chunkEnd > entry.Size {
+			chunkEnd = entry.Size
 		}
 		if chunkSegment[segmentCount-1].Off == chunkStart && chunkSegment[segmentCount-1].Len == chunkEnd-chunkStart {
 			// clean overed write segments
@@ -988,7 +988,7 @@ func CompactChunksData(ctx context.Context, md *types.Metadata, chunkStore metas
 
 		// rebuild new sequential segment
 		if reader == nil {
-			reader = NewChunkReader(md, chunkStore, dataStore)
+			reader = NewChunkReader(entry, chunkStore, dataStore)
 			writer = NewChunkWriter(reader)
 			buf = make([]byte, fileChunkSize)
 		}
@@ -1019,8 +1019,8 @@ func CompactChunksData(ctx context.Context, md *types.Metadata, chunkStore metas
 	return resultErr
 }
 
-func DeleteChunksData(ctx context.Context, md *types.Metadata, chunkStore metastore.ChunkStore, dataStore storage.Storage) error {
-	segments, err := chunkStore.ListSegments(ctx, md.ID, 0, true)
+func DeleteChunksData(ctx context.Context, entry *types.Metadata, chunkStore metastore.ChunkStore, dataStore storage.Storage) error {
+	segments, err := chunkStore.ListSegments(ctx, entry.ID, 0, true)
 	if err != nil {
 		return err
 	}

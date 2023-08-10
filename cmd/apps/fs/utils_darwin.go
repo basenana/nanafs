@@ -39,39 +39,39 @@ func fsMountOptions(displayName string, ops []string) []string {
 	return options
 }
 
-func nanaNode2Stat(meta *types.Metadata) *syscall.Stat_t {
-	aTime, _ := unix.TimeToTimespec(meta.AccessAt)
-	mTime, _ := unix.TimeToTimespec(meta.ModifiedAt)
-	cTime, _ := unix.TimeToTimespec(meta.ChangedAt)
+func nanaNode2Stat(entry *types.Metadata) *syscall.Stat_t {
+	aTime, _ := unix.TimeToTimespec(entry.AccessAt)
+	mTime, _ := unix.TimeToTimespec(entry.ModifiedAt)
+	cTime, _ := unix.TimeToTimespec(entry.ChangedAt)
 
-	mode := modeFromFileKind(meta.Kind)
-	accMod := dentry.Access2Mode(meta.Access)
+	mode := modeFromFileKind(entry.Kind)
+	accMod := dentry.Access2Mode(entry.Access)
 	mode |= accMod
 
 	rdev := int32(MountDev)
-	if meta.Dev != 0 {
-		rdev = int32(meta.Dev)
+	if entry.Dev != 0 {
+		rdev = int32(entry.Dev)
 	}
 
 	return &syscall.Stat_t{
-		Size:      meta.Size,
-		Blocks:    meta.Size/fileBlockSize + 1,
+		Size:      entry.Size,
+		Blocks:    entry.Size/fileBlockSize + 1,
 		Blksize:   fileBlockSize,
 		Atimespec: syscall.Timespec{Sec: aTime.Sec, Nsec: aTime.Nsec},
 		Mtimespec: syscall.Timespec{Sec: mTime.Sec, Nsec: mTime.Nsec},
 		Ctimespec: syscall.Timespec{Sec: cTime.Sec, Nsec: cTime.Nsec},
 		Mode:      uint16(mode),
-		Ino:       uint64(meta.ID),
-		Nlink:     uint16(meta.RefCount),
-		Uid:       uint32(meta.Access.UID),
-		Gid:       uint32(meta.Access.GID),
+		Ino:       uint64(entry.ID),
+		Nlink:     uint16(entry.RefCount),
+		Uid:       uint32(entry.Access.UID),
+		Gid:       uint32(entry.Access.GID),
 		Rdev:      rdev,
 	}
 }
 
-func updateCachedStat(s *syscall.Stat_t, meta *types.Metadata) *syscall.Stat_t {
-	mTime, _ := unix.TimeToTimespec(meta.ModifiedAt)
-	s.Size = meta.Size
+func updateCachedStat(s *syscall.Stat_t, entry *types.Metadata) *syscall.Stat_t {
+	mTime, _ := unix.TimeToTimespec(entry.ModifiedAt)
+	s.Size = entry.Size
 	s.Mtimespec = syscall.Timespec{Sec: mTime.Sec, Nsec: mTime.Nsec}
 	return s
 }
