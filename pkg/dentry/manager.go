@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/utils"
 	"io"
 	"runtime/trace"
@@ -218,10 +219,10 @@ func (m *manager) RemoveEntry(ctx context.Context, parentId, entryId int64) erro
 		return err
 	}
 
-	var srcObj *types.Object
+	var src *types.Metadata
 	if types.IsMirrored(entry) {
 		m.logger.Infow("entry is mirrored, delete ref count", "entry", entry.ID, "ref", entry.RefID)
-		srcObj, err = m.metastore.GetObject(ctx, entry.RefID)
+		src, err = m.GetEntry(ctx, entry.RefID)
 		if err != nil {
 			m.logger.Errorw("query source object from meta server error", "entry", entry.ID, "ref", entry.RefID, "err", err)
 			return err
@@ -231,26 +232,33 @@ func (m *manager) RemoveEntry(ctx context.Context, parentId, entryId int64) erro
 	entryLifecycleLock.Lock()
 	defer entryLifecycleLock.Unlock()
 
-	var (
-		patches = make([]*types.Metadata, 2, 3)
-		nowTime = time.Now()
-	)
-
-	if srcObj == nil && ((types.IsGroup(entry.Kind) && entry.RefCount == 2) || (!types.IsGroup(entry.Kind) && entry.RefCount == 1)) {
+	if src == nil && ((types.IsGroup(entry.Kind) && entry.RefCount == 2) || (!types.IsGroup(entry.Kind) && entry.RefCount == 1)) {
 		err = parentGrp.RemoveEntry(ctx, entryId)
 		return err
 	}
 
-	patches[0] = &types.Metadata{ID: parentId, ModifiedAt: nowTime}
-	if types.IsGroup(entry.Kind) {
-		patches[0].RefCount -= 1
+	var nowTime = time.Now()
+	parent, err := m.GetEntry(ctx, parentId)
+	if err != nil {
+		return err
 	}
-	patches[1] = &types.Metadata{ID: entryId, ParentID: 0, RefCount: entry.RefCount - 1, ModifiedAt: nowTime}
-	if srcObj != nil {
-		patches = append(patches, &types.Metadata{ID: srcObj.ID, RefCount: srcObj.RefCount - 1, ModifiedAt: nowTime})
+	parent.ModifiedAt = nowTime
+	if types.IsGroup(entry.Kind) {
+		parent.RefCount -= 1
 	}
 
-	if err = m.cache.patchEntryMeta(ctx, patches...); err != nil {
+	entry.ParentID = 0
+	entry.RefCount -= 1
+	entry.ModifiedAt = nowTime
+
+	needUpdate := []*types.Metadata{parent, entry}
+	if src != nil {
+		src.RefCount -= 1
+		src.ModifiedAt = nowTime
+		needUpdate = append(needUpdate, src)
+	}
+
+	if err = m.cache.updateEntries(ctx, needUpdate...); err != nil {
 		m.logger.Errorw("destroy object from meta server error", "entry", entry.ID, "err", err)
 		return err
 	}
@@ -348,6 +356,9 @@ func (m *manager) MirrorEntry(ctx context.Context, srcId, dstParentId int64, att
 		m.logger.Errorw("update dst parent object ref count error", "srcEntry", srcId, "dstParent", dstParentId, "err", err.Error())
 		return nil, err
 	}
+	cacheStore.delEntryCache(src.ID)
+	cacheStore.delEntryCache(parent.ID)
+	cacheStore.delEntryCache(obj.ID)
 	return &obj.Metadata, nil
 }
 
@@ -413,6 +424,9 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntryId int64, ov
 		m.logger.Errorw("change object parent failed", "entry", target, "newParent", newParentId, "newName", newName, "err", err)
 		return err
 	}
+	cacheStore.delEntryCache(oldParent.ID)
+	cacheStore.delEntryCache(newParent.ID)
+	cacheStore.delEntryCache(target.ID)
 	return nil
 }
 
@@ -426,7 +440,8 @@ func (m *manager) changeEntryParentByFileCopy(ctx context.Context, targetEntry, 
 	if types.IsGroup(targetEntry.Kind) {
 		if oldParent.ID == newParent.ID {
 			// only rename
-			err = m.cache.patchEntryMeta(ctx, &types.Metadata{ID: targetEntry.ID, Name: newName})
+			targetEntry.Name = newName
+			err = m.cache.updateEntries(ctx, targetEntry)
 			if err != nil {
 				m.logger.Errorw("change entry parent by file copy error, rename dir failed", "err", err)
 				return err
@@ -485,7 +500,8 @@ func (m *manager) Open(ctx context.Context, entryId int64, attr Attr) (File, err
 		if err := m.CleanEntryData(ctx, entryId); err != nil {
 			m.logger.Errorw("clean entry with trunc error", "entry", entryId, "err", err)
 		}
-		if err = m.cache.patchEntryMeta(ctx, &types.Metadata{ID: entryId, Size: 0}); err != nil {
+		entry.Size = 0
+		if err = m.cache.updateEntries(ctx, entry); err != nil {
 			m.logger.Errorw("update entry size to zero error", "entry", entryId, "err", err)
 		}
 		PublicFileActionEvent(events.ActionTypeTrunc, entry)
@@ -530,6 +546,20 @@ func (m *manager) OpenGroup(ctx context.Context, groupId int64) (Group, error) {
 	switch entry.Kind {
 	case types.SmartGroupKind:
 		grp = &dynamicGroup{stdGroup: stdGrp}
+	case types.ExternalGroupKind:
+		obj := &types.Object{Metadata: *entry}
+		if err = m.metastore.GetObjectExtendData(ctx, obj); err != nil {
+			return nil, err
+		}
+		if obj.ExtendData != nil && obj.PlugScope != nil {
+			mirror, err := plugin.NewMirrorPlugin(ctx, *obj.ExtendData.PlugScope)
+			if err != nil {
+				return nil, err
+			}
+			grp = &extGroup{mgr: m, stdGroup: stdGrp, mirror: mirror}
+		} else {
+			grp = emptyGroup{}
+		}
 	}
 	return instrumentalGroup{grp: grp}, nil
 }

@@ -43,7 +43,7 @@ func (w workflowAction) handleEvent(ctx context.Context, evt *types.Event) error
 		return nil
 	}
 
-	en, err := w.entry.GetEntry(ctx, evt.RefID)
+	_, err := w.entry.GetEntry(ctx, evt.RefID)
 	if err != nil {
 		w.logger.Errorw("[workflowAction] get entry failed", "entry", evt.RefID, "err", err)
 		return err
@@ -60,9 +60,10 @@ func (w workflowAction) handleEvent(ctx context.Context, evt *types.Event) error
 		if !wf.Enable {
 			continue
 		}
-		if !en.RuleMatched(ctx, wf.Rule) {
-			continue
-		}
+		// TODO
+		//if !en.RuleMatched(ctx, wf.Rule) {
+		//	continue
+		//}
 
 		pendingJob, err := w.recorder.ListWorkflowJob(ctx, types.JobFilter{WorkFlowID: wf.Id, Status: flow.InitializingStatus, TargetEntry: evt.RefID})
 		if err != nil {

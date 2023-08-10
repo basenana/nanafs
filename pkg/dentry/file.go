@@ -254,7 +254,13 @@ func (e *extFile) ReadAt(ctx context.Context, dest []byte, off int64) (int64, er
 
 func (e *extFile) Fsync(ctx context.Context) error {
 	if e.entry.Size < e.size {
-		err := cacheStore.patchEntryMeta(ctx, &types.Metadata{Size: e.size, ModifiedAt: e.entry.ModifiedAt})
+		entry, err := cacheStore.getEntry(ctx, e.entry.ID)
+		if err != nil {
+			return err
+		}
+		entry.Size = e.size
+		entry.ModifiedAt = e.entry.ModifiedAt
+		err = cacheStore.updateEntries(ctx, entry)
 		if err != nil {
 			return err
 		}

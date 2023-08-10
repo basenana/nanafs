@@ -115,12 +115,14 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 		attr = nanaFile.file.GetAttr()
 	}
 
-	entry := &types.Metadata{}
-	if err := updateNanaNodeWithAttr(in, entry, int64(uid), int64(gid), attr); err != nil {
+	entry, err := n.R.GetEntry(ctx, n.entryID)
+	if err != nil {
 		return Error2FuseSysError("entry_set_attr", err)
 	}
-	entry.ChangedAt = time.Now()
-	if err := n.R.PatchEntry(ctx, n.entryID, entry); err != nil {
+	if err = updateNanaNodeWithAttr(in, entry, int64(uid), int64(gid), attr); err != nil {
+		return Error2FuseSysError("entry_set_attr", err)
+	}
+	if err = n.R.PatchEntry(ctx, n.entryID, entry); err != nil {
 		return Error2FuseSysError("entry_set_attr", err)
 	}
 	return n.Getattr(ctx, f, out)

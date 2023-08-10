@@ -88,7 +88,6 @@ func (c *controller) CloseFile(ctx context.Context, file dentry.File) (err error
 	defer trace.StartRegion(ctx, "controller.CloseFile").End()
 	err = file.Close(ctx)
 	if err != nil {
-		c.logger.Errorw("close file error", "file", file.Metadata().ID, "err", err.Error())
 		return err
 	}
 	return nil

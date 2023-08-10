@@ -22,7 +22,6 @@ import (
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
-	"time"
 )
 
 var (
@@ -49,11 +48,11 @@ func (c *metaCache) getEntry(ctx context.Context, entryID int64) (*types.Metadat
 	return &md, nil
 }
 
-func (c *metaCache) createEntry(ctx context.Context, newObj *types.Object, parentPatch *types.Metadata) error {
+func (c *metaCache) createEntry(ctx context.Context, newObj *types.Object, parent *types.Metadata) error {
 	objects := make([]*types.Object, 1, 2)
 	objects[0] = newObj
-	if parentPatch != nil {
-		objects[1] = &types.Object{Metadata: *parentPatch}
+	if parent != nil {
+		objects = append(objects, &types.Object{Metadata: *parent})
 	}
 	err := c.metastore.SaveObjects(ctx, objects...)
 	if err != nil {
@@ -61,52 +60,33 @@ func (c *metaCache) createEntry(ctx context.Context, newObj *types.Object, paren
 	}
 
 	c.putEntry2Cache(&newObj.Metadata)
-	if parentPatch != nil {
+	if parent != nil {
 		c.delEntryCache(newObj.ParentID)
 	}
 	return nil
 }
 
-func (c *metaCache) patchEntryMeta(ctx context.Context, patches ...*types.Metadata) error {
-	err := c.updateEntryNoRetry(ctx, patches...)
-	if err == types.ErrConflict {
-		return c.updateEntryNoRetry(ctx, patches...)
-	}
-	return err
-}
-
-func (c *metaCache) updateEntryNoRetry(ctx context.Context, patches ...*types.Metadata) error {
+func (c *metaCache) updateEntries(ctx context.Context, entries ...*types.Metadata) error {
 	var (
-		objList = make([]*types.Object, len(patches))
+		objList = make([]*types.Object, len(entries))
 		err     error
-		en      *types.Metadata
 	)
 
-	for i, patch := range patches {
-		if patch.ID == 0 {
-			return types.ErrNotFound
-		}
-		en, err = c.getEntry(ctx, patch.ID)
-		if err != nil {
-			return err
-		}
-		patch.Version = en.Version
-		obj := &types.Object{Metadata: *patch}
-		obj.ChangedAt = time.Now()
-		objList[i] = obj
-	}
-
 	defer func() {
-		for _, patch := range patches {
-			c.delEntryCache(patch.ID)
+		for _, en := range entries {
+			c.delEntryCache(en.ID)
 		}
 	}()
+
+	for i := range entries {
+		en := entries[i]
+		objList[i] = &types.Object{Metadata: *en}
+	}
 
 	err = c.metastore.SaveObjects(ctx, objList...)
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 

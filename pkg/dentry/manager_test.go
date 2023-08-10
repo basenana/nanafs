@@ -67,16 +67,16 @@ var _ = Describe("TestRootEntryInit", func() {
 })
 
 var _ = Describe("TestEntryManage", func() {
-	var grp1 *types.Metadata
+	var grp1ID int64
 	Context("create group entry", func() {
 		It("create should be succeed", func() {
-			var err error
-			grp1, err = entryManager.CreateEntry(context.TODO(), root.ID, EntryAttr{
+			grp1, err := entryManager.CreateEntry(context.TODO(), root.ID, EntryAttr{
 				Name:   "test_create_grp1",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
+			grp1ID = grp1.ID
 		})
 		It("query should be succeed", func() {
 			grp, err := entryManager.OpenGroup(context.TODO(), root.ID)
@@ -87,14 +87,14 @@ var _ = Describe("TestEntryManage", func() {
 	})
 	Context("create file entry", func() {
 		It("create should be succeed", func() {
-			_, err := entryManager.CreateEntry(context.TODO(), grp1.ID, EntryAttr{
+			_, err := entryManager.CreateEntry(context.TODO(), grp1ID, EntryAttr{
 				Name:   "test_create_file1",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
 
-			grp, err := entryManager.OpenGroup(context.TODO(), grp1.ID)
+			grp, err := entryManager.OpenGroup(context.TODO(), grp1ID)
 			Expect(err).Should(BeNil())
 			_, err = grp.FindEntry(context.TODO(), "test_create_file1")
 			Expect(err).Should(BeNil())
@@ -102,14 +102,14 @@ var _ = Describe("TestEntryManage", func() {
 	})
 	Context("delete file entry", func() {
 		It("delete should be succeed", func() {
-			grp, err := entryManager.OpenGroup(context.TODO(), grp1.ID)
+			grp, err := entryManager.OpenGroup(context.TODO(), grp1ID)
 			Expect(err).Should(BeNil())
 			file1, err := grp.FindEntry(context.TODO(), "test_create_file1")
 			Expect(err).Should(BeNil())
-			err = entryManager.RemoveEntry(context.TODO(), grp1.ID, file1.ID)
+			err = entryManager.RemoveEntry(context.TODO(), grp1ID, file1.ID)
 			Expect(err).Should(BeNil())
 
-			grp, err = entryManager.OpenGroup(context.TODO(), grp1.ID)
+			grp, err = entryManager.OpenGroup(context.TODO(), grp1ID)
 			Expect(err).Should(BeNil())
 			_, err = grp.FindEntry(context.TODO(), "test_create_file1")
 			Expect(err).Should(Equal(types.ErrNotFound))
@@ -119,9 +119,9 @@ var _ = Describe("TestEntryManage", func() {
 		It("delete should be succeed", func() {
 			grp, err := entryManager.OpenGroup(context.TODO(), root.ID)
 			Expect(err).Should(BeNil())
-			grp1, err = grp.FindEntry(context.TODO(), "test_create_grp1")
+			_, err = grp.FindEntry(context.TODO(), "test_create_grp1")
 			Expect(err).Should(BeNil())
-			err = entryManager.RemoveEntry(context.TODO(), root.ID, grp1.ID)
+			err = entryManager.RemoveEntry(context.TODO(), root.ID, grp1ID)
 			Expect(err).Should(BeNil())
 		})
 		It("query should be failed", func() {
@@ -330,17 +330,14 @@ var _ = Describe("TestChangeEntryParent", func() {
 })
 
 func mustGetSourceEntry(entry *types.Metadata) *types.Metadata {
-	var (
-		en  *types.Metadata
-		err error
-	)
+	var err error
 	for entry.RefID != 0 && entry.RefID != entry.ID {
-		en, err = entryManager.GetEntry(context.TODO(), entry.RefID)
+		entry, err = entryManager.GetEntry(context.TODO(), entry.RefID)
 		if err != nil {
 			panic(err)
 		}
 	}
-	return en
+	return entry
 }
 
 var accessPermissions = types.Access{
