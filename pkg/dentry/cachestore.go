@@ -24,10 +24,6 @@ import (
 	"github.com/basenana/nanafs/utils"
 )
 
-var (
-	cacheStore *metaCache
-)
-
 type metaCache struct {
 	metastore metastore.ObjectStore
 	lfu       *utils.LFUPool
@@ -103,6 +99,6 @@ func (c *metaCache) entryKey(eid int64) string {
 }
 
 func newCacheStore(metastore metastore.ObjectStore) *metaCache {
-	cacheStore = &metaCache{metastore: metastore, lfu: utils.NewLFUPool(8192)}
+	cacheStore := &metaCache{metastore: metastore, lfu: utils.NewLFUPool(8192)}
 	return cacheStore
 }

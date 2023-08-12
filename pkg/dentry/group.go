@@ -63,8 +63,9 @@ func (e emptyGroup) ListChildren(ctx context.Context) ([]*types.Metadata, error)
 }
 
 type stdGroup struct {
-	entry *types.Metadata
-	store metastore.ObjectStore
+	entry      *types.Metadata
+	store      metastore.ObjectStore
+	cacheStore *metaCache
 }
 
 var _ Group = &stdGroup{}
@@ -103,7 +104,7 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (*types.Meta
 		return nil, types.ErrIsExist
 	}
 
-	group, err := cacheStore.getEntry(ctx, g.entry.ID)
+	group, err := g.cacheStore.getEntry(ctx, g.entry.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +135,7 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (*types.Meta
 	if obj.IsGroup() {
 		group.RefCount += 1
 	}
-	if err = cacheStore.createEntry(ctx, obj, group); err != nil {
+	if err = g.cacheStore.createEntry(ctx, obj, group); err != nil {
 		return nil, err
 	}
 	return &obj.Metadata, nil
@@ -143,7 +144,7 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (*types.Meta
 func (g *stdGroup) PatchEntry(ctx context.Context, entryId int64, patch *types.Metadata) error {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.UpdateEntry").End()
 	patch.ID = entryId
-	if err := cacheStore.updateEntries(ctx, patch); err != nil {
+	if err := g.cacheStore.updateEntries(ctx, patch); err != nil {
 		return err
 	}
 	return nil
@@ -151,12 +152,12 @@ func (g *stdGroup) PatchEntry(ctx context.Context, entryId int64, patch *types.M
 
 func (g *stdGroup) RemoveEntry(ctx context.Context, entryId int64) error {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.RemoveEntry").End()
-	group, err := cacheStore.getEntry(ctx, g.entry.ID)
+	group, err := g.cacheStore.getEntry(ctx, g.entry.ID)
 	if err != nil {
 		return err
 	}
 
-	entry, err := cacheStore.getEntry(ctx, entryId)
+	entry, err := g.cacheStore.getEntry(ctx, entryId)
 	if err != nil {
 		return err
 	}
@@ -179,7 +180,7 @@ func (g *stdGroup) RemoveEntry(ctx context.Context, entryId int64) error {
 	if types.IsGroup(entry.Kind) {
 		group.RefCount -= 1
 	}
-	if err := cacheStore.updateEntries(ctx, entry, group); err != nil {
+	if err := g.cacheStore.updateEntries(ctx, entry, group); err != nil {
 		return err
 	}
 	return nil
@@ -241,7 +242,7 @@ func (e *extGroup) CreateEntry(ctx context.Context, attr EntryAttr) (*types.Meta
 }
 
 func (e *extGroup) PatchEntry(ctx context.Context, entryId int64, patch *types.Metadata) error {
-	group, err := cacheStore.getEntry(ctx, e.stdGroup.entry.ID)
+	group, err := e.stdGroup.cacheStore.getEntry(ctx, e.stdGroup.entry.ID)
 	if err != nil {
 		return err
 	}
@@ -253,7 +254,7 @@ func (e *extGroup) PatchEntry(ctx context.Context, entryId int64, patch *types.M
 	mirrorEn.Size = patch.Size
 
 	// query old and write back
-	entry, err := cacheStore.getEntry(ctx, entryId)
+	entry, err := e.stdGroup.cacheStore.getEntry(ctx, entryId)
 	if err != nil {
 		return err
 	}
@@ -268,7 +269,7 @@ func (e *extGroup) PatchEntry(ctx context.Context, entryId int64, patch *types.M
 }
 
 func (e *extGroup) RemoveEntry(ctx context.Context, entryId int64) error {
-	entry, err := cacheStore.getEntry(ctx, entryId)
+	entry, err := e.stdGroup.cacheStore.getEntry(ctx, entryId)
 	if err != nil {
 		return err
 	}
@@ -339,7 +340,7 @@ func (e *extGroup) ListChildren(ctx context.Context) ([]*types.Metadata, error) 
 }
 
 func (e *extGroup) syncEntry(ctx context.Context, mirrored *stub.Entry, crt *types.Metadata) (en *types.Metadata, err error) {
-	grp, err := cacheStore.getEntry(ctx, e.stdGroup.entry.ID)
+	grp, err := e.stdGroup.cacheStore.getEntry(ctx, e.stdGroup.entry.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -362,8 +363,8 @@ func (e *extGroup) syncEntry(ctx context.Context, mirrored *stub.Entry, crt *typ
 		if crt != nil {
 			// clean
 			_ = e.stdGroup.store.DestroyObject(ctx, &types.Object{Metadata: *grp}, &types.Object{Metadata: *crt})
-			cacheStore.delEntryCache(crt.ID)
-			cacheStore.delEntryCache(grp.ID)
+			e.stdGroup.cacheStore.delEntryCache(crt.ID)
+			e.stdGroup.cacheStore.delEntryCache(grp.ID)
 		}
 		return nil, err
 	}
@@ -403,7 +404,7 @@ func (e *extGroup) syncEntry(ctx context.Context, mirrored *stub.Entry, crt *typ
 		if obj.IsGroup() {
 			grp.RefCount += 1
 		}
-		if err = cacheStore.createEntry(ctx, obj, grp); err != nil {
+		if err = e.stdGroup.cacheStore.createEntry(ctx, obj, grp); err != nil {
 			return nil, err
 		}
 		en = &obj.Metadata
@@ -412,7 +413,7 @@ func (e *extGroup) syncEntry(ctx context.Context, mirrored *stub.Entry, crt *typ
 
 	// update mirror record
 	crt.Size = mirrored.Size
-	if err = cacheStore.updateEntries(ctx, crt); err != nil {
+	if err = e.stdGroup.cacheStore.updateEntries(ctx, crt); err != nil {
 		return nil, err
 	}
 	en = crt

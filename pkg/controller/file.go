@@ -21,7 +21,6 @@ import (
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
 	"runtime/trace"
-	"time"
 )
 
 func (c *controller) OpenFile(ctx context.Context, entryID int64, attr dentry.Attr) (dentry.File, error) {
@@ -46,21 +45,9 @@ func (c *controller) OpenFile(ctx context.Context, entryID int64, attr dentry.At
 		c.logger.Infow("replace source object", "sourceEntry", entry.ID)
 	}
 
-	if attr.Trunc {
-		entry.Size = 0
-	}
-
 	file, err := c.entry.Open(ctx, entry.ID, attr)
 	if err != nil {
 		c.logger.Errorw("open file error", "entry", entry.ID, "err", err.Error())
-		return nil, err
-	}
-	patch := &types.Metadata{}
-	if attr.Write {
-		patch.ModifiedAt = time.Now()
-	}
-	patch.AccessAt = time.Now()
-	if err = c.PatchEntry(ctx, entryID, patch); err != nil {
 		return nil, err
 	}
 	return file, nil

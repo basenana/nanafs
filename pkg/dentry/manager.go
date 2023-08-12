@@ -356,9 +356,9 @@ func (m *manager) MirrorEntry(ctx context.Context, srcId, dstParentId int64, att
 		m.logger.Errorw("update dst parent object ref count error", "srcEntry", srcId, "dstParent", dstParentId, "err", err.Error())
 		return nil, err
 	}
-	cacheStore.delEntryCache(src.ID)
-	cacheStore.delEntryCache(parent.ID)
-	cacheStore.delEntryCache(obj.ID)
+	m.cache.delEntryCache(src.ID)
+	m.cache.delEntryCache(parent.ID)
+	m.cache.delEntryCache(obj.ID)
 	return &obj.Metadata, nil
 }
 
@@ -424,9 +424,9 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntryId int64, ov
 		m.logger.Errorw("change object parent failed", "entry", target, "newParent", newParentId, "newName", newName, "err", err)
 		return err
 	}
-	cacheStore.delEntryCache(oldParent.ID)
-	cacheStore.delEntryCache(newParent.ID)
-	cacheStore.delEntryCache(target.ID)
+	m.cache.delEntryCache(oldParent.ID)
+	m.cache.delEntryCache(newParent.ID)
+	m.cache.delEntryCache(target.ID)
 	return nil
 }
 
@@ -496,15 +496,21 @@ func (m *manager) Open(ctx context.Context, entryId int64, attr Attr) (File, err
 	if err != nil {
 		return nil, err
 	}
+
+	entry.AccessAt = time.Now()
+	if attr.Write {
+		entry.ModifiedAt = entry.AccessAt
+	}
 	if attr.Trunc && entry.Storage != externalStorage {
 		if err := m.CleanEntryData(ctx, entryId); err != nil {
 			m.logger.Errorw("clean entry with trunc error", "entry", entryId, "err", err)
 		}
 		entry.Size = 0
-		if err = m.cache.updateEntries(ctx, entry); err != nil {
-			m.logger.Errorw("update entry size to zero error", "entry", entryId, "err", err)
-		}
 		PublicFileActionEvent(events.ActionTypeTrunc, entry)
+	}
+
+	if err = m.cache.updateEntries(ctx, entry); err != nil {
+		m.logger.Errorw("update entry size to zero error", "entry", entryId, "err", err)
 	}
 
 	var f File
@@ -515,13 +521,13 @@ func (m *manager) Open(ctx context.Context, entryId int64, attr Attr) (File, err
 			m.logger.Errorw("get entry extend data failed", "entry", entryId, "err", err)
 			return nil, err
 		}
-		f, err = openExternalFile(entry, ed.PlugScope, attr, m.metastore, m.cfg.FS)
+		f, err = openExternalFile(entry, ed.PlugScope, attr, m.cache, m.cfg.FS)
 	} else {
 		switch entry.Kind {
 		case types.SymLinkKind:
 			f, err = openSymlink(m, entry, attr)
 		default:
-			f, err = openFile(entry, attr, m.metastore, m.storages[entry.Storage], m.cfg.FS)
+			f, err = openFile(entry, attr, m.metastore, m.cache, m.storages[entry.Storage], m.cfg.FS)
 		}
 	}
 	if err != nil {
@@ -540,7 +546,7 @@ func (m *manager) OpenGroup(ctx context.Context, groupId int64) (Group, error) {
 		return nil, types.ErrNoGroup
 	}
 	var (
-		stdGrp       = &stdGroup{entry: entry, store: m.metastore}
+		stdGrp       = &stdGroup{entry: entry, store: m.metastore, cacheStore: m.cache}
 		grp    Group = stdGrp
 	)
 	switch entry.Kind {

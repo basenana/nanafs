@@ -47,7 +47,8 @@ type File interface {
 }
 
 type file struct {
-	entry *types.Metadata
+	entry      *types.Metadata
+	cacheStore *metaCache
 
 	reader bio.Reader
 	writer bio.Writer
@@ -76,7 +77,7 @@ func (f *file) WriteAt(ctx context.Context, data []byte, off int64) (int64, erro
 	if f.entry.Size < off+n {
 		f.entry.Size = off + n
 	}
-	cacheStore.delEntryCache(f.entry.ID)
+	f.cacheStore.delEntryCache(f.entry.ID)
 	return n, err
 }
 
@@ -89,7 +90,7 @@ func (f *file) Flush(ctx context.Context) error {
 	if err != nil {
 		fileEntryLogger.Errorw("flush file error", "entry", f.entry.ID, "err", err)
 	}
-	cacheStore.delEntryCache(f.entry.ID)
+	f.cacheStore.delEntryCache(f.entry.ID)
 	return err
 }
 
@@ -132,8 +133,8 @@ func (f *file) Close(ctx context.Context) (err error) {
 	return nil
 }
 
-func openFile(en *types.Metadata, attr Attr, store metastore.ObjectStore, fileStorage storage.Storage, cfg *config.FS) (File, error) {
-	f := &file{entry: en, attr: attr, cfg: cfg}
+func openFile(en *types.Metadata, attr Attr, store metastore.ObjectStore, cacheStore *metaCache, fileStorage storage.Storage, cfg *config.FS) (File, error) {
+	f := &file{entry: en, cacheStore: cacheStore, attr: attr, cfg: cfg}
 	if fileStorage == nil {
 		return nil, logOperationError(fileOperationErrorCounter, "init", fmt.Errorf("storage %s not found", en.Storage))
 	}
@@ -227,12 +228,12 @@ func openSymlink(mgr Manager, en *types.Metadata, attr Attr) (File, error) {
 }
 
 type extFile struct {
-	entry *types.Metadata
-	attr  Attr
-	cfg   *config.FS
-	size  int64
-	store metastore.ObjectStore
-	stub  plugin.MirrorPlugin
+	attr       Attr
+	entry      *types.Metadata
+	cacheStore *metaCache
+	cfg        *config.FS
+	size       int64
+	stub       plugin.MirrorPlugin
 }
 
 func (e *extFile) GetAttr() Attr {
@@ -254,13 +255,13 @@ func (e *extFile) ReadAt(ctx context.Context, dest []byte, off int64) (int64, er
 
 func (e *extFile) Fsync(ctx context.Context) error {
 	if e.entry.Size < e.size {
-		entry, err := cacheStore.getEntry(ctx, e.entry.ID)
+		entry, err := e.cacheStore.getEntry(ctx, e.entry.ID)
 		if err != nil {
 			return err
 		}
 		entry.Size = e.size
 		entry.ModifiedAt = e.entry.ModifiedAt
-		err = cacheStore.updateEntries(ctx, entry)
+		err = e.cacheStore.updateEntries(ctx, entry)
 		if err != nil {
 			return err
 		}
@@ -280,7 +281,7 @@ func (e *extFile) Close(ctx context.Context) error {
 	return e.stub.Close(ctx)
 }
 
-func openExternalFile(en *types.Metadata, ps *types.PlugScope, attr Attr, store metastore.ObjectStore, cfg *config.FS) (File, error) {
+func openExternalFile(en *types.Metadata, ps *types.PlugScope, attr Attr, cacheStore *metaCache, cfg *config.FS) (File, error) {
 	if ps == nil {
 		return nil, fmt.Errorf("extend entry has no plug scop")
 	}
@@ -288,7 +289,7 @@ func openExternalFile(en *types.Metadata, ps *types.PlugScope, attr Attr, store 
 	if err != nil {
 		return nil, fmt.Errorf("build mirror plugin failed: %s", err)
 	}
-	eFile := &extFile{entry: en, attr: attr, size: en.Size, store: store, cfg: cfg, stub: stub}
+	eFile := &extFile{entry: en, attr: attr, size: en.Size, cacheStore: cacheStore, cfg: cfg, stub: stub}
 	if attr.Trunc || en.Size == 0 {
 		err = stub.Trunc(context.TODO())
 		if err != nil {
