@@ -20,9 +20,9 @@ import (
 	"context"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
-	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/hanwen/go-fuse/v2/fs"
 	. "github.com/onsi/ginkgo"
@@ -58,8 +58,8 @@ func initFsBridge(nfs *NanaFS) *NanaNode {
 	return root
 }
 
-func mustGetNanaEntry(node *NanaNode, ctrl controller.Controller) dentry.Entry {
-	result, err := ctrl.GetEntry(context.Background(), node.oid)
+func mustGetNanaEntry(node *NanaNode, ctrl controller.Controller) *types.Metadata {
+	result, err := ctrl.GetEntry(context.Background(), node.entryID)
 	if err != nil {
 		panic(err)
 	}

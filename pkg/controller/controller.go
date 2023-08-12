@@ -34,17 +34,21 @@ const (
 )
 
 type Controller interface {
-	LoadRootEntry(ctx context.Context) (dentry.Entry, error)
-	FindEntry(ctx context.Context, parent dentry.Entry, name string) (dentry.Entry, error)
-	GetEntry(ctx context.Context, id int64) (dentry.Entry, error)
-	CreateEntry(ctx context.Context, parent dentry.Entry, attr types.ObjectAttr) (dentry.Entry, error)
-	SaveEntry(ctx context.Context, parent, en dentry.Entry) error
-	DestroyEntry(ctx context.Context, parent, en dentry.Entry, attr types.DestroyObjectAttr) error
-	MirrorEntry(ctx context.Context, src, dstParent dentry.Entry, attr types.ObjectAttr) (dentry.Entry, error)
-	ListEntryChildren(ctx context.Context, en dentry.Entry) ([]dentry.Entry, error)
-	ChangeEntryParent(ctx context.Context, target, oldParent, newParent dentry.Entry, newName string, opt types.ChangeParentAttr) error
+	LoadRootEntry(ctx context.Context) (*types.Metadata, error)
+	FindEntry(ctx context.Context, parentId int64, name string) (*types.Metadata, error)
+	GetEntry(ctx context.Context, id int64) (*types.Metadata, error)
+	CreateEntry(ctx context.Context, parentId int64, attr types.ObjectAttr) (*types.Metadata, error)
+	UpdateEntry(ctx context.Context, entryId int64, patch *types.Metadata) error
+	DestroyEntry(ctx context.Context, parentId, entryId int64, attr types.DestroyObjectAttr) error
+	MirrorEntry(ctx context.Context, srcEntryId, dstParentId int64, attr types.ObjectAttr) (*types.Metadata, error)
+	ListEntryChildren(ctx context.Context, entryId int64) ([]*types.Metadata, error)
+	ChangeEntryParent(ctx context.Context, targetId, oldParentId, newParentId int64, newName string, opt types.ChangeParentAttr) error
 
-	OpenFile(ctx context.Context, en dentry.Entry, attr dentry.Attr) (dentry.File, error)
+	GetEntryExtendField(ctx context.Context, id int64, fKey string) (*string, error)
+	SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string) error
+	RemoveEntryExtendField(ctx context.Context, id int64, fKey string) error
+
+	OpenFile(ctx context.Context, entryId int64, attr dentry.Attr) (dentry.File, error)
 	ReadFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error)
 	WriteFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error)
 	CloseFile(ctx context.Context, file dentry.File) error
@@ -61,14 +65,13 @@ type controller struct {
 
 	entry    dentry.Manager
 	workflow workflow.Manager
-	cache    *entryCache
 
 	logger *zap.SugaredLogger
 }
 
 var _ Controller = &controller{}
 
-func (c *controller) LoadRootEntry(ctx context.Context) (dentry.Entry, error) {
+func (c *controller) LoadRootEntry(ctx context.Context) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "controller.LoadRootEntry").End()
 	c.logger.Info("init root object")
 	rootEntry, err := c.entry.Root(ctx)
@@ -76,34 +79,30 @@ func (c *controller) LoadRootEntry(ctx context.Context) (dentry.Entry, error) {
 		c.logger.Errorw("load root object error", "err", err.Error())
 		return nil, err
 	}
-	c.cache.putEntry(rootEntry)
 	return rootEntry, nil
 }
 
-func (c *controller) FindEntry(ctx context.Context, parent dentry.Entry, name string) (dentry.Entry, error) {
+func (c *controller) FindEntry(ctx context.Context, parentId int64, name string) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "controller.FindEntry").End()
 	if len(name) > entryNameMaxLength {
 		return nil, types.ErrNameTooLong
 	}
-	if !parent.IsGroup() {
-		return nil, types.ErrNoGroup
+	group, err := c.entry.OpenGroup(ctx, parentId)
+	if err != nil {
+		return nil, err
 	}
-	result, err := parent.Group().FindEntry(ctx, name)
+	result, err := group.FindEntry(ctx, name)
 	if err != nil {
 		if err != types.ErrNotFound {
-			c.logger.Errorw("find entry error", "parent", parent.Metadata().ID, "entryName", name, "err", err.Error())
+			c.logger.Errorw("find entry error", "parent", parentId, "entryName", name, "err", err.Error())
 		}
 		return nil, err
 	}
 	return result, nil
 }
 
-func (c *controller) GetEntry(ctx context.Context, id int64) (dentry.Entry, error) {
+func (c *controller) GetEntry(ctx context.Context, id int64) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "controller.GetEntry").End()
-	cached := c.cache.getEntry(id)
-	if cached != nil {
-		return cached, nil
-	}
 	result, err := c.entry.GetEntry(ctx, id)
 	if err != nil {
 		if err != types.ErrNotFound {
@@ -111,175 +110,195 @@ func (c *controller) GetEntry(ctx context.Context, id int64) (dentry.Entry, erro
 		}
 		return nil, err
 	}
-	c.cache.putEntry(result)
 	return result, nil
 }
 
-func (c *controller) CreateEntry(ctx context.Context, parent dentry.Entry, attr types.ObjectAttr) (dentry.Entry, error) {
+func (c *controller) CreateEntry(ctx context.Context, parentId int64, attr types.ObjectAttr) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "controller.CreateEntry").End()
 
 	if len(attr.Name) > entryNameMaxLength {
 		return nil, types.ErrNameTooLong
 	}
 
-	if parent == nil {
-		c.logger.Errorw("create entry failed, parent is nil", "entryName", attr.Name)
-		return nil, types.ErrNotFound
-	}
-
-	entry, err := c.entry.CreateEntry(ctx, parent, dentry.EntryAttr{
+	entry, err := c.entry.CreateEntry(ctx, parentId, dentry.EntryAttr{
 		Name:   attr.Name,
 		Kind:   attr.Kind,
 		Access: attr.Access,
 		Dev:    attr.Dev,
 	})
 	if err != nil {
-		c.logger.Errorw("create entry error", "parent", parent.Metadata().ID, "entryName", attr.Name, "err", err.Error())
+		c.logger.Errorw("create entry error", "parent", parentId, "entryName", attr.Name, "err", err)
 		return nil, err
 	}
-	c.cache.putEntry(entry)
 	dentry.PublicEntryActionEvent(events.ActionTypeCreate, entry)
 	return entry, nil
 }
 
-func (c *controller) SaveEntry(ctx context.Context, parent, entry dentry.Entry) error {
-	defer trace.StartRegion(ctx, "controller.SaveEntry").End()
-	var err error
-	if parent == nil {
-		parent, err = c.GetEntry(ctx, entry.Metadata().ParentID)
-		if err != nil {
-			c.logger.Errorw("save entry error: query parent entry failed", "entry", entry.Metadata().ID, "err", err.Error())
-			return err
-		}
-	}
-
-	if !parent.IsGroup() {
-		return types.ErrNoGroup
-	}
-	if err = parent.Group().UpdateEntry(ctx, entry); err != nil {
-		c.logger.Errorw("save entry error", "entry", entry.Metadata().ID, "err", err.Error())
+func (c *controller) UpdateEntry(ctx context.Context, entryID int64, patch *types.Metadata) error {
+	defer trace.StartRegion(ctx, "controller.UpdateEntry").End()
+	en, err := c.GetEntry(ctx, entryID)
+	if err != nil {
 		return err
 	}
-	c.cache.putEntry(parent)
-	c.cache.putEntry(entry)
-	dentry.PublicEntryActionEvent(events.ActionTypeUpdate, entry)
+
+	parent, err := c.entry.OpenGroup(ctx, en.ParentID)
+	if err != nil {
+		c.logger.Errorw("open group error", "parent", en.ParentID, "entry", entryID, "err", err)
+		return err
+	}
+
+	if err = parent.PatchEntry(ctx, entryID, patch); err != nil {
+		c.logger.Errorw("save entry error", "entry", entryID, "err", err)
+		return err
+	}
+	dentry.PublicEntryActionEvent(events.ActionTypeUpdate, en)
 	return nil
 }
 
-func (c *controller) DestroyEntry(ctx context.Context, parent, en dentry.Entry, attr types.DestroyObjectAttr) (err error) {
+func (c *controller) DestroyEntry(ctx context.Context, parentId, entryId int64, attr types.DestroyObjectAttr) error {
 	defer trace.StartRegion(ctx, "controller.DestroyEntry").End()
-	if err = dentry.IsAccess(parent.Metadata().Access, attr.Uid, attr.Gid, 0x2); err != nil {
-		return types.ErrNoAccess
-	}
-	if attr.Uid != 0 && attr.Uid != en.Metadata().Access.UID && attr.Uid != parent.Metadata().Access.UID && parent.Metadata().Access.HasPerm(types.PermSticky) {
-		return types.ErrNoAccess
-	}
-
-	err = c.entry.RemoveEntry(ctx, parent, en)
+	parent, err := c.GetEntry(ctx, parentId)
 	if err != nil {
-		c.logger.Errorw("delete entry failed", "entry", en.Metadata().ID, "err", err.Error())
 		return err
 	}
-	if en.IsMirror() {
-		c.cache.delEntry(en.Metadata().RefID)
+	if err = dentry.IsAccess(parent.Access, attr.Uid, attr.Gid, 0x2); err != nil {
+		return types.ErrNoAccess
 	}
-	c.cache.putEntry(parent)
-	c.cache.delEntry(en.Metadata().ID)
+
+	en, err := c.GetEntry(ctx, entryId)
+	if err != nil {
+		return err
+	}
+	if attr.Uid != 0 && attr.Uid != en.Access.UID && attr.Uid != parent.Access.UID && parent.Access.HasPerm(types.PermSticky) {
+		return types.ErrNoAccess
+	}
+
+	err = c.entry.RemoveEntry(ctx, parentId, entryId)
+	if err != nil {
+		c.logger.Errorw("delete entry failed", "entry", entryId, "err", err.Error())
+		return err
+	}
 	dentry.PublicEntryActionEvent(events.ActionTypeDestroy, en)
-	return
+	return nil
 }
 
-func (c *controller) MirrorEntry(ctx context.Context, src, dstParent dentry.Entry, attr types.ObjectAttr) (dentry.Entry, error) {
+func (c *controller) MirrorEntry(ctx context.Context, srcId, dstParentId int64, attr types.ObjectAttr) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "controller.MirrorEntry").End()
 	if len(attr.Name) > entryNameMaxLength {
 		return nil, types.ErrNameTooLong
 	}
 
-	oldEntry, err := c.FindEntry(ctx, dstParent, attr.Name)
+	oldEntry, err := c.FindEntry(ctx, dstParentId, attr.Name)
 	if err != nil && err != types.ErrNotFound {
-		c.logger.Errorw("check entry error", "srcEntry", src.Metadata().ID, "err", err.Error())
+		c.logger.Errorw("check entry error", "srcEntry", srcId, "err", err.Error())
 		return nil, err
 	}
 	if oldEntry != nil {
 		return nil, types.ErrIsExist
 	}
 
-	entry, err := c.entry.MirrorEntry(ctx, src, dstParent, dentry.EntryAttr{
+	entry, err := c.entry.MirrorEntry(ctx, srcId, dstParentId, dentry.EntryAttr{
 		Name:   attr.Name,
 		Kind:   attr.Kind,
 		Access: attr.Access,
 	})
-
-	c.cache.delEntry(src.Metadata().ID)
-	c.cache.delEntry(entry.Metadata().RefID)
-	c.cache.delEntry(dstParent.Metadata().ID)
+	if err != nil {
+		c.logger.Errorw("mirror entry failed", "src", srcId, "err", err.Error())
+		return nil, err
+	}
 
 	events.Publish(events.EntryActionTopic(events.TopicEntryActionFmt, events.ActionTypeMirror),
 		dentry.BuildEntryEvent(events.ActionTypeMirror, entry))
 	return entry, nil
 }
 
-func (c *controller) ListEntryChildren(ctx context.Context, parent dentry.Entry) ([]dentry.Entry, error) {
+func (c *controller) ListEntryChildren(ctx context.Context, parentId int64) ([]*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "controller.ListEntryChildren").End()
-	if !parent.IsGroup() {
-		return nil, types.ErrNoGroup
-	}
-	result, err := parent.Group().ListChildren(ctx)
+	parent, err := c.entry.OpenGroup(ctx, parentId)
 	if err != nil {
-		c.logger.Errorw("list entry children failed", "parent", parent.Metadata().ID, "err", err.Error())
+		return nil, err
+	}
+	result, err := parent.ListChildren(ctx)
+	if err != nil {
+		c.logger.Errorw("list entry children failed", "parent", parentId, "err", err)
 		return nil, err
 	}
 	return result, err
 }
 
-func (c *controller) ChangeEntryParent(ctx context.Context, target, oldParent, newParent dentry.Entry, newName string, opt types.ChangeParentAttr) (err error) {
+func (c *controller) ChangeEntryParent(ctx context.Context, targetId, oldParentId, newParentId int64, newName string, opt types.ChangeParentAttr) (err error) {
 	defer trace.StartRegion(ctx, "controller.ChangeEntryParent").End()
 	if len(newName) > entryNameMaxLength {
 		return types.ErrNameTooLong
 	}
 
 	// need source dir WRITE
-	if err = dentry.IsAccess(oldParent.Metadata().Access, opt.Uid, opt.Gid, 0x2); err != nil {
+	oldParent, err := c.GetEntry(ctx, oldParentId)
+	if err != nil {
+		return err
+	}
+	if err = dentry.IsAccess(oldParent.Access, opt.Uid, opt.Gid, 0x2); err != nil {
 		return err
 	}
 	// need dst dir WRITE
-	if err = dentry.IsAccess(newParent.Metadata().Access, opt.Uid, opt.Gid, 0x2); err != nil {
+	newParent, err := c.GetEntry(ctx, newParentId)
+	if err != nil {
+		return err
+	}
+	if err = dentry.IsAccess(newParent.Access, opt.Uid, opt.Gid, 0x2); err != nil {
 		return err
 	}
 
-	if opt.Uid != 0 && opt.Uid != oldParent.Metadata().Access.UID && opt.Uid != target.Metadata().Access.UID && oldParent.Metadata().Access.HasPerm(types.PermSticky) {
+	target, err := c.GetEntry(ctx, targetId)
+	if err != nil {
+		return err
+	}
+	if opt.Uid != 0 && opt.Uid != oldParent.Access.UID && opt.Uid != target.Access.UID && oldParent.Access.HasPerm(types.PermSticky) {
 		return types.ErrNoPerm
 	}
 
-	existObj, err := c.FindEntry(ctx, newParent, newName)
+	var existObjId *int64
+	existObj, err := c.FindEntry(ctx, newParentId, newName)
 	if err != nil {
 		if err != types.ErrNotFound {
-			c.logger.Errorw("new name verify failed", "old", target.Metadata().ID, "newParent", newParent.Metadata().ID, "newName", newName, "err", err.Error())
+			c.logger.Errorw("new name verify failed", "old", targetId, "newParent", newParentId, "newName", newName, "err", err)
 			return err
 		}
 	}
+
 	if existObj != nil {
-		if opt.Uid != 0 && opt.Uid != newParent.Metadata().Access.UID && opt.Uid != existObj.Metadata().Access.UID && newParent.Metadata().Access.HasPerm(types.PermSticky) {
+		if opt.Uid != 0 && opt.Uid != newParent.Access.UID && opt.Uid != existObj.Access.UID && newParent.Access.HasPerm(types.PermSticky) {
 			return types.ErrNoPerm
 		}
+		eid := existObj.ID
+		existObjId = &eid
 	}
 
-	err = c.entry.ChangeEntryParent(ctx, target, existObj, oldParent, newParent, newName, dentry.ChangeParentAttr{
+	err = c.entry.ChangeEntryParent(ctx, targetId, existObjId, oldParentId, newParentId, newName, dentry.ChangeParentAttr{
 		Replace:  opt.Replace,
 		Exchange: opt.Exchange,
 	})
 	if err != nil {
-		c.logger.Errorw("change object parent failed", "target", target.Metadata().ID, "newParent", newParent.Metadata().ID, "newName", newName, "err", err.Error())
+		c.logger.Errorw("change object parent failed", "target", targetId, "newParent", newParentId, "newName", newName, "err", err)
 		return err
 	}
-	if existObj != nil {
-		c.cache.delEntry(existObj.Metadata().ID)
-	}
-	c.cache.putEntry(target)
-	c.cache.putEntry(oldParent)
-	c.cache.putEntry(newParent)
 	dentry.PublicEntryActionEvent(events.ActionTypeChangeParent, target)
 	return nil
+}
+
+func (c *controller) GetEntryExtendField(ctx context.Context, id int64, fKey string) (*string, error) {
+	defer trace.StartRegion(ctx, "controller.GetEntryExtendField").End()
+	return c.entry.GetEntryExtendField(ctx, id, fKey)
+}
+
+func (c *controller) SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string) error {
+	defer trace.StartRegion(ctx, "controller.SetEntryExtendField").End()
+	return c.entry.SetEntryExtendField(ctx, id, fKey, fVal)
+}
+
+func (c *controller) RemoveEntryExtendField(ctx context.Context, id int64, fKey string) error {
+	defer trace.StartRegion(ctx, "controller.RemoveEntryExtendField").End()
+	return c.entry.RemoveEntryExtendField(ctx, id, fKey)
 }
 
 func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
@@ -289,7 +308,6 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 		meta:      meta,
 		cfg:       cfg,
 		cfgLoader: loader,
-		cache:     initEntryCache(),
 		logger:    logger.NewLogger("controller"),
 	}
 	var err error
@@ -303,6 +321,5 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 		return nil, err
 	}
 
-	ctl.entry.SetCacheResetter(ctl.cache)
 	return ctl, nil
 }

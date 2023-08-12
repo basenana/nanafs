@@ -27,5 +27,6 @@ var (
 	ErrIsGroup     = errors.New("this object is a group")
 	ErrNoAccess    = errors.New("no access")
 	ErrNoPerm      = errors.New("no permission")
+	ErrConflict    = errors.New("operation conflict")
 	ErrUnsupported = errors.New("unsupported operation")
 )

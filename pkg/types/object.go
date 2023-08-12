@@ -48,7 +48,6 @@ type Metadata struct {
 	Kind       Kind      `json:"kind"`
 	KindMap    int64     `json:"kind_map"`
 	Size       int64     `json:"size"`
-	Inode      uint64    `json:"inode"`
 	Version    int64     `json:"version"`
 	Dev        int64     `json:"dev"`
 	Namespace  string    `json:"namespace,omitempty"`
@@ -234,4 +233,8 @@ type ChunkSeg struct {
 	Off      int64
 	Len      int64
 	State    int16
+}
+
+func IsMirrored(entry *Metadata) bool {
+	return !IsGroup(entry.Kind) && entry.RefID != 0 && entry.RefID != entry.ID
 }

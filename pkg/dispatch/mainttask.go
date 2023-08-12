@@ -90,7 +90,7 @@ func (c *compactExecutor) execute(ctx context.Context, task *types.ScheduledTask
 		return err
 	}
 	c.logger.Debugw("[compactExecutor] start compact entry segment", "entry", md.ID)
-	if err = c.entry.ChunkCompact(ctx, en); err != nil {
+	if err = c.entry.ChunkCompact(ctx, en.ID); err != nil {
 		c.logger.Errorw("[compactExecutor] compact entry segment error", "entry", md.ID, "err", err.Error())
 		return err
 	}
@@ -155,15 +155,15 @@ func (c *entryCleanExecutor) execute(ctx context.Context, task *types.ScheduledT
 		return err
 	}
 
-	if !en.IsGroup() {
-		err = c.entry.CleanEntryData(ctx, en)
+	if !types.IsGroup(en.Kind) {
+		err = c.entry.CleanEntryData(ctx, en.ID)
 		if err != nil {
 			c.logger.Errorw("[entryCleanExecutor] get entry failed", "entry", evt.RefID, "task", task.ID, "err", err)
 			return err
 		}
 	}
 
-	err = c.entry.DestroyEntry(ctx, en)
+	err = c.entry.DestroyEntry(ctx, en.ID)
 	if err != nil {
 		c.logger.Errorw("[entryCleanExecutor] get entry failed", "entry", evt.RefID, "task", task.ID, "err", err)
 		return err

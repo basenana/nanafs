@@ -168,7 +168,7 @@ func (m *manager) TriggerWorkflow(ctx context.Context, wfId string, entryID int6
 	}
 
 	m.logger.Infow("receive workflow", "workflow", workflow.Name, "entryID", entryID)
-	var en dentry.Entry
+	var en *types.Metadata
 	en, err = m.entryMgr.GetEntry(ctx, entryID)
 	if err != nil {
 		m.logger.Errorw("query entry failed", "workflow", workflow.Name, "entryID", entryID, "err", err)

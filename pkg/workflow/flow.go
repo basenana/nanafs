@@ -32,15 +32,12 @@ import (
 	"time"
 )
 
-func assembleWorkflowJob(ctx context.Context, mgr dentry.Manager, spec *types.WorkflowSpec, entry dentry.Entry, fuseCfg config.FUSE) (*types.WorkflowJob, error) {
-	var (
-		md          = entry.Metadata()
-		globalParam = map[string]string{}
-	)
+func assembleWorkflowJob(ctx context.Context, mgr dentry.Manager, spec *types.WorkflowSpec, entry *types.Metadata, fuseCfg config.FUSE) (*types.WorkflowJob, error) {
+	var globalParam = map[string]string{}
 	j := &types.WorkflowJob{
 		Id:        uuid.New().String(),
 		Workflow:  spec.Id,
-		Target:    types.WorkflowTarget{EntryID: md.ID},
+		Target:    types.WorkflowTarget{EntryID: entry.ID},
 		Status:    flow.InitializingStatus,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -54,13 +51,13 @@ func assembleWorkflowJob(ctx context.Context, mgr dentry.Manager, spec *types.Wo
 		}
 	}
 
-	entryPath, err := entryID2FusePath(ctx, md.ID, mgr, fuseCfg)
+	entryPath, err := entryID2FusePath(ctx, entry.ID, mgr, fuseCfg)
 	if err != nil {
 		return nil, err
 	}
 	if entryPath == "" && !plugin.IsBuildInPlugin(pluginNames...) {
 		// if fuse disabled, using filename in workdir
-		entryPath = md.Name
+		entryPath = entry.Name
 		j.Steps = append(j.Steps, types.WorkflowJobStep{
 			StepName: opEntryInit,
 			Status:   flow.InitializingStatus,
@@ -71,7 +68,7 @@ func assembleWorkflowJob(ctx context.Context, mgr dentry.Manager, spec *types.Wo
 		})
 	}
 
-	globalParam[paramEntryIdKey] = strconv.FormatInt(md.ID, 10)
+	globalParam[paramEntryIdKey] = strconv.FormatInt(entry.ID, 10)
 	globalParam[paramEntryPathKey] = entryPath
 	for _, stepSpec := range spec.Steps {
 		if stepSpec.Plugin != nil {

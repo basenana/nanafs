@@ -24,13 +24,13 @@ import (
 	"syscall"
 )
 
-func Stat(md *types.Metadata) Info {
+func Stat(entry *types.Metadata) Info {
 	return Info{
-		name:  md.Name,
-		size:  md.Size,
-		mode:  modeFromFileKind(md.Kind) | dentry.Access2Mode(md.Access),
-		mTime: md.ModifiedAt,
-		isDir: types.IsGroup(md.Kind),
+		name:  entry.Name,
+		size:  entry.Size,
+		mode:  modeFromFileKind(entry.Kind) | dentry.Access2Mode(entry.Access),
+		mTime: entry.ModifiedAt,
+		isDir: types.IsGroup(entry.Kind),
 	}
 }
 

@@ -116,7 +116,17 @@ func init() {
 	}
 }
 
-func buildObjectAccess(perm, uid, gid int64) types.Access {
+func buildObjectAccess(permPtr, uidPtr, gidPtr *int64) types.Access {
+	var perm, uid, gid int64
+	if permPtr != nil {
+		perm = *permPtr
+	}
+	if uidPtr != nil {
+		uid = *uidPtr
+	}
+	if gidPtr != nil {
+		gid = *gidPtr
+	}
 	acc := types.Access{UID: uid, GID: gid}
 	for name, permVal := range accessMapping {
 		if perm&permVal > 0 {
@@ -126,10 +136,10 @@ func buildObjectAccess(perm, uid, gid int64) types.Access {
 	return acc
 }
 
-func updateObjectPermission(acc types.Access) int64 {
+func updateObjectPermission(acc types.Access) *int64 {
 	var perm int64
 	for _, p := range acc.Permissions {
 		perm |= accessMapping[p]
 	}
-	return perm
+	return &perm
 }

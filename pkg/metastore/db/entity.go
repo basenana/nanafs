@@ -182,12 +182,53 @@ func (e *Entity) SaveObjects(ctx context.Context, objects ...*types.Object) erro
 
 func (e *Entity) SaveMirroredObject(ctx context.Context, srcObj, dstParent, object *types.Object) error {
 	return e.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := saveRawObject(tx, srcObj); err != nil {
-			return err
+		var (
+			srcObjModel       = &Object{ID: srcObj.ID}
+			dstParentObjModel = &Object{ID: dstParent.ID}
+			nowTime           = time.Now()
+		)
+
+		res := tx.First(srcObjModel)
+		if res.Error != nil {
+			return res.Error
 		}
-		if err := saveRawObject(tx, dstParent); err != nil {
-			return err
+		currentVersion := srcObjModel.Version
+
+		srcObj.Version = currentVersion + 1
+		srcObj.RefCount += 1
+		srcObj.ChangedAt = nowTime
+		srcObjModel.Update(srcObj)
+		if srcObjModel.Version < 0 {
+			srcObjModel.Version = 1024
 		}
+		res = tx.Where("version = ?", currentVersion).Updates(srcObjModel)
+		if res.Error != nil || res.RowsAffected == 0 {
+			if res.RowsAffected == 0 {
+				return types.ErrConflict
+			}
+			return res.Error
+		}
+
+		res = tx.First(dstParentObjModel)
+		if res.Error != nil {
+			return res.Error
+		}
+		currentVersion = dstParentObjModel.Version
+		dstParent.Version = currentVersion + 1
+		dstParent.ChangedAt = nowTime
+		dstParent.ModifiedAt = nowTime
+		dstParentObjModel.Update(dstParent)
+		if dstParentObjModel.Version < 0 {
+			dstParentObjModel.Version = 1024
+		}
+		res = tx.Where("version = ?", currentVersion).Updates(dstParentObjModel)
+		if res.Error != nil || res.RowsAffected == 0 {
+			if res.RowsAffected == 0 {
+				return types.ErrConflict
+			}
+			return res.Error
+		}
+
 		if err := saveRawObject(tx, object); err != nil {
 			return err
 		}
@@ -197,14 +238,77 @@ func (e *Entity) SaveMirroredObject(ctx context.Context, srcObj, dstParent, obje
 
 func (e *Entity) SaveChangeParentObject(ctx context.Context, srcParent, dstParent, obj *types.Object, opt types.ChangeParentOption) error {
 	return e.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := saveRawObject(tx, srcParent); err != nil {
-			return err
+		var (
+			objModel          = &Object{ID: obj.ID}
+			srcParentObjModel = &Object{ID: srcParent.ID}
+			dstParentObjModel = &Object{ID: dstParent.ID}
+			nowTime           = time.Now()
+		)
+		res := tx.First(objModel)
+		if res.Error != nil {
+			return res.Error
 		}
-		if err := saveRawObject(tx, dstParent); err != nil {
-			return err
+		currentVersion := objModel.Version
+		obj.Version = currentVersion + 1
+		obj.Name = opt.Name
+		objModel.Update(obj)
+		if objModel.Version < 0 {
+			objModel.Version = 1024
 		}
-		if err := saveRawObject(tx, obj); err != nil {
-			return err
+		res = tx.Where("version = ?", currentVersion).Updates(objModel)
+		if res.Error != nil || res.RowsAffected == 0 {
+			if res.RowsAffected == 0 {
+				return types.ErrConflict
+			}
+			return res.Error
+		}
+
+		res = tx.First(srcParentObjModel)
+		if res.Error != nil {
+			return res.Error
+		}
+		currentVersion = srcParentObjModel.Version
+		srcParent.Version = currentVersion + 1
+
+		if obj.IsGroup() {
+			srcParent.RefCount -= 1
+		}
+		srcParent.ChangedAt = nowTime
+		srcParent.ModifiedAt = nowTime
+		srcParentObjModel.Update(srcParent)
+		if srcParentObjModel.Version < 0 {
+			srcParentObjModel.Version = 1024
+		}
+		res = tx.Where("version = ?", currentVersion).Updates(srcParentObjModel)
+		if res.Error != nil || res.RowsAffected == 0 {
+			if res.RowsAffected == 0 {
+				return types.ErrConflict
+			}
+			return res.Error
+		}
+
+		if obj.IsGroup() {
+			res = tx.First(dstParentObjModel)
+			if res.Error != nil {
+				return res.Error
+			}
+			currentVersion = dstParentObjModel.Version
+			dstParent.Version = currentVersion + 1
+
+			dstParent.ChangedAt = nowTime
+			dstParent.ModifiedAt = nowTime
+			dstParent.RefCount += 1
+			dstParentObjModel.Update(dstParent)
+			if dstParentObjModel.Version < 0 {
+				dstParentObjModel.Version = 1024
+			}
+			res = tx.Where("version = ?", currentVersion).Updates(dstParentObjModel)
+			if res.Error != nil || res.RowsAffected == 0 {
+				if res.RowsAffected == 0 {
+					return types.ErrConflict
+				}
+				return res.Error
+			}
 		}
 		return nil
 	})
@@ -641,9 +745,17 @@ func saveRawObject(tx *gorm.DB, obj *types.Object) error {
 		return nil
 	}
 
+	currentVersion := obj.Version
+	obj.Version += 1
+	if obj.Version < 0 {
+		obj.Version = 1024
+	}
 	objModel.Update(obj)
-	res = tx.Save(objModel)
-	if res.Error != nil {
+	res = tx.Where("version = ?", currentVersion).Updates(objModel)
+	if res.Error != nil || res.RowsAffected == 0 {
+		if res.RowsAffected == 0 {
+			return types.ErrConflict
+		}
 		return res.Error
 	}
 

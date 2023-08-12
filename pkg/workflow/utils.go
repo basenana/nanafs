@@ -66,7 +66,7 @@ func entryID2FusePath(ctx context.Context, entryID int64, mgr dentry.Manager, fu
 	}
 
 	var (
-		parent dentry.Entry
+		parent *types.Metadata
 		err    error
 
 		reversedNames []string
@@ -76,14 +76,14 @@ func entryID2FusePath(ctx context.Context, entryID int64, mgr dentry.Manager, fu
 		if err != nil {
 			return "", err
 		}
-		entryID = parent.Metadata().ParentID
+		entryID = parent.ParentID
 		if entryID == 0 {
 			return "", types.ErrNotFound
 		}
 		if entryID == 1 {
 			break
 		}
-		reversedNames = append(reversedNames, parent.Metadata().Name)
+		reversedNames = append(reversedNames, parent.Name)
 	}
 
 	buf := &bytes.Buffer{}
@@ -96,9 +96,9 @@ func entryID2FusePath(ctx context.Context, entryID int64, mgr dentry.Manager, fu
 	return buf.String(), nil
 }
 
-func copyEntryToJobWorkDir(ctx context.Context, entryPath string, entry dentry.File) error {
+func copyEntryToJobWorkDir(ctx context.Context, entryPath string, entry *types.Metadata, file dentry.File) error {
 	if entryPath == "" {
-		entryPath = entry.Metadata().Name
+		entryPath = entry.Name
 	}
 	f, err := os.OpenFile(entryPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 	if err != nil {
@@ -106,6 +106,6 @@ func copyEntryToJobWorkDir(ctx context.Context, entryPath string, entry dentry.F
 	}
 	defer f.Close()
 
-	_, err = io.Copy(utils.NewWriterWithContextWriter(ctx, entry), f)
+	_, err = io.Copy(utils.NewWriterWithContextWriter(ctx, file), f)
 	return err
 }

@@ -38,8 +38,6 @@ var (
 )
 
 type File interface {
-	Entry
-
 	GetAttr() Attr
 	WriteAt(ctx context.Context, data []byte, off int64) (int64, error)
 	ReadAt(ctx context.Context, dest []byte, off int64) (int64, error)
@@ -49,15 +47,16 @@ type File interface {
 }
 
 type file struct {
-	Entry
+	entryID    int64
+	size       int64
+	cacheStore *metaCache
 
 	reader bio.Reader
 	writer bio.Writer
 
-	attr  Attr
-	reset CacheResetter
-	cfg   *config.FS
-	mux   sync.Mutex
+	attr Attr
+	cfg  *config.FS
+	mux  sync.Mutex
 }
 
 var _ File = &file{}
@@ -73,16 +72,12 @@ func (f *file) WriteAt(ctx context.Context, data []byte, off int64) (int64, erro
 	}
 	n, err := f.writer.WriteAt(ctx, data, off)
 	if err != nil {
-		fileEntryLogger.Errorw("write file error", "entry", f.Entry.Metadata().ID, "off", off, "err", err)
+		fileEntryLogger.Errorw("write file error", "entry", f.entryID, "off", off, "err", err)
 	}
-	meta := f.Metadata()
-	meta.ModifiedAt = time.Now()
-	if meta.Size < off+n {
-		meta.Size = off + n
+	if f.size < off+n {
+		f.size = off + n
 	}
-	if f.reset != nil {
-		f.reset.ResetEntry(f)
-	}
+	f.cacheStore.delEntryCache(f.entryID)
 	return n, err
 }
 
@@ -93,11 +88,9 @@ func (f *file) Flush(ctx context.Context) error {
 	}
 	err := f.writer.Flush(ctx)
 	if err != nil {
-		fileEntryLogger.Errorw("flush file error", "entry", f.Entry.Metadata().ID, "err", err)
+		fileEntryLogger.Errorw("flush file error", "entry", f.entryID, "err", err)
 	}
-	if f.reset != nil {
-		f.reset.ResetEntry(f)
-	}
+	f.cacheStore.delEntryCache(f.entryID)
 	return err
 }
 
@@ -108,7 +101,7 @@ func (f *file) Fsync(ctx context.Context) error {
 	}
 	err := f.writer.Flush(ctx)
 	if err != nil {
-		fileEntryLogger.Errorw("fsync file error", "entry", f.Entry.Metadata().ID, "err", err)
+		fileEntryLogger.Errorw("fsync file error", "entry", f.entryID, "err", err)
 	}
 	return err
 }
@@ -120,15 +113,16 @@ func (f *file) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error
 	}
 	n, err := f.reader.ReadAt(ctx, dest, off)
 	if err != nil && err != io.EOF {
-		fileEntryLogger.Errorw("read file error", "entry", f.Entry.Metadata().ID, "off", off, "err", err)
+		fileEntryLogger.Errorw("read file error", "entry", f.entryID, "off", off, "err", err)
 	}
 	return n, err
 }
 
 func (f *file) Close(ctx context.Context) (err error) {
 	defer trace.StartRegion(ctx, "dentry.file.Close").End()
-	defer PublicFileActionEvent(events.ActionTypeClose, f)
-	defer decreaseOpenedFile(f.Metadata().ID)
+	// TODO: fix close file event
+	//defer PublicFileActionEvent(events.ActionTypeClose, f.entry)
+	defer decreaseOpenedFile(f.entryID)
 	defer f.reader.Close()
 	if f.attr.Write {
 		defer f.writer.Close()
@@ -140,29 +134,28 @@ func (f *file) Close(ctx context.Context) (err error) {
 	return nil
 }
 
-func openFile(en Entry, attr Attr, store metastore.ObjectStore, fileStorage storage.Storage, cacheReset CacheResetter, cfg *config.FS) (File, error) {
-	f := &file{
-		Entry: en,
-		attr:  attr,
-		reset: cacheReset,
-		cfg:   cfg,
-	}
+func openFile(en *types.Metadata, attr Attr, store metastore.ObjectStore, cacheStore *metaCache, fileStorage storage.Storage, cfg *config.FS) (File, error) {
+	f := &file{entryID: en.ID, size: en.Size, cacheStore: cacheStore, attr: attr, cfg: cfg}
 	if fileStorage == nil {
-		return nil, logOperationError(fileOperationErrorCounter, "init", fmt.Errorf("storage %s not found", en.Metadata().Storage))
+		return nil, logOperationError(fileOperationErrorCounter, "init", fmt.Errorf("storage %s not found", en.Storage))
 	}
-	f.reader = bio.NewChunkReader(en.Metadata(), store.(metastore.ChunkStore), fileStorage)
+	f.reader = bio.NewChunkReader(en, store.(metastore.ChunkStore), fileStorage)
 	if attr.Write {
 		f.writer = bio.NewChunkWriter(f.reader)
 	}
-	increaseOpenedFile(en.Metadata().ID)
-	return instrumentalFile{Entry: en, file: f}, nil
+	increaseOpenedFile(en.ID)
+	return f, nil
 }
 
 type symlink struct {
-	Entry
+	entryID int64
+	mgr     *manager
 
-	data []byte
-	attr Attr
+	plugin.MemFS
+	size       int64
+	modifiedAt time.Time
+	data       []byte
+	attr       Attr
 }
 
 var _ File = &symlink{}
@@ -171,27 +164,29 @@ func (s *symlink) GetAttr() Attr {
 	return s.attr
 }
 
-func (s *symlink) WriteAt(ctx context.Context, data []byte, offset int64) (n int64, err error) {
+func (s *symlink) WriteAt(ctx context.Context, data []byte, off int64) (n int64, err error) {
 	defer trace.StartRegion(ctx, "dentry.symlink.WriteAt").End()
-	size := offset + int64(len(data))
-
-	if size > int64(len(s.data)) {
-		newData := make([]byte, size)
-		copy(newData, s.data)
-		s.data = newData
+	newSize := off + int64(len(data))
+	if off+int64(len(data)) > int64(len(s.data)) {
+		blk := make([]byte, newSize)
+		copy(blk, s.data[:s.size])
+		s.data = blk
 	}
-
-	n = int64(copy(s.data[offset:], data))
-	s.Metadata().Size = size
-	s.Metadata().ModifiedAt = time.Now()
+	n = int64(copy(s.data[off:], data))
+	if newSize > s.size {
+		s.size = newSize
+	}
+	s.modifiedAt = time.Now()
 	_ = s.Flush(ctx)
 	return
 }
 
-func (s *symlink) ReadAt(ctx context.Context, data []byte, offset int64) (int64, error) {
+func (s *symlink) ReadAt(ctx context.Context, dest []byte, off int64) (n int64, err error) {
 	defer trace.StartRegion(ctx, "dentry.symlink.ReadAt").End()
-	n := copy(data, s.data[offset:])
-	return int64(n), nil
+	if s.data == nil || off > s.size {
+		return 0, io.EOF
+	}
+	return int64(copy(dest, s.data[off:s.size])), nil
 }
 
 func (s *symlink) Fsync(ctx context.Context) error {
@@ -200,55 +195,71 @@ func (s *symlink) Fsync(ctx context.Context) error {
 
 func (s *symlink) Flush(ctx context.Context) (err error) {
 	defer trace.StartRegion(ctx, "dentry.symlink.Flush").End()
-	deviceInfo := s.data
-	eData, err := s.GetExtendData(ctx)
+	en, err := s.mgr.GetEntry(ctx, s.entryID)
 	if err != nil {
 		return err
 	}
-	eData.Symlink = string(deviceInfo)
-	return s.UpdateExtendData(ctx, eData)
+	en.Size = s.size
+	en.ModifiedAt = s.modifiedAt
+	err = s.mgr.cache.updateEntries(ctx, en)
+	if err != nil {
+		return err
+	}
+
+	eData, err := s.mgr.GetEntryExtendData(ctx, s.entryID)
+	if err != nil {
+		return err
+	}
+	//eData.Symlink, err = base64.StdEncoding.EncodeToString(s.data)
+	eData.Symlink = string(s.data[:s.size])
+	return s.mgr.UpdateEntryExtendData(ctx, s.entryID, eData)
 }
 
-func (s *symlink) Close(ctx context.Context) (err error) {
+func (s *symlink) Close(ctx context.Context) error {
 	defer trace.StartRegion(ctx, "dentry.symlink.Close").End()
-	defer PublicFileActionEvent(events.ActionTypeClose, s)
-	defer decreaseOpenedFile(s.Metadata().ID)
+	en, err := s.mgr.GetEntry(ctx, s.entryID)
+	if err != nil {
+		return err
+	}
+	defer PublicFileActionEvent(events.ActionTypeClose, en)
+	defer decreaseOpenedFile(s.entryID)
 	return s.Flush(ctx)
 }
 
-func openSymlink(en Entry, attr Attr) (File, error) {
-	if en.Metadata().Kind != types.SymLinkKind {
+func openSymlink(mgr *manager, en *types.Metadata, attr Attr) (File, error) {
+	if en.Kind != types.SymLinkKind {
 		return nil, fmt.Errorf("not symlink")
 	}
 
-	var raw []byte
-	eData, err := en.GetExtendData(context.TODO())
+	var (
+		raw  []byte
+		size int64
+	)
+	eData, err := mgr.GetEntryExtendData(context.TODO(), en.ID)
 	if err != nil {
 		return nil, logOperationError(fileOperationErrorCounter, "init", err)
 	}
 	if eData.Symlink != "" {
 		raw = []byte(eData.Symlink)
+		size = int64(len(raw))
 	}
 
 	if raw == nil {
-		raw = make([]byte, 0, 512)
+		raw = make([]byte, 512)
 	}
 
-	increaseOpenedFile(en.Metadata().ID)
-	return instrumentalFile{
-		Entry: en,
-		file:  &symlink{Entry: en, data: raw, attr: attr},
-	}, nil
+	increaseOpenedFile(en.ID)
+	return &symlink{entryID: en.ID, size: size, modifiedAt: en.ModifiedAt, mgr: mgr, data: raw, attr: attr}, nil
 }
 
 type extFile struct {
-	Entry
-
-	attr  Attr
-	cfg   *config.FS
-	size  int64
-	store metastore.ObjectStore
-	stub  plugin.MirrorPlugin
+	attr       Attr
+	entryID    int64
+	modifiedAt time.Time
+	cacheStore *metaCache
+	cfg        *config.FS
+	size       int64
+	stub       plugin.MirrorPlugin
 }
 
 func (e *extFile) GetAttr() Attr {
@@ -260,7 +271,7 @@ func (e *extFile) WriteAt(ctx context.Context, data []byte, off int64) (int64, e
 	if off+n > e.size {
 		e.size = off + n
 	}
-	e.Metadata().ModifiedAt = time.Now()
+	e.modifiedAt = time.Now()
 	return n, err
 }
 
@@ -269,13 +280,15 @@ func (e *extFile) ReadAt(ctx context.Context, dest []byte, off int64) (int64, er
 }
 
 func (e *extFile) Fsync(ctx context.Context) error {
-	if e.Metadata().Size < e.size {
-		md := e.Metadata()
-		md.Size = e.size
-		err := e.store.SaveObjects(ctx, &types.Object{Metadata: *md})
-		if err != nil {
-			return err
-		}
+	entry, err := e.cacheStore.getEntry(ctx, e.entryID)
+	if err != nil {
+		return err
+	}
+	entry.Size = e.size
+	entry.ModifiedAt = e.modifiedAt
+	err = e.cacheStore.updateEntries(ctx, entry)
+	if err != nil {
+		return err
 	}
 	return e.stub.Fsync(ctx)
 }
@@ -292,7 +305,7 @@ func (e *extFile) Close(ctx context.Context) error {
 	return e.stub.Close(ctx)
 }
 
-func openExternalFile(en Entry, ps *types.PlugScope, attr Attr, store metastore.ObjectStore, cfg *config.FS) (File, error) {
+func openExternalFile(en *types.Metadata, ps *types.PlugScope, attr Attr, cacheStore *metaCache, cfg *config.FS) (File, error) {
 	if ps == nil {
 		return nil, fmt.Errorf("extend entry has no plug scop")
 	}
@@ -300,24 +313,25 @@ func openExternalFile(en Entry, ps *types.PlugScope, attr Attr, store metastore.
 	if err != nil {
 		return nil, fmt.Errorf("build mirror plugin failed: %s", err)
 	}
-	eFile := &extFile{Entry: en, attr: attr, size: en.Metadata().Size, store: store, cfg: cfg, stub: stub}
-	if attr.Trunc || en.Metadata().Size == 0 {
+	eFile := &extFile{entryID: en.ID, size: en.Size, modifiedAt: en.ModifiedAt, attr: attr, cacheStore: cacheStore, cfg: cfg, stub: stub}
+	if attr.Trunc || en.Size == 0 {
 		err = stub.Trunc(context.TODO())
 		if err != nil {
 			return nil, err
 		}
-		en.Metadata().Size = 0
+		en.Size = 0
 		eFile.size = 0
 	}
 	return eFile, nil
 }
 
 type Attr struct {
-	Read   bool
-	Write  bool
-	Create bool
-	Trunc  bool
-	Direct bool
+	EntryID int64
+	Read    bool
+	Write   bool
+	Create  bool
+	Trunc   bool
+	Direct  bool
 }
 
 var (

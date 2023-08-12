@@ -145,7 +145,7 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 		})
 
 		It("list new file object should be succeed", func() {
-			chIt, err := sqlite.ListChildren(context.TODO(), group1)
+			chIt, err := sqlite.ListChildren(context.TODO(), group1.ID)
 			Expect(err).Should(BeNil())
 
 			chList := make([]*types.Object, 0)
@@ -170,7 +170,7 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 			err = sqlite.ChangeParent(context.TODO(), group1, group2, targetObj, types.ChangeParentOption{})
 			Expect(err).Should(BeNil())
 
-			chIt, err := sqlite.ListChildren(context.TODO(), group2)
+			chIt, err := sqlite.ListChildren(context.TODO(), group2.ID)
 			Expect(err).Should(BeNil())
 
 			chList := make([]*types.Object, 0)
@@ -186,7 +186,7 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 			Expect(err).Should(BeNil())
 			Expect(len(chList)).Should(Equal(0))
 
-			chIt, err := sqlite.ListChildren(context.TODO(), group1)
+			chIt, err := sqlite.ListChildren(context.TODO(), group1.ID)
 			Expect(err).Should(BeNil())
 			chList = make([]*types.Object, 0)
 			for chIt.HasNext() {

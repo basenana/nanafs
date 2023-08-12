@@ -82,67 +82,7 @@ func init() {
 	)
 }
 
-type instrumentalEntry struct {
-	en Entry
-}
-
-func (i instrumentalEntry) Metadata() *types.Metadata {
-	return i.en.Metadata()
-}
-
-func (i instrumentalEntry) GetExtendData(ctx context.Context) (types.ExtendData, error) {
-	const operation = "get_extend_data"
-	defer logOperationLatency(entryOperationLatency, operation, time.Now())
-	ed, err := i.en.GetExtendData(ctx)
-	return ed, logOperationError(entryOperationErrorCounter, operation, err)
-}
-
-func (i instrumentalEntry) UpdateExtendData(ctx context.Context, ed types.ExtendData) error {
-	const operation = "update_extend_data"
-	defer logOperationLatency(entryOperationLatency, operation, time.Now())
-	err := i.en.UpdateExtendData(ctx, ed)
-	return logOperationError(entryOperationErrorCounter, operation, err)
-}
-
-func (i instrumentalEntry) GetExtendField(ctx context.Context, fKey string) (*string, error) {
-	const operation = "get_extend_filed"
-	defer logOperationLatency(entryOperationLatency, operation, time.Now())
-	s, err := i.en.GetExtendField(ctx, fKey)
-	return s, logOperationError(entryOperationErrorCounter, operation, err)
-}
-
-func (i instrumentalEntry) SetExtendField(ctx context.Context, fKey, fVal string) error {
-	const operation = "set_extend_filed"
-	defer logOperationLatency(entryOperationLatency, operation, time.Now())
-	err := i.en.SetExtendField(ctx, fKey, fVal)
-	return logOperationError(entryOperationErrorCounter, operation, err)
-}
-
-func (i instrumentalEntry) RemoveExtendField(ctx context.Context, fKey string) error {
-	const operation = "remove_extend_filed"
-	defer logOperationLatency(entryOperationLatency, operation, time.Now())
-	err := i.en.RemoveExtendField(ctx, fKey)
-	return logOperationError(entryOperationErrorCounter, operation, err)
-}
-
-func (i instrumentalEntry) RuleMatched(ctx context.Context, ruleSpec types.Rule) bool {
-	return i.en.RuleMatched(ctx, ruleSpec)
-}
-
-func (i instrumentalEntry) IsGroup() bool {
-	return i.en.IsGroup()
-}
-
-func (i instrumentalEntry) IsMirror() bool {
-	return i.en.IsMirror()
-}
-
-func (i instrumentalEntry) Group() Group {
-	return i.en.Group()
-}
-
 type instrumentalFile struct {
-	Entry
 	file File
 }
 
@@ -186,39 +126,38 @@ func (i instrumentalFile) Close(ctx context.Context) error {
 }
 
 type instrumentalGroup struct {
-	Entry
 	grp Group
 }
 
-func (i instrumentalGroup) FindEntry(ctx context.Context, name string) (Entry, error) {
+func (i instrumentalGroup) FindEntry(ctx context.Context, name string) (*types.Metadata, error) {
 	const operation = "find_entry"
 	defer logOperationLatency(groupOperationLatency, operation, time.Now())
 	en, err := i.grp.FindEntry(ctx, name)
 	return en, logOperationError(groupOperationErrorCounter, operation, err)
 }
 
-func (i instrumentalGroup) CreateEntry(ctx context.Context, attr EntryAttr) (Entry, error) {
+func (i instrumentalGroup) CreateEntry(ctx context.Context, attr EntryAttr) (*types.Metadata, error) {
 	const operation = "create_entry"
 	defer logOperationLatency(groupOperationLatency, operation, time.Now())
 	en, err := i.grp.CreateEntry(ctx, attr)
 	return en, logOperationError(groupOperationErrorCounter, operation, err)
 }
 
-func (i instrumentalGroup) UpdateEntry(ctx context.Context, en Entry) error {
-	const operation = "update_entry"
+func (i instrumentalGroup) PatchEntry(ctx context.Context, entryId int64, patch *types.Metadata) error {
+	const operation = "patch_entry"
 	defer logOperationLatency(groupOperationLatency, operation, time.Now())
-	err := i.grp.UpdateEntry(ctx, en)
+	err := i.grp.PatchEntry(ctx, entryId, patch)
 	return logOperationError(groupOperationErrorCounter, operation, err)
 }
 
-func (i instrumentalGroup) RemoveEntry(ctx context.Context, en Entry) error {
+func (i instrumentalGroup) RemoveEntry(ctx context.Context, entryId int64) error {
 	const operation = "remove_entry"
 	defer logOperationLatency(groupOperationLatency, operation, time.Now())
-	err := i.grp.RemoveEntry(ctx, en)
+	err := i.grp.RemoveEntry(ctx, entryId)
 	return logOperationError(groupOperationErrorCounter, operation, err)
 }
 
-func (i instrumentalGroup) ListChildren(ctx context.Context) ([]Entry, error) {
+func (i instrumentalGroup) ListChildren(ctx context.Context) ([]*types.Metadata, error) {
 	const operation = "list_children"
 	defer logOperationLatency(groupOperationLatency, operation, time.Now())
 	enList, err := i.grp.ListChildren(ctx)

@@ -112,16 +112,16 @@ var _ = Describe("TestWorkflowJobManage", func() {
 				{Name: "step-2", Plugin: ps},
 			},
 		}
-		en dentry.Entry
+		en *types.Metadata
 	)
 	Context("trigger a workflow", func() {
 		It("create dummy entry should be succeed", func() {
 			root, err := entryMgr.Root(ctx)
 			Expect(err).Should(BeNil())
-			en, err = entryMgr.CreateEntry(ctx, root, dentry.EntryAttr{Name: "test_workflow.txt", Kind: types.RawKind, Access: root.Metadata().Access})
+			en, err = entryMgr.CreateEntry(ctx, root.ID, dentry.EntryAttr{Name: "test_workflow.txt", Kind: types.RawKind, Access: root.Access})
 			Expect(err).Should(BeNil())
 
-			f, err := entryMgr.Open(ctx, en, dentry.Attr{Write: true})
+			f, err := entryMgr.Open(ctx, en.ID, dentry.Attr{Write: true})
 			Expect(err).Should(BeNil())
 			_, err = f.WriteAt(ctx, []byte("Hello World!"), 0)
 			Expect(err).Should(BeNil())
@@ -139,7 +139,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 		var job *types.WorkflowJob
 		It("trigger workflow should be succeed", func() {
 			var err error
-			job, err = mgr.TriggerWorkflow(ctx, wf.Id, en.Metadata().ID, JobAttr{})
+			job, err = mgr.TriggerWorkflow(ctx, wf.Id, en.ID, JobAttr{})
 			Expect(err).Should(BeNil())
 			Expect(job.Id).ShouldNot(BeEmpty())
 		})
@@ -163,7 +163,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 		var job *types.WorkflowJob
 		It("trigger workflow should be succeed", func() {
 			var err error
-			job, err = mgr.TriggerWorkflow(ctx, wf.Id, en.Metadata().ID, JobAttr{})
+			job, err = mgr.TriggerWorkflow(ctx, wf.Id, en.ID, JobAttr{})
 			Expect(err).Should(BeNil())
 			Expect(job.Id).ShouldNot(BeEmpty())
 
@@ -229,7 +229,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 		var job *types.WorkflowJob
 		It("trigger workflow should be succeed", func() {
 			var err error
-			job, err = mgr.TriggerWorkflow(ctx, wf.Id, en.Metadata().ID, JobAttr{})
+			job, err = mgr.TriggerWorkflow(ctx, wf.Id, en.ID, JobAttr{})
 			Expect(err).Should(BeNil())
 			Expect(job.Id).ShouldNot(BeEmpty())
 

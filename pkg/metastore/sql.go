@@ -80,10 +80,10 @@ func (s *sqliteMetaStore) DestroyObject(ctx context.Context, src, obj *types.Obj
 	return s.dbStore.DestroyObject(ctx, src, obj)
 }
 
-func (s *sqliteMetaStore) ListChildren(ctx context.Context, obj *types.Object) (Iterator, error) {
+func (s *sqliteMetaStore) ListChildren(ctx context.Context, parentId int64) (Iterator, error) {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
-	return s.dbStore.ListChildren(ctx, obj)
+	return s.dbStore.ListChildren(ctx, parentId)
 }
 
 func (s *sqliteMetaStore) ChangeParent(ctx context.Context, srcParent, dstParent, obj *types.Object, opt types.ChangeParentOption) error {
@@ -299,11 +299,11 @@ func (s *sqlMetaStore) DestroyObject(ctx context.Context, src, obj *types.Object
 	return nil
 }
 
-func (s *sqlMetaStore) ListChildren(ctx context.Context, obj *types.Object) (Iterator, error) {
+func (s *sqlMetaStore) ListChildren(ctx context.Context, parentId int64) (Iterator, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListChildren").End()
-	children, err := s.dbEntity.ListObjectChildren(ctx, types.Filter{ParentID: obj.ID})
+	children, err := s.dbEntity.ListObjectChildren(ctx, types.Filter{ParentID: parentId})
 	if err != nil {
-		s.logger.Errorw("list object children failed", "id", obj.ID, "err", err.Error())
+		s.logger.Errorw("list object children failed", "id", parentId, "err", err.Error())
 		return nil, db.SqlError2Error(err)
 	}
 	return &iterator{objects: children}, nil
