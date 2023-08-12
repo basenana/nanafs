@@ -404,9 +404,6 @@ func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.E
 	if err = f.Close(ctx); err != nil {
 		return nil, Error2FuseSysError("entry_symlink", err)
 	}
-	if err = n.R.PatchEntry(ctx, newLink.ID, newLink); err != nil {
-		return nil, Error2FuseSysError("entry_symlink", err)
-	}
 
 	newNode, err := n.R.newFsNode(ctx, n, newLink)
 	if err != nil {

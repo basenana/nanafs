@@ -22,6 +22,7 @@ import (
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
+	"time"
 )
 
 type metaCache struct {
@@ -48,6 +49,7 @@ func (c *metaCache) createEntry(ctx context.Context, newObj *types.Object, paren
 	objects := make([]*types.Object, 1, 2)
 	objects[0] = newObj
 	if parent != nil {
+		parent.ChangedAt = time.Now()
 		objects = append(objects, &types.Object{Metadata: *parent})
 	}
 	err := c.metastore.SaveObjects(ctx, objects...)
@@ -74,8 +76,10 @@ func (c *metaCache) updateEntries(ctx context.Context, entries ...*types.Metadat
 		}
 	}()
 
+	nowAt := time.Now()
 	for i := range entries {
 		en := entries[i]
+		en.ChangedAt = nowAt
 		objList[i] = &types.Object{Metadata: *en}
 	}
 

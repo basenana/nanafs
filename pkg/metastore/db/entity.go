@@ -297,6 +297,7 @@ func (e *Entity) SaveChangeParentObject(ctx context.Context, srcParent, dstParen
 
 			dstParent.ChangedAt = nowTime
 			dstParent.ModifiedAt = nowTime
+			dstParent.RefCount += 1
 			dstParentObjModel.Update(dstParent)
 			if dstParentObjModel.Version < 0 {
 				dstParentObjModel.Version = 1024

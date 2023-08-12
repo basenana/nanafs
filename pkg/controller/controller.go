@@ -143,6 +143,7 @@ func (c *controller) PatchEntry(ctx context.Context, entryID int64, patch *types
 
 	parent, err := c.entry.OpenGroup(ctx, en.ParentID)
 	if err != nil {
+		c.logger.Errorw("open group error", "parent", en.ParentID, "entry", entryID, "err", err)
 		return err
 	}
 
@@ -201,6 +202,10 @@ func (c *controller) MirrorEntry(ctx context.Context, srcId, dstParentId int64, 
 		Kind:   attr.Kind,
 		Access: attr.Access,
 	})
+	if err != nil {
+		c.logger.Errorw("mirror entry failed", "src", srcId, "err", err.Error())
+		return nil, err
+	}
 
 	events.Publish(events.EntryActionTopic(events.TopicEntryActionFmt, events.ActionTypeMirror),
 		dentry.BuildEntryEvent(events.ActionTypeMirror, entry))

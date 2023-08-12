@@ -132,6 +132,7 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (*types.Meta
 	}
 
 	group.ModifiedAt = time.Now()
+	group.ChangedAt = time.Now()
 	if obj.IsGroup() {
 		group.RefCount += 1
 	}

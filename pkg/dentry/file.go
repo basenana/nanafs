@@ -147,11 +147,14 @@ func openFile(en *types.Metadata, attr Attr, store metastore.ObjectStore, cacheS
 }
 
 type symlink struct {
-	entry *types.Metadata
-	mgr   Manager
+	entryID int64
+	mgr     *manager
 
-	data []byte
-	attr Attr
+	plugin.MemFS
+	size       int64
+	modifiedAt time.Time
+	data       []byte
+	attr       Attr
 }
 
 var _ File = &symlink{}
@@ -160,27 +163,29 @@ func (s *symlink) GetAttr() Attr {
 	return s.attr
 }
 
-func (s *symlink) WriteAt(ctx context.Context, data []byte, offset int64) (n int64, err error) {
+func (s *symlink) WriteAt(ctx context.Context, data []byte, off int64) (n int64, err error) {
 	defer trace.StartRegion(ctx, "dentry.symlink.WriteAt").End()
-	size := offset + int64(len(data))
-
-	if size > int64(len(s.data)) {
-		newData := make([]byte, size)
-		copy(newData, s.data)
-		s.data = newData
+	newSize := off + int64(len(data))
+	if off+int64(len(data)) > int64(len(s.data)) {
+		blk := make([]byte, newSize)
+		copy(blk, s.data[:s.size])
+		s.data = blk
 	}
-
-	n = int64(copy(s.data[offset:], data))
-	s.entry.Size = size
-	s.entry.ModifiedAt = time.Now()
+	n = int64(copy(s.data[off:], data))
+	if newSize > s.size {
+		s.size = newSize
+	}
+	s.modifiedAt = time.Now()
 	_ = s.Flush(ctx)
 	return
 }
 
-func (s *symlink) ReadAt(ctx context.Context, data []byte, offset int64) (int64, error) {
+func (s *symlink) ReadAt(ctx context.Context, dest []byte, off int64) (n int64, err error) {
 	defer trace.StartRegion(ctx, "dentry.symlink.ReadAt").End()
-	n := copy(data, s.data[offset:])
-	return int64(n), nil
+	if s.data == nil || off > s.size {
+		return 0, io.EOF
+	}
+	return int64(copy(dest, s.data[off:s.size])), nil
 }
 
 func (s *symlink) Fsync(ctx context.Context) error {
@@ -189,42 +194,61 @@ func (s *symlink) Fsync(ctx context.Context) error {
 
 func (s *symlink) Flush(ctx context.Context) (err error) {
 	defer trace.StartRegion(ctx, "dentry.symlink.Flush").End()
-	deviceInfo := s.data
-	eData, err := s.mgr.GetEntryExtendData(ctx, s.entry.ID)
+	en, err := s.mgr.GetEntry(ctx, s.entryID)
 	if err != nil {
 		return err
 	}
-	eData.Symlink = string(deviceInfo)
-	return s.mgr.UpdateEntryExtendData(ctx, s.entry.ID, eData)
+	en.Size = s.size
+	en.ModifiedAt = s.modifiedAt
+	err = s.mgr.cache.updateEntries(ctx, en)
+	if err != nil {
+		return err
+	}
+
+	eData, err := s.mgr.GetEntryExtendData(ctx, s.entryID)
+	if err != nil {
+		return err
+	}
+	//eData.Symlink, err = base64.StdEncoding.EncodeToString(s.data)
+	eData.Symlink = string(s.data[:s.size])
+	return s.mgr.UpdateEntryExtendData(ctx, s.entryID, eData)
 }
 
-func (s *symlink) Close(ctx context.Context) (err error) {
+func (s *symlink) Close(ctx context.Context) error {
 	defer trace.StartRegion(ctx, "dentry.symlink.Close").End()
-	defer PublicFileActionEvent(events.ActionTypeClose, s.entry)
-	defer decreaseOpenedFile(s.entry.ID)
+	en, err := s.mgr.GetEntry(ctx, s.entryID)
+	if err != nil {
+		return err
+	}
+	defer PublicFileActionEvent(events.ActionTypeClose, en)
+	defer decreaseOpenedFile(s.entryID)
 	return s.Flush(ctx)
 }
 
-func openSymlink(mgr Manager, en *types.Metadata, attr Attr) (File, error) {
+func openSymlink(mgr *manager, en *types.Metadata, attr Attr) (File, error) {
 	if en.Kind != types.SymLinkKind {
 		return nil, fmt.Errorf("not symlink")
 	}
 
-	var raw []byte
+	var (
+		raw  []byte
+		size int64
+	)
 	eData, err := mgr.GetEntryExtendData(context.TODO(), en.ID)
 	if err != nil {
 		return nil, logOperationError(fileOperationErrorCounter, "init", err)
 	}
 	if eData.Symlink != "" {
 		raw = []byte(eData.Symlink)
+		size = int64(len(raw))
 	}
 
 	if raw == nil {
-		raw = make([]byte, 0, 512)
+		raw = make([]byte, 512)
 	}
 
 	increaseOpenedFile(en.ID)
-	return &symlink{entry: en, data: raw, attr: attr}, nil
+	return &symlink{entryID: en.ID, size: size, modifiedAt: en.ModifiedAt, mgr: mgr, data: raw, attr: attr}, nil
 }
 
 type extFile struct {
@@ -302,11 +326,12 @@ func openExternalFile(en *types.Metadata, ps *types.PlugScope, attr Attr, cacheS
 }
 
 type Attr struct {
-	Read   bool
-	Write  bool
-	Create bool
-	Trunc  bool
-	Direct bool
+	EntryID int64
+	Read    bool
+	Write   bool
+	Create  bool
+	Trunc   bool
+	Direct  bool
 }
 
 var (

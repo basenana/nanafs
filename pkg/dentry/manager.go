@@ -140,10 +140,11 @@ func (m *manager) UpdateEntryExtendData(ctx context.Context, id int64, ed types.
 		return err
 	}
 	entry.ChangedAt = time.Now()
-	err = m.metastore.GetObjectExtendData(ctx, &types.Object{Metadata: *entry, ExtendData: &ed})
+	err = m.metastore.SaveObjects(ctx, &types.Object{Metadata: *entry, ExtendData: &ed, ExtendDataChanged: true})
 	if err != nil {
 		return err
 	}
+	m.cache.delEntryCache(id)
 	return nil
 }
 
@@ -221,7 +222,7 @@ func (m *manager) RemoveEntry(ctx context.Context, parentId, entryId int64) erro
 
 	var src *types.Metadata
 	if types.IsMirrored(entry) {
-		m.logger.Infow("entry is mirrored, delete ref count", "entry", entry.ID, "ref", entry.RefID)
+		m.logger.Debugw("entry is mirrored, delete ref count", "entry", entry.ID, "ref", entry.RefID)
 		src, err = m.GetEntry(ctx, entry.RefID)
 		if err != nil {
 			m.logger.Errorw("query source object from meta server error", "entry", entry.ID, "ref", entry.RefID, "err", err)
@@ -497,6 +498,8 @@ func (m *manager) Open(ctx context.Context, entryId int64, attr Attr) (File, err
 		return nil, err
 	}
 
+	attr.EntryID = entryId
+	// do not update ctime
 	entry.AccessAt = time.Now()
 	if attr.Write {
 		entry.ModifiedAt = entry.AccessAt
@@ -509,9 +512,10 @@ func (m *manager) Open(ctx context.Context, entryId int64, attr Attr) (File, err
 		PublicFileActionEvent(events.ActionTypeTrunc, entry)
 	}
 
-	if err = m.cache.updateEntries(ctx, entry); err != nil {
+	if err = m.metastore.SaveObjects(ctx, &types.Object{Metadata: *entry}); err != nil {
 		m.logger.Errorw("update entry size to zero error", "entry", entryId, "err", err)
 	}
+	m.cache.delEntryCache(entryId)
 
 	var f File
 	if entry.Storage == externalStorage {

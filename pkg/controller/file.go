@@ -57,6 +57,7 @@ func (c *controller) ReadFile(ctx context.Context, file dentry.File, data []byte
 	defer trace.StartRegion(ctx, "controller.ReadFile").End()
 	n, err = file.ReadAt(ctx, data, offset)
 	if err != nil {
+		c.logger.Errorw("read file failed", "offset", offset, "file", file.GetAttr().EntryID, "err", err)
 		return n, err
 	}
 	return n, nil
@@ -66,6 +67,7 @@ func (c *controller) WriteFile(ctx context.Context, file dentry.File, data []byt
 	defer trace.StartRegion(ctx, "controller.WriteFile").End()
 	n, err = file.WriteAt(ctx, data, offset)
 	if err != nil {
+		c.logger.Errorw("write file failed", "offset", offset, "file", file.GetAttr().EntryID, "err", err)
 		return n, err
 	}
 	return n, nil
@@ -75,6 +77,7 @@ func (c *controller) CloseFile(ctx context.Context, file dentry.File) (err error
 	defer trace.StartRegion(ctx, "controller.CloseFile").End()
 	err = file.Close(ctx)
 	if err != nil {
+		c.logger.Errorw("close file failed", "file", file.GetAttr().EntryID, "err", err)
 		return err
 	}
 	return nil
