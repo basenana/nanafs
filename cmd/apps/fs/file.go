@@ -60,7 +60,6 @@ func (f *File) Getattr(ctx context.Context, out *fuse.AttrOut) syscall.Errno {
 	}
 
 	st := nanaNode2Stat(entry)
-	updateCachedStat(st, f.entry)
 	updateAttrOut(st, &out.Attr)
 	return NoErr
 }

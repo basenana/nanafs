@@ -100,10 +100,10 @@ func (i instrumentalStore) DestroyObject(ctx context.Context, src, obj *types.Ob
 	return err
 }
 
-func (i instrumentalStore) ListChildren(ctx context.Context, obj *types.Object) (Iterator, error) {
+func (i instrumentalStore) ListChildren(ctx context.Context, parentId int64) (Iterator, error) {
 	const operation = "list_children"
 	defer logOperationLatency(operation, time.Now())
-	iter, err := i.store.ListChildren(ctx, obj)
+	iter, err := i.store.ListChildren(ctx, parentId)
 	logOperationError(operation, err)
 	return iter, err
 }

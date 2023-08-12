@@ -49,6 +49,10 @@ func (m *PathManager) Access(ctx context.Context, entryPath string, callerUid, c
 	return dentry.IsAccess(entry.Access, callerUid, callGid, uint32(perm))
 }
 
+func (m *PathManager) GetEntry(ctx context.Context, entryID int64) (*types.Metadata, error) {
+	return m.ctrl.GetEntry(ctx, entryID)
+}
+
 func (m *PathManager) FindEntry(ctx context.Context, entryPath string) (*types.Metadata, error) {
 	var err error
 	entryPath, err = m.getPath(entryPath)

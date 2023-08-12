@@ -51,15 +51,11 @@ func (c *metaCache) createEntry(ctx context.Context, newObj *types.Object, paren
 	if parent != nil {
 		parent.ChangedAt = time.Now()
 		objects = append(objects, &types.Object{Metadata: *parent})
+		defer c.delEntryCache(parent.ID)
 	}
 	err := c.metastore.SaveObjects(ctx, objects...)
 	if err != nil {
 		return err
-	}
-
-	c.putEntry2Cache(&newObj.Metadata)
-	if parent != nil {
-		c.delEntryCache(newObj.ParentID)
 	}
 	return nil
 }

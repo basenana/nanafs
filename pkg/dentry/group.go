@@ -63,7 +63,8 @@ func (e emptyGroup) ListChildren(ctx context.Context) ([]*types.Metadata, error)
 }
 
 type stdGroup struct {
-	entry      *types.Metadata
+	entryID    int64
+	name       string
 	store      metastore.ObjectStore
 	cacheStore *metaCache
 }
@@ -74,7 +75,7 @@ func (g *stdGroup) FindEntry(ctx context.Context, name string) (*types.Metadata,
 	defer trace.StartRegion(ctx, "dentry.stdGroup.FindEntry").End()
 	entryLifecycleLock.RLock()
 	defer entryLifecycleLock.RUnlock()
-	objects, err := g.store.ListObjects(ctx, types.Filter{Name: name, ParentID: g.entry.ID})
+	objects, err := g.store.ListObjects(ctx, types.Filter{Name: name, ParentID: g.entryID})
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +87,7 @@ func (g *stdGroup) FindEntry(ctx context.Context, name string) (*types.Metadata,
 		for i, obj := range objects {
 			objNames[i] = fmt.Sprintf(`{"id":%d,"name":"%s"}`, obj.ID, obj.Name)
 		}
-		logger.NewLogger("stdGroup").Warnf("lookup group %s with name %s, got objects: %s", g.entry.Name, name, strings.Join(objNames, ","))
+		logger.NewLogger("stdGroup").Warnf("lookup group %s with name %s, got objects: %s", g.name, name, strings.Join(objNames, ","))
 	}
 	obj := objects[0]
 	return &obj.Metadata, nil
@@ -96,7 +97,7 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (*types.Meta
 	defer trace.StartRegion(ctx, "dentry.stdGroup.CreateEntry").End()
 	entryLifecycleLock.Lock()
 	defer entryLifecycleLock.Unlock()
-	objects, err := g.store.ListObjects(ctx, types.Filter{Name: attr.Name, ParentID: g.entry.ID})
+	objects, err := g.store.ListObjects(ctx, types.Filter{Name: attr.Name, ParentID: g.entryID})
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +105,7 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (*types.Meta
 		return nil, types.ErrIsExist
 	}
 
-	group, err := g.cacheStore.getEntry(ctx, g.entry.ID)
+	group, err := g.cacheStore.getEntry(ctx, g.entryID)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +154,7 @@ func (g *stdGroup) PatchEntry(ctx context.Context, entryId int64, patch *types.M
 
 func (g *stdGroup) RemoveEntry(ctx context.Context, entryId int64) error {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.RemoveEntry").End()
-	group, err := g.cacheStore.getEntry(ctx, g.entry.ID)
+	group, err := g.cacheStore.getEntry(ctx, g.entryID)
 	if err != nil {
 		return err
 	}
@@ -189,7 +190,7 @@ func (g *stdGroup) RemoveEntry(ctx context.Context, entryId int64) error {
 
 func (g *stdGroup) ListChildren(ctx context.Context) ([]*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.ListChildren").End()
-	it, err := g.store.ListChildren(ctx, &types.Object{Metadata: *g.entry})
+	it, err := g.store.ListChildren(ctx, g.entryID)
 	if err != nil {
 		return nil, err
 	}
@@ -243,7 +244,7 @@ func (e *extGroup) CreateEntry(ctx context.Context, attr EntryAttr) (*types.Meta
 }
 
 func (e *extGroup) PatchEntry(ctx context.Context, entryId int64, patch *types.Metadata) error {
-	group, err := e.stdGroup.cacheStore.getEntry(ctx, e.stdGroup.entry.ID)
+	group, err := e.stdGroup.cacheStore.getEntry(ctx, e.stdGroup.entryID)
 	if err != nil {
 		return err
 	}
@@ -341,11 +342,11 @@ func (e *extGroup) ListChildren(ctx context.Context) ([]*types.Metadata, error) 
 }
 
 func (e *extGroup) syncEntry(ctx context.Context, mirrored *stub.Entry, crt *types.Metadata) (en *types.Metadata, err error) {
-	grp, err := e.stdGroup.cacheStore.getEntry(ctx, e.stdGroup.entry.ID)
+	grp, err := e.stdGroup.cacheStore.getEntry(ctx, e.stdGroup.entryID)
 	if err != nil {
 		return nil, err
 	}
-	grpEd, err := e.mgr.GetEntryExtendData(ctx, e.stdGroup.entry.ID)
+	grpEd, err := e.mgr.GetEntryExtendData(ctx, e.stdGroup.entryID)
 	if err != nil {
 		return
 	}

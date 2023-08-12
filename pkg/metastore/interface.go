@@ -37,7 +37,7 @@ type ObjectStore interface {
 	SaveObjects(ctx context.Context, obj ...*types.Object) error
 	DestroyObject(ctx context.Context, src, obj *types.Object) error
 
-	ListChildren(ctx context.Context, obj *types.Object) (Iterator, error)
+	ListChildren(ctx context.Context, parentId int64) (Iterator, error)
 	MirrorObject(ctx context.Context, srcObj, dstParent, object *types.Object) error
 	ChangeParent(ctx context.Context, srcParent, dstParent, obj *types.Object, opt types.ChangeParentOption) error
 }

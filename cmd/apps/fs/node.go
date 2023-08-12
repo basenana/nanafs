@@ -122,7 +122,7 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 	if err = updateNanaNodeWithAttr(in, entry, int64(uid), int64(gid), attr); err != nil {
 		return Error2FuseSysError("entry_set_attr", err)
 	}
-	if err = n.R.PatchEntry(ctx, n.entryID, entry); err != nil {
+	if err = n.R.UpdateEntry(ctx, n.entryID, entry); err != nil {
 		return Error2FuseSysError("entry_set_attr", err)
 	}
 	return n.Getattr(ctx, f, out)

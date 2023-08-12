@@ -38,7 +38,7 @@ type Controller interface {
 	FindEntry(ctx context.Context, parentId int64, name string) (*types.Metadata, error)
 	GetEntry(ctx context.Context, id int64) (*types.Metadata, error)
 	CreateEntry(ctx context.Context, parentId int64, attr types.ObjectAttr) (*types.Metadata, error)
-	PatchEntry(ctx context.Context, entryId int64, patch *types.Metadata) error
+	UpdateEntry(ctx context.Context, entryId int64, patch *types.Metadata) error
 	DestroyEntry(ctx context.Context, parentId, entryId int64, attr types.DestroyObjectAttr) error
 	MirrorEntry(ctx context.Context, srcEntryId, dstParentId int64, attr types.ObjectAttr) (*types.Metadata, error)
 	ListEntryChildren(ctx context.Context, entryId int64) ([]*types.Metadata, error)
@@ -134,8 +134,8 @@ func (c *controller) CreateEntry(ctx context.Context, parentId int64, attr types
 	return entry, nil
 }
 
-func (c *controller) PatchEntry(ctx context.Context, entryID int64, patch *types.Metadata) error {
-	defer trace.StartRegion(ctx, "controller.PatchEntry").End()
+func (c *controller) UpdateEntry(ctx context.Context, entryID int64, patch *types.Metadata) error {
+	defer trace.StartRegion(ctx, "controller.UpdateEntry").End()
 	en, err := c.GetEntry(ctx, entryID)
 	if err != nil {
 		return err

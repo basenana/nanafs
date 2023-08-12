@@ -139,12 +139,12 @@ func (m *manager) UpdateEntryExtendData(ctx context.Context, id int64, ed types.
 	if err != nil {
 		return err
 	}
+	defer m.cache.delEntryCache(id)
 	entry.ChangedAt = time.Now()
 	err = m.metastore.SaveObjects(ctx, &types.Object{Metadata: *entry, ExtendData: &ed, ExtendDataChanged: true})
 	if err != nil {
 		return err
 	}
-	m.cache.delEntryCache(id)
 	return nil
 }
 
@@ -512,10 +512,10 @@ func (m *manager) Open(ctx context.Context, entryId int64, attr Attr) (File, err
 		PublicFileActionEvent(events.ActionTypeTrunc, entry)
 	}
 
+	defer m.cache.delEntryCache(entryId)
 	if err = m.metastore.SaveObjects(ctx, &types.Object{Metadata: *entry}); err != nil {
 		m.logger.Errorw("update entry size to zero error", "entry", entryId, "err", err)
 	}
-	m.cache.delEntryCache(entryId)
 
 	var f File
 	if entry.Storage == externalStorage {
@@ -550,7 +550,7 @@ func (m *manager) OpenGroup(ctx context.Context, groupId int64) (Group, error) {
 		return nil, types.ErrNoGroup
 	}
 	var (
-		stdGrp       = &stdGroup{entry: entry, store: m.metastore, cacheStore: m.cache}
+		stdGrp       = &stdGroup{entryID: entry.ID, name: entry.Name, store: m.metastore, cacheStore: m.cache}
 		grp    Group = stdGrp
 	)
 	switch entry.Kind {
