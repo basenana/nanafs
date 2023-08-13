@@ -61,7 +61,9 @@ func buildMigrations() []*gormigrate.Migration {
 		{
 			ID: "2023072200",
 			Migrate: func(db *gorm.DB) error {
-				return db.AutoMigrate(&Object{})
+				err := db.AutoMigrate(&Object{})
+				_ = db.Exec("UPDATE object SET version=1 WHERE 1=1;")
+				return err
 			},
 			Rollback: func(db *gorm.DB) error {
 				return nil
