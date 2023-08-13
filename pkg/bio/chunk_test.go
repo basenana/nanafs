@@ -37,7 +37,7 @@ var _ = Describe("TestChunkIO", func() {
 		It("init should be succeed", func() {
 			reader = NewChunkReader(&fakeObj.Metadata, chunkStore, dataStore)
 			Expect(reader).ShouldNot(BeNil())
-			writer = NewChunkWriter(reader)
+			writer = NewChunkWriter(reader, noneInvalidCache)
 			Expect(writer).ShouldNot(BeNil())
 		})
 
@@ -93,7 +93,7 @@ var _ = Describe("TestChunkRewrite", func() {
 		It("init should be succeed", func() {
 			reader = NewChunkReader(&fakeObj.Metadata, chunkStore, dataStore)
 			Expect(reader).ShouldNot(BeNil())
-			writer = NewChunkWriter(reader)
+			writer = NewChunkWriter(reader, noneInvalidCache)
 			Expect(writer).ShouldNot(BeNil())
 		})
 
@@ -215,7 +215,7 @@ var _ = Describe("TestChunkCompact", func() {
 		It("init should be succeed", func() {
 			reader = NewChunkReader(&fakeObj.Metadata, chunkStore, dataStore)
 			Expect(reader).ShouldNot(BeNil())
-			writer = NewChunkWriter(reader)
+			writer = NewChunkWriter(reader, noneInvalidCache)
 			Expect(writer).ShouldNot(BeNil())
 		})
 

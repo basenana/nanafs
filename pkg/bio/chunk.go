@@ -355,14 +355,15 @@ func (c *segReader) mergePage(ctx context.Context, pageIndex int64, page *pageNo
 
 type chunkWriter struct {
 	*chunkReader
-	unready     int32
-	writers     map[int64]*segWriter
-	ref         int32
-	commitLimit int32
-	writerMux   sync.Mutex
+	unready      int32
+	writers      map[int64]*segWriter
+	ref          int32
+	commitLimit  int32
+	invalidCache InvalidCacheHook
+	writerMux    sync.Mutex
 }
 
-func NewChunkWriter(reader Reader) Writer {
+func NewChunkWriter(reader Reader, hook InvalidCacheHook) Writer {
 	r, ok := reader.(*chunkReader)
 	if !ok {
 		return nil
@@ -373,7 +374,7 @@ func NewChunkWriter(reader Reader) Writer {
 	defer fileChunkMux.Unlock()
 	w, ok := fileChunkWriters[r.entry.ID]
 	if !ok {
-		cw := &chunkWriter{chunkReader: r, writers: map[int64]*segWriter{}, ref: 1}
+		cw := &chunkWriter{chunkReader: r, writers: map[int64]*segWriter{}, ref: 1, invalidCache: hook}
 		fileChunkWriters[r.entry.ID] = cw
 		return cw
 	}
@@ -775,6 +776,7 @@ func (w *segWriter) commitSegment(ctx context.Context) {
 			chunkDiscardSegmentCounter.Inc()
 			continue
 		}
+		w.invalidCache(w.entry.ID)
 		w.invalidate(w.chunkID)
 		w.entry = &newObj.Metadata
 		w.uncommitted = w.uncommitted[1:]
@@ -989,7 +991,7 @@ func CompactChunksData(ctx context.Context, entry *types.Metadata, chunkStore me
 		// rebuild new sequential segment
 		if reader == nil {
 			reader = NewChunkReader(entry, chunkStore, dataStore)
-			writer = NewChunkWriter(reader)
+			writer = NewChunkWriter(reader, noneInvalidCache)
 			buf = make([]byte, fileChunkSize)
 		}
 		readN, err = reader.ReadAt(ctx, buf, chunkStart)

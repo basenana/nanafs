@@ -75,7 +75,7 @@ var _ = Describe("TestManageGroupEntry", func() {
 			Expect(err).Should(BeNil())
 
 			file2.Name = "test_group_manage_file3"
-			err = grp.PatchEntry(context.TODO(), file2.ID, file2)
+			err = grp.UpdateEntry(context.TODO(), file2.ID, file2)
 			Expect(err).Should(BeNil())
 
 			_, err = grp.FindEntry(context.TODO(), "test_group_manage_file2")

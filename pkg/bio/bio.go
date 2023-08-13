@@ -34,6 +34,8 @@ type Writer interface {
 	Close()
 }
 
+type InvalidCacheHook func(eid int64)
+
 var (
 	fileChunkReaders = make(map[int64]Reader)
 	fileChunkWriters = make(map[int64]Writer)
