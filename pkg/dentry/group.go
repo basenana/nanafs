@@ -33,7 +33,7 @@ import (
 type Group interface {
 	FindEntry(ctx context.Context, name string) (*types.Metadata, error)
 	CreateEntry(ctx context.Context, attr EntryAttr) (*types.Metadata, error)
-	PatchEntry(ctx context.Context, entryID int64, patch *types.Metadata) error
+	UpdateEntry(ctx context.Context, entryID int64, patch *types.Metadata) error
 	RemoveEntry(ctx context.Context, entryID int64) error
 	ListChildren(ctx context.Context) ([]*types.Metadata, error)
 }
@@ -50,7 +50,7 @@ func (e emptyGroup) CreateEntry(ctx context.Context, attr EntryAttr) (*types.Met
 	return nil, types.ErrNoAccess
 }
 
-func (e emptyGroup) PatchEntry(ctx context.Context, entryID int64, patch *types.Metadata) error {
+func (e emptyGroup) UpdateEntry(ctx context.Context, entryID int64, patch *types.Metadata) error {
 	return types.ErrNoAccess
 }
 
@@ -143,7 +143,7 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (*types.Meta
 	return &obj.Metadata, nil
 }
 
-func (g *stdGroup) PatchEntry(ctx context.Context, entryId int64, patch *types.Metadata) error {
+func (g *stdGroup) UpdateEntry(ctx context.Context, entryId int64, patch *types.Metadata) error {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.UpdateEntry").End()
 	patch.ID = entryId
 	if err := g.cacheStore.updateEntries(ctx, patch); err != nil {
@@ -243,7 +243,7 @@ func (e *extGroup) CreateEntry(ctx context.Context, attr EntryAttr) (*types.Meta
 	return e.syncEntry(ctx, mirrorEn, en)
 }
 
-func (e *extGroup) PatchEntry(ctx context.Context, entryId int64, patch *types.Metadata) error {
+func (e *extGroup) UpdateEntry(ctx context.Context, entryId int64, patch *types.Metadata) error {
 	group, err := e.stdGroup.cacheStore.getEntry(ctx, e.stdGroup.entryID)
 	if err != nil {
 		return err

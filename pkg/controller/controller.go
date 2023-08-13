@@ -120,6 +120,7 @@ func (c *controller) CreateEntry(ctx context.Context, parentId int64, attr types
 		return nil, types.ErrNameTooLong
 	}
 
+	c.logger.Debugw("create entry", "parent", parentId, "entryName", attr.Name)
 	entry, err := c.entry.CreateEntry(ctx, parentId, dentry.EntryAttr{
 		Name:   attr.Name,
 		Kind:   attr.Kind,
@@ -134,20 +135,21 @@ func (c *controller) CreateEntry(ctx context.Context, parentId int64, attr types
 	return entry, nil
 }
 
-func (c *controller) UpdateEntry(ctx context.Context, entryID int64, patch *types.Metadata) error {
+func (c *controller) UpdateEntry(ctx context.Context, entryID int64, newContent *types.Metadata) error {
 	defer trace.StartRegion(ctx, "controller.UpdateEntry").End()
 	en, err := c.GetEntry(ctx, entryID)
 	if err != nil {
 		return err
 	}
 
+	c.logger.Debugw("update entry", "entry", entryID)
 	parent, err := c.entry.OpenGroup(ctx, en.ParentID)
 	if err != nil {
 		c.logger.Errorw("open group error", "parent", en.ParentID, "entry", entryID, "err", err)
 		return err
 	}
 
-	if err = parent.PatchEntry(ctx, entryID, patch); err != nil {
+	if err = parent.UpdateEntry(ctx, entryID, newContent); err != nil {
 		c.logger.Errorw("save entry error", "entry", entryID, "err", err)
 		return err
 	}
@@ -173,6 +175,7 @@ func (c *controller) DestroyEntry(ctx context.Context, parentId, entryId int64, 
 		return types.ErrNoAccess
 	}
 
+	c.logger.Debugw("destroy entry", "parent", parentId, "entry", entryId)
 	err = c.entry.RemoveEntry(ctx, parentId, entryId)
 	if err != nil {
 		c.logger.Errorw("delete entry failed", "entry", entryId, "err", err.Error())
@@ -206,6 +209,7 @@ func (c *controller) MirrorEntry(ctx context.Context, srcId, dstParentId int64, 
 		c.logger.Errorw("mirror entry failed", "src", srcId, "err", err.Error())
 		return nil, err
 	}
+	c.logger.Debugw("mirror entry", "src", srcId, "dstParent", dstParentId, "entry", entry.ID)
 
 	events.Publish(events.EntryActionTopic(events.TopicEntryActionFmt, events.ActionTypeMirror),
 		dentry.BuildEntryEvent(events.ActionTypeMirror, entry))
@@ -274,6 +278,7 @@ func (c *controller) ChangeEntryParent(ctx context.Context, targetId, oldParentI
 		existObjId = &eid
 	}
 
+	c.logger.Debugw("change entry parent", "target", targetId, "existObj", existObjId, "oldParent", oldParentId, "newParent", newParentId, "newName", newName)
 	err = c.entry.ChangeEntryParent(ctx, targetId, existObjId, oldParentId, newParentId, newName, dentry.ChangeParentAttr{
 		Replace:  opt.Replace,
 		Exchange: opt.Exchange,
@@ -293,11 +298,13 @@ func (c *controller) GetEntryExtendField(ctx context.Context, id int64, fKey str
 
 func (c *controller) SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string) error {
 	defer trace.StartRegion(ctx, "controller.SetEntryExtendField").End()
+	c.logger.Debugw("set entry extend filed", "entry", id, "key", fKey)
 	return c.entry.SetEntryExtendField(ctx, id, fKey, fVal)
 }
 
 func (c *controller) RemoveEntryExtendField(ctx context.Context, id int64, fKey string) error {
 	defer trace.StartRegion(ctx, "controller.RemoveEntryExtendField").End()
+	c.logger.Debugw("remove entry extend filed", "entry", id, "key", fKey)
 	return c.entry.RemoveEntryExtendField(ctx, id, fKey)
 }
 

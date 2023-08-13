@@ -422,7 +422,7 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntryId int64, ov
 	defer entryLifecycleLock.Unlock()
 	err = m.metastore.ChangeParent(ctx, &types.Object{Metadata: *oldParent}, &types.Object{Metadata: *newParent}, &types.Object{Metadata: *target}, types.ChangeParentOption{Name: newName})
 	if err != nil {
-		m.logger.Errorw("change object parent failed", "entry", target, "newParent", newParentId, "newName", newName, "err", err)
+		m.logger.Errorw("change object parent failed", "entry", target.ID, "newParent", newParentId, "newName", newName, "err", err)
 		return err
 	}
 	m.cache.delEntryCache(oldParent.ID)

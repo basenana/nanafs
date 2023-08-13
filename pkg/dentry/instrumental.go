@@ -143,10 +143,10 @@ func (i instrumentalGroup) CreateEntry(ctx context.Context, attr EntryAttr) (*ty
 	return en, logOperationError(groupOperationErrorCounter, operation, err)
 }
 
-func (i instrumentalGroup) PatchEntry(ctx context.Context, entryId int64, patch *types.Metadata) error {
+func (i instrumentalGroup) UpdateEntry(ctx context.Context, entryId int64, patch *types.Metadata) error {
 	const operation = "patch_entry"
 	defer logOperationLatency(groupOperationLatency, operation, time.Now())
-	err := i.grp.PatchEntry(ctx, entryId, patch)
+	err := i.grp.UpdateEntry(ctx, entryId, patch)
 	return logOperationError(groupOperationErrorCounter, operation, err)
 }
 

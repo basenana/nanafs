@@ -141,7 +141,7 @@ func openFile(en *types.Metadata, attr Attr, store metastore.ObjectStore, cacheS
 	}
 	f.reader = bio.NewChunkReader(en, store.(metastore.ChunkStore), fileStorage)
 	if attr.Write {
-		f.writer = bio.NewChunkWriter(f.reader)
+		f.writer = bio.NewChunkWriter(f.reader, cacheStore.delEntryCache)
 	}
 	increaseOpenedFile(en.ID)
 	return f, nil

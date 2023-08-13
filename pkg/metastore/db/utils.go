@@ -83,13 +83,13 @@ func (l *Logger) Error(ctx context.Context, s string, i ...interface{}) {
 }
 
 func (l *Logger) Trace(ctx context.Context, begin time.Time, fc func() (sql string, rowsAffected int64), err error) {
+	sqlContent, rows := fc()
+	l.Debugw("trace sql", "sql", sqlContent, "rows", rows, "err", err)
 	switch {
 	case err != nil && err != gorm.ErrRecordNotFound && err != context.Canceled:
-		sqlContent, rows := fc()
 		l.Warnw("trace error", "sql", sqlContent, "rows", rows, "err", err)
-	case time.Since(begin) > time.Second || logger.Debug:
-		sqlContent, rows := fc()
-		l.Infow("trace sql", "sql", sqlContent, "rows", rows, "err", err, "slow", time.Since(begin) > time.Second)
+	case time.Since(begin) > time.Second:
+		l.Infow("slow sql", "sql", sqlContent, "rows", rows, "err", err)
 	}
 }
 

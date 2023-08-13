@@ -51,3 +51,5 @@ func buildCompactEvent(entry *types.Metadata) *types.Event {
 		Data:            types.EventData{Metadata: entry},
 	}
 }
+
+func noneInvalidCache(eid int64) {}
