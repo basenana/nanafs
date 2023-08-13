@@ -87,9 +87,9 @@ func (l *Logger) Trace(ctx context.Context, begin time.Time, fc func() (sql stri
 	case err != nil && err != gorm.ErrRecordNotFound && err != context.Canceled:
 		sqlContent, rows := fc()
 		l.Warnw("trace error", "sql", sqlContent, "rows", rows, "err", err)
-	case time.Since(begin) > time.Second:
+	case time.Since(begin) > time.Second || logger.Debug:
 		sqlContent, rows := fc()
-		l.Infow("slow sql", "sql", sqlContent, "rows", rows, "err", err)
+		l.Infow("trace sql", "sql", sqlContent, "rows", rows, "err", err, "slow", time.Since(begin) > time.Second)
 	}
 }
 

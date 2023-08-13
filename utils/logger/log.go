@@ -27,6 +27,8 @@ var (
 	logger *zap.Logger
 	root   *zap.SugaredLogger
 	atom   zap.AtomicLevel
+
+	Debug bool
 )
 
 func InitLogger() {
@@ -54,6 +56,7 @@ func NewLogger(name string) *zap.SugaredLogger {
 func SetDebug(enable bool) {
 	if enable {
 		atom.SetLevel(zap.DebugLevel)
+		Debug = true
 		return
 	}
 	atom.SetLevel(zap.InfoLevel)
