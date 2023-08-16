@@ -127,6 +127,9 @@ github.com/beorn7/perks/quantile
 # github.com/bluele/gcache v0.0.2
 ## explicit; go 1.15
 github.com/bluele/gcache
+# github.com/btcsuite/btcd v0.22.1
+## explicit; go 1.17
+github.com/btcsuite/btcd/btcec
 # github.com/bwmarrin/snowflake v0.3.0
 ## explicit
 github.com/bwmarrin/snowflake
@@ -298,6 +301,9 @@ github.com/leodido/go-urn
 # github.com/mattn/go-isatty v0.0.19
 ## explicit; go 1.15
 github.com/mattn/go-isatty
+# github.com/mattn/go-runewidth v0.0.9
+## explicit; go 1.9
+github.com/mattn/go-runewidth
 # github.com/matttproud/golang_protobuf_extensions v1.0.4
 ## explicit; go 1.9
 github.com/matttproud/golang_protobuf_extensions/pbutil
@@ -406,6 +412,9 @@ github.com/remyoudompheng/bigfft
 # github.com/rs/xid v1.4.0
 ## explicit; go 1.12
 github.com/rs/xid
+# github.com/satori/go.uuid v1.2.0
+## explicit
+github.com/satori/go.uuid
 # github.com/sirupsen/logrus v1.9.0
 ## explicit; go 1.13
 github.com/sirupsen/logrus
@@ -424,6 +433,26 @@ github.com/spf13/pflag
 # github.com/studio-b12/gowebdav v0.9.0
 ## explicit; go 1.17
 github.com/studio-b12/gowebdav
+# github.com/tickstep/aliyunpan-api v0.1.6
+## explicit; go 1.16
+github.com/tickstep/aliyunpan-api/aliyunpan
+github.com/tickstep/aliyunpan-api/aliyunpan/apierror
+github.com/tickstep/aliyunpan-api/aliyunpan/apiutil
+# github.com/tickstep/library-go v0.1.0
+## explicit; go 1.12
+github.com/tickstep/library-go/bytes
+github.com/tickstep/library-go/cachepool
+github.com/tickstep/library-go/converter
+github.com/tickstep/library-go/crypto
+github.com/tickstep/library-go/crypto/ecb
+github.com/tickstep/library-go/crypto/secp256k1
+github.com/tickstep/library-go/escaper
+github.com/tickstep/library-go/expires
+github.com/tickstep/library-go/expires/cachemap
+github.com/tickstep/library-go/logger
+github.com/tickstep/library-go/requester
+github.com/tickstep/library-go/requester/rio
+github.com/tickstep/library-go/time
 # github.com/twitchyliquid64/golang-asm v0.15.1
 ## explicit; go 1.13
 github.com/twitchyliquid64/golang-asm/asm/arch
@@ -469,6 +498,7 @@ golang.org/x/arch/x86/x86asm
 golang.org/x/crypto/argon2
 golang.org/x/crypto/blake2b
 golang.org/x/crypto/pbkdf2
+golang.org/x/crypto/ripemd160
 golang.org/x/crypto/sha3
 # golang.org/x/net v0.11.0
 ## explicit; go 1.17

@@ -22,16 +22,17 @@ import (
 )
 
 const (
-	MemoryMeta                    = "memory"
-	SqliteMeta                    = "sqlite"
-	PostgresMeta                  = "postgres"
-	S3Storage                     = "s3"
-	OSSStorage                    = "oss"
-	MinioStorage                  = "minio"
-	WebdavStorage                 = "webdav"
-	LocalStorage                  = "local"
-	MemoryStorage                 = "memory"
-	UnofficialAliyunDriverStorage = "unofficial_aliyundriver"
+	MemoryMeta           = "memory"
+	SqliteMeta           = "sqlite"
+	PostgresMeta         = "postgres"
+	S3Storage            = "s3"
+	OSSStorage           = "oss"
+	MinioStorage         = "minio"
+	WebdavStorage        = "webdav"
+	LocalStorage         = "local"
+	MemoryStorage        = "memory"
+	AliyunDriverStorage  = "aliyundriver"
+	AliyunDriverStorage1 = "aliyundriver_webtoken"
 
 	AESEncryption      = "AES"
 	ChaCha20Encryption = "ChaCha20"

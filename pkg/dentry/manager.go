@@ -414,7 +414,7 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntryId int64, ov
 		PublicEntryActionEvent(events.ActionTypeDestroy, overwriteEntry)
 	}
 
-	if oldParent.Kind == types.ExternalGroupKind || newParent.Kind == types.ExternalGroupKind {
+	if oldParent.Kind == externalStorage || newParent.Kind == externalStorage || oldParent.Storage != newParent.Storage {
 		return m.changeEntryParentByFileCopy(ctx, target, oldParent, newParent, newName, opt)
 	}
 
@@ -575,6 +575,7 @@ func (m *manager) OpenGroup(ctx context.Context, groupId int64) (Group, error) {
 }
 
 func (m *manager) ChunkCompact(ctx context.Context, entryId int64) error {
+	defer trace.StartRegion(ctx, "dentry.manager.ChunkCompact").End()
 	entry, err := m.GetEntry(ctx, entryId)
 	if err != nil {
 		return err
