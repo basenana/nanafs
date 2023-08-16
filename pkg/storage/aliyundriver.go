@@ -19,6 +19,7 @@ package storage
 import (
 	"context"
 	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/utils"
@@ -39,10 +40,16 @@ const (
 	aliyunDriverWriteLimitEnvKey  = "STORAGE_ALIYUN_DRIVER_WRITE_LIMIT"
 )
 
-// unofficialAliyunDriverStorage
+var (
+	appConfig = aliyunpan.AppConfig{
+		DeviceId: "648529ab-ea5b-4474-98a3-95ffb9b5cdbe",
+	}
+)
+
+// aliyunDriverWebTokenStorage
 // This storage uses a third-party SDK to operate resources on Aliyun Driver,
 // which may pose availability risks. It can be used in backup scenarios.
-type unofficialAliyunDriverStorage struct {
+type aliyunDriverWebTokenStorage struct {
 	sid         string
 	webToken    *aliyunpan.WebLoginToken
 	cli         *aliyunpan.PanClient
@@ -54,11 +61,11 @@ type unofficialAliyunDriverStorage struct {
 	logger      *zap.SugaredLogger
 }
 
-func (u *unofficialAliyunDriverStorage) ID() string {
+func (u *aliyunDriverWebTokenStorage) ID() string {
 	return u.sid
 }
 
-func (u *unofficialAliyunDriverStorage) login(ctx context.Context) error {
+func (u *aliyunDriverWebTokenStorage) login(ctx context.Context) error {
 	if err := u.refresh(ctx); err != nil {
 		return fmt.Errorf("aliyun driver login failed: %s", err)
 	}
@@ -95,7 +102,7 @@ func (u *unofficialAliyunDriverStorage) login(ctx context.Context) error {
 	return nil
 }
 
-func (u *unofficialAliyunDriverStorage) refresh(ctx context.Context) error {
+func (u *aliyunDriverWebTokenStorage) refresh(ctx context.Context) error {
 	webToken, err := aliyunpan.GetAccessTokenFromRefreshToken(u.cfg.RefreshToken)
 	if err != nil {
 		return fmt.Errorf("GetAccessTokenFromRefreshToken failed: %s", err)
@@ -104,7 +111,7 @@ func (u *unofficialAliyunDriverStorage) refresh(ctx context.Context) error {
 	u.logger.Infow("refresh aliyun driver token succeed", "expiresIn", webToken.ExpiresIn)
 
 	if u.cli == nil {
-		u.cli = aliyunpan.NewPanClient(*webToken, aliyunpan.AppLoginToken{}, aliyunpan.AppConfig{},
+		u.cli = aliyunpan.NewPanClient(*webToken, aliyunpan.AppLoginToken{}, appConfig,
 			aliyunpan.SessionConfig{DeviceName: "550W", ModelName: "NanaFS"})
 	} else {
 		u.cli.UpdateToken(*webToken)
@@ -116,7 +123,7 @@ func (u *unofficialAliyunDriverStorage) refresh(ctx context.Context) error {
 	return nil
 }
 
-func (u *unofficialAliyunDriverStorage) Get(ctx context.Context, key, idx int64) (io.ReadCloser, error) {
+func (u *aliyunDriverWebTokenStorage) Get(ctx context.Context, key, idx int64) (io.ReadCloser, error) {
 	path := aliyunDriverObjectPath(key, idx)
 	fileInfo, err := u.cli.FileInfoByPath(u.userInfo.FileDriveId, path)
 	if err != nil && err.Code != apierror.ApiCodeOk {
@@ -139,7 +146,7 @@ func (u *unofficialAliyunDriverStorage) Get(ctx context.Context, key, idx int64)
 	return buf, nil
 }
 
-func (u *unofficialAliyunDriverStorage) Put(ctx context.Context, key, idx int64, dataReader io.Reader) error {
+func (u *aliyunDriverWebTokenStorage) Put(ctx context.Context, key, idx int64, dataReader io.Reader) error {
 	dirPath := aliyunDriverObjectDir(key)
 	dirInfo, _ := u.cli.FileInfoByPath(u.userInfo.FileDriveId, dirPath)
 	if dirInfo == nil {
@@ -164,17 +171,14 @@ func (u *unofficialAliyunDriverStorage) Put(ctx context.Context, key, idx int64,
 		payloadBasename = aliyunDriverObjectBasename(key, idx)
 	)
 	// copy content to buffer for hash compute
-	payloadSize, payloadErr = io.Copy(payload, dataReader)
+	hash := sha1.New()
+	mWriter := io.MultiWriter(hash, payload)
+	payloadSize, payloadErr = io.Copy(mWriter, dataReader)
 	if payloadErr != nil {
 		u.logger.Errorw("preload payload data failed", "object", payloadPath, "err", payloadErr)
 		return payloadErr
 	}
-	h := sha1.New()
-	_, payloadErr = io.Copy(h, payload)
-	if payloadErr != nil {
-		u.logger.Errorw("preload payload data failed", "object", payloadPath, "err", payloadErr)
-		return payloadErr
-	}
+	payloadSha1 = hex.EncodeToString(hash.Sum(nil))
 	_, _ = payload.Seek(0, io.SeekStart)
 
 	proofCode := aliyunpan.CalcProofCode(u.cli.GetAccessToken(), payload, payloadSize)
@@ -216,7 +220,7 @@ func (u *unofficialAliyunDriverStorage) Put(ctx context.Context, key, idx int64,
 	return nil
 }
 
-func (u *unofficialAliyunDriverStorage) Delete(ctx context.Context, key int64) error {
+func (u *aliyunDriverWebTokenStorage) Delete(ctx context.Context, key int64) error {
 	dirPath := aliyunDriverObjectDir(key)
 	fileInfo, err := u.cli.FileInfoByPath(u.userInfo.FileDriveId, dirPath)
 	if err != nil && err.Code != apierror.ApiCodeOk {
@@ -272,7 +276,7 @@ func (u *unofficialAliyunDriverStorage) Delete(ctx context.Context, key int64) e
 	return nil
 }
 
-func (u *unofficialAliyunDriverStorage) Head(ctx context.Context, key int64, idx int64) (Info, error) {
+func (u *aliyunDriverWebTokenStorage) Head(ctx context.Context, key int64, idx int64) (Info, error) {
 	path := aliyunDriverObjectPath(key, idx)
 	res, err := u.cli.FileInfoByPath(u.userInfo.FileDriveId, path)
 	if err != nil && err.Code != apierror.ApiCodeOk {
@@ -290,12 +294,12 @@ func newUnofficialAliyunDriverStorage(storageType, storageID string, cfg *config
 		return nil, fmt.Errorf("aliyun driver refresh token is empty")
 	}
 
-	s := &unofficialAliyunDriverStorage{
+	s := &aliyunDriverWebTokenStorage{
 		sid:       storageID,
 		cfg:       cfg,
 		readRate:  utils.NewParallelLimiter(str2Int(os.Getenv(aliyunDriverReadLimitEnvKey), 10)),
 		writeRate: utils.NewParallelLimiter(str2Int(os.Getenv(aliyunDriverWriteLimitEnvKey), 5)),
-		logger:    logger.NewLogger("UnofficialAliyunDriver"),
+		logger:    logger.NewLogger("aliyunDriverWebToken"),
 	}
 	return s, s.login(context.TODO())
 }
@@ -312,6 +316,9 @@ func aliyunDriverObjectDir(key int64) string {
 	return fmt.Sprintf("/aliyundriver/chunks/%d/%d", key/100, key)
 }
 
+// aliyunFileBuffer is another implementation of Reader/Writer based on memory.
+// It is a utility method for file operations in the aliyun driver storage.
+// I've lost count of how many types of Reader/Writer implementations I've written in this project.
 type aliyunFileBuffer struct {
 	data     []byte
 	dataSize int64
