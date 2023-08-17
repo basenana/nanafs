@@ -212,7 +212,7 @@ Retry:
 				break Retry
 			}
 			time.Sleep(retryInterval)
-			cacheLog.Errorw("read chunk page error, try again", "segment", key, "page", idx, "tryTime", i+1)
+			cacheLog.Errorw("read chunk page error, try again", "segment", key, "page", idx, "err", err, "tryTime", i+1)
 		}
 	}
 	if err != nil {

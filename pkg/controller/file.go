@@ -20,6 +20,7 @@ import (
 	"context"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
+	"io"
 	"runtime/trace"
 )
 
@@ -56,7 +57,7 @@ func (c *controller) OpenFile(ctx context.Context, entryID int64, attr dentry.At
 func (c *controller) ReadFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error) {
 	defer trace.StartRegion(ctx, "controller.ReadFile").End()
 	n, err = file.ReadAt(ctx, data, offset)
-	if err != nil {
+	if err != nil && err != io.EOF {
 		c.logger.Errorw("read file failed", "offset", offset, "file", file.GetAttr().EntryID, "err", err)
 		return n, err
 	}

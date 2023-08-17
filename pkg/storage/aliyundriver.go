@@ -26,8 +26,10 @@ import (
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/tickstep/aliyunpan-api/aliyunpan"
 	"github.com/tickstep/aliyunpan-api/aliyunpan/apierror"
+	"github.com/tickstep/library-go/requester"
 	"go.uber.org/zap"
 	"io"
+	"net/http"
 	"os"
 	"sync"
 	"time"
@@ -38,12 +40,6 @@ const (
 	UnofficialAliyunDriverStorage = config.AliyunDriverStorage1
 	aliyunDriverReadLimitEnvKey   = "STORAGE_ALIYUN_DRIVER_READ_LIMIT"
 	aliyunDriverWriteLimitEnvKey  = "STORAGE_ALIYUN_DRIVER_WRITE_LIMIT"
-)
-
-var (
-	appConfig = aliyunpan.AppConfig{
-		DeviceId: "648529ab-ea5b-4474-98a3-95ffb9b5cdbe",
-	}
 )
 
 // aliyunDriverWebTokenStorage
@@ -111,8 +107,9 @@ func (u *aliyunDriverWebTokenStorage) refresh(ctx context.Context) error {
 	u.logger.Infow("refresh aliyun driver token succeed", "expiresIn", webToken.ExpiresIn)
 
 	if u.cli == nil {
-		u.cli = aliyunpan.NewPanClient(*webToken, aliyunpan.AppLoginToken{}, appConfig,
-			aliyunpan.SessionConfig{DeviceName: "550W", ModelName: "NanaFS"})
+		hostname, appCfg := getAppConfig()
+		u.cli = aliyunpan.NewPanClient(*webToken, aliyunpan.AppLoginToken{}, appCfg,
+			aliyunpan.SessionConfig{DeviceName: hostname, ModelName: "NanaFS"})
 	} else {
 		u.cli.UpdateToken(*webToken)
 	}
@@ -127,7 +124,7 @@ func (u *aliyunDriverWebTokenStorage) Get(ctx context.Context, key, idx int64) (
 	path := aliyunDriverObjectPath(key, idx)
 	fileInfo, err := u.cli.FileInfoByPath(u.userInfo.FileDriveId, path)
 	if err != nil && err.Code != apierror.ApiCodeOk {
-		return nil, fmt.Errorf("query file info %s failed: %s", path, err)
+		return nil, fmt.Errorf("query file info %s failed: %s", path, err.String())
 	}
 	downLoadUrl, err := u.cli.GetFileDownloadUrl(&aliyunpan.GetFileDownloadUrlParam{
 		DriveId:   u.userInfo.FileDriveId,
@@ -135,15 +132,32 @@ func (u *aliyunDriverWebTokenStorage) Get(ctx context.Context, key, idx int64) (
 		ExpireSec: 60 * 10,
 	})
 	if err != nil && err.Code != apierror.ApiCodeOk {
-		return nil, fmt.Errorf("get file download url %s failed: %s", path, err)
+		return nil, fmt.Errorf("get file download url %s failed: %s", path, err.String())
 	}
 
-	buf := &aliyunFileBuffer{data: utils.NewMemoryBlock(fileInfo.FileSize)}
-	err = u.cli.DownloadFileDataAndSave(downLoadUrl.Url, aliyunpan.FileDownloadRange{}, buf)
-	if err != nil && err.Code != apierror.ApiCodeOk {
-		return nil, fmt.Errorf("file download %s failed: %s", path, err)
+	if err := u.readRate.Acquire(ctx); err != nil {
+		return nil, err
 	}
-	return buf, nil
+	defer logger.CostLog(u.logger, fmt.Sprintf("download file %s", path))()
+	var (
+		client = requester.NewHTTPClient()
+		resp   *http.Response
+	)
+	err = u.cli.DownloadFileData(
+		downLoadUrl.Url,
+		aliyunpan.FileDownloadRange{},
+		func(httpMethod, fullUrl string, headers map[string]string) (*http.Response, error) {
+			var innerErr error
+			resp, innerErr = client.Req(httpMethod, fullUrl, nil, headers)
+			if innerErr != nil {
+				return nil, innerErr
+			}
+			return resp, nil
+		})
+	if err != nil && err.Code != apierror.ApiCodeOk {
+		return nil, fmt.Errorf("file download %s failed: %s", path, err.String())
+	}
+	return resp.Body, nil
 }
 
 func (u *aliyunDriverWebTokenStorage) Put(ctx context.Context, key, idx int64, dataReader io.Reader) error {
@@ -153,14 +167,17 @@ func (u *aliyunDriverWebTokenStorage) Put(ctx context.Context, key, idx int64, d
 		// try mkdir
 		_, err := u.cli.Mkdir(u.userInfo.FileDriveId, "", dirPath)
 		if err != nil && err.Code != apierror.ApiCodeOk {
-			u.logger.Errorw("create group dir failed", "dir", dirPath, "err", err)
-			return fmt.Errorf("create group dir %s failed: %s", dirPath, err)
+			u.logger.Errorw("create group dir failed", "dir", dirPath, "err", err.String())
+			return fmt.Errorf("create group dir %s failed: %s", dirPath, err.String())
 		}
 		dirInfo, err = u.cli.FileInfoByPath(u.userInfo.FileDriveId, dirPath)
 		if err != nil && err.Code != apierror.ApiCodeOk {
-			u.logger.Errorw("query group dir info failed", "dir", dirPath, "err", err)
-			return fmt.Errorf("query group dir %s failed: %s", dirPath, err)
+			u.logger.Errorw("query group dir info failed", "dir", dirPath, "err", err.String())
+			return fmt.Errorf("query group dir %s failed: %s", dirPath, err.String())
 		}
+	}
+	if err := u.writeRate.Acquire(ctx); err != nil {
+		return err
 	}
 	var (
 		payload         = &aliyunFileBuffer{data: utils.NewMemoryBlock(1 << 21)} // 2M buffer
@@ -195,7 +212,7 @@ func (u *aliyunDriverWebTokenStorage) Put(ctx context.Context, key, idx int64, d
 		DriveId:         u.userInfo.FileDriveId,
 	})
 	if err != nil && err.Code != apierror.ApiCodeOk {
-		return fmt.Errorf("create update request failed: %s", err)
+		return fmt.Errorf("create update request failed: %s", err.String())
 	}
 	if len(uploadReq.PartInfoList) != 1 {
 		return fmt.Errorf("create update request failed: split file part failed, expect=1, got=%d", len(uploadReq.PartInfoList))
@@ -214,7 +231,7 @@ func (u *aliyunDriverWebTokenStorage) Put(ctx context.Context, key, idx int64, d
 	_, err = u.cli.CompleteUploadFile(
 		&aliyunpan.CompleteUploadFileParam{DriveId: u.userInfo.FileDriveId, UploadId: uploadReq.UploadId, FileId: uploadReq.FileId})
 	if err != nil && err.Code != apierror.ApiCodeOk {
-		return fmt.Errorf("check upload result failed: %s", err)
+		return fmt.Errorf("check upload result failed: %s", err.String())
 	}
 	u.logger.Infof("upload object %s to aliyun driver finish", payloadPath)
 	return nil
@@ -224,7 +241,7 @@ func (u *aliyunDriverWebTokenStorage) Delete(ctx context.Context, key int64) err
 	dirPath := aliyunDriverObjectDir(key)
 	fileInfo, err := u.cli.FileInfoByPath(u.userInfo.FileDriveId, dirPath)
 	if err != nil && err.Code != apierror.ApiCodeOk {
-		return fmt.Errorf("query key group dir info %s failed: %s", dirPath, err)
+		return fmt.Errorf("query key group dir info %s failed: %s", dirPath, err.String())
 	}
 
 	needDelete := []*aliyunpan.FileBatchActionParam{
@@ -235,11 +252,11 @@ func (u *aliyunDriverWebTokenStorage) Delete(ctx context.Context, key int64) err
 	}
 	_, err = u.cli.FileDelete(needDelete)
 	if err != nil && err.Code != apierror.ApiCodeOk {
-		return fmt.Errorf("batch delete group dir %s failed: %s", dirPath, err)
+		return fmt.Errorf("batch delete group dir %s failed: %s", dirPath, err.String())
 	}
 	_, err = u.cli.RecycleBinFileDelete(needDelete)
 	if err != nil && err.Code != apierror.ApiCodeOk {
-		return fmt.Errorf("batch cleanup group dir %s failed: %s", dirPath, err)
+		return fmt.Errorf("batch cleanup group dir %s failed: %s", dirPath, err.String())
 	}
 
 	//TODO: check this
@@ -266,11 +283,11 @@ func (u *aliyunDriverWebTokenStorage) Delete(ctx context.Context, key int64) err
 	//	}
 	//	_, err = u.cli.FileDelete(needDelete)
 	//	if err != nil && err.Code != apierror.ApiCodeOk {
-	//		return fmt.Errorf("batch delete group dir %s failed: %s", dirPath, err)
+	//		return fmt.Errorf("batch delete group dir %s failed: %s", dirPath, err.String())
 	//	}
 	//	_, err = u.cli.RecycleBinFileDelete(needDelete)
 	//	if err != nil && err.Code != apierror.ApiCodeOk {
-	//		return fmt.Errorf("batch cleanup group dir %s failed: %s", dirPath, err)
+	//		return fmt.Errorf("batch cleanup group dir %s failed: %s", dirPath, err.String())
 	//	}
 	//}
 	return nil
@@ -280,7 +297,7 @@ func (u *aliyunDriverWebTokenStorage) Head(ctx context.Context, key int64, idx i
 	path := aliyunDriverObjectPath(key, idx)
 	res, err := u.cli.FileInfoByPath(u.userInfo.FileDriveId, path)
 	if err != nil && err.Code != apierror.ApiCodeOk {
-		return Info{}, fmt.Errorf("head file %s failed: %s", path, err)
+		return Info{}, fmt.Errorf("head file %s failed: %s", path, err.String())
 	}
 	return Info{Key: path, Size: res.FileSize}, nil
 }
@@ -298,7 +315,7 @@ func newUnofficialAliyunDriverStorage(storageType, storageID string, cfg *config
 		sid:       storageID,
 		cfg:       cfg,
 		readRate:  utils.NewParallelLimiter(str2Int(os.Getenv(aliyunDriverReadLimitEnvKey), 10)),
-		writeRate: utils.NewParallelLimiter(str2Int(os.Getenv(aliyunDriverWriteLimitEnvKey), 5)),
+		writeRate: utils.NewParallelLimiter(str2Int(os.Getenv(aliyunDriverWriteLimitEnvKey), 8)),
 		logger:    logger.NewLogger("aliyunDriverWebToken"),
 	}
 	return s, s.login(context.TODO())
@@ -314,6 +331,16 @@ func aliyunDriverObjectPath(key, idx int64) string {
 
 func aliyunDriverObjectDir(key int64) string {
 	return fmt.Sprintf("/aliyundriver/chunks/%d/%d", key/100, key)
+}
+
+func getAppConfig() (string, aliyunpan.AppConfig) {
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "unknown"
+	}
+	hash := sha1.New()
+	hash.Write([]byte(hostname))
+	return hostname, aliyunpan.AppConfig{DeviceId: hex.EncodeToString(hash.Sum(nil))}
 }
 
 // aliyunFileBuffer is another implementation of Reader/Writer based on memory.
@@ -345,8 +372,9 @@ func (b *aliyunFileBuffer) Write(p []byte) (n int, err error) {
 	}
 
 	n = copy(b.data[b.dataOff:], p)
-	if b.dataOff+int64(n) > b.dataSize {
-		b.dataSize = b.dataOff + int64(n)
+	b.dataOff += int64(n)
+	if b.dataOff > b.dataSize {
+		b.dataSize = b.dataOff
 	}
 	return
 }
