@@ -142,7 +142,6 @@ func (u *aliyunDriverWebTokenStorage) Get(ctx context.Context, key, idx int64) (
 		return nil, err
 	}
 	defer u.readRate.Release()
-	defer logger.CostLog(u.logger, fmt.Sprintf("download file %s", path))()
 	var (
 		resp *http.Response
 	)

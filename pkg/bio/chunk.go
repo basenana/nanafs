@@ -239,7 +239,6 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 			maxReadChunkTaskParallel.Dispatch(ctx, func() {
 				defer chunkReadingGauge.Dec()
 				defer req.Done()
-				defer logger.CostLog(c.r.logger, fmt.Sprintf("read page, chunk=%d, pageIdx=%d", c.chunkID, pageID))()
 				if err := c.readPage(ctx, segments, pageID, off, dest); err != nil && req.err == nil {
 					req.err = err
 					c.r.logger.Errorw("read chunk page error", "entry", c.r.entry.ID, "chunk", c.chunkID, "page", pageID, "err", err)
@@ -254,6 +253,12 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 		}
 	}
 
+	if req.off == 0 {
+		// The first read skips pre-reading to
+		// make the data ready as quickly as possible.
+		return
+	}
+
 	maxPage := (c.chunkID + 1) * fileChunkSize / pageSize
 	for atomic.LoadInt32(&c.crtPreRead) < expectPreRead(int64(len(req.data))/pageSize+1) {
 		c.preReadIdx += 1
@@ -266,7 +271,6 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 			maxReadChunkTaskParallel.Dispatch(ctx, func() {
 				defer chunkReadingGauge.Dec()
 				defer atomic.AddInt32(&c.crtPreRead, -1)
-				defer logger.CostLog(c.r.logger, fmt.Sprintf("pre-read page, chunk=%d, pageIdx=%d", c.chunkID, pageID))()
 				if err := c.readPage(ctx, segments, pageID, 0, nil); err != nil {
 					c.r.logger.Errorw("pre-read chunk page error", "entry", c.r.entry.ID, "chunk", c.chunkID, "page", pageID, "err", err)
 					return
@@ -279,6 +283,10 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 func (c *segReader) readPage(ctx context.Context, segments []segment, pageIndex, off int64, dest []byte) (err error) {
 	defer logLatency(chunkReaderLatency, "read_page", time.Now())
 	defer trace.StartRegion(ctx, "bio.segReader.readPage").End()
+
+	ctx, task := trace.NewTask(ctx, "bio.chunkReader.readPage")
+	defer task.End()
+
 	pageStart := pageSize * pageIndex
 	var page *pageNode
 

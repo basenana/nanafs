@@ -19,6 +19,7 @@ package storage
 import (
 	"context"
 	"io"
+	"runtime/trace"
 	"sync/atomic"
 	"time"
 
@@ -112,6 +113,7 @@ func (i instrumentalStorage) ID() string {
 func (i instrumentalStorage) Get(ctx context.Context, key, idx int64) (io.ReadCloser, error) {
 	const getOperation = "get"
 	defer logStorageOperationLatency(i.ID(), getOperation, time.Now())
+	defer trace.StartRegion(ctx, "storage.instrumentalStorage.Get").End()
 	r, err := i.s.Get(ctx, key, idx)
 	return r, logErr(storageOperationErrorCounter, err, i.ID(), getOperation)
 }
@@ -119,6 +121,7 @@ func (i instrumentalStorage) Get(ctx context.Context, key, idx int64) (io.ReadCl
 func (i instrumentalStorage) Put(ctx context.Context, key, idx int64, dataReader io.Reader) error {
 	const putOperation = "put"
 	defer logStorageOperationLatency(i.ID(), putOperation, time.Now())
+	defer trace.StartRegion(ctx, "storage.instrumentalStorage.Put").End()
 	err := i.s.Put(ctx, key, idx, dataReader)
 	return logErr(storageOperationErrorCounter, err, i.ID(), putOperation)
 }
@@ -126,6 +129,7 @@ func (i instrumentalStorage) Put(ctx context.Context, key, idx int64, dataReader
 func (i instrumentalStorage) Delete(ctx context.Context, key int64) error {
 	const deleteOperation = "delete"
 	defer logStorageOperationLatency(i.ID(), deleteOperation, time.Now())
+	defer trace.StartRegion(ctx, "storage.instrumentalStorage.Delete").End()
 	err := i.s.Delete(ctx, key)
 	return logErr(storageOperationErrorCounter, err, i.ID(), deleteOperation)
 }
@@ -133,6 +137,7 @@ func (i instrumentalStorage) Delete(ctx context.Context, key int64) error {
 func (i instrumentalStorage) Head(ctx context.Context, key int64, idx int64) (Info, error) {
 	const headOperation = "head"
 	defer logStorageOperationLatency(i.ID(), headOperation, time.Now())
+	defer trace.StartRegion(ctx, "storage.instrumentalStorage.Head").End()
 	info, err := i.s.Head(ctx, key, idx)
 	return info, logErr(storageOperationErrorCounter, err, i.ID(), headOperation)
 }
