@@ -17,6 +17,7 @@
 package storage
 
 import (
+	"bufio"
 	"container/heap"
 	"context"
 	"fmt"
@@ -277,7 +278,7 @@ Retry:
 	go func() {
 		defer close(errCh)
 		defer pipeIn.Close()
-		_, copyErr := io.Copy(writer, reader)
+		_, copyErr := io.Copy(writer, bufio.NewReader(reader))
 		if copyErr != nil {
 			cacheLog.Errorw("copy segment raw data error", "segment", key, "page", idx, "err", copyErr)
 			errCh <- copyErr
@@ -401,6 +402,7 @@ func (c *LocalCache) nodeDataEncode(ctx context.Context, segIDKey int64, in io.R
 }
 
 func (c *LocalCache) nodeDataDecode(ctx context.Context, segIDKey int64, in io.Reader, out io.Writer) (err error) {
+	in = bufio.NewReader(in)
 	var (
 		pipeIn   = in
 		cryptOut io.ReadCloser

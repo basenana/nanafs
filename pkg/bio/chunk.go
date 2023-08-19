@@ -40,8 +40,8 @@ const (
 )
 
 var (
-	maxReadChunkTaskParallel  = utils.NewMaximumParallel(256)
-	maxWriteChunkTaskParallel = utils.NewMaximumParallel(64)
+	maxReadChunkTaskParallel  = utils.NewParallelWorker(256)
+	maxWriteChunkTaskParallel = utils.NewParallelWorker(64)
 )
 
 type chunkReader struct {
@@ -140,13 +140,13 @@ func (c *chunkReader) prepareData(ctx context.Context, index, off int64, dest []
 	c.readMux.Lock()
 	reader, ok := c.readers[index]
 	if !ok {
-		reader = &segReader{r: c, chunkID: index}
+		reader = &segReader{r: c, chunkID: index, preReadIdx: fileChunkSize * index / pageSize}
 		c.readers[index] = reader
 		c.logger.Debugw("builder segment reader", "entry", c.entry.ID, "chunk", index)
 	}
 	c.readMux.Unlock()
 
-	maxReadChunkTaskParallel.Go(func() {
+	maxReadChunkTaskParallel.Dispatch(ctx, func() {
 		defer req.Done()
 		defer logLatency(chunkReaderLatency, "read_chunk", time.Now())
 		reader.readChunkRange(ctx, req)
@@ -180,10 +180,12 @@ func (c *chunkReader) Close() {
 }
 
 type segReader struct {
-	r       *chunkReader
-	st      *segTree
-	chunkID int64
-	mux     sync.Mutex
+	r          *chunkReader
+	st         *segTree
+	chunkID    int64
+	crtPreRead int32
+	preReadIdx int64
+	mux        sync.Mutex
 }
 
 func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
@@ -234,9 +236,10 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 		req.Add(1)
 		chunkReadingGauge.Inc()
 		go func(ctx context.Context, segments []segment, pageID, off int64, dest []byte) {
-			maxReadChunkTaskParallel.BlockedGo(func() {
+			maxReadChunkTaskParallel.Dispatch(ctx, func() {
 				defer chunkReadingGauge.Dec()
 				defer req.Done()
+				defer logger.CostLog(c.r.logger, fmt.Sprintf("read page, chunk=%d, pageIdx=%d", c.chunkID, pageID))()
 				if err := c.readPage(ctx, segments, pageID, off, dest); err != nil && req.err == nil {
 					req.err = err
 					c.r.logger.Errorw("read chunk page error", "entry", c.r.entry.ID, "chunk", c.chunkID, "page", pageID, "err", err)
@@ -251,24 +254,25 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 		}
 	}
 
-	preRead := int64(len(req.data))/pageSize + 1
-	maxPage := fileChunkSize / pageSize
-	for preRead > 0 {
-		preRead -= 1
-		pageIdx += 1
-		if pageIdx >= maxPage || pageIdx*pageSize > c.r.entry.Size {
+	maxPage := (c.chunkID + 1) * fileChunkSize / pageSize
+	for atomic.LoadInt32(&c.crtPreRead) < expectPreRead(int64(len(req.data))/pageSize+1) {
+		c.preReadIdx += 1
+		if c.preReadIdx >= maxPage || c.preReadIdx*pageSize > c.r.entry.Size {
 			break
 		}
+		atomic.AddInt32(&c.crtPreRead, 1)
 		chunkReadingGauge.Inc()
 		go func(ctx context.Context, segments []segment, pageID int64) {
-			maxReadChunkTaskParallel.BlockedGo(func() {
+			maxReadChunkTaskParallel.Dispatch(ctx, func() {
 				defer chunkReadingGauge.Dec()
+				defer atomic.AddInt32(&c.crtPreRead, -1)
+				defer logger.CostLog(c.r.logger, fmt.Sprintf("pre-read page, chunk=%d, pageIdx=%d", c.chunkID, pageID))()
 				if err := c.readPage(ctx, segments, pageID, 0, nil); err != nil {
-					c.r.logger.Errorw("pre-read chunk page error", "entry", c.r.entry.ID, "chunk", c.chunkID, "page", pageIdx, "err", err)
+					c.r.logger.Errorw("pre-read chunk page error", "entry", c.r.entry.ID, "chunk", c.chunkID, "page", pageID, "err", err)
 					return
 				}
 			})
-		}(ctx, st.query(pageIdx*pageSize, (pageIdx+1)*pageSize), pageIdx)
+		}(ctx, st.query(c.preReadIdx*pageSize, (c.preReadIdx+1)*pageSize), c.preReadIdx)
 	}
 }
 
@@ -619,7 +623,7 @@ func (w *segWriter) preWrite(ctx context.Context, pagePos int64, seg *uncommitte
 		page.committed = true
 		chunkDirtyPageGauge.Inc()
 		seg.uploads.Add(1)
-		maxWriteChunkTaskParallel.Go(func() {
+		maxWriteChunkTaskParallel.Dispatch(ctx, func() {
 			w.flushData(ctx, seg, page)
 		})
 	}
@@ -810,7 +814,7 @@ func (s *uncommittedSeg) tryCommit(ctx context.Context) {
 		page.committed = true
 		s.uploads.Add(1)
 		chunkDirtyPageGauge.Inc()
-		maxWriteChunkTaskParallel.Go(func() {
+		maxWriteChunkTaskParallel.Dispatch(ctx, func() {
 			s.w.flushData(ctx, s, page)
 		})
 		page.mux.Unlock()
