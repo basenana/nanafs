@@ -414,7 +414,7 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntryId int64, ov
 		PublicEntryActionEvent(events.ActionTypeDestroy, overwriteEntry)
 	}
 
-	if oldParent.Kind == externalStorage || newParent.Kind == externalStorage || oldParent.Storage != newParent.Storage {
+	if oldParent.Storage == externalStorage || newParent.Storage == externalStorage || oldParent.Storage != newParent.Storage {
 		return m.changeEntryParentByFileCopy(ctx, target, oldParent, newParent, newName, opt)
 	}
 

@@ -79,22 +79,25 @@ func (u *aliyunDriverWebTokenStorage) login(ctx context.Context) error {
 	u.autoRefresh.Do(func() {
 		go func() {
 			var (
+				innerErr    error
 				timer       = time.NewTimer(defaultRefreshInterval)
 				failedTimes = 0
 			)
 
 			for {
-				select {
-				case <-timer.C:
-					if err := u.refresh(context.Background()); err != nil {
-						failedTimes += 1
-						u.logger.Errorf("refresh aliyun driver token error: %s, next retry after %dmin", err, failedTimes)
-						timer.Reset(time.Minute * time.Duration(failedTimes))
-						continue
+				<-timer.C
+				if innerErr = u.refresh(context.Background()); innerErr != nil {
+					failedTimes += 1
+					u.logger.Errorf("refresh aliyun driver token error: %s, next retry after %dmin", innerErr, failedTimes)
+					nextRetry := time.Minute * time.Duration(failedTimes)
+					if nextRetry > defaultRefreshInterval {
+						nextRetry = defaultRefreshInterval
 					}
-					failedTimes = 0
-					timer.Reset(defaultRefreshInterval)
+					timer.Reset(nextRetry)
+					continue
 				}
+				failedTimes = 0
+				timer.Reset(defaultRefreshInterval)
 			}
 		}()
 	})
