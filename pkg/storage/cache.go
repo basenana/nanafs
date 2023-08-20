@@ -17,6 +17,7 @@
 package storage
 
 import (
+	"bufio"
 	"container/heap"
 	"context"
 	"fmt"
@@ -39,7 +40,8 @@ import (
 const (
 	cacheNodeBaseSize = 1 << 21 // 2M
 	retryInterval     = time.Second
-	retryTimes        = 100
+	readRetryTimes    = 10
+	writeRetryTimes   = 100
 )
 
 var (
@@ -150,10 +152,11 @@ func (c *LocalCache) CommitTemporaryNode(ctx context.Context, segID, idx int64, 
 
 	var err error
 Retry:
-	for i := 0; i < retryTimes; i++ {
+	for i := 0; i < writeRetryTimes; i++ {
 		select {
 		case <-ctx.Done():
 			err = ctx.Err()
+			break Retry
 		default:
 			if err = upload(); err == nil {
 				break Retry
@@ -202,17 +205,18 @@ func (c *LocalCache) openDirectNode(ctx context.Context, key, idx int64) (CacheN
 		node   = &memCacheNode{data: utils.NewMemoryBlock(info.Size)}
 	)
 Retry:
-	for i := 0; i < retryTimes; i++ {
+	for i := 0; i < readRetryTimes; i++ {
 		select {
 		case <-ctx.Done():
 			err = ctx.Err()
+			break Retry
 		default:
 			reader, err = c.s.Get(ctx, key, idx)
 			if err == nil {
 				break Retry
 			}
 			time.Sleep(retryInterval)
-			cacheLog.Errorw("read chunk page error, try again", "segment", key, "page", idx, "tryTime", i+1)
+			cacheLog.Errorw("read chunk page error, try again", "segment", key, "page", idx, "err", err, "tryTime", i+1)
 		}
 	}
 	if err != nil {
@@ -252,10 +256,11 @@ func (c *LocalCache) makeLocalCache(ctx context.Context, key, idx int64, filenam
 
 	var reader io.ReadCloser
 Retry:
-	for i := 0; i < retryTimes; i++ {
+	for i := 0; i < readRetryTimes; i++ {
 		select {
 		case <-ctx.Done():
 			err = ctx.Err()
+			break Retry
 		default:
 			reader, err = c.s.Get(ctx, key, idx)
 			if err == nil {
@@ -277,7 +282,7 @@ Retry:
 	go func() {
 		defer close(errCh)
 		defer pipeIn.Close()
-		_, copyErr := io.Copy(writer, reader)
+		_, copyErr := io.Copy(writer, bufio.NewReader(reader))
 		if copyErr != nil {
 			cacheLog.Errorw("copy segment raw data error", "segment", key, "page", idx, "err", copyErr)
 			errCh <- copyErr
@@ -401,6 +406,8 @@ func (c *LocalCache) nodeDataEncode(ctx context.Context, segIDKey int64, in io.R
 }
 
 func (c *LocalCache) nodeDataDecode(ctx context.Context, segIDKey int64, in io.Reader, out io.Writer) (err error) {
+	defer trace.StartRegion(ctx, "storage.localCache.nodeDataDecode").End()
+	in = bufio.NewReader(in)
 	var (
 		pipeIn   = in
 		cryptOut io.ReadCloser

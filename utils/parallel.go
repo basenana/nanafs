@@ -21,7 +21,61 @@ import (
 	"fmt"
 	"github.com/getsentry/sentry-go"
 	"runtime/debug"
+	"sync/atomic"
+	"time"
 )
+
+type ParallelWorker struct {
+	workQ   chan func()
+	workMax int32
+	workCrt int32
+}
+
+func (p *ParallelWorker) Dispatch(ctx context.Context, fn func()) {
+	select {
+	case <-ctx.Done():
+		return
+	case p.workQ <- fn:
+		return
+	default:
+		for {
+			crt := atomic.LoadInt32(&p.workCrt)
+			if crt == p.workMax {
+				break
+			}
+
+			if atomic.CompareAndSwapInt32(&p.workCrt, crt, crt+1) {
+				go p.workRun()
+				break
+			}
+		}
+	}
+
+	select {
+	case <-ctx.Done():
+		return
+	case p.workQ <- fn:
+		return
+	}
+}
+
+func (p *ParallelWorker) workRun() {
+	leastWait := time.NewTimer(time.Hour)
+	defer leastWait.Stop()
+	for {
+		select {
+		case fn := <-p.workQ:
+			fn()
+		case <-leastWait.C:
+			atomic.AddInt32(&p.workCrt, -1)
+			return
+		}
+	}
+}
+
+func NewParallelWorker(num int32) *ParallelWorker {
+	return &ParallelWorker{workQ: make(chan func()), workMax: num}
+}
 
 type ParallelLimiter struct {
 	q chan struct{}
@@ -45,40 +99,6 @@ func (l *ParallelLimiter) Release() {
 
 func NewParallelLimiter(ctn int) *ParallelLimiter {
 	return &ParallelLimiter{q: make(chan struct{}, ctn)}
-}
-
-type MaximumParallel struct {
-	q chan struct{}
-}
-
-func (p *MaximumParallel) Go(f func()) {
-	go func() {
-		p.q <- struct{}{}
-		defer func() {
-			select {
-			case <-p.q:
-			default:
-			}
-		}()
-		f()
-	}()
-}
-
-func (p *MaximumParallel) BlockedGo(f func()) {
-	p.q <- struct{}{}
-	go func() {
-		defer func() {
-			select {
-			case <-p.q:
-			default:
-			}
-		}()
-		f()
-	}()
-}
-
-func NewMaximumParallel(num int) *MaximumParallel {
-	return &MaximumParallel{q: make(chan struct{}, num)}
 }
 
 func Recover() error {
