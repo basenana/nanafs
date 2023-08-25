@@ -509,7 +509,7 @@ func (e *Entity) ListScheduledTask(ctx context.Context, taskID string, filter ty
 
 	result := make([]*types.ScheduledTask, len(tasks))
 	for i, t := range tasks {
-		evt := types.Event{}
+		evt := types.EntryEvent{}
 		_ = json.Unmarshal([]byte(t.Event), &evt)
 		result[i] = &types.ScheduledTask{
 			ID:             t.ID,

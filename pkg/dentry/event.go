@@ -32,8 +32,8 @@ func PublicFileActionEvent(actionType string, en *types.Metadata) {
 	events.Publish(events.EntryActionTopic(events.TopicFileActionFmt, actionType), BuildEntryEvent(actionType, en))
 }
 
-func BuildEntryEvent(actionType string, entry *types.Metadata) *types.Event {
-	return &types.Event{
+func BuildEntryEvent(actionType string, entry *types.Metadata) *types.EntryEvent {
+	return &types.EntryEvent{
 		Id:              uuid.New().String(),
 		Type:            actionType,
 		Source:          fmt.Sprintf("/object/%d", entry.ID),
@@ -42,6 +42,6 @@ func BuildEntryEvent(actionType string, entry *types.Metadata) *types.Event {
 		RefType:         "object",
 		RefID:           entry.ID,
 		DataContentType: "application/json",
-		Data:            types.EventData{Metadata: entry},
+		Data:            types.NewEventData(entry),
 	}
 }

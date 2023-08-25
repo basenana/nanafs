@@ -22,6 +22,6 @@ import (
 )
 
 type executor interface {
-	handleEvent(ctx context.Context, evt *types.Event) error
+	handleEvent(ctx context.Context, evt *types.EntryEvent) error
 	execute(ctx context.Context, task *types.ScheduledTask) error
 }

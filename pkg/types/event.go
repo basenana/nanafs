@@ -20,7 +20,7 @@ import (
 	"time"
 )
 
-type Event struct {
+type EntryEvent struct {
 	Id              string    `json:"id"`
 	Type            string    `json:"type"`
 	Source          string    `json:"source"`
@@ -33,7 +33,41 @@ type Event struct {
 }
 
 type EventData struct {
-	*Metadata
+	ID         int64     `json:"id"`
+	Name       string    `json:"name"`
+	ParentID   int64     `json:"parent_id"`
+	RefID      int64     `json:"ref_id,omitempty"`
+	RefCount   int       `json:"ref_count,omitempty"`
+	Kind       Kind      `json:"kind"`
+	KindMap    int64     `json:"kind_map"`
+	Version    int64     `json:"version"`
+	Dev        int64     `json:"dev"`
+	Namespace  string    `json:"namespace,omitempty"`
+	Storage    string    `json:"storage"`
+	CreatedAt  time.Time `json:"created_at"`
+	ChangedAt  time.Time `json:"changed_at"`
+	ModifiedAt time.Time `json:"modified_at"`
+	AccessAt   time.Time `json:"access_at"`
+}
+
+func NewEventData(entry *Metadata) EventData {
+	return EventData{
+		ID:         entry.ID,
+		Name:       entry.Name,
+		ParentID:   entry.ParentID,
+		RefID:      entry.RefID,
+		RefCount:   entry.RefCount,
+		Kind:       entry.Kind,
+		KindMap:    entry.KindMap,
+		Version:    entry.Version,
+		Dev:        entry.Dev,
+		Namespace:  entry.Namespace,
+		Storage:    entry.Storage,
+		CreatedAt:  entry.CreatedAt,
+		ChangedAt:  entry.ChangedAt,
+		ModifiedAt: entry.ModifiedAt,
+		AccessAt:   entry.AccessAt,
+	}
 }
 
 const (
@@ -41,6 +75,8 @@ const (
 	ScheduledTaskWait      = "wait"
 	ScheduledTaskExecuting = "executing"
 	ScheduledTaskFinish    = "finish"
+	ScheduledTaskSucceed   = "succeed"
+	ScheduledTaskFailed    = "failed"
 )
 
 type ScheduledTask struct {
@@ -54,7 +90,7 @@ type ScheduledTask struct {
 	CreatedTime    time.Time
 	ExecutionTime  time.Time
 	ExpirationTime time.Time
-	Event          Event
+	Event          EntryEvent
 }
 
 type ScheduledTaskFilter struct {

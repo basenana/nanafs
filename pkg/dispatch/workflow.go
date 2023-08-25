@@ -35,7 +35,7 @@ type workflowAction struct {
 	logger   *zap.SugaredLogger
 }
 
-func (w workflowAction) handleEvent(ctx context.Context, evt *types.Event) error {
+func (w workflowAction) handleEvent(ctx context.Context, evt *types.EntryEvent) error {
 	if evt.Type != events.ActionTypeClose || !dentry.IsFileOpened(evt.RefID) {
 		return nil
 	}
