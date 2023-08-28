@@ -99,6 +99,13 @@ type ScheduledTaskFilter struct {
 	Status  []string
 }
 
+const (
+	NotificationInfo   = "info"
+	NotificationWarn   = "warn"
+	NotificationUnread = "unread"
+	NotificationRead   = "read"
+)
+
 type Notification struct {
 	ID      string
 	Title   string

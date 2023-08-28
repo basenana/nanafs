@@ -30,6 +30,15 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
+func MustRandString(length int) string {
+	for {
+		s, err := RandString(length)
+		if err == nil {
+			return s
+		}
+	}
+}
+
 func RandString(length int) (string, error) {
 	bytes := make([]byte, length)
 	if _, err := rand.Read(bytes); err != nil {

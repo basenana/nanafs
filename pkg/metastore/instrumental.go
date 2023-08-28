@@ -52,6 +52,8 @@ type instrumentalStore struct {
 	store Meta
 }
 
+var _ Meta = &instrumentalStore{}
+
 func (i instrumentalStore) SystemInfo(ctx context.Context) (*types.SystemInfo, error) {
 	const operation = "system_info"
 	defer logOperationLatency(operation, time.Now())
@@ -152,6 +154,30 @@ func (i instrumentalStore) DeleteSegment(ctx context.Context, segID int64) error
 	const operation = "delete_segment"
 	defer logOperationLatency(operation, time.Now())
 	err := i.store.DeleteSegment(ctx, segID)
+	logOperationError(operation, err)
+	return err
+}
+
+func (i instrumentalStore) ListNotifications(ctx context.Context) ([]types.Notification, error) {
+	const operation = "list_notifications"
+	defer logOperationLatency(operation, time.Now())
+	nList, err := i.store.ListNotifications(ctx)
+	logOperationError(operation, err)
+	return nList, err
+}
+
+func (i instrumentalStore) RecordNotification(ctx context.Context, nid string, no types.Notification) error {
+	const operation = "record_notification"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.RecordNotification(ctx, nid, no)
+	logOperationError(operation, err)
+	return err
+}
+
+func (i instrumentalStore) UpdateNotificationStatus(ctx context.Context, nid, status string) error {
+	const operation = "update_notification_status"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.UpdateNotificationStatus(ctx, nid, status)
 	logOperationError(operation, err)
 	return err
 }

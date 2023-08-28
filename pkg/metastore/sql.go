@@ -182,6 +182,24 @@ func (s *sqliteMetaStore) DeleteWorkflowJob(ctx context.Context, wfJobID ...stri
 	return s.dbStore.DeleteWorkflowJob(ctx, wfJobID...)
 }
 
+func (s *sqliteMetaStore) ListNotifications(ctx context.Context) ([]types.Notification, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.ListNotifications(ctx)
+}
+
+func (s *sqliteMetaStore) RecordNotification(ctx context.Context, nid string, no types.Notification) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.RecordNotification(ctx, nid, no)
+}
+
+func (s *sqliteMetaStore) UpdateNotificationStatus(ctx context.Context, nid, status string) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.UpdateNotificationStatus(ctx, nid, status)
+}
+
 func (s *sqliteMetaStore) PluginRecorder(plugin types.PlugScope) PluginRecorder {
 	return &sqlPluginRecorder{
 		pluginRecordHandler: s,
@@ -430,6 +448,21 @@ func (s *sqlMetaStore) DeleteWorkflowJob(ctx context.Context, wfJobID ...string)
 		return db.SqlError2Error(err)
 	}
 	return nil
+}
+
+func (s *sqlMetaStore) ListNotifications(ctx context.Context) ([]types.Notification, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *sqlMetaStore) RecordNotification(ctx context.Context, nid string, no types.Notification) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *sqlMetaStore) UpdateNotificationStatus(ctx context.Context, nid, status string) error {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (s *sqlMetaStore) PluginRecorder(plugin types.PlugScope) PluginRecorder {

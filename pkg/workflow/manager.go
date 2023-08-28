@@ -23,6 +23,7 @@ import (
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
@@ -51,6 +52,7 @@ func init() {
 type manager struct {
 	ctrl     *flow.Controller
 	entryMgr dentry.Manager
+	notify   *notify.Notify
 	recorder metastore.ScheduledTaskRecorder
 	config   config.Workflow
 	fuse     config.FUSE
@@ -59,7 +61,7 @@ type manager struct {
 
 var _ Manager = &manager{}
 
-func NewManager(entryMgr dentry.Manager, recorder metastore.ScheduledTaskRecorder, config config.Workflow, fuse config.FUSE) (Manager, error) {
+func NewManager(entryMgr dentry.Manager, notify *notify.Notify, recorder metastore.ScheduledTaskRecorder, config config.Workflow, fuse config.FUSE) (Manager, error) {
 	wfLogger = logger.NewLogger("workflow")
 	_ = logger.NewFlowLogger(wfLogger)
 
@@ -76,7 +78,7 @@ func NewManager(entryMgr dentry.Manager, recorder metastore.ScheduledTaskRecorde
 	}
 
 	flowCtrl := flow.NewFlowController(&storageWrapper{recorder: recorder, logger: wfLogger})
-	mgr := &manager{ctrl: flowCtrl, entryMgr: entryMgr, recorder: recorder, config: config, fuse: fuse, logger: wfLogger}
+	mgr := &manager{ctrl: flowCtrl, entryMgr: entryMgr, notify: notify, recorder: recorder, config: config, fuse: fuse, logger: wfLogger}
 	root, err := entryMgr.Root(context.Background())
 	if err != nil {
 		mgr.logger.Errorw("query root failed", "err", err)
