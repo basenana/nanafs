@@ -19,13 +19,14 @@ package workflow
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/pkg/workflow/exec"
+	"github.com/basenana/nanafs/pkg/workflow/flow"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"strings"
@@ -63,7 +64,6 @@ var _ Manager = &manager{}
 
 func NewManager(entryMgr dentry.Manager, notify *notify.Notify, recorder metastore.ScheduledTaskRecorder, config config.Workflow, fuse config.FUSE) (Manager, error) {
 	wfLogger = logger.NewLogger("workflow")
-	_ = logger.NewFlowLogger(wfLogger)
 
 	if !config.Enable {
 		return disabledManager{}, nil
@@ -73,7 +73,7 @@ func NewManager(entryMgr dentry.Manager, notify *notify.Notify, recorder metasto
 		return nil, fmt.Errorf("init workflow job root workdir error: %s", err)
 	}
 
-	if err := registerOperators(entryMgr); err != nil {
+	if err := exec.RegisterOperators(entryMgr); err != nil {
 		return nil, fmt.Errorf("register operators failed: %s", err)
 	}
 

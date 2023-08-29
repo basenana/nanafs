@@ -19,12 +19,12 @@ package dispatch
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow"
+	"github.com/basenana/nanafs/pkg/workflow/flow"
 	"go.uber.org/zap"
 )
 

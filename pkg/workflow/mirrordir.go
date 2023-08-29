@@ -19,11 +19,11 @@ package workflow
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/plugin/stub"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/pkg/workflow/flow"
 	"github.com/basenana/nanafs/utils"
 	"gopkg.in/yaml.v3"
 	"path"

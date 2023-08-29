@@ -19,8 +19,9 @@ package flow
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/go-flow/fsm"
-	"github.com/basenana/go-flow/utils"
+	"github.com/basenana/nanafs/pkg/workflow/fsm"
+	"github.com/basenana/nanafs/utils/logger"
+	"go.uber.org/zap"
 	"sync"
 	"time"
 )
@@ -33,7 +34,7 @@ type Runner interface {
 }
 
 func NewRunner(f *Flow, s Storage) Runner {
-	return &runner{Flow: f, storage: s, logger: logger.With(f.ID)}
+	return &runner{Flow: f, storage: s, logger: logger.NewLogger("runner").With(zap.String("flow", f.ID))}
 }
 
 type runner struct {
@@ -47,7 +48,7 @@ type runner struct {
 	stopCh   chan struct{}
 
 	storage Storage
-	logger  utils.Logger
+	logger  *zap.SugaredLogger
 }
 
 func (r *runner) Start(ctx context.Context) (err error) {
@@ -409,7 +410,7 @@ func (r *runner) saveTask(task *Task) error {
 func buildFlowFSM(r *runner) *fsm.FSM {
 	m := fsm.New(fsm.Option{
 		Obj:    r.Flow,
-		Logger: r.logger.With("fsm"),
+		Logger: r.logger.Named("fsm"),
 	})
 
 	m.From([]string{InitializingStatus, RunningStatus}).

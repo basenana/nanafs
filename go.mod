@@ -9,7 +9,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.26
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.36.0
 	github.com/aws/smithy-go v1.13.5
-	github.com/basenana/go-flow v0.0.0-20230801131009-d05f1f41b706
 	github.com/bluele/gcache v0.0.2
 	github.com/getsentry/sentry-go v0.22.0
 	github.com/glebarez/sqlite v1.7.0
@@ -24,9 +23,12 @@ require (
 	github.com/prometheus/client_golang v1.16.0
 	github.com/slok/go-http-metrics v0.10.0
 	github.com/studio-b12/gowebdav v0.9.0
+	github.com/tickstep/aliyunpan-api v0.1.6
+	github.com/tickstep/library-go v0.1.0
 	go.uber.org/zap v1.24.0
 	golang.org/x/net v0.11.0
 	golang.org/x/sys v0.9.0
+	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/postgres v1.3.7
 )
 
@@ -86,15 +88,12 @@ require (
 	github.com/satori/go.uuid v1.2.0 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/tickstep/aliyunpan-api v0.1.6 // indirect
-	github.com/tickstep/library-go v0.1.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	golang.org/x/text v0.10.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/libc v1.22.2 // indirect
 	modernc.org/mathutil v1.5.0 // indirect
 	modernc.org/memory v1.5.0 // indirect

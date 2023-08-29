@@ -20,6 +20,7 @@ import (
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils/logger"
@@ -65,7 +66,7 @@ var _ = BeforeSuite(func() {
 	// init plugin
 	Expect(plugin.Init(&config.Plugin{}, memMeta)).Should(BeNil())
 
-	mgr, err = NewManager(entryMgr, memMeta, config.Workflow{Enable: true, JobWorkdir: tempDir}, config.FUSE{})
+	mgr, err = NewManager(entryMgr, notify.NewNotify(memMeta), memMeta, config.Workflow{Enable: true, JobWorkdir: tempDir}, config.FUSE{})
 	Expect(err).Should(BeNil())
 })
 

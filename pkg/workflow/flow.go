@@ -19,13 +19,13 @@ package workflow
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/go-flow/exec"
-	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/pkg/workflow/exec"
+	"github.com/basenana/nanafs/pkg/workflow/flow"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"strconv"
@@ -59,17 +59,17 @@ func assembleWorkflowJob(ctx context.Context, mgr dentry.Manager, spec *types.Wo
 		// if fuse disabled, using filename in workdir
 		entryPath = entry.Name
 		j.Steps = append(j.Steps, types.WorkflowJobStep{
-			StepName: opEntryInit,
+			StepName: exec.OpEntryInit,
 			Status:   flow.InitializingStatus,
 			Operator: &types.WorkflowJobOperator{
-				Name:       opEntryInit,
+				Name:       exec.OpEntryInit,
 				Parameters: globalParam,
 			},
 		})
 	}
 
-	globalParam[paramEntryIdKey] = strconv.FormatInt(entry.ID, 10)
-	globalParam[paramEntryPathKey] = entryPath
+	globalParam[exec.paramEntryIdKey] = strconv.FormatInt(entry.ID, 10)
+	globalParam[exec.paramEntryPathKey] = entryPath
 	for _, stepSpec := range spec.Steps {
 		if stepSpec.Plugin != nil {
 			for k, v := range globalParam {
@@ -87,10 +87,10 @@ func assembleWorkflowJob(ctx context.Context, mgr dentry.Manager, spec *types.Wo
 	}
 
 	j.Steps = append(j.Steps, types.WorkflowJobStep{
-		StepName: opEntryCollect,
+		StepName: exec.OpEntryCollect,
 		Status:   flow.InitializingStatus,
 		Operator: &types.WorkflowJobOperator{
-			Name:       opEntryCollect,
+			Name:       exec.OpEntryCollect,
 			Parameters: globalParam,
 		},
 	})
@@ -112,10 +112,10 @@ func assembleFlow(job *types.WorkflowJob) (*flow.Flow, error) {
 		switch {
 		case step.Plugin != nil:
 			param := map[string]string{
-				paramPluginName:    step.Plugin.PluginName,
-				paramPluginVersion: step.Plugin.Version,
-				paramPluginType:    string(step.Plugin.PluginType),
-				paramPluginAction:  step.Plugin.Action,
+				exec.paramPluginName:    step.Plugin.PluginName,
+				exec.paramPluginVersion: step.Plugin.Version,
+				exec.paramPluginType:    string(step.Plugin.PluginType),
+				exec.paramPluginAction:  step.Plugin.Action,
 			}
 			for k, v := range step.Plugin.Parameters {
 				if _, ok := param[k]; ok {
@@ -128,7 +128,7 @@ func assembleFlow(job *types.WorkflowJob) (*flow.Flow, error) {
 				Status:  step.Status,
 				Message: step.Message,
 				OperatorSpec: flow.Spec{
-					Type:       opPluginCall,
+					Type:       exec.OpPluginCall,
 					Parameters: param,
 				},
 				RetryOnFailed: 1,

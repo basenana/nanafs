@@ -19,7 +19,8 @@ package flow
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/go-flow/utils"
+	"github.com/basenana/nanafs/utils/logger"
+	"go.uber.org/zap"
 	"strings"
 	"sync"
 )
@@ -28,7 +29,7 @@ type Controller struct {
 	runners map[string]Runner
 	mux     sync.Mutex
 	storage Storage
-	logger  utils.Logger
+	logger  *zap.SugaredLogger
 }
 
 func (c *Controller) TriggerFlow(ctx context.Context, flowId string) error {
@@ -113,6 +114,6 @@ func NewFlowController(storage Storage) *Controller {
 	return &Controller{
 		runners: make(map[string]Runner),
 		storage: storage,
-		logger:  utils.NewLogger("go-flow"),
+		logger:  logger.NewLogger("flow"),
 	}
 }

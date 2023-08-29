@@ -18,9 +18,8 @@ package flow
 
 import (
 	"fmt"
+	"github.com/basenana/nanafs/utils"
 	"sync"
-
-	"github.com/basenana/go-flow/utils"
 )
 
 type taskToward struct {

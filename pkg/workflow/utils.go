@@ -19,7 +19,6 @@ package workflow
 import (
 	"bytes"
 	"context"
-	"github.com/basenana/go-flow/cfg"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
@@ -47,7 +46,6 @@ func initWorkflowJobRootWorkdir(wfCfg *config.Workflow) error {
 		}
 	}
 	wfLogger.Infof("job root workdir: %s", wfCfg.JobWorkdir)
-	cfg.LocalWorkdirBase = wfCfg.JobWorkdir
 	return os.MkdirAll(wfCfg.JobWorkdir, 0755)
 }
 

@@ -18,9 +18,9 @@ package workflow
 
 import (
 	"context"
-	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/pkg/workflow/flow"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"time"

@@ -18,7 +18,7 @@ package fsm
 
 import (
 	"fmt"
-	"github.com/basenana/go-flow/utils"
+	"go.uber.org/zap"
 	"sync"
 )
 
@@ -43,7 +43,7 @@ type FSM struct {
 
 	crtBuilder *edgeBuilder
 	mux        sync.Mutex
-	logger     utils.Logger
+	logger     *zap.SugaredLogger
 }
 
 func (m *FSM) From(statues []string) *FSM {

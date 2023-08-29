@@ -116,11 +116,6 @@ github.com/aws/smithy-go/transport/http/internal/io
 github.com/aws/smithy-go/waiter
 # github.com/basenana/go-flow v0.0.0-20230801131009-d05f1f41b706
 ## explicit; go 1.15
-github.com/basenana/go-flow/cfg
-github.com/basenana/go-flow/exec
-github.com/basenana/go-flow/flow
-github.com/basenana/go-flow/fsm
-github.com/basenana/go-flow/utils
 # github.com/beorn7/perks v1.0.1
 ## explicit; go 1.11
 github.com/beorn7/perks/quantile
