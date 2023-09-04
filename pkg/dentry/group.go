@@ -73,6 +73,12 @@ var _ Group = &stdGroup{}
 
 func (g *stdGroup) FindEntry(ctx context.Context, name string) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.FindEntry").End()
+
+	md, err := g.cacheStore.lookupChild(ctx, g.entryID, name)
+	if err == nil {
+		return md, nil
+	}
+
 	entryLifecycleLock.RLock()
 	defer entryLifecycleLock.RUnlock()
 	objects, err := g.store.ListObjects(ctx, types.Filter{Name: name, ParentID: g.entryID})
@@ -145,8 +151,14 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (*types.Meta
 
 func (g *stdGroup) UpdateEntry(ctx context.Context, entryId int64, patch *types.Metadata) error {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.UpdateEntry").End()
+	entry, err := g.cacheStore.getEntry(ctx, entryId)
+	if err != nil {
+		return err
+	}
+	defer g.cacheStore.delChildCache(entry.ParentID, entry.Name)
+
 	patch.ID = entryId
-	if err := g.cacheStore.updateEntries(ctx, patch); err != nil {
+	if err = g.cacheStore.updateEntries(ctx, patch); err != nil {
 		return err
 	}
 	return nil
@@ -185,6 +197,7 @@ func (g *stdGroup) RemoveEntry(ctx context.Context, entryId int64) error {
 	if err := g.cacheStore.updateEntries(ctx, entry, group); err != nil {
 		return err
 	}
+	g.cacheStore.delChildCache(g.entryID, entry.Name)
 	return nil
 }
 
@@ -200,6 +213,7 @@ func (g *stdGroup) ListChildren(ctx context.Context) ([]*types.Metadata, error) 
 		if next.ID == next.ParentID {
 			continue
 		}
+		g.cacheStore.putChildId2Cache(g.entryID, next.ID, next.Name)
 		result = append(result, &next.Metadata)
 	}
 	return result, nil
@@ -367,6 +381,7 @@ func (e *extGroup) syncEntry(ctx context.Context, mirrored *stub.Entry, crt *typ
 			_ = e.stdGroup.store.DestroyObject(ctx, &types.Object{Metadata: *grp}, &types.Object{Metadata: *crt})
 			e.stdGroup.cacheStore.delEntryCache(crt.ID)
 			e.stdGroup.cacheStore.delEntryCache(grp.ID)
+			e.stdGroup.cacheStore.delChildCache(grp.ID, crt.Name)
 		}
 		return nil, err
 	}

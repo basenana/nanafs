@@ -263,6 +263,7 @@ func (m *manager) RemoveEntry(ctx context.Context, parentId, entryId int64) erro
 		m.logger.Errorw("destroy object from meta server error", "entry", entry.ID, "err", err)
 		return err
 	}
+	m.cache.delChildCache(parentId, entry.Name)
 	return nil
 }
 
@@ -288,8 +289,10 @@ func (m *manager) DestroyEntry(ctx context.Context, entryID int64) error {
 	}
 	if srcObj != nil {
 		m.cache.delEntryCache(srcObj.ID)
+		m.cache.delChildCache(srcObj.ParentID, srcObj.Name)
 	}
 	m.cache.delEntryCache(entry.ID)
+	m.cache.delChildCache(entry.ParentID, entry.Name)
 	return nil
 }
 
@@ -428,6 +431,7 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntryId int64, ov
 	m.cache.delEntryCache(oldParent.ID)
 	m.cache.delEntryCache(newParent.ID)
 	m.cache.delEntryCache(target.ID)
+	m.cache.delChildCache(oldParent.ID, target.Name)
 	return nil
 }
 

@@ -146,20 +146,15 @@ func (e *Entity) ListObjectChildren(ctx context.Context, filter types.Filter) ([
 
 	objectList := make([]Object, 0)
 	var result []*types.Object
-	if err := e.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := queryFilter(tx, filter).Find(&objectList)
-		if res.Error != nil {
-			return res.Error
-		}
+	res := queryFilter(e.DB.WithContext(ctx), filter).Find(&objectList)
+	if res.Error != nil {
+		return nil, res.Error
+	}
 
-		result = make([]*types.Object, len(objectList))
-		for i, objMod := range objectList {
-			o := objMod.Object()
-			result[i] = o
-		}
-		return nil
-	}); err != nil {
-		return nil, err
+	result = make([]*types.Object, len(objectList))
+	for i, objMod := range objectList {
+		o := objMod.Object()
+		result[i] = o
 	}
 
 	return result, nil
