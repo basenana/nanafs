@@ -18,13 +18,13 @@ package exec
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/workflow/flow"
+	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 )
 
 type entryCollectOperator struct{}
 
-var _ flow.Operator = &entryCollectOperator{}
+var _ jobrun.Operator = &entryCollectOperator{}
 
-func (e *entryCollectOperator) Do(ctx context.Context, param *flow.Parameter) error {
+func (e *entryCollectOperator) Do(ctx context.Context, param *jobrun.Parameter) error {
 	return nil
 }

@@ -24,7 +24,7 @@ import (
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow"
-	"github.com/basenana/nanafs/pkg/workflow/flow"
+	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	"go.uber.org/zap"
 )
 
@@ -65,7 +65,7 @@ func (w workflowAction) handleEvent(ctx context.Context, evt *types.EntryEvent) 
 		//	continue
 		//}
 
-		pendingJob, err := w.recorder.ListWorkflowJob(ctx, types.JobFilter{WorkFlowID: wf.Id, Status: flow.InitializingStatus, TargetEntry: evt.RefID})
+		pendingJob, err := w.recorder.ListWorkflowJob(ctx, types.JobFilter{WorkFlowID: wf.Id, Status: jobrun.InitializingStatus, TargetEntry: evt.RefID})
 		if err != nil {
 			w.logger.Errorw("[workflowAction] query pending job failed", "entry", evt.RefID, "workflow", wf.Id, "err", err)
 			continue

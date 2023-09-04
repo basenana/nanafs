@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/pkg/workflow/flow"
+	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	"github.com/basenana/nanafs/utils"
 	"go.uber.org/zap"
 	"io"
@@ -37,9 +37,9 @@ type entryInitOperator struct {
 	logger    *zap.SugaredLogger
 }
 
-var _ flow.Operator = &entryInitOperator{}
+var _ jobrun.Operator = &entryInitOperator{}
 
-func (e *entryInitOperator) Do(ctx context.Context, param *flow.Parameter) error {
+func (e *entryInitOperator) Do(ctx context.Context, param *jobrun.Parameter) error {
 	entryPath := e.entryPath
 	if !path.IsAbs(e.entryPath) {
 		entryPath = path.Join(param.Workdir, path.Base(e.entryPath))

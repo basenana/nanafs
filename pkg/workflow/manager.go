@@ -26,7 +26,7 @@ import (
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow/exec"
-	"github.com/basenana/nanafs/pkg/workflow/flow"
+	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"strings"
@@ -51,7 +51,7 @@ func init() {
 }
 
 type manager struct {
-	ctrl     *flow.Controller
+	ctrl     *jobrun.Controller
 	entryMgr dentry.Manager
 	notify   *notify.Notify
 	recorder metastore.ScheduledTaskRecorder
@@ -77,7 +77,7 @@ func NewManager(entryMgr dentry.Manager, notify *notify.Notify, recorder metasto
 		return nil, fmt.Errorf("register operators failed: %s", err)
 	}
 
-	flowCtrl := flow.NewFlowController(&storageWrapper{recorder: recorder, logger: wfLogger})
+	flowCtrl := jobrun.NewJobController(recorder)
 	mgr := &manager{ctrl: flowCtrl, entryMgr: entryMgr, notify: notify, recorder: recorder, config: config, fuse: fuse, logger: wfLogger}
 	root, err := entryMgr.Root(context.Background())
 	if err != nil {
@@ -142,7 +142,7 @@ func (m *manager) DeleteWorkflow(ctx context.Context, wfId string) error {
 
 	runningJobs := make([]string, 0)
 	for _, j := range jobs {
-		if j.Status == flow.PausedStatus || j.Status == flow.RunningStatus {
+		if j.Status == jobrun.PausedStatus || j.Status == jobrun.RunningStatus {
 			runningJobs = append(runningJobs, j.Id)
 		}
 	}
@@ -203,7 +203,7 @@ func (m *manager) TriggerWorkflow(ctx context.Context, wfId string, entryID int6
 		return nil, err
 	}
 
-	if err = m.ctrl.TriggerFlow(ctx, job.Id); err != nil {
+	if err = m.ctrl.TriggerJob(ctx, job.Id); err != nil {
 		m.logger.Errorw("trigger job flow failed", "job", job.Id, "err", err)
 		return nil, err
 	}
@@ -218,10 +218,10 @@ func (m *manager) PauseWorkflowJob(ctx context.Context, jobId string) error {
 	if len(jobs) == 0 {
 		return types.ErrNotFound
 	}
-	if jobs[0].Status != flow.RunningStatus {
+	if jobs[0].Status != jobrun.RunningStatus {
 		return fmt.Errorf("pausing is not supported in non-running state")
 	}
-	return m.ctrl.PauseFlow(jobId)
+	return m.ctrl.PauseJob(jobId)
 }
 
 func (m *manager) ResumeWorkflowJob(ctx context.Context, jobId string) error {
@@ -232,10 +232,10 @@ func (m *manager) ResumeWorkflowJob(ctx context.Context, jobId string) error {
 	if len(jobs) == 0 {
 		return types.ErrNotFound
 	}
-	if jobs[0].Status != flow.PausedStatus {
+	if jobs[0].Status != jobrun.PausedStatus {
 		return fmt.Errorf("resuming is not supported in non-paused state")
 	}
-	return m.ctrl.ResumeFlow(jobId)
+	return m.ctrl.ResumeJob(jobId)
 }
 
 func (m *manager) CancelWorkflowJob(ctx context.Context, jobId string) error {
@@ -249,7 +249,7 @@ func (m *manager) CancelWorkflowJob(ctx context.Context, jobId string) error {
 	if !jobs[0].FinishAt.IsZero() {
 		return fmt.Errorf("canceling is not supported in finished state")
 	}
-	return m.ctrl.CancelFlow(jobId)
+	return m.ctrl.CancelJob(jobId)
 }
 
 type disabledManager struct{}

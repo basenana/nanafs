@@ -51,6 +51,22 @@ type WorkflowJob struct {
 	UpdatedAt     time.Time         `json:"updated_at"`
 }
 
+func (w *WorkflowJob) GetStatus() string {
+	return w.Status
+}
+
+func (w *WorkflowJob) SetStatus(status string) {
+	w.Status = status
+}
+
+func (w *WorkflowJob) GetMessage() string {
+	return w.Message
+}
+
+func (w *WorkflowJob) SetMessage(msg string) {
+	w.Message = msg
+}
+
 type WorkflowJobStep struct {
 	StepName string               `json:"step_name"`
 	Message  string               `json:"message"`

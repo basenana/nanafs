@@ -21,13 +21,11 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow/exec"
-	"github.com/basenana/nanafs/pkg/workflow/flow"
+	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	"github.com/google/uuid"
-	"go.uber.org/zap"
 	"strconv"
 	"time"
 )
@@ -38,7 +36,7 @@ func assembleWorkflowJob(ctx context.Context, mgr dentry.Manager, spec *types.Wo
 		Id:        uuid.New().String(),
 		Workflow:  spec.Id,
 		Target:    types.WorkflowTarget{EntryID: entry.ID},
-		Status:    flow.InitializingStatus,
+		Status:    jobrun.InitializingStatus,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -60,7 +58,7 @@ func assembleWorkflowJob(ctx context.Context, mgr dentry.Manager, spec *types.Wo
 		entryPath = entry.Name
 		j.Steps = append(j.Steps, types.WorkflowJobStep{
 			StepName: exec.OpEntryInit,
-			Status:   flow.InitializingStatus,
+			Status:   jobrun.InitializingStatus,
 			Operator: &types.WorkflowJobOperator{
 				Name:       exec.OpEntryInit,
 				Parameters: globalParam,
@@ -79,7 +77,7 @@ func assembleWorkflowJob(ctx context.Context, mgr dentry.Manager, spec *types.Wo
 		j.Steps = append(j.Steps,
 			types.WorkflowJobStep{
 				StepName: stepSpec.Name,
-				Status:   flow.InitializingStatus,
+				Status:   jobrun.InitializingStatus,
 				Plugin:   stepSpec.Plugin,
 				Script:   stepSpec.Script,
 			},
@@ -88,7 +86,7 @@ func assembleWorkflowJob(ctx context.Context, mgr dentry.Manager, spec *types.Wo
 
 	j.Steps = append(j.Steps, types.WorkflowJobStep{
 		StepName: exec.OpEntryCollect,
-		Status:   flow.InitializingStatus,
+		Status:   jobrun.InitializingStatus,
 		Operator: &types.WorkflowJobOperator{
 			Name:       exec.OpEntryCollect,
 			Parameters: globalParam,
@@ -98,17 +96,17 @@ func assembleWorkflowJob(ctx context.Context, mgr dentry.Manager, spec *types.Wo
 	return j, nil
 }
 
-func assembleFlow(job *types.WorkflowJob) (*flow.Flow, error) {
-	f := &flow.Flow{
+func assembleFlow(job *types.WorkflowJob) (*jobrun.Flow, error) {
+	f := &jobrun.Flow{
 		ID:            job.Id,
 		Executor:      "local",
 		Status:        job.Status,
 		Message:       job.Message,
-		ControlPolicy: flow.ControlPolicy{FailedPolicy: flow.PolicyFastFailed},
+		ControlPolicy: jobrun.ControlPolicy{FailedPolicy: jobrun.PolicyFastFailed},
 	}
 
 	for _, step := range job.Steps {
-		var t flow.Task
+		var t jobrun.Task
 		switch {
 		case step.Plugin != nil:
 			param := map[string]string{
@@ -123,20 +121,20 @@ func assembleFlow(job *types.WorkflowJob) (*flow.Flow, error) {
 				}
 				param[k] = v
 			}
-			t = flow.Task{
+			t = jobrun.Task{
 				Name:    step.StepName,
 				Status:  step.Status,
 				Message: step.Message,
-				OperatorSpec: flow.Spec{
+				OperatorSpec: jobrun.Spec{
 					Type:       exec.OpPluginCall,
 					Parameters: param,
 				},
 				RetryOnFailed: 1,
 			}
 		case step.Operator != nil:
-			t = flow.Task{
+			t = jobrun.Task{
 				Name: step.Operator.Name,
-				OperatorSpec: flow.Spec{
+				OperatorSpec: jobrun.Spec{
 					Type:       step.Operator.Name,
 					Parameters: step.Operator.Parameters,
 				},
@@ -144,11 +142,11 @@ func assembleFlow(job *types.WorkflowJob) (*flow.Flow, error) {
 			}
 		case step.Script != nil:
 			if step.Script.Type == exec.ShellOperator || step.Script.Type == exec.PythonOperator {
-				t = flow.Task{
+				t = jobrun.Task{
 					Name: step.Operator.Name,
-					OperatorSpec: flow.Spec{
+					OperatorSpec: jobrun.Spec{
 						Type: step.Script.Type,
-						Script: &flow.Script{
+						Script: &jobrun.Script{
 							Content: step.Script.Content,
 							Command: step.Script.Command,
 							Env:     step.Script.Env,
@@ -169,84 +167,6 @@ func assembleFlow(job *types.WorkflowJob) (*flow.Flow, error) {
 	}
 
 	return f, nil
-}
-
-type storageWrapper struct {
-	recorder metastore.ScheduledTaskRecorder
-	logger   *zap.SugaredLogger
-}
-
-var _ flow.Storage = &storageWrapper{}
-
-func (s *storageWrapper) GetFlow(ctx context.Context, flowId string) (*flow.Flow, error) {
-	wfJob, err := s.recorder.ListWorkflowJob(ctx, types.JobFilter{JobID: flowId})
-	if err != nil {
-		s.logger.Errorw("load job failed", "err", err)
-		return nil, err
-	}
-	if len(wfJob) == 0 {
-		return nil, types.ErrNotFound
-	}
-	wf := wfJob[0]
-
-	return assembleFlow(wf)
-}
-
-func (s *storageWrapper) SaveFlow(ctx context.Context, flow *flow.Flow) error {
-	wfJob, err := s.recorder.ListWorkflowJob(ctx, types.JobFilter{JobID: flow.ID})
-	if err != nil {
-		return fmt.Errorf("query workflow job failed: %s", err)
-	}
-	if len(wfJob) == 0 {
-		return fmt.Errorf("query workflow job failed: %s not found", flow.ID)
-	}
-	wf := wfJob[0]
-
-	wf.Status = flow.Status
-	wf.Message = flow.Message
-	for i, step := range wf.Steps {
-		for _, task := range flow.Tasks {
-			if step.StepName == task.Name {
-				wf.Steps[i].Status = task.Status
-				wf.Steps[i].Message = task.Message
-				break
-			}
-		}
-	}
-	wf.UpdatedAt = time.Now()
-
-	err = s.recorder.SaveWorkflowJob(ctx, wf)
-	if err != nil {
-		s.logger.Errorw("save job to metadb failed", "err", err)
-		return err
-	}
-
-	return nil
-}
-
-func (s *storageWrapper) DeleteFlow(ctx context.Context, flowId string) error {
-	err := s.recorder.DeleteWorkflowJob(ctx, flowId)
-	if err != nil {
-		s.logger.Errorw("delete job to metadb failed", "err", err)
-		return err
-	}
-	return nil
-}
-
-func (s *storageWrapper) SaveTask(ctx context.Context, flowId string, task *flow.Task) error {
-	flowJob, err := s.GetFlow(ctx, flowId)
-	if err != nil {
-		return err
-	}
-
-	for i, t := range flowJob.Tasks {
-		if t.Name == task.Name {
-			flowJob.Tasks[i] = *task
-			break
-		}
-	}
-
-	return s.SaveFlow(ctx, flowJob)
 }
 
 type JobAttr struct {

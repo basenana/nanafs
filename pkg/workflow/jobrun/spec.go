@@ -14,7 +14,12 @@
    limitations under the License.
 */
 
-package flow
+package jobrun
+
+import (
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/pkg/workflow/fsm"
+)
 
 const (
 	InitializingStatus = "initializing"
@@ -37,6 +42,8 @@ const (
 	PolicyPaused     = "paused"
 	PolicyContinue   = "continue"
 )
+
+var _ fsm.Stateful = &types.WorkflowJob{}
 
 type Flow struct {
 	ID            string        `json:"id"`

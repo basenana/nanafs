@@ -14,11 +14,13 @@
    limitations under the License.
 */
 
-package flow
+package jobrun
 
 import (
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"strings"
@@ -26,40 +28,43 @@ import (
 )
 
 type Controller struct {
-	runners map[string]Runner
-	mux     sync.Mutex
-	storage Storage
-	logger  *zap.SugaredLogger
+	runners  map[string]Runner
+	mux      sync.Mutex
+	recorder metastore.ScheduledTaskRecorder
+	logger   *zap.SugaredLogger
 }
 
-func (c *Controller) TriggerFlow(ctx context.Context, flowId string) error {
-	f, err := c.storage.GetFlow(ctx, flowId)
+func (c *Controller) TriggerJob(ctx context.Context, jID string) error {
+	jobs, err := c.recorder.ListWorkflowJob(ctx, types.JobFilter{JobID: jID})
 	if err != nil {
 		return err
 	}
-	r := NewRunner(f, c.storage)
+	if len(jobs) == 0 {
+		return types.ErrNotFound
+	}
 
+	r := NewRunner(jobs[0], c.recorder)
 	c.mux.Lock()
-	c.runners[f.ID] = r
+	c.runners[jID] = r
 	c.mux.Unlock()
 
-	c.logger.Infof("trigger flow %s", flowId)
-	go c.startFlowRunner(ctx, f)
+	c.logger.Infof("trigger flow %s", jID)
+	go c.startJobRunner(ctx, jID)
 	return nil
 }
 
-func (c *Controller) startFlowRunner(ctx context.Context, flow *Flow) {
+func (c *Controller) startJobRunner(ctx context.Context, jID string) {
 	c.mux.Lock()
-	r, ok := c.runners[flow.ID]
+	r, ok := c.runners[jID]
 	c.mux.Unlock()
 	if !ok {
-		c.logger.Errorf("start runner failed, err: runner %s not found", flow.ID)
+		c.logger.Errorf("start runner failed, err: runner %s not found", jID)
 		return
 	}
 
 	defer func() {
 		c.mux.Lock()
-		delete(c.runners, flow.ID)
+		delete(c.runners, jID)
 		c.mux.Unlock()
 	}()
 
@@ -69,27 +74,27 @@ func (c *Controller) startFlowRunner(ctx context.Context, flow *Flow) {
 	}
 }
 
-func (c *Controller) PauseFlow(flowId string) error {
-	r, ok := c.runners[flowId]
+func (c *Controller) PauseJob(jID string) error {
+	r, ok := c.runners[jID]
 	if !ok {
-		return fmt.Errorf("flow %s not found", flowId)
+		return fmt.Errorf("flow %s not found", jID)
 	}
-	c.logger.Infof("pause flow %s", flowId)
+	c.logger.Infof("pause flow %s", jID)
 	return r.Pause()
 }
 
-func (c *Controller) CancelFlow(flowId string) error {
-	r, ok := c.runners[flowId]
+func (c *Controller) CancelJob(jID string) error {
+	r, ok := c.runners[jID]
 	if !ok {
-		return fmt.Errorf("flow %s not found", flowId)
+		return fmt.Errorf("flow %s not found", jID)
 	}
 	return r.Cancel()
 }
 
-func (c *Controller) ResumeFlow(flowId string) error {
-	r, ok := c.runners[flowId]
+func (c *Controller) ResumeJob(jID string) error {
+	r, ok := c.runners[jID]
 	if !ok {
-		return fmt.Errorf("flow %s not found", flowId)
+		return fmt.Errorf("flow %s not found", jID)
 	}
 	return r.Resume()
 }
@@ -110,10 +115,10 @@ func (c *Controller) Shutdown() error {
 	return nil
 }
 
-func NewFlowController(storage Storage) *Controller {
+func NewJobController(recorder metastore.ScheduledTaskRecorder) *Controller {
 	return &Controller{
-		runners: make(map[string]Runner),
-		storage: storage,
-		logger:  logger.NewLogger("flow"),
+		runners:  make(map[string]Runner),
+		recorder: recorder,
+		logger:   logger.NewLogger("flow"),
 	}
 }

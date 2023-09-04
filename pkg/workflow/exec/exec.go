@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/pkg/workflow/flow"
+	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	"strconv"
 )
 
@@ -30,14 +30,14 @@ const (
 )
 
 func RegisterOperators(entryMgr dentry.Manager) error {
-	flow.RegisterExecutorBuilder(localExecName, func(flow *flow.Flow) flow.Executor {
-		return &localExecutor{flow: flow, entryMgr: entryMgr}
+	jobrun.RegisterExecutorBuilder(localExecName, func(job *types.WorkflowJob) jobrun.Executor {
+		return &localExecutor{job: job, entryMgr: entryMgr}
 	})
 	return nil
 }
 
 type localExecutor struct {
-	flow     *flow.Flow
+	job      *types.WorkflowJob
 	entryMgr dentry.Manager
 }
 
@@ -46,7 +46,7 @@ func (b *localExecutor) Setup(ctx context.Context) error {
 	panic("implement me")
 }
 
-func (b *localExecutor) DoOperation(ctx context.Context, task flow.Task, operatorSpec flow.Spec) error {
+func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobStep, operatorSpec jobrun.Spec) error {
 	//TODO implement me
 	panic("implement me")
 }
@@ -56,9 +56,9 @@ func (b *localExecutor) Teardown(ctx context.Context) {
 	panic("implement me")
 }
 
-var _ flow.Executor = &localExecutor{}
+var _ jobrun.Executor = &localExecutor{}
 
-func (b *localExecutor) buildEntryInitOperator(task flow.Task, operatorSpec flow.Spec) (flow.Operator, error) {
+func (b *localExecutor) buildEntryInitOperator(step types.WorkflowJobStep, operatorSpec jobrun.Spec) (jobrun.Operator, error) {
 	op := &entryInitOperator{
 		entryMgr:  b.entryMgr,
 		entryPath: operatorSpec.Parameters[paramEntryPathKey],
@@ -73,11 +73,11 @@ func (b *localExecutor) buildEntryInitOperator(task flow.Task, operatorSpec flow
 	return op, nil
 }
 
-func (b *localExecutor) buildEntryCollectOperator(task flow.Task, operatorSpec flow.Spec) (flow.Operator, error) {
+func (b *localExecutor) buildEntryCollectOperator(step types.WorkflowJobStep, operatorSpec jobrun.Spec) (jobrun.Operator, error) {
 	return &entryCollectOperator{}, nil
 }
 
-func (b *localExecutor) buildPluginCallOperator(task flow.Task, operatorSpec flow.Spec) (flow.Operator, error) {
+func (b *localExecutor) buildPluginCallOperator(step types.WorkflowJobStep, operatorSpec jobrun.Spec) (jobrun.Operator, error) {
 	entryIDStr := operatorSpec.Parameters[paramEntryIdKey]
 	entryID, err := strconv.ParseInt(entryIDStr, 10, 64)
 	if err != nil {

@@ -22,7 +22,7 @@ import (
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/plugin/stub"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/pkg/workflow/flow"
+	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 )
 
 type pluginCallOperator struct {
@@ -31,9 +31,9 @@ type pluginCallOperator struct {
 	entryPath string
 }
 
-var _ flow.Operator = &pluginCallOperator{}
+var _ jobrun.Operator = &pluginCallOperator{}
 
-func (e *pluginCallOperator) Do(ctx context.Context, param *flow.Parameter) error {
+func (e *pluginCallOperator) Do(ctx context.Context, param *jobrun.Parameter) error {
 	req := stub.NewRequest()
 	req.WorkPath = param.Workdir
 	req.EntryId = e.entryID

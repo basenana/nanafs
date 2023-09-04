@@ -21,7 +21,7 @@ import (
 	"context"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/pkg/workflow/flow"
+	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	"github.com/basenana/nanafs/utils"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -200,9 +200,9 @@ var _ = Describe("TestMirrorPlugin", func() {
 				Expect(len(jobs)).Should(Equal(1))
 				job := jobs[0]
 				Expect(jobs[0].Id).Should(Equal(jobID))
-				Expect(job.Status).ShouldNot(Equal(flow.SucceedStatus))
+				Expect(job.Status).ShouldNot(Equal(jobrun.SucceedStatus))
 				return job.Status
-			}, time.Second*10, time.Second).Should(Equal(flow.RunningStatus))
+			}, time.Second*10, time.Second).Should(Equal(jobrun.RunningStatus))
 
 		})
 		It("pause workflow job should be succeed", func() {
@@ -211,7 +211,7 @@ var _ = Describe("TestMirrorPlugin", func() {
 			Expect(len(jobs)).Should(Equal(1))
 
 			job := jobs[0]
-			job.Status = flow.PausedStatus
+			job.Status = jobrun.PausedStatus
 
 			f, err := entryMgr.Open(ctx, workflowJob.ID, dentry.Attr{Write: true, Trunc: true})
 			Expect(err).Should(BeNil())
@@ -226,9 +226,9 @@ var _ = Describe("TestMirrorPlugin", func() {
 				Expect(err).Should(BeNil())
 				Expect(len(jobs)).Should(Equal(1))
 				job := jobs[0]
-				Expect(job.Status).ShouldNot(Equal(flow.SucceedStatus))
+				Expect(job.Status).ShouldNot(Equal(jobrun.SucceedStatus))
 				return job.Status
-			}, time.Minute, time.Second).Should(Equal(flow.PausedStatus))
+			}, time.Minute, time.Second).Should(Equal(jobrun.PausedStatus))
 		})
 		It("resume workflow job should be succeed", func() {
 			jobs, err := mgr.ListJobs(ctx, workflowID1)
@@ -236,7 +236,7 @@ var _ = Describe("TestMirrorPlugin", func() {
 			Expect(len(jobs)).Should(Equal(1))
 
 			job := jobs[0]
-			job.Status = flow.RunningStatus
+			job.Status = jobrun.RunningStatus
 
 			f, err := entryMgr.Open(ctx, workflowJob.ID, dentry.Attr{Write: true, Trunc: true})
 			Expect(err).Should(BeNil())
@@ -251,9 +251,9 @@ var _ = Describe("TestMirrorPlugin", func() {
 				Expect(err).Should(BeNil())
 				Expect(len(jobs)).Should(Equal(1))
 				job := jobs[0]
-				Expect(job.Status).ShouldNot(Equal(flow.SucceedStatus))
+				Expect(job.Status).ShouldNot(Equal(jobrun.SucceedStatus))
 				return job.Status
-			}, time.Minute, time.Second).Should(Equal(flow.RunningStatus))
+			}, time.Minute, time.Second).Should(Equal(jobrun.RunningStatus))
 		})
 		It("workflow job should finish", func() {
 			Eventually(func() string {
@@ -262,7 +262,7 @@ var _ = Describe("TestMirrorPlugin", func() {
 				Expect(len(jobs)).Should(Equal(1))
 				job := jobs[0]
 				return job.Status
-			}, time.Minute, time.Second).Should(Equal(flow.SucceedStatus))
+			}, time.Minute, time.Second).Should(Equal(jobrun.SucceedStatus))
 		})
 	})
 })

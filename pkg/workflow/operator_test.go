@@ -20,7 +20,7 @@ import (
 	"context"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/pkg/workflow/flow"
+	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"strconv"
@@ -29,7 +29,7 @@ import (
 var _ = Describe("TestEntryInitOperator", func() {
 	Context("operator do", func() {
 		var (
-			op  flow.Operator
+			op  jobrun.Operator
 			err error
 			en  *types.Metadata
 		)
@@ -57,8 +57,8 @@ var _ = Describe("TestEntryInitOperator", func() {
 		It("create be succeed", func() {
 			b := operatorBuilder{entryMgr: entryMgr}
 			op, err = b.buildEntryInitOperator(
-				flow.Task{},
-				flow.Spec{
+				jobrun.Task{},
+				jobrun.Spec{
 					Type: opEntryInit,
 					Parameters: map[string]string{
 						paramEntryIdKey:   strconv.FormatInt(en.ID, 10),
@@ -68,7 +68,7 @@ var _ = Describe("TestEntryInitOperator", func() {
 			Expect(err).Should(BeNil())
 		})
 		It("do be succeed", func() {
-			err = op.Do(context.Background(), &flow.Parameter{
+			err = op.Do(context.Background(), &jobrun.Parameter{
 				FlowID:  "mocked-flow-1",
 				Workdir: tempDir,
 			})
@@ -80,21 +80,21 @@ var _ = Describe("TestEntryInitOperator", func() {
 var _ = Describe("TestEntryCollectOperator", func() {
 	Context("operator do", func() {
 		var (
-			op  flow.Operator
+			op  jobrun.Operator
 			err error
 		)
 		It("create be succeed", func() {
 			b := operatorBuilder{entryMgr: entryMgr}
 			op, err = b.buildEntryCollectOperator(
-				flow.Task{},
-				flow.Spec{
+				jobrun.Task{},
+				jobrun.Spec{
 					Type:       opEntryCollect,
 					Parameters: map[string]string{},
 				})
 			Expect(err).Should(BeNil())
 		})
 		It("do be succeed", func() {
-			err = op.Do(context.Background(), &flow.Parameter{
+			err = op.Do(context.Background(), &jobrun.Parameter{
 				FlowID:  "mocked-flow-1",
 				Workdir: tempDir,
 			})
@@ -113,14 +113,14 @@ var _ = Describe("TestPluginCallOperator", func() {
 
 	Context("operator do", func() {
 		var (
-			op  flow.Operator
+			op  jobrun.Operator
 			err error
 		)
 		It("create be succeed", func() {
 			b := operatorBuilder{entryMgr: entryMgr}
 			op, err = b.buildPluginCallOperator(
-				flow.Task{},
-				flow.Spec{
+				jobrun.Task{},
+				jobrun.Spec{
 					Type: opPluginCall,
 					Parameters: map[string]string{
 						paramPluginName:    ps.PluginName,
@@ -135,7 +135,7 @@ var _ = Describe("TestPluginCallOperator", func() {
 		})
 
 		It("do be succeed", func() {
-			err = op.Do(context.Background(), &flow.Parameter{
+			err = op.Do(context.Background(), &jobrun.Parameter{
 				FlowID:  "mocked-flow-1",
 				Workdir: tempDir,
 			})

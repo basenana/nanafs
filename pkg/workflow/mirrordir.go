@@ -23,7 +23,7 @@ import (
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/plugin/stub"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/pkg/workflow/flow"
+	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	"github.com/basenana/nanafs/utils"
 	"gopkg.in/yaml.v3"
 	"path"
@@ -441,11 +441,11 @@ func (f *fileHandler) triggerOrUpdateWorkflowJob(ctx context.Context, en *stub.E
 	if oldJob != nil {
 		if wfJob.Status != oldJob.Status && oldJob.FinishAt.IsZero() {
 			switch {
-			case wfJob.Status == flow.PausedStatus && oldJob.Status == flow.RunningStatus:
+			case wfJob.Status == jobrun.PausedStatus && oldJob.Status == jobrun.RunningStatus:
 				err = f.plugin.mgr.PauseWorkflowJob(ctx, jobID)
-			case wfJob.Status == flow.RunningStatus && oldJob.Status == flow.PausedStatus:
+			case wfJob.Status == jobrun.RunningStatus && oldJob.Status == jobrun.PausedStatus:
 				err = f.plugin.mgr.ResumeWorkflowJob(ctx, jobID)
-			case wfJob.Status == flow.CanceledStatus:
+			case wfJob.Status == jobrun.CanceledStatus:
 				err = f.plugin.mgr.CancelWorkflowJob(ctx, jobID)
 			default:
 				err = fmt.Errorf("the current state is %s and cannot be changed to %s", oldJob.Status, wfJob.Status)

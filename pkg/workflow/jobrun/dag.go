@@ -14,27 +14,28 @@
    limitations under the License.
 */
 
-package flow
+package jobrun
 
 import (
 	"fmt"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"sync"
 )
 
-type taskToward struct {
-	taskName  string
+type stepToward struct {
+	stepName  string
 	status    string
 	onSucceed string
 	onFailed  string
 }
 
 type DAG struct {
-	// tasks contain all task
-	tasks map[string]*taskToward
+	// steps contain all task
+	steps map[string]*stepToward
 
 	// crtBatch contain current task batch need to trigger
-	crtBatch []*taskToward
+	crtBatch []*stepToward
 
 	hasFailed bool
 	mux       sync.Mutex
@@ -43,35 +44,35 @@ type DAG struct {
 func (g *DAG) updateTaskStatus(taskName, status string) {
 	g.mux.Lock()
 	defer g.mux.Unlock()
-	t, ok := g.tasks[taskName]
+	t, ok := g.steps[taskName]
 	if !ok {
 		return
 	}
 	t.status = status
-	g.tasks[taskName] = t
+	g.steps[taskName] = t
 	if status == FailedStatus || status == ErrorStatus {
 		g.hasFailed = true
 	}
 	return
 }
 
-func (g *DAG) nextBatchTasks() []*taskToward {
+func (g *DAG) nextBatchTasks() []*stepToward {
 	g.mux.Lock()
 	defer g.mux.Unlock()
 	for _, t := range g.crtBatch {
-		task := g.tasks[t.taskName]
+		task := g.steps[t.stepName]
 		if !IsFinishedStatus(task.status) {
 			return g.crtBatch
 		}
 	}
 
-	nextBatch := make([]*taskToward, 0)
+	nextBatch := make([]*stepToward, 0)
 	for _, t := range g.crtBatch {
 		if t.status == SucceedStatus && t.onSucceed != "" {
-			nextBatch = append(nextBatch, g.tasks[t.onSucceed])
+			nextBatch = append(nextBatch, g.steps[t.onSucceed])
 		}
 		if (t.status == FailedStatus || t.status == ErrorStatus) && t.onFailed != "" {
-			nextBatch = append(nextBatch, g.tasks[t.onFailed])
+			nextBatch = append(nextBatch, g.steps[t.onFailed])
 		}
 	}
 
@@ -83,43 +84,46 @@ func (g *DAG) nextBatchTasks() []*taskToward {
 	return nil
 }
 
-func buildDAG(tasks []Task) (*DAG, error) {
-	dag := &DAG{tasks: map[string]*taskToward{}}
+func buildDAG(steps []types.WorkflowJobStep) (*DAG, error) {
+	dag := &DAG{steps: map[string]*stepToward{}}
 
-	for _, t := range tasks {
-		if _, exist := dag.tasks[t.Name]; exist {
-			return nil, fmt.Errorf("duplicate task %s definition", t.Name)
+	for i, t := range steps {
+		if _, exist := dag.steps[t.StepName]; exist {
+			return nil, fmt.Errorf("duplicate task %s definition", t.StepName)
 		}
-		dag.tasks[t.Name] = &taskToward{
-			taskName:  t.Name,
-			status:    t.Status,
-			onSucceed: t.Next.OnSucceed,
-			onFailed:  t.Next.OnFailed,
+		dag.steps[t.StepName] = &stepToward{
+			stepName: t.StepName,
+			status:   t.Status,
+		}
+
+		// TODO: support DAG task define
+		if i+1 < len(steps) {
+			dag.steps[t.StepName].onSucceed = steps[i+1].StepName
 		}
 	}
 
-	for _, t := range dag.tasks {
+	for _, t := range dag.steps {
 		if t.onSucceed != "" {
-			if _, exist := dag.tasks[t.onSucceed]; !exist {
-				return nil, fmt.Errorf("next task after %s succeed(%s) is does not define", t.taskName, t.onSucceed)
+			if _, exist := dag.steps[t.onSucceed]; !exist {
+				return nil, fmt.Errorf("next task after %s succeed(%s) is does not define", t.stepName, t.onSucceed)
 			}
 		}
 		if t.onFailed != "" {
-			if _, exist := dag.tasks[t.onFailed]; !exist {
-				return nil, fmt.Errorf("next task after %s failed(%s) is does not define", t.taskName, t.onFailed)
+			if _, exist := dag.steps[t.onFailed]; !exist {
+				return nil, fmt.Errorf("next task after %s failed(%s) is does not define", t.stepName, t.onFailed)
 			}
 		}
 	}
 
-	firstTaskName, err := newDagChecker(dag.tasks).firstBatch()
+	firstTaskName, err := newDagChecker(dag.steps).firstBatch()
 	if err != nil {
 		return nil, err
 	}
 
 	firstTaskNameSet := utils.NewStringSet(firstTaskName...)
-	for i, t := range dag.tasks {
-		if firstTaskNameSet.Has(t.taskName) {
-			dag.crtBatch = append(dag.crtBatch, dag.tasks[i])
+	for i, t := range dag.steps {
+		if firstTaskNameSet.Has(t.stepName) {
+			dag.crtBatch = append(dag.crtBatch, dag.steps[i])
 		}
 	}
 
@@ -192,7 +196,7 @@ func (t *taskDep) order(firstTask string, nextTasks []string) {
 	}
 }
 
-func newDagChecker(tasks map[string]*taskToward) *taskDep {
+func newDagChecker(tasks map[string]*stepToward) *taskDep {
 	c := &taskDep{
 		taskSet:   utils.NewStringSet(),
 		taskEdges: map[string][]string{},
@@ -207,7 +211,7 @@ func newDagChecker(tasks map[string]*taskToward) *taskDep {
 		if t.onFailed != "" {
 			nextTask = append(nextTask, t.onFailed)
 		}
-		c.order(t.taskName, nextTask)
+		c.order(t.stepName, nextTask)
 	}
 
 	return c
