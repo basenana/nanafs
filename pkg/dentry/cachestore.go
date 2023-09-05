@@ -26,8 +26,9 @@ import (
 )
 
 type metaCache struct {
-	metastore metastore.ObjectStore
-	lfu       *utils.LFUPool
+	metastore  metastore.ObjectStore
+	lfu        *utils.LFUPool
+	childCache *utils.LFUPool
 }
 
 func (c *metaCache) getEntry(ctx context.Context, entryID int64) (*types.Metadata, error) {
@@ -42,6 +43,25 @@ func (c *metaCache) getEntry(ctx context.Context, entryID int64) (*types.Metadat
 	}
 	md := obj.Metadata
 	c.putEntry2Cache(&md)
+	return &md, nil
+}
+
+func (c *metaCache) lookupChild(ctx context.Context, parentID int64, name string) (*types.Metadata, error) {
+	childID := c.lfu.Get(c.entryChildKey(parentID, name))
+	if childID != nil {
+		return c.getEntry(ctx, childID.(int64))
+	}
+
+	objs, err := c.metastore.ListObjects(ctx, types.Filter{Name: name, ParentID: parentID})
+	if err != nil {
+		return nil, err
+	}
+	if len(objs) == 0 {
+		return nil, types.ErrNotFound
+	}
+
+	md := objs[0].Metadata
+	c.putChildId2Cache(parentID, md.ID, name)
 	return &md, nil
 }
 
@@ -69,6 +89,7 @@ func (c *metaCache) updateEntries(ctx context.Context, entries ...*types.Metadat
 	defer func() {
 		for _, en := range entries {
 			c.delEntryCache(en.ID)
+			c.delChildCache(en.ParentID, en.Name)
 		}
 	}()
 
@@ -95,10 +116,26 @@ func (c *metaCache) delEntryCache(eid int64) {
 }
 
 func (c *metaCache) entryKey(eid int64) string {
-	return fmt.Sprintf("entry_%d", eid)
+	return fmt.Sprintf("e_%d", eid)
+}
+
+func (c *metaCache) putChildId2Cache(parentID, childID int64, name string) {
+	c.lfu.Put(c.entryChildKey(parentID, name), childID)
+}
+
+func (c *metaCache) delChildCache(parentID int64, name string) {
+	c.lfu.Remove(c.entryChildKey(parentID, name))
+}
+
+func (c *metaCache) entryChildKey(eid int64, name string) string {
+	return fmt.Sprintf("e_%d_c_%s", eid, name)
 }
 
 func newCacheStore(metastore metastore.ObjectStore) *metaCache {
-	cacheStore := &metaCache{metastore: metastore, lfu: utils.NewLFUPool(8192)}
+	cacheStore := &metaCache{
+		metastore:  metastore,
+		lfu:        utils.NewLFUPool(8192),
+		childCache: utils.NewLFUPool(32768),
+	}
 	return cacheStore
 }
