@@ -47,6 +47,7 @@ func newExecutor(name string, job *types.WorkflowJob) (Executor, error) {
 type Executor interface {
 	Setup(ctx context.Context) error
 	DoOperation(ctx context.Context, step types.WorkflowJobStep) error
+	Collect(ctx context.Context) error
 	Teardown(ctx context.Context)
 }
 

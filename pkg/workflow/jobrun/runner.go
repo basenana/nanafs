@@ -390,12 +390,12 @@ func (r *runner) pushEvent2FlowFSM(event fsm.Event) error {
 	return nil
 }
 
-func (r *runner) updateStepStatus(name, status string) error {
+func (r *runner) updateStepStatus(step *types.WorkflowJobStep) error {
 
 	found := false
 	for i := range r.job.Steps {
-		if r.job.Steps[i].StepName == name {
-			r.job.Steps[i].Status = status
+		if r.job.Steps[i].StepName == step.StepName {
+			r.job.Steps[i].Status = step.Status
 			found = true
 		}
 	}
@@ -407,8 +407,8 @@ func (r *runner) updateStepStatus(name, status string) error {
 	if err := r.recorder.SaveWorkflowJob(r.ctx, r.job); err != nil {
 		return err
 	}
-	if IsFinishedStatus(status) {
-		r.dag.updateTaskStatus(name, status)
+	if IsFinishedStatus(step.Status) {
+		r.dag.updateTaskStatus(step.StepName, step.Status)
 	}
 	return nil
 }
