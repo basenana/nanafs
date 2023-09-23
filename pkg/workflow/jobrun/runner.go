@@ -32,6 +32,8 @@ const (
 	localExecName = "local"
 )
 
+var defaultExecName = localExecName
+
 type Runner interface {
 	Start(ctx context.Context) error
 	Pause() error
@@ -81,7 +83,7 @@ func (r *runner) Start(ctx context.Context) (err error) {
 		r.logger.Errorw("build dag failed", "err", err)
 		return err
 	}
-	r.executor, err = newExecutor(localExecName, r.job)
+	r.executor, err = newExecutor(defaultExecName, r.job)
 	if err != nil {
 		r.job.Status = FailedStatus
 		r.logger.Errorw("build executor failed", "err", err)
@@ -325,7 +327,7 @@ func (r *runner) initial() (err error) {
 			return err
 		}
 	}
-	for i := range r.job.Status {
+	for i := range r.job.Steps {
 		step := r.job.Steps[i]
 		if step.Status == "" {
 			step.Status = InitializingStatus

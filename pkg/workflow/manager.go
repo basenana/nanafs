@@ -177,7 +177,7 @@ func (m *manager) TriggerWorkflow(ctx context.Context, wfId string, entryID int6
 		return nil, err
 	}
 
-	job, err := assembleWorkflowJob(ctx, m.entryMgr, workflow, en, m.fuse)
+	job, err := assembleWorkflowJob(workflow, en)
 	if err != nil {
 		m.logger.Errorw("assemble job failed", "workflow", workflow.Name, "err", err)
 		return nil, err
@@ -292,4 +292,9 @@ func (d disabledManager) ResumeWorkflowJob(ctx context.Context, jobId string) er
 
 func (d disabledManager) CancelWorkflowJob(ctx context.Context, jobId string) error {
 	return types.ErrNotFound
+}
+
+type JobAttr struct {
+	JobID  string
+	Reason string
 }
