@@ -32,9 +32,8 @@ type WorkflowSpec struct {
 }
 
 type WorkflowStepSpec struct {
-	Name   string              `json:"name"`
-	Plugin *PlugScope          `json:"plugin,omitempty"`
-	Script *WorkflowStepScript `json:"script,omitempty"`
+	Name   string     `json:"name"`
+	Plugin *PlugScope `json:"plugin,omitempty"`
 }
 
 type WorkflowJob struct {
@@ -51,29 +50,31 @@ type WorkflowJob struct {
 	UpdatedAt     time.Time         `json:"updated_at"`
 }
 
+func (w *WorkflowJob) GetStatus() string {
+	return w.Status
+}
+
+func (w *WorkflowJob) SetStatus(status string) {
+	w.Status = status
+}
+
+func (w *WorkflowJob) GetMessage() string {
+	return w.Message
+}
+
+func (w *WorkflowJob) SetMessage(msg string) {
+	w.Message = msg
+}
+
 type WorkflowJobStep struct {
-	StepName string               `json:"step_name"`
-	Message  string               `json:"message"`
-	Status   string               `json:"status"`
-	Plugin   *PlugScope           `json:"plugin,omitempty"`
-	Operator *WorkflowJobOperator `json:"operator,omitempty"`
-	Script   *WorkflowStepScript  `json:"script,omitempty"`
+	StepName string     `json:"step_name"`
+	Message  string     `json:"message"`
+	Status   string     `json:"status"`
+	Plugin   *PlugScope `json:"plugin,omitempty"`
 }
 
 type WorkflowTarget struct {
 	EntryID int64 `json:"entry_id"`
-}
-
-type WorkflowStepScript struct {
-	Type    string            `json:"type"`
-	Content string            `json:"content,omitempty"`
-	Command []string          `json:"command,omitempty"`
-	Env     map[string]string `json:"env,omitempty"`
-}
-
-type WorkflowJobOperator struct {
-	Name       string            `json:"name"`
-	Parameters map[string]string `json:"parameters"`
 }
 
 type WorkflowEntryResult struct {

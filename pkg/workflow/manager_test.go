@@ -18,9 +18,9 @@ package workflow
 
 import (
 	"context"
-	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"time"
@@ -155,7 +155,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 					}
 				}
 				return ""
-			}, time.Minute, time.Second).Should(Equal(string(flow.SucceedStatus)))
+			}, time.Minute, time.Second).Should(Equal(string(jobrun.SucceedStatus)))
 		})
 	})
 
@@ -177,7 +177,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 					}
 				}
 				return ""
-			}, time.Minute, time.Second).Should(Equal(string(flow.RunningStatus)))
+			}, time.Minute, time.Second).Should(Equal(string(jobrun.RunningStatus)))
 		})
 
 		It("pause job should be succeed", func() {
@@ -192,7 +192,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 					}
 				}
 				return ""
-			}, time.Minute, time.Second).Should(Equal(string(flow.PausedStatus)))
+			}, time.Minute, time.Second).Should(Equal(string(jobrun.PausedStatus)))
 		})
 
 		It("resume job should be succeed", func() {
@@ -207,7 +207,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 					}
 				}
 				return ""
-			}, time.Minute, time.Second).Should(Equal(string(flow.RunningStatus)))
+			}, time.Minute, time.Second).Should(Equal(string(jobrun.RunningStatus)))
 		})
 
 		It("job should be succeed", func() {
@@ -221,7 +221,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 					}
 				}
 				return ""
-			}, time.Minute, time.Second).Should(Equal(string(flow.SucceedStatus)))
+			}, time.Minute, time.Second).Should(Equal(string(jobrun.SucceedStatus)))
 		})
 	})
 
@@ -243,7 +243,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 					}
 				}
 				return ""
-			}, time.Minute, time.Second).Should(Equal(string(flow.RunningStatus)))
+			}, time.Minute, time.Second).Should(Equal(string(jobrun.RunningStatus)))
 		})
 
 		It("pause job should be succeed", func() {
@@ -258,7 +258,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 					}
 				}
 				return ""
-			}, time.Minute, time.Second).Should(Equal(string(flow.PausedStatus)))
+			}, time.Minute, time.Second).Should(Equal(string(jobrun.PausedStatus)))
 		})
 
 		It("cancel job should be succeed", func() {
@@ -273,7 +273,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 					}
 				}
 				return ""
-			}, time.Minute, time.Second).Should(Equal(string(flow.CanceledStatus)))
+			}, time.Minute, time.Second).Should(Equal(string(jobrun.CanceledStatus)))
 		})
 	})
 })

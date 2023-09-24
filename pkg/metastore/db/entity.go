@@ -509,7 +509,7 @@ func (e *Entity) ListScheduledTask(ctx context.Context, taskID string, filter ty
 
 	result := make([]*types.ScheduledTask, len(tasks))
 	for i, t := range tasks {
-		evt := types.Event{}
+		evt := types.EntryEvent{}
 		_ = json.Unmarshal([]byte(t.Event), &evt)
 		result[i] = &types.ScheduledTask{
 			ID:             t.ID,
@@ -683,6 +683,49 @@ func (e *Entity) SaveWorkflowJob(ctx context.Context, job *types.WorkflowJob) er
 
 func (e *Entity) DeleteWorkflowJob(ctx context.Context, wfJobID ...string) error {
 	res := e.DB.WithContext(ctx).Where("id IN ?", wfJobID).Delete(&WorkflowJob{})
+	return res.Error
+}
+
+func (e *Entity) ListNotifications(ctx context.Context) ([]types.Notification, error) {
+	noList := make([]Notification, 0)
+	res := e.DB.WithContext(ctx).Order("time desc").Find(&noList)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+
+	result := make([]types.Notification, len(noList))
+	for i, no := range noList {
+		result[i] = types.Notification{
+			ID:      no.ID,
+			Title:   no.Title,
+			Message: no.Message,
+			Type:    no.Type,
+			Source:  no.Source,
+			Action:  no.Action,
+			Status:  no.Status,
+			Time:    no.Time,
+		}
+	}
+	return result, nil
+}
+
+func (e *Entity) RecordNotification(ctx context.Context, nid string, no types.Notification) error {
+	model := Notification{
+		ID:      no.ID,
+		Title:   no.Title,
+		Message: no.Message,
+		Type:    no.Type,
+		Source:  no.Source,
+		Action:  no.Action,
+		Status:  no.Status,
+		Time:    no.Time,
+	}
+	res := e.DB.WithContext(ctx).Create(model)
+	return res.Error
+}
+
+func (e *Entity) UpdateNotificationStatus(ctx context.Context, nid, status string) error {
+	res := e.DB.WithContext(ctx).Model(&Notification{}).Where("id = ?", nid).UpdateColumn("status", status)
 	return res.Error
 }
 

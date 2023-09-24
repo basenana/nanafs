@@ -22,6 +22,7 @@ import (
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow"
 	"github.com/basenana/nanafs/utils/logger"
@@ -64,6 +65,7 @@ type controller struct {
 	cfgLoader config.Loader
 
 	entry    dentry.Manager
+	notify   *notify.Notify
 	workflow workflow.Manager
 
 	logger *zap.SugaredLogger
@@ -323,7 +325,8 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 		return nil, err
 	}
 
-	ctl.workflow, err = workflow.NewManager(ctl.entry, meta, cfg.Workflow, cfg.FUSE)
+	ctl.notify = notify.NewNotify(meta)
+	ctl.workflow, err = workflow.NewManager(ctl.entry, ctl.notify, meta, cfg.Workflow, cfg.FUSE)
 	if err != nil {
 		return nil, err
 	}

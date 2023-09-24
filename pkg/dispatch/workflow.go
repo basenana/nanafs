@@ -19,12 +19,12 @@ package dispatch
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow"
+	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	"go.uber.org/zap"
 )
 
@@ -35,7 +35,7 @@ type workflowAction struct {
 	logger   *zap.SugaredLogger
 }
 
-func (w workflowAction) handleEvent(ctx context.Context, evt *types.Event) error {
+func (w workflowAction) handleEvent(ctx context.Context, evt *types.EntryEvent) error {
 	if evt.Type != events.ActionTypeClose || !dentry.IsFileOpened(evt.RefID) {
 		return nil
 	}
@@ -65,7 +65,7 @@ func (w workflowAction) handleEvent(ctx context.Context, evt *types.Event) error
 		//	continue
 		//}
 
-		pendingJob, err := w.recorder.ListWorkflowJob(ctx, types.JobFilter{WorkFlowID: wf.Id, Status: flow.InitializingStatus, TargetEntry: evt.RefID})
+		pendingJob, err := w.recorder.ListWorkflowJob(ctx, types.JobFilter{WorkFlowID: wf.Id, Status: jobrun.InitializingStatus, TargetEntry: evt.RefID})
 		if err != nil {
 			w.logger.Errorw("[workflowAction] query pending job failed", "entry", evt.RefID, "workflow", wf.Id, "err", err)
 			continue

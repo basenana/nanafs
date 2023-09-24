@@ -38,8 +38,8 @@ func minOff(off1, off2 int64) int64 {
 	return off2
 }
 
-func buildCompactEvent(entry *types.Metadata) *types.Event {
-	return &types.Event{
+func buildCompactEvent(entry *types.Metadata) *types.EntryEvent {
+	return &types.EntryEvent{
 		Id:              uuid.New().String(),
 		Type:            events.ActionTypeCompact,
 		Source:          fmt.Sprintf("/object/%d", entry.ID),
@@ -48,7 +48,7 @@ func buildCompactEvent(entry *types.Metadata) *types.Event {
 		RefType:         "object",
 		RefID:           entry.ID,
 		DataContentType: "application/json",
-		Data:            types.EventData{Metadata: entry},
+		Data:            types.NewEventData(entry),
 	}
 }
 

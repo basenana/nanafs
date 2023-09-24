@@ -22,6 +22,7 @@ import (
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/getsentry/sentry-go"
@@ -34,6 +35,7 @@ const taskExecutionInterval = 5 * time.Minute
 
 type Dispatcher struct {
 	entry     dentry.Manager
+	notify    *notify.Notify
 	recorder  metastore.ScheduledTaskRecorder
 	executors map[string]executor
 	metricCh  chan prometheus.Metric
@@ -79,29 +81,27 @@ func (d *Dispatcher) Run(stopCh chan struct{}) {
 
 func (d *Dispatcher) dispatch(ctx context.Context, taskID string, exec executor, task *types.ScheduledTask) error {
 	defer logTaskExecutionLatency(taskID, time.Now())
-	execFn := func() error {
-		if err := exec.execute(ctx, task); err != nil {
-			d.logger.Errorw("execute task error", "recordID", task.ID, "taskID", task.TaskID, "err", err)
-			taskFinishStatusCounter.WithLabelValues(taskID, "failed")
-			sentry.CaptureException(err)
-			return err
-		}
-		taskFinishStatusCounter.WithLabelValues(taskID, "succeed")
-		d.logger.Debugw("execute task finish", "recordID", task.ID, "taskID", task.TaskID)
-		return nil
-	}
-
 	task.Status = types.ScheduledTaskExecuting
+	task.ExecutionTime = time.Now()
 	if err := d.recorder.SaveTask(ctx, task); err != nil {
 		taskExecutionErrorCounter.Inc()
 		return err
 	}
 
-	task.Result = "succeed"
-	if err := execFn(); err != nil {
-		task.Result = fmt.Sprintf("error: %s", err)
+	if err := exec.execute(ctx, task); err != nil {
+		task.Result = fmt.Sprintf("refID: %d, msg: %s", task.Event.RefID, err)
+		task.Status = types.ScheduledTaskFailed
+		taskFinishStatusCounter.WithLabelValues(taskID, types.ScheduledTaskFailed)
+		sentry.CaptureException(err)
+		d.logger.Errorw("execute task error", "recordID", task.ID, "taskID", task.TaskID, "err", err,
+			"recordNotificationErr", d.notify.RecordWarn(ctx, fmt.Sprintf("task %s failed", task.TaskID), task.Result, "dispatcher"))
+	} else {
+		task.Result = "succeed"
+		task.Status = types.ScheduledTaskSucceed
+		taskFinishStatusCounter.WithLabelValues(taskID, types.ScheduledTaskSucceed)
+		d.logger.Debugw("execute task finish", "recordID", task.ID, "taskID", task.TaskID)
 	}
-	task.Status = types.ScheduledTaskFinish
+
 	if err := d.recorder.SaveTask(ctx, task); err != nil {
 		taskExecutionErrorCounter.Inc()
 		return err
@@ -109,7 +109,7 @@ func (d *Dispatcher) dispatch(ctx context.Context, taskID string, exec executor,
 	return nil
 }
 
-func (d *Dispatcher) handleEvent(evt *types.Event) {
+func (d *Dispatcher) handleEvent(evt *types.EntryEvent) {
 	ctx, canF := context.WithCancel(context.Background())
 	defer canF()
 
@@ -156,9 +156,10 @@ func (d *Dispatcher) findRunnableTasks(ctx context.Context, taskID string) ([]*t
 	return runnable, nil
 }
 
-func Init(entry dentry.Manager, recorder metastore.ScheduledTaskRecorder) (*Dispatcher, error) {
+func Init(entry dentry.Manager, notify *notify.Notify, recorder metastore.ScheduledTaskRecorder) (*Dispatcher, error) {
 	d := &Dispatcher{
 		entry:     entry,
+		notify:    notify,
 		recorder:  recorder,
 		executors: map[string]executor{},
 		metricCh:  make(chan prometheus.Metric, 10),

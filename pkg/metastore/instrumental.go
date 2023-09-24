@@ -52,6 +52,8 @@ type instrumentalStore struct {
 	store Meta
 }
 
+var _ Meta = &instrumentalStore{}
+
 func (i instrumentalStore) SystemInfo(ctx context.Context) (*types.SystemInfo, error) {
 	const operation = "system_info"
 	defer logOperationLatency(operation, time.Now())
@@ -156,6 +158,30 @@ func (i instrumentalStore) DeleteSegment(ctx context.Context, segID int64) error
 	return err
 }
 
+func (i instrumentalStore) ListNotifications(ctx context.Context) ([]types.Notification, error) {
+	const operation = "list_notifications"
+	defer logOperationLatency(operation, time.Now())
+	nList, err := i.store.ListNotifications(ctx)
+	logOperationError(operation, err)
+	return nList, err
+}
+
+func (i instrumentalStore) RecordNotification(ctx context.Context, nid string, no types.Notification) error {
+	const operation = "record_notification"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.RecordNotification(ctx, nid, no)
+	logOperationError(operation, err)
+	return err
+}
+
+func (i instrumentalStore) UpdateNotificationStatus(ctx context.Context, nid, status string) error {
+	const operation = "update_notification_status"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.UpdateNotificationStatus(ctx, nid, status)
+	logOperationError(operation, err)
+	return err
+}
+
 func (i instrumentalStore) PluginRecorder(plugin types.PlugScope) PluginRecorder {
 	return i.store.PluginRecorder(plugin)
 }
@@ -206,6 +232,14 @@ func (i instrumentalStore) DeleteWorkflow(ctx context.Context, wfID string) erro
 	err := i.store.DeleteWorkflow(ctx, wfID)
 	logOperationError(operation, err)
 	return err
+}
+
+func (i instrumentalStore) GetWorkflowJob(ctx context.Context, jobID string) (*types.WorkflowJob, error) {
+	const operation = "get_workflow_job"
+	defer logOperationLatency(operation, time.Now())
+	jobList, err := i.store.GetWorkflowJob(ctx, jobID)
+	logOperationError(operation, err)
+	return jobList, err
 }
 
 func (i instrumentalStore) ListWorkflowJob(ctx context.Context, filter types.JobFilter) ([]*types.WorkflowJob, error) {

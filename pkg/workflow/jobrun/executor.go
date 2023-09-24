@@ -14,11 +14,12 @@
    limitations under the License.
 */
 
-package flow
+package jobrun
 
 import (
 	"context"
 	"errors"
+	"github.com/basenana/nanafs/pkg/types"
 	"sync"
 )
 
@@ -27,17 +28,17 @@ var (
 	registeredExecutorBuilder []executorBuilder
 )
 
-func RegisterExecutorBuilder(name string, builder func(flow *Flow) Executor) {
+func RegisterExecutorBuilder(name string, builder func(job *types.WorkflowJob) Executor) {
 	registeredExecutorBuilder = append(registeredExecutorBuilder, executorBuilder{
 		executor: name,
 		build:    builder,
 	})
 }
 
-func newExecutor(name string, flow *Flow) (Executor, error) {
+func newExecutor(name string, job *types.WorkflowJob) (Executor, error) {
 	for _, builder := range registeredExecutorBuilder {
 		if builder.executor == name {
-			return builder.build(flow), nil
+			return builder.build(job), nil
 		}
 	}
 	return nil, ExecutorNotFound
@@ -45,7 +46,8 @@ func newExecutor(name string, flow *Flow) (Executor, error) {
 
 type Executor interface {
 	Setup(ctx context.Context) error
-	DoOperation(ctx context.Context, task Task, operatorSpec Spec) error
+	DoOperation(ctx context.Context, step types.WorkflowJobStep) error
+	Collect(ctx context.Context) error
 	Teardown(ctx context.Context)
 }
 
@@ -66,5 +68,5 @@ type ResultData struct {
 
 type executorBuilder struct {
 	executor string
-	build    func(flow *Flow) Executor
+	build    func(job *types.WorkflowJob) Executor
 }

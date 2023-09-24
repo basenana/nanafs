@@ -158,6 +158,12 @@ func (s *sqliteMetaStore) DeleteWorkflow(ctx context.Context, wfID string) error
 	return s.dbStore.DeleteWorkflow(ctx, wfID)
 }
 
+func (s *sqliteMetaStore) GetWorkflowJob(ctx context.Context, jobID string) (*types.WorkflowJob, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.GetWorkflowJob(ctx, jobID)
+}
+
 func (s *sqliteMetaStore) ListWorkflowJob(ctx context.Context, filter types.JobFilter) ([]*types.WorkflowJob, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
@@ -180,6 +186,24 @@ func (s *sqliteMetaStore) DeleteWorkflowJob(ctx context.Context, wfJobID ...stri
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	return s.dbStore.DeleteWorkflowJob(ctx, wfJobID...)
+}
+
+func (s *sqliteMetaStore) ListNotifications(ctx context.Context) ([]types.Notification, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.ListNotifications(ctx)
+}
+
+func (s *sqliteMetaStore) RecordNotification(ctx context.Context, nid string, no types.Notification) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.RecordNotification(ctx, nid, no)
+}
+
+func (s *sqliteMetaStore) UpdateNotificationStatus(ctx context.Context, nid, status string) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.UpdateNotificationStatus(ctx, nid, status)
 }
 
 func (s *sqliteMetaStore) PluginRecorder(plugin types.PlugScope) PluginRecorder {
@@ -396,6 +420,18 @@ func (s *sqlMetaStore) DeleteWorkflow(ctx context.Context, wfID string) error {
 	return nil
 }
 
+func (s *sqlMetaStore) GetWorkflowJob(ctx context.Context, jobID string) (*types.WorkflowJob, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.GetWorkflowJob").End()
+	jobList, err := s.dbEntity.ListWorkflowJob(ctx, types.JobFilter{JobID: jobID})
+	if err != nil {
+		return nil, db.SqlError2Error(err)
+	}
+	if len(jobList) == 0 {
+		return nil, types.ErrNotFound
+	}
+	return jobList[0], nil
+}
+
 func (s *sqlMetaStore) ListWorkflowJob(ctx context.Context, filter types.JobFilter) ([]*types.WorkflowJob, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListWorkflowJob").End()
 	jobList, err := s.dbEntity.ListWorkflowJob(ctx, filter)
@@ -426,6 +462,33 @@ func (s *sqlMetaStore) SaveWorkflowJob(ctx context.Context, wf *types.WorkflowJo
 func (s *sqlMetaStore) DeleteWorkflowJob(ctx context.Context, wfJobID ...string) error {
 	defer trace.StartRegion(ctx, "metastore.sql.DeleteWorkflowJob").End()
 	err := s.dbEntity.DeleteWorkflowJob(ctx, wfJobID...)
+	if err != nil {
+		return db.SqlError2Error(err)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) ListNotifications(ctx context.Context) ([]types.Notification, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.ListNotifications").End()
+	noList, err := s.dbEntity.ListNotifications(ctx)
+	if err != nil {
+		return nil, db.SqlError2Error(err)
+	}
+	return noList, nil
+}
+
+func (s *sqlMetaStore) RecordNotification(ctx context.Context, nid string, no types.Notification) error {
+	defer trace.StartRegion(ctx, "metastore.sql.RecordNotification").End()
+	err := s.dbEntity.RecordNotification(ctx, nid, no)
+	if err != nil {
+		return db.SqlError2Error(err)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) UpdateNotificationStatus(ctx context.Context, nid, status string) error {
+	defer trace.StartRegion(ctx, "metastore.sql.UpdateNotificationStatus").End()
+	err := s.dbEntity.UpdateNotificationStatus(ctx, nid, status)
 	if err != nil {
 		return db.SqlError2Error(err)
 	}

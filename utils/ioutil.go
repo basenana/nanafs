@@ -48,6 +48,18 @@ func Mkdir(path string) error {
 	return fmt.Errorf("%s not dir", path)
 }
 
+func Rmdir(path string) error {
+	_, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+
+	return os.RemoveAll(path)
+}
+
 type wrapperReader struct {
 	r   io.ReaderAt
 	off int64

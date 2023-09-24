@@ -43,7 +43,7 @@ type compactExecutor struct {
 	*maintainExecutor
 }
 
-func (c *compactExecutor) handleEvent(ctx context.Context, evt *types.Event) error {
+func (c *compactExecutor) handleEvent(ctx context.Context, evt *types.EntryEvent) error {
 	if evt.Type != events.ActionTypeCompact {
 		return nil
 	}
@@ -63,7 +63,6 @@ func (c *compactExecutor) handleEvent(ctx context.Context, evt *types.Event) err
 		RefType:        evt.RefType,
 		RefID:          evt.RefID,
 		CreatedTime:    time.Now(),
-		ExecutionTime:  time.Now(),
 		ExpirationTime: time.Now().Add(time.Hour),
 		Event:          *evt,
 	}
@@ -75,23 +74,19 @@ func (c *compactExecutor) handleEvent(ctx context.Context, evt *types.Event) err
 }
 
 func (c *compactExecutor) execute(ctx context.Context, task *types.ScheduledTask) error {
-	md := task.Event.Data.Metadata
-	if md == nil {
-		return fmt.Errorf("not metadata struct")
-	}
-
-	if dentry.IsFileOpened(md.ID) {
+	entry := task.Event.Data
+	if dentry.IsFileOpened(entry.ID) {
 		return fmt.Errorf("file is opened")
 	}
 
-	en, err := c.entry.GetEntry(ctx, md.ID)
+	en, err := c.entry.GetEntry(ctx, entry.ID)
 	if err != nil {
-		c.logger.Errorw("[compactExecutor] query entry error", "entry", md.ID, "err", err.Error())
+		c.logger.Errorw("[compactExecutor] query entry error", "entry", entry.ID, "err", err.Error())
 		return err
 	}
-	c.logger.Debugw("[compactExecutor] start compact entry segment", "entry", md.ID)
+	c.logger.Debugw("[compactExecutor] start compact entry segment", "entry", entry.ID)
 	if err = c.entry.ChunkCompact(ctx, en.ID); err != nil {
-		c.logger.Errorw("[compactExecutor] compact entry segment error", "entry", md.ID, "err", err.Error())
+		c.logger.Errorw("[compactExecutor] compact entry segment error", "entry", entry.ID, "err", err.Error())
 		return err
 	}
 	return nil
@@ -101,18 +96,13 @@ type entryCleanExecutor struct {
 	*maintainExecutor
 }
 
-func (c *entryCleanExecutor) handleEvent(ctx context.Context, evt *types.Event) error {
+func (c *entryCleanExecutor) handleEvent(ctx context.Context, evt *types.EntryEvent) error {
 	if evt.Type != events.ActionTypeDestroy && evt.Type != events.ActionTypeClose {
 		return nil
 	}
 
-	md := evt.Data.Metadata
-	if md == nil {
-		c.logger.Errorw("[entryCleanExecutor] get metadata from event error", "entry", evt.RefID)
-		return fmt.Errorf("can not get metdata")
-	}
-
-	if evt.Type == events.ActionTypeClose && md.ParentID != 0 {
+	entry := evt.Data
+	if evt.Type == events.ActionTypeClose && entry.ParentID != 0 {
 		return nil
 	}
 
@@ -129,14 +119,13 @@ func (c *entryCleanExecutor) handleEvent(ctx context.Context, evt *types.Event) 
 			RefType:        evt.RefType,
 			RefID:          evt.RefID,
 			CreatedTime:    time.Now(),
-			ExecutionTime:  time.Now(),
 			ExpirationTime: time.Now().Add(time.Hour),
 			Event:          *evt,
 		}
 		needUpdate = true
 	}
 
-	if types.IsGroup(md.Kind) || (!dentry.IsFileOpened(evt.RefID) && md.RefCount == 0) {
+	if types.IsGroup(entry.Kind) || (!dentry.IsFileOpened(evt.RefID) && entry.RefCount == 0) {
 		task.Status = types.ScheduledTaskWait
 		needUpdate = true
 	}

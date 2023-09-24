@@ -25,6 +25,7 @@ import (
 type Meta interface {
 	ObjectStore
 	ChunkStore
+	NotificationRecorder
 	PluginRecorderGetter
 	ScheduledTaskRecorder
 }
@@ -57,10 +58,17 @@ type ScheduledTaskRecorder interface {
 	GetWorkflow(ctx context.Context, wfID string) (*types.WorkflowSpec, error)
 	ListWorkflow(ctx context.Context) ([]*types.WorkflowSpec, error)
 	DeleteWorkflow(ctx context.Context, wfID string) error
+	GetWorkflowJob(ctx context.Context, jobID string) (*types.WorkflowJob, error)
 	ListWorkflowJob(ctx context.Context, filter types.JobFilter) ([]*types.WorkflowJob, error)
 	SaveWorkflow(ctx context.Context, wf *types.WorkflowSpec) error
 	SaveWorkflowJob(ctx context.Context, wf *types.WorkflowJob) error
 	DeleteWorkflowJob(ctx context.Context, wfJobID ...string) error
+}
+
+type NotificationRecorder interface {
+	ListNotifications(ctx context.Context) ([]types.Notification, error)
+	RecordNotification(ctx context.Context, nid string, no types.Notification) error
+	UpdateNotificationStatus(ctx context.Context, nid, status string) error
 }
 
 type PluginRecorderGetter interface {

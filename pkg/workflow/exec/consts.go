@@ -14,14 +14,19 @@
  limitations under the License.
 */
 
-package dispatch
+package exec
 
-import (
-	"context"
-	"github.com/basenana/nanafs/pkg/types"
+const (
+	OpEntryInit    = "entryInit"
+	OpEntryCollect = "entryCollect"
+	OpPluginCall   = "pluginCall"
 )
 
-type executor interface {
-	handleEvent(ctx context.Context, evt *types.EntryEvent) error
-	execute(ctx context.Context, task *types.ScheduledTask) error
-}
+const (
+	paramEntryIdKey    = "nanafs.workflow.entry_id"
+	paramEntryPathKey  = "nanafs.workflow.entry_path"
+	paramPluginName    = "nanafs.workflow.plugin_name"
+	paramPluginVersion = "nanafs.workflow.plugin_version"
+	paramPluginType    = "nanafs.workflow.plugin_type"
+	paramPluginAction  = "nanafs.workflow.plugin_action"
+)

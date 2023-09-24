@@ -19,14 +19,12 @@ package workflow
 import (
 	"bytes"
 	"context"
-	"github.com/basenana/go-flow/cfg"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
+	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
-	"io"
 	"os"
 	"runtime"
 	"time"
@@ -36,6 +34,35 @@ var (
 	defaultLinuxWorkdir = "/var/lib/nanafs/workflow"
 	wfLogger            *zap.SugaredLogger
 )
+
+func assembleWorkflowJob(spec *types.WorkflowSpec, entry *types.Metadata) (*types.WorkflowJob, error) {
+	var globalParam = map[string]string{}
+	j := &types.WorkflowJob{
+		Id:        uuid.New().String(),
+		Workflow:  spec.Id,
+		Target:    types.WorkflowTarget{EntryID: entry.ID},
+		Status:    jobrun.InitializingStatus,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	for _, stepSpec := range spec.Steps {
+		if stepSpec.Plugin != nil {
+			for k, v := range globalParam {
+				stepSpec.Plugin.Parameters[k] = v
+			}
+		}
+		j.Steps = append(j.Steps,
+			types.WorkflowJobStep{
+				StepName: stepSpec.Name,
+				Status:   jobrun.InitializingStatus,
+				Plugin:   stepSpec.Plugin,
+			},
+		)
+	}
+
+	return j, nil
+}
 
 func initWorkflowJobRootWorkdir(wfCfg *config.Workflow) error {
 	if wfCfg.JobWorkdir == "" {
@@ -47,7 +74,6 @@ func initWorkflowJobRootWorkdir(wfCfg *config.Workflow) error {
 		}
 	}
 	wfLogger.Infof("job root workdir: %s", wfCfg.JobWorkdir)
-	cfg.LocalWorkdirBase = wfCfg.JobWorkdir
 	return os.MkdirAll(wfCfg.JobWorkdir, 0755)
 }
 
@@ -94,18 +120,4 @@ func entryID2FusePath(ctx context.Context, entryID int64, mgr dentry.Manager, fu
 	}
 
 	return buf.String(), nil
-}
-
-func copyEntryToJobWorkDir(ctx context.Context, entryPath string, entry *types.Metadata, file dentry.File) error {
-	if entryPath == "" {
-		entryPath = entry.Name
-	}
-	f, err := os.OpenFile(entryPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	_, err = io.Copy(utils.NewWriterWithContextWriter(ctx, file), f)
-	return err
 }

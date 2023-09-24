@@ -14,15 +14,16 @@
  limitations under the License.
 */
 
-package workflow
+package jobrun
 
 import (
+	"context"
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/storage"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	testcfg "github.com/onsi/ginkgo/config"
 	"os"
@@ -34,45 +35,53 @@ import (
 )
 
 var (
-	stopCh   = make(chan struct{})
-	tempDir  string
-	entryMgr dentry.Manager
-	mgr      Manager
+	tempDir    string
+	recorder   metastore.ScheduledTaskRecorder
+	notifyImpl *notify.Notify
 )
 
-func TestWorkflow(t *testing.T) {
+func TestJobRun(t *testing.T) {
 	logger.InitLogger()
 	defer logger.Sync()
 	RegisterFailHandler(Fail)
 	testcfg.DefaultReporterConfig.SlowSpecThreshold = time.Minute.Seconds()
-	RunSpecs(t, "Workflow Suite")
+
+	RunSpecs(t, "Workflow JobRun Suite")
 }
 
 var _ = BeforeSuite(func() {
 	var err error
-	tempDir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-wf-")
+	tempDir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-jobrun-")
 	Expect(err).Should(BeNil())
 
-	memMeta, err := metastore.NewMetaStorage(storage.MemoryStorage, config.Meta{})
+	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())
-
+	recorder = memMeta
 	storage.InitLocalCache(config.Config{CacheDir: tempDir, CacheSize: 1})
-	entryMgr, err = dentry.NewManager(memMeta, config.Config{
-		FS: &config.FS{},
-		Storages: []config.Storage{{
-			ID:   storage.MemoryStorage,
-			Type: storage.MemoryStorage,
-		}},
-	})
-	Expect(err).Should(BeNil())
+
+	notifyImpl = notify.NewNotify(memMeta)
 
 	// init plugin
 	Expect(plugin.Init(&config.Plugin{}, memMeta)).Should(BeNil())
-
-	mgr, err = NewManager(entryMgr, notify.NewNotify(memMeta), memMeta, config.Workflow{Enable: true, JobWorkdir: tempDir}, config.FUSE{})
-	Expect(err).Should(BeNil())
 })
 
-var _ = AfterSuite(func() {
-	close(stopCh)
-})
+func init() {
+	// fake executor
+	defaultExecName = "fake"
+	RegisterExecutorBuilder(defaultExecName, func(job *types.WorkflowJob) Executor { return &fakeExecutor{} })
+}
+
+type fakeExecutor struct{}
+
+var _ Executor = &fakeExecutor{}
+
+func (f *fakeExecutor) Setup(ctx context.Context) error { return nil }
+
+func (f *fakeExecutor) DoOperation(ctx context.Context, step types.WorkflowJobStep) error {
+	time.Sleep(time.Second * 5)
+	return nil
+}
+
+func (f *fakeExecutor) Collect(ctx context.Context) error { return nil }
+
+func (f *fakeExecutor) Teardown(ctx context.Context) { return }

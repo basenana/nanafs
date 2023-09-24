@@ -19,12 +19,14 @@ package workflow
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/go-flow/flow"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/pkg/workflow/exec"
+	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"strings"
@@ -49,8 +51,9 @@ func init() {
 }
 
 type manager struct {
-	ctrl     *flow.Controller
+	ctrl     *jobrun.Controller
 	entryMgr dentry.Manager
+	notify   *notify.Notify
 	recorder metastore.ScheduledTaskRecorder
 	config   config.Workflow
 	fuse     config.FUSE
@@ -59,9 +62,8 @@ type manager struct {
 
 var _ Manager = &manager{}
 
-func NewManager(entryMgr dentry.Manager, recorder metastore.ScheduledTaskRecorder, config config.Workflow, fuse config.FUSE) (Manager, error) {
+func NewManager(entryMgr dentry.Manager, notify *notify.Notify, recorder metastore.ScheduledTaskRecorder, config config.Workflow, fuse config.FUSE) (Manager, error) {
 	wfLogger = logger.NewLogger("workflow")
-	_ = logger.NewFlowLogger(wfLogger)
 
 	if !config.Enable {
 		return disabledManager{}, nil
@@ -71,11 +73,11 @@ func NewManager(entryMgr dentry.Manager, recorder metastore.ScheduledTaskRecorde
 		return nil, fmt.Errorf("init workflow job root workdir error: %s", err)
 	}
 
-	if err := registerOperators(entryMgr); err != nil {
+	if err := exec.RegisterOperators(entryMgr, exec.LocalConfig{Workflow: config}); err != nil {
 		return nil, fmt.Errorf("register operators failed: %s", err)
 	}
 
-	flowCtrl := flow.NewFlowController(&storageWrapper{recorder: recorder, logger: wfLogger})
+	flowCtrl := jobrun.NewJobController(recorder, notify)
 	mgr := &manager{ctrl: flowCtrl, entryMgr: entryMgr, recorder: recorder, config: config, fuse: fuse, logger: wfLogger}
 	root, err := entryMgr.Root(context.Background())
 	if err != nil {
@@ -140,7 +142,7 @@ func (m *manager) DeleteWorkflow(ctx context.Context, wfId string) error {
 
 	runningJobs := make([]string, 0)
 	for _, j := range jobs {
-		if j.Status == flow.PausedStatus || j.Status == flow.RunningStatus {
+		if j.Status == jobrun.PausedStatus || j.Status == jobrun.RunningStatus {
 			runningJobs = append(runningJobs, j.Id)
 		}
 	}
@@ -175,7 +177,7 @@ func (m *manager) TriggerWorkflow(ctx context.Context, wfId string, entryID int6
 		return nil, err
 	}
 
-	job, err := assembleWorkflowJob(ctx, m.entryMgr, workflow, en, m.fuse)
+	job, err := assembleWorkflowJob(workflow, en)
 	if err != nil {
 		m.logger.Errorw("assemble job failed", "workflow", workflow.Name, "err", err)
 		return nil, err
@@ -201,7 +203,7 @@ func (m *manager) TriggerWorkflow(ctx context.Context, wfId string, entryID int6
 		return nil, err
 	}
 
-	if err = m.ctrl.TriggerFlow(ctx, job.Id); err != nil {
+	if err = m.ctrl.TriggerJob(ctx, job.Id); err != nil {
 		m.logger.Errorw("trigger job flow failed", "job", job.Id, "err", err)
 		return nil, err
 	}
@@ -209,45 +211,36 @@ func (m *manager) TriggerWorkflow(ctx context.Context, wfId string, entryID int6
 }
 
 func (m *manager) PauseWorkflowJob(ctx context.Context, jobId string) error {
-	jobs, err := m.recorder.ListWorkflowJob(ctx, types.JobFilter{JobID: jobId})
+	job, err := m.recorder.GetWorkflowJob(ctx, jobId)
 	if err != nil {
 		return err
 	}
-	if len(jobs) == 0 {
-		return types.ErrNotFound
-	}
-	if jobs[0].Status != flow.RunningStatus {
+	if job.Status != jobrun.RunningStatus {
 		return fmt.Errorf("pausing is not supported in non-running state")
 	}
-	return m.ctrl.PauseFlow(jobId)
+	return m.ctrl.PauseJob(jobId)
 }
 
 func (m *manager) ResumeWorkflowJob(ctx context.Context, jobId string) error {
-	jobs, err := m.recorder.ListWorkflowJob(ctx, types.JobFilter{JobID: jobId})
+	job, err := m.recorder.GetWorkflowJob(ctx, jobId)
 	if err != nil {
 		return err
 	}
-	if len(jobs) == 0 {
-		return types.ErrNotFound
-	}
-	if jobs[0].Status != flow.PausedStatus {
+	if job.Status != jobrun.PausedStatus {
 		return fmt.Errorf("resuming is not supported in non-paused state")
 	}
-	return m.ctrl.ResumeFlow(jobId)
+	return m.ctrl.ResumeJob(jobId)
 }
 
 func (m *manager) CancelWorkflowJob(ctx context.Context, jobId string) error {
-	jobs, err := m.recorder.ListWorkflowJob(ctx, types.JobFilter{JobID: jobId})
+	job, err := m.recorder.GetWorkflowJob(ctx, jobId)
 	if err != nil {
 		return err
 	}
-	if len(jobs) == 0 {
-		return types.ErrNotFound
-	}
-	if !jobs[0].FinishAt.IsZero() {
+	if !job.FinishAt.IsZero() {
 		return fmt.Errorf("canceling is not supported in finished state")
 	}
-	return m.ctrl.CancelFlow(jobId)
+	return m.ctrl.CancelJob(jobId)
 }
 
 type disabledManager struct{}
@@ -290,4 +283,9 @@ func (d disabledManager) ResumeWorkflowJob(ctx context.Context, jobId string) er
 
 func (d disabledManager) CancelWorkflowJob(ctx context.Context, jobId string) error {
 	return types.ErrNotFound
+}
+
+type JobAttr struct {
+	JobID  string
+	Reason string
 }

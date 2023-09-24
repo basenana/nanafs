@@ -14,46 +14,48 @@
  limitations under the License.
 */
 
-package workflow
+package exec
 
 import (
+	"context"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/storage"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
-	testcfg "github.com/onsi/ginkgo/config"
 	"os"
 	"testing"
-	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var (
-	stopCh   = make(chan struct{})
 	tempDir  string
+	targetID int64
 	entryMgr dentry.Manager
-	mgr      Manager
+
+	loCfg = LocalConfig{}
 )
 
-func TestWorkflow(t *testing.T) {
+func TestExec(t *testing.T) {
 	logger.InitLogger()
 	defer logger.Sync()
 	RegisterFailHandler(Fail)
-	testcfg.DefaultReporterConfig.SlowSpecThreshold = time.Minute.Seconds()
-	RunSpecs(t, "Workflow Suite")
+	RunSpecs(t, "Workflow Exec Suite")
 }
 
 var _ = BeforeSuite(func() {
 	var err error
-	tempDir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-wf-")
+	tempDir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-exec-")
 	Expect(err).Should(BeNil())
 
-	memMeta, err := metastore.NewMetaStorage(storage.MemoryStorage, config.Meta{})
+	loCfg.Workflow.Enable = true
+	loCfg.Workflow.JobWorkdir = tempDir
+
+	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())
 
 	storage.InitLocalCache(config.Config{CacheDir: tempDir, CacheSize: 1})
@@ -66,13 +68,20 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).Should(BeNil())
 
+	// init mocked file
+	root, err := entryMgr.Root(context.TODO())
+	Expect(err).Should(BeNil())
+	txtFile, err := entryMgr.CreateEntry(context.TODO(), root.ID, dentry.EntryAttr{
+		Name: "target.txt", Kind: types.RawKind, Access: root.Access})
+	Expect(err).Should(BeNil())
+	targetID = txtFile.ID
+
+	f, err := entryMgr.Open(context.TODO(), txtFile.ID, dentry.Attr{Write: true})
+	Expect(err).Should(BeNil())
+	_, err = f.WriteAt(context.TODO(), []byte("Hello World!"), 0)
+	Expect(err).Should(BeNil())
+	Expect(f.Close(context.TODO())).Should(BeNil())
+
 	// init plugin
 	Expect(plugin.Init(&config.Plugin{}, memMeta)).Should(BeNil())
-
-	mgr, err = NewManager(entryMgr, notify.NewNotify(memMeta), memMeta, config.Workflow{Enable: true, JobWorkdir: tempDir}, config.FUSE{})
-	Expect(err).Should(BeNil())
-})
-
-var _ = AfterSuite(func() {
-	close(stopCh)
 })

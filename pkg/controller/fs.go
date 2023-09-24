@@ -70,7 +70,7 @@ func (c *controller) FsInfo(ctx context.Context) Info {
 }
 
 func (c *controller) StartBackendTask(stopCh chan struct{}) {
-	st, err := dispatch.Init(c.entry, c.meta)
+	st, err := dispatch.Init(c.entry, c.notify, c.meta)
 	if err != nil {
 		c.logger.Panicf("start backend task failed: %s", err)
 	}
