@@ -20,6 +20,7 @@ import (
 	"context"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
@@ -34,8 +35,9 @@ import (
 )
 
 var (
-	tempDir  string
-	recorder metastore.ScheduledTaskRecorder
+	tempDir    string
+	recorder   metastore.ScheduledTaskRecorder
+	notifyImpl *notify.Notify
 )
 
 func TestJobRun(t *testing.T) {
@@ -56,6 +58,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 	recorder = memMeta
 	storage.InitLocalCache(config.Config{CacheDir: tempDir, CacheSize: 1})
+
+	notifyImpl = notify.NewNotify(memMeta)
 
 	// init plugin
 	Expect(plugin.Init(&config.Plugin{}, memMeta)).Should(BeNil())

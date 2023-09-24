@@ -77,8 +77,8 @@ func NewManager(entryMgr dentry.Manager, notify *notify.Notify, recorder metasto
 		return nil, fmt.Errorf("register operators failed: %s", err)
 	}
 
-	flowCtrl := jobrun.NewJobController(recorder)
-	mgr := &manager{ctrl: flowCtrl, entryMgr: entryMgr, notify: notify, recorder: recorder, config: config, fuse: fuse, logger: wfLogger}
+	flowCtrl := jobrun.NewJobController(recorder, notify)
+	mgr := &manager{ctrl: flowCtrl, entryMgr: entryMgr, recorder: recorder, config: config, fuse: fuse, logger: wfLogger}
 	root, err := entryMgr.Root(context.Background())
 	if err != nil {
 		mgr.logger.Errorw("query root failed", "err", err)
@@ -211,42 +211,33 @@ func (m *manager) TriggerWorkflow(ctx context.Context, wfId string, entryID int6
 }
 
 func (m *manager) PauseWorkflowJob(ctx context.Context, jobId string) error {
-	jobs, err := m.recorder.ListWorkflowJob(ctx, types.JobFilter{JobID: jobId})
+	job, err := m.recorder.GetWorkflowJob(ctx, jobId)
 	if err != nil {
 		return err
 	}
-	if len(jobs) == 0 {
-		return types.ErrNotFound
-	}
-	if jobs[0].Status != jobrun.RunningStatus {
+	if job.Status != jobrun.RunningStatus {
 		return fmt.Errorf("pausing is not supported in non-running state")
 	}
 	return m.ctrl.PauseJob(jobId)
 }
 
 func (m *manager) ResumeWorkflowJob(ctx context.Context, jobId string) error {
-	jobs, err := m.recorder.ListWorkflowJob(ctx, types.JobFilter{JobID: jobId})
+	job, err := m.recorder.GetWorkflowJob(ctx, jobId)
 	if err != nil {
 		return err
 	}
-	if len(jobs) == 0 {
-		return types.ErrNotFound
-	}
-	if jobs[0].Status != jobrun.PausedStatus {
+	if job.Status != jobrun.PausedStatus {
 		return fmt.Errorf("resuming is not supported in non-paused state")
 	}
 	return m.ctrl.ResumeJob(jobId)
 }
 
 func (m *manager) CancelWorkflowJob(ctx context.Context, jobId string) error {
-	jobs, err := m.recorder.ListWorkflowJob(ctx, types.JobFilter{JobID: jobId})
+	job, err := m.recorder.GetWorkflowJob(ctx, jobId)
 	if err != nil {
 		return err
 	}
-	if len(jobs) == 0 {
-		return types.ErrNotFound
-	}
-	if !jobs[0].FinishAt.IsZero() {
+	if !job.FinishAt.IsZero() {
 		return fmt.Errorf("canceling is not supported in finished state")
 	}
 	return m.ctrl.CancelJob(jobId)

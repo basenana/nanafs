@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"strings"
@@ -31,19 +31,16 @@ type Controller struct {
 	runners  map[string]Runner
 	mux      sync.Mutex
 	recorder metastore.ScheduledTaskRecorder
+	notify   *notify.Notify
 	logger   *zap.SugaredLogger
 }
 
 func (c *Controller) TriggerJob(ctx context.Context, jID string) error {
-	jobs, err := c.recorder.ListWorkflowJob(ctx, types.JobFilter{JobID: jID})
+	job, err := c.recorder.GetWorkflowJob(ctx, jID)
 	if err != nil {
 		return err
 	}
-	if len(jobs) == 0 {
-		return types.ErrNotFound
-	}
-
-	r := NewRunner(jobs[0], c.recorder)
+	r := NewRunner(job, c.recorder)
 	c.mux.Lock()
 	c.runners[jID] = r
 	c.mux.Unlock()
@@ -71,6 +68,18 @@ func (c *Controller) startJobRunner(ctx context.Context, jID string) {
 	err := r.Start(ctx)
 	if err != nil {
 		c.logger.Errorf("start runner failed, err: %s", err)
+		_ = c.notify.RecordWarn(context.TODO(), "WorkflowJobFailed", fmt.Sprintf("start runner error: %s", err), "JobController")
+	}
+
+	job, err := c.recorder.GetWorkflowJob(ctx, jID)
+	if err != nil {
+		c.logger.Errorf("query workflow job %s failed, err: %s", jID, err)
+		return
+	}
+
+	if IsFinishedStatus(job.Status) && job.Status != SucceedStatus || job.Status != CanceledStatus {
+		_ = c.notify.RecordWarn(context.TODO(), "WorkflowJobFailed",
+			fmt.Sprintf("job %s status: %s message: %s", jID, job.Status, job.Message), "JobController")
 	}
 }
 
@@ -115,10 +124,11 @@ func (c *Controller) Shutdown() error {
 	return nil
 }
 
-func NewJobController(recorder metastore.ScheduledTaskRecorder) *Controller {
+func NewJobController(recorder metastore.ScheduledTaskRecorder, notify *notify.Notify) *Controller {
 	return &Controller{
 		runners:  make(map[string]Runner),
 		recorder: recorder,
+		notify:   notify,
 		logger:   logger.NewLogger("flow"),
 	}
 }

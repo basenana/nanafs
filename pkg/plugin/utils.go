@@ -56,11 +56,6 @@ func readPluginSpec(basePath, pluginSpecFile string) (types.PluginSpec, Builder,
 	switch spec.Adaptor {
 	case adaptors.AdaptorTypeScriptPlugin:
 		builder = scriptAdaptorBuilder()
-	case adaptors.AdaptorTypeGoFlow:
-		builder = goflowAdaptorBuilder()
-		if spec.Operator == "" {
-			return types.PluginSpec{}, nil, fmt.Errorf("operator is empty")
-		}
 	case adaptors.AdaptorTypeGoPlugin:
 		if spec.Path == "" {
 			return types.PluginSpec{}, nil, fmt.Errorf("path is empty")
@@ -80,12 +75,6 @@ func readPluginSpec(basePath, pluginSpecFile string) (types.PluginSpec, Builder,
 func scriptAdaptorBuilder() Builder {
 	return func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
 		return adaptors.NewScriptPluginAdaptor(spec, scope)
-	}
-}
-
-func goflowAdaptorBuilder() Builder {
-	return func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
-		return adaptors.NewGoFlowPluginAdaptor(spec, scope)
 	}
 }
 

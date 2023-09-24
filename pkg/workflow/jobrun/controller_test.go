@@ -43,7 +43,7 @@ var _ = Describe("TestJobPauseAndResume", func() {
 
 	Context("runner start", func() {
 		It("init runner should be succeed", func() {
-			ctrl = NewJobController(recorder)
+			ctrl = NewJobController(recorder, notifyImpl)
 			err := recorder.SaveWorkflowJob(ctx, job)
 			Expect(err).Should(BeNil())
 		})
@@ -122,7 +122,7 @@ var _ = Describe("TestJobCancel", func() {
 
 	Context("runner start", func() {
 		It("init runner should be succeed", func() {
-			ctrl = NewJobController(recorder)
+			ctrl = NewJobController(recorder, notifyImpl)
 			err := recorder.SaveWorkflowJob(ctx, job)
 			Expect(err).Should(BeNil())
 		})

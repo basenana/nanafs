@@ -234,6 +234,14 @@ func (i instrumentalStore) DeleteWorkflow(ctx context.Context, wfID string) erro
 	return err
 }
 
+func (i instrumentalStore) GetWorkflowJob(ctx context.Context, jobID string) (*types.WorkflowJob, error) {
+	const operation = "get_workflow_job"
+	defer logOperationLatency(operation, time.Now())
+	jobList, err := i.store.GetWorkflowJob(ctx, jobID)
+	logOperationError(operation, err)
+	return jobList, err
+}
+
 func (i instrumentalStore) ListWorkflowJob(ctx context.Context, filter types.JobFilter) ([]*types.WorkflowJob, error) {
 	const operation = "list_workflow_job"
 	defer logOperationLatency(operation, time.Now())
