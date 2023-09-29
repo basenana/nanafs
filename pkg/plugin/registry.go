@@ -20,14 +20,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"strings"
+	"sync"
+
+	"go.uber.org/zap"
+
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
-	"go.uber.org/zap"
-	"io/ioutil"
-	"strings"
-	"sync"
 )
 
 var (
@@ -73,6 +75,7 @@ func Init(cfg *config.Plugin, recorderGetter metastore.PluginRecorderGetter) err
 	registerDelayPlugin(r)
 	registerMemfsPlugin(r)
 	register3BodyPlugin(r)
+	registerIngestPlugin(r)
 
 	pluginRegistry = r
 	return r.load()

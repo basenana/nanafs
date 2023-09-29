@@ -114,8 +114,22 @@ github.com/aws/smithy-go/time
 github.com/aws/smithy-go/transport/http
 github.com/aws/smithy-go/transport/http/internal/io
 github.com/aws/smithy-go/waiter
-# github.com/basenana/go-flow v0.0.0-20230801131009-d05f1f41b706
-## explicit; go 1.15
+# github.com/basenana/friday v0.0.0-20230929093739-fc3af7a6e598
+## explicit; go 1.20
+github.com/basenana/friday/config
+github.com/basenana/friday/pkg/embedding
+github.com/basenana/friday/pkg/embedding/huggingface
+github.com/basenana/friday/pkg/embedding/openai/v1
+github.com/basenana/friday/pkg/friday
+github.com/basenana/friday/pkg/llm
+github.com/basenana/friday/pkg/llm/client/glm-6b
+github.com/basenana/friday/pkg/llm/client/openai/v1
+github.com/basenana/friday/pkg/llm/prompts
+github.com/basenana/friday/pkg/models
+github.com/basenana/friday/pkg/spliter
+github.com/basenana/friday/pkg/utils/files
+github.com/basenana/friday/pkg/utils/logger
+github.com/basenana/friday/pkg/vectorstore
 # github.com/beorn7/perks v1.0.1
 ## explicit; go 1.11
 github.com/beorn7/perks/quantile
@@ -356,7 +370,7 @@ github.com/onsi/ginkgo/reporters/stenographer
 github.com/onsi/ginkgo/reporters/stenographer/support/go-colorable
 github.com/onsi/ginkgo/reporters/stenographer/support/go-isatty
 github.com/onsi/ginkgo/types
-# github.com/onsi/gomega v1.27.2
+# github.com/onsi/gomega v1.27.8
 ## explicit; go 1.18
 github.com/onsi/gomega
 github.com/onsi/gomega/format
@@ -401,6 +415,11 @@ github.com/prometheus/common/model
 github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
+# github.com/redis/rueidis v1.0.0
+## explicit; go 1.20
+github.com/redis/rueidis
+github.com/redis/rueidis/internal/cmds
+github.com/redis/rueidis/internal/util
 # github.com/remyoudompheng/bigfft v0.0.0-20230126093431-47fa9a501578
 ## explicit; go 1.12
 github.com/remyoudompheng/bigfft
@@ -419,7 +438,7 @@ github.com/slok/go-http-metrics/metrics
 github.com/slok/go-http-metrics/metrics/prometheus
 github.com/slok/go-http-metrics/middleware
 github.com/slok/go-http-metrics/middleware/std
-# github.com/spf13/cobra v1.6.1
+# github.com/spf13/cobra v1.7.0
 ## explicit; go 1.15
 github.com/spf13/cobra
 # github.com/spf13/pflag v1.0.5
