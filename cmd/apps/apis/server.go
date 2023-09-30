@@ -67,7 +67,10 @@ func (s *Server) Run(stopCh chan struct{}) {
 	}()
 
 	// init friday
-	_ = friday.InitFridayFromConfig()
+	err := friday.InitFridayFromConfig()
+	if err != nil {
+		s.logger.Errorf("init friday error: %s", err)
+	}
 
 	<-stopCh
 	shutdownCtx, canF := context.WithTimeout(context.TODO(), time.Second)

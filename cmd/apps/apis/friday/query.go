@@ -31,7 +31,7 @@ type question struct {
 
 func Query(gCtx *gin.Context) {
 	var q question
-	if err := gCtx.ShouldBindQuery(q); err != nil {
+	if err := gCtx.ShouldBindJSON(&q); err != nil {
 		gCtx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid question"})
 		return
 	}
