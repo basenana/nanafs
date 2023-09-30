@@ -19,7 +19,7 @@ package plugin
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/plugin/stub"
+	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"io"
@@ -31,11 +31,11 @@ type MirrorPlugin interface {
 	Plugin
 
 	IsGroup(ctx context.Context) (bool, error)
-	FindEntry(ctx context.Context, name string) (*stub.Entry, error)
-	CreateEntry(ctx context.Context, attr stub.EntryAttr) (*stub.Entry, error)
-	UpdateEntry(ctx context.Context, en *stub.Entry) error
-	RemoveEntry(ctx context.Context, en *stub.Entry) error
-	ListChildren(ctx context.Context) ([]*stub.Entry, error)
+	FindEntry(ctx context.Context, name string) (*pluginapi.Entry, error)
+	CreateEntry(ctx context.Context, attr pluginapi.EntryAttr) (*pluginapi.Entry, error)
+	UpdateEntry(ctx context.Context, en *pluginapi.Entry) error
+	RemoveEntry(ctx context.Context, en *pluginapi.Entry) error
+	ListChildren(ctx context.Context) ([]*pluginapi.Entry, error)
 
 	WriteAt(ctx context.Context, data []byte, off int64) (int64, error)
 	ReadAt(ctx context.Context, dest []byte, off int64) (int64, error)
@@ -104,23 +104,23 @@ func (d *MemFSPlugin) IsGroup(ctx context.Context) (bool, error) {
 	return en.IsGroup, nil
 }
 
-func (d *MemFSPlugin) FindEntry(ctx context.Context, name string) (*stub.Entry, error) {
+func (d *MemFSPlugin) FindEntry(ctx context.Context, name string) (*pluginapi.Entry, error) {
 	return d.fs.FindEntry(d.path, name)
 }
 
-func (d *MemFSPlugin) CreateEntry(ctx context.Context, attr stub.EntryAttr) (*stub.Entry, error) {
+func (d *MemFSPlugin) CreateEntry(ctx context.Context, attr pluginapi.EntryAttr) (*pluginapi.Entry, error) {
 	return d.fs.CreateEntry(d.path, attr)
 }
 
-func (d *MemFSPlugin) UpdateEntry(ctx context.Context, en *stub.Entry) error {
+func (d *MemFSPlugin) UpdateEntry(ctx context.Context, en *pluginapi.Entry) error {
 	return d.fs.UpdateEntry(d.path, en)
 }
 
-func (d *MemFSPlugin) RemoveEntry(ctx context.Context, en *stub.Entry) error {
+func (d *MemFSPlugin) RemoveEntry(ctx context.Context, en *pluginapi.Entry) error {
 	return d.fs.RemoveEntry(d.path, en)
 }
 
-func (d *MemFSPlugin) ListChildren(ctx context.Context) ([]*stub.Entry, error) {
+func (d *MemFSPlugin) ListChildren(ctx context.Context) ([]*pluginapi.Entry, error) {
 	return d.fs.ListChildren(d.path)
 }
 
@@ -145,13 +145,13 @@ func (d *MemFSPlugin) Close(ctx context.Context) error {
 }
 
 type MemFS struct {
-	entries map[string]*stub.Entry
+	entries map[string]*pluginapi.Entry
 	files   map[string]*memFile
 	groups  map[string][]string
 	mux     sync.Mutex
 }
 
-func (m *MemFS) GetEntry(enPath string) (*stub.Entry, error) {
+func (m *MemFS) GetEntry(enPath string) (*pluginapi.Entry, error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
@@ -162,7 +162,7 @@ func (m *MemFS) GetEntry(enPath string) (*stub.Entry, error) {
 	return en, nil
 }
 
-func (m *MemFS) FindEntry(parentPath string, name string) (*stub.Entry, error) {
+func (m *MemFS) FindEntry(parentPath string, name string) (*pluginapi.Entry, error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
@@ -173,7 +173,7 @@ func (m *MemFS) FindEntry(parentPath string, name string) (*stub.Entry, error) {
 	return en, nil
 }
 
-func (m *MemFS) CreateEntry(parentPath string, attr stub.EntryAttr) (*stub.Entry, error) {
+func (m *MemFS) CreateEntry(parentPath string, attr pluginapi.EntryAttr) (*pluginapi.Entry, error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
@@ -195,7 +195,7 @@ func (m *MemFS) CreateEntry(parentPath string, attr stub.EntryAttr) (*stub.Entry
 	child = append(child, attr.Name)
 	m.groups[parentPath] = child
 
-	en := &stub.Entry{
+	en := &pluginapi.Entry{
 		Name:    attr.Name,
 		Kind:    attr.Kind,
 		IsGroup: types.IsGroup(attr.Kind),
@@ -210,7 +210,7 @@ func (m *MemFS) CreateEntry(parentPath string, attr stub.EntryAttr) (*stub.Entry
 	return en, nil
 }
 
-func (m *MemFS) UpdateEntry(parentPath string, en *stub.Entry) error {
+func (m *MemFS) UpdateEntry(parentPath string, en *pluginapi.Entry) error {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
@@ -225,7 +225,7 @@ func (m *MemFS) UpdateEntry(parentPath string, en *stub.Entry) error {
 	return nil
 }
 
-func (m *MemFS) RemoveEntry(parentPath string, en *stub.Entry) error {
+func (m *MemFS) RemoveEntry(parentPath string, en *pluginapi.Entry) error {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
@@ -262,7 +262,7 @@ func (m *MemFS) RemoveEntry(parentPath string, en *stub.Entry) error {
 	return nil
 }
 
-func (m *MemFS) ListChildren(enPath string) ([]*stub.Entry, error) {
+func (m *MemFS) ListChildren(enPath string) ([]*pluginapi.Entry, error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
@@ -276,7 +276,7 @@ func (m *MemFS) ListChildren(enPath string) ([]*stub.Entry, error) {
 	}
 
 	childNames := m.groups[enPath]
-	result := make([]*stub.Entry, len(childNames))
+	result := make([]*pluginapi.Entry, len(childNames))
 	for i, chName := range childNames {
 		result[i] = m.entries[path.Join(enPath, chName)]
 	}
@@ -322,7 +322,7 @@ func (m *MemFS) Trunc(filePath string) error {
 
 func NewMemFS() *MemFS {
 	fs := &MemFS{
-		entries: map[string]*stub.Entry{"/": {Name: ".", Kind: types.ExternalGroupKind, Size: 0, IsGroup: true}},
+		entries: map[string]*pluginapi.Entry{"/": {Name: ".", Kind: types.ExternalGroupKind, Size: 0, IsGroup: true}},
 		groups:  map[string][]string{"/": {}},
 		files:   map[string]*memFile{},
 	}
@@ -334,11 +334,11 @@ const (
 )
 
 type memFile struct {
-	*stub.Entry
+	*pluginapi.Entry
 	data []byte
 }
 
-func newMemFile(entry *stub.Entry) *memFile {
+func newMemFile(entry *pluginapi.Entry) *memFile {
 	return &memFile{
 		Entry: entry,
 		data:  utils.NewMemoryBlock(memFileMaxSize / 16), // 1M

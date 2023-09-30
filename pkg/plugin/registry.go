@@ -70,7 +70,7 @@ func Init(cfg *config.Plugin, recorderGetter metastore.PluginRecorderGetter) err
 	}
 
 	// register build-in plugins
-	registerDelayPlugin(r)
+	registerBuildInProcessPlugin(r)
 	registerMemfsPlugin(r)
 	register3BodyPlugin(r)
 

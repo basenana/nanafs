@@ -14,26 +14,15 @@
  limitations under the License.
 */
 
-package stub
+package pluginapi
 
-type Request struct {
-	Action    string
-	WorkPath  string
-	EntryId   int64
-	EntryPath string
-	Parameter map[string]string
-}
-
-func NewRequest() *Request {
-	return &Request{}
-}
-
-type Response struct {
-	IsSucceed bool
-	Message   string
-	Entries   []Entry
-}
-
-func NewResponse() *Response {
-	return &Response{}
-}
+const (
+	ResEntryIdKey        = "nanafs.workflow.entry_id"
+	ResEntryPathKey      = "nanafs.workflow.entry_path"
+	ResEntryDocumentsKey = "nanafs.workflow.entry_documents"
+	ResCollectManifest   = "nanafs.workflow.collect_manifest"
+	ResPluginName        = "nanafs.workflow.plugin_name"
+	ResPluginVersion     = "nanafs.workflow.plugin_version"
+	ResPluginType        = "nanafs.workflow.plugin_type"
+	ResPluginAction      = "nanafs.workflow.plugin_action"
+)

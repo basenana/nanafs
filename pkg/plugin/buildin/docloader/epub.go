@@ -14,26 +14,4 @@
  limitations under the License.
 */
 
-package stub
-
-import (
-	"github.com/basenana/nanafs/pkg/types"
-	"time"
-)
-
-type Entry struct {
-	Name       string
-	Kind       types.Kind
-	Size       int64
-	IsGroup    bool
-	Parameters map[string]string
-}
-
-type EntryAttr struct {
-	Name string
-	Kind types.Kind
-}
-
-type FreshOption struct {
-	LastFreshAt time.Time
-}
+package docloader

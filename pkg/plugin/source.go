@@ -20,7 +20,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/plugin/stub"
+	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
 	"io"
 	"io/ioutil"
@@ -31,8 +31,8 @@ import (
 
 type SourcePlugin interface {
 	Plugin
-	Fresh(ctx context.Context, opt stub.FreshOption) ([]*stub.Entry, error)
-	Open(ctx context.Context, entry *stub.Entry) (io.ReadCloser, error)
+	Fresh(ctx context.Context, opt pluginapi.FreshOption) ([]*pluginapi.Entry, error)
+	Open(ctx context.Context, entry *pluginapi.Entry) (io.ReadCloser, error)
 }
 
 const (
@@ -56,14 +56,14 @@ func (d *ThreeBodyPlugin) Version() string {
 	return the3BodyPluginVersion
 }
 
-func (d *ThreeBodyPlugin) Fresh(ctx context.Context, opt stub.FreshOption) ([]*stub.Entry, error) {
+func (d *ThreeBodyPlugin) Fresh(ctx context.Context, opt pluginapi.FreshOption) ([]*pluginapi.Entry, error) {
 	crtAt := time.Now().Unix()
-	result := make([]*stub.Entry, 0)
+	result := make([]*pluginapi.Entry, 0)
 	for i := crtAt - 60; i < crtAt; i += 60 {
 		if i <= opt.LastFreshAt.Unix() {
 			continue
 		}
-		result = append(result, &stub.Entry{
+		result = append(result, &pluginapi.Entry{
 			Name:    fmt.Sprintf("3_body_%d.txt", i),
 			Kind:    types.RawKind,
 			IsGroup: false,
@@ -72,7 +72,7 @@ func (d *ThreeBodyPlugin) Fresh(ctx context.Context, opt stub.FreshOption) ([]*s
 	return result, nil
 }
 
-func (d *ThreeBodyPlugin) Open(ctx context.Context, entry *stub.Entry) (io.ReadCloser, error) {
+func (d *ThreeBodyPlugin) Open(ctx context.Context, entry *pluginapi.Entry) (io.ReadCloser, error) {
 	fileNameParts := strings.Split(entry.Name, "_")
 	sendAtStr := fileNameParts[len(fileNameParts)-1]
 
