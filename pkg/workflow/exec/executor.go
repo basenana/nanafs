@@ -22,11 +22,14 @@ import (
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/plugin"
-	"github.com/basenana/nanafs/pkg/plugin/stub"
+	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
+	"os"
+	"path"
+	"sync"
 )
 
 const (
@@ -36,8 +39,11 @@ const (
 func RegisterOperators(entryMgr dentry.Manager, cfg LocalConfig) error {
 	jobrun.RegisterExecutorBuilder(localExecName, func(job *types.WorkflowJob) jobrun.Executor {
 		return &localExecutor{
-			job: job, entryMgr: entryMgr, config: cfg,
-			logger: logger.NewLogger("localExecutor").With(zap.String("job", job.Id)),
+			job:      job,
+			entryMgr: entryMgr,
+			config:   cfg,
+			results:  map[string]any{},
+			logger:   logger.NewLogger("localExecutor").With(zap.String("job", job.Id)),
 		}
 	})
 	return nil
@@ -49,6 +55,8 @@ type localExecutor struct {
 	entryPath string
 	entryMgr  dentry.Manager
 	config    LocalConfig
+	results   map[string]any
+	resultMux sync.Mutex
 	logger    *zap.SugaredLogger
 }
 
@@ -72,17 +80,30 @@ func (b *localExecutor) Setup(ctx context.Context) (err error) {
 		return
 	}
 	b.logger.Infow("job setup", "workdir", b.workdir, "entryPath", b.entryPath)
+
 	return
 }
 
 func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobStep) error {
-	req := stub.NewRequest()
+	req := pluginapi.NewRequest()
 	req.WorkPath = b.workdir
 	req.EntryId = b.job.Target.EntryID
 	req.EntryPath = b.entryPath
 
+	req.Parameter = map[string]any{}
+	b.resultMux.Lock()
+	for k, v := range b.results {
+		req.Parameter[k] = v
+	}
+	b.resultMux.Unlock()
+	req.Parameter[pluginapi.ResEntryIdKey] = b.job.Target.EntryID
+	req.Parameter[pluginapi.ResEntryPathKey] = b.entryPath
+	req.Parameter[pluginapi.ResPluginName] = step.Plugin.PluginName
+	req.Parameter[pluginapi.ResPluginVersion] = step.Plugin.Version
+	req.Parameter[pluginapi.ResPluginType] = step.Plugin.PluginType
+	req.Parameter[pluginapi.ResPluginAction] = step.Plugin.Action
+
 	req.Action = step.Plugin.PluginName
-	req.Parameter = step.Plugin.Parameters
 	resp, err := plugin.Call(ctx, *step.Plugin, req)
 	if err != nil {
 		return fmt.Errorf("plugin action error: %s", err)
@@ -90,12 +111,29 @@ func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobS
 	if !resp.IsSucceed {
 		return fmt.Errorf("plugin action failed: %s", resp.Message)
 	}
+	if len(resp.Results) > 0 {
+		b.resultMux.Lock()
+		for k, v := range resp.Results {
+			b.results[k] = v
+		}
+		b.resultMux.Unlock()
+	}
 	return nil
 }
 
 func (b *localExecutor) Collect(ctx context.Context) error {
-	//TODO implement me
-	panic("implement me")
+	b.resultMux.Lock()
+	filename, needCollect := b.results[pluginapi.ResCollectManifest]
+	b.resultMux.Unlock()
+	if !needCollect {
+		return nil
+	}
+	f, err := os.Open(path.Join(b.workdir, filename.(string)))
+	if err != nil {
+		return fmt.Errorf("read collect manifest file failed: %s", err)
+	}
+	defer f.Close()
+	return nil
 }
 
 func (b *localExecutor) Teardown(ctx context.Context) {

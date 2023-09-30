@@ -19,7 +19,7 @@ package buildin
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/pkg/plugin/stub"
+	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
 	"go.uber.org/zap"
 )
@@ -76,7 +76,7 @@ func (r *RssSourcePlugin) listRssSources(ctx context.Context) ([]rssSource, erro
 	return result, nil
 }
 
-func (r *RssSourcePlugin) Run(ctx context.Context, request *stub.Request, params map[string]string) (*stub.Response, error) {
+func (r *RssSourcePlugin) Run(ctx context.Context, request *pluginapi.Request, pluginParams map[string]string) (*pluginapi.Response, error) {
 	rssSourceList, err := r.listRssSources(ctx)
 	if err != nil {
 		r.logger.Errorw("list rss source failed", "err", err)
@@ -85,10 +85,10 @@ func (r *RssSourcePlugin) Run(ctx context.Context, request *stub.Request, params
 
 	for i := range rssSourceList {
 		source := rssSourceList[i]
-		r.syncRssSource(ctx, source, params)
+		r.syncRssSource(ctx, source, pluginParams)
 	}
 
-	resp := &stub.Response{
+	resp := &pluginapi.Response{
 		IsSucceed: true,
 	}
 	return resp, nil

@@ -21,12 +21,3 @@ const (
 	OpEntryCollect = "entryCollect"
 	OpPluginCall   = "pluginCall"
 )
-
-const (
-	paramEntryIdKey    = "nanafs.workflow.entry_id"
-	paramEntryPathKey  = "nanafs.workflow.entry_path"
-	paramPluginName    = "nanafs.workflow.plugin_name"
-	paramPluginVersion = "nanafs.workflow.plugin_version"
-	paramPluginType    = "nanafs.workflow.plugin_type"
-	paramPluginAction  = "nanafs.workflow.plugin_action"
-)
