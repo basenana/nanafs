@@ -34,6 +34,11 @@ type EntryAttr struct {
 	Kind types.Kind
 }
 
+type CollectManifest struct {
+	BaseEntry int64
+	NewFiles  []Entry
+}
+
 type FreshOption struct {
 	LastFreshAt time.Time
 }

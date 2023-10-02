@@ -20,6 +20,7 @@ require (
 	github.com/hyponet/webpage-packer v0.0.0-20230930052235-73553a8dce4a
 	github.com/ledongthuc/pdf v0.0.0-20220302134840-0c2507a12d80
 	github.com/minio/minio-go/v7 v7.0.52
+	github.com/mmcdole/gofeed v1.2.1
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.27.8
 	github.com/pierrec/lz4/v4 v4.1.17
@@ -88,6 +89,7 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.25 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
 	github.com/minio/sha256-simd v1.0.0 // indirect
+	github.com/mmcdole/goxpp v1.1.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/nxadm/tail v1.4.8 // indirect

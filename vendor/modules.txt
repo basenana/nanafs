@@ -367,6 +367,17 @@ github.com/minio/minio-go/v7/pkg/tags
 # github.com/minio/sha256-simd v1.0.0
 ## explicit; go 1.13
 github.com/minio/sha256-simd
+# github.com/mmcdole/gofeed v1.2.1
+## explicit; go 1.19
+github.com/mmcdole/gofeed
+github.com/mmcdole/gofeed/atom
+github.com/mmcdole/gofeed/extensions
+github.com/mmcdole/gofeed/internal/shared
+github.com/mmcdole/gofeed/json
+github.com/mmcdole/gofeed/rss
+# github.com/mmcdole/goxpp v1.1.0
+## explicit; go 1.19
+github.com/mmcdole/goxpp
 # github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
 ## explicit
 github.com/modern-go/concurrent

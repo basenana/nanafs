@@ -296,6 +296,10 @@ github.com/minio/minio-go/v7 v7.0.52 h1:8XhG36F6oKQUDDSuz6dY3rioMzovKjW40W6ANuN0
 github.com/minio/minio-go/v7 v7.0.52/go.mod h1:IbbodHyjUAguneyucUaahv+VMNs/EOTV9du7A7/Z3HU=
 github.com/minio/sha256-simd v1.0.0 h1:v1ta+49hkWZyvaKwrQB8elexRqm6Y0aMLjCNsrYxo6g=
 github.com/minio/sha256-simd v1.0.0/go.mod h1:OuYzVNI5vcoYIAmbIvHPl3N3jUzVedXbKy5RFepssQM=
+github.com/mmcdole/gofeed v1.2.1 h1:tPbFN+mfOLcM1kDF1x2c/N68ChbdBatkppdzf/vDe1s=
+github.com/mmcdole/gofeed v1.2.1/go.mod h1:2wVInNpgmC85q16QTTuwbuKxtKkHLCDDtf0dCmnrNr4=
+github.com/mmcdole/goxpp v1.1.0 h1:WwslZNF7KNAXTFuzRtn/OKZxFLJAAyOA9w82mDz2ZGI=
+github.com/mmcdole/goxpp v1.1.0/go.mod h1:v+25+lT2ViuQ7mVxcncQ8ch1URund48oH+jhjiwEgS8=
 github.com/moby/sys/mountinfo v0.6.2 h1:BzJjoreD5BMFNmD9Rus6gdd1pLuecOFPt8wC+Vygl78=
 github.com/moby/sys/mountinfo v0.6.2/go.mod h1:IJb6JQeOklcdMU9F5xQ8ZALD+CUr5VlGpwtX+VE0rpI=
 github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421/go.mod h1:6dJC0mAP4ikYIbvyc7fijjWJddQyLn8Ig3JB5CqoB9Q=
