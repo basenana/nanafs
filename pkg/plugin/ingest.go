@@ -22,7 +22,7 @@ import (
 	"strconv"
 
 	"github.com/basenana/nanafs/pkg/friday"
-	"github.com/basenana/nanafs/pkg/plugin/stub"
+	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
 )
 
@@ -42,20 +42,20 @@ func (i *IngestPlugin) Type() types.PluginType { return types.TypeIngest }
 
 func (i *IngestPlugin) Version() string { return ingestPluginVersion }
 
-func (i *IngestPlugin) Run(ctx context.Context, request *stub.Request, params map[string]string) (*stub.Response, error) {
+func (i *IngestPlugin) Run(ctx context.Context, request *pluginapi.Request, params map[string]string) (*pluginapi.Response, error) {
 	fileName := request.EntryId
 	content := request.Parameter["content"]
 	if content == "" {
 		return nil, fmt.Errorf("content of %d is empty", fileName)
 	}
-	err := friday.IngestFile(strconv.FormatInt(fileName, 10), content)
+	err := friday.IngestFile(strconv.FormatInt(fileName, 10), content.(string))
 	if err != nil {
-		return &stub.Response{
+		return &pluginapi.Response{
 			IsSucceed: false,
 			Message:   err.Error(),
 		}, err
 	}
-	return &stub.Response{IsSucceed: true}, nil
+	return &pluginapi.Response{IsSucceed: true}, nil
 }
 
 func registerIngestPlugin(r *registry) {
