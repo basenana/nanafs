@@ -22,6 +22,7 @@ const (
 	TypeSource  PluginType = "source"
 	TypeProcess PluginType = "process"
 	TypeMirror  PluginType = "mirror"
+	TypeIngest  PluginType = "ingest"
 )
 
 // PluginSpec is Plugin Config File to load a Plugin

@@ -19,17 +19,21 @@ package apis
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
-	"github.com/basenana/nanafs/cmd/apps/apis/webdav"
-	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/controller"
-	"github.com/basenana/nanafs/utils/logger"
+	"net/http"
+	"time"
+
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
-	"net/http"
-	"time"
+
+	apifriday "github.com/basenana/nanafs/cmd/apps/apis/friday"
+	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
+	"github.com/basenana/nanafs/cmd/apps/apis/webdav"
+	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/controller"
+	"github.com/basenana/nanafs/pkg/friday"
+	"github.com/basenana/nanafs/utils/logger"
 )
 
 const (
@@ -61,6 +65,12 @@ func (s *Server) Run(stopCh chan struct{}) {
 			s.logger.Infof("api server stopped")
 		}
 	}()
+
+	// init friday
+	err := friday.InitFridayFromConfig()
+	if err != nil {
+		s.logger.Errorf("init friday error: %s", err)
+	}
 
 	<-stopCh
 	shutdownCtx, canF := context.WithTimeout(context.TODO(), time.Second)
@@ -95,6 +105,7 @@ func NewApiServer(mgr *pathmgr.PathManager, cfg config.Config) (*Server, error) 
 	}
 
 	s.engine.GET("/_ping", s.Ping)
+	s.engine.POST("/friday/query", apifriday.Query)
 
 	if apiConfig.Metrics {
 		s.engine.GET("/metrics", gin.WrapH(promhttp.Handler()))
