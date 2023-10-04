@@ -28,7 +28,7 @@ import (
 
 type ProcessPlugin interface {
 	Plugin
-	Run(ctx context.Context, request *pluginapi.Request, pluginParams map[string]string) (*pluginapi.Response, error)
+	Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error)
 }
 
 func Call(ctx context.Context, ps types.PlugScope, req *pluginapi.Request) (resp *pluginapi.Response, err error) {
@@ -47,7 +47,7 @@ func Call(ctx context.Context, ps types.PlugScope, req *pluginapi.Request) (resp
 	if !ok {
 		return nil, fmt.Errorf("not process plugin")
 	}
-	return runnablePlugin.Run(ctx, req, ps.Parameters)
+	return runnablePlugin.Run(ctx, req)
 }
 
 const (
@@ -55,7 +55,10 @@ const (
 	delayPluginVersion = "1.0"
 )
 
-type DelayProcessPlugin struct{}
+type DelayProcessPlugin struct {
+	spec  types.PluginSpec
+	scope types.PlugScope
+}
 
 var _ ProcessPlugin = &DelayProcessPlugin{}
 
@@ -71,11 +74,13 @@ func (d *DelayProcessPlugin) Version() string {
 	return delayPluginVersion
 }
 
-func (d *DelayProcessPlugin) Run(ctx context.Context, request *pluginapi.Request, pluginParams map[string]string) (*pluginapi.Response, error) {
+func (d *DelayProcessPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
 	var (
 		until   time.Time
 		nowTime = time.Now()
 	)
+
+	pluginParams := d.scope.Parameters
 	switch request.Action {
 
 	case "delay":
@@ -119,7 +124,7 @@ func registerBuildInProcessPlugin(r *registry) {
 		delayPluginName,
 		types.PluginSpec{Name: delayPluginName, Version: delayPluginVersion, Type: types.TypeProcess, Parameters: map[string]string{}},
 		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
-			return &DelayProcessPlugin{}, nil
+			return &DelayProcessPlugin{spec: spec, scope: scope}, nil
 		},
 	)
 
@@ -127,7 +132,7 @@ func registerBuildInProcessPlugin(r *registry) {
 		docloader.PluginName,
 		types.PluginSpec{Name: docloader.PluginName, Version: docloader.PluginVersion, Type: types.TypeProcess, Parameters: map[string]string{}},
 		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
-			return &docloader.DocLoader{}, nil
+			return docloader.NewDocLoader(spec, scope), nil
 		},
 	)
 }

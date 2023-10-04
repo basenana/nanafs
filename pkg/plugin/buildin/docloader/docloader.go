@@ -30,7 +30,10 @@ const (
 	PluginVersion = "1.0"
 )
 
-type DocLoader struct{}
+type DocLoader struct {
+	spec  types.PluginSpec
+	scope types.PlugScope
+}
 
 func (d DocLoader) Name() string {
 	return PluginName
@@ -44,7 +47,7 @@ func (d DocLoader) Version() string {
 	return PluginVersion
 }
 
-func (d DocLoader) Run(ctx context.Context, request *pluginapi.Request, pluginParams map[string]string) (*pluginapi.Response, error) {
+func (d DocLoader) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
 	entryPath := request.Parameter[pluginapi.ResEntryPathKey].(string)
 	if entryPath == "" {
 		resp := pluginapi.NewFailedResponse("entry_path is empty")
@@ -84,6 +87,10 @@ func (d DocLoader) Run(ctx context.Context, request *pluginapi.Request, pluginPa
 	}
 
 	return pluginapi.NewResponseWithResult(map[string]any{pluginapi.ResEntryDocumentsKey: documents}), nil
+}
+
+func NewDocLoader(spec types.PluginSpec, scope types.PlugScope) *DocLoader {
+	return &DocLoader{spec: spec, scope: scope}
 }
 
 type Parser interface {

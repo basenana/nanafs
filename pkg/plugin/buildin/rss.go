@@ -23,12 +23,15 @@ import (
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils/logger"
 	"github.com/hyponet/webpage-packer/packer"
 	"github.com/mmcdole/gofeed"
 	"go.uber.org/zap"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 )
 
@@ -42,7 +45,6 @@ const (
 )
 
 type rssSource struct {
-	SourceID    string            `json:"source_id"`
 	EntryId     int64             `json:"entry_id"`
 	FeedUrl     string            `json:"feed_url"`
 	FileType    string            `json:"file_type"`
@@ -52,6 +54,8 @@ type rssSource struct {
 }
 
 type RssSourcePlugin struct {
+	spec     types.PluginSpec
+	scope    types.PlugScope
 	recorder metastore.PluginRecorder
 	logger   *zap.SugaredLogger
 }
@@ -68,61 +72,72 @@ func (r *RssSourcePlugin) Version() string {
 	return RssSourcePluginVersion
 }
 
-func (r *RssSourcePlugin) Run(ctx context.Context, request *pluginapi.Request, pluginParams map[string]string) (*pluginapi.Response, error) {
-	rssSourceList, err := r.listRssSources(ctx)
+func (r *RssSourcePlugin) SourceInfo() (string, error) {
+	source, err := r.rssSources(r.scope.Parameters)
 	if err != nil {
-		r.logger.Errorw("list rss source failed", "err", err)
+		r.logger.Errorw("get source info from rss plugin params failed", "err", err)
+		return "", err
+	}
+	return source.FeedUrl, nil
+}
+
+func (r *RssSourcePlugin) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
+	source, err := r.rssSources(r.scope.Parameters)
+	if err != nil {
+		r.logger.Errorw("get rss source failed", "err", err)
 		return nil, err
 	}
+	source.EntryId = request.EntryId
 
-	results := make([]pluginapi.CollectManifest, 0)
-	for i := range rssSourceList {
-		source := rssSourceList[i]
-		entries, err := r.syncRssSource(ctx, source, request.WorkPath, pluginParams)
-		if err != nil {
-			r.logger.Warnw("sync rss failed", "source", source.FeedUrl, "err", err)
-			continue
-		}
-		results = append(results, pluginapi.CollectManifest{BaseEntry: source.EntryId, NewFiles: entries})
+	entries, err := r.syncRssSource(ctx, source, request.WorkPath)
+	if err != nil {
+		r.logger.Warnw("sync rss failed", "source", source.FeedUrl, "err", err)
+		return pluginapi.NewFailedResponse(fmt.Sprintf("sync rss failed: %s", err)), nil
 	}
+	results := []pluginapi.CollectManifest{{BaseEntry: source.EntryId, NewFiles: entries}}
 
 	return pluginapi.NewResponseWithResult(map[string]any{pluginapi.ResCollectManifest: results}), nil
 }
 
-func (r *RssSourcePlugin) listRssSources(ctx context.Context) ([]rssSource, error) {
-	sourceConfigs, err := r.recorder.ListRecords(ctx, "source")
+func (r *RssSourcePlugin) rssSources(pluginParams map[string]string) (src rssSource, err error) {
+	src.FeedUrl = pluginParams["feed"]
+	if src.FeedUrl == "" {
+		err = fmt.Errorf("feed url is empty")
+		return
+	}
+
+	_, err = url.Parse(src.FeedUrl)
 	if err != nil {
-		return nil, fmt.Errorf("list source configs failed: %s", err)
+		err = fmt.Errorf("parse feed url failed: %s", err)
+		return
 	}
 
-	result := make([]rssSource, 0, len(sourceConfigs))
-	for _, srcID := range sourceConfigs {
-		rs := rssSource{}
-		err = r.recorder.GetRecord(ctx, srcID, &rs)
+	src.FileType = pluginParams["file_type"]
+	if src.FileType == "" {
+		src.FileType = archiveFileTypeUrl
+	}
+
+	src.Timeout = 120
+	if timeoutStr, ok := pluginParams["timeout"]; ok {
+		src.Timeout, err = strconv.Atoi(timeoutStr)
 		if err != nil {
-			r.logger.Errorw("get source config failed", "recordID", srcID, "err", err)
-			continue
+			return src, fmt.Errorf("parse timeout error: %s", err)
 		}
-
-		rs.SourceID = srcID
-		if rs.FileType == "" {
-			rs.FileType = archiveFileTypeUrl
-		}
-		if rs.Timeout == 0 {
-			rs.Timeout = 120
-		}
-
-		if rs.FeedUrl == "" {
-			r.logger.Warnw("invalid source config", "recordID", srcID, "err", "feed_url is empty")
-			continue
-		}
-
-		result = append(result, rs)
 	}
-	return result, nil
+	if clutterFreeStr, ok := pluginParams["clutter_free"]; ok {
+		switch clutterFreeStr {
+		case "yes", "true":
+			src.ClutterFree = true
+		default:
+			src.ClutterFree = false
+		}
+	}
+
+	src.Parameters = pluginParams
+	return
 }
 
-func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, workdir string, params map[string]string) ([]pluginapi.Entry, error) {
+func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, workdir string) ([]pluginapi.Entry, error) {
 	fp := gofeed.NewParser()
 	feed, err := fp.ParseURL(source.FeedUrl)
 	if err != nil {
@@ -130,7 +145,7 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, w
 	}
 
 	headers := make(map[string]string)
-	for k, v := range params {
+	for k, v := range source.Parameters {
 		if strings.HasPrefix(k, "header_") || strings.HasPrefix(k, "HEADER_") {
 			headerKey := strings.TrimPrefix(k, "header_")
 			headerKey = strings.TrimPrefix(headerKey, "HEADER_")
@@ -192,15 +207,18 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, w
 		}
 
 		newEntries = append(newEntries, pluginapi.Entry{
-			Name:    path.Base(filePath),
-			Kind:    types.RawKind,
-			Size:    fInfo.Size(),
+			Name: path.Base(filePath),
+			Kind: types.RawKind,
+			Size: fInfo.Size(),
+			Parameters: map[string]string{
+				pluginapi.ResEntryDocumentsKey: item.Content,
+			},
 			IsGroup: false,
 		})
 	}
 	return nil, nil
 }
 
-func InitRssSourcePlugin(recorder metastore.PluginRecorder) *RssSourcePlugin {
-	return nil
+func BuildRssSourcePlugin(ctx context.Context, recorder metastore.PluginRecorder, spec types.PluginSpec, scope types.PlugScope) *RssSourcePlugin {
+	return &RssSourcePlugin{spec: spec, scope: scope, recorder: recorder, logger: logger.NewLogger("rssPlugin")}
 }

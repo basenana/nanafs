@@ -103,7 +103,7 @@ func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobS
 	req.Parameter[pluginapi.ResPluginType] = step.Plugin.PluginType
 	req.Parameter[pluginapi.ResPluginAction] = step.Plugin.Action
 
-	req.Action = step.Plugin.PluginName
+	req.Action = step.Plugin.Action
 	resp, err := plugin.Call(ctx, *step.Plugin, req)
 	if err != nil {
 		return fmt.Errorf("plugin action error: %s", err)

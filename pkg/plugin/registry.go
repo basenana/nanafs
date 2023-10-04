@@ -76,6 +76,7 @@ func Init(cfg *config.Plugin, recorderGetter metastore.PluginRecorderGetter) err
 	registerMemfsPlugin(r)
 	register3BodyPlugin(r)
 	registerIngestPlugin(r)
+	registerBuildInSourcePlugin(r, recorderGetter)
 
 	pluginRegistry = r
 	return r.load()
