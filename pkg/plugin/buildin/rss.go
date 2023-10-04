@@ -96,7 +96,7 @@ func (r *RssSourcePlugin) Run(ctx context.Context, request *pluginapi.Request) (
 	}
 	results := []pluginapi.CollectManifest{{BaseEntry: source.EntryId, NewFiles: entries}}
 
-	return pluginapi.NewResponseWithResult(map[string]any{pluginapi.ResCollectManifest: results}), nil
+	return pluginapi.NewResponseWithResult(map[string]any{pluginapi.ResCollectManifests: results}), nil
 }
 
 func (r *RssSourcePlugin) rssSources(pluginParams map[string]string) (src rssSource, err error) {

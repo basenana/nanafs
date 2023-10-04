@@ -65,16 +65,23 @@ func (r *runner) Start(ctx context.Context) (err error) {
 		return
 	}
 
+	startAt := time.Now()
+	r.logger.Infow("start runner")
 	r.ctx, r.canF = context.WithCancel(ctx)
 	if err = r.initial(); err != nil {
 		r.logger.Errorf("job initial failed: %s", err)
 		return err
 	}
 
+	runnerStartedCounter.Add(1)
 	defer func() {
+		runnerStartedCounter.Add(-1)
 		if deferErr := r.recorder.SaveWorkflowJob(context.TODO(), r.job); deferErr != nil {
 			r.logger.Errorw("save job to metabase failed", "err", deferErr)
 		}
+		execDu := time.Since(startAt)
+		runnerExecTimeUsage.Observe(execDu.Seconds())
+		r.logger.Infow("close runner", "cost", execDu.String())
 	}()
 
 	r.dag, err = buildDAG(r.job.Steps)
@@ -108,7 +115,15 @@ func (r *runner) Start(ctx context.Context) (err error) {
 		return err
 	}
 
+	// waiting all step down
 	<-r.stopCh
+
+	err = r.executor.Collect(context.TODO())
+	if err != nil {
+		r.logger.Errorw("collect file error", "err", err)
+		return err
+	}
+
 	r.executor.Teardown(context.TODO())
 	return nil
 }

@@ -389,7 +389,7 @@ func NewMemFSPlugin() *MemFSPlugin {
 	return plugin
 }
 
-func registerMemfsPlugin(r *registry) {
+func registerBuildInMirrorPlugin(r *registry) {
 	plugin := NewMemFSPlugin()
 	plugin.fs.groups["/"] = make([]string, 0)
 	r.Register(memFSPluginName, types.PluginSpec{Name: memFSPluginName, Version: memFSPluginVersion,

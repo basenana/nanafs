@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"io"
@@ -114,4 +115,50 @@ func copyEntryToJobWorkDir(ctx context.Context, entryPath string, entry *types.M
 	n, err := io.Copy(f, utils.NewReaderWithContextReaderAt(ctx, file))
 	fmt.Println(n)
 	return err
+}
+
+func collectFile2BaseEntry(ctx context.Context, entryMgr dentry.Manager, baseEntryId int64, workdir string, tmpEn pluginapi.Entry) error {
+	baseEn, err := entryMgr.GetEntry(ctx, baseEntryId)
+	if err != nil {
+		return fmt.Errorf("query base entry failed: %s", err)
+	}
+
+	grp, err := entryMgr.OpenGroup(ctx, baseEntryId)
+	if err != nil {
+		return fmt.Errorf("open base entry group failed: %s", err)
+	}
+
+	_, err = grp.FindEntry(ctx, tmpEn.Name)
+	if err != nil && err != types.ErrNotFound {
+		return fmt.Errorf("check new file existed error: %s", err)
+	}
+
+	// TODO: overwrite existed file
+	if err == nil {
+		return fmt.Errorf("file %s/%s is existed", baseEn.Name, tmpEn.Name)
+	}
+
+	tmpFile, err := os.Open(path.Join(workdir, tmpEn.Name))
+	if err != nil {
+		return fmt.Errorf("read temporary file failed: %s", err)
+	}
+	defer tmpFile.Close()
+
+	newEn, err := grp.CreateEntry(ctx, dentry.EntryAttr{Name: tmpEn.Name, Kind: tmpEn.Kind, Access: baseEn.Access})
+	if err != nil {
+		return fmt.Errorf("create new entry failed: %s", err)
+	}
+
+	f, err := entryMgr.Open(ctx, newEn.ID, dentry.Attr{Write: true})
+	if err != nil {
+		return fmt.Errorf("open entry file failed: %s", err)
+	}
+	defer f.Close(ctx)
+
+	_, err = io.Copy(utils.NewWriterWithContextWriter(ctx, f), tmpFile)
+	if err != nil {
+		return fmt.Errorf("copy temporary file to entry file failed: %s", err)
+	}
+
+	return nil
 }

@@ -22,9 +22,27 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/pkg/plugin/adaptors"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/prometheus/client_golang/prometheus"
 	"os"
 	"path/filepath"
 )
+
+var (
+	processCallTimeUsage = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "plugin_process_call_time_usage_seconds",
+			Help:    "The time usage of process plugin call.",
+			Buckets: prometheus.ExponentialBuckets(0.1, 5, 5),
+		},
+		[]string{"plugin_name"},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(
+		processCallTimeUsage,
+	)
+}
 
 func readPluginSpec(basePath, pluginSpecFile string) (types.PluginSpec, Builder, error) {
 	pluginPath := filepath.Join(basePath, pluginSpecFile)
@@ -57,13 +75,6 @@ func readPluginSpec(basePath, pluginSpecFile string) (types.PluginSpec, Builder,
 	case adaptors.AdaptorTypeScriptPlugin:
 		builder = scriptAdaptorBuilder()
 	case adaptors.AdaptorTypeGoPlugin:
-		if spec.Path == "" {
-			return types.PluginSpec{}, nil, fmt.Errorf("path is empty")
-		}
-		_, err = os.Stat(spec.Path)
-		if err != nil {
-			return types.PluginSpec{}, nil, fmt.Errorf("stat plugin path failed: %s", err)
-		}
 		builder = gopluginAdaptorBuilder()
 	default:
 		return types.PluginSpec{}, nil, fmt.Errorf("unknow adaptor %s", spec.Adaptor)
@@ -82,8 +93,4 @@ func gopluginAdaptorBuilder() Builder {
 	return func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
 		return adaptors.NewGoPluginAdaptor(spec, scope)
 	}
-}
-
-func IsBuildInPlugin(pluginNames ...string) bool {
-	return false
 }

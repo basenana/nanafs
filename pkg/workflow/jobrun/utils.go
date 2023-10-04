@@ -14,26 +14,29 @@
  limitations under the License.
 */
 
-package pluginapi
+package jobrun
 
-import (
-	"github.com/basenana/nanafs/pkg/types"
+import "github.com/prometheus/client_golang/prometheus"
+
+var (
+	runnerExecTimeUsage = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "jobrun_runner_exec_time_usage_seconds",
+			Help:    "The time usage of runner run.",
+			Buckets: prometheus.ExponentialBuckets(0.1, 5, 5),
+		},
+	)
+	runnerStartedCounter = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "jobrun_runner_started_gauge",
+			Help: "This total of current started runner",
+		},
+	)
 )
 
-type Entry struct {
-	Name       string
-	Kind       types.Kind
-	Size       int64
-	IsGroup    bool
-	Parameters map[string]string
-}
-
-type EntryAttr struct {
-	Name string
-	Kind types.Kind
-}
-
-type CollectManifest struct {
-	BaseEntry int64
-	NewFiles  []Entry
+func init() {
+	prometheus.MustRegister(
+		runnerExecTimeUsage,
+		runnerStartedCounter,
+	)
 }

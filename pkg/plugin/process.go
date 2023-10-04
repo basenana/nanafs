@@ -19,6 +19,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"github.com/basenana/nanafs/pkg/plugin/buildin/docloader"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
@@ -32,10 +33,12 @@ type ProcessPlugin interface {
 }
 
 func Call(ctx context.Context, ps types.PlugScope, req *pluginapi.Request) (resp *pluginapi.Response, err error) {
+	startAt := time.Now()
 	defer func() {
 		if rErr := utils.Recover(); rErr != nil {
 			err = rErr
 		}
+		processCallTimeUsage.WithLabelValues(ps.PluginName).Observe(time.Since(startAt).Seconds())
 	}()
 	var plugin Plugin
 	plugin, err = BuildPlugin(ctx, ps)
@@ -133,6 +136,14 @@ func registerBuildInProcessPlugin(r *registry) {
 		types.PluginSpec{Name: docloader.PluginName, Version: docloader.PluginVersion, Type: types.TypeProcess, Parameters: map[string]string{}},
 		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
 			return docloader.NewDocLoader(spec, scope), nil
+		},
+	)
+
+	r.Register(
+		buildin.IngestPluginName,
+		types.PluginSpec{Name: buildin.IngestPluginName, Version: buildin.IngestPluginVersion, Type: types.TypeProcess, Parameters: map[string]string{}},
+		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
+			return buildin.NewIngestPlugin(spec, scope)
 		},
 	)
 }

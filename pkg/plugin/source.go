@@ -23,6 +23,7 @@ import (
 	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 	"io/ioutil"
 	"path"
 	"time"
@@ -31,6 +32,26 @@ import (
 type SourcePlugin interface {
 	ProcessPlugin
 	SourceInfo() (string, error)
+}
+
+func SourceInfo(ctx context.Context, ps types.PlugScope) (info string, err error) {
+	defer func() {
+		if rErr := utils.Recover(); rErr != nil {
+			err = rErr
+		}
+	}()
+	var plugin Plugin
+	plugin, err = BuildPlugin(ctx, ps)
+	if err != nil {
+		return info, err
+	}
+
+	srcPlugin, ok := plugin.(SourcePlugin)
+	if !ok {
+		return info, fmt.Errorf("not process plugin")
+	}
+
+	return srcPlugin.SourceInfo()
 }
 
 const (
@@ -72,7 +93,7 @@ func (d *ThreeBodyPlugin) Run(ctx context.Context, request *pluginapi.Request) (
 		return resp, nil
 	}
 	results := []pluginapi.CollectManifest{result}
-	return pluginapi.NewResponseWithResult(map[string]any{pluginapi.ResCollectManifest: results}), nil
+	return pluginapi.NewResponseWithResult(map[string]any{pluginapi.ResCollectManifests: results}), nil
 }
 
 func (d *ThreeBodyPlugin) fileGenerate(baseEntry int64, workdir string) (pluginapi.CollectManifest, error) {
