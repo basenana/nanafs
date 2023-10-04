@@ -19,17 +19,24 @@ package plugin
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/plugin/stub"
+	"github.com/basenana/nanafs/pkg/plugin/buildin/docloader"
+	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 	"time"
 )
 
 type ProcessPlugin interface {
 	Plugin
-	Run(ctx context.Context, request *stub.Request, params map[string]string) (*stub.Response, error)
+	Run(ctx context.Context, request *pluginapi.Request, pluginParams map[string]string) (*pluginapi.Response, error)
 }
 
-func Call(ctx context.Context, ps types.PlugScope, req *stub.Request) (resp *stub.Response, err error) {
+func Call(ctx context.Context, ps types.PlugScope, req *pluginapi.Request) (resp *pluginapi.Response, err error) {
+	defer func() {
+		if rErr := utils.Recover(); rErr != nil {
+			err = rErr
+		}
+	}()
 	var plugin Plugin
 	plugin, err = BuildPlugin(ctx, ps)
 	if err != nil {
@@ -64,7 +71,7 @@ func (d *DelayProcessPlugin) Version() string {
 	return delayPluginVersion
 }
 
-func (d *DelayProcessPlugin) Run(ctx context.Context, request *stub.Request, params map[string]string) (*stub.Response, error) {
+func (d *DelayProcessPlugin) Run(ctx context.Context, request *pluginapi.Request, pluginParams map[string]string) (*pluginapi.Response, error) {
 	var (
 		until   time.Time
 		nowTime = time.Now()
@@ -72,7 +79,7 @@ func (d *DelayProcessPlugin) Run(ctx context.Context, request *stub.Request, par
 	switch request.Action {
 
 	case "delay":
-		delayDurationStr := params["delay"]
+		delayDurationStr := pluginParams["delay"]
 		duration, err := time.ParseDuration(delayDurationStr)
 		if err != nil {
 			return nil, fmt.Errorf("parse delay duration [%s] failed: %s", delayDurationStr, err)
@@ -81,14 +88,14 @@ func (d *DelayProcessPlugin) Run(ctx context.Context, request *stub.Request, par
 
 	case "until":
 		var err error
-		untilStr := params["until"]
+		untilStr := pluginParams["until"]
 		until, err = time.Parse(untilStr, time.RFC3339)
 		if err != nil {
 			return nil, fmt.Errorf("parse delay until [%s] failed: %s", untilStr, err)
 		}
 
 	default:
-		resp := stub.NewResponse()
+		resp := pluginapi.NewResponse()
 		resp.Message = fmt.Sprintf("unknown action: %s", request.Action)
 		return resp, nil
 	}
@@ -98,21 +105,29 @@ func (d *DelayProcessPlugin) Run(ctx context.Context, request *stub.Request, par
 		defer timer.Stop()
 		select {
 		case <-timer.C:
-			return &stub.Response{IsSucceed: true}, nil
+			return &pluginapi.Response{IsSucceed: true}, nil
 		case <-ctx.Done():
-			return &stub.Response{IsSucceed: false, Message: ctx.Err().Error()}, nil
+			return &pluginapi.Response{IsSucceed: false, Message: ctx.Err().Error()}, nil
 		}
 	}
 
-	return &stub.Response{IsSucceed: true}, nil
+	return &pluginapi.Response{IsSucceed: true}, nil
 }
 
-func registerDelayPlugin(r *registry) {
+func registerBuildInProcessPlugin(r *registry) {
 	r.Register(
 		delayPluginName,
 		types.PluginSpec{Name: delayPluginName, Version: delayPluginVersion, Type: types.TypeProcess, Parameters: map[string]string{}},
 		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
 			return &DelayProcessPlugin{}, nil
+		},
+	)
+
+	r.Register(
+		docloader.PluginName,
+		types.PluginSpec{Name: docloader.PluginName, Version: docloader.PluginVersion, Type: types.TypeProcess, Parameters: map[string]string{}},
+		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
+			return &docloader.DocLoader{}, nil
 		},
 	)
 }

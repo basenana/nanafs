@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
-	"github.com/basenana/nanafs/pkg/plugin/stub"
+	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"path"
@@ -243,7 +243,7 @@ func (e *extGroup) FindEntry(ctx context.Context, name string) (*types.Metadata,
 }
 
 func (e *extGroup) CreateEntry(ctx context.Context, attr EntryAttr) (*types.Metadata, error) {
-	mirrorEn, err := e.mirror.CreateEntry(ctx, stub.EntryAttr{
+	mirrorEn, err := e.mirror.CreateEntry(ctx, pluginapi.EntryAttr{
 		Name: attr.Name,
 		Kind: attr.Kind,
 	})
@@ -325,7 +325,7 @@ func (e *extGroup) ListChildren(ctx context.Context) ([]*types.Metadata, error) 
 	}
 
 	recordChildMap := make(map[string]*types.Metadata)
-	actualChildMap := make(map[string]*stub.Entry)
+	actualChildMap := make(map[string]*pluginapi.Entry)
 	for i := range recordChild {
 		recordChildMap[recordChild[i].Name] = recordChild[i]
 	}
@@ -355,7 +355,7 @@ func (e *extGroup) ListChildren(ctx context.Context) ([]*types.Metadata, error) 
 	return result, nil
 }
 
-func (e *extGroup) syncEntry(ctx context.Context, mirrored *stub.Entry, crt *types.Metadata) (en *types.Metadata, err error) {
+func (e *extGroup) syncEntry(ctx context.Context, mirrored *pluginapi.Entry, crt *types.Metadata) (en *types.Metadata, err error) {
 	grp, err := e.stdGroup.cacheStore.getEntry(ctx, e.stdGroup.entryID)
 	if err != nil {
 		return nil, err

@@ -19,7 +19,7 @@ package dentry
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/plugin"
-	"github.com/basenana/nanafs/pkg/plugin/stub"
+	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -314,7 +314,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			Expect(len(need)).Should(Equal(0))
 		})
 		It("insert sync_file1.yaml to memfs should be succeed", func() {
-			_, err = memFS.CreateEntry(context.TODO(), stub.EntryAttr{
+			_, err = memFS.CreateEntry(context.TODO(), pluginapi.EntryAttr{
 				Name: "sync_file1.yaml",
 				Kind: types.RawKind,
 			})
@@ -335,7 +335,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			Expect(len(need)).Should(Equal(0))
 		})
 		It("insert sync_file2.yaml to memfs should be succeed", func() {
-			_, err = memFS.CreateEntry(context.TODO(), stub.EntryAttr{
+			_, err = memFS.CreateEntry(context.TODO(), pluginapi.EntryAttr{
 				Name: "sync_file2.yaml",
 				Kind: types.RawKind,
 			})
@@ -355,7 +355,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			Expect(len(need)).Should(Equal(0))
 		})
 		It("delete sync_file2.yaml should be succeed", func() {
-			err = memFS.RemoveEntry(context.TODO(), &stub.Entry{
+			err = memFS.RemoveEntry(context.TODO(), &pluginapi.Entry{
 				Name: "sync_file2.yaml",
 				Kind: types.RawKind,
 			})

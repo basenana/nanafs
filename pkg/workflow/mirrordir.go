@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/plugin"
-	"github.com/basenana/nanafs/pkg/plugin/stub"
+	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	"github.com/basenana/nanafs/utils"
@@ -121,7 +121,7 @@ func (d *dirHandler) IsGroup(ctx context.Context) (bool, error) {
 	return en.IsGroup, nil
 }
 
-func (d *dirHandler) FindEntry(ctx context.Context, name string) (*stub.Entry, error) {
+func (d *dirHandler) FindEntry(ctx context.Context, name string) (*pluginapi.Entry, error) {
 	if d == nil {
 		return nil, types.ErrNoGroup
 	}
@@ -138,7 +138,7 @@ func (d *dirHandler) FindEntry(ctx context.Context, name string) (*stub.Entry, e
 	if d.dirKind == MirrorDirRoot {
 		switch name {
 		case MirrorDirWorkflows, MirrorDirJobs:
-			return d.plugin.fs.CreateEntry(d.plugin.path, stub.EntryAttr{Name: name, Kind: types.ExternalGroupKind})
+			return d.plugin.fs.CreateEntry(d.plugin.path, pluginapi.EntryAttr{Name: name, Kind: types.ExternalGroupKind})
 		default:
 			return nil, types.ErrNotFound
 		}
@@ -149,7 +149,7 @@ func (d *dirHandler) FindEntry(ctx context.Context, name string) (*stub.Entry, e
 		if err != nil {
 			return nil, err
 		}
-		return d.plugin.fs.CreateEntry(d.plugin.path, stub.EntryAttr{Name: name, Kind: types.RawKind})
+		return d.plugin.fs.CreateEntry(d.plugin.path, pluginapi.EntryAttr{Name: name, Kind: types.RawKind})
 	}
 
 	if d.dirKind == MirrorDirJobs {
@@ -158,7 +158,7 @@ func (d *dirHandler) FindEntry(ctx context.Context, name string) (*stub.Entry, e
 			if err != nil {
 				return nil, err
 			}
-			return d.plugin.fs.CreateEntry(d.plugin.path, stub.EntryAttr{Name: name, Kind: types.ExternalGroupKind})
+			return d.plugin.fs.CreateEntry(d.plugin.path, pluginapi.EntryAttr{Name: name, Kind: types.ExternalGroupKind})
 		} else {
 			jobs, err := d.ListChildren(ctx)
 			if err != nil {
@@ -174,7 +174,7 @@ func (d *dirHandler) FindEntry(ctx context.Context, name string) (*stub.Entry, e
 	return nil, types.ErrNotFound
 }
 
-func (d *dirHandler) CreateEntry(ctx context.Context, attr stub.EntryAttr) (*stub.Entry, error) {
+func (d *dirHandler) CreateEntry(ctx context.Context, attr pluginapi.EntryAttr) (*pluginapi.Entry, error) {
 	if d.dirKind == MirrorDirRoot {
 		return nil, types.ErrNoAccess
 	}
@@ -195,11 +195,11 @@ func (d *dirHandler) CreateEntry(ctx context.Context, attr stub.EntryAttr) (*stu
 	return en, nil
 }
 
-func (d *dirHandler) UpdateEntry(ctx context.Context, en *stub.Entry) error {
+func (d *dirHandler) UpdateEntry(ctx context.Context, en *pluginapi.Entry) error {
 	return d.plugin.fs.UpdateEntry(d.plugin.path, en)
 }
 
-func (d *dirHandler) RemoveEntry(ctx context.Context, en *stub.Entry) error {
+func (d *dirHandler) RemoveEntry(ctx context.Context, en *pluginapi.Entry) error {
 	if d == nil {
 		return types.ErrNoGroup
 	}
@@ -227,7 +227,7 @@ func (d *dirHandler) RemoveEntry(ctx context.Context, en *stub.Entry) error {
 	return nil
 }
 
-func (d *dirHandler) ListChildren(ctx context.Context) ([]*stub.Entry, error) {
+func (d *dirHandler) ListChildren(ctx context.Context) ([]*pluginapi.Entry, error) {
 	if d == nil {
 		return nil, types.ErrNoGroup
 	}
@@ -236,7 +236,7 @@ func (d *dirHandler) ListChildren(ctx context.Context) ([]*stub.Entry, error) {
 		return nil, err
 	}
 
-	children := make([]*stub.Entry, 0)
+	children := make([]*pluginapi.Entry, 0)
 	cachedChildMap := make(map[string]struct{})
 	for i, ch := range cachedChild {
 		cachedChildMap[ch.Name] = struct{}{}
@@ -247,7 +247,7 @@ func (d *dirHandler) ListChildren(ctx context.Context) ([]*stub.Entry, error) {
 	case d.dirKind == MirrorDirRoot:
 
 		if _, ok := cachedChildMap[MirrorDirJobs]; !ok {
-			child, err := d.plugin.fs.CreateEntry(d.plugin.path, stub.EntryAttr{Name: MirrorDirJobs, Kind: types.ExternalGroupKind})
+			child, err := d.plugin.fs.CreateEntry(d.plugin.path, pluginapi.EntryAttr{Name: MirrorDirJobs, Kind: types.ExternalGroupKind})
 			if err != nil {
 				wfLogger.Errorf("init mirror dir %s error: %s", MirrorDirJobs, err)
 				return nil, err
@@ -256,7 +256,7 @@ func (d *dirHandler) ListChildren(ctx context.Context) ([]*stub.Entry, error) {
 		}
 
 		if _, ok := cachedChildMap[MirrorDirWorkflows]; !ok {
-			child, err := d.plugin.fs.CreateEntry(d.plugin.path, stub.EntryAttr{Name: MirrorDirWorkflows, Kind: types.ExternalGroupKind})
+			child, err := d.plugin.fs.CreateEntry(d.plugin.path, pluginapi.EntryAttr{Name: MirrorDirWorkflows, Kind: types.ExternalGroupKind})
 			if err != nil {
 				wfLogger.Errorf("init mirror dir %s error: %s", MirrorDirWorkflows, err)
 				return nil, err
@@ -271,7 +271,7 @@ func (d *dirHandler) ListChildren(ctx context.Context) ([]*stub.Entry, error) {
 		}
 		for _, wf := range wfList {
 			if _, ok := cachedChildMap[id2MirrorFile(wf.Id)]; !ok {
-				child, err := d.plugin.fs.CreateEntry(d.plugin.path, stub.EntryAttr{Name: id2MirrorFile(wf.Id), Kind: types.RawKind})
+				child, err := d.plugin.fs.CreateEntry(d.plugin.path, pluginapi.EntryAttr{Name: id2MirrorFile(wf.Id), Kind: types.RawKind})
 				if err != nil {
 					wfLogger.Errorf("init mirror workflow file %s error: %s", id2MirrorFile(wf.Id), err)
 					return nil, err
@@ -286,7 +286,7 @@ func (d *dirHandler) ListChildren(ctx context.Context) ([]*stub.Entry, error) {
 		}
 		for _, wf := range wfList {
 			if _, ok := cachedChildMap[wf.Id]; !ok {
-				child, err := d.plugin.fs.CreateEntry(d.plugin.path, stub.EntryAttr{Name: wf.Id, Kind: types.ExternalGroupKind})
+				child, err := d.plugin.fs.CreateEntry(d.plugin.path, pluginapi.EntryAttr{Name: wf.Id, Kind: types.ExternalGroupKind})
 				if err != nil {
 					wfLogger.Errorf("init mirror jobs workflow group %s error: %s", wf.Id, err)
 					return nil, err
@@ -301,7 +301,7 @@ func (d *dirHandler) ListChildren(ctx context.Context) ([]*stub.Entry, error) {
 		}
 		for _, j := range jobList {
 			if _, ok := cachedChildMap[id2MirrorFile(j.Id)]; !ok {
-				child, err := d.plugin.fs.CreateEntry(d.plugin.path, stub.EntryAttr{Name: id2MirrorFile(j.Id), Kind: types.RawKind})
+				child, err := d.plugin.fs.CreateEntry(d.plugin.path, pluginapi.EntryAttr{Name: id2MirrorFile(j.Id), Kind: types.RawKind})
 				if err != nil {
 					wfLogger.Errorf("init mirror job file %s error: %s", id2MirrorFile(j.Id), err)
 					return nil, err
@@ -368,7 +368,7 @@ func (f *fileHandler) Close(ctx context.Context) error {
 	return nil
 }
 
-func (f *fileHandler) createOrUpdateWorkflow(ctx context.Context, en *stub.Entry) error {
+func (f *fileHandler) createOrUpdateWorkflow(ctx context.Context, en *pluginapi.Entry) error {
 	wf := &types.WorkflowSpec{}
 	decodeErr := yaml.NewDecoder(&memfsFile{filePath: f.plugin.path, entry: en, memfs: f.plugin.fs}).Decode(wf)
 	if decodeErr != nil {
@@ -413,7 +413,7 @@ func (f *fileHandler) createOrUpdateWorkflow(ctx context.Context, en *stub.Entry
 	return nil
 }
 
-func (f *fileHandler) triggerOrUpdateWorkflowJob(ctx context.Context, en *stub.Entry) error {
+func (f *fileHandler) triggerOrUpdateWorkflowJob(ctx context.Context, en *pluginapi.Entry) error {
 	wfJob := &types.WorkflowJob{}
 	decodeErr := yaml.NewDecoder(&memfsFile{filePath: f.plugin.path, entry: en, memfs: f.plugin.fs}).Decode(wfJob)
 	if decodeErr != nil {
@@ -469,7 +469,7 @@ func (f *fileHandler) triggerOrUpdateWorkflowJob(ctx context.Context, en *stub.E
 
 type memfsFile struct {
 	filePath string
-	entry    *stub.Entry
+	entry    *pluginapi.Entry
 	memfs    *plugin.MemFS
 	off      int64
 }
@@ -490,12 +490,12 @@ func buildWorkflowMirrorPlugin(mgr Manager) plugin.Builder {
 	mp := &MirrorPlugin{path: "/", fs: plugin.NewMemFS(), mgr: mgr}
 	mp.dirHandler = &dirHandler{plugin: mp, dirKind: MirrorDirRoot}
 
-	_, _ = mp.fs.CreateEntry("/", stub.EntryAttr{
+	_, _ = mp.fs.CreateEntry("/", pluginapi.EntryAttr{
 		Name: MirrorDirJobs,
 		Kind: types.ExternalGroupKind,
 	})
 
-	_, _ = mp.fs.CreateEntry("/", stub.EntryAttr{
+	_, _ = mp.fs.CreateEntry("/", pluginapi.EntryAttr{
 		Name: MirrorDirWorkflows,
 		Kind: types.ExternalGroupKind,
 	})
