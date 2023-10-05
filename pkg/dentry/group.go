@@ -24,6 +24,7 @@ import (
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
+	"go.uber.org/zap"
 	"path"
 	"runtime/trace"
 	"strings"
@@ -227,6 +228,7 @@ type extGroup struct {
 	mgr      Manager
 	stdGroup *stdGroup
 	mirror   plugin.MirrorPlugin
+	logger   *zap.SugaredLogger
 }
 
 func (e *extGroup) FindEntry(ctx context.Context, name string) (*types.Metadata, error) {
@@ -258,25 +260,23 @@ func (e *extGroup) CreateEntry(ctx context.Context, attr EntryAttr) (*types.Meta
 }
 
 func (e *extGroup) UpdateEntry(ctx context.Context, entryId int64, patch *types.Metadata) error {
-	group, err := e.stdGroup.cacheStore.getEntry(ctx, e.stdGroup.entryID)
-	if err != nil {
-		return err
-	}
-	mirrorEn, err := e.mirror.FindEntry(ctx, group.Name)
-	if err != nil {
-		return err
-	}
-
-	mirrorEn.Size = patch.Size
-
 	// query old and write back
 	entry, err := e.stdGroup.cacheStore.getEntry(ctx, entryId)
 	if err != nil {
 		return err
 	}
 
+	mirrorEn, err := e.mirror.FindEntry(ctx, entry.Name)
+	if err != nil {
+		e.logger.Warnw("find entry in mirror plugin failed", "name", entry.Name, "err", err)
+		return err
+	}
+
+	mirrorEn.Size = patch.Size
+
 	err = e.mirror.UpdateEntry(ctx, mirrorEn)
 	if err != nil {
+		e.logger.Warnw("update entry to mirror plugin failed", "name", entry.Name, "err", err)
 		return err
 	}
 

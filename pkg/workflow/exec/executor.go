@@ -76,10 +76,12 @@ func (b *localExecutor) Setup(ctx context.Context) (err error) {
 		return logOperationError(localExecName, "setup", err)
 	}
 
-	b.entryPath, err = entryWorkdirInit(ctx, b.job.Target.EntryID, b.entryMgr, b.workdir)
-	if err != nil {
-		b.logger.Errorw("copy target file to workdir failed", "err", err)
-		return logOperationError(localExecName, "setup", err)
+	if b.job.Target.EntryID != 0 {
+		b.entryPath, err = entryWorkdirInit(ctx, b.job.Target.EntryID, b.entryMgr, b.workdir)
+		if err != nil {
+			b.logger.Errorw("copy target file to workdir failed", "err", err)
+			return logOperationError(localExecName, "setup", err)
+		}
 	}
 	b.logger.Infow("job setup", "workdir", b.workdir, "entryPath", b.entryPath)
 
@@ -93,6 +95,7 @@ func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobS
 	req := pluginapi.NewRequest()
 	req.WorkPath = b.workdir
 	req.EntryId = b.job.Target.EntryID
+	req.ParentEntryId = b.job.Target.ParentEntryID
 	req.EntryPath = b.entryPath
 
 	req.Parameter = map[string]any{}
@@ -155,6 +158,7 @@ func (b *localExecutor) Collect(ctx context.Context) error {
 		return logOperationError(localExecName, "collect", fmt.Errorf(msg))
 	}
 
+	b.logger.Infow("collect files", "manifests", len(manifests))
 	var errList []error
 	for _, manifest := range manifests {
 		for _, file := range manifest.NewFiles {

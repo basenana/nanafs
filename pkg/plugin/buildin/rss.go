@@ -27,7 +27,6 @@ import (
 	"github.com/hyponet/webpage-packer/packer"
 	"github.com/mmcdole/gofeed"
 	"go.uber.org/zap"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"path"
@@ -41,6 +40,7 @@ const (
 
 	archiveFileTypeUrl        = "url"
 	archiveFileTypeHtml       = "html"
+	archiveFileTypeRawHtml    = "rawhtml"
 	archiveFileTypeWebArchive = "webarchive"
 )
 
@@ -82,12 +82,15 @@ func (r *RssSourcePlugin) SourceInfo() (string, error) {
 }
 
 func (r *RssSourcePlugin) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
+	if request.ParentEntryId <= 0 {
+		return nil, fmt.Errorf("invalid parent entry id: %d", request.ParentEntryId)
+	}
 	source, err := r.rssSources(r.scope.Parameters)
 	if err != nil {
 		r.logger.Errorw("get rss source failed", "err", err)
 		return nil, err
 	}
-	source.EntryId = request.EntryId
+	source.EntryId = request.ParentEntryId
 
 	entries, err := r.syncRssSource(ctx, source, request.WorkPath)
 	if err != nil {
@@ -95,6 +98,7 @@ func (r *RssSourcePlugin) Run(ctx context.Context, request *pluginapi.Request) (
 		return pluginapi.NewFailedResponse(fmt.Sprintf("sync rss failed: %s", err)), nil
 	}
 	results := []pluginapi.CollectManifest{{BaseEntry: source.EntryId, NewFiles: entries}}
+	r.logger.Infow("sync rss finish", "baseEntry", source.EntryId, "entries", len(entries))
 
 	return pluginapi.NewResponseWithResult(map[string]any{pluginapi.ResCollectManifests: results}), nil
 }
@@ -114,7 +118,7 @@ func (r *RssSourcePlugin) rssSources(pluginParams map[string]string) (src rssSou
 
 	src.FileType = pluginParams["file_type"]
 	if src.FileType == "" {
-		src.FileType = archiveFileTypeUrl
+		src.FileType = archiveFileTypeHtml
 	}
 
 	src.Timeout = 120
@@ -164,12 +168,20 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, w
 			buf.WriteString("\n")
 			buf.WriteString(fmt.Sprintf("URL=%s", item.Link))
 
-			err = ioutil.WriteFile(filePath, buf.Bytes(), 0655)
+			err = os.WriteFile(filePath, buf.Bytes(), 0655)
 			if err != nil {
 				return nil, fmt.Errorf("pack to url file failed: %s", err)
 			}
 
 		case archiveFileTypeHtml:
+			filePath += ".html"
+			htmlContent := readableHtmlContent(item.Link, item.Title, item.Content)
+			err = os.WriteFile(filePath, []byte(htmlContent), 0655)
+			if err != nil {
+				return nil, fmt.Errorf("pack to html file failed: %s", err)
+			}
+
+		case archiveFileTypeRawHtml:
 			filePath += ".html"
 			p := packer.NewHtmlPacker()
 			err = p.Pack(ctx, packer.Option{
@@ -180,7 +192,7 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, w
 				Headers:     headers,
 			})
 			if err != nil {
-				return nil, fmt.Errorf("pack to html file failed: %s", err)
+				return nil, fmt.Errorf("pack to raw html file failed: %s", err)
 			}
 
 		case archiveFileTypeWebArchive:
@@ -216,7 +228,7 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, w
 			IsGroup: false,
 		})
 	}
-	return nil, nil
+	return newEntries, nil
 }
 
 func BuildRssSourcePlugin(ctx context.Context, recorder metastore.PluginRecorder, spec types.PluginSpec, scope types.PlugScope) *RssSourcePlugin {

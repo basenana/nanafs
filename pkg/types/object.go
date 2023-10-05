@@ -97,7 +97,7 @@ const (
 type PlugScope struct {
 	PluginName string            `json:"plugin_name"`
 	Version    string            `json:"version"`
-	PluginType PluginType        `json:"plugin_type"`
+	PluginType PluginType        `json:"plugin_type,omitempty"`
 	Action     string            `json:"action,omitempty"`
 	Parameters map[string]string `json:"parameters"`
 }

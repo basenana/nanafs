@@ -23,9 +23,9 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	"github.com/basenana/nanafs/utils"
+	"github.com/goccy/go-yaml"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"gopkg.in/yaml.v3"
 	"io"
 	"time"
 )
