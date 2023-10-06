@@ -16,6 +16,10 @@
 
 package config
 
+import (
+	fridayconf "github.com/basenana/friday/config"
+)
+
 type Config struct {
 	Api    Api     `json:"api"`
 	FUSE   FUSE    `json:"fuse"`
@@ -25,9 +29,10 @@ type Config struct {
 	Storages         []Storage  `json:"storages"`
 	GlobalEncryption Encryption `json:"global_encryption"`
 
-	Workflow Workflow `json:"workflow"`
-	Plugin   *Plugin  `json:"plugin,omitempty"`
-	FS       *FS      `json:"fs,omitempty"`
+	Workflow Workflow           `json:"workflow"`
+	Plugin   *Plugin            `json:"plugin,omitempty"`
+	FS       *FS                `json:"fs,omitempty"`
+	Friday   *fridayconf.Config `json:"friday,omitempty"`
 
 	CacheDir  string `json:"cache_dir,omitempty"`
 	CacheSize int    `json:"cache_size,omitempty"`

@@ -17,8 +17,11 @@
 package friday
 
 import (
+	"fmt"
+
 	"github.com/basenana/friday/config"
 	"github.com/basenana/friday/pkg/friday"
+	"github.com/basenana/friday/pkg/friday/summary"
 	"github.com/basenana/friday/pkg/llm/prompts"
 	"github.com/basenana/friday/pkg/models"
 )
@@ -28,6 +31,9 @@ var (
 )
 
 func InitFriday(cfg *config.Config) (err error) {
+	if cfg != nil {
+		return nil
+	}
 	fridayClient, err = friday.NewFriday(cfg)
 	return
 }
@@ -53,4 +59,19 @@ func IngestFile(fileName, content string) error {
 func Question(q string) (answer string, err error) {
 	p := prompts.NewQuestionPrompt()
 	return fridayClient.Question(p, q)
+}
+
+func SummaryFile(fileName, content string) (string, error) {
+	file := models.File{
+		Source:  fileName,
+		Content: content,
+	}
+	result, err := fridayClient.SummaryFromFile(file, summary.MapReduce)
+	if err != nil {
+		return "", err
+	}
+	if result == nil || result[fileName] == "" {
+		return "", fmt.Errorf("fail to summary file %s", fileName)
+	}
+	return result[fileName], nil
 }

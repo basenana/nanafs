@@ -19,12 +19,13 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"github.com/basenana/nanafs/pkg/plugin/buildin/docloader"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
-	"time"
 )
 
 type ProcessPlugin interface {
@@ -144,6 +145,14 @@ func registerBuildInProcessPlugin(r *registry) {
 		types.PluginSpec{Name: buildin.IngestPluginName, Version: buildin.IngestPluginVersion, Type: types.TypeProcess, Parameters: map[string]string{}},
 		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
 			return buildin.NewIngestPlugin(spec, scope)
+		},
+	)
+
+	r.Register(
+		buildin.SummaryPluginName,
+		types.PluginSpec{Name: buildin.SummaryPluginName, Version: buildin.SummaryPluginVersion, Type: types.TypeProcess, Parameters: map[string]string{}},
+		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
+			return buildin.NewSummaryPlugin(spec, scope)
 		},
 	)
 }

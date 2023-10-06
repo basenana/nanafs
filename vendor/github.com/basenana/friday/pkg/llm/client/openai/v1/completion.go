@@ -19,6 +19,8 @@ package v1
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
+	"time"
 
 	"github.com/basenana/friday/pkg/llm/prompts"
 )
@@ -40,6 +42,20 @@ type Choice struct {
 }
 
 func (o *OpenAIV1) Completion(prompt prompts.PromptTemplate, parameters map[string]string) ([]string, error) {
+	answer, err := o.completion(prompt, parameters)
+	if err != nil {
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "rate_limit_exceeded") {
+			o.log.Warnf("meets rate limit exceeded, sleep %d second and retry", o.rateLimit)
+			time.Sleep(time.Duration(o.rateLimit) * time.Second)
+			return o.completion(prompt, parameters)
+		}
+		return nil, err
+	}
+	return answer, err
+}
+
+func (o *OpenAIV1) completion(prompt prompts.PromptTemplate, parameters map[string]string) ([]string, error) {
 	path := "completions"
 
 	model := "text-davinci-003"
@@ -47,6 +63,8 @@ func (o *OpenAIV1) Completion(prompt prompts.PromptTemplate, parameters map[stri
 	if err != nil {
 		return nil, err
 	}
+	o.log.Debugf("final prompt: %s", p)
+
 	data := map[string]interface{}{
 		"model":             model,
 		"prompt":            p,

@@ -48,7 +48,7 @@ func NewFriday(conf *config.Config) (f *Friday, err error) {
 	)
 	// init LLM client
 	if conf.LLMType == config.LLMOpenAI {
-		llmClient = openaiv1.NewOpenAIV1()
+		llmClient = openaiv1.NewOpenAIV1(conf.OpenAIKey, conf.LLMRateLimit)
 	}
 	if conf.LLMType == config.LLMGLM6B {
 		llmClient = glm_6b.NewGLM(conf.LLMUrl)
@@ -56,7 +56,7 @@ func NewFriday(conf *config.Config) (f *Friday, err error) {
 
 	// init embedding client
 	if conf.EmbeddingType == config.EmbeddingOpenAI {
-		embeddingModel = openaiembedding.NewOpenAIEmbedding()
+		embeddingModel = openaiembedding.NewOpenAIEmbedding(conf.OpenAIKey, conf.LLMRateLimit)
 	}
 	if conf.EmbeddingType == config.EmbeddingHuggingFace {
 		embeddingModel = huggingfaceembedding.NewHuggingFace(conf.EmbeddingUrl, conf.EmbeddingModel)

@@ -32,7 +32,6 @@ import (
 	"github.com/basenana/nanafs/cmd/apps/apis/webdav"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
-	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/utils/logger"
 )
 
@@ -65,12 +64,6 @@ func (s *Server) Run(stopCh chan struct{}) {
 			s.logger.Infof("api server stopped")
 		}
 	}()
-
-	// init friday
-	err := friday.InitFridayFromConfig()
-	if err != nil {
-		s.logger.Errorf("init friday error: %s", err)
-	}
 
 	<-stopCh
 	shutdownCtx, canF := context.WithTimeout(context.TODO(), time.Second)
