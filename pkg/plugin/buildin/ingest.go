@@ -20,9 +20,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+
+	"go.uber.org/zap"
+
 	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils/logger"
 )
 
 const (
@@ -33,6 +37,7 @@ const (
 type IngestPlugin struct {
 	spec  types.PluginSpec
 	scope types.PlugScope
+	log   *zap.SugaredLogger
 }
 
 func (i *IngestPlugin) Name() string { return IngestPluginName }
@@ -58,6 +63,7 @@ func (i *IngestPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pl
 		buf.WriteString("\n")
 	}
 
+	i.log.Infow("get docs", "length", buf.Len(), "entryId", request.EntryId)
 	err := friday.IngestFile(fmt.Sprintf("entry_%d", request.EntryId), buf.String())
 	if err != nil {
 		return pluginapi.NewFailedResponse(fmt.Sprintf("ingest documents failed: %s", err)), nil
@@ -67,5 +73,9 @@ func (i *IngestPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pl
 }
 
 func NewIngestPlugin(spec types.PluginSpec, scope types.PlugScope) (*IngestPlugin, error) {
-	return &IngestPlugin{spec: spec, scope: scope}, nil
+	return &IngestPlugin{
+		spec:  spec,
+		scope: scope,
+		log:   logger.NewLogger("ingestPlugin"),
+	}, nil
 }

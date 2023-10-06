@@ -98,6 +98,9 @@ func (t *TextSpliter) merge(splits []string) []string {
 	current := []string{}
 	total := 0
 	for _, d := range splits {
+		if len(d) == 0 {
+			continue
+		}
 		l := t.length(d)
 		sLen := separatorLen
 		if len(current) == 0 {

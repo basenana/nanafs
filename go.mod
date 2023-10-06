@@ -9,11 +9,12 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.26
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.36.0
 	github.com/aws/smithy-go v1.13.5
-	github.com/basenana/friday v0.0.0-20230929093739-fc3af7a6e598
+	github.com/basenana/friday v0.0.0-20231006102039-8f702307e912
 	github.com/bluele/gcache v0.0.2
 	github.com/getsentry/sentry-go v0.22.0
 	github.com/glebarez/sqlite v1.7.0
 	github.com/go-gormigrate/gormigrate/v2 v2.0.2
+	github.com/goccy/go-yaml v1.11.2
 	github.com/google/uuid v1.3.0
 	github.com/hanwen/go-fuse/v2 v2.3.0
 	github.com/hyponet/eventbus v1.0.0
@@ -32,7 +33,6 @@ require (
 	go.uber.org/zap v1.24.0
 	golang.org/x/net v0.15.0
 	golang.org/x/sys v0.12.0
-	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/postgres v1.3.7
 )
 
@@ -68,7 +68,6 @@ require (
 	github.com/go-shiori/dom v0.0.0-20230515143342-73569d674e1c // indirect
 	github.com/go-shiori/go-readability v0.0.0-20230421032831-c66949dfc0ad // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
-	github.com/goccy/go-yaml v1.11.2 // indirect
 	github.com/gogs/chardet v0.0.0-20211120154057-b7413eaefb8f // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
@@ -112,6 +111,7 @@ require (
 	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	howett.net/plist v1.0.0 // indirect
 	modernc.org/libc v1.22.2 // indirect
 	modernc.org/mathutil v1.5.0 // indirect

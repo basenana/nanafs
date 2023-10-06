@@ -18,20 +18,23 @@ package apps
 
 import (
 	"fmt"
+	"path"
+	"time"
+
+	"github.com/spf13/cobra"
+
 	"github.com/basenana/nanafs/cmd/apps/apis"
 	configapp "github.com/basenana/nanafs/cmd/apps/config"
 	"github.com/basenana/nanafs/cmd/apps/fs"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/bio"
 	"github.com/basenana/nanafs/pkg/controller"
+	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
-	"github.com/spf13/cobra"
-	"path"
-	"time"
 )
 
 func init() {
@@ -81,6 +84,12 @@ var daemonCmd = &cobra.Command{
 
 		bio.InitPageCache(cfg.FS)
 		storage.InitLocalCache(cfg)
+
+		// init friday
+		err = friday.InitFriday(cfg.Friday)
+		if err != nil {
+			panic(err)
+		}
 
 		if err := plugin.Init(cfg.Plugin, meta); err != nil {
 			panic(err)

@@ -21,25 +21,30 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 
 	"github.com/basenana/friday/pkg/llm"
 	"github.com/basenana/friday/pkg/utils/logger"
 )
 
+const defaultRateLimit = 60
+
 type OpenAIV1 struct {
 	log logger.Logger
 
-	baseUri string
-	key     string
+	baseUri   string
+	key       string
+	rateLimit int
 }
 
-func NewOpenAIV1() *OpenAIV1 {
-	key := os.Getenv("OPENAI_KEY")
+func NewOpenAIV1(key string, rateLimit int) *OpenAIV1 {
+	if rateLimit <= 0 {
+		rateLimit = defaultRateLimit
+	}
 	return &OpenAIV1{
-		log:     logger.NewLogger("openai"),
-		baseUri: "https://api.openai.com/v1",
-		key:     key,
+		log:       logger.NewLogger("openai"),
+		baseUri:   "https://api.openai.com/v1",
+		key:       key,
+		rateLimit: rateLimit,
 	}
 }
 

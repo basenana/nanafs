@@ -19,6 +19,9 @@ package config
 type Config struct {
 	Debug bool `json:"debug,omitempty"`
 
+	// openai key
+	OpenAIKey string `json:"open_ai_key,omitempty"` // if openai is used for embedding or llm, it is needed
+
 	// embedding config
 	EmbeddingType  EmbeddingType `json:"embedding_type"`
 	EmbeddingUrl   string        `json:"embedding_url,omitempty"`   // only needed for huggingface
@@ -30,8 +33,9 @@ type Config struct {
 	EmbeddingDim    int             `json:"embedding_dim,omitempty"` // embedding dimension, default is 1536
 
 	// LLM
-	LLMType LLMType `json:"llm_type"`
-	LLMUrl  string  `json:"llm_url,omitempty"` // only needed for glm-6b
+	LLMType      LLMType `json:"llm_type"`
+	LLMUrl       string  `json:"llm_url,omitempty"`        // only needed for glm-6b
+	LLMRateLimit int     `json:"llm_rate_limit,omitempty"` // only needed for openai, rate_limit, in seconds, default is 60
 
 	// text spliter
 	SpliterChunkSize    int    `json:"spliter_chunk_size,omitempty"`    // chunk of files splited to store, default is 4000
