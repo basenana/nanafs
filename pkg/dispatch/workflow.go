@@ -75,7 +75,7 @@ func (w workflowAction) handleEvent(ctx context.Context, evt *types.EntryEvent) 
 		}
 
 		// trigger workflow
-		job, err = w.manager.TriggerWorkflow(ctx, wf.Id, evt.RefID, workflow.JobAttr{Reason: fmt.Sprintf("event: %s", evt.Type)})
+		job, err = w.manager.TriggerWorkflow(ctx, wf.Id, types.WorkflowTarget{EntryID: evt.RefID}, workflow.JobAttr{Reason: fmt.Sprintf("event: %s", evt.Type)})
 		if err != nil {
 			w.logger.Errorw("[workflowAction] workflow trigger failed", "entry", evt.RefID, "workflow", wf.Id, "err", err)
 			continue

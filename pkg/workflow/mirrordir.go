@@ -25,7 +25,7 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	"github.com/basenana/nanafs/utils"
-	"gopkg.in/yaml.v3"
+	"github.com/goccy/go-yaml"
 	"path"
 	"strings"
 	"time"
@@ -49,17 +49,17 @@ var mirrorPlugin = types.PluginSpec{
 }
 
 /*
-	MirrorPlugin is an implementation of plugin.MirrorPlugin,
-	which supports managing workflows using POSIX operations.
+MirrorPlugin is an implementation of plugin.MirrorPlugin,
+which supports managing workflows using POSIX operations.
 
-	virtual directory structure as follows:
-		.
-		|--workflows
-		  |--<workflow_id>.yaml
-		|--jobs
-		  |--<workflow_id>
-		    |--<job_id>.yaml
+virtual directory structure as follows:
 
+	.
+	|--workflows
+	  |--<workflow_id>.yaml
+	|--jobs
+	  |--<workflow_id>
+	    |--<job_id>.yaml
 */
 type MirrorPlugin struct {
 	path string
@@ -92,8 +92,9 @@ func (m *MirrorPlugin) build(ctx context.Context, _ types.PluginSpec, scope type
 		return nil, err
 	}
 
-	dirKind, wfID, err := parseFilePath(enPath)
+	dirKind, wfID, jobID, err := parseFilePath(enPath)
 	if err != nil {
+		wfLogger.Errorw("parse file path failed", "path", enPath, "err", err)
 		return nil, fmt.Errorf("unexcpect dir path %s", dirKind)
 	}
 
@@ -101,7 +102,7 @@ func (m *MirrorPlugin) build(ctx context.Context, _ types.PluginSpec, scope type
 	if en.IsGroup {
 		mp.dirHandler = &dirHandler{plugin: mp, dirKind: dirKind, wfID: wfID}
 	} else {
-		mp.fileHandler = &fileHandler{plugin: mp, dirKind: dirKind, wfID: wfID}
+		mp.fileHandler = &fileHandler{plugin: mp, dirKind: dirKind, wfID: wfID, jobID: jobID}
 	}
 
 	return mp, nil
@@ -145,11 +146,11 @@ func (d *dirHandler) FindEntry(ctx context.Context, name string) (*pluginapi.Ent
 	}
 
 	if d.dirKind == MirrorDirWorkflows {
-		_, err = d.plugin.mgr.GetWorkflow(ctx, mirrorFile2ID(name))
+		wf, err := d.plugin.mgr.GetWorkflow(ctx, mirrorFile2ID(name))
 		if err != nil {
 			return nil, err
 		}
-		return d.plugin.fs.CreateEntry(d.plugin.path, pluginapi.EntryAttr{Name: name, Kind: types.RawKind})
+		return d.reloadWorkflowEntry(wf)
 	}
 
 	if d.dirKind == MirrorDirJobs {
@@ -271,7 +272,7 @@ func (d *dirHandler) ListChildren(ctx context.Context) ([]*pluginapi.Entry, erro
 		}
 		for _, wf := range wfList {
 			if _, ok := cachedChildMap[id2MirrorFile(wf.Id)]; !ok {
-				child, err := d.plugin.fs.CreateEntry(d.plugin.path, pluginapi.EntryAttr{Name: id2MirrorFile(wf.Id), Kind: types.RawKind})
+				child, err := d.reloadWorkflowEntry(wf)
 				if err != nil {
 					wfLogger.Errorf("init mirror workflow file %s error: %s", id2MirrorFile(wf.Id), err)
 					return nil, err
@@ -301,7 +302,7 @@ func (d *dirHandler) ListChildren(ctx context.Context) ([]*pluginapi.Entry, erro
 		}
 		for _, j := range jobList {
 			if _, ok := cachedChildMap[id2MirrorFile(j.Id)]; !ok {
-				child, err := d.plugin.fs.CreateEntry(d.plugin.path, pluginapi.EntryAttr{Name: id2MirrorFile(j.Id), Kind: types.RawKind})
+				child, err := d.reloadWorkflowJobEntry(j)
 				if err != nil {
 					wfLogger.Errorf("init mirror job file %s error: %s", id2MirrorFile(j.Id), err)
 					return nil, err
@@ -314,10 +315,45 @@ func (d *dirHandler) ListChildren(ctx context.Context) ([]*pluginapi.Entry, erro
 	return children, nil
 }
 
+func (d *dirHandler) reloadWorkflowEntry(wf *types.WorkflowSpec) (*pluginapi.Entry, error) {
+	en, err := d.plugin.fs.CreateEntry(d.plugin.path, pluginapi.EntryAttr{Name: id2MirrorFile(wf.Id), Kind: types.RawKind})
+	if err != nil {
+		return nil, err
+	}
+	fPath := path.Join(d.plugin.path, en.Name)
+	err = d.plugin.fs.Trunc(fPath)
+	if err != nil {
+		return nil, err
+	}
+	err = yaml.NewEncoder(&memfsFile{filePath: fPath, entry: en, memfs: d.plugin.fs}).Encode(wf)
+	if err != nil {
+		return nil, err
+	}
+	return en, nil
+}
+
+func (d *dirHandler) reloadWorkflowJobEntry(job *types.WorkflowJob) (*pluginapi.Entry, error) {
+	en, err := d.plugin.fs.CreateEntry(d.plugin.path, pluginapi.EntryAttr{Name: id2MirrorFile(job.Id), Kind: types.RawKind})
+	if err != nil {
+		return nil, err
+	}
+	fPath := path.Join(d.plugin.path, en.Name)
+	err = d.plugin.fs.Trunc(fPath)
+	if err != nil {
+		return nil, err
+	}
+	err = yaml.NewEncoder(&memfsFile{filePath: fPath, entry: en, memfs: d.plugin.fs}).Encode(job)
+	if err != nil {
+		return nil, err
+	}
+	return en, nil
+}
+
 type fileHandler struct {
-	plugin        *MirrorPlugin
-	dirKind, wfID string
-	err           error
+	plugin      *MirrorPlugin
+	dirKind     string
+	wfID, jobID string
+	err         error
 }
 
 func (f *fileHandler) WriteAt(ctx context.Context, data []byte, off int64) (int64, error) {
@@ -346,54 +382,59 @@ func (f *fileHandler) Close(ctx context.Context) error {
 		return err
 	}
 
-	if strings.HasPrefix(en.Name, ".") {
+	if strings.HasPrefix(en.Name, ".") || path.Ext(en.Name) != MirrorFileType {
 		return nil
 	}
 
-	op := "unknown"
+	var (
+		op     = "unknown"
+		rawObj interface{}
+	)
 	switch {
 	case f.dirKind == MirrorDirWorkflows:
 		op = "create or update workflow"
-		f.err = f.createOrUpdateWorkflow(ctx, en)
+		rawObj, f.err = f.createOrUpdateWorkflow(ctx, en)
 	case f.dirKind == MirrorDirJobs && f.wfID != "":
 		op = "update workflow job"
-		f.err = f.triggerOrUpdateWorkflowJob(ctx, en)
+		rawObj, f.err = f.triggerOrUpdateWorkflowJob(ctx, en)
 	}
 
+	_ = f.plugin.fs.Trunc(f.plugin.path)
+	writer := &memfsFile{filePath: f.plugin.path, entry: en, memfs: f.plugin.fs}
 	if f.err != nil {
 		wfLogger.Errorf("%s failed: %s", op, f.err)
-		_, _ = f.plugin.fs.WriteAt(f.plugin.path, []byte(fmt.Sprintf("\n# error: %s\n", f.err)), en.Size)
+		_, _ = writer.Write([]byte(fmt.Sprintf("# error: %s\n", f.err)))
 	}
 
-	return nil
+	return yaml.NewEncoder(writer).Encode(rawObj)
 }
 
-func (f *fileHandler) createOrUpdateWorkflow(ctx context.Context, en *pluginapi.Entry) error {
+func (f *fileHandler) createOrUpdateWorkflow(ctx context.Context, en *pluginapi.Entry) (interface{}, error) {
 	wf := &types.WorkflowSpec{}
 	decodeErr := yaml.NewDecoder(&memfsFile{filePath: f.plugin.path, entry: en, memfs: f.plugin.fs}).Decode(wf)
 	if decodeErr != nil {
-		return decodeErr
+		wfLogger.Warnw("decode workflow file failed", "path", f.plugin.path, "en", en.Name, "err", decodeErr)
+		return nil, decodeErr
 	}
 
 	wfID := mirrorFile2ID(en.Name)
 	if err := isValidID(wfID); err != nil {
-		return err
+		return nil, err
 	}
 	wf.Id = wfID
 
 	oldWf, err := f.plugin.mgr.GetWorkflow(ctx, wfID)
 	if err != nil && err != types.ErrNotFound {
-		return err
+		return nil, err
 	}
 
 	// do create
 	if err == types.ErrNotFound {
 		wf, err = f.plugin.mgr.CreateWorkflow(ctx, initWorkflow(wf))
 		if err != nil {
-			return err
+			return nil, err
 		}
-		_ = f.plugin.fs.Trunc(f.plugin.path)
-		return yaml.NewEncoder(&memfsFile{filePath: f.plugin.path, entry: en, memfs: f.plugin.fs}).Encode(wf)
+		return wf, nil
 	}
 
 	// do update
@@ -406,35 +447,33 @@ func (f *fileHandler) createOrUpdateWorkflow(ctx context.Context, en *pluginapi.
 
 	oldWf, err = f.plugin.mgr.UpdateWorkflow(ctx, oldWf)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	_ = f.plugin.fs.Trunc(f.plugin.path)
-	_ = yaml.NewEncoder(&memfsFile{filePath: f.plugin.path, entry: en, memfs: f.plugin.fs}).Encode(oldWf)
-	return nil
+	return oldWf, nil
 }
 
-func (f *fileHandler) triggerOrUpdateWorkflowJob(ctx context.Context, en *pluginapi.Entry) error {
+func (f *fileHandler) triggerOrUpdateWorkflowJob(ctx context.Context, en *pluginapi.Entry) (interface{}, error) {
 	wfJob := &types.WorkflowJob{}
-	decodeErr := yaml.NewDecoder(&memfsFile{filePath: f.plugin.path, entry: en, memfs: f.plugin.fs}).Decode(wfJob)
-	if decodeErr != nil {
-		return decodeErr
+	en, err := f.plugin.fs.GetEntry(f.plugin.path)
+	if err != nil {
+		return nil, err
+	}
+	if en.Size > 0 {
+		decodeErr := yaml.NewDecoder(&memfsFile{filePath: f.plugin.path, entry: en, memfs: f.plugin.fs}).Decode(wfJob)
+		if decodeErr != nil {
+			wfLogger.Warnw("decode job file failed", "path", f.plugin.path, "en", en.Name, "err", decodeErr)
+			return nil, decodeErr
+		}
 	}
 
 	jobID := mirrorFile2ID(en.Name)
 	if err := isValidID(jobID); err != nil {
-		return err
+		return nil, err
 	}
 
-	jobs, err := f.plugin.mgr.ListJobs(ctx, f.wfID)
-	if err != nil {
-		return err
-	}
-
-	var oldJob *types.WorkflowJob
-	for i, j := range jobs {
-		if j.Id == jobID {
-			oldJob = jobs[i]
-		}
+	oldJob, err := f.plugin.mgr.GetJob(ctx, f.wfID, jobID)
+	if err != nil && err != types.ErrNotFound {
+		return nil, err
 	}
 
 	// do update
@@ -451,20 +490,16 @@ func (f *fileHandler) triggerOrUpdateWorkflowJob(ctx context.Context, en *plugin
 				err = fmt.Errorf("the current state is %s and cannot be changed to %s", oldJob.Status, wfJob.Status)
 			}
 		}
-		return err
+		return oldJob, err
 	}
 
 	// do create
 	target := wfJob.Target
-	wfJob, err = f.plugin.mgr.TriggerWorkflow(ctx, f.wfID, target.EntryID, JobAttr{JobID: jobID})
+	wfJob, err = f.plugin.mgr.TriggerWorkflow(ctx, f.wfID, target, JobAttr{JobID: jobID})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	encodeErr := yaml.NewEncoder(&memfsFile{filePath: f.plugin.path, entry: en, memfs: f.plugin.fs}).Encode(wfJob)
-	if encodeErr != nil {
-		return encodeErr
-	}
-	return nil
+	return wfJob, nil
 }
 
 type memfsFile struct {
@@ -543,7 +578,7 @@ func id2MirrorFile(idStr string) string {
 	return idStr + MirrorFileType
 }
 
-func parseFilePath(enPath string) (dirKind, wfID string, err error) {
+func parseFilePath(enPath string) (dirKind, wfID, jobID string, err error) {
 	if enPath == "/" {
 		dirKind = MirrorDirRoot
 		return
@@ -552,13 +587,22 @@ func parseFilePath(enPath string) (dirKind, wfID string, err error) {
 	pathParts := strings.SplitN(enPath, utils.PathSeparator, 3)
 
 	dirKind = pathParts[0]
-	if dirKind != MirrorDirJobs && dirKind != MirrorDirWorkflows {
+	switch dirKind {
+	case MirrorDirJobs:
+		// path: /jobs/<workflow_id>/<job_id>.yaml
+		if len(pathParts) == 3 {
+			jobID = mirrorFile2ID(pathParts[2])
+		}
+		fallthrough
+	case MirrorDirWorkflows:
+		// path: /workflows/<workflow_id>.yaml
+		if len(pathParts) > 1 {
+			wfID = mirrorFile2ID(pathParts[1])
+		}
+	default:
 		err = fmt.Errorf("unknown dir %s", dirKind)
 		return
 	}
 
-	if len(pathParts) > 1 {
-		wfID = mirrorFile2ID(pathParts[1])
-	}
 	return
 }

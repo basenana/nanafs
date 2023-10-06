@@ -570,7 +570,8 @@ func (m *manager) OpenGroup(ctx context.Context, groupId int64) (Group, error) {
 			if err != nil {
 				return nil, err
 			}
-			grp = &extGroup{mgr: m, stdGroup: stdGrp, mirror: mirror}
+			grp = &extGroup{mgr: m, stdGroup: stdGrp, mirror: mirror,
+				logger: logger.NewLogger("extLogger").With(zap.Int64("group", groupId))}
 		} else {
 			grp = emptyGroup{}
 		}

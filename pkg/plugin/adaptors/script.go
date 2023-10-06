@@ -17,31 +17,35 @@
 package adaptors
 
 import (
+	"context"
+	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils/logger"
+	"go.uber.org/zap"
 )
 
 const (
-	AdaptorTypeScriptPlugin = "script"
+	AdaptorTypeScriptPlugin        = "script"
+	AdaptorTypeScriptPluginVersion = "1.0"
 )
 
 type ScriptPluginAdaptor struct {
+	spec   types.PluginSpec
+	scope  types.PlugScope
+	logger *zap.SugaredLogger
 }
 
-func (s ScriptPluginAdaptor) Name() string {
+func (s *ScriptPluginAdaptor) Name() string { return AdaptorTypeScriptPlugin }
+
+func (s *ScriptPluginAdaptor) Type() types.PluginType { return types.TypeProcess }
+
+func (s *ScriptPluginAdaptor) Version() string { return AdaptorTypeScriptPluginVersion }
+
+func (s *ScriptPluginAdaptor) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (s ScriptPluginAdaptor) Type() types.PluginType {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (s ScriptPluginAdaptor) Version() string {
-	//TODO implement me
-	panic("implement me")
-}
-
-func NewScriptPluginAdaptor(spec types.PluginSpec, scope types.PlugScope) (*GoPluginAdaptor, error) {
-	return &GoPluginAdaptor{}, nil
+func NewScriptPluginAdaptor(spec types.PluginSpec, scope types.PlugScope) (*ScriptPluginAdaptor, error) {
+	return &ScriptPluginAdaptor{spec: spec, scope: scope, logger: logger.NewLogger("scriptPluginAdaptor")}, nil
 }

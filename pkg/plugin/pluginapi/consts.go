@@ -20,7 +20,7 @@ const (
 	ResEntryIdKey        = "nanafs.workflow.entry_id"
 	ResEntryPathKey      = "nanafs.workflow.entry_path"
 	ResEntryDocumentsKey = "nanafs.workflow.entry_documents"
-	ResCollectManifest   = "nanafs.workflow.collect_manifest"
+	ResCollectManifests  = "nanafs.workflow.collect_manifests"
 	ResPluginName        = "nanafs.workflow.plugin_name"
 	ResPluginVersion     = "nanafs.workflow.plugin_version"
 	ResPluginType        = "nanafs.workflow.plugin_type"

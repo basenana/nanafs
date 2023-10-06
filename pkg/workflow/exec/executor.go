@@ -27,9 +27,8 @@ import (
 	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
-	"os"
-	"path"
 	"sync"
+	"time"
 )
 
 const (
@@ -67,17 +66,22 @@ func (b *localExecutor) Setup(ctx context.Context) (err error) {
 		return fmt.Errorf("workflow disabled")
 	}
 
+	startAt := time.Now()
+	defer logOperationLatency(localExecName, "setup", startAt)
+
 	// init workdir and copy entry file
 	b.workdir, err = initWorkdir(ctx, b.config.Workflow.JobWorkdir, b.job)
 	if err != nil {
 		b.logger.Errorw("init job workdir failed", "err", err)
-		return
+		return logOperationError(localExecName, "setup", err)
 	}
 
-	b.entryPath, err = entryWorkdirInit(ctx, b.job.Target.EntryID, b.entryMgr, b.workdir)
-	if err != nil {
-		b.logger.Errorw("copy target file to workdir failed", "err", err)
-		return
+	if b.job.Target.EntryID != 0 {
+		b.entryPath, err = entryWorkdirInit(ctx, b.job.Target.EntryID, b.entryMgr, b.workdir)
+		if err != nil {
+			b.logger.Errorw("copy target file to workdir failed", "err", err)
+			return logOperationError(localExecName, "setup", err)
+		}
 	}
 	b.logger.Infow("job setup", "workdir", b.workdir, "entryPath", b.entryPath)
 
@@ -85,9 +89,13 @@ func (b *localExecutor) Setup(ctx context.Context) (err error) {
 }
 
 func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobStep) error {
+	startAt := time.Now()
+	defer logOperationLatency(localExecName, "do_operation", startAt)
+
 	req := pluginapi.NewRequest()
 	req.WorkPath = b.workdir
 	req.EntryId = b.job.Target.EntryID
+	req.ParentEntryId = b.job.Target.ParentEntryID
 	req.EntryPath = b.entryPath
 
 	req.Parameter = map[string]any{}
@@ -103,13 +111,24 @@ func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobS
 	req.Parameter[pluginapi.ResPluginType] = step.Plugin.PluginType
 	req.Parameter[pluginapi.ResPluginAction] = step.Plugin.Action
 
-	req.Action = step.Plugin.PluginName
+	if step.Plugin.PluginType == types.TypeSource {
+		info, err := plugin.SourceInfo(ctx, *step.Plugin)
+		if err != nil {
+			err = fmt.Errorf("get source info error: %s", err)
+			return logOperationError(localExecName, "do_operation", err)
+		}
+		b.logger.Infow("running source plugin", "plugin", step.Plugin.PluginName, "source", info)
+	}
+
+	req.Action = step.Plugin.Action
 	resp, err := plugin.Call(ctx, *step.Plugin, req)
 	if err != nil {
-		return fmt.Errorf("plugin action error: %s", err)
+		err = fmt.Errorf("plugin action error: %s", err)
+		return logOperationError(localExecName, "do_operation", err)
 	}
 	if !resp.IsSucceed {
-		return fmt.Errorf("plugin action failed: %s", resp.Message)
+		err = fmt.Errorf("plugin action failed: %s", resp.Message)
+		return logOperationError(localExecName, "do_operation", err)
 	}
 	if len(resp.Results) > 0 {
 		b.resultMux.Lock()
@@ -123,23 +142,46 @@ func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobS
 
 func (b *localExecutor) Collect(ctx context.Context) error {
 	b.resultMux.Lock()
-	filename, needCollect := b.results[pluginapi.ResCollectManifest]
+	rawManifests, needCollect := b.results[pluginapi.ResCollectManifests]
 	b.resultMux.Unlock()
 	if !needCollect {
 		return nil
 	}
-	f, err := os.Open(path.Join(b.workdir, filename.(string)))
-	if err != nil {
-		return fmt.Errorf("read collect manifest file failed: %s", err)
+
+	startAt := time.Now()
+	defer logOperationLatency(localExecName, "collect", startAt)
+
+	manifests, ok := rawManifests.([]pluginapi.CollectManifest)
+	if !ok {
+		msg := fmt.Sprintf("load collect manifest objects failed: unknown type %v", rawManifests)
+		b.logger.Error(msg)
+		return logOperationError(localExecName, "collect", fmt.Errorf(msg))
 	}
-	defer f.Close()
+
+	b.logger.Infow("collect files", "manifests", len(manifests))
+	var errList []error
+	for _, manifest := range manifests {
+		for _, file := range manifest.NewFiles {
+			if err := collectFile2BaseEntry(ctx, b.entryMgr, manifest.BaseEntry, b.workdir, file); err != nil {
+				b.logger.Errorw("collect file to base entry failed", "entry", manifest.BaseEntry, "newFile", file.Name, "err", err)
+				errList = append(errList, err)
+			}
+		}
+	}
+	if len(errList) > 0 {
+		err := fmt.Errorf("collect file to base entry failed: %s, there are %d more similar errors", errList[0], len(errList))
+		return logOperationError(localExecName, "collect", err)
+	}
 	return nil
 }
 
 func (b *localExecutor) Teardown(ctx context.Context) {
+	startAt := time.Now()
+	defer logOperationLatency(localExecName, "teardown", startAt)
 	err := cleanupWorkdir(ctx, b.workdir)
 	if err != nil {
 		b.logger.Errorw("teardown failed: cleanup workdir error", "err", err)
+		_ = logOperationError(localExecName, "teardown", err)
 		return
 	}
 }

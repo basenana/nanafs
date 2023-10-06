@@ -18,7 +18,6 @@ package pluginapi
 
 import (
 	"github.com/basenana/nanafs/pkg/types"
-	"time"
 )
 
 type Entry struct {
@@ -34,6 +33,7 @@ type EntryAttr struct {
 	Kind types.Kind
 }
 
-type FreshOption struct {
-	LastFreshAt time.Time
+type CollectManifest struct {
+	BaseEntry int64
+	NewFiles  []Entry
 }

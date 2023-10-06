@@ -17,22 +17,41 @@
 package plugin
 
 import (
-	"bytes"
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
-	"io"
+	"github.com/basenana/nanafs/utils"
 	"io/ioutil"
-	"strconv"
-	"strings"
+	"path"
 	"time"
 )
 
 type SourcePlugin interface {
-	Plugin
-	Fresh(ctx context.Context, opt pluginapi.FreshOption) ([]*pluginapi.Entry, error)
-	Open(ctx context.Context, entry *pluginapi.Entry) (io.ReadCloser, error)
+	ProcessPlugin
+	SourceInfo() (string, error)
+}
+
+func SourceInfo(ctx context.Context, ps types.PlugScope) (info string, err error) {
+	defer func() {
+		if rErr := utils.Recover(); rErr != nil {
+			err = rErr
+		}
+	}()
+	var plugin Plugin
+	plugin, err = BuildPlugin(ctx, ps)
+	if err != nil {
+		return info, err
+	}
+
+	srcPlugin, ok := plugin.(SourcePlugin)
+	if !ok {
+		return info, fmt.Errorf("not process plugin")
+	}
+
+	return srcPlugin.SourceInfo()
 }
 
 const (
@@ -56,43 +75,58 @@ func (d *ThreeBodyPlugin) Version() string {
 	return the3BodyPluginVersion
 }
 
-func (d *ThreeBodyPlugin) Fresh(ctx context.Context, opt pluginapi.FreshOption) ([]*pluginapi.Entry, error) {
-	crtAt := time.Now().Unix()
-	result := make([]*pluginapi.Entry, 0)
-	for i := crtAt - 60; i < crtAt; i += 60 {
-		if i <= opt.LastFreshAt.Unix() {
-			continue
-		}
-		result = append(result, &pluginapi.Entry{
-			Name:    fmt.Sprintf("3_body_%d.txt", i),
-			Kind:    types.RawKind,
-			IsGroup: false,
-		})
-	}
-	return result, nil
+func (d *ThreeBodyPlugin) SourceInfo() (string, error) {
+	return "internal.FileGenerator", nil
 }
 
-func (d *ThreeBodyPlugin) Open(ctx context.Context, entry *pluginapi.Entry) (io.ReadCloser, error) {
-	fileNameParts := strings.Split(entry.Name, "_")
-	sendAtStr := fileNameParts[len(fileNameParts)-1]
+func (d *ThreeBodyPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
+	if request.EntryId == 0 {
+		return nil, fmt.Errorf("entry id is empty")
+	}
+	if request.WorkPath == "" {
+		return nil, fmt.Errorf("workdir is empty")
+	}
 
-	sendAt, err := strconv.ParseInt(sendAtStr, 10, 64)
+	result, err := d.fileGenerate(request.EntryId, request.WorkPath)
 	if err != nil {
-		return nil, fmt.Errorf("parse send time failed: %s", err)
+		resp := pluginapi.NewFailedResponse(fmt.Sprintf("file generate failed: %s", err))
+		return resp, nil
 	}
+	results := []pluginapi.CollectManifest{result}
+	return pluginapi.NewResponseWithResult(map[string]any{pluginapi.ResCollectManifests: results}), nil
+}
 
-	buf := &bytes.Buffer{}
-	for i := 0; i < 3; i++ {
-		buf.WriteString(fmt.Sprintf("%d - Do not answer!\n", sendAt))
+func (d *ThreeBodyPlugin) fileGenerate(baseEntry int64, workdir string) (pluginapi.CollectManifest, error) {
+	var (
+		crtAt    = time.Now().Unix()
+		filePath = path.Join(workdir, fmt.Sprintf("3_body_%d.txt", crtAt))
+		fileData = []byte(fmt.Sprintf("%d - Do not answer!\n", crtAt))
+	)
+	err := ioutil.WriteFile(filePath, fileData, 0655)
+	if err != nil {
+		return pluginapi.CollectManifest{}, err
 	}
-	return ioutil.NopCloser(buf), nil
+	return pluginapi.CollectManifest{
+		BaseEntry: baseEntry,
+		NewFiles: []pluginapi.Entry{{
+			Name: path.Base(filePath),
+			Kind: types.RawKind,
+			Size: int64(len(fileData)),
+		}},
+	}, nil
 }
 
 func threeBodyBuilder(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
 	return &ThreeBodyPlugin{}, nil
 }
 
-func register3BodyPlugin(r *registry) {
+func registerBuildInSourcePlugin(r *registry, recorderGetter metastore.PluginRecorderGetter) {
 	r.Register(the3BodyPluginName, types.PluginSpec{Name: the3BodyPluginName, Version: the3BodyPluginVersion,
 		Type: types.TypeSource, Parameters: map[string]string{}}, threeBodyBuilder)
+
+	r.Register(buildin.RssSourcePluginName,
+		types.PluginSpec{Name: buildin.RssSourcePluginName, Version: buildin.RssSourcePluginVersion, Type: types.TypeSource, Parameters: map[string]string{}},
+		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
+			return buildin.BuildRssSourcePlugin(ctx, recorderGetter.PluginRecorder(scope), spec, scope), nil
+		})
 }

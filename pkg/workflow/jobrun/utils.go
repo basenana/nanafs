@@ -14,9 +14,29 @@
  limitations under the License.
 */
 
-package buildin
+package jobrun
 
-const (
-	buildInNameRss     = "rss"
-	buildInNameTwitter = "twitter"
+import "github.com/prometheus/client_golang/prometheus"
+
+var (
+	runnerExecTimeUsage = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "jobrun_runner_exec_time_usage_seconds",
+			Help:    "The time usage of runner run.",
+			Buckets: prometheus.ExponentialBuckets(0.1, 5, 5),
+		},
+	)
+	runnerStartedCounter = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "jobrun_runner_started_gauge",
+			Help: "This total of current started runner",
+		},
+	)
 )
+
+func init() {
+	prometheus.MustRegister(
+		runnerExecTimeUsage,
+		runnerStartedCounter,
+	)
+}

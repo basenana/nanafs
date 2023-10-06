@@ -35,12 +35,12 @@ var (
 	wfLogger            *zap.SugaredLogger
 )
 
-func assembleWorkflowJob(spec *types.WorkflowSpec, entry *types.Metadata) (*types.WorkflowJob, error) {
+func assembleWorkflowJob(spec *types.WorkflowSpec, tgt types.WorkflowTarget) (*types.WorkflowJob, error) {
 	var globalParam = map[string]string{}
 	j := &types.WorkflowJob{
 		Id:        uuid.New().String(),
 		Workflow:  spec.Id,
-		Target:    types.WorkflowTarget{EntryID: entry.ID},
+		Target:    tgt,
 		Status:    jobrun.InitializingStatus,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),

@@ -443,6 +443,7 @@ func (s *sqlMetaStore) ListWorkflowJob(ctx context.Context, filter types.JobFilt
 
 func (s *sqlMetaStore) SaveWorkflow(ctx context.Context, wf *types.WorkflowSpec) error {
 	defer trace.StartRegion(ctx, "metastore.sql.SaveWorkflow").End()
+	wf.UpdatedAt = time.Now()
 	err := s.dbEntity.SaveWorkflow(ctx, wf)
 	if err != nil {
 		return db.SqlError2Error(err)
@@ -452,6 +453,7 @@ func (s *sqlMetaStore) SaveWorkflow(ctx context.Context, wf *types.WorkflowSpec)
 
 func (s *sqlMetaStore) SaveWorkflowJob(ctx context.Context, wf *types.WorkflowJob) error {
 	defer trace.StartRegion(ctx, "metastore.sql.SaveWorkflowJob").End()
+	wf.UpdatedAt = time.Now()
 	err := s.dbEntity.SaveWorkflowJob(ctx, wf)
 	if err != nil {
 		return db.SqlError2Error(err)

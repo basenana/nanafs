@@ -40,8 +40,9 @@ type Manager interface {
 	UpdateWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error)
 	DeleteWorkflow(ctx context.Context, wfId string) error
 	ListJobs(ctx context.Context, wfId string) ([]*types.WorkflowJob, error)
+	GetJob(ctx context.Context, wfId string, jobID string) (*types.WorkflowJob, error)
 
-	TriggerWorkflow(ctx context.Context, wfId string, entryID int64, attr JobAttr) (*types.WorkflowJob, error)
+	TriggerWorkflow(ctx context.Context, wfId string, tgt types.WorkflowTarget, attr JobAttr) (*types.WorkflowJob, error)
 	PauseWorkflowJob(ctx context.Context, jobId string) error
 	ResumeWorkflowJob(ctx context.Context, jobId string) error
 	CancelWorkflowJob(ctx context.Context, jobId string) error
@@ -152,6 +153,14 @@ func (m *manager) DeleteWorkflow(ctx context.Context, wfId string) error {
 	return m.recorder.DeleteWorkflow(ctx, wfId)
 }
 
+func (m *manager) GetJob(ctx context.Context, wfId string, jobID string) (*types.WorkflowJob, error) {
+	result, err := m.recorder.GetWorkflowJob(ctx, jobID)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 func (m *manager) ListJobs(ctx context.Context, wfId string) ([]*types.WorkflowJob, error) {
 	result, err := m.recorder.ListWorkflowJob(ctx, types.JobFilter{WorkFlowID: wfId})
 	if err != nil {
@@ -160,24 +169,24 @@ func (m *manager) ListJobs(ctx context.Context, wfId string) ([]*types.WorkflowJ
 	return result, nil
 }
 
-func (m *manager) TriggerWorkflow(ctx context.Context, wfId string, entryID int64, attr JobAttr) (*types.WorkflowJob, error) {
+func (m *manager) TriggerWorkflow(ctx context.Context, wfId string, tgt types.WorkflowTarget, attr JobAttr) (*types.WorkflowJob, error) {
 	workflow, err := m.GetWorkflow(ctx, wfId)
 	if err != nil {
 		return nil, err
 	}
-	if entryID == 0 {
-		return nil, fmt.Errorf("no entry martch")
+
+	m.logger.Infow("receive workflow", "workflow", workflow.Name, "entryID", tgt)
+	if tgt.EntryID != 0 {
+		var en *types.Metadata
+		en, err = m.entryMgr.GetEntry(ctx, tgt.EntryID)
+		if err != nil {
+			m.logger.Errorw("query entry failed", "workflow", workflow.Name, "entryID", tgt, "err", err)
+			return nil, err
+		}
+		tgt.ParentEntryID = en.ParentID
 	}
 
-	m.logger.Infow("receive workflow", "workflow", workflow.Name, "entryID", entryID)
-	var en *types.Metadata
-	en, err = m.entryMgr.GetEntry(ctx, entryID)
-	if err != nil {
-		m.logger.Errorw("query entry failed", "workflow", workflow.Name, "entryID", entryID, "err", err)
-		return nil, err
-	}
-
-	job, err := assembleWorkflowJob(workflow, en)
+	job, err := assembleWorkflowJob(workflow, tgt)
 	if err != nil {
 		m.logger.Errorw("assemble job failed", "workflow", workflow.Name, "err", err)
 		return nil, err
@@ -265,11 +274,15 @@ func (d disabledManager) DeleteWorkflow(ctx context.Context, wfId string) error 
 	return types.ErrNotFound
 }
 
+func (d disabledManager) GetJob(ctx context.Context, wfId string, jobID string) (*types.WorkflowJob, error) {
+	return nil, types.ErrNotFound
+}
+
 func (d disabledManager) ListJobs(ctx context.Context, wfId string) ([]*types.WorkflowJob, error) {
 	return nil, types.ErrNotFound
 }
 
-func (d disabledManager) TriggerWorkflow(ctx context.Context, wfId string, entryID int64, attr JobAttr) (*types.WorkflowJob, error) {
+func (d disabledManager) TriggerWorkflow(ctx context.Context, wfId string, tgt types.WorkflowTarget, attr JobAttr) (*types.WorkflowJob, error) {
 	return nil, types.ErrNotFound
 }
 

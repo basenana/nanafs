@@ -24,9 +24,9 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestPlugin(t *testing.T) {
+func TestPluginAdaptor(t *testing.T) {
 	logger.InitLogger()
 	defer logger.Sync()
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Plugin Suite")
+	RunSpecs(t, "Plugin Adaptor Suite")
 }

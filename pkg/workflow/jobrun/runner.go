@@ -65,16 +65,26 @@ func (r *runner) Start(ctx context.Context) (err error) {
 		return
 	}
 
+	startAt := time.Now()
+	r.logger.Infow("start runner")
 	r.ctx, r.canF = context.WithCancel(ctx)
 	if err = r.initial(); err != nil {
 		r.logger.Errorf("job initial failed: %s", err)
 		return err
 	}
+	if r.job.StartAt.IsZero() {
+		r.job.StartAt = startAt
+	}
 
+	runnerStartedCounter.Add(1)
 	defer func() {
+		runnerStartedCounter.Add(-1)
 		if deferErr := r.recorder.SaveWorkflowJob(context.TODO(), r.job); deferErr != nil {
 			r.logger.Errorw("save job to metabase failed", "err", deferErr)
 		}
+		execDu := time.Since(startAt)
+		runnerExecTimeUsage.Observe(execDu.Seconds())
+		r.logger.Infow("close runner", "cost", execDu.String())
 	}()
 
 	r.dag, err = buildDAG(r.job.Steps)
@@ -108,7 +118,15 @@ func (r *runner) Start(ctx context.Context) (err error) {
 		return err
 	}
 
+	// waiting all step down
 	<-r.stopCh
+
+	err = r.executor.Collect(context.TODO())
+	if err != nil {
+		r.logger.Errorw("collect file error", "err", err)
+		return err
+	}
+
 	r.executor.Teardown(context.TODO())
 	return nil
 }
@@ -209,7 +227,7 @@ func (r *runner) handleJobResume(event fsm.Event) error {
 
 func (r *runner) handleJobSucceed(event fsm.Event) error {
 	r.logger.Info("job succeed")
-
+	r.job.FinishAt = time.Now()
 	if err := r.recorder.SaveWorkflowJob(r.ctx, r.job); err != nil {
 		r.logger.Errorf("save job status failed: %s", err)
 		return err
@@ -220,7 +238,7 @@ func (r *runner) handleJobSucceed(event fsm.Event) error {
 
 func (r *runner) handleJobFailed(event fsm.Event) error {
 	r.logger.Info("job failed")
-
+	r.job.FinishAt = time.Now()
 	if err := r.recorder.SaveWorkflowJob(r.ctx, r.job); err != nil {
 		r.logger.Errorf("save job status failed: %s", err)
 		return err
@@ -231,6 +249,7 @@ func (r *runner) handleJobFailed(event fsm.Event) error {
 
 func (r *runner) handleJobCancel(event fsm.Event) error {
 	r.logger.Info("job cancel")
+	r.job.FinishAt = time.Now()
 	if err := r.recorder.SaveWorkflowJob(r.ctx, r.job); err != nil {
 		r.logger.Errorf("save job status failed: %s", err)
 		return err
@@ -251,7 +270,7 @@ func (r *runner) jobBatchRun() (finish bool, err error) {
 	}
 
 	if len(batch) == 0 {
-		r.logger.Info("got empty batch, close finished job")
+		r.logger.Info("all batch finished, close job")
 		return true, nil
 	}
 
