@@ -17,6 +17,7 @@
 package models
 
 type File struct {
+	Name    string `json:"name"`
 	Source  string `json:"source"`
 	Content string `json:"content"`
 }
@@ -27,8 +28,9 @@ type Element struct {
 }
 
 type Metadata struct {
-	Source   string `json:"source"`
-	Title    string `json:"title"`
-	Group    string `json:"group"`
-	Category string `json:"category"`
+	Source    string `json:"source"`
+	Title     string `json:"title"`
+	ParentDir string `json:"parent_dir"`
+	Group     string `json:"group"`
+	Category  string `json:"category"`
 }

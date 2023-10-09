@@ -24,24 +24,20 @@ import (
 )
 
 func (s *Summary) MapReduce(docs []string) (summary string, err error) {
-	// collapse
-	newDocs, err := s.splitDocs(s.summaryPrompt, docs)
+	// map
+	splitedSummaries, err := s.mapSummaries(docs)
 	if err != nil {
 		return "", err
 	}
-	s.log.Debugf("spilt docs to %d newDocs", len(newDocs))
-
-	splitedSummaries := []string{}
-	for _, splitedDocs := range newDocs {
-		d, err := s.Stuff(splitedDocs)
-		if err != nil {
-			return "", err
-		}
-		splitedSummaries = append(splitedSummaries, d)
+	if splitedSummaries == nil {
+		return "", fmt.Errorf("fail to split summaries")
+	}
+	if len(splitedSummaries) == 1 {
+		return splitedSummaries[0], nil
 	}
 
-	// combine
-	return s.combine(splitedSummaries)
+	// reduce
+	return s.reduce(splitedSummaries)
 }
 
 func (s *Summary) splitDocs(p prompts.PromptTemplate, docs []string) ([][]string, error) {
@@ -75,7 +71,25 @@ func (s *Summary) getLength(p prompts.PromptTemplate, docs []string) (length int
 	return len(res), nil
 }
 
-func (s *Summary) combine(summaries []string) (summary string, err error) {
+func (s *Summary) mapSummaries(docs []string) ([]string, error) {
+	newDocs, err := s.splitDocs(s.summaryPrompt, docs)
+	if err != nil {
+		return nil, err
+	}
+	s.log.Debugf("spilt docs to %d newDocs", len(newDocs))
+
+	splitedSummaries := []string{}
+	for _, splitedDocs := range newDocs {
+		d, err := s.Stuff(splitedDocs)
+		if err != nil {
+			return nil, err
+		}
+		splitedSummaries = append(splitedSummaries, d)
+	}
+	return splitedSummaries, nil
+}
+
+func (s *Summary) reduce(summaries []string) (summary string, err error) {
 	newSummaries, err := s.splitDocs(s.combinePrompt, summaries)
 	if err != nil {
 		return "", err
@@ -93,5 +107,5 @@ func (s *Summary) combine(summaries []string) (summary string, err error) {
 	if len(combinedSummaries) == 1 {
 		return combinedSummaries[0], nil
 	}
-	return s.combine(combinedSummaries)
+	return s.reduce(combinedSummaries)
 }

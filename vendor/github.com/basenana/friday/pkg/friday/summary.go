@@ -24,7 +24,7 @@ import (
 
 func (f *Friday) Summary(elements []models.Element, summaryType summary.SummaryType) (map[string]string, error) {
 	result := make(map[string]string)
-	s := summary.NewSummary(f.llm, 0)
+	s := summary.NewSummary(f.LLM, 0)
 
 	docs := make(map[string][]string)
 	for _, element := range elements {
@@ -45,9 +45,9 @@ func (f *Friday) Summary(elements []models.Element, summaryType summary.SummaryT
 }
 
 func (f *Friday) SummaryFromFile(file models.File, summaryType summary.SummaryType) (map[string]string, error) {
-	s := summary.NewSummary(f.llm, 0)
+	s := summary.NewSummary(f.LLM, 0)
 	// split doc
-	docs := f.spliter.Split(file.Content)
+	docs := f.Spliter.Split(file.Content)
 	// summary
 	summaryOfFile, err := s.Summary(docs, summaryType)
 	if err != nil {
@@ -59,7 +59,7 @@ func (f *Friday) SummaryFromFile(file models.File, summaryType summary.SummaryTy
 }
 
 func (f *Friday) SummaryFromOriginFile(ps string, summaryType summary.SummaryType) (map[string]string, error) {
-	s := summary.NewSummary(f.llm, 0)
+	s := summary.NewSummary(f.LLM, 0)
 	fs, err := files.ReadFiles(ps)
 	if err != nil {
 		return nil, err
@@ -68,7 +68,7 @@ func (f *Friday) SummaryFromOriginFile(ps string, summaryType summary.SummaryTyp
 	result := make(map[string]string)
 	for name, file := range fs {
 		// split doc
-		subDocs := f.spliter.Split(file)
+		subDocs := f.Spliter.Split(file)
 		summaryOfFile, err := s.Summary(subDocs, summaryType)
 		if err != nil {
 			return nil, err

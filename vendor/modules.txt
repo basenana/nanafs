@@ -124,9 +124,10 @@ github.com/aws/smithy-go/waiter
 ## explicit
 github.com/aymerick/douceur/css
 github.com/aymerick/douceur/parser
-# github.com/basenana/friday v0.0.0-20231006102039-8f702307e912
+# github.com/basenana/friday v0.0.0-20231009150247-acf6edbeac1e
 ## explicit; go 1.20
 github.com/basenana/friday/config
+github.com/basenana/friday/pkg/build/withvector
 github.com/basenana/friday/pkg/embedding
 github.com/basenana/friday/pkg/embedding/huggingface
 github.com/basenana/friday/pkg/embedding/openai/v1
@@ -141,6 +142,8 @@ github.com/basenana/friday/pkg/spliter
 github.com/basenana/friday/pkg/utils/files
 github.com/basenana/friday/pkg/utils/logger
 github.com/basenana/friday/pkg/vectorstore
+github.com/basenana/friday/pkg/vectorstore/db
+github.com/basenana/friday/pkg/vectorstore/postgres
 # github.com/beorn7/perks v1.0.1
 ## explicit; go 1.11
 github.com/beorn7/perks/quantile
@@ -224,8 +227,8 @@ github.com/glebarez/go-sqlite
 # github.com/glebarez/sqlite v1.7.0
 ## explicit; go 1.18
 github.com/glebarez/sqlite
-# github.com/go-gormigrate/gormigrate/v2 v2.0.2
-## explicit; go 1.17
+# github.com/go-gormigrate/gormigrate/v2 v2.1.1
+## explicit; go 1.18
 github.com/go-gormigrate/gormigrate/v2
 # github.com/go-playground/locales v0.14.1
 ## explicit; go 1.17
@@ -302,32 +305,36 @@ github.com/hyponet/webpage-packer/packer
 github.com/inconshreveable/mousetrap
 # github.com/jackc/chunkreader/v2 v2.0.1
 ## explicit; go 1.12
-github.com/jackc/chunkreader/v2
 # github.com/jackc/pgconn v1.12.1
 ## explicit; go 1.12
-github.com/jackc/pgconn
-github.com/jackc/pgconn/internal/ctxwatch
-github.com/jackc/pgconn/stmtcache
 # github.com/jackc/pgio v1.0.0
 ## explicit; go 1.12
-github.com/jackc/pgio
 # github.com/jackc/pgpassfile v1.0.0
 ## explicit; go 1.12
 github.com/jackc/pgpassfile
 # github.com/jackc/pgproto3/v2 v2.3.0
 ## explicit; go 1.12
-github.com/jackc/pgproto3/v2
-# github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b
+# github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a
 ## explicit; go 1.14
 github.com/jackc/pgservicefile
 # github.com/jackc/pgtype v1.11.0
 ## explicit; go 1.13
-github.com/jackc/pgtype
 # github.com/jackc/pgx/v4 v4.16.1
 ## explicit; go 1.13
-github.com/jackc/pgx/v4
-github.com/jackc/pgx/v4/internal/sanitize
-github.com/jackc/pgx/v4/stdlib
+# github.com/jackc/pgx/v5 v5.3.1
+## explicit; go 1.19
+github.com/jackc/pgx/v5
+github.com/jackc/pgx/v5/internal/anynil
+github.com/jackc/pgx/v5/internal/iobufpool
+github.com/jackc/pgx/v5/internal/nbconn
+github.com/jackc/pgx/v5/internal/pgio
+github.com/jackc/pgx/v5/internal/sanitize
+github.com/jackc/pgx/v5/internal/stmtcache
+github.com/jackc/pgx/v5/pgconn
+github.com/jackc/pgx/v5/pgconn/internal/ctxwatch
+github.com/jackc/pgx/v5/pgproto3
+github.com/jackc/pgx/v5/pgtype
+github.com/jackc/pgx/v5/stdlib
 # github.com/jinzhu/inflection v1.0.0
 ## explicit
 github.com/jinzhu/inflection
@@ -477,9 +484,6 @@ github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
 # github.com/redis/rueidis v1.0.0
 ## explicit; go 1.20
-github.com/redis/rueidis
-github.com/redis/rueidis/internal/cmds
-github.com/redis/rueidis/internal/util
 # github.com/remyoudompheng/bigfft v0.0.0-20230126093431-47fa9a501578
 ## explicit; go 1.12
 github.com/remyoudompheng/bigfft
@@ -666,10 +670,10 @@ gopkg.in/tomb.v1
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
-# gorm.io/driver/postgres v1.3.7
-## explicit; go 1.14
+# gorm.io/driver/postgres v1.5.2
+## explicit; go 1.18
 gorm.io/driver/postgres
-# gorm.io/gorm v1.24.6
+# gorm.io/gorm v1.25.4
 ## explicit; go 1.16
 gorm.io/gorm
 gorm.io/gorm/callbacks
