@@ -29,8 +29,8 @@ import (
 )
 
 func (f *Friday) ChatConclusion(prompt prompts.PromptTemplate, chat string) (string, error) {
-	if f.llm != nil {
-		ans, err := f.llm.Chat(prompt, map[string]string{
+	if f.LLM != nil {
+		ans, err := f.LLM.Chat(prompt, map[string]string{
 			"context": chat,
 		})
 		if err != nil {
@@ -51,7 +51,7 @@ func (f *Friday) ChatConclusionFromElementFile(prompt prompts.PromptTemplate, ch
 	if err = json.Unmarshal(doc, &elements); err != nil {
 		return "", err
 	}
-	merged := f.spliter.Merge(elements)
+	merged := f.Spliter.Merge(elements)
 	for _, m := range merged {
 		a, err := f.ChatConclusion(prompt, m.Content)
 		if err != nil {
@@ -70,7 +70,7 @@ func (f *Friday) ChatConclusionFromFile(prompt prompts.PromptTemplate, chatFile 
 
 	elements := []models.Element{}
 	for n, file := range fs {
-		subDocs := f.spliter.Split(file)
+		subDocs := f.Spliter.Split(file)
 		for i, subDoc := range subDocs {
 			e := models.Element{
 				Content: subDoc,

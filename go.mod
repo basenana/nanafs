@@ -9,11 +9,11 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.26
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.36.0
 	github.com/aws/smithy-go v1.13.5
-	github.com/basenana/friday v0.0.0-20231006102039-8f702307e912
+	github.com/basenana/friday v0.0.0-20231009150247-acf6edbeac1e
 	github.com/bluele/gcache v0.0.2
 	github.com/getsentry/sentry-go v0.22.0
 	github.com/glebarez/sqlite v1.7.0
-	github.com/go-gormigrate/gormigrate/v2 v2.0.2
+	github.com/go-gormigrate/gormigrate/v2 v2.1.1
 	github.com/goccy/go-yaml v1.11.2
 	github.com/google/uuid v1.3.0
 	github.com/hanwen/go-fuse/v2 v2.3.0
@@ -33,7 +33,7 @@ require (
 	go.uber.org/zap v1.24.0
 	golang.org/x/net v0.15.0
 	golang.org/x/sys v0.12.0
-	gorm.io/driver/postgres v1.3.7
+	gorm.io/driver/postgres v1.5.2
 )
 
 require (
@@ -71,15 +71,11 @@ require (
 	github.com/gogs/chardet v0.0.0-20211120154057-b7413eaefb8f // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
+	github.com/google/pprof v0.0.0-20230207041349-798e818bf904 // indirect
 	github.com/gorilla/css v1.0.0 // indirect
-	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
-	github.com/jackc/pgconn v1.12.1 // indirect
-	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
-	github.com/jackc/pgproto3/v2 v2.3.0 // indirect
-	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
-	github.com/jackc/pgtype v1.11.0 // indirect
-	github.com/jackc/pgx/v4 v4.16.1 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
+	github.com/jackc/pgx/v5 v5.3.1 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -98,7 +94,6 @@ require (
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.42.0 // indirect
 	github.com/prometheus/procfs v0.10.1 // indirect
-	github.com/redis/rueidis v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230126093431-47fa9a501578 // indirect
 	github.com/rs/xid v1.4.0 // indirect
 	github.com/satori/go.uuid v1.2.0 // indirect
@@ -135,5 +130,5 @@ require (
 	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/arch v0.3.0 // indirect
 	golang.org/x/crypto v0.13.0 // indirect
-	gorm.io/gorm v1.24.6
+	gorm.io/gorm v1.25.4
 )

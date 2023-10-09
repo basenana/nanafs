@@ -60,5 +60,6 @@ const (
 type VectorStoreType string
 
 const (
-	VectorStoreRedis VectorStoreType = "redis"
+	VectorStoreRedis    VectorStoreType = "redis"
+	VectorStorePostgres VectorStoreType = "postgres"
 )

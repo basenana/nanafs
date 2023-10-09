@@ -20,10 +20,12 @@ import (
 	"fmt"
 
 	"github.com/basenana/friday/config"
+	"github.com/basenana/friday/pkg/build/withvector"
 	"github.com/basenana/friday/pkg/friday"
 	"github.com/basenana/friday/pkg/friday/summary"
 	"github.com/basenana/friday/pkg/llm/prompts"
 	"github.com/basenana/friday/pkg/models"
+	"github.com/basenana/friday/pkg/vectorstore/postgres"
 )
 
 var (
@@ -32,9 +34,13 @@ var (
 
 func InitFriday(cfg *config.Config) (err error) {
 	if cfg != nil {
-		return nil
+		return fmt.Errorf("friday config is none, can not init friday")
 	}
-	fridayClient, err = friday.NewFriday(cfg)
+	pgClient, err := postgres.NewPostgresClient(cfg.VectorUrl)
+	if err != nil {
+		return err
+	}
+	fridayClient, err = withvector.NewFridayWithVector(cfg, pgClient)
 	return
 }
 
