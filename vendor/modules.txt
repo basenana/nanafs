@@ -281,6 +281,8 @@ github.com/google/go-cmp/cmp/internal/diff
 github.com/google/go-cmp/cmp/internal/flags
 github.com/google/go-cmp/cmp/internal/function
 github.com/google/go-cmp/cmp/internal/value
+# github.com/google/pprof v0.0.0-20230207041349-798e818bf904
+## explicit; go 1.19
 # github.com/google/uuid v1.3.0
 ## explicit
 github.com/google/uuid
@@ -303,24 +305,12 @@ github.com/hyponet/webpage-packer/packer
 # github.com/inconshreveable/mousetrap v1.1.0
 ## explicit; go 1.18
 github.com/inconshreveable/mousetrap
-# github.com/jackc/chunkreader/v2 v2.0.1
-## explicit; go 1.12
-# github.com/jackc/pgconn v1.12.1
-## explicit; go 1.12
-# github.com/jackc/pgio v1.0.0
-## explicit; go 1.12
 # github.com/jackc/pgpassfile v1.0.0
 ## explicit; go 1.12
 github.com/jackc/pgpassfile
-# github.com/jackc/pgproto3/v2 v2.3.0
-## explicit; go 1.12
 # github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a
 ## explicit; go 1.14
 github.com/jackc/pgservicefile
-# github.com/jackc/pgtype v1.11.0
-## explicit; go 1.13
-# github.com/jackc/pgx/v4 v4.16.1
-## explicit; go 1.13
 # github.com/jackc/pgx/v5 v5.3.1
 ## explicit; go 1.19
 github.com/jackc/pgx/v5
@@ -482,8 +472,6 @@ github.com/prometheus/common/model
 github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
-# github.com/redis/rueidis v1.0.0
-## explicit; go 1.20
 # github.com/remyoudompheng/bigfft v0.0.0-20230126093431-47fa9a501578
 ## explicit; go 1.12
 github.com/remyoudompheng/bigfft
