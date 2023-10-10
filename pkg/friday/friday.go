@@ -33,7 +33,7 @@ var (
 )
 
 func InitFriday(cfg *config.Config) (err error) {
-	if cfg != nil {
+	if cfg == nil {
 		return fmt.Errorf("friday config is none, can not init friday")
 	}
 	pgClient, err := postgres.NewPostgresClient(cfg.VectorUrl)
