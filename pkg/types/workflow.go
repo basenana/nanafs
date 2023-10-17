@@ -24,6 +24,7 @@ type WorkflowSpec struct {
 	Id              string             `json:"id"`
 	Name            string             `json:"name"`
 	Rule            Rule               `json:"rule,omitempty"`
+	Cron            string             `json:"cron,omitempty"`
 	Steps           []WorkflowStepSpec `json:"steps,omitempty"`
 	Enable          bool               `json:"enable"`
 	CreatedAt       time.Time          `json:"created_at"`

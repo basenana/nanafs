@@ -51,9 +51,6 @@ type Manager interface {
 	CancelWorkflowJob(ctx context.Context, jobId string) error
 }
 
-func init() {
-}
-
 type manager struct {
 	ctrl     *jobrun.Controller
 	entryMgr dentry.Manager

@@ -61,7 +61,7 @@ func (c *controller) ReadFile(ctx context.Context, file dentry.File, data []byte
 		c.logger.Errorw("read file failed", "offset", offset, "file", file.GetAttr().EntryID, "err", err)
 		return n, err
 	}
-	return n, nil
+	return n, err
 }
 
 func (c *controller) WriteFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error) {

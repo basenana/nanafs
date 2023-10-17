@@ -302,6 +302,7 @@ func (e *extFile) Close(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	defer e.cacheStore.delEntryCache(e.entryID)
 	return e.stub.Close(ctx)
 }
 
