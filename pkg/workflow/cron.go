@@ -18,6 +18,7 @@ package workflow
 
 import (
 	"context"
+	"github.com/basenana/nanafs/pkg/rule"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/robfig/cron/v3"
@@ -96,9 +97,16 @@ func (c *CronHandler) newJobFunc(wfID string) func() {
 }
 
 func (c *CronHandler) filterAndTrigger(ctx context.Context, wf *types.WorkflowSpec) error {
-
-	// TODO
-	var entries []types.Metadata
+	var (
+		entries []*types.Metadata
+		err     error
+	)
+	entries, err = rule.Q().Rule(wf.Rule).Results(ctx)
+	if err != nil {
+		c.logger.Errorw("query entries with wf rule failed", "workflow", wf.Id, "rule", wf.Rule, "err", err)
+		return err
+	}
+	c.logger.Infow("query entries with wf rule", "workflow", wf.Id, "entries", len(entries))
 
 	for _, en := range entries {
 		tgt := types.WorkflowTarget{}
@@ -117,7 +125,7 @@ func (c *CronHandler) filterAndTrigger(ctx context.Context, wf *types.WorkflowSp
 	return nil
 }
 
-func NewCronHandler() *CronHandler {
+func newCronHandler(mgr Manager) *CronHandler {
 	c := cron.New(
 		cron.WithLocation(time.Local),
 		cron.WithLogger(logger.NewCronLogger()),
@@ -125,6 +133,7 @@ func NewCronHandler() *CronHandler {
 
 	return &CronHandler{
 		Cron:   c,
+		mgr:    mgr,
 		logger: logger.NewLogger("cronHandler"),
 	}
 }

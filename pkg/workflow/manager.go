@@ -56,6 +56,7 @@ type manager struct {
 	entryMgr dentry.Manager
 	docMgr   document.Manager
 	notify   *notify.Notify
+	cron     *CronHandler
 	recorder metastore.ScheduledTaskRecorder
 	config   config.Workflow
 	fuse     config.FUSE
@@ -92,6 +93,7 @@ func NewManager(entryMgr dentry.Manager, docMgr document.Manager, notify *notify
 	if err := initWorkflowMirrorDir(root, entryMgr); err != nil {
 		return nil, fmt.Errorf("init workflow mirror dir failed: %s", err)
 	}
+	mgr.cron = newCronHandler(mgr)
 
 	return mgr, nil
 }

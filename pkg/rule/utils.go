@@ -18,6 +18,7 @@ package rule
 
 import (
 	"encoding/json"
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 func objectToMap(obj *object) map[string]interface{} {
@@ -25,4 +26,52 @@ func objectToMap(obj *object) map[string]interface{} {
 	result := make(map[string]interface{})
 	_ = json.Unmarshal(raw, &result)
 	return result
+}
+
+func ruleLabelMatch(rule types.Rule) *types.LabelMatch {
+	if rule.Labels != nil {
+		return rule.Labels
+	}
+
+	var lm *types.LabelMatch
+	if rule.Logic == types.RuleLogicAll {
+		allLms := make([]types.LabelMatch, 0)
+		for _, l := range rule.Rules {
+			oneLm := ruleLabelMatch(l)
+			if oneLm != nil {
+				allLms = append(allLms, *oneLm)
+			}
+		}
+		if len(allLms) > 0 {
+			mergedLm := mergeLabelMatch(allLms)
+			lm = &mergedLm
+		}
+	}
+
+	return lm
+}
+
+func mergeLabelMatch(labelMatches []types.LabelMatch) types.LabelMatch {
+	if len(labelMatches) == 0 {
+		return labelMatches[1]
+	}
+
+	merged := types.LabelMatch{
+		Include: make([]types.Label, 0),
+		Exclude: make([]string, 0),
+	}
+
+	for _, lm := range labelMatches {
+		merged.Include = append(merged.Include, lm.Include...)
+		merged.Exclude = append(merged.Exclude, lm.Exclude...)
+	}
+
+	return merged
+}
+
+func mergeRules(rules []types.Rule) types.Rule {
+	if len(rules) == 1 {
+		return rules[0]
+	}
+	return types.Rule{Logic: types.RuleLogicAll, Rules: rules}
 }
