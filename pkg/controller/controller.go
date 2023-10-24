@@ -18,16 +18,19 @@ package controller
 
 import (
 	"context"
+	"runtime/trace"
+
+	"go.uber.org/zap"
+
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow"
 	"github.com/basenana/nanafs/utils/logger"
-	"go.uber.org/zap"
-	"runtime/trace"
 )
 
 const (
@@ -67,6 +70,7 @@ type controller struct {
 	entry    dentry.Manager
 	notify   *notify.Notify
 	workflow workflow.Manager
+	document document.Manager
 
 	logger *zap.SugaredLogger
 }
@@ -325,8 +329,13 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 		return nil, err
 	}
 
+	ctl.document, err = document.NewManager(meta)
+	if err != nil {
+		return nil, err
+	}
+
 	ctl.notify = notify.NewNotify(meta)
-	ctl.workflow, err = workflow.NewManager(ctl.entry, ctl.notify, meta, cfg.Workflow, cfg.FUSE)
+	ctl.workflow, err = workflow.NewManager(ctl.entry, ctl.document, ctl.notify, meta, cfg.Workflow, cfg.FUSE)
 	if err != nil {
 		return nil, err
 	}

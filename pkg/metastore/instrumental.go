@@ -18,9 +18,11 @@ package metastore
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/types"
-	"github.com/prometheus/client_golang/prometheus"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 var (
@@ -270,6 +272,38 @@ func (i instrumentalStore) DeleteWorkflowJob(ctx context.Context, wfJobID ...str
 	const operation = "delete_workflow_job"
 	defer logOperationLatency(operation, time.Now())
 	err := i.store.DeleteWorkflowJob(ctx, wfJobID...)
+	logOperationError(operation, err)
+	return err
+}
+
+func (i instrumentalStore) SaveDocument(ctx context.Context, doc *types.Document) error {
+	const operation = "save_document"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.SaveDocument(ctx, doc)
+	logOperationError(operation, err)
+	return err
+}
+
+func (i instrumentalStore) ListDocument(ctx context.Context) ([]*types.Document, error) {
+	const operation = "list_document"
+	defer logOperationLatency(operation, time.Now())
+	docList, err := i.store.ListDocument(ctx)
+	logOperationError(operation, err)
+	return docList, err
+}
+
+func (i instrumentalStore) GetDocument(ctx context.Context, id string) (*types.Document, error) {
+	const operation = "get_document"
+	defer logOperationLatency(operation, time.Now())
+	doc, err := i.store.GetDocument(ctx, id)
+	logOperationError(operation, err)
+	return doc, err
+}
+
+func (i instrumentalStore) DeleteDocument(ctx context.Context, id string) error {
+	const operation = "delete_document"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.DeleteDocument(ctx, id)
 	logOperationError(operation, err)
 	return err
 }

@@ -20,11 +20,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/basenana/nanafs/utils/logger"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+
+	"github.com/basenana/nanafs/utils/logger"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -727,6 +730,70 @@ func (e *Entity) RecordNotification(ctx context.Context, nid string, no types.No
 func (e *Entity) UpdateNotificationStatus(ctx context.Context, nid, status string) error {
 	res := e.DB.WithContext(ctx).Model(&Notification{}).Where("id = ?", nid).UpdateColumn("status", status)
 	return res.Error
+}
+
+func (e *Entity) SaveDocument(ctx context.Context, doc *types.Document) error {
+	return e.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		dbDoc := &Document{}
+		res := tx.Where("id = ?", doc.ID).First(dbDoc)
+		if res.Error == gorm.ErrRecordNotFound {
+			if err := dbDoc.Update(doc); err != nil {
+				return err
+			}
+			res = tx.Create(dbDoc)
+			return res.Error
+		}
+		if err := dbDoc.Update(doc); err != nil {
+			return err
+		}
+		res = tx.Save(dbDoc)
+		return res.Error
+	})
+}
+
+func (e *Entity) ListDocument(ctx context.Context) ([]*types.Document, error) {
+	docList := make([]Document, 0)
+	res := e.DB.WithContext(ctx).Order("time desc").Find(&docList)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+
+	result := make([]*types.Document, len(docList))
+	for i, doc := range docList {
+		keyWords := strings.Split(doc.KeyWords, ",")
+		result[i] = &types.Document{
+			ID:        doc.ID,
+			Name:      doc.Name,
+			Uri:       doc.Uri,
+			Source:    doc.Source,
+			KeyWords:  keyWords,
+			Content:   doc.Content,
+			Summary:   doc.Summary,
+			CreatedAt: doc.CreatedAt,
+			ChangedAt: doc.ChangedAt,
+		}
+	}
+	return result, nil
+}
+
+func (e *Entity) GetDocument(ctx context.Context, id string) (*types.Document, error) {
+	doc := &Document{}
+	res := e.DB.WithContext(ctx).Where("id = ?", id).First(doc)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	return doc.ToDocument()
+}
+
+func (e *Entity) DeleteDocument(ctx context.Context, id string) error {
+	return e.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Where("id = ?", id).First(&Document{})
+		if res.Error != nil {
+			return res.Error
+		}
+		res = tx.Where("id = ?", id).Delete(&Document{})
+		return res.Error
+	})
 }
 
 func (e *Entity) SystemInfo(ctx context.Context) (*types.SystemInfo, error) {

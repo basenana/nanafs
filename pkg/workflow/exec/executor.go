@@ -17,29 +17,34 @@
 package exec
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"sync"
+	"time"
+
+	"go.uber.org/zap"
+
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	"github.com/basenana/nanafs/utils/logger"
-	"go.uber.org/zap"
-	"sync"
-	"time"
 )
 
 const (
 	localExecName = "local"
 )
 
-func RegisterOperators(entryMgr dentry.Manager, cfg LocalConfig) error {
+func RegisterOperators(entryMgr dentry.Manager, docMgr document.Manager, cfg LocalConfig) error {
 	jobrun.RegisterExecutorBuilder(localExecName, func(job *types.WorkflowJob) jobrun.Executor {
 		return &localExecutor{
 			job:      job,
 			entryMgr: entryMgr,
+			docMgr:   docMgr,
 			config:   cfg,
 			results:  map[string]any{},
 			logger:   logger.NewLogger("localExecutor").With(zap.String("job", job.Id)),
@@ -52,7 +57,9 @@ type localExecutor struct {
 	job       *types.WorkflowJob
 	workdir   string
 	entryPath string
+	entryURI  string
 	entryMgr  dentry.Manager
+	docMgr    document.Manager
 	config    LocalConfig
 	results   map[string]any
 	resultMux sync.Mutex
@@ -82,6 +89,12 @@ func (b *localExecutor) Setup(ctx context.Context) (err error) {
 			b.logger.Errorw("copy target file to workdir failed", "err", err)
 			return logOperationError(localExecName, "setup", err)
 		}
+
+		b.entryURI, err = entryURIByEntryID(ctx, b.job.Target.EntryID, b.entryMgr)
+		if err != nil {
+			b.logger.Errorw("query entry dir failed", "err", err)
+			return logOperationError(localExecName, "setup", err)
+		}
 	}
 	b.logger.Infow("job setup", "workdir", b.workdir, "entryPath", b.entryPath)
 
@@ -97,6 +110,7 @@ func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobS
 	req.EntryId = b.job.Target.EntryID
 	req.ParentEntryId = b.job.Target.ParentEntryID
 	req.EntryPath = b.entryPath
+	req.EntryURI = b.entryURI
 
 	req.Parameter = map[string]any{}
 	b.resultMux.Lock()
@@ -142,22 +156,74 @@ func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobS
 
 func (b *localExecutor) Collect(ctx context.Context) error {
 	b.resultMux.Lock()
-	rawManifests, needCollect := b.results[pluginapi.ResCollectManifests]
+	rawManifests, needManifestCollect := b.results[pluginapi.ResCollectManifests]
+	rawDocs, needDocCollect := b.results[pluginapi.ResEntryDocumentsKey]
 	b.resultMux.Unlock()
-	if !needCollect {
+	if !needDocCollect && !needManifestCollect {
 		return nil
 	}
 
 	startAt := time.Now()
 	defer logOperationLatency(localExecName, "collect", startAt)
 
-	manifests, ok := rawManifests.([]pluginapi.CollectManifest)
-	if !ok {
-		msg := fmt.Sprintf("load collect manifest objects failed: unknown type %v", rawManifests)
-		b.logger.Error(msg)
-		return logOperationError(localExecName, "collect", fmt.Errorf(msg))
+	if needManifestCollect {
+		manifests, ok := rawManifests.([]pluginapi.CollectManifest)
+		if !ok {
+			msg := fmt.Sprintf("load collect manifest objects failed: unknown type %v", rawManifests)
+			b.logger.Error(msg)
+			return logOperationError(localExecName, "collect", fmt.Errorf(msg))
+		}
+
+		// collect files
+		err := b.collectFiles(ctx, manifests)
+		if err != nil {
+			return err
+		}
 	}
 
+	if needDocCollect {
+		docs, ok := rawDocs.([]types.FDocument)
+		if !ok || len(docs) == 0 {
+			return fmt.Errorf("content is empty")
+		}
+
+		buf := bytes.Buffer{}
+		for _, doc := range docs {
+			buf.WriteString(doc.Content)
+			buf.WriteString("\n")
+		}
+
+		// collect documents
+		var (
+			entryID  int64
+			entryURI string
+			summary  string
+			keyWords []string
+		)
+		if _, ok := b.results[pluginapi.ResEntryIdKey]; !ok {
+			return fmt.Errorf("content is empty")
+		}
+		entryID = b.results[pluginapi.ResEntryIdKey].(int64)
+		if _, ok := b.results[pluginapi.ResEntryURIKey]; !ok {
+			return fmt.Errorf("content is empty")
+		}
+		entryURI = b.results[pluginapi.ResEntryURIKey].(string)
+
+		if _, ok := b.results[pluginapi.ResEntryDocSummaryKey]; ok {
+			summary = b.results[pluginapi.ResEntryDocSummaryKey].(string)
+		}
+		if _, ok := b.results[pluginapi.ResEntryDocKeyWordsKey]; ok {
+			keyWords = b.results[pluginapi.ResEntryDocKeyWordsKey].([]string)
+		}
+		err := b.collectDocuments(ctx, entryID, entryURI, buf, summary, keyWords)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (b *localExecutor) collectFiles(ctx context.Context, manifests []pluginapi.CollectManifest) error {
 	b.logger.Infow("collect files", "manifests", len(manifests))
 	var errList []error
 	for _, manifest := range manifests {
@@ -170,6 +236,14 @@ func (b *localExecutor) Collect(ctx context.Context) error {
 	}
 	if len(errList) > 0 {
 		err := fmt.Errorf("collect file to base entry failed: %s, there are %d more similar errors", errList[0], len(errList))
+		return logOperationError(localExecName, "collect", err)
+	}
+	return nil
+}
+
+func (b *localExecutor) collectDocuments(ctx context.Context, entryId int64, entryURI string, content bytes.Buffer, summary string, keyWords []string) error {
+	b.logger.Infow("collect documents", "entryUIR", entryURI)
+	if err := collectFile2Document(ctx, b.docMgr, b.entryMgr, entryId, entryURI, content, summary, keyWords); err != nil {
 		return logOperationError(localExecName, "collect", err)
 	}
 	return nil

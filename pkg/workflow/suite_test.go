@@ -17,17 +17,20 @@
 package workflow
 
 import (
+	"os"
+	"testing"
+	"time"
+
+	testcfg "github.com/onsi/ginkgo/config"
+
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils/logger"
-	testcfg "github.com/onsi/ginkgo/config"
-	"os"
-	"testing"
-	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -37,6 +40,7 @@ var (
 	stopCh   = make(chan struct{})
 	tempDir  string
 	entryMgr dentry.Manager
+	docMgr   document.Manager
 	mgr      Manager
 )
 
@@ -66,10 +70,13 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).Should(BeNil())
 
+	docMgr, err = document.NewManager(memMeta)
+	Expect(err).Should(BeNil())
+
 	// init plugin
 	Expect(plugin.Init(&config.Plugin{}, memMeta)).Should(BeNil())
 
-	mgr, err = NewManager(entryMgr, notify.NewNotify(memMeta), memMeta, config.Workflow{Enable: true, JobWorkdir: tempDir}, config.FUSE{})
+	mgr, err = NewManager(entryMgr, docMgr, notify.NewNotify(memMeta), memMeta, config.Workflow{Enable: true, JobWorkdir: tempDir}, config.FUSE{})
 	Expect(err).Should(BeNil())
 })
 

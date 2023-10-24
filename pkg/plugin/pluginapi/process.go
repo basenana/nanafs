@@ -22,6 +22,7 @@ type Request struct {
 	EntryId       int64
 	ParentEntryId int64
 	EntryPath     string
+	EntryURI      string
 	Parameter     map[string]any
 }
 

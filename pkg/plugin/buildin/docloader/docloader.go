@@ -19,10 +19,11 @@ package docloader
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
-	"github.com/basenana/nanafs/pkg/types"
 	"os"
 	"path/filepath"
+
+	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 const (
@@ -69,7 +70,7 @@ func (d DocLoader) Run(ctx context.Context, request *pluginapi.Request) (*plugin
 	switch fileExt {
 	case ".pdf":
 		p = buildInLoaders[pdfParser](entryPath, parseOption)
-	case ".txt":
+	case ".txt", ".md", ".markdown":
 		p = buildInLoaders[textParser](entryPath, parseOption)
 	case ".html", ".htm":
 		p = buildInLoaders[htmlParser](entryPath, parseOption)
@@ -86,7 +87,11 @@ func (d DocLoader) Run(ctx context.Context, request *pluginapi.Request) (*plugin
 		return resp, nil
 	}
 
-	return pluginapi.NewResponseWithResult(map[string]any{pluginapi.ResEntryDocumentsKey: documents}), nil
+	return pluginapi.NewResponseWithResult(map[string]any{
+		pluginapi.ResEntryIdKey:        request.EntryId,
+		pluginapi.ResEntryURIKey:       request.EntryURI,
+		pluginapi.ResEntryDocumentsKey: documents,
+	}), nil
 }
 
 func NewDocLoader(spec types.PluginSpec, scope types.PlugScope) *DocLoader {
