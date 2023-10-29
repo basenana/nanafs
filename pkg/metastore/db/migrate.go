@@ -69,6 +69,15 @@ func buildMigrations() []*gormigrate.Migration {
 				return nil
 			},
 		},
+		{
+			ID: "2023101400",
+			Migrate: func(db *gorm.DB) error {
+				return db.AutoMigrate(&Document{})
+			},
+			Rollback: func(db *gorm.DB) error {
+				return nil
+			},
+		},
 	}
 }
 

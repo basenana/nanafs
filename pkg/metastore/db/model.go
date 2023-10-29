@@ -19,8 +19,10 @@ package db
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/types"
+	"strings"
 	"time"
+
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 type SystemInfo struct {
@@ -373,5 +375,49 @@ func (o *WorkflowJob) ToWorkflowJobSpec() (*types.WorkflowJob, error) {
 		return nil, fmt.Errorf("load workflow job steps failed: %s", err)
 	}
 
+	return result, nil
+}
+
+type Document struct {
+	ID        string    `gorm:"column:id;primaryKey"`
+	Name      string    `gorm:"column:name;index:name"`
+	Source    string    `gorm:"column:source;index:source"`
+	Uri       string    `gorm:"column:uri;index:uri"`
+	KeyWords  string    `gorm:"column:keywords"`
+	Content   string    `gorm:"column:content"`
+	Summary   string    `gorm:"column:summary"`
+	CreatedAt time.Time `gorm:"column:created_at"`
+	ChangedAt time.Time `gorm:"column:changed_at"`
+}
+
+func (d *Document) TableName() string {
+	return "document"
+}
+
+func (d *Document) Update(document *types.Document) error {
+	d.ID = document.ID
+	d.Name = document.Name
+	d.Uri = document.Uri
+	d.KeyWords = strings.Join(document.KeyWords, ",")
+	d.Source = document.Source
+	d.Content = document.Content
+	d.Summary = document.Summary
+	d.CreatedAt = document.CreatedAt
+	d.ChangedAt = document.ChangedAt
+	return nil
+}
+
+func (d *Document) ToDocument() (*types.Document, error) {
+	result := &types.Document{
+		ID:        d.ID,
+		Name:      d.Name,
+		Uri:       d.Uri,
+		Source:    d.Source,
+		KeyWords:  strings.Split(d.KeyWords, ","),
+		Content:   d.Content,
+		Summary:   d.Summary,
+		CreatedAt: d.CreatedAt,
+		ChangedAt: d.ChangedAt,
+	}
 	return result, nil
 }

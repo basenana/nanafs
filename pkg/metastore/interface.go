@@ -18,8 +18,9 @@ package metastore
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/types"
 	"time"
+
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 type Meta interface {
@@ -28,6 +29,7 @@ type Meta interface {
 	NotificationRecorder
 	PluginRecorderGetter
 	ScheduledTaskRecorder
+	DocumentRecorder
 }
 
 type ObjectStore interface {
@@ -69,6 +71,13 @@ type NotificationRecorder interface {
 	ListNotifications(ctx context.Context) ([]types.Notification, error)
 	RecordNotification(ctx context.Context, nid string, no types.Notification) error
 	UpdateNotificationStatus(ctx context.Context, nid, status string) error
+}
+
+type DocumentRecorder interface {
+	SaveDocument(ctx context.Context, doc *types.Document) error
+	ListDocument(ctx context.Context) ([]*types.Document, error)
+	GetDocument(ctx context.Context, id string) (*types.Document, error)
+	DeleteDocument(ctx context.Context, id string) error
 }
 
 type PluginRecorderGetter interface {

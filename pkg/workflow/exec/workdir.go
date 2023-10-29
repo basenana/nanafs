@@ -17,15 +17,19 @@
 package exec
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
-	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
 	"io"
 	"os"
 	"path"
+	"strings"
+
+	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/document"
+	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 )
 
 func initWorkdir(ctx context.Context, jobWorkdir string, job *types.WorkflowJob) (string, error) {
@@ -69,6 +73,41 @@ func cleanupWorkdir(ctx context.Context, workdir string) error {
 		return fmt.Errorf("workdir %s not a dir", workdir)
 	}
 	return utils.Rmdir(workdir)
+}
+
+func entryURIByEntryID(ctx context.Context, entryID int64, entryMgr dentry.Manager) (string, error) {
+	var (
+		uriPart, reversedURI []string
+	)
+
+	if entryID == dentry.RootEntryID {
+		return utils.PathSeparator, nil
+	}
+
+	en, err := entryMgr.GetEntry(ctx, entryID)
+	if err != nil {
+		return "", err
+	}
+	reversedURI = append(uriPart, en.Name)
+
+	for en.ID != dentry.RootEntryID {
+		en, err = entryMgr.GetEntry(ctx, en.ParentID)
+		if err != nil {
+			return "", err
+		}
+
+		if en.ID == dentry.RootEntryID {
+			break
+		}
+
+		reversedURI = append(reversedURI, en.Name)
+	}
+
+	for i := len(reversedURI) - 1; i >= 0; i-- {
+		uriPart = append(uriPart, reversedURI[i])
+	}
+
+	return strings.Join([]string{"/", strings.Join(uriPart, utils.PathSeparator)}, ""), nil
 }
 
 func entryWorkdirInit(ctx context.Context, entryID int64, entryMgr dentry.Manager, workdir string) (string, error) {
@@ -158,6 +197,26 @@ func collectFile2BaseEntry(ctx context.Context, entryMgr dentry.Manager, baseEnt
 	_, err = io.Copy(utils.NewWriterWithContextWriter(ctx, f), tmpFile)
 	if err != nil {
 		return fmt.Errorf("copy temporary file to entry file failed: %s", err)
+	}
+
+	return nil
+}
+
+func collectFile2Document(ctx context.Context, docMgr document.Manager, entryMgr dentry.Manager, entryId int64, entryURI string, content bytes.Buffer, summary string, keyWords []string) error {
+	baseEn, err := entryMgr.GetEntry(ctx, entryId)
+	if err != nil {
+		return fmt.Errorf("query entry failed: %s", err)
+	}
+	err = docMgr.CreateDocument(ctx, &types.Document{
+		Name:     baseEn.Name,
+		Uri:      entryURI,
+		Source:   "collect",
+		KeyWords: keyWords,
+		Content:  content.String(),
+		Summary:  summary,
+	})
+	if err != nil {
+		return fmt.Errorf("create new entry failed: %s", err)
 	}
 
 	return nil

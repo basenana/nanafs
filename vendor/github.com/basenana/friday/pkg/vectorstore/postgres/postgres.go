@@ -160,7 +160,7 @@ func (p *PostgresClient) Exist(id string) (bool, error) {
 	var exist = false
 	err := p.dEntity.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		vModel := db.Index{ID: id}
-		res := tx.First(vModel)
+		res := tx.First(&vModel)
 		if res.Error != nil && res.Error != gorm.ErrRecordNotFound {
 			return res.Error
 		}

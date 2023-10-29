@@ -19,8 +19,14 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
+
+	"go.uber.org/zap"
+
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/plugin"
@@ -28,9 +34,6 @@ import (
 	"github.com/basenana/nanafs/pkg/workflow/exec"
 	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	"github.com/basenana/nanafs/utils/logger"
-	"go.uber.org/zap"
-	"strings"
-	"time"
 )
 
 type Manager interface {
@@ -54,6 +57,7 @@ func init() {
 type manager struct {
 	ctrl     *jobrun.Controller
 	entryMgr dentry.Manager
+	docMgr   document.Manager
 	notify   *notify.Notify
 	recorder metastore.ScheduledTaskRecorder
 	config   config.Workflow
@@ -63,7 +67,7 @@ type manager struct {
 
 var _ Manager = &manager{}
 
-func NewManager(entryMgr dentry.Manager, notify *notify.Notify, recorder metastore.ScheduledTaskRecorder, config config.Workflow, fuse config.FUSE) (Manager, error) {
+func NewManager(entryMgr dentry.Manager, docMgr document.Manager, notify *notify.Notify, recorder metastore.ScheduledTaskRecorder, config config.Workflow, fuse config.FUSE) (Manager, error) {
 	wfLogger = logger.NewLogger("workflow")
 
 	if !config.Enable {
@@ -74,12 +78,12 @@ func NewManager(entryMgr dentry.Manager, notify *notify.Notify, recorder metasto
 		return nil, fmt.Errorf("init workflow job root workdir error: %s", err)
 	}
 
-	if err := exec.RegisterOperators(entryMgr, exec.LocalConfig{Workflow: config}); err != nil {
+	if err := exec.RegisterOperators(entryMgr, docMgr, exec.LocalConfig{Workflow: config}); err != nil {
 		return nil, fmt.Errorf("register operators failed: %s", err)
 	}
 
 	flowCtrl := jobrun.NewJobController(recorder, notify)
-	mgr := &manager{ctrl: flowCtrl, entryMgr: entryMgr, recorder: recorder, config: config, fuse: fuse, logger: wfLogger}
+	mgr := &manager{ctrl: flowCtrl, entryMgr: entryMgr, docMgr: docMgr, recorder: recorder, config: config, fuse: fuse, logger: wfLogger}
 	root, err := entryMgr.Root(context.Background())
 	if err != nil {
 		mgr.logger.Errorw("query root failed", "err", err)

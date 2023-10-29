@@ -18,17 +18,19 @@ package metastore
 
 import (
 	"context"
-	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/metastore/db"
-	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils/logger"
+	"runtime/trace"
+	"sync"
+	"time"
+
 	"github.com/glebarez/sqlite"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"runtime/trace"
-	"sync"
-	"time"
+
+	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/metastore/db"
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils/logger"
 )
 
 const (
@@ -235,6 +237,30 @@ func (s *sqliteMetaStore) deletePluginRecord(ctx context.Context, plugin types.P
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	return s.dbStore.deletePluginRecord(ctx, plugin, rid)
+}
+
+func (s *sqliteMetaStore) SaveDocument(ctx context.Context, doc *types.Document) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.SaveDocument(ctx, doc)
+}
+
+func (s *sqliteMetaStore) ListDocument(ctx context.Context) ([]*types.Document, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.ListDocument(ctx)
+}
+
+func (s *sqliteMetaStore) GetDocument(ctx context.Context, id string) (*types.Document, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.GetDocument(ctx, id)
+}
+
+func (s *sqliteMetaStore) DeleteDocument(ctx context.Context, id string) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.DeleteDocument(ctx, id)
 }
 
 func newSqliteMetaStore(meta config.Meta) (*sqliteMetaStore, error) {
@@ -519,6 +545,26 @@ func (s *sqlMetaStore) savePluginRecord(ctx context.Context, plugin types.PlugSc
 func (s *sqlMetaStore) deletePluginRecord(ctx context.Context, plugin types.PlugScope, rid string) error {
 	defer trace.StartRegion(ctx, "metastore.sql.deletePluginRecord").End()
 	return s.dbEntity.DeletePluginRecord(ctx, plugin, rid)
+}
+
+func (s *sqlMetaStore) SaveDocument(ctx context.Context, doc *types.Document) error {
+	defer trace.StartRegion(ctx, "metastore.sql.saveDocument").End()
+	return s.dbEntity.SaveDocument(ctx, doc)
+}
+
+func (s *sqlMetaStore) ListDocument(ctx context.Context) ([]*types.Document, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.listDocuments").End()
+	return s.dbEntity.ListDocument(ctx)
+}
+
+func (s *sqlMetaStore) GetDocument(ctx context.Context, id string) (*types.Document, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.getDocument").End()
+	return s.dbEntity.GetDocument(ctx, id)
+}
+
+func (s *sqlMetaStore) DeleteDocument(ctx context.Context, id string) error {
+	defer trace.StartRegion(ctx, "metastore.sql.deleteDocument").End()
+	return s.dbEntity.DeleteDocument(ctx, id)
 }
 
 func newPostgresMetaStore(meta config.Meta) (*sqlMetaStore, error) {
