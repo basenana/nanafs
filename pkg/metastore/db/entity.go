@@ -143,13 +143,18 @@ func (e *Entity) GetLabels(ctx context.Context, refType string, refID int64) (*t
 }
 
 func (e *Entity) ListObjectChildren(ctx context.Context, filter types.Filter) ([]*types.Object, error) {
+	var scopeIdList []int64
 	if len(filter.Label.Include) > 0 || len(filter.Label.Exclude) > 0 {
-		return listObjectWithLabelMatcher(ctx, e.DB, filter.Label)
+		var err error
+		scopeIdList, err = listObjectIdsWithLabelMatcher(ctx, e.DB, filter.Label)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	objectList := make([]Object, 0)
 	var result []*types.Object
-	res := queryFilter(e.DB.WithContext(ctx), filter).Find(&objectList)
+	res := queryFilter(e.DB.WithContext(ctx), filter, scopeIdList).Find(&objectList)
 	if res.Error != nil {
 		return nil, res.Error
 	}
@@ -847,6 +852,11 @@ func saveRawObject(tx *gorm.DB, obj *types.Object) error {
 		if res.Error != nil {
 			return res.Error
 		}
+		if obj.Labels != nil {
+			if err := updateObjectLabels(tx, obj); err != nil {
+				return err
+			}
+		}
 		return nil
 	}
 
@@ -994,7 +1004,7 @@ func updateObjectExtendData(tx *gorm.DB, obj *types.Object) error {
 
 func updateObjectLabels(tx *gorm.DB, obj *types.Object) error {
 	labelModels := make([]Label, 0)
-	res := tx.Where("oid = ?", obj.ID).Find(&labelModels)
+	res := tx.Where("ref_type = ? AND ref_id = ?", "object", obj.ID).Find(&labelModels)
 	if res.Error != nil {
 		return res.Error
 	}
@@ -1012,6 +1022,7 @@ func updateObjectLabels(tx *gorm.DB, obj *types.Object) error {
 		if newV, ok := labelsMap[oldKv.Key]; ok {
 			if oldKv.Value != newV {
 				oldKv.Value = newV
+				oldKv.SearchKey = labelSearchKey(oldKv.Key, newV)
 				needUpdateLabelModels = append(needUpdateLabelModels, oldKv)
 			}
 			delete(labelsMap, oldKv.Key)
@@ -1027,7 +1038,7 @@ func updateObjectLabels(tx *gorm.DB, obj *types.Object) error {
 	if len(needCreateLabelModels) > 0 {
 		for i := range needCreateLabelModels {
 			label := needCreateLabelModels[i]
-			res = tx.Create(label)
+			res = tx.Create(&label)
 			if res.Error != nil {
 				return res.Error
 			}
@@ -1055,7 +1066,7 @@ func updateObjectLabels(tx *gorm.DB, obj *types.Object) error {
 	return nil
 }
 
-func listObjectWithLabelMatcher(ctx context.Context, db *gorm.DB, labelMatch types.LabelMatch) ([]*types.Object, error) {
+func listObjectIdsWithLabelMatcher(ctx context.Context, db *gorm.DB, labelMatch types.LabelMatch) ([]int64, error) {
 	db = db.WithContext(ctx)
 	includeSearchKeys := make([]string, len(labelMatch.Include))
 	for i, inKey := range labelMatch.Include {
@@ -1063,13 +1074,13 @@ func listObjectWithLabelMatcher(ctx context.Context, db *gorm.DB, labelMatch typ
 	}
 
 	var includeLabels []Label
-	res := db.Select("oid").Where("search_key IN ?", includeSearchKeys).Find(&includeLabels)
+	res := db.Select("ref_id").Where("ref_type = ? AND search_key IN ?", "object", includeSearchKeys).Find(&includeLabels)
 	if res.Error != nil {
 		return nil, res.Error
 	}
 
 	var excludeLabels []Label
-	res = db.Select("oid").Where("key IN ?", labelMatch.Exclude).Find(&excludeLabels)
+	res = db.Select("ref_id").Where("ref_type = ? AND key IN ?", "object", labelMatch.Exclude).Find(&excludeLabels)
 	if res.Error != nil {
 		return nil, res.Error
 	}
@@ -1086,11 +1097,5 @@ func listObjectWithLabelMatcher(ctx context.Context, db *gorm.DB, labelMatch typ
 	for i := range targetObjects {
 		idList = append(idList, i)
 	}
-
-	result := make([]*types.Object, 0, len(targetObjects))
-	res = db.Where("id IN ?", idList).Find(&result)
-	if res.Error != nil {
-		return nil, res.Error
-	}
-	return result, nil
+	return idList, nil
 }
