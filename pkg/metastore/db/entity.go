@@ -852,6 +852,11 @@ func saveRawObject(tx *gorm.DB, obj *types.Object) error {
 		if res.Error != nil {
 			return res.Error
 		}
+		if obj.ExtendData != nil {
+			if err := updateObjectExtendData(tx, obj); err != nil {
+				return err
+			}
+		}
 		if obj.Labels != nil {
 			if err := updateObjectLabels(tx, obj); err != nil {
 				return err
@@ -1074,7 +1079,7 @@ func listObjectIdsWithLabelMatcher(ctx context.Context, db *gorm.DB, labelMatch 
 	}
 
 	var includeLabels []Label
-	res := db.Select("ref_id").Where("ref_type = ? AND search_key IN ?", "object", includeSearchKeys).Find(&includeLabels)
+	res := db.Where("ref_type = ? AND search_key IN ?", "object", includeSearchKeys).Find(&includeLabels)
 	if res.Error != nil {
 		return nil, res.Error
 	}
@@ -1085,16 +1090,20 @@ func listObjectIdsWithLabelMatcher(ctx context.Context, db *gorm.DB, labelMatch 
 		return nil, res.Error
 	}
 
-	targetObjects := make(map[int64]struct{})
+	targetObjects := make(map[int64]int)
 	for _, in := range includeLabels {
-		targetObjects[in.RefID] = struct{}{}
+		targetObjects[in.RefID] += 1
 	}
 	for _, ex := range excludeLabels {
 		delete(targetObjects, ex.RefID)
 	}
 
 	idList := make([]int64, 0, len(targetObjects))
-	for i := range targetObjects {
+	for i, matchedKeyCount := range targetObjects {
+		if matchedKeyCount != len(labelMatch.Include) {
+			// part match
+			continue
+		}
 		idList = append(idList, i)
 	}
 	return idList, nil

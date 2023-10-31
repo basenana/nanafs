@@ -52,8 +52,8 @@ func ruleLabelMatch(rule types.Rule) *types.LabelMatch {
 }
 
 func mergeLabelMatch(labelMatches []types.LabelMatch) types.LabelMatch {
-	if len(labelMatches) == 0 {
-		return labelMatches[1]
+	if len(labelMatches) == 1 {
+		return labelMatches[0]
 	}
 
 	merged := types.LabelMatch{

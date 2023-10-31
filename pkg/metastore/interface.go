@@ -32,6 +32,8 @@ type Meta interface {
 	DocumentRecorder
 }
 
+type DEntry interface{}
+
 type ObjectStore interface {
 	SystemInfo(ctx context.Context) (*types.SystemInfo, error)
 	GetObject(ctx context.Context, id int64) (*types.Object, error)

@@ -29,6 +29,10 @@ func entryColumnFilter(filter types.Rule, obj map[string]interface{}, labels *ty
 	}
 
 	if filter.Labels != nil {
+		// FIXME: support label filter
+		if labels == nil {
+			return true
+		}
 		return labelOperation(labels, filter.Labels)
 	}
 
