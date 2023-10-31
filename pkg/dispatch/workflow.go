@@ -22,6 +22,7 @@ import (
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/rule"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow"
 	"github.com/basenana/nanafs/pkg/workflow/jobrun"
@@ -43,7 +44,7 @@ func (w workflowAction) handleEvent(ctx context.Context, evt *types.EntryEvent) 
 		return nil
 	}
 
-	_, err := w.entry.GetEntry(ctx, evt.RefID)
+	en, err := w.entry.GetEntry(ctx, evt.RefID)
 	if err != nil {
 		w.logger.Errorw("[workflowAction] get entry failed", "entry", evt.RefID, "err", err)
 		return err
@@ -60,10 +61,11 @@ func (w workflowAction) handleEvent(ctx context.Context, evt *types.EntryEvent) 
 		if !wf.Enable {
 			continue
 		}
-		// TODO
-		//if !en.RuleMatched(ctx, wf.Rule) {
-		//	continue
-		//}
+
+		// TODO: support extend data and labels
+		if rule.Filter(wf.Rule, en, nil, nil) {
+			continue
+		}
 
 		pendingJob, err := w.recorder.ListWorkflowJob(ctx, types.JobFilter{WorkFlowID: wf.Id, Status: jobrun.InitializingStatus, TargetEntry: evt.RefID})
 		if err != nil {

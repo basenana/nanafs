@@ -55,7 +55,7 @@ func (c *CronHandler) Start(ctx context.Context) {
 	}()
 }
 
-func (c *CronHandler) Handle(wf *types.WorkflowSpec) error {
+func (c *CronHandler) Register(wf *types.WorkflowSpec) error {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 	oldRecord, ok := c.registry[wf.Id]
@@ -78,6 +78,16 @@ func (c *CronHandler) Handle(wf *types.WorkflowSpec) error {
 
 	c.registry[wf.Id] = cronRecord{workflowID: wf.Id, cronEntry: cronEnID, cronDef: wf.Cron}
 	return nil
+}
+
+func (c *CronHandler) Unregister(wfID string) {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+	oldRecord, ok := c.registry[wfID]
+	if !ok {
+		return
+	}
+	c.Remove(oldRecord.cronEntry)
 }
 
 func (c *CronHandler) newJobFunc(wfID string) func() {

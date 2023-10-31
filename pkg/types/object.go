@@ -124,53 +124,6 @@ type Properties struct {
 	Fields map[string]string `json:"fields,omitempty"`
 }
 
-type Annotation struct {
-	Annotations []AnnotationItem `json:"annotations,omitempty"`
-	Details     string           `json:"details,omitempty"`
-}
-
-func (a *Annotation) Add(newA *AnnotationItem) {
-	for i, ann := range a.Annotations {
-		if ann.Key != newA.Key {
-			continue
-		}
-		a.Annotations[i].Content = newA.Content
-		return
-	}
-	a.Annotations = append(a.Annotations, *newA)
-}
-
-func (a *Annotation) Get(key string) *AnnotationItem {
-	for i := range a.Annotations {
-		ann := a.Annotations[i]
-		if ann.Key != key {
-			continue
-		}
-		return &ann
-	}
-	return nil
-}
-
-func (a *Annotation) Remove(key string) {
-	needDel := -1
-	for i, ann := range a.Annotations {
-		if ann.Key != key {
-			continue
-		}
-		needDel = i
-	}
-	if needDel < 0 {
-		return
-	}
-	a.Annotations = append(a.Annotations[0:needDel], a.Annotations[needDel+1:]...)
-}
-
-type AnnotationItem struct {
-	Key     string `json:"key"`
-	Content string `json:"content"`
-	Encode  bool   `json:"encode"`
-}
-
 type Object struct {
 	Metadata
 	*ExtendData
