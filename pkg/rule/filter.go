@@ -18,38 +18,42 @@ package rule
 
 import "github.com/basenana/nanafs/pkg/types"
 
-func ObjectFilter(filter types.Rule, entry *types.Metadata, ex *types.ExtendData, label *types.Labels) bool {
-	return objectFilter(filter, objectToMap(&object{Metadata: entry, ExtendData: ex, Labels: label}), label)
+func Filter(filter types.Rule, entry *types.Metadata, ex *types.ExtendData, label *types.Labels) bool {
+	return entryColumnFilter(filter, objectToMap(&object{Metadata: entry, ExtendData: ex, Labels: label}), label)
 }
 
-func objectFilter(filter types.Rule, obj map[string]interface{}, labels *types.Labels) bool {
+func entryColumnFilter(filter types.Rule, obj map[string]interface{}, labels *types.Labels) bool {
 	if filter.Operation != "" {
 		op := NewRuleOperation(filter.Operation, filter.Column, filter.Value)
 		return op.Apply(obj)
 	}
 
 	if filter.Labels != nil {
+		// FIXME: support label filter
+		if labels == nil {
+			return true
+		}
 		return labelOperation(labels, filter.Labels)
 	}
 
 	switch filter.Logic {
 	case types.RuleLogicAll:
 		for _, f := range filter.Rules {
-			if !objectFilter(f, obj, labels) {
+			if !entryColumnFilter(f, obj, labels) {
 				return false
 			}
 		}
 		return true
 	case types.RuleLogicAny:
 		for _, f := range filter.Rules {
-			if objectFilter(f, obj, labels) {
+			if entryColumnFilter(f, obj, labels) {
 				return true
 			}
 		}
 		return false
 	case types.RuleLogicNot:
 		for _, f := range filter.Rules {
-			if objectFilter(f, obj, labels) {
+			if entryColumnFilter(f, obj, labels) {
 				return false
 			}
 		}

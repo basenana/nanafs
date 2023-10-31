@@ -75,6 +75,7 @@ func (c *controller) StartBackendTask(stopCh chan struct{}) {
 		c.logger.Panicf("start backend task failed: %s", err)
 	}
 	go st.Run(stopCh)
+	go c.workflow.StartCron(stopCh)
 }
 
 func (c *controller) SetupShutdownHandler(stopCh chan struct{}) chan struct{} {

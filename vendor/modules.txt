@@ -475,6 +475,9 @@ github.com/prometheus/procfs/internal/util
 # github.com/remyoudompheng/bigfft v0.0.0-20230126093431-47fa9a501578
 ## explicit; go 1.12
 github.com/remyoudompheng/bigfft
+# github.com/robfig/cron/v3 v3.0.0
+## explicit; go 1.12
+github.com/robfig/cron/v3
 # github.com/rs/xid v1.4.0
 ## explicit; go 1.12
 github.com/rs/xid

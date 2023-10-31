@@ -26,6 +26,7 @@ require (
 	github.com/onsi/gomega v1.27.8
 	github.com/pierrec/lz4/v4 v4.1.17
 	github.com/prometheus/client_golang v1.16.0
+	github.com/robfig/cron/v3 v3.0.0
 	github.com/slok/go-http-metrics v0.10.0
 	github.com/studio-b12/gowebdav v0.9.0
 	github.com/tickstep/aliyunpan-api v0.1.6

@@ -36,10 +36,13 @@ func SqlError2Error(err error) error {
 	}
 }
 
-func queryFilter(tx *gorm.DB, filter types.Filter) *gorm.DB {
+func queryFilter(tx *gorm.DB, filter types.Filter, scopeIds []int64) *gorm.DB {
 	if filter.ID != 0 {
 		tx = tx.Where("id = ?", filter.ID)
+	} else if len(scopeIds) > 0 {
+		tx = tx.Where("id IN ?", scopeIds)
 	}
+
 	if filter.ParentID != 0 {
 		tx = tx.Where("parent_id = ?", filter.ParentID)
 	}
@@ -89,7 +92,7 @@ func (l *Logger) Trace(ctx context.Context, begin time.Time, fc func() (sql stri
 	case err != nil && err != gorm.ErrRecordNotFound && err != context.Canceled:
 		l.Warnw("trace error", "sql", sqlContent, "rows", rows, "err", err)
 	case time.Since(begin) > time.Second:
-		l.Infow("slow sql", "sql", sqlContent, "rows", rows, "err", err)
+		l.Infow("slow sql", "sql", sqlContent, "rows", rows, "cost", time.Since(begin).Seconds())
 	}
 }
 

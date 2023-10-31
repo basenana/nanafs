@@ -414,25 +414,25 @@ func (f *fileHandler) createOrUpdateWorkflow(ctx context.Context, en *pluginapi.
 	decodeErr := yaml.NewDecoder(&memfsFile{filePath: f.plugin.path, entry: en, memfs: f.plugin.fs}).Decode(wf)
 	if decodeErr != nil {
 		wfLogger.Warnw("decode workflow file failed", "path", f.plugin.path, "en", en.Name, "err", decodeErr)
-		return nil, decodeErr
+		return wf, decodeErr
 	}
 
 	wfID := mirrorFile2ID(en.Name)
 	if err := isValidID(wfID); err != nil {
-		return nil, err
+		return wf, err
 	}
 	wf.Id = wfID
 
 	oldWf, err := f.plugin.mgr.GetWorkflow(ctx, wfID)
 	if err != nil && err != types.ErrNotFound {
-		return nil, err
+		return wf, err
 	}
 
 	// do create
 	if err == types.ErrNotFound {
 		wf, err = f.plugin.mgr.CreateWorkflow(ctx, initWorkflow(wf))
 		if err != nil {
-			return nil, err
+			return wf, err
 		}
 		return wf, nil
 	}
@@ -447,7 +447,7 @@ func (f *fileHandler) createOrUpdateWorkflow(ctx context.Context, en *pluginapi.
 
 	oldWf, err = f.plugin.mgr.UpdateWorkflow(ctx, oldWf)
 	if err != nil {
-		return nil, err
+		return wf, err
 	}
 	return oldWf, nil
 }
@@ -456,24 +456,24 @@ func (f *fileHandler) triggerOrUpdateWorkflowJob(ctx context.Context, en *plugin
 	wfJob := &types.WorkflowJob{}
 	en, err := f.plugin.fs.GetEntry(f.plugin.path)
 	if err != nil {
-		return nil, err
+		return wfJob, err
 	}
 	if en.Size > 0 {
 		decodeErr := yaml.NewDecoder(&memfsFile{filePath: f.plugin.path, entry: en, memfs: f.plugin.fs}).Decode(wfJob)
 		if decodeErr != nil {
 			wfLogger.Warnw("decode job file failed", "path", f.plugin.path, "en", en.Name, "err", decodeErr)
-			return nil, decodeErr
+			return wfJob, decodeErr
 		}
 	}
 
 	jobID := mirrorFile2ID(en.Name)
 	if err := isValidID(jobID); err != nil {
-		return nil, err
+		return wfJob, err
 	}
 
 	oldJob, err := f.plugin.mgr.GetJob(ctx, f.wfID, jobID)
 	if err != nil && err != types.ErrNotFound {
-		return nil, err
+		return wfJob, err
 	}
 
 	// do update
@@ -497,7 +497,7 @@ func (f *fileHandler) triggerOrUpdateWorkflowJob(ctx context.Context, en *plugin
 	target := wfJob.Target
 	wfJob, err = f.plugin.mgr.TriggerWorkflow(ctx, f.wfID, target, JobAttr{JobID: jobID})
 	if err != nil {
-		return nil, err
+		return wfJob, err
 	}
 	return wfJob, nil
 }

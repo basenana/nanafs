@@ -233,6 +233,114 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 	})
 })
 
+var _ = Describe("TestSqliteLabelOperation", func() {
+	var (
+		ctx    = context.TODO()
+		sqlite = buildNewSqliteMetaStore("test_label_operation.db")
+	)
+	// init root
+	rootObj := InitRootObject()
+	Expect(sqlite.SaveObjects(context.TODO(), rootObj)).Should(BeNil())
+
+	Context("save labels", func() {
+		It("create object with/without labels should succeed", func() {
+			obj1, err := types.InitNewObject(&rootObj.Metadata, types.ObjectAttr{Name: "test-label-obj-1", Kind: types.RawKind})
+			Expect(err).Should(BeNil())
+			Expect(sqlite.SaveObjects(context.TODO(), rootObj, obj1)).Should(BeNil())
+
+			obj2, err := types.InitNewObject(&rootObj.Metadata, types.ObjectAttr{Name: "test-label-obj-2", Kind: types.RawKind})
+			obj2.Labels = &types.Labels{Labels: []types.Label{
+				{Key: "test.nanafs.label1", Value: "cus_value"},
+				{Key: "test.nanafs.label2", Value: "cus_value"},
+			}}
+			obj2.LabelsChanged = true
+			Expect(err).Should(BeNil())
+			Expect(sqlite.SaveObjects(context.TODO(), rootObj, obj2)).Should(BeNil())
+
+			obj3, err := types.InitNewObject(&rootObj.Metadata, types.ObjectAttr{Name: "test-label-obj-3", Kind: types.RawKind})
+			obj3.Labels = &types.Labels{Labels: []types.Label{
+				{Key: "test.nanafs.label2", Value: "cus_value"},
+			}}
+			obj3.LabelsChanged = true
+			obj3.Properties = types.Properties{Fields: map[string]string{"custom_field": "cus_value"}}
+			obj3.ExtendDataChanged = true
+			Expect(err).Should(BeNil())
+			Expect(sqlite.SaveObjects(context.TODO(), rootObj, obj3)).Should(BeNil())
+		})
+		It("add object labels should succeed", func() {
+			objList, err := sqlite.ListObjects(ctx, types.Filter{ParentID: rootObj.ID, Name: "test-label-obj-1"})
+			Expect(err).Should(BeNil())
+			Expect(len(objList)).Should(Equal(1))
+			obj := objList[0]
+			obj.Labels = &types.Labels{Labels: []types.Label{
+				{Key: "test.nanafs.label1", Value: "cus_value"},
+				{Key: "test.nanafs.label2", Value: "cus_value2"},
+			}}
+			obj.LabelsChanged = true
+			Expect(sqlite.SaveObjects(context.TODO(), rootObj, obj)).Should(BeNil())
+		})
+		It("update object labels should succeed", func() {
+			objList, err := sqlite.ListObjects(ctx, types.Filter{ParentID: rootObj.ID, Name: "test-label-obj-3"})
+			Expect(err).Should(BeNil())
+			Expect(len(objList)).Should(Equal(1))
+			obj := objList[0]
+			obj.Labels = &types.Labels{Labels: []types.Label{
+				{Key: "test.nanafs.label1", Value: "cus_value"},
+				{Key: "test.nanafs.label2", Value: "cus_value2"},
+				{Key: "test.nanafs.label3", Value: "cus_value3"},
+			}}
+			obj.LabelsChanged = true
+			Expect(sqlite.SaveObjects(context.TODO(), rootObj, obj)).Should(BeNil())
+		})
+	})
+
+	/*
+		test-label-obj-1
+			- test.nanafs.label1=cus_value
+			- test.nanafs.label2=cus_value2
+
+		test-label-obj-2
+			- test.nanafs.label1=cus_value
+			- test.nanafs.label2=cus_value
+
+		test-label-obj-3
+			- test.nanafs.label1=cus_value
+			- test.nanafs.label2=cus_value2
+			- test.nanafs.label3=cus_value3
+	*/
+
+	Context("query object with labels", func() {
+		It("list object with labels test.nanafs.label1 should succeed", func() {
+			objList, err := sqlite.ListObjects(ctx, types.Filter{
+				Label: types.LabelMatch{
+					Include: []types.Label{{Key: "test.nanafs.label1", Value: "cus_value"}},
+				},
+			})
+			Expect(err).Should(BeNil())
+			Expect(len(objList)).Should(Equal(3))
+		})
+		It("list object with labels test.nanafs.label2 should succeed", func() {
+			objList, err := sqlite.ListObjects(ctx, types.Filter{
+				Label: types.LabelMatch{
+					Include: []types.Label{{Key: "test.nanafs.label2", Value: "cus_value2"}},
+				},
+			})
+			Expect(err).Should(BeNil())
+			Expect(len(objList)).Should(Equal(2))
+		})
+		It("list object with label exclude should succeed", func() {
+			objList, err := sqlite.ListObjects(ctx, types.Filter{
+				Label: types.LabelMatch{
+					Include: []types.Label{{Key: "test.nanafs.label2", Value: "cus_value2"}},
+					Exclude: []string{"test.nanafs.label3"},
+				},
+			})
+			Expect(err).Should(BeNil())
+			Expect(len(objList)).Should(Equal(1))
+		})
+	})
+})
+
 var _ = Describe("TestSqlitePluginData", func() {
 	var (
 		sqlite      = buildNewSqliteMetaStore("test_plugin_data.db")

@@ -150,13 +150,18 @@ func Get(columnKey string, o map[string]interface{}) string {
 }
 
 func getVal(key string, resMap map[string]interface{}) interface{} {
-	keyParts := strings.SplitN(key, ".", 1)
+	keyParts := strings.SplitN(key, ".", 2)
 	subKey := keyParts[0]
 	if len(keyParts) == 1 {
 		return resMap[subKey]
 	}
 
-	return getVal(keyParts[1], resMap[subKey].(map[string]interface{}))
+	nextMap := resMap[subKey]
+	if nextMap == nil {
+		return ""
+	}
+
+	return getVal(keyParts[1], nextMap.(map[string]interface{}))
 }
 
 func labelOperation(labels *types.Labels, match *types.LabelMatch) bool {

@@ -37,6 +37,8 @@ import (
 )
 
 type Manager interface {
+	StartCron(stopCh chan struct{})
+
 	ListWorkflows(ctx context.Context) ([]*types.WorkflowSpec, error)
 	GetWorkflow(ctx context.Context, wfId string) (*types.WorkflowSpec, error)
 	CreateWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error)
@@ -51,14 +53,12 @@ type Manager interface {
 	CancelWorkflowJob(ctx context.Context, jobId string) error
 }
 
-func init() {
-}
-
 type manager struct {
 	ctrl     *jobrun.Controller
 	entryMgr dentry.Manager
 	docMgr   document.Manager
 	notify   *notify.Notify
+	cron     *CronHandler
 	recorder metastore.ScheduledTaskRecorder
 	config   config.Workflow
 	fuse     config.FUSE
@@ -95,8 +95,16 @@ func NewManager(entryMgr dentry.Manager, docMgr document.Manager, notify *notify
 	if err := initWorkflowMirrorDir(root, entryMgr); err != nil {
 		return nil, fmt.Errorf("init workflow mirror dir failed: %s", err)
 	}
+	mgr.cron = newCronHandler(mgr)
 
 	return mgr, nil
+}
+
+func (m *manager) StartCron(stopCh chan struct{}) {
+	cronCtx, canF := context.WithCancel(context.Background())
+	m.cron.Start(cronCtx)
+	<-stopCh
+	canF()
 }
 
 func (m *manager) ListWorkflows(ctx context.Context) ([]*types.WorkflowSpec, error) {
@@ -124,6 +132,12 @@ func (m *manager) CreateWorkflow(ctx context.Context, spec *types.WorkflowSpec) 
 	if err = m.recorder.SaveWorkflow(ctx, spec); err != nil {
 		return nil, err
 	}
+
+	if spec.Cron != "" {
+		if err = m.cron.Register(spec); err != nil {
+			return spec, fmt.Errorf("handle cron rules encounter failure: %s", err)
+		}
+	}
 	return spec, nil
 }
 
@@ -136,10 +150,21 @@ func (m *manager) UpdateWorkflow(ctx context.Context, spec *types.WorkflowSpec) 
 	if err = m.recorder.SaveWorkflow(ctx, spec); err != nil {
 		return nil, err
 	}
+
+	if spec.Cron != "" {
+		if err = m.cron.Register(spec); err != nil {
+			return spec, fmt.Errorf("handle cron rules encounter failure: %s", err)
+		}
+	}
 	return spec, nil
 }
 
 func (m *manager) DeleteWorkflow(ctx context.Context, wfId string) error {
+	wfSpec, err := m.GetWorkflow(ctx, wfId)
+	if err != nil {
+		return err
+	}
+
 	jobs, err := m.ListJobs(ctx, wfId)
 	if err != nil {
 		return err
@@ -153,6 +178,10 @@ func (m *manager) DeleteWorkflow(ctx context.Context, wfId string) error {
 	}
 	if len(runningJobs) > 0 {
 		return fmt.Errorf("has running jobs: [%s]", strings.Join(runningJobs, ","))
+	}
+
+	if wfSpec.Cron != "" {
+		m.cron.Unregister(wfId)
 	}
 	return m.recorder.DeleteWorkflow(ctx, wfId)
 }
@@ -257,6 +286,8 @@ func (m *manager) CancelWorkflowJob(ctx context.Context, jobId string) error {
 }
 
 type disabledManager struct{}
+
+func (d disabledManager) StartCron(stopCh chan struct{}) {}
 
 func (d disabledManager) ListWorkflows(ctx context.Context) ([]*types.WorkflowSpec, error) {
 	return make([]*types.WorkflowSpec, 0), nil
