@@ -18,6 +18,7 @@ package metastore
 
 import (
 	"context"
+	"fmt"
 	"runtime/trace"
 	"sync"
 	"time"
@@ -264,12 +265,12 @@ func (s *sqliteMetaStore) DeleteDocument(ctx context.Context, id string) error {
 }
 
 func newSqliteMetaStore(meta config.Meta) (*sqliteMetaStore, error) {
-	dbObj, err := gorm.Open(sqlite.Open(meta.Path), &gorm.Config{Logger: db.NewDbLogger()})
+	dbEntity, err := gorm.Open(sqlite.Open(meta.Path), &gorm.Config{Logger: db.NewDbLogger()})
 	if err != nil {
 		return nil, err
 	}
 
-	dbConn, err := dbObj.DB()
+	dbConn, err := dbEntity.DB()
 	if err != nil {
 		return nil, err
 	}
@@ -278,27 +279,247 @@ func newSqliteMetaStore(meta config.Meta) (*sqliteMetaStore, error) {
 		return nil, err
 	}
 
-	dbEnt, err := db.NewDbEntity(dbObj)
+	dbEnt, err := db.NewDbEntity(dbEntity)
 	if err != nil {
 		return nil, err
 	}
 
-	return &sqliteMetaStore{dbStore: buildSqlMetaStore(dbEnt)}, nil
+	return &sqliteMetaStore{dbStore: buildSqlMetaStore(dbEnt, dbEntity)}, nil
 }
 
 type sqlMetaStore struct {
+	*gorm.DB
+
 	dbEntity *db.Entity
 	logger   *zap.SugaredLogger
 }
 
 var _ Meta = &sqlMetaStore{}
 
-func buildSqlMetaStore(entity *db.Entity) *sqlMetaStore {
-	return &sqlMetaStore{dbEntity: entity, logger: logger.NewLogger("dbStore")}
+func buildSqlMetaStore(entity *db.Entity, dbEntity *gorm.DB) *sqlMetaStore {
+	return &sqlMetaStore{dbEntity: entity, DB: dbEntity, logger: logger.NewLogger("dbStore")}
 }
 
 func (s *sqlMetaStore) SystemInfo(ctx context.Context) (*types.SystemInfo, error) {
 	return s.dbEntity.SystemInfo(ctx)
+}
+
+func (s *sqlMetaStore) GetEntry(ctx context.Context, id int64) (*types.Metadata, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.GetEntry").End()
+	var objMod = &db.Object{ID: id}
+	res := s.WithContext(ctx).Where("id = ?", id).First(objMod)
+	if err := res.Error; err != nil {
+		s.logger.Errorw("get entry by id failed", "id", id, "err", err)
+		return nil, db.SqlError2Error(err)
+	}
+	return objMod.ToEntry(), nil
+}
+
+func (s *sqlMetaStore) FindEntry(ctx context.Context, parentID int64, name string) (*types.Metadata, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.FindEntry").End()
+	var objMod = &db.Object{ParentID: &parentID, Name: name}
+	res := s.WithContext(ctx).Where("parent_id = ? AND name = ?", parentID, name).First(objMod)
+	if err := res.Error; err != nil {
+		s.logger.Errorw("find entry by name failed", "parent", parentID, "name", name, "err", err)
+		return nil, db.SqlError2Error(err)
+	}
+	return objMod.ToEntry(), nil
+}
+
+func (s *sqlMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata) error {
+	defer trace.StartRegion(ctx, "metastore.sql.CreateEntry").End()
+	var (
+		parentMod = &db.Object{ID: parentID}
+		entryMod  = (&db.Object{}).FromEntry(newEntry)
+		nowTime   = time.Now().UnixNano()
+	)
+	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Where("id = ?", parentID).First(parentMod)
+		if res.Error != nil {
+			return res.Error
+		}
+
+		res = tx.Create(entryMod)
+		if res.Error != nil {
+			return res.Error
+		}
+
+		parentMod.ModifiedAt = nowTime
+		parentMod.ChangedAt = nowTime
+		if types.IsGroup(newEntry.Kind) {
+			refCount := (*parentMod.RefCount) + 1
+			parentMod.RefCount = &refCount
+		}
+
+		return updateEntryInLock(tx, parentMod)
+	})
+	if err != nil {
+		s.logger.Errorw("create entry failed", "parent", parentID, "name", newEntry.Name, "err", err)
+		return db.SqlError2Error(err)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64) error {
+	defer trace.StartRegion(ctx, "metastore.sql.RemoveEntry").End()
+	var (
+		noneParentID int64 = 0
+		srcMod       *db.Object
+		parentMod    = &db.Object{ID: parentID}
+		entryMod     = &db.Object{ID: entryID}
+		nowTime      = time.Now().UnixNano()
+	)
+	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Where("id = ?", parentID).First(parentMod)
+		if res.Error != nil {
+			return res.Error
+		}
+		res = tx.Where("id = ?", parentID).First(entryMod)
+		if res.Error != nil {
+			return res.Error
+		}
+
+		if entryMod.RefID != nil {
+			srcMod = &db.Object{ID: *entryMod.RefID}
+			res = tx.Where("id = ?", *entryMod.RefID).First(srcMod)
+			if res.Error != nil {
+				return res.Error
+			}
+		}
+
+		parentMod.ModifiedAt = nowTime
+		if types.IsGroup(types.Kind(entryMod.Kind)) {
+			parentRef := (*parentMod.RefCount) - 1
+			parentMod.RefCount = &parentRef
+		}
+		if err := updateEntryInLock(tx, parentMod); err != nil {
+			return err
+		}
+
+		if srcMod != nil {
+			srcRef := (*srcMod.RefCount) - 1
+			srcMod.RefCount = &srcRef
+			srcMod.ModifiedAt = nowTime
+
+			if err := updateEntryInLock(tx, srcMod); err != nil {
+				return err
+			}
+		}
+
+		entryRef := (*entryMod.RefCount) - 1
+		entryMod.ParentID = &noneParentID
+		entryMod.RefCount = &entryRef
+		entryMod.ModifiedAt = nowTime
+
+		return updateEntryInLock(tx, entryMod)
+	})
+	if err != nil {
+		s.logger.Errorw("mark entry removed failed", "parent", parentID, "entry", entryID, "err", err)
+		return db.SqlError2Error(err)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) DeleteRemovedEntry(ctx context.Context, entryID int64) error {
+	defer trace.StartRegion(ctx, "metastore.sql.DeleteRemovedEntry").End()
+	var (
+		entryMod = &db.Object{ID: entryID}
+		extModel = &db.ObjectExtend{ID: entryID}
+	)
+	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Where("id = ?", entryID).First(entryMod)
+		if res.Error != nil {
+			return res.Error
+		}
+
+		if entryMod.RefCount != nil && *entryMod.RefCount > 0 {
+			return fmt.Errorf("entry ref_count is %d, more than 0", *entryMod.RefCount)
+		}
+
+		res = tx.Delete(entryMod)
+		if res.Error != nil {
+			return res.Error
+		}
+		res = tx.Delete(extModel)
+		if res.Error != nil {
+			return res.Error
+		}
+		res = tx.Where("ref_type = 'object' AND ref_id = ?", entryID).Delete(&db.Label{})
+		if res.Error != nil {
+			return res.Error
+		}
+		return nil
+	})
+	if err != nil {
+		s.logger.Errorw("delete removed entry failed", "entry", entryID, "err", err)
+		return db.SqlError2Error(err)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) ListEntryChildren(ctx context.Context, parentId int64) (EntryIterator, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.ListEntryChildren").End()
+	var total int64
+	tx := s.WithContext(ctx).Model(&db.Object{}).Where("parent_id = ?", parentId)
+	res := tx.Count(&total)
+	if err := res.Error; err != nil {
+		s.logger.Errorw("count children entry failed", "parent", parentId, "err", err)
+		return nil, db.SqlError2Error(err)
+	}
+	return newTransactionEntryIterator(tx, total), nil
+}
+
+func (s *sqlMetaStore) FilterEntries(ctx context.Context, filter types.Filter) (EntryIterator, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.FilterEntries").End()
+	var (
+		scopeIds []int64
+		err      error
+	)
+	if len(filter.Label.Include) > 0 || len(filter.Label.Exclude) > 0 {
+		scopeIds, err = listObjectIdsWithLabelMatcher(ctx, s.DB, filter.Label)
+		if err != nil {
+			return nil, db.SqlError2Error(err)
+		}
+	}
+
+	var total int64
+	tx := queryFilter(s.WithContext(ctx).Model(&db.Object{}), filter, scopeIds)
+	res := tx.Count(&total)
+	if err = res.Error; err != nil {
+		s.logger.Errorw("count filtered entry failed", "filter", filter, "err", err)
+		return nil, db.SqlError2Error(err)
+	}
+	return newTransactionEntryIterator(tx, total), nil
+}
+
+func (s *sqlMetaStore) Open(ctx context.Context, id int64) (*types.Metadata, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *sqlMetaStore) Flush(ctx context.Context, id int64, size int64) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *sqlMetaStore) GetEntryExtendData(ctx context.Context, id int64) (types.ExtendData, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *sqlMetaStore) UpdateEntryExtendData(ctx context.Context, id int64, ed types.ExtendData) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *sqlMetaStore) GetEntryLabels(ctx context.Context, id int64) (types.Labels, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *sqlMetaStore) UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (s *sqlMetaStore) GetObject(ctx context.Context, id int64) (*types.Object, error) {
@@ -568,12 +789,12 @@ func (s *sqlMetaStore) DeleteDocument(ctx context.Context, id string) error {
 }
 
 func newPostgresMetaStore(meta config.Meta) (*sqlMetaStore, error) {
-	dbObj, err := gorm.Open(postgres.Open(meta.DSN), &gorm.Config{Logger: db.NewDbLogger()})
+	dbEntity, err := gorm.Open(postgres.Open(meta.DSN), &gorm.Config{Logger: db.NewDbLogger()})
 	if err != nil {
 		panic(err)
 	}
 
-	dbConn, err := dbObj.DB()
+	dbConn, err := dbEntity.DB()
 	if err != nil {
 		return nil, err
 	}
@@ -586,12 +807,12 @@ func newPostgresMetaStore(meta config.Meta) (*sqlMetaStore, error) {
 		return nil, err
 	}
 
-	dbEnt, err := db.NewDbEntity(dbObj)
+	dbEnt, err := db.NewDbEntity(dbEntity)
 	if err != nil {
 		return nil, err
 	}
 
-	return buildSqlMetaStore(dbEnt), nil
+	return buildSqlMetaStore(dbEnt, dbEntity), nil
 }
 
 type pluginRecordHandler interface {
@@ -624,4 +845,88 @@ func (s *sqlPluginRecorder) SaveRecord(ctx context.Context, groupId, rid string,
 
 func (s *sqlPluginRecorder) DeleteRecord(ctx context.Context, rid string) error {
 	return db.SqlError2Error(s.deletePluginRecord(ctx, s.plugin, rid))
+}
+
+func updateEntryInLock(tx *gorm.DB, entryMod *db.Object) error {
+	currentVersion := entryMod.Version
+	entryMod.Version += 1
+	if entryMod.Version < 0 {
+		entryMod.Version = 1024
+	}
+
+	res := tx.Where("version = ?", currentVersion).Updates(entryMod)
+	if res.Error != nil || res.RowsAffected == 0 {
+		if res.RowsAffected == 0 {
+			return types.ErrConflict
+		}
+		return res.Error
+	}
+	return nil
+}
+
+func listObjectIdsWithLabelMatcher(ctx context.Context, tx *gorm.DB, labelMatch types.LabelMatch) ([]int64, error) {
+	tx = tx.WithContext(ctx)
+	includeSearchKeys := make([]string, len(labelMatch.Include))
+	for i, inKey := range labelMatch.Include {
+		includeSearchKeys[i] = labelSearchKey(inKey.Key, inKey.Value)
+	}
+
+	var includeLabels []db.Label
+	res := tx.Where("ref_type = ? AND search_key IN ?", "object", includeSearchKeys).Find(&includeLabels)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+
+	var excludeLabels []db.Label
+	res = tx.Select("ref_id").Where("ref_type = ? AND key IN ?", "object", labelMatch.Exclude).Find(&excludeLabels)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+
+	targetObjects := make(map[int64]int)
+	for _, in := range includeLabels {
+		targetObjects[in.RefID] += 1
+	}
+	for _, ex := range excludeLabels {
+		delete(targetObjects, ex.RefID)
+	}
+
+	idList := make([]int64, 0, len(targetObjects))
+	for i, matchedKeyCount := range targetObjects {
+		if matchedKeyCount != len(labelMatch.Include) {
+			// part match
+			continue
+		}
+		idList = append(idList, i)
+	}
+	return idList, nil
+}
+
+func queryFilter(tx *gorm.DB, filter types.Filter, scopeIds []int64) *gorm.DB {
+	if filter.ID != 0 {
+		tx = tx.Where("id = ?", filter.ID)
+	} else if len(scopeIds) > 0 {
+		tx = tx.Where("id IN ?", scopeIds)
+	}
+
+	if filter.ParentID != 0 {
+		tx = tx.Where("parent_id = ?", filter.ParentID)
+	}
+	if filter.RefID != 0 {
+		tx = tx.Where("ref_id = ?", filter.RefID)
+	}
+	if filter.Name != "" {
+		tx = tx.Where("name = ?", filter.Name)
+	}
+	if filter.Namespace != "" {
+		tx = tx.Where("namespace = ?", filter.Namespace)
+	}
+	if filter.Kind != "" {
+		tx = tx.Where("kind = ?", filter.Kind)
+	}
+	return tx
+}
+
+func labelSearchKey(k, v string) string {
+	return fmt.Sprintf("%s=%s", k, v)
 }

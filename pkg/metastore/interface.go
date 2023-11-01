@@ -32,7 +32,24 @@ type Meta interface {
 	DocumentRecorder
 }
 
-type DEntry interface{}
+type DEntry interface {
+	GetEntry(ctx context.Context, id int64) (*types.Metadata, error)
+	FindEntry(ctx context.Context, parentID int64, name string) (*types.Metadata, error)
+	CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata) error
+	RemoveEntry(ctx context.Context, parentID, entryID int64) error
+	DeleteRemovedEntry(ctx context.Context, entryID int64) error
+
+	ListEntryChildren(ctx context.Context, parentId int64) (EntryIterator, error)
+	FilterEntries(ctx context.Context, filter types.Filter) (EntryIterator, error)
+
+	Open(ctx context.Context, id int64) (*types.Metadata, error)
+	Flush(ctx context.Context, id int64, size int64) error
+
+	GetEntryExtendData(ctx context.Context, id int64) (types.ExtendData, error)
+	UpdateEntryExtendData(ctx context.Context, id int64, ed types.ExtendData) error
+	GetEntryLabels(ctx context.Context, id int64) (types.Labels, error)
+	UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error
+}
 
 type ObjectStore interface {
 	SystemInfo(ctx context.Context) (*types.SystemInfo, error)

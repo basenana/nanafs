@@ -84,6 +84,66 @@ func (o *Object) Update(obj *types.Object) {
 	o.Permission = updateObjectPermission(obj.Access)
 }
 
+func (o *Object) FromEntry(en *types.Metadata) *Object {
+	o.ID = en.ID
+	o.Name = en.Name
+	o.Aliases = &en.Aliases
+	o.ParentID = &en.ParentID
+	o.RefID = &en.RefID
+	o.RefCount = &en.RefCount
+	o.Kind = string(en.Kind)
+	o.KindMap = &en.KindMap
+	o.Size = &en.Size
+	o.Version = en.Version
+	o.Dev = en.Dev
+	o.Storage = en.Storage
+	o.Namespace = en.Namespace
+	o.CreatedAt = en.CreatedAt.UnixNano()
+	o.ChangedAt = en.ChangedAt.UnixNano()
+	o.ModifiedAt = en.ModifiedAt.UnixNano()
+	o.AccessAt = en.AccessAt.UnixNano()
+	o.Owner = &en.Access.UID
+	o.GroupOwner = &en.Access.GID
+	o.Permission = updateObjectPermission(en.Access)
+	return o
+}
+
+func (o *Object) ToEntry() *types.Metadata {
+	result := &types.Metadata{
+		ID:         o.ID,
+		Name:       o.Name,
+		Kind:       types.Kind(o.Kind),
+		Version:    o.Version,
+		Dev:        o.Dev,
+		Storage:    o.Storage,
+		Namespace:  o.Namespace,
+		CreatedAt:  time.Unix(0, o.CreatedAt),
+		ChangedAt:  time.Unix(0, o.ChangedAt),
+		ModifiedAt: time.Unix(0, o.ModifiedAt),
+		AccessAt:   time.Unix(0, o.AccessAt),
+		Access:     buildObjectAccess(o.Permission, o.Owner, o.GroupOwner),
+	}
+	if o.Aliases != nil {
+		result.Aliases = *o.Aliases
+	}
+	if o.ParentID != nil {
+		result.ParentID = *o.ParentID
+	}
+	if o.RefID != nil {
+		result.RefID = *o.RefID
+	}
+	if o.RefCount != nil {
+		result.RefCount = *o.RefCount
+	}
+	if o.KindMap != nil {
+		result.KindMap = *o.KindMap
+	}
+	if o.Size != nil {
+		result.Size = *o.Size
+	}
+	return result
+}
+
 func (o *Object) Object() *types.Object {
 	result := &types.Object{
 		Metadata: types.Metadata{
