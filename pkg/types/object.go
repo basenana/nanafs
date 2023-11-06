@@ -153,6 +153,26 @@ func (o *Object) IsSmartGroup() bool {
 	return o.Kind == SmartGroupKind
 }
 
+func InitNewEntry(parent *Metadata, attr ObjectAttr) (*Metadata, error) {
+	if len(attr.Name) > objectNameMaxLength {
+		return nil, ErrNameTooLong
+	}
+
+	md := NewMetadata(attr.Name, attr.Kind)
+	md.Dev = attr.Dev
+	md.Access = Access{
+		Permissions: attr.Access.Permissions,
+		UID:         attr.Access.UID,
+		GID:         attr.Access.GID,
+	}
+
+	if parent != nil {
+		md.ParentID = parent.ID
+		md.Storage = parent.Storage
+	}
+	return &md, nil
+}
+
 func InitNewObject(parent *Metadata, attr ObjectAttr) (*Object, error) {
 	if len(attr.Name) > objectNameMaxLength {
 		return nil, ErrNameTooLong

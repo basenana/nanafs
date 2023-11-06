@@ -71,6 +71,7 @@ func (i *transactionEntryIterator) Next() (*types.Metadata, error) {
 			logOperationError("transactionEntryIterator.query_one_page", res.Error)
 			return nil, db.SqlError2Error(res.Error)
 		}
+		i.crtPage += 1
 	}
 
 	if len(i.onePage) > 0 {

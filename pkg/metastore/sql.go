@@ -309,7 +309,7 @@ func (s *sqlMetaStore) GetEntry(ctx context.Context, id int64) (*types.Metadata,
 	var objMod = &db.Object{ID: id}
 	res := s.WithContext(ctx).Where("id = ?", id).First(objMod)
 	if err := res.Error; err != nil {
-		s.logger.Errorw("get entry by id failed", "id", id, "err", err)
+		s.logger.Errorw("get entry by id failed", "entry", id, "err", err)
 		return nil, db.SqlError2Error(err)
 	}
 	return objMod.ToEntry(), nil
@@ -334,12 +334,16 @@ func (s *sqlMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry
 		nowTime   = time.Now().UnixNano()
 	)
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := tx.Where("id = ?", parentID).First(parentMod)
+		res := tx.Create(entryMod)
 		if res.Error != nil {
 			return res.Error
 		}
 
-		res = tx.Create(entryMod)
+		if parentID == 0 {
+			return nil
+		}
+
+		res = tx.Where("id = ?", parentID).First(parentMod)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -354,7 +358,20 @@ func (s *sqlMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry
 		return updateEntryInLock(tx, parentMod)
 	})
 	if err != nil {
-		s.logger.Errorw("create entry failed", "parent", parentID, "name", newEntry.Name, "err", err)
+		s.logger.Errorw("create entry failed", "parent", parentID, "entry", newEntry.ID, "err", err)
+		return db.SqlError2Error(err)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) UpdateEntryMetadata(ctx context.Context, entry *types.Metadata) error {
+	defer trace.StartRegion(ctx, "metastore.sql.UpdateEntry").End()
+	var entryMod = (&db.Object{}).FromEntry(entry)
+	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return updateEntryInLock(tx, entryMod)
+	})
+	if err != nil {
+		s.logger.Errorw("create entry failed", "entry", entry.ID, "err", err)
 		return db.SqlError2Error(err)
 	}
 	return nil
@@ -389,6 +406,17 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64)
 
 		parentMod.ModifiedAt = nowTime
 		if types.IsGroup(types.Kind(entryMod.Kind)) {
+
+			var entryChildCount int64
+			res = tx.Model(&db.Object{}).Where("parent_id = ?", entryID).Count(&entryChildCount)
+			if res.Error != nil {
+				return res.Error
+			}
+
+			if entryChildCount > 0 {
+				return types.ErrNotEmpty
+			}
+
 			parentRef := (*parentMod.RefCount) - 1
 			parentMod.RefCount = &parentRef
 		}

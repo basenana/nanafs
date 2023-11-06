@@ -38,6 +38,7 @@ type DEntry interface {
 	CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata) error
 	RemoveEntry(ctx context.Context, parentID, entryID int64) error
 	DeleteRemovedEntry(ctx context.Context, entryID int64) error
+	UpdateEntryMetadata(ctx context.Context, entry *types.Metadata) error
 
 	ListEntryChildren(ctx context.Context, parentId int64) (EntryIterator, error)
 	FilterEntries(ctx context.Context, filter types.Filter) (EntryIterator, error)

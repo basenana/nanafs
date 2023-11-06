@@ -42,7 +42,7 @@ type Controller interface {
 	FindEntry(ctx context.Context, parentId int64, name string) (*types.Metadata, error)
 	GetEntry(ctx context.Context, id int64) (*types.Metadata, error)
 	CreateEntry(ctx context.Context, parentId int64, attr types.ObjectAttr) (*types.Metadata, error)
-	UpdateEntry(ctx context.Context, entryId int64, patch *types.Metadata) error
+	UpdateEntry(ctx context.Context, entry *types.Metadata) error
 	DestroyEntry(ctx context.Context, parentId, entryId int64, attr types.DestroyObjectAttr) error
 	MirrorEntry(ctx context.Context, srcEntryId, dstParentId int64, attr types.ObjectAttr) (*types.Metadata, error)
 	ListEntryChildren(ctx context.Context, entryId int64) ([]*types.Metadata, error)
@@ -141,7 +141,8 @@ func (c *controller) CreateEntry(ctx context.Context, parentId int64, attr types
 	return entry, nil
 }
 
-func (c *controller) UpdateEntry(ctx context.Context, entryID int64, newContent *types.Metadata) error {
+func (c *controller) UpdateEntry(ctx context.Context, entry *types.Metadata) error {
+	entryID := entry.ID
 	defer trace.StartRegion(ctx, "controller.UpdateEntry").End()
 	en, err := c.GetEntry(ctx, entryID)
 	if err != nil {
@@ -155,7 +156,7 @@ func (c *controller) UpdateEntry(ctx context.Context, entryID int64, newContent 
 		return err
 	}
 
-	if err = parent.UpdateEntry(ctx, entryID, newContent); err != nil {
+	if err = parent.UpdateEntry(ctx, entry); err != nil {
 		c.logger.Errorw("save entry error", "entry", entryID, "err", err)
 		return err
 	}

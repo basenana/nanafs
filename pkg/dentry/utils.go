@@ -18,7 +18,7 @@ package dentry
 
 import "github.com/basenana/nanafs/pkg/types"
 
-func initRootEntryObject() *types.Object {
+func initRootEntry() *types.Metadata {
 	acc := types.Access{
 		Permissions: []types.Permission{
 			types.PermOwnerRead,
@@ -29,7 +29,7 @@ func initRootEntryObject() *types.Object {
 			types.PermOthersRead,
 		},
 	}
-	root, _ := types.InitNewObject(nil, types.ObjectAttr{Name: RootEntryName, Kind: types.GroupKind, Access: acc})
+	root, _ := types.InitNewEntry(nil, types.ObjectAttr{Name: RootEntryName, Kind: types.GroupKind, Access: acc})
 	root.ID = RootEntryID
 	root.ParentID = root.ID
 	return root

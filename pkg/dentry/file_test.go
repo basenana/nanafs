@@ -59,7 +59,7 @@ func newMockFileEntry(name string) *types.Metadata {
 	}
 	en.Size = fileChunkSize * 4
 	en.Storage = storage.MemoryStorage
-	err = grp.UpdateEntry(context.TODO(), en.ID, en)
+	err = grp.UpdateEntry(context.TODO(), en)
 	if err != nil {
 		panic(fmt.Errorf("update file entry failed: %s", err))
 	}
