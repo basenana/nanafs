@@ -355,7 +355,7 @@ func (s *sqlMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry
 			parentMod.RefCount = &refCount
 		}
 
-		return updateEntryInLock(tx, parentMod)
+		return updateEntryWithVersion(tx, parentMod)
 	})
 	if err != nil {
 		s.logger.Errorw("create entry failed", "parent", parentID, "entry", newEntry.ID, "err", err)
@@ -368,7 +368,7 @@ func (s *sqlMetaStore) UpdateEntryMetadata(ctx context.Context, entry *types.Met
 	defer trace.StartRegion(ctx, "metastore.sql.UpdateEntry").End()
 	var entryMod = (&db.Object{}).FromEntry(entry)
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return updateEntryInLock(tx, entryMod)
+		return updateEntryWithVersion(tx, entryMod)
 	})
 	if err != nil {
 		s.logger.Errorw("create entry failed", "entry", entry.ID, "err", err)
@@ -420,7 +420,7 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64)
 			parentRef := (*parentMod.RefCount) - 1
 			parentMod.RefCount = &parentRef
 		}
-		if err := updateEntryInLock(tx, parentMod); err != nil {
+		if err := updateEntryWithVersion(tx, parentMod); err != nil {
 			return err
 		}
 
@@ -429,7 +429,7 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64)
 			srcMod.RefCount = &srcRef
 			srcMod.ModifiedAt = nowTime
 
-			if err := updateEntryInLock(tx, srcMod); err != nil {
+			if err := updateEntryWithVersion(tx, srcMod); err != nil {
 				return err
 			}
 		}
@@ -439,7 +439,7 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64)
 		entryMod.RefCount = &entryRef
 		entryMod.ModifiedAt = nowTime
 
-		return updateEntryInLock(tx, entryMod)
+		return updateEntryWithVersion(tx, entryMod)
 	})
 	if err != nil {
 		s.logger.Errorw("mark entry removed failed", "parent", parentID, "entry", entryID, "err", err)
@@ -520,34 +520,258 @@ func (s *sqlMetaStore) FilterEntries(ctx context.Context, filter types.Filter) (
 	return newTransactionEntryIterator(tx, total), nil
 }
 
-func (s *sqlMetaStore) Open(ctx context.Context, id int64) (*types.Metadata, error) {
-	//TODO implement me
-	panic("implement me")
+func (s *sqlMetaStore) Open(ctx context.Context, id int64, attr types.OpenAttr) (*types.Metadata, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.Open").End()
+	var (
+		enMod   = &db.Object{}
+		nowTime = time.Now().UnixNano()
+	)
+	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Where("id = ?", id).First(enMod)
+		if res.Error != nil {
+			return res.Error
+		}
+		// do not update ctime
+		enMod.AccessAt = nowTime
+		if attr.Write {
+			enMod.ModifiedAt = nowTime
+		}
+		if attr.Trunc {
+			var zeroSize int64 = 0
+			enMod.Size = &zeroSize
+		}
+		return updateEntryWithVersion(tx, enMod)
+	})
+	if err != nil {
+		s.logger.Errorw("open entry failed", "entry", id, "err", err)
+		return nil, db.SqlError2Error(err)
+	}
+	return enMod.ToEntry(), nil
 }
 
 func (s *sqlMetaStore) Flush(ctx context.Context, id int64, size int64) error {
-	//TODO implement me
-	panic("implement me")
+	defer trace.StartRegion(ctx, "metastore.sql.Flush").End()
+	var (
+		enMod   = &db.Object{}
+		nowTime = time.Now().UnixNano()
+	)
+	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Where("id = ?", id).First(enMod)
+		if res.Error != nil {
+			return res.Error
+		}
+		enMod.ModifiedAt = nowTime
+		enMod.Size = &size
+		return updateEntryWithVersion(tx, enMod)
+	})
+	if err != nil {
+		s.logger.Errorw("open entry failed", "entry", id, "err", err)
+		return db.SqlError2Error(err)
+	}
+	return nil
 }
 
 func (s *sqlMetaStore) GetEntryExtendData(ctx context.Context, id int64) (types.ExtendData, error) {
-	//TODO implement me
-	panic("implement me")
+	defer trace.StartRegion(ctx, "metastore.sql.GetEntryExtendData").End()
+	var (
+		ext      = &db.ObjectExtend{}
+		property = make([]db.ObjectProperty, 0)
+	)
+
+	if err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Where("id = ?", id).First(ext)
+		if res.Error != nil {
+			return res.Error
+		}
+		res = tx.Where("oid = ?", id).Find(&property)
+		if res.Error != nil {
+			return res.Error
+		}
+		return nil
+	}); err != nil {
+		return types.ExtendData{}, db.SqlError2Error(err)
+	}
+
+	ed := ext.ToExtData()
+	for _, p := range property {
+		ed.Properties.Fields[p.Name] = p.Value
+	}
+	return ed, nil
 }
 
 func (s *sqlMetaStore) UpdateEntryExtendData(ctx context.Context, id int64, ed types.ExtendData) error {
-	//TODO implement me
-	panic("implement me")
+	defer trace.StartRegion(ctx, "metastore.sql.UpdateEntryExtendData").End()
+	var (
+		extModel                   = &db.ObjectExtend{ID: id}
+		objectProperties           = make([]db.ObjectProperty, 0)
+		needCreatePropertiesModels = make([]db.ObjectProperty, 0)
+		needUpdatePropertiesModels = make([]db.ObjectProperty, 0)
+		needDeletePropertiesModels = make([]db.ObjectProperty, 0)
+	)
+
+	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		extModel.From(ed)
+		res := tx.Save(extModel)
+		if res.Error != nil {
+			return res.Error
+		}
+
+		res = tx.Where("oid = ?", id).Find(&objectProperties)
+		if res.Error != nil {
+			return res.Error
+		}
+
+		propertiesMap := map[string]string{}
+		for k, v := range ed.Properties.Fields {
+			propertiesMap[k] = v
+		}
+
+		for i := range objectProperties {
+			oldKv := objectProperties[i]
+			if newV, ok := propertiesMap[oldKv.Name]; ok {
+				if oldKv.Value != newV {
+					oldKv.Value = newV
+					needUpdatePropertiesModels = append(needUpdatePropertiesModels, oldKv)
+				}
+				delete(propertiesMap, oldKv.Name)
+				continue
+			}
+			needDeletePropertiesModels = append(needDeletePropertiesModels, oldKv)
+		}
+
+		for k, v := range propertiesMap {
+			needCreatePropertiesModels = append(needCreatePropertiesModels, db.ObjectProperty{OID: id, Name: k, Value: v})
+		}
+
+		if len(needCreatePropertiesModels) > 0 {
+			for i := range needCreatePropertiesModels {
+				property := needCreatePropertiesModels[i]
+				res = tx.Create(&property)
+				if res.Error != nil {
+					return res.Error
+				}
+			}
+		}
+		if len(needUpdatePropertiesModels) > 0 {
+			for i := range needUpdatePropertiesModels {
+				property := needUpdatePropertiesModels[i]
+				res = tx.Save(&property)
+				if res.Error != nil {
+					return res.Error
+				}
+			}
+		}
+
+		if len(needDeletePropertiesModels) > 0 {
+			for i := range needDeletePropertiesModels {
+				property := needDeletePropertiesModels[i]
+				res = tx.Delete(&property)
+				if res.Error != nil {
+					return res.Error
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		s.logger.Errorw("save entry extend data failed", "entry", id, "err", err)
+		return db.SqlError2Error(err)
+	}
+	return nil
 }
 
 func (s *sqlMetaStore) GetEntryLabels(ctx context.Context, id int64) (types.Labels, error) {
-	//TODO implement me
-	panic("implement me")
+	defer trace.StartRegion(ctx, "metastore.sql.GetEntryLabels").End()
+	var (
+		result    types.Labels
+		labelMods []db.Label
+	)
+
+	res := s.WithContext(ctx).Where("ref_type = ? and ref_id = ?", "object", id).Find(&labelMods)
+	if res.Error != nil {
+		s.logger.Errorw("get entry labels failed", "entry", id, "err", res.Error)
+		return result, db.SqlError2Error(res.Error)
+	}
+
+	for _, l := range labelMods {
+		result.Labels = append(result.Labels, types.Label{Key: l.Key, Value: l.Value})
+	}
+	return result, nil
 }
 
 func (s *sqlMetaStore) UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error {
-	//TODO implement me
-	panic("implement me")
+	defer trace.StartRegion(ctx, "metastore.sql.UpdateEntryLabels").End()
+
+	var (
+		needCreateLabelModels = make([]db.Label, 0)
+		needUpdateLabelModels = make([]db.Label, 0)
+		needDeleteLabelModels = make([]db.Label, 0)
+	)
+
+	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		labelModels := make([]db.Label, 0)
+		res := tx.Where("ref_type = ? AND ref_id = ?", "object", id).Find(&labelModels)
+		if res.Error != nil {
+			return res.Error
+		}
+
+		labelsMap := map[string]string{}
+		for _, kv := range labels.Labels {
+			labelsMap[kv.Key] = kv.Value
+		}
+		for i := range labelModels {
+			oldKv := labelModels[i]
+			if newV, ok := labelsMap[oldKv.Key]; ok {
+				if oldKv.Value != newV {
+					oldKv.Value = newV
+					oldKv.SearchKey = labelSearchKey(oldKv.Key, newV)
+					needUpdateLabelModels = append(needUpdateLabelModels, oldKv)
+				}
+				delete(labelsMap, oldKv.Key)
+				continue
+			}
+			needDeleteLabelModels = append(needDeleteLabelModels, oldKv)
+		}
+
+		for k, v := range labelsMap {
+			needCreateLabelModels = append(needCreateLabelModels, db.Label{RefType: "object", RefID: id, Key: k, Value: v, SearchKey: labelSearchKey(k, v)})
+		}
+
+		if len(needCreateLabelModels) > 0 {
+			for i := range needCreateLabelModels {
+				label := needCreateLabelModels[i]
+				res = tx.Create(&label)
+				if res.Error != nil {
+					return res.Error
+				}
+			}
+		}
+		if len(needUpdateLabelModels) > 0 {
+			for i := range needUpdateLabelModels {
+				label := needUpdateLabelModels[i]
+				res = tx.Save(label)
+				if res.Error != nil {
+					return res.Error
+				}
+			}
+		}
+
+		if len(needDeleteLabelModels) > 0 {
+			for i := range needDeleteLabelModels {
+				label := needDeleteLabelModels[i]
+				res = tx.Delete(label)
+				if res.Error != nil {
+					return res.Error
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		s.logger.Errorw("update entry labels failed", "entry", id, "err", err)
+		return db.SqlError2Error(err)
+	}
+	return nil
 }
 
 func (s *sqlMetaStore) GetObject(ctx context.Context, id int64) (*types.Object, error) {
@@ -875,7 +1099,7 @@ func (s *sqlPluginRecorder) DeleteRecord(ctx context.Context, rid string) error 
 	return db.SqlError2Error(s.deletePluginRecord(ctx, s.plugin, rid))
 }
 
-func updateEntryInLock(tx *gorm.DB, entryMod *db.Object) error {
+func updateEntryWithVersion(tx *gorm.DB, entryMod *db.Object) error {
 	currentVersion := entryMod.Version
 	entryMod.Version += 1
 	if entryMod.Version < 0 {

@@ -52,7 +52,7 @@ type Controller interface {
 	SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string) error
 	RemoveEntryExtendField(ctx context.Context, id int64, fKey string) error
 
-	OpenFile(ctx context.Context, entryId int64, attr dentry.Attr) (dentry.File, error)
+	OpenFile(ctx context.Context, entryId int64, attr types.OpenAttr) (dentry.File, error)
 	ReadFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error)
 	WriteFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error)
 	CloseFile(ctx context.Context, file dentry.File) error
@@ -127,7 +127,7 @@ func (c *controller) CreateEntry(ctx context.Context, parentId int64, attr types
 	}
 
 	c.logger.Debugw("create entry", "parent", parentId, "entryName", attr.Name)
-	entry, err := c.entry.CreateEntry(ctx, parentId, dentry.EntryAttr{
+	entry, err := c.entry.CreateEntry(ctx, parentId, types.EntryAttr{
 		Name:   attr.Name,
 		Kind:   attr.Kind,
 		Access: attr.Access,
@@ -207,7 +207,7 @@ func (c *controller) MirrorEntry(ctx context.Context, srcId, dstParentId int64, 
 		return nil, types.ErrIsExist
 	}
 
-	entry, err := c.entry.MirrorEntry(ctx, srcId, dstParentId, dentry.EntryAttr{
+	entry, err := c.entry.MirrorEntry(ctx, srcId, dstParentId, types.EntryAttr{
 		Name:   attr.Name,
 		Kind:   attr.Kind,
 		Access: attr.Access,

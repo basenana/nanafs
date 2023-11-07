@@ -87,7 +87,7 @@ func (m *PathManager) FindParentEntry(ctx context.Context, entryPath string) (*t
 	return m.getPathEntry(ctx, path.Dir(entryPath))
 }
 
-func (m *PathManager) Open(ctx context.Context, enId int64, attr dentry.Attr) (dentry.File, error) {
+func (m *PathManager) Open(ctx context.Context, enId int64, attr types.OpenAttr) (dentry.File, error) {
 	return m.ctrl.OpenFile(ctx, enId, attr)
 }
 
@@ -132,7 +132,7 @@ func (m *PathManager) CreateFile(ctx context.Context, parentDir string, attr typ
 	return en, nil
 }
 
-func (m *PathManager) CreateAll(ctx context.Context, entryPath string, attr dentry.EntryAttr) (*types.Metadata, error) {
+func (m *PathManager) CreateAll(ctx context.Context, entryPath string, attr types.EntryAttr) (*types.Metadata, error) {
 	var (
 		en, parent *types.Metadata
 		err        error

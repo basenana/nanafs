@@ -23,12 +23,10 @@ import (
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/utils"
+	"go.uber.org/zap"
 	"io"
 	"runtime/trace"
 	"sync"
-	"time"
-
-	"go.uber.org/zap"
 
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/bio"
@@ -41,11 +39,11 @@ type Manager interface {
 	Root(ctx context.Context) (*types.Metadata, error)
 
 	GetEntry(ctx context.Context, id int64) (*types.Metadata, error)
-	CreateEntry(ctx context.Context, parentId int64, attr EntryAttr) (*types.Metadata, error)
+	CreateEntry(ctx context.Context, parentId int64, attr types.EntryAttr) (*types.Metadata, error)
 	RemoveEntry(ctx context.Context, parentId, entryId int64) error
 	DestroyEntry(ctx context.Context, entryId int64) error
 	CleanEntryData(ctx context.Context, entryId int64) error
-	MirrorEntry(ctx context.Context, srcId, dstParentId int64, attr EntryAttr) (*types.Metadata, error)
+	MirrorEntry(ctx context.Context, srcId, dstParentId int64, attr types.EntryAttr) (*types.Metadata, error)
 	ChangeEntryParent(ctx context.Context, targetEntryId int64, overwriteEntryId *int64, oldParentId, newParentId int64, newName string, opt ChangeParentAttr) error
 
 	GetEntryExtendData(ctx context.Context, id int64) (types.ExtendData, error)
@@ -54,7 +52,7 @@ type Manager interface {
 	SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string) error
 	RemoveEntryExtendField(ctx context.Context, id int64, fKey string) error
 
-	Open(ctx context.Context, entryId int64, attr Attr) (File, error)
+	Open(ctx context.Context, entryId int64, attr types.OpenAttr) (File, error)
 	OpenGroup(ctx context.Context, entryID int64) (Group, error)
 	ChunkCompact(ctx context.Context, entryId int64) error
 
@@ -184,7 +182,7 @@ func (m *manager) RemoveEntryExtendField(ctx context.Context, id int64, fKey str
 	return m.UpdateEntryExtendData(ctx, id, ed)
 }
 
-func (m *manager) CreateEntry(ctx context.Context, parentId int64, attr EntryAttr) (*types.Metadata, error) {
+func (m *manager) CreateEntry(ctx context.Context, parentId int64, attr types.EntryAttr) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.CreateEntry").End()
 	grp, err := m.OpenGroup(ctx, parentId)
 	if err != nil {
@@ -246,7 +244,7 @@ func (m *manager) CleanEntryData(ctx context.Context, entryId int64) error {
 	return nil
 }
 
-func (m *manager) MirrorEntry(ctx context.Context, srcId, dstParentId int64, attr EntryAttr) (*types.Metadata, error) {
+func (m *manager) MirrorEntry(ctx context.Context, srcId, dstParentId int64, attr types.EntryAttr) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.MirrorEntry").End()
 
 	src, err := m.GetEntry(ctx, srcId)
@@ -380,7 +378,7 @@ func (m *manager) changeEntryParentByFileCopy(ctx context.Context, targetEntry, 
 	}
 
 	// step 1: create new file
-	attr := EntryAttr{
+	attr := types.EntryAttr{
 		Name:      newName,
 		Kind:      targetEntry.Kind,
 		Access:    targetEntry.Access,
@@ -393,12 +391,12 @@ func (m *manager) changeEntryParentByFileCopy(ctx context.Context, targetEntry, 
 	}
 
 	// step 2: copy old to new file
-	oldFileReader, err := m.Open(ctx, targetEntry.ID, Attr{Read: true})
+	oldFileReader, err := m.Open(ctx, targetEntry.ID, types.OpenAttr{Read: true})
 	if err != nil {
 		m.logger.Errorw("change entry parent by file copy error, open old file failed", "err", err)
 		return err
 	}
-	newFileWriter, err := m.Open(ctx, en.ID, Attr{Write: true})
+	newFileWriter, err := m.Open(ctx, en.ID, types.OpenAttr{Write: true})
 	if err != nil {
 		m.logger.Errorw("change entry parent by file copy error, open new file failed", "err", err)
 		return err
@@ -417,30 +415,18 @@ func (m *manager) changeEntryParentByFileCopy(ctx context.Context, targetEntry, 
 	return nil
 }
 
-func (m *manager) Open(ctx context.Context, entryId int64, attr Attr) (File, error) {
+func (m *manager) Open(ctx context.Context, entryId int64, attr types.OpenAttr) (File, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.Open").End()
-	entry, err := m.GetEntry(ctx, entryId)
+	attr.EntryID = entryId
+	entry, err := m.store.Open(ctx, entryId, attr)
 	if err != nil {
 		return nil, err
-	}
-
-	attr.EntryID = entryId
-	// do not update ctime
-	entry.AccessAt = time.Now()
-	if attr.Write {
-		entry.ModifiedAt = entry.AccessAt
 	}
 	if attr.Trunc && entry.Storage != externalStorage {
 		if err := m.CleanEntryData(ctx, entryId); err != nil {
 			m.logger.Errorw("clean entry with trunc error", "entry", entryId, "err", err)
 		}
-		entry.Size = 0
 		PublicFileActionEvent(events.ActionTypeTrunc, entry)
-	}
-
-	defer m.cache.delEntryCache(entryId)
-	if err = m.metastore.SaveObjects(ctx, &types.Object{Metadata: *entry}); err != nil {
-		m.logger.Errorw("update entry size to zero error", "entry", entryId, "err", err)
 	}
 
 	var f File
@@ -451,13 +437,13 @@ func (m *manager) Open(ctx context.Context, entryId int64, attr Attr) (File, err
 			m.logger.Errorw("get entry extend data failed", "entry", entryId, "err", err)
 			return nil, err
 		}
-		f, err = openExternalFile(entry, ed.PlugScope, attr, m.cache, m.cfg.FS)
+		f, err = openExternalFile(entry, ed.PlugScope, attr, m.store, m.cfg.FS)
 	} else {
 		switch entry.Kind {
 		case types.SymLinkKind:
 			f, err = openSymlink(m, entry, attr)
 		default:
-			f, err = openFile(entry, attr, m.metastore, m.cache, m.storages[entry.Storage], m.cfg.FS)
+			f, err = openFile(entry, attr, m.metastore, m.storages[entry.Storage], m.cfg.FS)
 		}
 	}
 	if err != nil {
@@ -483,18 +469,19 @@ func (m *manager) OpenGroup(ctx context.Context, groupId int64) (Group, error) {
 	case types.SmartGroupKind:
 		grp = &dynamicGroup{stdGroup: stdGrp}
 	case types.ExternalGroupKind:
-		obj := &types.Object{Metadata: *entry}
-		if err = m.metastore.GetObjectExtendData(ctx, obj); err != nil {
+		var ed types.ExtendData
+		if ed, err = m.store.GetEntryExtendData(ctx, entry.ID); err != nil {
 			return nil, err
 		}
-		if obj.ExtendData != nil && obj.PlugScope != nil {
-			mirror, err := plugin.NewMirrorPlugin(ctx, *obj.ExtendData.PlugScope)
+		if ed.PlugScope != nil {
+			mirror, err := plugin.NewMirrorPlugin(ctx, *ed.PlugScope)
 			if err != nil {
 				return nil, err
 			}
 			grp = &extGroup{mgr: m, stdGroup: stdGrp, mirror: mirror,
 				logger: logger.NewLogger("extLogger").With(zap.Int64("group", groupId))}
 		} else {
+			m.logger.Warnw("external group without plug scope", "entry", entry.ID)
 			grp = emptyGroup{}
 		}
 	}
@@ -520,15 +507,6 @@ func (m *manager) ChunkCompact(ctx context.Context, entryId int64) error {
 
 func (m *manager) MustCloseAll() {
 	bio.CloseAll()
-}
-
-type EntryAttr struct {
-	Name        string
-	Kind        types.Kind
-	Access      types.Access
-	Dev         int64
-	PlugScope   *types.PlugScope
-	GroupFilter *types.Rule
 }
 
 type ChangeParentAttr struct {

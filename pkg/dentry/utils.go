@@ -35,7 +35,7 @@ func initRootEntry() *types.Metadata {
 	return root
 }
 
-func initMirrorEntryObject(src, newParent *types.Metadata, attr EntryAttr) (*types.Object, error) {
+func initMirrorEntryObject(src, newParent *types.Metadata, attr types.EntryAttr) (*types.Object, error) {
 	obj, err := types.InitNewObject(newParent, types.ObjectAttr{
 		Name:   attr.Name,
 		Kind:   attr.Kind,

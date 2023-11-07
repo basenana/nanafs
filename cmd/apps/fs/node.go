@@ -109,7 +109,7 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 		uid, gid = fuseCtx.Uid, fuseCtx.Gid
 	}
 
-	var attr dentry.Attr
+	var attr types.OpenAttr
 	nanaFile, ok := f.(*File)
 	if ok {
 		attr = nanaFile.file.GetAttr()
@@ -392,7 +392,7 @@ func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.E
 	}
 
 	n.logger.Debugw("create new symlink", "target", target)
-	f, err := n.R.OpenFile(ctx, newLink.ID, dentry.Attr{Write: true, Create: true, Trunc: true})
+	f, err := n.R.OpenFile(ctx, newLink.ID, types.OpenAttr{Write: true, Create: true, Trunc: true})
 	if err != nil {
 		return nil, Error2FuseSysError("entry_symlink", err)
 	}
@@ -421,7 +421,7 @@ func (n *NanaNode) Readlink(ctx context.Context) ([]byte, syscall.Errno) {
 	if err != nil {
 		return nil, Error2FuseSysError("entry_read_link", err)
 	}
-	f, err := n.R.OpenFile(ctx, n.entryID, dentry.Attr{Read: true})
+	f, err := n.R.OpenFile(ctx, n.entryID, types.OpenAttr{Read: true})
 	if err != nil {
 		return nil, Error2FuseSysError("entry_read_link", err)
 	}

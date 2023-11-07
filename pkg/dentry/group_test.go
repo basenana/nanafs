@@ -33,7 +33,7 @@ var _ = Describe("TestManageGroupEntry", func() {
 	Context("init group1", func() {
 		It("init group should be succeed", func() {
 			var err error
-			group1, err = entryManager.CreateEntry(context.TODO(), root.ID, EntryAttr{
+			group1, err = entryManager.CreateEntry(context.TODO(), root.ID, types.EntryAttr{
 				Name:   "test_group_manage_group1",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
@@ -44,7 +44,7 @@ var _ = Describe("TestManageGroupEntry", func() {
 	Context("create file entry in group1", func() {
 		It("create file1 should be succeed", func() {
 			var err error
-			file1, err = entryManager.CreateEntry(context.TODO(), group1.ID, EntryAttr{
+			file1, err = entryManager.CreateEntry(context.TODO(), group1.ID, types.EntryAttr{
 				Name:   "test_group_manage_file1",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
@@ -53,7 +53,7 @@ var _ = Describe("TestManageGroupEntry", func() {
 			Expect(file1).ShouldNot(BeNil())
 		})
 		It("create file2 should be succeed", func() {
-			_, err := entryManager.CreateEntry(context.TODO(), group1.ID, EntryAttr{
+			_, err := entryManager.CreateEntry(context.TODO(), group1.ID, types.EntryAttr{
 				Name:   "test_group_manage_file2",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
@@ -61,7 +61,7 @@ var _ = Describe("TestManageGroupEntry", func() {
 			Expect(err).Should(BeNil())
 		})
 		It("create file1 should be existed", func() {
-			_, err := entryManager.CreateEntry(context.TODO(), group1.ID, EntryAttr{
+			_, err := entryManager.CreateEntry(context.TODO(), group1.ID, types.EntryAttr{
 				Name:   "test_group_manage_file1",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
@@ -126,7 +126,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 	Context("init ext group", func() {
 		It("init group should be succeed", func() {
 			var err error
-			extGrpEn, err = entryManager.CreateEntry(context.TODO(), root.ID, EntryAttr{
+			extGrpEn, err = entryManager.CreateEntry(context.TODO(), root.ID, types.EntryAttr{
 				Name:   "test_ext_memfs",
 				Kind:   types.ExternalGroupKind,
 				Access: accessPermissions,
@@ -147,7 +147,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 
 	Context("create file", func() {
 		It("create file1.yaml should be succeed", func() {
-			file1, err = entryManager.CreateEntry(context.TODO(), extGrpEn.ID, EntryAttr{
+			file1, err = entryManager.CreateEntry(context.TODO(), extGrpEn.ID, types.EntryAttr{
 				Name:   "file1.yaml",
 				Kind:   types.RawKind,
 				Access: accessPermissions,
@@ -157,7 +157,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 		})
 		It("write and read file1.yaml should be succeed", func() {
 			var f File
-			f, err = entryManager.Open(context.TODO(), file1.ID, Attr{Read: true, Write: true})
+			f, err = entryManager.Open(context.TODO(), file1.ID, types.OpenAttr{Read: true, Write: true})
 			Expect(err).Should(BeNil())
 
 			_, err = f.WriteAt(context.TODO(), []byte("file1: hello world!"), 0)
@@ -165,7 +165,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			err = f.Close(context.TODO())
 			Expect(err).Should(BeNil())
 
-			f, err = entryManager.Open(context.TODO(), file1.ID, Attr{Read: true, Write: true})
+			f, err = entryManager.Open(context.TODO(), file1.ID, types.OpenAttr{Read: true, Write: true})
 			Expect(err).Should(BeNil())
 
 			var (
@@ -177,7 +177,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			Expect(string(buf[:readN])).Should(Equal("file1: hello world!"))
 		})
 		It("create file2.yaml should be succeed", func() {
-			file2, err = entryManager.CreateEntry(context.TODO(), extGrpEn.ID, EntryAttr{
+			file2, err = entryManager.CreateEntry(context.TODO(), extGrpEn.ID, types.EntryAttr{
 				Name:   "file2.yaml",
 				Kind:   types.RawKind,
 				Access: accessPermissions,
@@ -187,7 +187,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 		})
 		It("write and read file2.yaml should be succeed", func() {
 			var f File
-			f, err = entryManager.Open(context.TODO(), file2.ID, Attr{Read: true, Write: true})
+			f, err = entryManager.Open(context.TODO(), file2.ID, types.OpenAttr{Read: true, Write: true})
 			Expect(err).Should(BeNil())
 
 			_, err = f.WriteAt(context.TODO(), []byte("file2: hello world!"), 0)
@@ -195,7 +195,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			err = f.Close(context.TODO())
 			Expect(err).Should(BeNil())
 
-			f, err = entryManager.Open(context.TODO(), file2.ID, Attr{Read: true, Write: true})
+			f, err = entryManager.Open(context.TODO(), file2.ID, types.OpenAttr{Read: true, Write: true})
 			Expect(err).Should(BeNil())
 
 			var (
@@ -207,7 +207,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			Expect(string(buf[:readN])).Should(Equal("file2: hello world!"))
 		})
 		It("create file1.yaml should already existed", func() {
-			_, err = entryManager.CreateEntry(context.TODO(), extGrpEn.ID, EntryAttr{
+			_, err = entryManager.CreateEntry(context.TODO(), extGrpEn.ID, types.EntryAttr{
 				Name:   "file1.yaml",
 				Kind:   types.RawKind,
 				Access: accessPermissions,
@@ -259,7 +259,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			innerFile1 *types.Metadata
 		)
 		It("create dir1 should be succeed", func() {
-			dir1, err = entryManager.CreateEntry(context.TODO(), extGrpEn.ID, EntryAttr{
+			dir1, err = entryManager.CreateEntry(context.TODO(), extGrpEn.ID, types.EntryAttr{
 				Name:   "dir1",
 				Kind:   types.ExternalGroupKind,
 				Access: accessPermissions,
@@ -268,7 +268,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			Expect(dir1).ShouldNot(BeNil())
 		})
 		It("create dir1/file1.yaml should be succeed", func() {
-			innerFile1, err = entryManager.CreateEntry(context.TODO(), dir1.ID, EntryAttr{
+			innerFile1, err = entryManager.CreateEntry(context.TODO(), dir1.ID, types.EntryAttr{
 				Name:   "file1.yaml",
 				Kind:   types.RawKind,
 				Access: accessPermissions,
@@ -384,7 +384,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			movedEn   *types.Metadata
 		)
 		It("init dir1", func() {
-			innerDir1, err = entryManager.CreateEntry(context.TODO(), extGrpEn.ID, EntryAttr{
+			innerDir1, err = entryManager.CreateEntry(context.TODO(), extGrpEn.ID, types.EntryAttr{
 				Name:   "dir1",
 				Kind:   types.ExternalGroupKind,
 				Access: accessPermissions,
@@ -408,7 +408,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			Expect(err).Should(BeNil())
 			Expect(ed.PlugScope).ShouldNot(BeNil())
 
-			file1F, err = entryManager.Open(context.TODO(), movedEn.ID, Attr{Write: true})
+			file1F, err = entryManager.Open(context.TODO(), movedEn.ID, types.OpenAttr{Write: true})
 			Expect(err).Should(BeNil())
 
 			var (
@@ -423,7 +423,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			Expect(string(buf[:n])).Should(Equal("file1: hello world!"))
 		})
 		It("create test_ext_group_file_1.yaml in /out_dir should be succeed", func() {
-			outDir, err = entryManager.CreateEntry(context.TODO(), root.ID, EntryAttr{
+			outDir, err = entryManager.CreateEntry(context.TODO(), root.ID, types.EntryAttr{
 				Name:   "out_dir",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
@@ -431,7 +431,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			Expect(err).Should(BeNil())
 			Expect(innerDir1).ShouldNot(BeNil())
 
-			outFile, err = entryManager.CreateEntry(context.TODO(), outDir.ID, EntryAttr{
+			outFile, err = entryManager.CreateEntry(context.TODO(), outDir.ID, types.EntryAttr{
 				Name:   "test_ext_group_file_1.yaml",
 				Kind:   types.RawKind,
 				Access: accessPermissions,
@@ -440,7 +440,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			Expect(outFile).ShouldNot(BeNil())
 
 			var outFile1F File
-			outFile1F, err = entryManager.Open(context.TODO(), outFile.ID, Attr{Write: true})
+			outFile1F, err = entryManager.Open(context.TODO(), outFile.ID, types.OpenAttr{Write: true})
 			Expect(err).Should(BeNil())
 			_, err = outFile1F.WriteAt(context.TODO(), []byte("test_ext_group_file_1: hello world!"), 0)
 			Expect(err).Should(BeNil())
@@ -464,7 +464,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			overwritedEn, err = grp.FindEntry(context.TODO(), "moved_file1.yaml")
 			Expect(err).Should(BeNil())
 
-			overwritedFile, err = entryManager.Open(context.TODO(), overwritedEn.ID, Attr{Write: true})
+			overwritedFile, err = entryManager.Open(context.TODO(), overwritedEn.ID, types.OpenAttr{Write: true})
 			Expect(err).Should(BeNil())
 
 			var (

@@ -129,7 +129,7 @@ func entryWorkdirInit(ctx context.Context, entryID int64, entryMgr dentry.Manage
 		return entryPath, nil
 	}
 
-	f, err := entryMgr.Open(ctx, entry.ID, dentry.Attr{Read: true})
+	f, err := entryMgr.Open(ctx, entry.ID, types.OpenAttr{Read: true})
 	if err != nil {
 		return "", fmt.Errorf("open entry failed: %s", err)
 	}
@@ -183,12 +183,12 @@ func collectFile2BaseEntry(ctx context.Context, entryMgr dentry.Manager, baseEnt
 	}
 	defer tmpFile.Close()
 
-	newEn, err := grp.CreateEntry(ctx, dentry.EntryAttr{Name: tmpEn.Name, Kind: tmpEn.Kind, Access: baseEn.Access})
+	newEn, err := grp.CreateEntry(ctx, types.EntryAttr{Name: tmpEn.Name, Kind: tmpEn.Kind, Access: baseEn.Access})
 	if err != nil {
 		return fmt.Errorf("create new entry failed: %s", err)
 	}
 
-	f, err := entryMgr.Open(ctx, newEn.ID, dentry.Attr{Write: true})
+	f, err := entryMgr.Open(ctx, newEn.ID, types.OpenAttr{Write: true})
 	if err != nil {
 		return fmt.Errorf("open entry file failed: %s", err)
 	}

@@ -30,7 +30,7 @@ import (
 
 type Group interface {
 	FindEntry(ctx context.Context, name string) (*types.Metadata, error)
-	CreateEntry(ctx context.Context, attr EntryAttr) (*types.Metadata, error)
+	CreateEntry(ctx context.Context, attr types.EntryAttr) (*types.Metadata, error)
 	UpdateEntry(ctx context.Context, entry *types.Metadata) error
 	RemoveEntry(ctx context.Context, entryID int64) error
 	ListChildren(ctx context.Context) ([]*types.Metadata, error)
@@ -44,7 +44,7 @@ func (e emptyGroup) FindEntry(ctx context.Context, name string) (*types.Metadata
 	return nil, types.ErrNotFound
 }
 
-func (e emptyGroup) CreateEntry(ctx context.Context, attr EntryAttr) (*types.Metadata, error) {
+func (e emptyGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*types.Metadata, error) {
 	return nil, types.ErrNoAccess
 }
 
@@ -86,7 +86,7 @@ func (g *stdGroup) FindEntry(ctx context.Context, name string) (*types.Metadata,
 	return entry, nil
 }
 
-func (g *stdGroup) CreateEntry(ctx context.Context, attr EntryAttr) (*types.Metadata, error) {
+func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.CreateEntry").End()
 	entryLifecycleLock.Lock()
 	defer entryLifecycleLock.Unlock()
@@ -204,7 +204,7 @@ func (e *extGroup) FindEntry(ctx context.Context, name string) (*types.Metadata,
 	return e.syncEntry(ctx, mirrorEn, en)
 }
 
-func (e *extGroup) CreateEntry(ctx context.Context, attr EntryAttr) (*types.Metadata, error) {
+func (e *extGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*types.Metadata, error) {
 	mirrorEn, err := e.mirror.CreateEntry(ctx, pluginapi.EntryAttr{
 		Name: attr.Name,
 		Kind: attr.Kind,

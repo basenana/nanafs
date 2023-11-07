@@ -230,6 +230,16 @@ func (o *ObjectExtend) Update(obj *types.Object) {
 	}
 }
 
+func (o *ObjectExtend) From(ed types.ExtendData) {
+	o.Symlink = ed.Symlink
+	if ed.GroupFilter != nil {
+		o.GroupFilter, _ = json.Marshal(ed.GroupFilter)
+	}
+	if ed.PlugScope != nil {
+		o.PlugScope, _ = json.Marshal(ed.PlugScope)
+	}
+}
+
 func (o *ObjectExtend) ToExtData() types.ExtendData {
 	ext := types.ExtendData{
 		Properties:  types.Properties{Fields: map[string]string{}},

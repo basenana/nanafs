@@ -16,6 +16,24 @@
 
 package types
 
+type EntryAttr struct {
+	Name        string
+	Kind        Kind
+	Access      Access
+	Dev         int64
+	PlugScope   *PlugScope
+	GroupFilter *Rule
+}
+
+type OpenAttr struct {
+	EntryID int64
+	Read    bool
+	Write   bool
+	Create  bool
+	Trunc   bool
+	Direct  bool
+}
+
 type ObjectAttr struct {
 	Name   string
 	Kind   Kind
@@ -37,12 +55,4 @@ type ChangeParentAttr struct {
 
 type ChangeParentOption struct {
 	Name string
-}
-
-type OpenAttr struct {
-	Read   bool
-	Write  bool
-	Create bool
-	Trunc  bool
-	Direct bool
 }

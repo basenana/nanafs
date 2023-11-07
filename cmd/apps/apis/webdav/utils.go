@@ -34,16 +34,16 @@ func Stat(entry *types.Metadata) Info {
 	}
 }
 
-func mode2EntryAttr(mode os.FileMode) dentry.EntryAttr {
-	attr := dentry.EntryAttr{
+func mode2EntryAttr(mode os.FileMode) types.EntryAttr {
+	attr := types.EntryAttr{
 		Kind: fileKindFromMode(uint32(mode)),
 	}
 	dentry.UpdateAccessWithMode(&attr.Access, uint32(mode))
 	return attr
 }
 
-func flag2EntryOpenAttr(flags int) dentry.Attr {
-	attr := dentry.Attr{
+func flag2EntryOpenAttr(flags int) types.OpenAttr {
+	attr := types.OpenAttr{
 		Read: true,
 	}
 	if flags&os.O_CREATE > 0 {

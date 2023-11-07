@@ -43,7 +43,7 @@ type DEntry interface {
 	ListEntryChildren(ctx context.Context, parentId int64) (EntryIterator, error)
 	FilterEntries(ctx context.Context, filter types.Filter) (EntryIterator, error)
 
-	Open(ctx context.Context, id int64) (*types.Metadata, error)
+	Open(ctx context.Context, id int64, attr types.OpenAttr) (*types.Metadata, error)
 	Flush(ctx context.Context, id int64, size int64) error
 
 	GetEntryExtendData(ctx context.Context, id int64) (types.ExtendData, error)

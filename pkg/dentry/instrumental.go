@@ -86,7 +86,7 @@ type instrumentalFile struct {
 	file File
 }
 
-func (i instrumentalFile) GetAttr() Attr {
+func (i instrumentalFile) GetAttr() types.OpenAttr {
 	return i.file.GetAttr()
 }
 
@@ -136,7 +136,7 @@ func (i instrumentalGroup) FindEntry(ctx context.Context, name string) (*types.M
 	return en, logOperationError(groupOperationErrorCounter, operation, err)
 }
 
-func (i instrumentalGroup) CreateEntry(ctx context.Context, attr EntryAttr) (*types.Metadata, error) {
+func (i instrumentalGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*types.Metadata, error) {
 	const operation = "create_entry"
 	defer logOperationLatency(groupOperationLatency, operation, time.Now())
 	en, err := i.grp.CreateEntry(ctx, attr)

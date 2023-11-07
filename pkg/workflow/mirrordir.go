@@ -550,7 +550,7 @@ func initWorkflowMirrorDir(root *types.Metadata, entryMgr dentry.Manager) error 
 		return nil
 	}
 
-	_, err = entryMgr.CreateEntry(context.Background(), root.ID, dentry.EntryAttr{
+	_, err = entryMgr.CreateEntry(context.Background(), root.ID, types.EntryAttr{
 		Name:   MirrorRootDirName,
 		Kind:   types.ExternalGroupKind,
 		Access: root.Access,
