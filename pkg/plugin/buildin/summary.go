@@ -63,9 +63,8 @@ func (i *SummaryPlugin) Run(ctx context.Context, request *pluginapi.Request) (*p
 		buf.WriteString("\n")
 	}
 
-	doc := buf.String()
-	i.log.Infow("get docs", "length", buf.Len(), "entryId", request.EntryId, "docs", doc)
-	summary, err := friday.SummaryFile(fmt.Sprintf("entry_%d", request.EntryId), doc)
+	i.log.Infow("get docs", "length", buf.Len(), "entryId", request.EntryId)
+	summary, err := friday.SummaryFile(fmt.Sprintf("entry_%d", request.EntryId), buf.String())
 	if err != nil {
 		return pluginapi.NewFailedResponse(fmt.Sprintf("summary documents failed: %s", err)), nil
 	}
