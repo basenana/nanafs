@@ -17,7 +17,6 @@
 package buildin
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 
@@ -30,55 +29,48 @@ import (
 )
 
 const (
-	SummaryPluginName    = "summary"
-	SummaryPluginVersion = "1.0"
+	KeywordsPluginName    = "keywords"
+	KeywordsPluginVersion = "1.0"
 )
 
-type SummaryPlugin struct {
+type KeywordsPlugin struct {
 	spec  types.PluginSpec
 	scope types.PlugScope
 	log   *zap.SugaredLogger
 }
 
-func (i *SummaryPlugin) Name() string { return SummaryPluginName }
+func (i *KeywordsPlugin) Name() string { return KeywordsPluginName }
 
-func (i *SummaryPlugin) Type() types.PluginType { return types.TypeProcess }
+func (i *KeywordsPlugin) Type() types.PluginType { return types.TypeProcess }
 
-func (i *SummaryPlugin) Version() string { return SummaryPluginVersion }
+func (i *KeywordsPlugin) Version() string { return KeywordsPluginVersion }
 
-func (i *SummaryPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
+func (i *KeywordsPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
 	if request.EntryId == 0 {
 		return nil, fmt.Errorf("entry id is empty")
 	}
 
-	rawDocs := request.Parameter[pluginapi.ResEntryDocumentsKey]
-	docs, ok := rawDocs.([]types.FDocument)
-	if !ok || len(docs) == 0 {
-		return nil, fmt.Errorf("content of entry %d is empty", request.EntryId)
+	rawSummary := request.Parameter[pluginapi.ResEntryDocSummaryKey]
+	summery, ok := rawSummary.(string)
+	if !ok || len(summery) == 0 {
+		return nil, fmt.Errorf("summary of entry %d is empty", request.EntryId)
 	}
 
-	buf := bytes.Buffer{}
-	for _, doc := range docs {
-		buf.WriteString(doc.Content)
-		buf.WriteString("\n")
-	}
-
-	doc := buf.String()
-	i.log.Infow("get docs", "length", buf.Len(), "entryId", request.EntryId, "docs", doc)
-	summary, err := friday.SummaryFile(fmt.Sprintf("entry_%d", request.EntryId), doc)
+	i.log.Infow("get summary", "entryId", request.EntryId)
+	keywords, err := friday.Keywords(summery)
 	if err != nil {
 		return pluginapi.NewFailedResponse(fmt.Sprintf("summary documents failed: %s", err)), nil
 	}
 
 	return pluginapi.NewResponseWithResult(map[string]any{
-		pluginapi.ResEntryDocSummaryKey: summary,
+		pluginapi.ResEntryDocKeyWordsKey: keywords,
 	}), nil
 }
 
-func NewSummaryPlugin(spec types.PluginSpec, scope types.PlugScope) (*SummaryPlugin, error) {
-	return &SummaryPlugin{
+func NewKeyWordsPlugin(spec types.PluginSpec, scope types.PlugScope) (*KeywordsPlugin, error) {
+	return &KeywordsPlugin{
 		spec:  spec,
 		scope: scope,
-		log:   logger.NewLogger("summaryPlugin"),
+		log:   logger.NewLogger("keywordsPlugin"),
 	}, nil
 }

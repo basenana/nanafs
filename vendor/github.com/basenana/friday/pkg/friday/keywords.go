@@ -17,26 +17,26 @@
 package friday
 
 import (
-	"github.com/basenana/friday/pkg/embedding"
-	"github.com/basenana/friday/pkg/llm"
-	"github.com/basenana/friday/pkg/spliter"
-	"github.com/basenana/friday/pkg/utils/logger"
-	"github.com/basenana/friday/pkg/vectorstore"
+	"strings"
+
+	"github.com/basenana/friday/pkg/llm/prompts"
 )
 
-const defaultTopK = 6
+func (f *Friday) Keywords(content string) (keywords []string, err error) {
+	prompt := prompts.NewKeywordsPrompt()
 
-var (
-	Fri *Friday
-)
-
-type Friday struct {
-	Log logger.Logger
-
-	LimitToken int
-
-	LLM       llm.LLM
-	Embedding embedding.Embedding
-	Vector    vectorstore.VectorStore
-	Spliter   spliter.Spliter
+	answers, err := f.LLM.Chat(prompt, map[string]string{"context": content})
+	if err != nil {
+		return []string{}, err
+	}
+	answer := answers[0]
+	keywords = strings.Split(answer, ",")
+	result := []string{}
+	for _, keyword := range keywords {
+		if len(keyword) != 0 {
+			result = append(result, strings.TrimSpace(keyword))
+		}
+	}
+	f.Log.Debugf("Keywords result: %v", result)
+	return result, nil
 }

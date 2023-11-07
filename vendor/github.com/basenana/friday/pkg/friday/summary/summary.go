@@ -62,8 +62,8 @@ func (s *Summary) Summary(docs []string, summaryType SummaryType) (summary strin
 		// todo
 		return "", err
 	case Stuff:
+		fallthrough
 	default:
 		return s.Stuff(docs)
 	}
-	return
 }

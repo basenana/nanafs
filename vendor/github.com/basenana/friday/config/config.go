@@ -19,6 +19,9 @@ package config
 type Config struct {
 	Debug bool `json:"debug,omitempty"`
 
+	// llm limit token
+	LimitToken int `json:"limit_token,omitempty"`
+
 	// openai key
 	OpenAIKey string `json:"open_ai_key,omitempty"` // if openai is used for embedding or llm, it is needed
 

@@ -155,4 +155,12 @@ func registerBuildInProcessPlugin(r *registry) {
 			return buildin.NewSummaryPlugin(spec, scope)
 		},
 	)
+
+	r.Register(
+		buildin.KeywordsPluginName,
+		types.PluginSpec{Name: buildin.KeywordsPluginName, Version: buildin.KeywordsPluginVersion, Type: types.TypeProcess, Parameters: map[string]string{}},
+		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
+			return buildin.NewKeyWordsPlugin(spec, scope)
+		},
+	)
 }
