@@ -41,6 +41,7 @@ func (f *Friday) Summary(elements []models.Element, summaryType summary.SummaryT
 		}
 		result[source] = summaryOfFile
 	}
+	f.Log.Debugf("Summary result: %s", result)
 	return result, nil
 }
 

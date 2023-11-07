@@ -72,11 +72,12 @@ func NewFridayWithVector(conf *config.Config, vectorClient vectorstore.VectorSto
 	textSpliter := spliter.NewTextSpliter(chunkSize, overlapSize, separator)
 
 	f = &friday.Friday{
-		Log:       logger.NewLogger("friday"),
-		LLM:       llmClient,
-		Embedding: embeddingModel,
-		Vector:    vectorClient,
-		Spliter:   textSpliter,
+		Log:        logger.NewLogger("friday"),
+		LimitToken: conf.LimitToken,
+		LLM:        llmClient,
+		Embedding:  embeddingModel,
+		Vector:     vectorClient,
+		Spliter:    textSpliter,
 	}
 	return
 }

@@ -23,7 +23,6 @@ import (
 	"github.com/basenana/friday/pkg/build/withvector"
 	"github.com/basenana/friday/pkg/friday"
 	"github.com/basenana/friday/pkg/friday/summary"
-	"github.com/basenana/friday/pkg/llm/prompts"
 	"github.com/basenana/friday/pkg/models"
 	"github.com/basenana/friday/pkg/vectorstore/postgres"
 )
@@ -63,8 +62,7 @@ func IngestFile(fileName, content string) error {
 }
 
 func Question(q string) (answer string, err error) {
-	p := prompts.NewQuestionPrompt()
-	return fridayClient.Question(p, q)
+	return fridayClient.Question(q)
 }
 
 func SummaryFile(fileName, content string) (string, error) {
@@ -80,4 +78,8 @@ func SummaryFile(fileName, content string) (string, error) {
 		return "", fmt.Errorf("fail to summary file %s", fileName)
 	}
 	return result[fileName], nil
+}
+
+func Keywords(content string) ([]string, error) {
+	return fridayClient.Keywords(content)
 }

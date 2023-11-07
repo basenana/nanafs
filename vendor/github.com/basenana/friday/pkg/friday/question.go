@@ -23,19 +23,21 @@ import (
 	"github.com/basenana/friday/pkg/llm/prompts"
 )
 
-func (f *Friday) Question(prompt prompts.PromptTemplate, q string) (string, error) {
+func (f *Friday) Question(q string) (string, error) {
+	prompt := prompts.NewQuestionPrompt()
 	c, err := f.searchDocs(q)
 	if err != nil {
 		return "", err
 	}
 	if f.LLM != nil {
-		ans, err := f.LLM.Completion(prompt, map[string]string{
+		ans, err := f.LLM.Chat(prompt, map[string]string{
 			"context":  c,
 			"question": q,
 		})
 		if err != nil {
 			return "", fmt.Errorf("llm completion error: %w", err)
 		}
+		f.Log.Debugf("Question result: %s", c)
 		return ans[0], nil
 	}
 	return c, nil
