@@ -27,7 +27,6 @@ type Meta interface {
 	DEntry
 	ChunkStore
 	NotificationRecorder
-	PluginRecorderGetter
 	ScheduledTaskRecorder
 	DocumentRecorder
 }
@@ -89,15 +88,4 @@ type DocumentRecorder interface {
 	ListDocument(ctx context.Context) ([]*types.Document, error)
 	GetDocument(ctx context.Context, id string) (*types.Document, error)
 	DeleteDocument(ctx context.Context, id string) error
-}
-
-type PluginRecorderGetter interface {
-	PluginRecorder(plugin types.PlugScope) PluginRecorder
-}
-
-type PluginRecorder interface {
-	GetRecord(ctx context.Context, rid string, record interface{}) error
-	ListRecords(ctx context.Context, groupId string) ([]string, error)
-	SaveRecord(ctx context.Context, groupId, rid string, record interface{}) error
-	DeleteRecord(ctx context.Context, rid string) error
 }

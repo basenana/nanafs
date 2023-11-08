@@ -250,10 +250,6 @@ func (i instrumentalStore) UpdateNotificationStatus(ctx context.Context, nid, st
 	return err
 }
 
-func (i instrumentalStore) PluginRecorder(plugin types.PlugScope) PluginRecorder {
-	return i.store.PluginRecorder(plugin)
-}
-
 func (i instrumentalStore) ListTask(ctx context.Context, taskID string, filter types.ScheduledTaskFilter) ([]*types.ScheduledTask, error) {
 	const operation = "list_task"
 	defer logOperationLatency(operation, time.Now())

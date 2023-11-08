@@ -23,8 +23,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"path"
-	"sort"
-	"strings"
 )
 
 var _ = Describe("TestSqliteObjectOperation", func() {
@@ -364,75 +362,6 @@ var _ = Describe("TestSqliteLabelOperation", func() {
 				chList = append(chList, enIt.Next())
 			}
 			Expect(len(chList)).Should(Equal(1))
-		})
-	})
-})
-
-var _ = Describe("TestSqlitePluginData", func() {
-	var (
-		sqlite      = buildNewSqliteMetaStore("test_plugin_data.db")
-		pluginASpec = types.PlugScope{PluginName: "plugin-a", Version: "v1.0", PluginType: types.TypeMirror, Parameters: map[string]string{}}
-		pluginBSpec = types.PlugScope{PluginName: "plugin-b", Version: "v1.0", PluginType: types.TypeSource, Parameters: map[string]string{}}
-	)
-
-	Context("fetch plugin data", func() {
-		It("save plugins data should be succeed", func() {
-			pluginARecorder := sqlite.PluginRecorder(pluginASpec)
-			Expect(pluginARecorder.SaveRecord(context.TODO(), "group_1", "rid_1", map[string]string{"key": "plugin_a"})).Should(BeNil())
-
-			pluginBRecorder := sqlite.PluginRecorder(pluginBSpec)
-			Expect(pluginBRecorder.SaveRecord(context.TODO(), "group_1", "rid_1", map[string]string{"key": "plugin_b"})).Should(BeNil())
-		})
-
-		It("fetch plugin A should be succeed", func() {
-			pluginARecorder := sqlite.PluginRecorder(pluginASpec)
-			data := map[string]string{}
-			Expect(pluginARecorder.GetRecord(context.TODO(), "rid_1", &data)).Should(BeNil())
-			Expect(data["key"]).Should(Equal("plugin_a"))
-		})
-
-		It("fetch plugin B should be succeed", func() {
-			pluginBRecorder := sqlite.PluginRecorder(pluginBSpec)
-			data := map[string]string{}
-			Expect(pluginBRecorder.GetRecord(context.TODO(), "rid_1", &data)).Should(BeNil())
-			Expect(data["key"]).Should(Equal("plugin_b"))
-		})
-
-		It("update plugin B old data should be succeed", func() {
-			pluginBRecorder := sqlite.PluginRecorder(pluginBSpec)
-			Expect(pluginBRecorder.SaveRecord(context.TODO(), "group_1", "rid_1", map[string]string{"key2": "plugin_b"})).Should(BeNil())
-
-			data := map[string]string{}
-			Expect(pluginBRecorder.GetRecord(context.TODO(), "rid_1", &data)).Should(BeNil())
-			Expect(data["key2"]).Should(Equal("plugin_b"))
-		})
-	})
-
-	Context("list plugin group data", func() {
-		It("should be succeed", func() {
-			pluginARecorder := sqlite.PluginRecorder(pluginASpec)
-			Expect(pluginARecorder.SaveRecord(context.TODO(), "group_1", "rid_2", map[string]string{"key": "plugin_a"})).Should(BeNil())
-			Expect(pluginARecorder.SaveRecord(context.TODO(), "group_1", "rid_3", map[string]string{"key": "plugin_a"})).Should(BeNil())
-			Expect(pluginARecorder.SaveRecord(context.TODO(), "group_1", "rid_4", map[string]string{"key": "plugin_a"})).Should(BeNil())
-
-			recordList, err := pluginARecorder.ListRecords(context.TODO(), "group_1")
-			Expect(err).Should(BeNil())
-			sort.Strings(recordList)
-			Expect(strings.Join(recordList, ",")).Should(Equal("rid_1,rid_2,rid_3,rid_4"))
-		})
-	})
-
-	Context("delete plugin one data", func() {
-		It("should be succeed", func() {
-			pluginARecorder := sqlite.PluginRecorder(pluginASpec)
-			Expect(pluginARecorder.SaveRecord(context.TODO(), "group_1", "rid_5", map[string]string{"key": "plugin_a"})).Should(BeNil())
-
-			data := map[string]string{}
-			Expect(pluginARecorder.GetRecord(context.TODO(), "rid_5", &data)).Should(BeNil())
-			Expect(data["key"]).Should(Equal("plugin_a"))
-			Expect(pluginARecorder.DeleteRecord(context.TODO(), "rid_5")).Should(BeNil())
-
-			Expect(pluginARecorder.GetRecord(context.TODO(), "rid_5", &data)).Should(Equal(types.ErrNotFound))
 		})
 	})
 })

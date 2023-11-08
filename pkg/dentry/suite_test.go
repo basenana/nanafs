@@ -67,6 +67,6 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 
 	// init plugin
-	err = plugin.Init(&config.Plugin{}, memMeta)
+	err = plugin.Init(&config.Plugin{})
 	Expect(err).Should(BeNil())
 })

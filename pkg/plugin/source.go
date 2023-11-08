@@ -19,7 +19,6 @@ package plugin
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
@@ -120,13 +119,13 @@ func threeBodyBuilder(ctx context.Context, spec types.PluginSpec, scope types.Pl
 	return &ThreeBodyPlugin{}, nil
 }
 
-func registerBuildInSourcePlugin(r *registry, recorderGetter metastore.PluginRecorderGetter) {
+func registerBuildInSourcePlugin(r *registry) {
 	r.Register(the3BodyPluginName, types.PluginSpec{Name: the3BodyPluginName, Version: the3BodyPluginVersion,
 		Type: types.TypeSource, Parameters: map[string]string{}}, threeBodyBuilder)
 
 	r.Register(buildin.RssSourcePluginName,
 		types.PluginSpec{Name: buildin.RssSourcePluginName, Version: buildin.RssSourcePluginVersion, Type: types.TypeSource, Parameters: map[string]string{}},
 		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
-			return buildin.BuildRssSourcePlugin(ctx, recorderGetter.PluginRecorder(scope), spec, scope), nil
+			return buildin.BuildRssSourcePlugin(ctx, spec, scope), nil
 		})
 }

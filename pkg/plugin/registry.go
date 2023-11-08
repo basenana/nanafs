@@ -27,7 +27,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 )
@@ -59,7 +58,7 @@ func BuildPlugin(ctx context.Context, ps types.PlugScope) (Plugin, error) {
 	return pluginRegistry.BuildPlugin(ctx, ps)
 }
 
-func Init(cfg *config.Plugin, recorderGetter metastore.PluginRecorderGetter) error {
+func Init(cfg *config.Plugin) error {
 	if cfg == nil {
 		return nil
 	}
@@ -67,14 +66,13 @@ func Init(cfg *config.Plugin, recorderGetter metastore.PluginRecorderGetter) err
 	r := &registry{
 		basePath: cfg.BasePath,
 		plugins:  map[string]*pluginInfo{},
-		recorder: recorderGetter,
 		logger:   logger.NewLogger("registry"),
 	}
 
 	// register build-in plugins
 	registerBuildInProcessPlugin(r)
 	registerBuildInMirrorPlugin(r)
-	registerBuildInSourcePlugin(r, recorderGetter)
+	registerBuildInSourcePlugin(r)
 
 	pluginRegistry = r
 	return r.load()
@@ -88,7 +86,6 @@ type registry struct {
 	basePath string
 	plugins  map[string]*pluginInfo
 	mux      sync.RWMutex
-	recorder metastore.PluginRecorderGetter
 	logger   *zap.SugaredLogger
 }
 

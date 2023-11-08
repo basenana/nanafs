@@ -18,8 +18,6 @@ package plugin
 
 import (
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils/logger"
 	"testing"
 
@@ -36,6 +34,5 @@ func TestPlugin(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	// init plugin registry
-	mem, _ := metastore.NewMetaStorage(storage.MemoryStorage, config.Meta{})
-	Expect(Init(&config.Plugin{}, mem)).Should(BeNil())
+	Expect(Init(&config.Plugin{})).Should(BeNil())
 })

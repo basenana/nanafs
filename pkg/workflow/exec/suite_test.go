@@ -83,5 +83,5 @@ var _ = BeforeSuite(func() {
 	Expect(f.Close(context.TODO())).Should(BeNil())
 
 	// init plugin
-	Expect(plugin.Init(&config.Plugin{}, memMeta)).Should(BeNil())
+	Expect(plugin.Init(&config.Plugin{})).Should(BeNil())
 })

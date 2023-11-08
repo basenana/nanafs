@@ -91,7 +91,7 @@ var daemonCmd = &cobra.Command{
 			panic(err)
 		}
 
-		if err := plugin.Init(cfg.Plugin, meta); err != nil {
+		if err := plugin.Init(cfg.Plugin); err != nil {
 			panic(err)
 		}
 

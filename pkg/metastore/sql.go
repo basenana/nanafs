@@ -18,8 +18,11 @@ package metastore
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"gorm.io/gorm/clause"
 	"runtime/trace"
 	"sync"
@@ -41,6 +44,8 @@ const (
 	SqliteMeta   = config.SqliteMeta
 	PostgresMeta = config.PostgresMeta
 )
+
+var initMetrics sync.Once
 
 type sqliteMetaStore struct {
 	dbStore *sqlMetaStore
@@ -152,14 +157,14 @@ func (s *sqliteMetaStore) UpdateEntryLabels(ctx context.Context, id int64, label
 }
 
 func (s *sqliteMetaStore) NextSegmentID(ctx context.Context) (int64, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
+	s.mux.RLock()
+	defer s.mux.RUnlock()
 	return s.dbStore.NextSegmentID(ctx)
 }
 
 func (s *sqliteMetaStore) ListSegments(ctx context.Context, oid, chunkID int64, allChunk bool) ([]types.ChunkSeg, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
+	s.mux.RLock()
+	defer s.mux.RUnlock()
 	return s.dbStore.ListSegments(ctx, oid, chunkID, allChunk)
 }
 
@@ -176,8 +181,8 @@ func (s *sqliteMetaStore) DeleteSegment(ctx context.Context, segID int64) error 
 }
 
 func (s *sqliteMetaStore) ListTask(ctx context.Context, taskID string, filter types.ScheduledTaskFilter) ([]*types.ScheduledTask, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
+	s.mux.RLock()
+	defer s.mux.RUnlock()
 	return s.dbStore.ListTask(ctx, taskID, filter)
 }
 
@@ -194,14 +199,14 @@ func (s *sqliteMetaStore) DeleteFinishedTask(ctx context.Context, aliveTime time
 }
 
 func (s *sqliteMetaStore) GetWorkflow(ctx context.Context, wfID string) (*types.WorkflowSpec, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
+	s.mux.RLock()
+	defer s.mux.RUnlock()
 	return s.dbStore.GetWorkflow(ctx, wfID)
 }
 
 func (s *sqliteMetaStore) ListWorkflow(ctx context.Context) ([]*types.WorkflowSpec, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
+	s.mux.RLock()
+	defer s.mux.RUnlock()
 	return s.dbStore.ListWorkflow(ctx)
 }
 
@@ -212,14 +217,14 @@ func (s *sqliteMetaStore) DeleteWorkflow(ctx context.Context, wfID string) error
 }
 
 func (s *sqliteMetaStore) GetWorkflowJob(ctx context.Context, jobID string) (*types.WorkflowJob, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
+	s.mux.RLock()
+	defer s.mux.RUnlock()
 	return s.dbStore.GetWorkflowJob(ctx, jobID)
 }
 
 func (s *sqliteMetaStore) ListWorkflowJob(ctx context.Context, filter types.JobFilter) ([]*types.WorkflowJob, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
+	s.mux.RLock()
+	defer s.mux.RUnlock()
 	return s.dbStore.ListWorkflowJob(ctx, filter)
 }
 
@@ -242,8 +247,8 @@ func (s *sqliteMetaStore) DeleteWorkflowJob(ctx context.Context, wfJobID ...stri
 }
 
 func (s *sqliteMetaStore) ListNotifications(ctx context.Context) ([]types.Notification, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
+	s.mux.RLock()
+	defer s.mux.RUnlock()
 	return s.dbStore.ListNotifications(ctx)
 }
 
@@ -259,37 +264,6 @@ func (s *sqliteMetaStore) UpdateNotificationStatus(ctx context.Context, nid, sta
 	return s.dbStore.UpdateNotificationStatus(ctx, nid, status)
 }
 
-func (s *sqliteMetaStore) PluginRecorder(plugin types.PlugScope) PluginRecorder {
-	return &sqlPluginRecorder{
-		pluginRecordHandler: s,
-		plugin:              plugin,
-	}
-}
-
-func (s *sqliteMetaStore) getPluginRecord(ctx context.Context, plugin types.PlugScope, rid string, record interface{}) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.getPluginRecord(ctx, plugin, rid, record)
-}
-
-func (s *sqliteMetaStore) listPluginRecords(ctx context.Context, plugin types.PlugScope, groupId string) ([]string, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.listPluginRecords(ctx, plugin, groupId)
-}
-
-func (s *sqliteMetaStore) savePluginRecord(ctx context.Context, plugin types.PlugScope, groupId, rid string, record interface{}) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.savePluginRecord(ctx, plugin, groupId, rid, record)
-}
-
-func (s *sqliteMetaStore) deletePluginRecord(ctx context.Context, plugin types.PlugScope, rid string) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.deletePluginRecord(ctx, plugin, rid)
-}
-
 func (s *sqliteMetaStore) SaveDocument(ctx context.Context, doc *types.Document) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
@@ -297,14 +271,14 @@ func (s *sqliteMetaStore) SaveDocument(ctx context.Context, doc *types.Document)
 }
 
 func (s *sqliteMetaStore) ListDocument(ctx context.Context) ([]*types.Document, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
+	s.mux.RLock()
+	defer s.mux.RUnlock()
 	return s.dbStore.ListDocument(ctx)
 }
 
 func (s *sqliteMetaStore) GetDocument(ctx context.Context, id string) (*types.Document, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
+	s.mux.RLock()
+	defer s.mux.RUnlock()
 	return s.dbStore.GetDocument(ctx, id)
 }
 
@@ -329,12 +303,7 @@ func newSqliteMetaStore(meta config.Meta) (*sqliteMetaStore, error) {
 		return nil, err
 	}
 
-	dbEnt, err := db.NewDbEntity(dbEntity)
-	if err != nil {
-		return nil, err
-	}
-
-	dbStore, err := buildSqlMetaStore(dbEnt, dbEntity)
+	dbStore, err := buildSqlMetaStore(dbEntity)
 	if err != nil {
 		return nil, err
 	}
@@ -344,15 +313,13 @@ func newSqliteMetaStore(meta config.Meta) (*sqliteMetaStore, error) {
 
 type sqlMetaStore struct {
 	*gorm.DB
-
-	dbEntity *db.Entity
-	logger   *zap.SugaredLogger
+	logger *zap.SugaredLogger
 }
 
 var _ Meta = &sqlMetaStore{}
 
-func buildSqlMetaStore(entity *db.Entity, dbEntity *gorm.DB) (*sqlMetaStore, error) {
-	s := &sqlMetaStore{dbEntity: entity, DB: dbEntity, logger: logger.NewLogger("dbStore")}
+func buildSqlMetaStore(dbEntity *gorm.DB) (*sqlMetaStore, error) {
+	s := &sqlMetaStore{DB: dbEntity, logger: logger.NewLogger("dbStore")}
 
 	if err := db.Migrate(s.DB); err != nil {
 		return nil, db.SqlError2Error(err)
@@ -368,6 +335,18 @@ func buildSqlMetaStore(entity *db.Entity, dbEntity *gorm.DB) (*sqlMetaStore, err
 			return nil, db.SqlError2Error(res.Error)
 		}
 	}
+
+	initMetrics.Do(func() {
+		goDb, innerErr := dbEntity.DB()
+		if innerErr == nil {
+			registerErr := prometheus.Register(collectors.NewDBStatsCollector(goDb, dbEntity.Name()))
+			if registerErr != nil {
+				s.logger.Warnf("register dbstats collector failed: %s", err)
+			}
+			return
+		}
+		s.logger.Warnf("init db metrics failed: %s", err)
+	})
 	return s, nil
 }
 
@@ -604,7 +583,7 @@ func (s *sqlMetaStore) FilterEntries(ctx context.Context, filter types.Filter) (
 		err      error
 	)
 	if len(filter.Label.Include) > 0 || len(filter.Label.Exclude) > 0 {
-		scopeIds, err = listObjectIdsWithLabelMatcher(ctx, s.DB, filter.Label)
+		scopeIds, err = listEntryIdsWithLabelMatcher(ctx, s.DB, filter.Label)
 		if err != nil {
 			return nil, db.SqlError2Error(err)
 		}
@@ -1014,12 +993,12 @@ func (s *sqlMetaStore) ListSegments(ctx context.Context, oid, chunkID int64, all
 	result := make([]types.ChunkSeg, len(segments))
 	for i, seg := range segments {
 		result[i] = types.ChunkSeg{
-			ID:       seg.ID,
-			ChunkID:  seg.ChunkID,
-			ObjectID: seg.OID,
-			Off:      seg.Off,
-			Len:      seg.Len,
-			State:    seg.State,
+			ID:      seg.ID,
+			ChunkID: seg.ChunkID,
+			EntryID: seg.OID,
+			Off:     seg.Off,
+			Len:     seg.Len,
+			State:   seg.State,
 		}
 
 	}
@@ -1029,7 +1008,7 @@ func (s *sqlMetaStore) ListSegments(ctx context.Context, oid, chunkID int64, all
 func (s *sqlMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.AppendSegments").End()
 	var (
-		enMod   = &db.Object{ID: seg.ObjectID}
+		enMod   = &db.Object{ID: seg.EntryID}
 		nowTime = time.Now().UnixNano()
 		err     error
 	)
@@ -1041,7 +1020,7 @@ func (s *sqlMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (
 
 		res = tx.Create(&db.ObjectChunk{
 			ID:       seg.ID,
-			OID:      seg.ObjectID,
+			OID:      seg.EntryID,
 			ChunkID:  seg.ChunkID,
 			Off:      seg.Off,
 			Len:      seg.Len,
@@ -1077,44 +1056,128 @@ func (s *sqlMetaStore) DeleteSegment(ctx context.Context, segID int64) error {
 
 func (s *sqlMetaStore) ListTask(ctx context.Context, taskID string, filter types.ScheduledTaskFilter) ([]*types.ScheduledTask, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListTask").End()
-	result, err := s.dbEntity.ListScheduledTask(ctx, taskID, filter)
-	if err != nil {
-		return nil, db.SqlError2Error(err)
+	tasks := make([]db.ScheduledTask, 0)
+	query := s.WithContext(ctx).Where("task_id = ?", taskID)
+
+	if filter.RefID != 0 && filter.RefType != "" {
+		query = query.Where("ref_type = ? AND ref_id = ?", filter.RefType, filter.RefID)
+	}
+
+	if len(filter.Status) > 0 {
+		query = query.Where("status IN ?", filter.Status)
+	}
+
+	res := query.Order("created_time").Find(&tasks)
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
+	}
+
+	result := make([]*types.ScheduledTask, len(tasks))
+	for i, t := range tasks {
+		evt := types.EntryEvent{}
+		_ = json.Unmarshal([]byte(t.Event), &evt)
+		result[i] = &types.ScheduledTask{
+			ID:             t.ID,
+			TaskID:         t.TaskID,
+			Status:         t.Status,
+			RefType:        t.RefType,
+			RefID:          t.RefID,
+			Result:         t.Result,
+			CreatedTime:    t.CreatedTime,
+			ExecutionTime:  t.ExecutionTime,
+			ExpirationTime: t.ExpirationTime,
+			Event:          evt,
+		}
 	}
 	return result, nil
 }
 
 func (s *sqlMetaStore) SaveTask(ctx context.Context, task *types.ScheduledTask) error {
 	defer trace.StartRegion(ctx, "metastore.sql.SaveTask").End()
-	return db.SqlError2Error(s.dbEntity.SaveScheduledTask(ctx, task))
+	t := &db.ScheduledTask{
+		ID:             task.ID,
+		TaskID:         task.TaskID,
+		Status:         task.Status,
+		RefID:          task.RefID,
+		RefType:        task.RefType,
+		Result:         task.Result,
+		CreatedTime:    task.CreatedTime,
+		ExecutionTime:  task.ExecutionTime,
+		ExpirationTime: task.ExpirationTime,
+	}
+	rawEvt, err := json.Marshal(task.Event)
+	if err != nil {
+		return err
+	}
+	t.Event = string(rawEvt)
+	if task.ID == 0 {
+		res := s.WithContext(ctx).Create(t)
+		if res.Error != nil {
+			return db.SqlError2Error(res.Error)
+		}
+		task.ID = t.ID
+		return nil
+	}
+	res := s.WithContext(ctx).Save(t)
+	if res.Error != nil {
+		return db.SqlError2Error(res.Error)
+	}
+	return nil
 }
 
 func (s *sqlMetaStore) DeleteFinishedTask(ctx context.Context, aliveTime time.Duration) error {
 	defer trace.StartRegion(ctx, "metastore.sql.DeleteFinishedTask").End()
-	return db.SqlError2Error(s.dbEntity.DeleteFinishedScheduledTask(ctx, aliveTime))
+	res := s.WithContext(ctx).Where("status = ? AND created_time < ?", types.ScheduledTaskFinish, time.Now().Add(-1*aliveTime)).Delete(&db.ScheduledTask{})
+	if res.Error != nil {
+		return db.SqlError2Error(res.Error)
+	}
+	return nil
 }
 
 func (s *sqlMetaStore) GetWorkflow(ctx context.Context, wfID string) (*types.WorkflowSpec, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.GetWorkflow").End()
-	wf, err := s.dbEntity.GetWorkflow(ctx, wfID)
-	if err != nil {
-		return nil, db.SqlError2Error(err)
+	wf := &db.Workflow{}
+	res := s.WithContext(ctx).Where("id = ?", wfID).First(wf)
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
 	}
-	return wf, nil
+	return wf.To()
 }
 
 func (s *sqlMetaStore) ListWorkflow(ctx context.Context) ([]*types.WorkflowSpec, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListWorkflow").End()
-	wfList, err := s.dbEntity.ListWorkflow(ctx)
-	if err != nil {
-		return nil, db.SqlError2Error(err)
+	wfList := make([]db.Workflow, 0)
+	res := s.WithContext(ctx).Order("created_at desc").Find(&wfList)
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
 	}
-	return wfList, nil
+
+	var (
+		result = make([]*types.WorkflowSpec, len(wfList))
+		err    error
+	)
+	for i, wf := range wfList {
+		result[i], err = wf.To()
+		if err != nil {
+			return nil, err
+		}
+	}
+	return result, nil
 }
 
 func (s *sqlMetaStore) DeleteWorkflow(ctx context.Context, wfID string) error {
 	defer trace.StartRegion(ctx, "metastore.sql.DeleteWorkflow").End()
-	err := s.dbEntity.DeleteWorkflow(ctx, wfID)
+	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Where("id = ?", wfID).Delete(&db.Workflow{})
+		if res.Error != nil {
+			return res.Error
+		}
+		res = tx.Where("workflow = ?", wfID).Delete(&db.WorkflowJob{})
+		if res.Error != nil {
+			return res.Error
+		}
+		return nil
+	})
 	if err != nil {
 		return db.SqlError2Error(err)
 	}
@@ -1123,39 +1186,107 @@ func (s *sqlMetaStore) DeleteWorkflow(ctx context.Context, wfID string) error {
 
 func (s *sqlMetaStore) GetWorkflowJob(ctx context.Context, jobID string) (*types.WorkflowJob, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.GetWorkflowJob").End()
-	jobList, err := s.dbEntity.ListWorkflowJob(ctx, types.JobFilter{JobID: jobID})
-	if err != nil {
-		return nil, db.SqlError2Error(err)
+	jobMod := &db.WorkflowJob{}
+	res := s.DB.WithContext(ctx).Where("id = ?", jobID).First(jobMod)
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
 	}
-	if len(jobList) == 0 {
-		return nil, types.ErrNotFound
-	}
-	return jobList[0], nil
+	return jobMod.To()
 }
 
 func (s *sqlMetaStore) ListWorkflowJob(ctx context.Context, filter types.JobFilter) ([]*types.WorkflowJob, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListWorkflowJob").End()
-	jobList, err := s.dbEntity.ListWorkflowJob(ctx, filter)
-	if err != nil {
-		return nil, db.SqlError2Error(err)
+	jobList := make([]db.WorkflowJob, 0)
+	query := s.DB.WithContext(ctx)
+
+	if filter.JobID != "" {
+		query = query.Where("id = ?", filter.JobID)
 	}
-	return jobList, nil
+	if filter.WorkFlowID != "" {
+		query = query.Where("workflow = ?", filter.WorkFlowID)
+	}
+	if filter.Status != "" {
+		query = query.Where("status = ?", filter.Status)
+	}
+	if filter.TargetEntry != 0 {
+		query = query.Where("target_entry = ?", filter.TargetEntry)
+	}
+
+	res := query.Order("created_at desc").Find(&jobList)
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
+	}
+
+	var (
+		result = make([]*types.WorkflowJob, len(jobList))
+		err    error
+	)
+	for i, wf := range jobList {
+		result[i], err = wf.To()
+		if err != nil {
+			return nil, err
+		}
+	}
+	return result, nil
 }
 
 func (s *sqlMetaStore) SaveWorkflow(ctx context.Context, wf *types.WorkflowSpec) error {
 	defer trace.StartRegion(ctx, "metastore.sql.SaveWorkflow").End()
 	wf.UpdatedAt = time.Now()
-	err := s.dbEntity.SaveWorkflow(ctx, wf)
+	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var loadErr error
+		dbMod := &db.Workflow{}
+		res := tx.Where("id = ?", wf.Id).First(dbMod)
+		if res.Error != nil {
+			if res.Error == gorm.ErrRecordNotFound {
+				// create
+				dbMod, loadErr = dbMod.From(wf)
+				if loadErr != nil {
+					return loadErr
+				}
+				res = tx.Create(dbMod)
+				return res.Error
+			}
+			return res.Error
+		}
+
+		// update
+		if dbMod, loadErr = dbMod.From(wf); loadErr != nil {
+			return loadErr
+		}
+		res = tx.Save(dbMod)
+		return res.Error
+	})
 	if err != nil {
 		return db.SqlError2Error(err)
 	}
 	return nil
 }
 
-func (s *sqlMetaStore) SaveWorkflowJob(ctx context.Context, wf *types.WorkflowJob) error {
+func (s *sqlMetaStore) SaveWorkflowJob(ctx context.Context, job *types.WorkflowJob) error {
 	defer trace.StartRegion(ctx, "metastore.sql.SaveWorkflowJob").End()
-	wf.UpdatedAt = time.Now()
-	err := s.dbEntity.SaveWorkflowJob(ctx, wf)
+	job.UpdatedAt = time.Now()
+	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		jobModel := &db.WorkflowJob{}
+		var loadErr error
+		res := tx.Where("id = ?", job.Id).First(jobModel)
+		if res.Error != nil {
+			if res.Error == gorm.ErrRecordNotFound {
+				if jobModel, loadErr = jobModel.From(job); loadErr != nil {
+					return loadErr
+				}
+				res = tx.Create(jobModel)
+				return res.Error
+			}
+			return res.Error
+		}
+
+		if jobModel, loadErr = jobModel.From(job); loadErr != nil {
+			return loadErr
+		}
+		res = tx.Save(jobModel)
+		return res.Error
+	})
 	if err != nil {
 		return db.SqlError2Error(err)
 	}
@@ -1164,82 +1295,120 @@ func (s *sqlMetaStore) SaveWorkflowJob(ctx context.Context, wf *types.WorkflowJo
 
 func (s *sqlMetaStore) DeleteWorkflowJob(ctx context.Context, wfJobID ...string) error {
 	defer trace.StartRegion(ctx, "metastore.sql.DeleteWorkflowJob").End()
-	err := s.dbEntity.DeleteWorkflowJob(ctx, wfJobID...)
-	if err != nil {
-		return db.SqlError2Error(err)
+	res := s.WithContext(ctx).Where("id IN ?", wfJobID).Delete(&db.WorkflowJob{})
+	if res.Error != nil {
+		return db.SqlError2Error(res.Error)
 	}
 	return nil
 }
 
 func (s *sqlMetaStore) ListNotifications(ctx context.Context) ([]types.Notification, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListNotifications").End()
-	noList, err := s.dbEntity.ListNotifications(ctx)
-	if err != nil {
-		return nil, db.SqlError2Error(err)
+	noList := make([]db.Notification, 0)
+	res := s.WithContext(ctx).Order("time desc").Find(&noList)
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
 	}
-	return noList, nil
+
+	result := make([]types.Notification, len(noList))
+	for i, no := range noList {
+		result[i] = types.Notification{
+			ID:      no.ID,
+			Title:   no.Title,
+			Message: no.Message,
+			Type:    no.Type,
+			Source:  no.Source,
+			Action:  no.Action,
+			Status:  no.Status,
+			Time:    no.Time,
+		}
+	}
+	return result, nil
 }
 
 func (s *sqlMetaStore) RecordNotification(ctx context.Context, nid string, no types.Notification) error {
 	defer trace.StartRegion(ctx, "metastore.sql.RecordNotification").End()
-	err := s.dbEntity.RecordNotification(ctx, nid, no)
-	if err != nil {
-		return db.SqlError2Error(err)
+	model := db.Notification{
+		ID:      nid,
+		Title:   no.Title,
+		Message: no.Message,
+		Type:    no.Type,
+		Source:  no.Source,
+		Action:  no.Action,
+		Status:  no.Status,
+		Time:    no.Time,
+	}
+	res := s.WithContext(ctx).Create(model)
+	if res.Error != nil {
+		return db.SqlError2Error(res.Error)
 	}
 	return nil
 }
 
 func (s *sqlMetaStore) UpdateNotificationStatus(ctx context.Context, nid, status string) error {
 	defer trace.StartRegion(ctx, "metastore.sql.UpdateNotificationStatus").End()
-	err := s.dbEntity.UpdateNotificationStatus(ctx, nid, status)
+	res := s.WithContext(ctx).Model(&db.Notification{}).Where("id = ?", nid).UpdateColumn("status", status)
+	if res.Error != nil {
+		return db.SqlError2Error(res.Error)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) SaveDocument(ctx context.Context, doc *types.Document) error {
+	defer trace.StartRegion(ctx, "metastore.sql.SaveDocument").End()
+	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		docMod := &db.Document{}
+		res := tx.Where("id = ?", doc.ID).First(docMod)
+		if res.Error != nil {
+			if res.Error == gorm.ErrRecordNotFound {
+				docMod = docMod.From(doc)
+				res = tx.Create(docMod)
+				return res.Error
+			}
+			return res.Error
+		}
+		docMod = docMod.From(doc)
+		res = tx.Save(docMod)
+		return res.Error
+	})
 	if err != nil {
 		return db.SqlError2Error(err)
 	}
 	return nil
 }
 
-func (s *sqlMetaStore) PluginRecorder(plugin types.PlugScope) PluginRecorder {
-	return &sqlPluginRecorder{pluginRecordHandler: s, plugin: plugin}
-}
-
-func (s *sqlMetaStore) getPluginRecord(ctx context.Context, plugin types.PlugScope, rid string, record interface{}) error {
-	defer trace.StartRegion(ctx, "metastore.sql.getPluginRecord").End()
-	return s.dbEntity.GetPluginRecord(ctx, plugin, rid, record)
-}
-
-func (s *sqlMetaStore) listPluginRecords(ctx context.Context, plugin types.PlugScope, groupId string) ([]string, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.listPluginRecords").End()
-	return s.dbEntity.ListPluginRecords(ctx, plugin, groupId)
-}
-
-func (s *sqlMetaStore) savePluginRecord(ctx context.Context, plugin types.PlugScope, groupId, rid string, record interface{}) error {
-	defer trace.StartRegion(ctx, "metastore.sql.savePluginRecord").End()
-	return s.dbEntity.SavePluginRecord(ctx, plugin, groupId, rid, record)
-}
-
-func (s *sqlMetaStore) deletePluginRecord(ctx context.Context, plugin types.PlugScope, rid string) error {
-	defer trace.StartRegion(ctx, "metastore.sql.deletePluginRecord").End()
-	return s.dbEntity.DeletePluginRecord(ctx, plugin, rid)
-}
-
-func (s *sqlMetaStore) SaveDocument(ctx context.Context, doc *types.Document) error {
-	defer trace.StartRegion(ctx, "metastore.sql.saveDocument").End()
-	return s.dbEntity.SaveDocument(ctx, doc)
-}
-
 func (s *sqlMetaStore) ListDocument(ctx context.Context) ([]*types.Document, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.listDocuments").End()
-	return s.dbEntity.ListDocument(ctx)
+	defer trace.StartRegion(ctx, "metastore.sql.ListDocument").End()
+	docList := make([]db.Document, 0)
+	res := s.WithContext(ctx).Order("time DESC").Find(&docList)
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
+	}
+
+	result := make([]*types.Document, len(docList))
+	for i, doc := range docList {
+		result[i] = doc.To()
+	}
+	return result, nil
 }
 
 func (s *sqlMetaStore) GetDocument(ctx context.Context, id string) (*types.Document, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.getDocument").End()
-	return s.dbEntity.GetDocument(ctx, id)
+	defer trace.StartRegion(ctx, "metastore.sql.GetDocument").End()
+	doc := &db.Document{}
+	res := s.WithContext(ctx).Where("id = ?", id).First(doc)
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
+	}
+	return doc.To(), nil
 }
 
 func (s *sqlMetaStore) DeleteDocument(ctx context.Context, id string) error {
-	defer trace.StartRegion(ctx, "metastore.sql.deleteDocument").End()
-	return s.dbEntity.DeleteDocument(ctx, id)
+	defer trace.StartRegion(ctx, "metastore.sql.DeleteDocument").End()
+	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Where("id = ?", id).Delete(&db.Document{})
+		return res.Error
+	})
+	return db.SqlError2Error(err)
 }
 
 func newPostgresMetaStore(meta config.Meta) (*sqlMetaStore, error) {
@@ -1261,44 +1430,7 @@ func newPostgresMetaStore(meta config.Meta) (*sqlMetaStore, error) {
 		return nil, err
 	}
 
-	dbEnt, err := db.NewDbEntity(dbEntity)
-	if err != nil {
-		return nil, err
-	}
-
-	return buildSqlMetaStore(dbEnt, dbEntity)
-}
-
-type pluginRecordHandler interface {
-	getPluginRecord(ctx context.Context, plugin types.PlugScope, rid string, record interface{}) error
-	listPluginRecords(ctx context.Context, plugin types.PlugScope, groupId string) ([]string, error)
-	savePluginRecord(ctx context.Context, plugin types.PlugScope, groupId, rid string, record interface{}) error
-	deletePluginRecord(ctx context.Context, plugin types.PlugScope, rid string) error
-}
-
-type sqlPluginRecorder struct {
-	pluginRecordHandler
-	plugin types.PlugScope
-}
-
-func (s *sqlPluginRecorder) GetRecord(ctx context.Context, rid string, record interface{}) error {
-	return db.SqlError2Error(s.getPluginRecord(ctx, s.plugin, rid, record))
-}
-
-func (s *sqlPluginRecorder) ListRecords(ctx context.Context, groupId string) ([]string, error) {
-	result, err := s.listPluginRecords(ctx, s.plugin, groupId)
-	if err != nil {
-		return nil, db.SqlError2Error(err)
-	}
-	return result, nil
-}
-
-func (s *sqlPluginRecorder) SaveRecord(ctx context.Context, groupId, rid string, record interface{}) error {
-	return db.SqlError2Error(s.savePluginRecord(ctx, s.plugin, groupId, rid, record))
-}
-
-func (s *sqlPluginRecorder) DeleteRecord(ctx context.Context, rid string) error {
-	return db.SqlError2Error(s.deletePluginRecord(ctx, s.plugin, rid))
+	return buildSqlMetaStore(dbEntity)
 }
 
 func updateEntryWithVersion(tx *gorm.DB, entryMod *db.Object) error {
@@ -1318,7 +1450,7 @@ func updateEntryWithVersion(tx *gorm.DB, entryMod *db.Object) error {
 	return nil
 }
 
-func listObjectIdsWithLabelMatcher(ctx context.Context, tx *gorm.DB, labelMatch types.LabelMatch) ([]int64, error) {
+func listEntryIdsWithLabelMatcher(ctx context.Context, tx *gorm.DB, labelMatch types.LabelMatch) ([]int64, error) {
 	tx = tx.WithContext(ctx)
 	includeSearchKeys := make([]string, len(labelMatch.Include))
 	for i, inKey := range labelMatch.Include {

@@ -60,6 +60,6 @@ var _ = BeforeSuite(func() {
 	docManager, _ = NewManager(docRecorder)
 
 	// init plugin
-	err = plugin.Init(&config.Plugin{}, memMeta)
+	err = plugin.Init(&config.Plugin{})
 	Expect(err).Should(BeNil())
 })

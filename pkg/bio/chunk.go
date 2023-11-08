@@ -773,12 +773,12 @@ func (w *segWriter) commitSegment(ctx context.Context) {
 		}
 
 		updatedEn, err := w.store.AppendSegments(context.Background(), types.ChunkSeg{
-			ID:       seg.segID,
-			ChunkID:  w.chunkID,
-			ObjectID: w.entry.ID,
-			Off:      seg.off,
-			Len:      seg.size,
-			State:    0,
+			ID:      seg.segID,
+			ChunkID: w.chunkID,
+			EntryID: w.entry.ID,
+			Off:     seg.off,
+			Len:     seg.size,
+			State:   0,
 		})
 		if err != nil {
 			w.logger.Errorw("append segment error", "entry", w.entry.ID, "chunk", w.chunkID, "err", err)

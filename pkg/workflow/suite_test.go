@@ -74,7 +74,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 
 	// init plugin
-	Expect(plugin.Init(&config.Plugin{}, memMeta)).Should(BeNil())
+	Expect(plugin.Init(&config.Plugin{})).Should(BeNil())
 
 	mgr, err = NewManager(entryMgr, docMgr, notify.NewNotify(memMeta), memMeta, config.Workflow{Enable: true, JobWorkdir: tempDir}, config.FUSE{})
 	Expect(err).Should(BeNil())
