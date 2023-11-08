@@ -115,7 +115,7 @@ func (o FsOperator) OpenFile(ctx context.Context, name string, flag int, perm os
 		}
 	}
 	parentDir, filename := path.Split(name)
-	en, err := o.mgr.CreateFile(ctx, parentDir, types.ObjectAttr{
+	en, err := o.mgr.CreateFile(ctx, parentDir, types.EntryAttr{
 		Name:   filename,
 		Kind:   types.RawKind,
 		Access: mode2EntryAttr(perm).Access,

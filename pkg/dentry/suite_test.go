@@ -32,7 +32,7 @@ import (
 )
 
 var (
-	objStore     metastore.ObjectStore
+	metaStoreObj metastore.Meta
 	entryManager Manager
 	root         *types.Metadata
 
@@ -56,8 +56,8 @@ func TestDEntry(t *testing.T) {
 var _ = BeforeSuite(func() {
 	memMeta, err := metastore.NewMetaStorage(storage.MemoryStorage, config.Meta{})
 	Expect(err).Should(BeNil())
-	objStore = memMeta
-	entryManager, _ = NewManager(objStore, config.Config{FS: &config.FS{}, Storages: []config.Storage{{
+	metaStoreObj = memMeta
+	entryManager, _ = NewManager(metaStoreObj, config.Config{FS: &config.FS{}, Storages: []config.Storage{{
 		ID:   storage.MemoryStorage,
 		Type: storage.MemoryStorage,
 	}}})

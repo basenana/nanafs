@@ -84,7 +84,7 @@ var _ = Describe("TestPathMgr", func() {
 			var err error
 			root, err = ctrl.LoadRootEntry(context.Background())
 			Expect(err).Should(BeNil())
-			_, err = ctrl.CreateEntry(context.Background(), root.ID, types.ObjectAttr{
+			_, err = ctrl.CreateEntry(context.Background(), root.ID, types.EntryAttr{
 				Name:   "file1.txt",
 				Kind:   types.RawKind,
 				Access: root.Access,
@@ -110,11 +110,11 @@ var _ = Describe("TestPathMgr", func() {
 	})
 	Context("test Open file", func() {
 		It("open existed should be succeed", func() {
-			_, err := mgr.CreateFile(context.Background(), "/", types.ObjectAttr{Name: "file1.txt"})
+			_, err := mgr.CreateFile(context.Background(), "/", types.EntryAttr{Name: "file1.txt"})
 			Expect(err).Should(BeNil())
 		})
 		It("write new should be succeed", func() {
-			en, err := mgr.CreateFile(context.Background(), "/", types.ObjectAttr{Name: "file2.txt"})
+			en, err := mgr.CreateFile(context.Background(), "/", types.EntryAttr{Name: "file2.txt"})
 			Expect(err).Should(BeNil())
 			enID := en.ID
 

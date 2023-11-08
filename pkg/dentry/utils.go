@@ -29,14 +29,14 @@ func initRootEntry() *types.Metadata {
 			types.PermOthersRead,
 		},
 	}
-	root, _ := types.InitNewEntry(nil, types.ObjectAttr{Name: RootEntryName, Kind: types.GroupKind, Access: acc})
+	root, _ := types.InitNewEntry(nil, types.EntryAttr{Name: RootEntryName, Kind: types.GroupKind, Access: acc})
 	root.ID = RootEntryID
 	root.ParentID = root.ID
 	return root
 }
 
-func initMirrorEntryObject(src, newParent *types.Metadata, attr types.EntryAttr) (*types.Object, error) {
-	obj, err := types.InitNewObject(newParent, types.ObjectAttr{
+func initMirrorEntry(src, newParent *types.Metadata, attr types.EntryAttr) (*types.Metadata, error) {
+	result, err := types.InitNewEntry(newParent, types.EntryAttr{
 		Name:   attr.Name,
 		Kind:   attr.Kind,
 		Access: attr.Access,
@@ -45,10 +45,10 @@ func initMirrorEntryObject(src, newParent *types.Metadata, attr types.EntryAttr)
 		return nil, err
 	}
 
-	obj.Metadata.Kind = src.Kind
-	obj.Metadata.Namespace = src.Namespace
-	obj.RefID = src.ID
-	return obj, nil
+	result.Kind = src.Kind
+	result.Namespace = src.Namespace
+	result.RefID = src.ID
+	return result, nil
 }
 
 func patchChangeableMetadata(oldEntry, newEntry *types.Metadata) {

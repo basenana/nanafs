@@ -131,12 +131,12 @@ func (f *file) Close(ctx context.Context) (err error) {
 	return nil
 }
 
-func openFile(en *types.Metadata, attr types.OpenAttr, store metastore.ObjectStore, fileStorage storage.Storage, cfg *config.FS) (File, error) {
+func openFile(en *types.Metadata, attr types.OpenAttr, chunkStore metastore.ChunkStore, fileStorage storage.Storage, cfg *config.FS) (File, error) {
 	f := &file{entryID: en.ID, size: en.Size, attr: attr, cfg: cfg}
 	if fileStorage == nil {
 		return nil, logOperationError(fileOperationErrorCounter, "init", fmt.Errorf("storage %s not found", en.Storage))
 	}
-	f.reader = bio.NewChunkReader(en, store.(metastore.ChunkStore), fileStorage)
+	f.reader = bio.NewChunkReader(en, chunkStore, fileStorage)
 	if attr.Write {
 		f.writer = bio.NewChunkWriter(f.reader)
 	}

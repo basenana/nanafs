@@ -41,10 +41,10 @@ type Controller interface {
 	LoadRootEntry(ctx context.Context) (*types.Metadata, error)
 	FindEntry(ctx context.Context, parentId int64, name string) (*types.Metadata, error)
 	GetEntry(ctx context.Context, id int64) (*types.Metadata, error)
-	CreateEntry(ctx context.Context, parentId int64, attr types.ObjectAttr) (*types.Metadata, error)
+	CreateEntry(ctx context.Context, parentId int64, attr types.EntryAttr) (*types.Metadata, error)
 	UpdateEntry(ctx context.Context, entry *types.Metadata) error
 	DestroyEntry(ctx context.Context, parentId, entryId int64, attr types.DestroyObjectAttr) error
-	MirrorEntry(ctx context.Context, srcEntryId, dstParentId int64, attr types.ObjectAttr) (*types.Metadata, error)
+	MirrorEntry(ctx context.Context, srcEntryId, dstParentId int64, attr types.EntryAttr) (*types.Metadata, error)
 	ListEntryChildren(ctx context.Context, entryId int64) ([]*types.Metadata, error)
 	ChangeEntryParent(ctx context.Context, targetId, oldParentId, newParentId int64, newName string, opt types.ChangeParentAttr) error
 
@@ -119,7 +119,7 @@ func (c *controller) GetEntry(ctx context.Context, id int64) (*types.Metadata, e
 	return result, nil
 }
 
-func (c *controller) CreateEntry(ctx context.Context, parentId int64, attr types.ObjectAttr) (*types.Metadata, error) {
+func (c *controller) CreateEntry(ctx context.Context, parentId int64, attr types.EntryAttr) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "controller.CreateEntry").End()
 
 	if len(attr.Name) > entryNameMaxLength {
@@ -192,7 +192,7 @@ func (c *controller) DestroyEntry(ctx context.Context, parentId, entryId int64, 
 	return nil
 }
 
-func (c *controller) MirrorEntry(ctx context.Context, srcId, dstParentId int64, attr types.ObjectAttr) (*types.Metadata, error) {
+func (c *controller) MirrorEntry(ctx context.Context, srcId, dstParentId int64, attr types.EntryAttr) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "controller.MirrorEntry").End()
 	if len(attr.Name) > entryNameMaxLength {
 		return nil, types.ErrNameTooLong
@@ -286,7 +286,7 @@ func (c *controller) ChangeEntryParent(ctx context.Context, targetId, oldParentI
 	}
 
 	c.logger.Debugw("change entry parent", "target", targetId, "existObj", existObjId, "oldParent", oldParentId, "newParent", newParentId, "newName", newName)
-	err = c.entry.ChangeEntryParent(ctx, targetId, existObjId, oldParentId, newParentId, newName, dentry.ChangeParentAttr{
+	err = c.entry.ChangeEntryParent(ctx, targetId, existObjId, oldParentId, newParentId, newName, types.ChangeParentAttr{
 		Replace:  opt.Replace,
 		Exchange: opt.Exchange,
 	})

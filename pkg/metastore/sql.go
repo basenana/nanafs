@@ -19,6 +19,8 @@ package metastore
 import (
 	"context"
 	"fmt"
+	"github.com/google/uuid"
+	"gorm.io/gorm/clause"
 	"runtime/trace"
 	"sync"
 	"time"
@@ -53,52 +55,100 @@ func (s *sqliteMetaStore) SystemInfo(ctx context.Context) (*types.SystemInfo, er
 	return s.dbStore.SystemInfo(ctx)
 }
 
-func (s *sqliteMetaStore) GetObject(ctx context.Context, id int64) (*types.Object, error) {
+func (s *sqliteMetaStore) GetEntry(ctx context.Context, id int64) (*types.Metadata, error) {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
-	return s.dbStore.GetObject(ctx, id)
+	return s.dbStore.GetEntry(ctx, id)
 }
 
-func (s *sqliteMetaStore) GetObjectExtendData(ctx context.Context, obj *types.Object) error {
+func (s *sqliteMetaStore) FindEntry(ctx context.Context, parentID int64, name string) (*types.Metadata, error) {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
-	return s.dbStore.GetObjectExtendData(ctx, obj)
+	return s.dbStore.FindEntry(ctx, parentID, name)
 }
 
-func (s *sqliteMetaStore) ListObjects(ctx context.Context, filter types.Filter) ([]*types.Object, error) {
+func (s *sqliteMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.CreateEntry(ctx, parentID, newEntry)
+}
+
+func (s *sqliteMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.RemoveEntry(ctx, parentID, entryID)
+}
+
+func (s *sqliteMetaStore) DeleteRemovedEntry(ctx context.Context, entryID int64) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.DeleteRemovedEntry(ctx, entryID)
+}
+
+func (s *sqliteMetaStore) UpdateEntryMetadata(ctx context.Context, ed *types.Metadata) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.UpdateEntryMetadata(ctx, ed)
+}
+
+func (s *sqliteMetaStore) ListEntryChildren(ctx context.Context, parentId int64) (EntryIterator, error) {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
-	return s.dbStore.ListObjects(ctx, filter)
+	return s.dbStore.ListEntryChildren(ctx, parentId)
 }
 
-func (s *sqliteMetaStore) SaveObjects(ctx context.Context, objList ...*types.Object) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.SaveObjects(ctx, objList...)
-}
-
-func (s *sqliteMetaStore) DestroyObject(ctx context.Context, src, obj *types.Object) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.DestroyObject(ctx, src, obj)
-}
-
-func (s *sqliteMetaStore) ListChildren(ctx context.Context, parentId int64) (Iterator, error) {
+func (s *sqliteMetaStore) FilterEntries(ctx context.Context, filter types.Filter) (EntryIterator, error) {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
-	return s.dbStore.ListChildren(ctx, parentId)
+	return s.dbStore.FilterEntries(ctx, filter)
 }
 
-func (s *sqliteMetaStore) ChangeParent(ctx context.Context, srcParent, dstParent, obj *types.Object, opt types.ChangeParentOption) error {
+func (s *sqliteMetaStore) Open(ctx context.Context, id int64, attr types.OpenAttr) (*types.Metadata, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.ChangeParent(ctx, srcParent, dstParent, obj, opt)
+	return s.dbStore.Open(ctx, id, attr)
 }
 
-func (s *sqliteMetaStore) MirrorObject(ctx context.Context, srcObj, dstParent, object *types.Object) error {
+func (s *sqliteMetaStore) Flush(ctx context.Context, id int64, size int64) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.MirrorObject(ctx, srcObj, dstParent, object)
+	return s.dbStore.Flush(ctx, id, size)
+}
+
+func (s *sqliteMetaStore) MirrorEntry(ctx context.Context, newEntry *types.Metadata) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.MirrorEntry(ctx, newEntry)
+}
+
+func (s *sqliteMetaStore) ChangeEntryParent(ctx context.Context, targetEntryId int64, newParentId int64, newName string, opt types.ChangeParentAttr) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.ChangeEntryParent(ctx, targetEntryId, newParentId, newName, opt)
+}
+
+func (s *sqliteMetaStore) GetEntryExtendData(ctx context.Context, id int64) (types.ExtendData, error) {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
+	return s.dbStore.GetEntryExtendData(ctx, id)
+}
+
+func (s *sqliteMetaStore) UpdateEntryExtendData(ctx context.Context, id int64, ed types.ExtendData) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.UpdateEntryExtendData(ctx, id, ed)
+}
+
+func (s *sqliteMetaStore) GetEntryLabels(ctx context.Context, id int64) (types.Labels, error) {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
+	return s.dbStore.GetEntryLabels(ctx, id)
+}
+
+func (s *sqliteMetaStore) UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.UpdateEntryLabels(ctx, id, labels)
 }
 
 func (s *sqliteMetaStore) NextSegmentID(ctx context.Context) (int64, error) {
@@ -113,7 +163,7 @@ func (s *sqliteMetaStore) ListSegments(ctx context.Context, oid, chunkID int64, 
 	return s.dbStore.ListSegments(ctx, oid, chunkID, allChunk)
 }
 
-func (s *sqliteMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Object, error) {
+func (s *sqliteMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Metadata, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	return s.dbStore.AppendSegments(ctx, seg)
@@ -284,7 +334,12 @@ func newSqliteMetaStore(meta config.Meta) (*sqliteMetaStore, error) {
 		return nil, err
 	}
 
-	return &sqliteMetaStore{dbStore: buildSqlMetaStore(dbEnt, dbEntity)}, nil
+	dbStore, err := buildSqlMetaStore(dbEnt, dbEntity)
+	if err != nil {
+		return nil, err
+	}
+
+	return &sqliteMetaStore{dbStore: dbStore}, nil
 }
 
 type sqlMetaStore struct {
@@ -296,12 +351,54 @@ type sqlMetaStore struct {
 
 var _ Meta = &sqlMetaStore{}
 
-func buildSqlMetaStore(entity *db.Entity, dbEntity *gorm.DB) *sqlMetaStore {
-	return &sqlMetaStore{dbEntity: entity, DB: dbEntity, logger: logger.NewLogger("dbStore")}
+func buildSqlMetaStore(entity *db.Entity, dbEntity *gorm.DB) (*sqlMetaStore, error) {
+	s := &sqlMetaStore{dbEntity: entity, DB: dbEntity, logger: logger.NewLogger("dbStore")}
+
+	if err := db.Migrate(s.DB); err != nil {
+		return nil, db.SqlError2Error(err)
+	}
+
+	_, err := s.SystemInfo(context.TODO())
+	if err != nil {
+		if err != types.ErrNotFound {
+			return nil, err
+		}
+		sysInfo := &db.SystemInfo{FsID: uuid.New().String()}
+		if res := s.WithContext(context.Background()).Create(sysInfo); res.Error != nil {
+			return nil, db.SqlError2Error(res.Error)
+		}
+	}
+	return s, nil
 }
 
 func (s *sqlMetaStore) SystemInfo(ctx context.Context) (*types.SystemInfo, error) {
-	return s.dbEntity.SystemInfo(ctx)
+	defer trace.StartRegion(ctx, "metastore.sql.SystemInfo").End()
+	info := &db.SystemInfo{}
+	res := s.WithContext(ctx).First(info)
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
+	}
+	result := &types.SystemInfo{
+		FilesystemID:  info.FsID,
+		MaxSegmentID:  info.ChunkSeg,
+		ObjectCount:   0,
+		FileSizeTotal: 0,
+	}
+
+	res = s.WithContext(ctx).Model(&db.Object{}).Count(&result.ObjectCount)
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
+	}
+
+	if result.ObjectCount == 0 {
+		return result, nil
+	}
+
+	res = s.WithContext(ctx).Model(&db.Object{}).Select("SUM(size) as file_size_total").Scan(&result.FileSizeTotal)
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
+	}
+	return result, nil
 }
 
 func (s *sqlMetaStore) GetEntry(ctx context.Context, id int64) (*types.Metadata, error) {
@@ -333,6 +430,9 @@ func (s *sqlMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry
 		entryMod  = (&db.Object{}).FromEntry(newEntry)
 		nowTime   = time.Now().UnixNano()
 	)
+	if parentID != 0 {
+		entryMod.ParentID = &parentID
+	}
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		res := tx.Create(entryMod)
 		if res.Error != nil {
@@ -391,12 +491,12 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64)
 		if res.Error != nil {
 			return res.Error
 		}
-		res = tx.Where("id = ?", parentID).First(entryMod)
+		res = tx.Where("id = ?", entryID).First(entryMod)
 		if res.Error != nil {
 			return res.Error
 		}
 
-		if entryMod.RefID != nil {
+		if entryMod.RefID != nil && *entryMod.RefID != 0 {
 			srcMod = &db.Object{ID: *entryMod.RefID}
 			res = tx.Where("id = ?", *entryMod.RefID).First(srcMod)
 			if res.Error != nil {
@@ -680,6 +780,106 @@ func (s *sqlMetaStore) UpdateEntryExtendData(ctx context.Context, id int64, ed t
 	return nil
 }
 
+func (s *sqlMetaStore) MirrorEntry(ctx context.Context, newEntry *types.Metadata) error {
+	if newEntry.ParentID == 0 || newEntry.RefID == 0 {
+		s.logger.Errorw("mirror entry failed", "parentID", newEntry.ParentID, "srcID", newEntry.RefID, "err", "parent or src id is empty")
+		return types.ErrNotFound
+	}
+
+	defer trace.StartRegion(ctx, "metastore.sql.MirrorEntry").End()
+	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var (
+			enModel          = (&db.Object{}).FromEntry(newEntry)
+			srcEnModel       = &db.Object{ID: newEntry.RefID}
+			dstParentEnModel = &db.Object{ID: newEntry.ParentID}
+			nowTime          = time.Now().UnixNano()
+			updateErr        error
+		)
+
+		res := tx.First(srcEnModel)
+		if res.Error != nil {
+			return res.Error
+		}
+		srcRefCount := *srcEnModel.RefCount + 1
+		srcEnModel.RefCount = &srcRefCount
+		srcEnModel.ChangedAt = nowTime
+		if updateErr = updateEntryWithVersion(tx, srcEnModel); updateErr != nil {
+			return updateErr
+		}
+
+		res = tx.First(dstParentEnModel)
+		if res.Error != nil {
+			return res.Error
+		}
+		dstParentEnModel.ChangedAt = nowTime
+		dstParentEnModel.ModifiedAt = nowTime
+		if updateErr = updateEntryWithVersion(tx, dstParentEnModel); updateErr != nil {
+			return updateErr
+		}
+
+		res = tx.Create(enModel)
+		if res.Error != nil {
+			return res.Error
+		}
+		return nil
+	})
+	if err != nil {
+		s.logger.Errorw("mirror entry failed", "entry", newEntry.ID, "parentID", newEntry.ParentID, "srcID", newEntry.RefID, "err", err)
+		return db.SqlError2Error(err)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, targetEntryId int64, newParentId int64, newName string, opt types.ChangeParentAttr) error {
+	defer trace.StartRegion(ctx, "metastore.sql.ChangeEntryParent").End()
+	return s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var (
+			enModel          = &db.Object{ID: targetEntryId}
+			srcParentEnModel = &db.Object{}
+			dstParentEnModel = &db.Object{}
+			nowTime          = time.Now().UnixNano()
+			updateErr        error
+		)
+		res := tx.First(enModel)
+		if res.Error != nil {
+			return res.Error
+		}
+		res = tx.Where("id = ?", enModel.ParentID).First(srcParentEnModel)
+		if res.Error != nil {
+			return res.Error
+		}
+
+		enModel.Name = newName
+		enModel.ParentID = &newParentId
+		if updateErr = updateEntryWithVersion(tx, enModel); updateErr != nil {
+			return updateErr
+		}
+
+		if types.IsGroup(types.Kind(enModel.Kind)) {
+			res = tx.Where("id = ?", newParentId).First(dstParentEnModel)
+			if res.Error != nil {
+				return res.Error
+			}
+			dstParentEnModel.ChangedAt = nowTime
+			dstParentEnModel.ModifiedAt = nowTime
+			dstParentRef := *dstParentEnModel.RefCount + 1
+			dstParentEnModel.RefCount = &dstParentRef
+			if updateErr = updateEntryWithVersion(tx, dstParentEnModel); updateErr != nil {
+				return updateErr
+			}
+
+			srcParentRef := *srcParentEnModel.RefCount - 1
+			srcParentEnModel.RefCount = &srcParentRef
+		}
+		srcParentEnModel.ChangedAt = nowTime
+		srcParentEnModel.ModifiedAt = nowTime
+		if updateErr = updateEntryWithVersion(tx, srcParentEnModel); updateErr != nil {
+			return updateErr
+		}
+		return nil
+	})
+}
+
 func (s *sqlMetaStore) GetEntryLabels(ctx context.Context, id int64) (types.Labels, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.GetEntryLabels").End()
 	var (
@@ -774,103 +974,105 @@ func (s *sqlMetaStore) UpdateEntryLabels(ctx context.Context, id int64, labels t
 	return nil
 }
 
-func (s *sqlMetaStore) GetObject(ctx context.Context, id int64) (*types.Object, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.GetObject").End()
-	obj, err := s.dbEntity.GetObjectByID(ctx, id)
-	if err != nil {
-		s.logger.Errorw("query object by id failed", "id", id, "err", err.Error())
-		return nil, db.SqlError2Error(err)
-	}
-	return obj, nil
-}
-
-func (s *sqlMetaStore) GetObjectExtendData(ctx context.Context, obj *types.Object) error {
-	defer trace.StartRegion(ctx, "metastore.sql.GetObjectExtendData").End()
-	if err := s.dbEntity.GetObjectExtendData(ctx, obj); err != nil {
-		s.logger.Errorw("query object extend data failed", "id", obj.ID, "err", err.Error())
-		return db.SqlError2Error(err)
-	}
-	return nil
-}
-
-func (s *sqlMetaStore) ListObjects(ctx context.Context, filter types.Filter) ([]*types.Object, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.ListObjects").End()
-	objList, err := s.dbEntity.ListObjectChildren(ctx, filter)
-	if err != nil {
-		s.logger.Errorw("list object failed", "filter", filter, "err", err.Error())
-		return nil, db.SqlError2Error(err)
-	}
-	return objList, nil
-}
-
-func (s *sqlMetaStore) SaveObjects(ctx context.Context, objList ...*types.Object) error {
-	defer trace.StartRegion(ctx, "metastore.sql.SaveMirroredObject").End()
-	if err := s.dbEntity.SaveObjects(ctx, objList...); err != nil {
-		s.logger.Errorw("save objects failed", "err", err.Error())
-		return db.SqlError2Error(err)
-	}
-	return nil
-}
-
-func (s *sqlMetaStore) DestroyObject(ctx context.Context, src, obj *types.Object) error {
-	defer trace.StartRegion(ctx, "metastore.sql.DestroyObject").End()
-	err := s.dbEntity.DeleteObject(ctx, src, obj)
-	if err != nil {
-		s.logger.Errorw("destroy object failed", "id", obj.ID, "err", err.Error())
-		return db.SqlError2Error(err)
-	}
-	return nil
-}
-
-func (s *sqlMetaStore) ListChildren(ctx context.Context, parentId int64) (Iterator, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.ListChildren").End()
-	children, err := s.dbEntity.ListObjectChildren(ctx, types.Filter{ParentID: parentId})
-	if err != nil {
-		s.logger.Errorw("list object children failed", "id", parentId, "err", err.Error())
-		return nil, db.SqlError2Error(err)
-	}
-	return &iterator{objects: children}, nil
-}
-
-func (s *sqlMetaStore) ChangeParent(ctx context.Context, srcParent, dstParent, obj *types.Object, opt types.ChangeParentOption) error {
-	defer trace.StartRegion(ctx, "metastore.sql.ChangeParent").End()
-	obj.ParentID = dstParent.ID
-	err := s.dbEntity.SaveChangeParentObject(ctx, srcParent, dstParent, obj, opt)
-	if err != nil {
-		s.logger.Errorw("change object parent failed", "id", obj.ID, "err", err.Error())
-		return db.SqlError2Error(err)
-	}
-	return nil
-}
-
-func (s *sqlMetaStore) MirrorObject(ctx context.Context, srcObj, dstParent, object *types.Object) error {
-	defer trace.StartRegion(ctx, "metastore.sql.MirrorObject").End()
-	err := s.dbEntity.SaveMirroredObject(ctx, srcObj, dstParent, object)
-	if err != nil {
-		s.logger.Errorw("mirror object failed", "id", object.ID, "err", err.Error())
-		return db.SqlError2Error(err)
-	}
-	return nil
-}
-
 func (s *sqlMetaStore) NextSegmentID(ctx context.Context) (int64, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.NextSegmentID").End()
-	return s.dbEntity.NextSegmentID(ctx)
+	info := &db.SystemInfo{}
+	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(info)
+		if res.Error != nil {
+			return res.Error
+		}
+		info.ChunkSeg += 1
+		res = tx.Save(info)
+		if res.Error != nil {
+			return res.Error
+		}
+		return nil
+	})
+
+	if err != nil {
+		return 0, db.SqlError2Error(err)
+	}
+	return info.ChunkSeg, nil
 }
 
 func (s *sqlMetaStore) ListSegments(ctx context.Context, oid, chunkID int64, allChunk bool) ([]types.ChunkSeg, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListSegments").End()
-	return s.dbEntity.ListChunkSegments(ctx, oid, chunkID, allChunk)
+	segments := make([]db.ObjectChunk, 0)
+	if allChunk {
+		res := s.WithContext(ctx).Where("oid = ?", oid).Order("append_at").Find(&segments)
+		if res.Error != nil {
+			return nil, db.SqlError2Error(res.Error)
+		}
+	} else {
+		res := s.WithContext(ctx).Where("oid = ? AND chunk_id = ?", oid, chunkID).Order("append_at").Find(&segments)
+		if res.Error != nil {
+			return nil, db.SqlError2Error(res.Error)
+		}
+	}
+
+	result := make([]types.ChunkSeg, len(segments))
+	for i, seg := range segments {
+		result[i] = types.ChunkSeg{
+			ID:       seg.ID,
+			ChunkID:  seg.ChunkID,
+			ObjectID: seg.OID,
+			Off:      seg.Off,
+			Len:      seg.Len,
+			State:    seg.State,
+		}
+
+	}
+	return result, nil
 }
 
-func (s *sqlMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Object, error) {
+func (s *sqlMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.AppendSegments").End()
-	return s.dbEntity.InsertChunkSegment(ctx, seg)
+	var (
+		enMod   = &db.Object{ID: seg.ObjectID}
+		nowTime = time.Now().UnixNano()
+		err     error
+	)
+	err = s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(enMod)
+		if res.Error != nil {
+			return res.Error
+		}
+
+		res = tx.Create(&db.ObjectChunk{
+			ID:       seg.ID,
+			OID:      seg.ObjectID,
+			ChunkID:  seg.ChunkID,
+			Off:      seg.Off,
+			Len:      seg.Len,
+			State:    seg.State,
+			AppendAt: nowTime,
+		})
+		if res.Error != nil {
+			return res.Error
+		}
+
+		newSize := seg.Off + seg.Len
+		if newSize > *enMod.Size {
+			enMod.Size = &newSize
+		}
+		enMod.ModifiedAt = nowTime
+
+		if writeBackErr := updateEntryWithVersion(tx, enMod); writeBackErr != nil {
+			return writeBackErr
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, db.SqlError2Error(err)
+	}
+	return enMod.ToEntry(), nil
 }
 
 func (s *sqlMetaStore) DeleteSegment(ctx context.Context, segID int64) error {
 	defer trace.StartRegion(ctx, "metastore.sql.DeleteSegment").End()
-	return db.SqlError2Error(s.dbEntity.DeleteChunkSegment(ctx, segID))
+	res := s.WithContext(ctx).Delete(&db.ObjectChunk{ID: segID})
+	return db.SqlError2Error(res.Error)
 }
 
 func (s *sqlMetaStore) ListTask(ctx context.Context, taskID string, filter types.ScheduledTaskFilter) ([]*types.ScheduledTask, error) {
@@ -1064,7 +1266,7 @@ func newPostgresMetaStore(meta config.Meta) (*sqlMetaStore, error) {
 		return nil, err
 	}
 
-	return buildSqlMetaStore(dbEnt, dbEntity), nil
+	return buildSqlMetaStore(dbEnt, dbEntity)
 }
 
 type pluginRecordHandler interface {

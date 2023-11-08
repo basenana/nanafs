@@ -393,7 +393,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			Expect(innerDir1).ShouldNot(BeNil())
 		})
 		It("move file1.yaml to dir1/moved_file1.yaml in same ext group should be succeed", func() {
-			err = entryManager.ChangeEntryParent(context.TODO(), file1.ID, nil, extGrpEn.ID, innerDir1.ID, "moved_file1.yaml", ChangeParentAttr{})
+			err = entryManager.ChangeEntryParent(context.TODO(), file1.ID, nil, extGrpEn.ID, innerDir1.ID, "moved_file1.yaml", types.ChangeParentAttr{})
 			Expect(err).Should(BeNil())
 
 			var (
@@ -454,7 +454,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			movedEn, err = grp.FindEntry(context.TODO(), "moved_file1.yaml")
 			Expect(err).Should(BeNil())
 
-			err = entryManager.ChangeEntryParent(context.TODO(), outFile.ID, &movedEn.ID, outDir.ID, innerDir1.ID, "moved_file1.yaml", ChangeParentAttr{Replace: true})
+			err = entryManager.ChangeEntryParent(context.TODO(), outFile.ID, &movedEn.ID, outDir.ID, innerDir1.ID, "moved_file1.yaml", types.ChangeParentAttr{Replace: true})
 			Expect(err).Should(BeNil())
 
 			var (

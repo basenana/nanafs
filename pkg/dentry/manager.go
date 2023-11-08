@@ -19,20 +19,18 @@ package dentry
 import (
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/bio"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
+	"github.com/basenana/nanafs/pkg/storage"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
+	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"io"
 	"runtime/trace"
-	"sync"
-
-	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/bio"
-	"github.com/basenana/nanafs/pkg/storage"
-	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils/logger"
 )
 
 type Manager interface {
@@ -44,7 +42,7 @@ type Manager interface {
 	DestroyEntry(ctx context.Context, entryId int64) error
 	CleanEntryData(ctx context.Context, entryId int64) error
 	MirrorEntry(ctx context.Context, srcId, dstParentId int64, attr types.EntryAttr) (*types.Metadata, error)
-	ChangeEntryParent(ctx context.Context, targetEntryId int64, overwriteEntryId *int64, oldParentId, newParentId int64, newName string, opt ChangeParentAttr) error
+	ChangeEntryParent(ctx context.Context, targetEntryId int64, overwriteEntryId *int64, oldParentId, newParentId int64, newName string, opt types.ChangeParentAttr) error
 
 	GetEntryExtendData(ctx context.Context, id int64) (types.ExtendData, error)
 	UpdateEntryExtendData(ctx context.Context, id int64, ed types.ExtendData) error
@@ -59,7 +57,7 @@ type Manager interface {
 	MustCloseAll()
 }
 
-func NewManager(store metastore.ObjectStore, cfg config.Config) (Manager, error) {
+func NewManager(store metastore.Meta, cfg config.Config) (Manager, error) {
 	storages := make(map[string]storage.Storage)
 	var err error
 	for i := range cfg.Storages {
@@ -69,10 +67,9 @@ func NewManager(store metastore.ObjectStore, cfg config.Config) (Manager, error)
 		}
 	}
 	mgr := &manager{
-		store:     store.(metastore.DEntry),
+		store:     store,
 		metastore: store,
 		storages:  storages,
-		cache:     newCacheStore(store),
 		cfg:       cfg,
 		logger:    logger.NewLogger("entryManager"),
 	}
@@ -80,14 +77,10 @@ func NewManager(store metastore.ObjectStore, cfg config.Config) (Manager, error)
 	return mgr, nil
 }
 
-// TODO: delete me
-var entryLifecycleLock sync.RWMutex
-
 type manager struct {
 	store     metastore.DEntry
-	metastore metastore.ObjectStore
+	metastore metastore.Meta
 	storages  map[string]storage.Storage
-	cache     *metaCache
 	cfg       config.Config
 	logger    *zap.SugaredLogger
 }
@@ -268,25 +261,21 @@ func (m *manager) MirrorEntry(ctx context.Context, srcId, dstParentId int64, att
 		return nil, fmt.Errorf("source entry is mirrored")
 	}
 
-	entryLifecycleLock.Lock()
-	defer entryLifecycleLock.Unlock()
-	obj, err := initMirrorEntryObject(src, parent, attr)
+	en, err := initMirrorEntry(src, parent, attr)
 	if err != nil {
 		m.logger.Errorw("create mirror object error", "srcEntry", srcId, "dstParent", dstParentId, "err", err.Error())
 		return nil, err
 	}
 
-	if err = m.metastore.MirrorObject(ctx, &types.Object{Metadata: *src}, &types.Object{Metadata: *parent}, obj); err != nil {
+	if err = m.store.MirrorEntry(ctx, en); err != nil {
 		m.logger.Errorw("update dst parent object ref count error", "srcEntry", srcId, "dstParent", dstParentId, "err", err.Error())
 		return nil, err
 	}
-	m.cache.delEntryCache(src.ID)
-	m.cache.delEntryCache(parent.ID)
-	m.cache.delEntryCache(obj.ID)
-	return &obj.Metadata, nil
+
+	return en, nil
 }
 
-func (m *manager) ChangeEntryParent(ctx context.Context, targetEntryId int64, overwriteEntryId *int64, oldParentId, newParentId int64, newName string, opt ChangeParentAttr) error {
+func (m *manager) ChangeEntryParent(ctx context.Context, targetEntryId int64, overwriteEntryId *int64, oldParentId, newParentId int64, newName string, opt types.ChangeParentAttr) error {
 	defer trace.StartRegion(ctx, "dentry.manager.ChangeEntryParent").End()
 
 	oldParent, err := m.GetEntry(ctx, oldParentId)
@@ -341,21 +330,15 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntryId int64, ov
 		return m.changeEntryParentByFileCopy(ctx, target, oldParent, newParent, newName, opt)
 	}
 
-	entryLifecycleLock.Lock()
-	defer entryLifecycleLock.Unlock()
-	err = m.metastore.ChangeParent(ctx, &types.Object{Metadata: *oldParent}, &types.Object{Metadata: *newParent}, &types.Object{Metadata: *target}, types.ChangeParentOption{Name: newName})
+	err = m.store.ChangeEntryParent(ctx, targetEntryId, newParentId, newName, opt)
 	if err != nil {
 		m.logger.Errorw("change object parent failed", "entry", target.ID, "newParent", newParentId, "newName", newName, "err", err)
 		return err
 	}
-	m.cache.delEntryCache(oldParent.ID)
-	m.cache.delEntryCache(newParent.ID)
-	m.cache.delEntryCache(target.ID)
-	m.cache.delChildCache(oldParent.ID, target.Name)
 	return nil
 }
 
-func (m *manager) changeEntryParentByFileCopy(ctx context.Context, targetEntry, oldParent, newParent *types.Metadata, newName string, _ ChangeParentAttr) error {
+func (m *manager) changeEntryParentByFileCopy(ctx context.Context, targetEntry, oldParent, newParent *types.Metadata, newName string, _ types.ChangeParentAttr) error {
 	newParentEd, err := m.GetEntryExtendData(ctx, newParent.ID)
 	if err != nil {
 		m.logger.Errorw("change entry parent by file copy error, query new parent extend data failed", "err", err)
@@ -366,7 +349,7 @@ func (m *manager) changeEntryParentByFileCopy(ctx context.Context, targetEntry, 
 		if oldParent.ID == newParent.ID {
 			// only rename
 			targetEntry.Name = newName
-			err = m.cache.updateEntries(ctx, targetEntry)
+			err = m.store.UpdateEntryMetadata(ctx, targetEntry)
 			if err != nil {
 				m.logger.Errorw("change entry parent by file copy error, rename dir failed", "err", err)
 				return err
@@ -507,9 +490,4 @@ func (m *manager) ChunkCompact(ctx context.Context, entryId int64) error {
 
 func (m *manager) MustCloseAll() {
 	bio.CloseAll()
-}
-
-type ChangeParentAttr struct {
-	Replace  bool
-	Exchange bool
 }

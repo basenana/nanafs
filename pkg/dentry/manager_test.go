@@ -315,15 +315,15 @@ var _ = Describe("TestChangeEntryParent", func() {
 	})
 	Context("mv file src grp1 and files", func() {
 		It("should be succeed", func() {
-			err := entryManager.ChangeEntryParent(context.TODO(), grp1File1.ID, nil, grp1.ID, grp2.ID, "test_mv_grp2_file1", ChangeParentAttr{})
+			err := entryManager.ChangeEntryParent(context.TODO(), grp1File1.ID, nil, grp1.ID, grp2.ID, "test_mv_grp2_file1", types.ChangeParentAttr{})
 			Expect(err).Should(BeNil())
 		})
 		It("has existed file should be failed", func() {
-			err := entryManager.ChangeEntryParent(context.TODO(), grp1File2.ID, &grp2File2.ID, grp1.ID, grp2.ID, "test_mv_grp2_file2", ChangeParentAttr{})
+			err := entryManager.ChangeEntryParent(context.TODO(), grp1File2.ID, &grp2File2.ID, grp1.ID, grp2.ID, "test_mv_grp2_file2", types.ChangeParentAttr{})
 			Expect(err).Should(Equal(types.ErrIsExist))
 		})
 		It("has existed file should be succeed if enable replace", func() {
-			err := entryManager.ChangeEntryParent(context.TODO(), grp1File2.ID, &grp2File2.ID, grp1.ID, grp2.ID, "test_mv_grp2_file2", ChangeParentAttr{Replace: true})
+			err := entryManager.ChangeEntryParent(context.TODO(), grp1File2.ID, &grp2File2.ID, grp1.ID, grp2.ID, "test_mv_grp2_file2", types.ChangeParentAttr{Replace: true})
 			Expect(err).Should(BeNil())
 		})
 	})

@@ -153,7 +153,7 @@ func (o *Object) IsSmartGroup() bool {
 	return o.Kind == SmartGroupKind
 }
 
-func InitNewEntry(parent *Metadata, attr ObjectAttr) (*Metadata, error) {
+func InitNewEntry(parent *Metadata, attr EntryAttr) (*Metadata, error) {
 	if len(attr.Name) > objectNameMaxLength {
 		return nil, ErrNameTooLong
 	}
@@ -171,32 +171,6 @@ func InitNewEntry(parent *Metadata, attr ObjectAttr) (*Metadata, error) {
 		md.Storage = parent.Storage
 	}
 	return &md, nil
-}
-
-func InitNewObject(parent *Metadata, attr ObjectAttr) (*Object, error) {
-	if len(attr.Name) > objectNameMaxLength {
-		return nil, ErrNameTooLong
-	}
-
-	md := NewMetadata(attr.Name, attr.Kind)
-	md.Access = Access{
-		Permissions: attr.Access.Permissions,
-		UID:         attr.Access.UID,
-		GID:         attr.Access.GID,
-	}
-
-	newObj := &Object{
-		Metadata: md,
-		ExtendData: &ExtendData{
-			Properties: Properties{Fields: map[string]string{}},
-		},
-		ExtendDataChanged: true,
-	}
-	if parent != nil {
-		newObj.ParentID = parent.ID
-		newObj.Storage = parent.Storage
-	}
-	return newObj, nil
 }
 
 type ChunkSeg struct {

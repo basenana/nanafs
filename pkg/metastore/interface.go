@@ -24,7 +24,7 @@ import (
 )
 
 type Meta interface {
-	ObjectStore
+	DEntry
 	ChunkStore
 	NotificationRecorder
 	PluginRecorderGetter
@@ -33,6 +33,8 @@ type Meta interface {
 }
 
 type DEntry interface {
+	SystemInfo(ctx context.Context) (*types.SystemInfo, error)
+
 	GetEntry(ctx context.Context, id int64) (*types.Metadata, error)
 	FindEntry(ctx context.Context, parentID int64, name string) (*types.Metadata, error)
 	CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata) error
@@ -45,6 +47,8 @@ type DEntry interface {
 
 	Open(ctx context.Context, id int64, attr types.OpenAttr) (*types.Metadata, error)
 	Flush(ctx context.Context, id int64, size int64) error
+	MirrorEntry(ctx context.Context, newEntry *types.Metadata) error
+	ChangeEntryParent(ctx context.Context, targetEntryId int64, newParentId int64, newName string, opt types.ChangeParentAttr) error
 
 	GetEntryExtendData(ctx context.Context, id int64) (types.ExtendData, error)
 	UpdateEntryExtendData(ctx context.Context, id int64, ed types.ExtendData) error
@@ -52,23 +56,10 @@ type DEntry interface {
 	UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error
 }
 
-type ObjectStore interface {
-	SystemInfo(ctx context.Context) (*types.SystemInfo, error)
-	GetObject(ctx context.Context, id int64) (*types.Object, error)
-	GetObjectExtendData(ctx context.Context, obj *types.Object) error
-	ListObjects(ctx context.Context, filter types.Filter) ([]*types.Object, error)
-	SaveObjects(ctx context.Context, obj ...*types.Object) error
-	DestroyObject(ctx context.Context, src, obj *types.Object) error
-
-	ListChildren(ctx context.Context, parentId int64) (Iterator, error)
-	MirrorObject(ctx context.Context, srcObj, dstParent, object *types.Object) error
-	ChangeParent(ctx context.Context, srcParent, dstParent, obj *types.Object, opt types.ChangeParentOption) error
-}
-
 type ChunkStore interface {
 	NextSegmentID(ctx context.Context) (int64, error)
 	ListSegments(ctx context.Context, oid, chunkID int64, allChunk bool) ([]types.ChunkSeg, error)
-	AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Object, error)
+	AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Metadata, error)
 	DeleteSegment(ctx context.Context, segID int64) error
 }
 

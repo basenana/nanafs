@@ -88,9 +88,6 @@ func (g *stdGroup) FindEntry(ctx context.Context, name string) (*types.Metadata,
 
 func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.CreateEntry").End()
-	entryLifecycleLock.Lock()
-	defer entryLifecycleLock.Unlock()
-
 	existed, err := g.store.FindEntry(ctx, g.entryID, attr.Name)
 	if err != nil && err != types.ErrNotFound {
 		return nil, err
@@ -104,7 +101,7 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*type
 		return nil, err
 	}
 
-	entry, err := types.InitNewEntry(group, types.ObjectAttr{
+	entry, err := types.InitNewEntry(group, types.EntryAttr{
 		Name:   attr.Name,
 		Kind:   attr.Kind,
 		Access: attr.Access,
@@ -168,10 +165,7 @@ func (g *stdGroup) ListChildren(ctx context.Context) ([]*types.Metadata, error) 
 		next   *types.Metadata
 	)
 	for it.HasNext() {
-		next, err = it.Next()
-		if err != nil {
-			return nil, err
-		}
+		next = it.Next()
 		if next.ID == next.ParentID {
 			continue
 		}
@@ -345,7 +339,7 @@ func (e *extGroup) syncEntry(ctx context.Context, mirrored *pluginapi.Entry, crt
 			newEn   *types.Metadata
 			newEnEd types.ExtendData
 		)
-		newEn, err = types.InitNewEntry(grp, types.ObjectAttr{
+		newEn, err = types.InitNewEntry(grp, types.EntryAttr{
 			Name:   mirrored.Name,
 			Kind:   mirrored.Kind,
 			Access: grp.Access,

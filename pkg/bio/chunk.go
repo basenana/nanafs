@@ -367,12 +367,11 @@ func (c *segReader) mergePage(ctx context.Context, pageIndex int64, page *pageNo
 
 type chunkWriter struct {
 	*chunkReader
-	unready      int32
-	writers      map[int64]*segWriter
-	ref          int32
-	commitLimit  int32
-	invalidCache InvalidCacheHook
-	writerMux    sync.Mutex
+	unready     int32
+	writers     map[int64]*segWriter
+	ref         int32
+	commitLimit int32
+	writerMux   sync.Mutex
 }
 
 func NewChunkWriter(reader Reader) Writer {
@@ -773,7 +772,7 @@ func (w *segWriter) commitSegment(ctx context.Context) {
 			continue
 		}
 
-		newObj, err := w.store.AppendSegments(context.Background(), types.ChunkSeg{
+		updatedEn, err := w.store.AppendSegments(context.Background(), types.ChunkSeg{
 			ID:       seg.segID,
 			ChunkID:  w.chunkID,
 			ObjectID: w.entry.ID,
@@ -788,9 +787,8 @@ func (w *segWriter) commitSegment(ctx context.Context) {
 			chunkDiscardSegmentCounter.Inc()
 			continue
 		}
-		w.invalidCache(w.entry.ID)
 		w.invalidate(w.chunkID)
-		w.entry = &newObj.Metadata
+		w.entry = updatedEn
 		w.uncommitted = w.uncommitted[1:]
 		atomic.AddInt32(&w.unready, -1)
 	}

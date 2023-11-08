@@ -17,91 +17,69 @@
 package metastore
 
 import (
-	"fmt"
 	"github.com/basenana/nanafs/pkg/metastore/db"
 	"github.com/basenana/nanafs/pkg/types"
 	"gorm.io/gorm"
-	"sync"
+	"sync/atomic"
 	"time"
 )
 
 type EntryIterator interface {
 	HasNext() bool
-	Next() (*types.Metadata, error)
+	Next() *types.Metadata
 }
 
 const entryFetchPageSize = 100
 
 type transactionEntryIterator struct {
-	tx        *gorm.DB
-	onePage   []*types.Metadata
-	crtPage   int
-	totalPage int
-	mux       sync.Mutex
+	tx      *gorm.DB
+	onePage []*types.Metadata
+	remain  int64
+	crtPage int32
 }
 
 func newTransactionEntryIterator(tx *gorm.DB, total int64) EntryIterator {
 	it := &transactionEntryIterator{tx: tx, onePage: make([]*types.Metadata, 0)}
-	it.totalPage = int(total / entryFetchPageSize)
-	if total%entryFetchPageSize > 0 {
-		it.totalPage += 1
-	}
+	it.remain = total
 	return it
 }
 
 func (i *transactionEntryIterator) HasNext() bool {
-	i.mux.Lock()
-	if len(i.onePage) > 0 || i.crtPage < i.totalPage {
-		i.mux.Unlock()
+	if len(i.onePage) > 0 {
 		return true
 	}
-	i.mux.Unlock()
-	return false
-}
 
-func (i *transactionEntryIterator) Next() (*types.Metadata, error) {
-	i.mux.Lock()
-	defer i.mux.Unlock()
-	defer logOperationLatency("transactionEntryIterator.next", time.Now())
 	// fetch next page
-	if len(i.onePage) == 0 && i.crtPage < i.totalPage {
+	if atomic.LoadInt64(&i.remain) > 0 {
 		defer logOperationLatency("transactionEntryIterator.query_one_page", time.Now())
-		res := i.tx.Order("name DESC").Limit(entryFetchPageSize).Offset(entryFetchPageSize * i.crtPage).Find(&i.onePage)
+		onePage := make([]db.Object, 0, entryFetchPageSize)
+		res := i.tx.Order("name DESC").Limit(entryFetchPageSize).Offset(entryFetchPageSize * int(i.crtPage)).Find(&onePage)
 		if res.Error != nil {
 			logOperationError("transactionEntryIterator.query_one_page", res.Error)
-			return nil, db.SqlError2Error(res.Error)
+			return false
 		}
-		i.crtPage += 1
-	}
 
+		if len(onePage) == 0 {
+			return false
+		}
+
+		for _, en := range onePage {
+			i.onePage = append(i.onePage, en.ToEntry())
+		}
+
+		atomic.AddInt32(&i.crtPage, 1)
+		atomic.AddInt64(&i.remain, -1*int64(len(i.onePage)))
+	}
+	return len(i.onePage) > 0
+}
+
+func (i *transactionEntryIterator) Next() *types.Metadata {
+	defer logOperationLatency("transactionEntryIterator.next", time.Now())
 	if len(i.onePage) > 0 {
 		one := i.onePage[0]
 		i.onePage = i.onePage[1:]
-		return one, nil
+		return one
 	}
-	return nil, fmt.Errorf("has no next entry")
-}
-
-type Iterator interface {
-	HasNext() bool
-	Next() *types.Object
-}
-
-type iterator struct {
-	objects []*types.Object
-	mux     sync.Mutex
-}
-
-func (i *iterator) HasNext() bool {
-	i.mux.Lock()
-	defer i.mux.Unlock()
-	return len(i.objects) > 0
-}
-
-func (i *iterator) Next() *types.Object {
-	i.mux.Lock()
-	defer i.mux.Unlock()
-	obj := i.objects[0]
-	i.objects = i.objects[1:]
-	return obj
+	logOperationError("transactionEntryIterator.next", types.ErrNotFound)
+	return nil
 }

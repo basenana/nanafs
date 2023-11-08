@@ -199,7 +199,7 @@ func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode u
 	if fuseCtx, ok := ctx.(*fuse.Context); ok {
 		dentry.UpdateAccessWithOwnID(acc, int64(fuseCtx.Uid), int64(fuseCtx.Gid))
 	}
-	newCh, err := n.R.CreateEntry(ctx, n.entryID, types.ObjectAttr{
+	newCh, err := n.R.CreateEntry(ctx, n.entryID, types.EntryAttr{
 		Name:   name,
 		Kind:   fileKindFromMode(mode),
 		Access: *acc,
@@ -293,7 +293,7 @@ func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fus
 	if fuseCtx, ok := ctx.(*fuse.Context); ok {
 		dentry.UpdateAccessWithOwnID(acc, int64(fuseCtx.Uid), int64(fuseCtx.Gid))
 	}
-	newDir, err := n.R.CreateEntry(ctx, n.entryID, types.ObjectAttr{
+	newDir, err := n.R.CreateEntry(ctx, n.entryID, types.EntryAttr{
 		Name:   name,
 		Kind:   types.GroupKind,
 		Access: *acc,
@@ -328,7 +328,7 @@ func (n *NanaNode) Mknod(ctx context.Context, name string, mode uint32, dev uint
 	if fuseCtx, ok := ctx.(*fuse.Context); ok {
 		dentry.UpdateAccessWithOwnID(acc, int64(fuseCtx.Uid), int64(fuseCtx.Gid))
 	}
-	newCh, err := n.R.CreateEntry(ctx, n.entryID, types.ObjectAttr{
+	newCh, err := n.R.CreateEntry(ctx, n.entryID, types.EntryAttr{
 		Name:   name,
 		Kind:   fileKindFromMode(mode),
 		Access: *acc,
@@ -354,7 +354,7 @@ func (n *NanaNode) Link(ctx context.Context, target fs.InodeEmbedder, name strin
 		return nil, syscall.EIO
 	}
 
-	newEntry, err := n.R.MirrorEntry(ctx, targetNode.entryID, n.entryID, types.ObjectAttr{Name: name})
+	newEntry, err := n.R.MirrorEntry(ctx, targetNode.entryID, n.entryID, types.EntryAttr{Name: name})
 	if err != nil {
 		return nil, Error2FuseSysError("entry_link", err)
 	}
@@ -381,7 +381,7 @@ func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.E
 	if exist != nil {
 		return nil, Error2FuseSysError("entry_symlink", types.ErrIsExist)
 	}
-	newLink, err := n.R.CreateEntry(ctx, n.entryID, types.ObjectAttr{
+	newLink, err := n.R.CreateEntry(ctx, n.entryID, types.EntryAttr{
 		Name:   name,
 		Kind:   types.SymLinkKind,
 		Access: entry.Access,

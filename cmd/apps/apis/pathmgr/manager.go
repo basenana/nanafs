@@ -91,7 +91,7 @@ func (m *PathManager) Open(ctx context.Context, enId int64, attr types.OpenAttr)
 	return m.ctrl.OpenFile(ctx, enId, attr)
 }
 
-func (m *PathManager) CreateFile(ctx context.Context, parentDir string, attr types.ObjectAttr) (*types.Metadata, error) {
+func (m *PathManager) CreateFile(ctx context.Context, parentDir string, attr types.EntryAttr) (*types.Metadata, error) {
 	var (
 		err       error
 		result    *types.Metadata
@@ -154,7 +154,7 @@ func (m *PathManager) CreateAll(ctx context.Context, entryPath string, attr type
 
 		if err == types.ErrNotFound {
 			pp, base := path.Split(dirPath)
-			en, err = m.ctrl.CreateEntry(ctx, parent.ID, types.ObjectAttr{Name: base, Kind: types.GroupKind, Access: attr.Access})
+			en, err = m.ctrl.CreateEntry(ctx, parent.ID, types.EntryAttr{Name: base, Kind: types.GroupKind, Access: attr.Access})
 			if err != nil {
 				return nil, err
 			}

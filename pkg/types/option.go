@@ -34,13 +34,6 @@ type OpenAttr struct {
 	Direct  bool
 }
 
-type ObjectAttr struct {
-	Name   string
-	Kind   Kind
-	Access Access
-	Dev    int64
-}
-
 type DestroyObjectAttr struct {
 	Uid int64
 	Gid int64
@@ -51,8 +44,4 @@ type ChangeParentAttr struct {
 	Gid      int64
 	Replace  bool
 	Exchange bool
-}
-
-type ChangeParentOption struct {
-	Name string
 }

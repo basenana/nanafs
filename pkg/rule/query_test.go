@@ -36,7 +36,7 @@ var _ = Describe("TestQuery", func() {
 	memMeta, err := metastore.NewMetaStorage(storage.MemoryStorage, config.Meta{})
 	gomega.Expect(err).Should(gomega.BeNil())
 
-	InitQuery(memMeta)
+	InitQuery(memMeta.(metastore.DEntry))
 	err = mockedObjectForQuery(ctx, memMeta)
 	gomega.Expect(err).Should(gomega.BeNil())
 
@@ -100,20 +100,20 @@ var _ = Describe("TestQuery", func() {
 			gomega.Expect(isMatchAllWanted([]int64{10001, 10002}, got)).Should(gomega.BeNil())
 		})
 		// FIXME: label match in memory
-		//It("test-filter-by-rule-2", func() {
-		//	got := doQuery([]types.Rule{
-		//		{Logic: types.RuleLogicAny, Rules: []types.Rule{
-		//			{Labels: &types.LabelMatch{Include: []types.Label{{Key: "test.nanafs.labels1", Value: "label_value"}}}},
-		//			{Operation: types.RuleOpIn, Column: "properties.fields.customKey1", Value: "customValue,customValue2"},
-		//			{Operation: types.RuleOpEqual, Column: "properties.fields.customKey3", Value: "customValue3"},
-		//		}},
-		//	}, nil)
-		//	gomega.Expect(isMatchAllWanted([]int64{10001, 10002, 10003}, got)).Should(gomega.BeNil())
-		//})
+		It("test-filter-by-rule-2", func() {
+			got := doQuery([]types.Rule{
+				{Logic: types.RuleLogicAny, Rules: []types.Rule{
+					{Labels: &types.LabelMatch{Include: []types.Label{{Key: "test.nanafs.labels1", Value: "label_value"}}}},
+					{Operation: types.RuleOpIn, Column: "properties.fields.customKey1", Value: "customValue,customValue2"},
+					{Operation: types.RuleOpEqual, Column: "properties.fields.customKey3", Value: "customValue3"},
+				}},
+			}, nil)
+			gomega.Expect(isMatchAllWanted([]int64{10001, 10002, 10003}, got)).Should(gomega.BeNil())
+		})
 		It("test-filter-by-rule-3", func() {
 			got := doQuery([]types.Rule{
 				{Logic: types.RuleLogicAll, Rules: []types.Rule{
-					{Labels: &types.LabelMatch{Include: []types.Label{{Key: "test.nanafs.labels1", Value: "label_value2"}}}},
+					{Labels: &types.LabelMatch{Include: []types.Label{{Key: "test.nanafs.labels3", Value: "label_value3"}}}},
 					{Operation: types.RuleOpEqual, Column: "properties.fields.customKey3", Value: "customValue3"},
 				}},
 			}, nil)
@@ -164,8 +164,8 @@ func isMatchAllWanted(wants []int64, got []*types.Metadata) error {
 	return nil
 }
 
-func mockedObjectForQuery(ctx context.Context, objectStore metastore.ObjectStore) error {
-	var objectList = []*types.Object{
+func mockedObjectForQuery(ctx context.Context, entryStore metastore.DEntry) error {
+	var objectList = []object{
 		{
 			Metadata: createMetadata(10001),
 			ExtendData: &types.ExtendData{
@@ -180,8 +180,6 @@ func mockedObjectForQuery(ctx context.Context, objectStore metastore.ObjectStore
 				{Key: "test.nanafs.labels2", Value: "label_value"},
 				{Key: "test.nanafs.labels3", Value: "label_value2"},
 			}},
-			ExtendDataChanged: true,
-			LabelsChanged:     true,
 		},
 		{
 			Metadata: createMetadata(10002),
@@ -193,8 +191,6 @@ func mockedObjectForQuery(ctx context.Context, objectStore metastore.ObjectStore
 			Labels: &types.Labels{Labels: []types.Label{
 				{Key: "test.nanafs.labels1", Value: "label_value"},
 			}},
-			ExtendDataChanged: true,
-			LabelsChanged:     true,
 		},
 		{
 			Metadata: createMetadata(10003),
@@ -207,25 +203,36 @@ func mockedObjectForQuery(ctx context.Context, objectStore metastore.ObjectStore
 			Labels: &types.Labels{Labels: []types.Label{
 				{Key: "test.nanafs.labels3", Value: "label_value3"},
 			}},
-			ExtendDataChanged: true,
-			LabelsChanged:     true,
 		},
 		{
-			Metadata:          createMetadata(10004),
-			ExtendData:        &types.ExtendData{Properties: types.Properties{Fields: map[string]string{}}},
-			Labels:            &types.Labels{Labels: []types.Label{}},
-			ExtendDataChanged: true,
-			LabelsChanged:     true,
+			Metadata:   createMetadata(10004),
+			ExtendData: &types.ExtendData{Properties: types.Properties{Fields: map[string]string{}}},
+			Labels:     &types.Labels{Labels: []types.Label{}},
 		},
 	}
 
-	return objectStore.SaveObjects(ctx, objectList...)
+	for _, o := range objectList {
+		err := entryStore.CreateEntry(ctx, 0, o.Metadata)
+		if err != nil {
+			return err
+		}
+		err = entryStore.UpdateEntryExtendData(ctx, o.ID, *o.ExtendData)
+		if err != nil {
+			return err
+		}
+		err = entryStore.UpdateEntryLabels(ctx, o.ID, *o.Labels)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-func createMetadata(enID int64) types.Metadata {
+func createMetadata(enID int64) *types.Metadata {
 	enName := utils.RandStringRunes(50)
 	md := types.NewMetadata(enName, types.RawKind)
 	md.ID = enID
 	md.ParentID = 1
-	return md
+	return &md
 }
