@@ -49,26 +49,26 @@ var initMetrics sync.Once
 
 type sqliteMetaStore struct {
 	dbStore *sqlMetaStore
-	mux     sync.RWMutex
+	mux     sync.Mutex
 }
 
 var _ Meta = &sqliteMetaStore{}
 
 func (s *sqliteMetaStore) SystemInfo(ctx context.Context) (*types.SystemInfo, error) {
-	s.mux.RLock()
-	defer s.mux.RUnlock()
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	return s.dbStore.SystemInfo(ctx)
 }
 
 func (s *sqliteMetaStore) GetEntry(ctx context.Context, id int64) (*types.Metadata, error) {
-	s.mux.RLock()
-	defer s.mux.RUnlock()
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	return s.dbStore.GetEntry(ctx, id)
 }
 
 func (s *sqliteMetaStore) FindEntry(ctx context.Context, parentID int64, name string) (*types.Metadata, error) {
-	s.mux.RLock()
-	defer s.mux.RUnlock()
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	return s.dbStore.FindEntry(ctx, parentID, name)
 }
 
@@ -97,14 +97,14 @@ func (s *sqliteMetaStore) UpdateEntryMetadata(ctx context.Context, ed *types.Met
 }
 
 func (s *sqliteMetaStore) ListEntryChildren(ctx context.Context, parentId int64) (EntryIterator, error) {
-	s.mux.RLock()
-	defer s.mux.RUnlock()
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	return s.dbStore.ListEntryChildren(ctx, parentId)
 }
 
 func (s *sqliteMetaStore) FilterEntries(ctx context.Context, filter types.Filter) (EntryIterator, error) {
-	s.mux.RLock()
-	defer s.mux.RUnlock()
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	return s.dbStore.FilterEntries(ctx, filter)
 }
 
@@ -133,8 +133,8 @@ func (s *sqliteMetaStore) ChangeEntryParent(ctx context.Context, targetEntryId i
 }
 
 func (s *sqliteMetaStore) GetEntryExtendData(ctx context.Context, id int64) (types.ExtendData, error) {
-	s.mux.RLock()
-	defer s.mux.RUnlock()
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	return s.dbStore.GetEntryExtendData(ctx, id)
 }
 
@@ -145,8 +145,8 @@ func (s *sqliteMetaStore) UpdateEntryExtendData(ctx context.Context, id int64, e
 }
 
 func (s *sqliteMetaStore) GetEntryLabels(ctx context.Context, id int64) (types.Labels, error) {
-	s.mux.RLock()
-	defer s.mux.RUnlock()
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	return s.dbStore.GetEntryLabels(ctx, id)
 }
 
@@ -157,14 +157,14 @@ func (s *sqliteMetaStore) UpdateEntryLabels(ctx context.Context, id int64, label
 }
 
 func (s *sqliteMetaStore) NextSegmentID(ctx context.Context) (int64, error) {
-	s.mux.RLock()
-	defer s.mux.RUnlock()
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	return s.dbStore.NextSegmentID(ctx)
 }
 
 func (s *sqliteMetaStore) ListSegments(ctx context.Context, oid, chunkID int64, allChunk bool) ([]types.ChunkSeg, error) {
-	s.mux.RLock()
-	defer s.mux.RUnlock()
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	return s.dbStore.ListSegments(ctx, oid, chunkID, allChunk)
 }
 
@@ -181,8 +181,8 @@ func (s *sqliteMetaStore) DeleteSegment(ctx context.Context, segID int64) error 
 }
 
 func (s *sqliteMetaStore) ListTask(ctx context.Context, taskID string, filter types.ScheduledTaskFilter) ([]*types.ScheduledTask, error) {
-	s.mux.RLock()
-	defer s.mux.RUnlock()
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	return s.dbStore.ListTask(ctx, taskID, filter)
 }
 
@@ -199,14 +199,14 @@ func (s *sqliteMetaStore) DeleteFinishedTask(ctx context.Context, aliveTime time
 }
 
 func (s *sqliteMetaStore) GetWorkflow(ctx context.Context, wfID string) (*types.WorkflowSpec, error) {
-	s.mux.RLock()
-	defer s.mux.RUnlock()
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	return s.dbStore.GetWorkflow(ctx, wfID)
 }
 
 func (s *sqliteMetaStore) ListWorkflow(ctx context.Context) ([]*types.WorkflowSpec, error) {
-	s.mux.RLock()
-	defer s.mux.RUnlock()
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	return s.dbStore.ListWorkflow(ctx)
 }
 
@@ -217,14 +217,14 @@ func (s *sqliteMetaStore) DeleteWorkflow(ctx context.Context, wfID string) error
 }
 
 func (s *sqliteMetaStore) GetWorkflowJob(ctx context.Context, jobID string) (*types.WorkflowJob, error) {
-	s.mux.RLock()
-	defer s.mux.RUnlock()
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	return s.dbStore.GetWorkflowJob(ctx, jobID)
 }
 
 func (s *sqliteMetaStore) ListWorkflowJob(ctx context.Context, filter types.JobFilter) ([]*types.WorkflowJob, error) {
-	s.mux.RLock()
-	defer s.mux.RUnlock()
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	return s.dbStore.ListWorkflowJob(ctx, filter)
 }
 
@@ -247,8 +247,8 @@ func (s *sqliteMetaStore) DeleteWorkflowJob(ctx context.Context, wfJobID ...stri
 }
 
 func (s *sqliteMetaStore) ListNotifications(ctx context.Context) ([]types.Notification, error) {
-	s.mux.RLock()
-	defer s.mux.RUnlock()
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	return s.dbStore.ListNotifications(ctx)
 }
 
@@ -271,14 +271,14 @@ func (s *sqliteMetaStore) SaveDocument(ctx context.Context, doc *types.Document)
 }
 
 func (s *sqliteMetaStore) ListDocument(ctx context.Context) ([]*types.Document, error) {
-	s.mux.RLock()
-	defer s.mux.RUnlock()
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	return s.dbStore.ListDocument(ctx)
 }
 
 func (s *sqliteMetaStore) GetDocument(ctx context.Context, id string) (*types.Document, error) {
-	s.mux.RLock()
-	defer s.mux.RUnlock()
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	return s.dbStore.GetDocument(ctx, id)
 }
 
