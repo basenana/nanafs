@@ -33,7 +33,7 @@ var (
 
 func InitFriday(cfg *config.Config) (err error) {
 	if cfg == nil {
-		return fmt.Errorf("friday config is none, can not init friday")
+		return nil
 	}
 	pgClient, err := postgres.NewPostgresClient(cfg.VectorUrl)
 	if err != nil {
@@ -54,6 +54,9 @@ func InitFridayFromConfig() (err error) {
 }
 
 func IngestFile(fileName, content string) error {
+	if fridayClient == nil {
+		return fmt.Errorf("fridayClient is nil, can not use it")
+	}
 	file := models.File{
 		Source:  fileName,
 		Content: content,
@@ -62,10 +65,16 @@ func IngestFile(fileName, content string) error {
 }
 
 func Question(q string) (answer string, err error) {
+	if fridayClient == nil {
+		return "", fmt.Errorf("fridayClient is nil, can not use it")
+	}
 	return fridayClient.Question(q)
 }
 
 func SummaryFile(fileName, content string) (string, error) {
+	if fridayClient == nil {
+		return "", fmt.Errorf("fridayClient is nil, can not use it")
+	}
 	file := models.File{
 		Source:  fileName,
 		Content: content,
@@ -81,5 +90,8 @@ func SummaryFile(fileName, content string) (string, error) {
 }
 
 func Keywords(content string) ([]string, error) {
+	if fridayClient == nil {
+		return nil, fmt.Errorf("fridayClient is nil, can not use it")
+	}
 	return fridayClient.Keywords(content)
 }
