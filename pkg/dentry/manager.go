@@ -320,7 +320,8 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntryId int64, ov
 			return types.ErrUnsupported
 		}
 
-		if err := m.RemoveEntry(ctx, newParentId, *overwriteEntryId); err != nil {
+		if err = m.RemoveEntry(ctx, newParentId, *overwriteEntryId); err != nil {
+			m.logger.Errorw("remove entry failed when overwrite old one", "err", err)
 			return err
 		}
 		PublicEntryActionEvent(events.ActionTypeDestroy, overwriteEntry)

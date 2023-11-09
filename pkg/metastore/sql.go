@@ -321,9 +321,12 @@ var _ Meta = &sqlMetaStore{}
 func buildSqlMetaStore(dbEntity *gorm.DB) (*sqlMetaStore, error) {
 	s := &sqlMetaStore{DB: dbEntity, logger: logger.NewLogger("dbStore")}
 
+	s.logger.Info("migrate db")
 	if err := db.Migrate(s.DB); err != nil {
+		s.logger.Fatalf("migrate db failed: %s", err)
 		return nil, db.SqlError2Error(err)
 	}
+	s.logger.Info("migrate db finish")
 
 	_, err := s.SystemInfo(context.TODO())
 	if err != nil {
@@ -373,7 +376,8 @@ func (s *sqlMetaStore) SystemInfo(ctx context.Context) (*types.SystemInfo, error
 		return result, nil
 	}
 
-	res = s.WithContext(ctx).Model(&db.Object{}).Select("SUM(size) as file_size_total").Scan(&result.FileSizeTotal)
+	// real usage in storage
+	res = s.WithContext(ctx).Model(&db.ObjectChunk{}).Select("SUM(len) as file_size_total").Scan(&result.FileSizeTotal)
 	if res.Error != nil {
 		return nil, db.SqlError2Error(res.Error)
 	}
@@ -396,7 +400,9 @@ func (s *sqlMetaStore) FindEntry(ctx context.Context, parentID int64, name strin
 	var objMod = &db.Object{ParentID: &parentID, Name: name}
 	res := s.WithContext(ctx).Where("parent_id = ? AND name = ?", parentID, name).First(objMod)
 	if err := res.Error; err != nil {
-		s.logger.Errorw("find entry by name failed", "parent", parentID, "name", name, "err", err)
+		if err != gorm.ErrRecordNotFound {
+			s.logger.Errorw("find entry by name failed", "parent", parentID, "name", name, "err", err)
+		}
 		return nil, db.SqlError2Error(err)
 	}
 	return objMod.ToEntry(), nil
@@ -447,6 +453,7 @@ func (s *sqlMetaStore) UpdateEntryMetadata(ctx context.Context, entry *types.Met
 	defer trace.StartRegion(ctx, "metastore.sql.UpdateEntry").End()
 	var entryMod = (&db.Object{}).FromEntry(entry)
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		entryMod.ChangedAt = time.Now().UnixNano()
 		return updateEntryWithVersion(tx, entryMod)
 	})
 	if err != nil {
@@ -484,6 +491,7 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64)
 		}
 
 		parentMod.ModifiedAt = nowTime
+		parentMod.ChangedAt = nowTime
 		if types.IsGroup(types.Kind(entryMod.Kind)) {
 
 			var entryChildCount int64
@@ -507,7 +515,7 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64)
 			srcRef := (*srcMod.RefCount) - 1
 			srcMod.RefCount = &srcRef
 			srcMod.ModifiedAt = nowTime
-
+			srcMod.ChangedAt = nowTime
 			if err := updateEntryWithVersion(tx, srcMod); err != nil {
 				return err
 			}
@@ -517,7 +525,7 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64)
 		entryMod.ParentID = &noneParentID
 		entryMod.RefCount = &entryRef
 		entryMod.ModifiedAt = nowTime
-
+		entryMod.ChangedAt = nowTime
 		return updateEntryWithVersion(tx, entryMod)
 	})
 	if err != nil {
@@ -529,25 +537,26 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64)
 
 func (s *sqlMetaStore) DeleteRemovedEntry(ctx context.Context, entryID int64) error {
 	defer trace.StartRegion(ctx, "metastore.sql.DeleteRemovedEntry").End()
-	var (
-		entryMod = &db.Object{ID: entryID}
-		extModel = &db.ObjectExtend{ID: entryID}
-	)
+	var entryMod = &db.Object{ID: entryID}
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		res := tx.Where("id = ?", entryID).First(entryMod)
 		if res.Error != nil {
 			return res.Error
 		}
 
-		if entryMod.RefCount != nil && *entryMod.RefCount > 0 {
-			return fmt.Errorf("entry ref_count is %d, more than 0", *entryMod.RefCount)
+		if entryMod.RefCount != nil && *entryMod.RefCount > 0 && types.IsGroup(types.Kind(entryMod.Kind)) {
+			s.logger.Warnf("entry %d ref_count is %d, more than 0", entryMod.ID, *entryMod.RefCount)
 		}
 
-		res = tx.Delete(entryMod)
+		res = tx.Where("id = ?", entryMod.ID).Delete(&db.Object{})
 		if res.Error != nil {
 			return res.Error
 		}
-		res = tx.Delete(extModel)
+		res = tx.Where("id = ?", entryMod.ID).Delete(&db.ObjectExtend{})
+		if res.Error != nil {
+			return res.Error
+		}
+		res = tx.Where("oid = ?", entryMod.ID).Delete(&db.ObjectProperty{})
 		if res.Error != nil {
 			return res.Error
 		}
@@ -640,6 +649,7 @@ func (s *sqlMetaStore) Flush(ctx context.Context, id int64, size int64) error {
 			return res.Error
 		}
 		enMod.ModifiedAt = nowTime
+		enMod.ChangedAt = nowTime
 		enMod.Size = &size
 		return updateEntryWithVersion(tx, enMod)
 	})
@@ -668,7 +678,11 @@ func (s *sqlMetaStore) GetEntryExtendData(ctx context.Context, id int64) (types.
 		}
 		return nil
 	}); err != nil {
-		return types.ExtendData{}, db.SqlError2Error(err)
+		err = db.SqlError2Error(err)
+		if err == types.ErrNotFound {
+			return types.ExtendData{}, nil
+		}
+		return types.ExtendData{}, err
 	}
 
 	ed := ext.ToExtData()
@@ -817,24 +831,30 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, targetEntryId int6
 			srcParentEnModel = &db.Object{}
 			dstParentEnModel = &db.Object{}
 			nowTime          = time.Now().UnixNano()
+			srcParentEntryID int64
 			updateErr        error
 		)
-		res := tx.First(enModel)
+		res := tx.Where("id = ?", targetEntryId).First(enModel)
 		if res.Error != nil {
 			return res.Error
 		}
-		res = tx.Where("id = ?", enModel.ParentID).First(srcParentEnModel)
-		if res.Error != nil {
-			return res.Error
+		if enModel.ParentID != nil {
+			srcParentEntryID = *enModel.ParentID
 		}
-
 		enModel.Name = newName
 		enModel.ParentID = &newParentId
+		enModel.ChangedAt = nowTime
 		if updateErr = updateEntryWithVersion(tx, enModel); updateErr != nil {
+			s.logger.Errorw("update target entry failed when change parent",
+				"entry", targetEntryId, "srcParent", srcParentEntryID, "dstParent", newParentId, "err", updateErr)
 			return updateErr
 		}
 
-		if types.IsGroup(types.Kind(enModel.Kind)) {
+		res = tx.Where("id = ?", srcParentEntryID).First(srcParentEnModel)
+		if res.Error != nil {
+			return res.Error
+		}
+		if types.IsGroup(types.Kind(enModel.Kind)) && newParentId != srcParentEntryID {
 			res = tx.Where("id = ?", newParentId).First(dstParentEnModel)
 			if res.Error != nil {
 				return res.Error
@@ -843,16 +863,22 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, targetEntryId int6
 			dstParentEnModel.ModifiedAt = nowTime
 			dstParentRef := *dstParentEnModel.RefCount + 1
 			dstParentEnModel.RefCount = &dstParentRef
+			dstParentEnModel.ChangedAt = nowTime
 			if updateErr = updateEntryWithVersion(tx, dstParentEnModel); updateErr != nil {
+				s.logger.Errorw("update dst parent entry failed when change parent",
+					"entry", targetEntryId, "srcParent", srcParentEntryID, "dstParent", newParentId, "err", updateErr)
 				return updateErr
 			}
 
 			srcParentRef := *srcParentEnModel.RefCount - 1
 			srcParentEnModel.RefCount = &srcParentRef
 		}
+
 		srcParentEnModel.ChangedAt = nowTime
 		srcParentEnModel.ModifiedAt = nowTime
 		if updateErr = updateEntryWithVersion(tx, srcParentEnModel); updateErr != nil {
+			s.logger.Errorw("update src parent entry failed when change parent",
+				"entry", targetEntryId, "srcParent", srcParentEntryID, "dstParent", newParentId, "err", updateErr)
 			return updateErr
 		}
 		return nil
@@ -1036,6 +1062,7 @@ func (s *sqlMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (
 			enMod.Size = &newSize
 		}
 		enMod.ModifiedAt = nowTime
+		enMod.ChangedAt = nowTime
 
 		if writeBackErr := updateEntryWithVersion(tx, enMod); writeBackErr != nil {
 			return writeBackErr

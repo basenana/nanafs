@@ -300,19 +300,33 @@ func (c *controller) ChangeEntryParent(ctx context.Context, targetId, oldParentI
 
 func (c *controller) GetEntryExtendField(ctx context.Context, id int64, fKey string) (*string, error) {
 	defer trace.StartRegion(ctx, "controller.GetEntryExtendField").End()
-	return c.entry.GetEntryExtendField(ctx, id, fKey)
+	result, err := c.entry.GetEntryExtendField(ctx, id, fKey)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func (c *controller) SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string) error {
 	defer trace.StartRegion(ctx, "controller.SetEntryExtendField").End()
 	c.logger.Debugw("set entry extend filed", "entry", id, "key", fKey)
-	return c.entry.SetEntryExtendField(ctx, id, fKey, fVal)
+	err := c.entry.SetEntryExtendField(ctx, id, fKey, fVal)
+	if err != nil {
+		c.logger.Errorw("set entry extend filed failed", "entry", id, "key", fKey, "err", err)
+		return err
+	}
+	return nil
 }
 
 func (c *controller) RemoveEntryExtendField(ctx context.Context, id int64, fKey string) error {
 	defer trace.StartRegion(ctx, "controller.RemoveEntryExtendField").End()
 	c.logger.Debugw("remove entry extend filed", "entry", id, "key", fKey)
-	return c.entry.RemoveEntryExtendField(ctx, id, fKey)
+	err := c.entry.RemoveEntryExtendField(ctx, id, fKey)
+	if err != nil {
+		c.logger.Errorw("remove entry extend filed failed", "entry", id, "key", fKey, "err", err)
+		return err
+	}
+	return nil
 }
 
 func New(loader config.Loader, meta metastore.Meta) (Controller, error) {

@@ -129,7 +129,8 @@ func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, entry *types.Metadata, crtUid,
 			return types.ErrNoPerm
 		}
 		if crtUid != 0 && int64(gid) != crtGid && !dentry.MatchUserGroup(crtUid, int64(gid)) {
-			return types.ErrNoAccess
+			// types.ErrNoPerm or types.ErrNoAccess
+			return types.ErrNoPerm
 		}
 	}
 	if _, ok := attr.GetSize(); ok {
