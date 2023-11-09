@@ -322,13 +322,16 @@ func buildSqlMetaStore(dbEntity *gorm.DB) (*sqlMetaStore, error) {
 	s := &sqlMetaStore{DB: dbEntity, logger: logger.NewLogger("dbStore")}
 
 	s.logger.Info("migrate db")
-	if err := db.Migrate(s.DB); err != nil {
+	err := s.WithContext(context.TODO()).Transaction(func(tx *gorm.DB) error {
+		return db.Migrate(tx)
+	})
+	if err != nil {
 		s.logger.Fatalf("migrate db failed: %s", err)
 		return nil, db.SqlError2Error(err)
 	}
 	s.logger.Info("migrate db finish")
 
-	_, err := s.SystemInfo(context.TODO())
+	_, err = s.SystemInfo(context.TODO())
 	if err != nil {
 		if err != types.ErrNotFound {
 			return nil, err

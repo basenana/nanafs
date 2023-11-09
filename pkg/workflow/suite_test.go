@@ -17,6 +17,7 @@
 package workflow
 
 import (
+	"context"
 	"os"
 	"testing"
 	"time"
@@ -40,6 +41,7 @@ var (
 	stopCh   = make(chan struct{})
 	tempDir  string
 	entryMgr dentry.Manager
+	memMeta  metastore.Meta
 	docMgr   document.Manager
 	mgr      Manager
 )
@@ -48,6 +50,17 @@ func TestWorkflow(t *testing.T) {
 	logger.InitLogger()
 	defer logger.Sync()
 	RegisterFailHandler(Fail)
+	//
+	//var err error
+	//tempDir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-wf-")
+	//if err != nil {
+	//	panic(err)
+	//}
+	//memMeta, err = metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
+	//if err != nil {
+	//	panic(err)
+	//}
+	//
 	testcfg.DefaultReporterConfig.SlowSpecThreshold = time.Minute.Seconds()
 	RunSpecs(t, "Workflow Suite")
 }
@@ -57,7 +70,10 @@ var _ = BeforeSuite(func() {
 	tempDir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-wf-")
 	Expect(err).Should(BeNil())
 
-	memMeta, err := metastore.NewMetaStorage(storage.MemoryStorage, config.Meta{})
+	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
+	Expect(err).Should(BeNil())
+
+	_, err = memMeta.SystemInfo(context.Background())
 	Expect(err).Should(BeNil())
 
 	storage.InitLocalCache(config.Config{CacheDir: tempDir, CacheSize: 1})

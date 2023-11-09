@@ -28,7 +28,7 @@ import (
 )
 
 var _ = Describe("TestRootEntryInit", func() {
-	emptyObjectStore, err := metastore.NewMetaStorage(storage.MemoryStorage, config.Meta{})
+	emptyObjectStore, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())
 
 	Context("query root entry first time", func() {

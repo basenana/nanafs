@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	. "github.com/onsi/ginkgo"
@@ -33,7 +32,7 @@ var _ = Describe("TestQuery", func() {
 
 	ctx := context.Background()
 
-	memMeta, err := metastore.NewMetaStorage(storage.MemoryStorage, config.Meta{})
+	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	gomega.Expect(err).Should(gomega.BeNil())
 
 	InitQuery(memMeta.(metastore.DEntry))
