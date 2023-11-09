@@ -18,13 +18,12 @@ package types
 
 import (
 	"github.com/basenana/nanafs/utils"
-	"sync"
 	"time"
 )
 
 const (
-	objectNameMaxLength    = 255
-	objectDefaultNamespace = "personal"
+	entryNameMaxLength    = 255
+	entryDefaultNamespace = "personal"
 
 	VersionKey         = "nanafs.version"
 	KindKey            = "nanafs.kind"
@@ -63,7 +62,7 @@ func NewMetadata(name string, kind Kind) Metadata {
 	result := Metadata{
 		ID:         utils.GenerateNewID(),
 		Name:       name,
-		Namespace:  objectDefaultNamespace,
+		Namespace:  entryDefaultNamespace,
 		Kind:       kind,
 		KindMap:    KindMap(kind),
 		Version:    1,
@@ -124,68 +123,33 @@ type Properties struct {
 	Fields map[string]string `json:"fields,omitempty"`
 }
 
-type Object struct {
-	Metadata
-	*ExtendData
-	*Labels
-
-	ExtendDataChanged bool `json:"-"`
-	LabelsChanged     bool `json:"-"`
-
-	L sync.Mutex `json:"-"`
-}
-
-func (o *Object) SetExtendData(ex ExtendData) {
-	o.ExtendData = &ex
-	o.ExtendDataChanged = true
-}
-
-func (o *Object) SetLabels(labels Labels) {
-	o.Labels = &labels
-	o.LabelsChanged = true
-}
-
-func (o *Object) IsGroup() bool {
-	return IsGroup(o.Kind)
-}
-
-func (o *Object) IsSmartGroup() bool {
-	return o.Kind == SmartGroupKind
-}
-
-func InitNewObject(parent *Metadata, attr ObjectAttr) (*Object, error) {
-	if len(attr.Name) > objectNameMaxLength {
+func InitNewEntry(parent *Metadata, attr EntryAttr) (*Metadata, error) {
+	if len(attr.Name) > entryNameMaxLength {
 		return nil, ErrNameTooLong
 	}
 
 	md := NewMetadata(attr.Name, attr.Kind)
+	md.Dev = attr.Dev
 	md.Access = Access{
 		Permissions: attr.Access.Permissions,
 		UID:         attr.Access.UID,
 		GID:         attr.Access.GID,
 	}
 
-	newObj := &Object{
-		Metadata: md,
-		ExtendData: &ExtendData{
-			Properties: Properties{Fields: map[string]string{}},
-		},
-		ExtendDataChanged: true,
-	}
 	if parent != nil {
-		newObj.ParentID = parent.ID
-		newObj.Storage = parent.Storage
+		md.ParentID = parent.ID
+		md.Storage = parent.Storage
 	}
-	return newObj, nil
+	return &md, nil
 }
 
 type ChunkSeg struct {
-	ID       int64
-	ChunkID  int64
-	ObjectID int64
-	Off      int64
-	Len      int64
-	State    int16
+	ID      int64
+	ChunkID int64
+	EntryID int64
+	Off     int64
+	Len     int64
+	State   int16
 }
 
 func IsMirrored(entry *Metadata) bool {

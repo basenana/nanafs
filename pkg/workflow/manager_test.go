@@ -18,7 +18,6 @@ package workflow
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	. "github.com/onsi/ginkgo"
@@ -118,10 +117,10 @@ var _ = Describe("TestWorkflowJobManage", func() {
 		It("create dummy entry should be succeed", func() {
 			root, err := entryMgr.Root(ctx)
 			Expect(err).Should(BeNil())
-			en, err = entryMgr.CreateEntry(ctx, root.ID, dentry.EntryAttr{Name: "test_workflow.txt", Kind: types.RawKind, Access: root.Access})
+			en, err = entryMgr.CreateEntry(ctx, root.ID, types.EntryAttr{Name: "test_workflow.txt", Kind: types.RawKind, Access: root.Access})
 			Expect(err).Should(BeNil())
 
-			f, err := entryMgr.Open(ctx, en.ID, dentry.Attr{Write: true})
+			f, err := entryMgr.Open(ctx, en.ID, types.OpenAttr{Write: true})
 			Expect(err).Should(BeNil())
 			_, err = f.WriteAt(ctx, []byte("Hello World!"), 0)
 			Expect(err).Should(BeNil())

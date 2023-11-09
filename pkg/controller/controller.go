@@ -41,10 +41,10 @@ type Controller interface {
 	LoadRootEntry(ctx context.Context) (*types.Metadata, error)
 	FindEntry(ctx context.Context, parentId int64, name string) (*types.Metadata, error)
 	GetEntry(ctx context.Context, id int64) (*types.Metadata, error)
-	CreateEntry(ctx context.Context, parentId int64, attr types.ObjectAttr) (*types.Metadata, error)
-	UpdateEntry(ctx context.Context, entryId int64, patch *types.Metadata) error
+	CreateEntry(ctx context.Context, parentId int64, attr types.EntryAttr) (*types.Metadata, error)
+	UpdateEntry(ctx context.Context, entry *types.Metadata) error
 	DestroyEntry(ctx context.Context, parentId, entryId int64, attr types.DestroyObjectAttr) error
-	MirrorEntry(ctx context.Context, srcEntryId, dstParentId int64, attr types.ObjectAttr) (*types.Metadata, error)
+	MirrorEntry(ctx context.Context, srcEntryId, dstParentId int64, attr types.EntryAttr) (*types.Metadata, error)
 	ListEntryChildren(ctx context.Context, entryId int64) ([]*types.Metadata, error)
 	ChangeEntryParent(ctx context.Context, targetId, oldParentId, newParentId int64, newName string, opt types.ChangeParentAttr) error
 
@@ -52,7 +52,7 @@ type Controller interface {
 	SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string) error
 	RemoveEntryExtendField(ctx context.Context, id int64, fKey string) error
 
-	OpenFile(ctx context.Context, entryId int64, attr dentry.Attr) (dentry.File, error)
+	OpenFile(ctx context.Context, entryId int64, attr types.OpenAttr) (dentry.File, error)
 	ReadFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error)
 	WriteFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error)
 	CloseFile(ctx context.Context, file dentry.File) error
@@ -119,7 +119,7 @@ func (c *controller) GetEntry(ctx context.Context, id int64) (*types.Metadata, e
 	return result, nil
 }
 
-func (c *controller) CreateEntry(ctx context.Context, parentId int64, attr types.ObjectAttr) (*types.Metadata, error) {
+func (c *controller) CreateEntry(ctx context.Context, parentId int64, attr types.EntryAttr) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "controller.CreateEntry").End()
 
 	if len(attr.Name) > entryNameMaxLength {
@@ -127,7 +127,7 @@ func (c *controller) CreateEntry(ctx context.Context, parentId int64, attr types
 	}
 
 	c.logger.Debugw("create entry", "parent", parentId, "entryName", attr.Name)
-	entry, err := c.entry.CreateEntry(ctx, parentId, dentry.EntryAttr{
+	entry, err := c.entry.CreateEntry(ctx, parentId, types.EntryAttr{
 		Name:   attr.Name,
 		Kind:   attr.Kind,
 		Access: attr.Access,
@@ -141,7 +141,8 @@ func (c *controller) CreateEntry(ctx context.Context, parentId int64, attr types
 	return entry, nil
 }
 
-func (c *controller) UpdateEntry(ctx context.Context, entryID int64, newContent *types.Metadata) error {
+func (c *controller) UpdateEntry(ctx context.Context, entry *types.Metadata) error {
+	entryID := entry.ID
 	defer trace.StartRegion(ctx, "controller.UpdateEntry").End()
 	en, err := c.GetEntry(ctx, entryID)
 	if err != nil {
@@ -155,7 +156,7 @@ func (c *controller) UpdateEntry(ctx context.Context, entryID int64, newContent 
 		return err
 	}
 
-	if err = parent.UpdateEntry(ctx, entryID, newContent); err != nil {
+	if err = parent.UpdateEntry(ctx, entry); err != nil {
 		c.logger.Errorw("save entry error", "entry", entryID, "err", err)
 		return err
 	}
@@ -191,7 +192,7 @@ func (c *controller) DestroyEntry(ctx context.Context, parentId, entryId int64, 
 	return nil
 }
 
-func (c *controller) MirrorEntry(ctx context.Context, srcId, dstParentId int64, attr types.ObjectAttr) (*types.Metadata, error) {
+func (c *controller) MirrorEntry(ctx context.Context, srcId, dstParentId int64, attr types.EntryAttr) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "controller.MirrorEntry").End()
 	if len(attr.Name) > entryNameMaxLength {
 		return nil, types.ErrNameTooLong
@@ -206,7 +207,7 @@ func (c *controller) MirrorEntry(ctx context.Context, srcId, dstParentId int64, 
 		return nil, types.ErrIsExist
 	}
 
-	entry, err := c.entry.MirrorEntry(ctx, srcId, dstParentId, dentry.EntryAttr{
+	entry, err := c.entry.MirrorEntry(ctx, srcId, dstParentId, types.EntryAttr{
 		Name:   attr.Name,
 		Kind:   attr.Kind,
 		Access: attr.Access,
@@ -285,7 +286,7 @@ func (c *controller) ChangeEntryParent(ctx context.Context, targetId, oldParentI
 	}
 
 	c.logger.Debugw("change entry parent", "target", targetId, "existObj", existObjId, "oldParent", oldParentId, "newParent", newParentId, "newName", newName)
-	err = c.entry.ChangeEntryParent(ctx, targetId, existObjId, oldParentId, newParentId, newName, dentry.ChangeParentAttr{
+	err = c.entry.ChangeEntryParent(ctx, targetId, existObjId, oldParentId, newParentId, newName, types.ChangeParentAttr{
 		Replace:  opt.Replace,
 		Exchange: opt.Exchange,
 	})
@@ -299,19 +300,33 @@ func (c *controller) ChangeEntryParent(ctx context.Context, targetId, oldParentI
 
 func (c *controller) GetEntryExtendField(ctx context.Context, id int64, fKey string) (*string, error) {
 	defer trace.StartRegion(ctx, "controller.GetEntryExtendField").End()
-	return c.entry.GetEntryExtendField(ctx, id, fKey)
+	result, err := c.entry.GetEntryExtendField(ctx, id, fKey)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func (c *controller) SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string) error {
 	defer trace.StartRegion(ctx, "controller.SetEntryExtendField").End()
 	c.logger.Debugw("set entry extend filed", "entry", id, "key", fKey)
-	return c.entry.SetEntryExtendField(ctx, id, fKey, fVal)
+	err := c.entry.SetEntryExtendField(ctx, id, fKey, fVal)
+	if err != nil {
+		c.logger.Errorw("set entry extend filed failed", "entry", id, "key", fKey, "err", err)
+		return err
+	}
+	return nil
 }
 
 func (c *controller) RemoveEntryExtendField(ctx context.Context, id int64, fKey string) error {
 	defer trace.StartRegion(ctx, "controller.RemoveEntryExtendField").End()
 	c.logger.Debugw("remove entry extend filed", "entry", id, "key", fKey)
-	return c.entry.RemoveEntryExtendField(ctx, id, fKey)
+	err := c.entry.RemoveEntryExtendField(ctx, id, fKey)
+	if err != nil {
+		c.logger.Errorw("remove entry extend filed failed", "entry", id, "key", fKey, "err", err)
+		return err
+	}
+	return nil
 }
 
 func New(loader config.Loader, meta metastore.Meta) (Controller, error) {

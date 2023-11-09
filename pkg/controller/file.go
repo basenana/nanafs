@@ -24,7 +24,7 @@ import (
 	"runtime/trace"
 )
 
-func (c *controller) OpenFile(ctx context.Context, entryID int64, attr dentry.Attr) (dentry.File, error) {
+func (c *controller) OpenFile(ctx context.Context, entryID int64, attr types.OpenAttr) (dentry.File, error) {
 	defer trace.StartRegion(ctx, "controller.OpenFile").End()
 	entry, err := c.GetEntry(ctx, entryID)
 	if err != nil {

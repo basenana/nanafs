@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
@@ -54,10 +53,9 @@ type rssSource struct {
 }
 
 type RssSourcePlugin struct {
-	spec     types.PluginSpec
-	scope    types.PlugScope
-	recorder metastore.PluginRecorder
-	logger   *zap.SugaredLogger
+	spec   types.PluginSpec
+	scope  types.PlugScope
+	logger *zap.SugaredLogger
 }
 
 func (r *RssSourcePlugin) Name() string {
@@ -231,6 +229,6 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, w
 	return newEntries, nil
 }
 
-func BuildRssSourcePlugin(ctx context.Context, recorder metastore.PluginRecorder, spec types.PluginSpec, scope types.PlugScope) *RssSourcePlugin {
-	return &RssSourcePlugin{spec: spec, scope: scope, recorder: recorder, logger: logger.NewLogger("rssPlugin")}
+func BuildRssSourcePlugin(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) *RssSourcePlugin {
+	return &RssSourcePlugin{spec: spec, scope: scope, logger: logger.NewLogger("rssPlugin")}
 }

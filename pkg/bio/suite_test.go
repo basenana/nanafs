@@ -30,6 +30,7 @@ import (
 
 var (
 	chunkStore metastore.ChunkStore
+	entryStore metastore.DEntry
 	dataStore  storage.Storage
 
 	workdir string
@@ -46,9 +47,10 @@ func TestBIO(t *testing.T) {
 	t.Logf("unit test workdir on: %s", workdir)
 	storage.InitLocalCache(config.Config{CacheDir: workdir, CacheSize: 1})
 
-	memMeta, err := metastore.NewMetaStorage(storage.MemoryStorage, config.Meta{})
+	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())
 	chunkStore = memMeta
+	entryStore = memMeta
 
 	memData, err := storage.NewStorage(storage.MemoryStorage, storage.MemoryStorage, config.Storage{})
 	Expect(err).Should(BeNil())

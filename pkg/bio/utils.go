@@ -52,8 +52,6 @@ func buildCompactEvent(entry *types.Metadata) *types.EntryEvent {
 	}
 }
 
-func noneInvalidCache(eid int64) {}
-
 func expectPreRead(readCnt int64) int32 {
 	if readCnt < 2 {
 		return 2

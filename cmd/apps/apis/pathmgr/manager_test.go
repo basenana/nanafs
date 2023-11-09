@@ -84,7 +84,7 @@ var _ = Describe("TestPathMgr", func() {
 			var err error
 			root, err = ctrl.LoadRootEntry(context.Background())
 			Expect(err).Should(BeNil())
-			_, err = ctrl.CreateEntry(context.Background(), root.ID, types.ObjectAttr{
+			_, err = ctrl.CreateEntry(context.Background(), root.ID, types.EntryAttr{
 				Name:   "file1.txt",
 				Kind:   types.RawKind,
 				Access: root.Access,
@@ -110,15 +110,15 @@ var _ = Describe("TestPathMgr", func() {
 	})
 	Context("test Open file", func() {
 		It("open existed should be succeed", func() {
-			_, err := mgr.CreateFile(context.Background(), "/", types.ObjectAttr{Name: "file1.txt"})
+			_, err := mgr.CreateFile(context.Background(), "/", types.EntryAttr{Name: "file1.txt"})
 			Expect(err).Should(BeNil())
 		})
 		It("write new should be succeed", func() {
-			en, err := mgr.CreateFile(context.Background(), "/", types.ObjectAttr{Name: "file2.txt"})
+			en, err := mgr.CreateFile(context.Background(), "/", types.EntryAttr{Name: "file2.txt"})
 			Expect(err).Should(BeNil())
 			enID := en.ID
 
-			f, err := mgr.Open(context.Background(), enID, dentry.Attr{Write: true})
+			f, err := mgr.Open(context.Background(), enID, types.OpenAttr{Write: true})
 			Expect(err).Should(BeNil())
 
 			n, err := f.WriteAt(context.Background(), []byte("abc"), 10)
@@ -133,7 +133,7 @@ var _ = Describe("TestPathMgr", func() {
 	})
 	Context("test CreateAll", func() {
 		It("create dir2 should be succeed", func() {
-			dir2, err := mgr.CreateAll(context.Background(), "/dir1/dir2", dentry.EntryAttr{Access: root.Access})
+			dir2, err := mgr.CreateAll(context.Background(), "/dir1/dir2", types.EntryAttr{Access: root.Access})
 			Expect(err).Should(BeNil())
 			Expect(dir2.Name).Should(Equal("dir2"))
 
@@ -148,15 +148,15 @@ var _ = Describe("TestPathMgr", func() {
 			Expect(dir2.ParentID).Should(Equal(en1.ID))
 		})
 		It("create dir5 should be succeed", func() {
-			_, err := mgr.CreateAll(context.Background(), "/dir1/dir2/dir3/dir4/dir5", dentry.EntryAttr{Access: root.Access})
+			_, err := mgr.CreateAll(context.Background(), "/dir1/dir2/dir3/dir4/dir5", types.EntryAttr{Access: root.Access})
 			Expect(err).Should(BeNil())
 		})
 		It("create dir3 should be succeed", func() {
-			_, err := mgr.CreateAll(context.Background(), "/dir1/dir2/dir3", dentry.EntryAttr{Access: root.Access})
+			_, err := mgr.CreateAll(context.Background(), "/dir1/dir2/dir3", types.EntryAttr{Access: root.Access})
 			Expect(err).Should(BeNil())
 		})
 		It("create dir2.1 should be succeed", func() {
-			_, err := mgr.CreateAll(context.Background(), "/dir1/dir2.1/dir3.1/dir4.1/dir5.1", dentry.EntryAttr{Access: root.Access})
+			_, err := mgr.CreateAll(context.Background(), "/dir1/dir2.1/dir3.1/dir4.1/dir5.1", types.EntryAttr{Access: root.Access})
 			Expect(err).Should(BeNil())
 		})
 	})

@@ -61,47 +61,45 @@ func (o *Object) TableName() string {
 	return "object"
 }
 
-func (o *Object) Update(obj *types.Object) {
-	o.ID = obj.ID
-	o.Name = obj.Name
-	o.Aliases = &obj.Aliases
-	o.ParentID = &obj.ParentID
-	o.RefID = &obj.RefID
-	o.RefCount = &obj.RefCount
-	o.Kind = string(obj.Kind)
-	o.KindMap = &obj.KindMap
-	o.Size = &obj.Size
-	o.Version = obj.Version
-	o.Dev = obj.Dev
-	o.Storage = obj.Storage
-	o.Namespace = obj.Namespace
-	o.CreatedAt = obj.CreatedAt.UnixNano()
-	o.ChangedAt = obj.ChangedAt.UnixNano()
-	o.ModifiedAt = obj.ModifiedAt.UnixNano()
-	o.AccessAt = obj.AccessAt.UnixNano()
-	o.Owner = &obj.Access.UID
-	o.GroupOwner = &obj.Access.GID
-	o.Permission = updateObjectPermission(obj.Access)
+func (o *Object) FromEntry(en *types.Metadata) *Object {
+	o.ID = en.ID
+	o.Name = en.Name
+	o.Aliases = &en.Aliases
+	o.ParentID = &en.ParentID
+	o.RefID = &en.RefID
+	o.RefCount = &en.RefCount
+	o.Kind = string(en.Kind)
+	o.KindMap = &en.KindMap
+	o.Size = &en.Size
+	o.Version = en.Version
+	o.Dev = en.Dev
+	o.Storage = en.Storage
+	o.Namespace = en.Namespace
+	o.CreatedAt = en.CreatedAt.UnixNano()
+	o.ChangedAt = en.ChangedAt.UnixNano()
+	o.ModifiedAt = en.ModifiedAt.UnixNano()
+	o.AccessAt = en.AccessAt.UnixNano()
+	o.Owner = &en.Access.UID
+	o.GroupOwner = &en.Access.GID
+	o.Permission = updateObjectPermission(en.Access)
+	return o
 }
 
-func (o *Object) Object() *types.Object {
-	result := &types.Object{
-		Metadata: types.Metadata{
-			ID:         o.ID,
-			Name:       o.Name,
-			Kind:       types.Kind(o.Kind),
-			Version:    o.Version,
-			Dev:        o.Dev,
-			Storage:    o.Storage,
-			Namespace:  o.Namespace,
-			CreatedAt:  time.Unix(0, o.CreatedAt),
-			ChangedAt:  time.Unix(0, o.ChangedAt),
-			ModifiedAt: time.Unix(0, o.ModifiedAt),
-			AccessAt:   time.Unix(0, o.AccessAt),
-			Access:     buildObjectAccess(o.Permission, o.Owner, o.GroupOwner),
-		},
+func (o *Object) ToEntry() *types.Metadata {
+	result := &types.Metadata{
+		ID:         o.ID,
+		Name:       o.Name,
+		Kind:       types.Kind(o.Kind),
+		Version:    o.Version,
+		Dev:        o.Dev,
+		Storage:    o.Storage,
+		Namespace:  o.Namespace,
+		CreatedAt:  time.Unix(0, o.CreatedAt),
+		ChangedAt:  time.Unix(0, o.ChangedAt),
+		ModifiedAt: time.Unix(0, o.ModifiedAt),
+		AccessAt:   time.Unix(0, o.AccessAt),
+		Access:     buildObjectAccess(o.Permission, o.Owner, o.GroupOwner),
 	}
-
 	if o.Aliases != nil {
 		result.Aliases = *o.Aliases
 	}
@@ -158,15 +156,13 @@ func (o *ObjectExtend) TableName() string {
 	return "object_extend"
 }
 
-func (o *ObjectExtend) Update(obj *types.Object) {
-	if obj.ExtendData != nil {
-		o.Symlink = obj.ExtendData.Symlink
-		if obj.ExtendData.GroupFilter != nil {
-			o.GroupFilter, _ = json.Marshal(obj.ExtendData.GroupFilter)
-		}
-		if obj.ExtendData.PlugScope != nil {
-			o.PlugScope, _ = json.Marshal(obj.ExtendData.PlugScope)
-		}
+func (o *ObjectExtend) From(ed types.ExtendData) {
+	o.Symlink = ed.Symlink
+	if ed.GroupFilter != nil {
+		o.GroupFilter, _ = json.Marshal(ed.GroupFilter)
+	}
+	if ed.PlugScope != nil {
+		o.PlugScope, _ = json.Marshal(ed.PlugScope)
 	}
 }
 
@@ -261,7 +257,7 @@ func (o *Workflow) TableName() string {
 	return "workflow"
 }
 
-func (o *Workflow) Update(wf *types.WorkflowSpec) error {
+func (o *Workflow) From(wf *types.WorkflowSpec) (*Workflow, error) {
 	o.ID = wf.Id
 	o.Name = wf.Name
 	o.Enable = wf.Enable
@@ -271,19 +267,19 @@ func (o *Workflow) Update(wf *types.WorkflowSpec) error {
 
 	rawRule, err := json.Marshal(wf.Rule)
 	if err != nil {
-		return fmt.Errorf("marshal workflow rule config failed: %s", err)
+		return o, fmt.Errorf("marshal workflow rule config failed: %s", err)
 	}
 	o.Rule = string(rawRule)
 
 	rawSteps, err := json.Marshal(wf.Steps)
 	if err != nil {
-		return fmt.Errorf("marshal workflow rule config failed: %s", err)
+		return o, fmt.Errorf("marshal workflow rule config failed: %s", err)
 	}
 	o.Steps = string(rawSteps)
-	return nil
+	return o, nil
 }
 
-func (o *Workflow) ToWorkflowSpec() (*types.WorkflowSpec, error) {
+func (o *Workflow) To() (*types.WorkflowSpec, error) {
 	result := &types.WorkflowSpec{
 		Id:              o.ID,
 		Name:            o.Name,
@@ -323,7 +319,7 @@ func (o *WorkflowJob) TableName() string {
 	return "workflow_job"
 }
 
-func (o *WorkflowJob) Update(job *types.WorkflowJob) error {
+func (o *WorkflowJob) From(job *types.WorkflowJob) (*WorkflowJob, error) {
 	o.ID = job.Id
 	o.Workflow = job.Workflow
 	o.TriggerReason = job.TriggerReason
@@ -337,21 +333,21 @@ func (o *WorkflowJob) Update(job *types.WorkflowJob) error {
 
 	rawTarget, err := json.Marshal(job.Target)
 	if err != nil {
-		return fmt.Errorf("marshal workflow job target failed: %s", err)
+		return o, fmt.Errorf("marshal workflow job target failed: %s", err)
 	}
 	o.TargetEntry = job.Target.EntryID
 	o.Target = string(rawTarget)
 
 	rawStep, err := json.Marshal(job.Steps)
 	if err != nil {
-		return fmt.Errorf("marshal workflow job steps failed: %s", err)
+		return o, fmt.Errorf("marshal workflow job steps failed: %s", err)
 	}
 	o.Steps = string(rawStep)
 
-	return nil
+	return o, nil
 }
 
-func (o *WorkflowJob) ToWorkflowJobSpec() (*types.WorkflowJob, error) {
+func (o *WorkflowJob) To() (*types.WorkflowJob, error) {
 	result := &types.WorkflowJob{
 		Id:            o.ID,
 		Workflow:      o.Workflow,
@@ -394,7 +390,7 @@ func (d *Document) TableName() string {
 	return "document"
 }
 
-func (d *Document) Update(document *types.Document) error {
+func (d *Document) From(document *types.Document) *Document {
 	d.ID = document.ID
 	d.Name = document.Name
 	d.Uri = document.Uri
@@ -404,10 +400,10 @@ func (d *Document) Update(document *types.Document) error {
 	d.Summary = document.Summary
 	d.CreatedAt = document.CreatedAt
 	d.ChangedAt = document.ChangedAt
-	return nil
+	return d
 }
 
-func (d *Document) ToDocument() (*types.Document, error) {
+func (d *Document) To() *types.Document {
 	result := &types.Document{
 		ID:        d.ID,
 		Name:      d.Name,
@@ -419,5 +415,5 @@ func (d *Document) ToDocument() (*types.Document, error) {
 		CreatedAt: d.CreatedAt,
 		ChangedAt: d.ChangedAt,
 	}
-	return result, nil
+	return result
 }

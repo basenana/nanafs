@@ -109,7 +109,7 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 		uid, gid = fuseCtx.Uid, fuseCtx.Gid
 	}
 
-	var attr dentry.Attr
+	var attr types.OpenAttr
 	nanaFile, ok := f.(*File)
 	if ok {
 		attr = nanaFile.file.GetAttr()
@@ -122,7 +122,7 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 	if err = updateNanaNodeWithAttr(in, entry, int64(uid), int64(gid), attr); err != nil {
 		return Error2FuseSysError("entry_set_attr", err)
 	}
-	if err = n.R.UpdateEntry(ctx, n.entryID, entry); err != nil {
+	if err = n.R.UpdateEntry(ctx, entry); err != nil {
 		return Error2FuseSysError("entry_set_attr", err)
 	}
 	return n.Getattr(ctx, f, out)
@@ -199,7 +199,7 @@ func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode u
 	if fuseCtx, ok := ctx.(*fuse.Context); ok {
 		dentry.UpdateAccessWithOwnID(acc, int64(fuseCtx.Uid), int64(fuseCtx.Gid))
 	}
-	newCh, err := n.R.CreateEntry(ctx, n.entryID, types.ObjectAttr{
+	newCh, err := n.R.CreateEntry(ctx, n.entryID, types.EntryAttr{
 		Name:   name,
 		Kind:   fileKindFromMode(mode),
 		Access: *acc,
@@ -293,7 +293,7 @@ func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fus
 	if fuseCtx, ok := ctx.(*fuse.Context); ok {
 		dentry.UpdateAccessWithOwnID(acc, int64(fuseCtx.Uid), int64(fuseCtx.Gid))
 	}
-	newDir, err := n.R.CreateEntry(ctx, n.entryID, types.ObjectAttr{
+	newDir, err := n.R.CreateEntry(ctx, n.entryID, types.EntryAttr{
 		Name:   name,
 		Kind:   types.GroupKind,
 		Access: *acc,
@@ -328,7 +328,7 @@ func (n *NanaNode) Mknod(ctx context.Context, name string, mode uint32, dev uint
 	if fuseCtx, ok := ctx.(*fuse.Context); ok {
 		dentry.UpdateAccessWithOwnID(acc, int64(fuseCtx.Uid), int64(fuseCtx.Gid))
 	}
-	newCh, err := n.R.CreateEntry(ctx, n.entryID, types.ObjectAttr{
+	newCh, err := n.R.CreateEntry(ctx, n.entryID, types.EntryAttr{
 		Name:   name,
 		Kind:   fileKindFromMode(mode),
 		Access: *acc,
@@ -354,7 +354,7 @@ func (n *NanaNode) Link(ctx context.Context, target fs.InodeEmbedder, name strin
 		return nil, syscall.EIO
 	}
 
-	newEntry, err := n.R.MirrorEntry(ctx, targetNode.entryID, n.entryID, types.ObjectAttr{Name: name})
+	newEntry, err := n.R.MirrorEntry(ctx, targetNode.entryID, n.entryID, types.EntryAttr{Name: name})
 	if err != nil {
 		return nil, Error2FuseSysError("entry_link", err)
 	}
@@ -381,7 +381,7 @@ func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.E
 	if exist != nil {
 		return nil, Error2FuseSysError("entry_symlink", types.ErrIsExist)
 	}
-	newLink, err := n.R.CreateEntry(ctx, n.entryID, types.ObjectAttr{
+	newLink, err := n.R.CreateEntry(ctx, n.entryID, types.EntryAttr{
 		Name:   name,
 		Kind:   types.SymLinkKind,
 		Access: entry.Access,
@@ -392,7 +392,7 @@ func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.E
 	}
 
 	n.logger.Debugw("create new symlink", "target", target)
-	f, err := n.R.OpenFile(ctx, newLink.ID, dentry.Attr{Write: true, Create: true, Trunc: true})
+	f, err := n.R.OpenFile(ctx, newLink.ID, types.OpenAttr{Write: true, Create: true, Trunc: true})
 	if err != nil {
 		return nil, Error2FuseSysError("entry_symlink", err)
 	}
@@ -421,7 +421,7 @@ func (n *NanaNode) Readlink(ctx context.Context) ([]byte, syscall.Errno) {
 	if err != nil {
 		return nil, Error2FuseSysError("entry_read_link", err)
 	}
-	f, err := n.R.OpenFile(ctx, n.entryID, dentry.Attr{Read: true})
+	f, err := n.R.OpenFile(ctx, n.entryID, types.OpenAttr{Read: true})
 	if err != nil {
 		return nil, Error2FuseSysError("entry_read_link", err)
 	}

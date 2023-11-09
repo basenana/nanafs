@@ -24,33 +24,41 @@ import (
 )
 
 type Meta interface {
-	ObjectStore
+	DEntry
 	ChunkStore
 	NotificationRecorder
-	PluginRecorderGetter
 	ScheduledTaskRecorder
 	DocumentRecorder
 }
 
-type DEntry interface{}
-
-type ObjectStore interface {
+type DEntry interface {
 	SystemInfo(ctx context.Context) (*types.SystemInfo, error)
-	GetObject(ctx context.Context, id int64) (*types.Object, error)
-	GetObjectExtendData(ctx context.Context, obj *types.Object) error
-	ListObjects(ctx context.Context, filter types.Filter) ([]*types.Object, error)
-	SaveObjects(ctx context.Context, obj ...*types.Object) error
-	DestroyObject(ctx context.Context, src, obj *types.Object) error
 
-	ListChildren(ctx context.Context, parentId int64) (Iterator, error)
-	MirrorObject(ctx context.Context, srcObj, dstParent, object *types.Object) error
-	ChangeParent(ctx context.Context, srcParent, dstParent, obj *types.Object, opt types.ChangeParentOption) error
+	GetEntry(ctx context.Context, id int64) (*types.Metadata, error)
+	FindEntry(ctx context.Context, parentID int64, name string) (*types.Metadata, error)
+	CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata) error
+	RemoveEntry(ctx context.Context, parentID, entryID int64) error
+	DeleteRemovedEntry(ctx context.Context, entryID int64) error
+	UpdateEntryMetadata(ctx context.Context, entry *types.Metadata) error
+
+	ListEntryChildren(ctx context.Context, parentId int64) (EntryIterator, error)
+	FilterEntries(ctx context.Context, filter types.Filter) (EntryIterator, error)
+
+	Open(ctx context.Context, id int64, attr types.OpenAttr) (*types.Metadata, error)
+	Flush(ctx context.Context, id int64, size int64) error
+	MirrorEntry(ctx context.Context, newEntry *types.Metadata) error
+	ChangeEntryParent(ctx context.Context, targetEntryId int64, newParentId int64, newName string, opt types.ChangeParentAttr) error
+
+	GetEntryExtendData(ctx context.Context, id int64) (types.ExtendData, error)
+	UpdateEntryExtendData(ctx context.Context, id int64, ed types.ExtendData) error
+	GetEntryLabels(ctx context.Context, id int64) (types.Labels, error)
+	UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error
 }
 
 type ChunkStore interface {
 	NextSegmentID(ctx context.Context) (int64, error)
 	ListSegments(ctx context.Context, oid, chunkID int64, allChunk bool) ([]types.ChunkSeg, error)
-	AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Object, error)
+	AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Metadata, error)
 	DeleteSegment(ctx context.Context, segID int64) error
 }
 
@@ -80,15 +88,4 @@ type DocumentRecorder interface {
 	ListDocument(ctx context.Context) ([]*types.Document, error)
 	GetDocument(ctx context.Context, id string) (*types.Document, error)
 	DeleteDocument(ctx context.Context, id string) error
-}
-
-type PluginRecorderGetter interface {
-	PluginRecorder(plugin types.PlugScope) PluginRecorder
-}
-
-type PluginRecorder interface {
-	GetRecord(ctx context.Context, rid string, record interface{}) error
-	ListRecords(ctx context.Context, groupId string) ([]string, error)
-	SaveRecord(ctx context.Context, groupId, rid string, record interface{}) error
-	DeleteRecord(ctx context.Context, rid string) error
 }

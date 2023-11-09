@@ -22,16 +22,15 @@ import (
 )
 
 func TestObjectFilter(t *testing.T) {
-	obj := &types.Object{
-		Metadata: types.Metadata{ID: 1024, Name: "test_file_1"},
+	obj := &object{
+		Metadata: &types.Metadata{ID: 1024, Name: "test_file_1"},
 		Labels: &types.Labels{Labels: []types.Label{
 			{Key: "test-key-1", Value: "test-val-1"},
 			{Key: "test-key-2", Value: "test-val-2"},
 			{Key: "test-key-3", Value: "test-val-3"},
 		}},
 	}
-	type args struct {
-	}
+
 	tests := []struct {
 		name   string
 		filter types.Rule
@@ -184,7 +183,7 @@ func TestObjectFilter(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := Filter(tt.filter, &obj.Metadata, obj.ExtendData, obj.Labels); got != tt.want {
+			if got := Filter(tt.filter, obj.Metadata, obj.ExtendData, obj.Labels); got != tt.want {
 				t.Errorf("Filter() = %v, want %v", got, tt.want)
 			}
 		})

@@ -37,5 +37,8 @@ func NewMetaStorage(metaType string, meta config.Meta) (m Meta, err error) {
 		logOperationError("init", err)
 		return nil, err
 	}
+	if disableMetrics {
+		return m, nil
+	}
 	return instrumentalStore{store: m}, nil
 }

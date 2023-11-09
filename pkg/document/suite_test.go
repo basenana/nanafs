@@ -54,12 +54,12 @@ func TestDEntry(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	memMeta, err := metastore.NewMetaStorage(storage.MemoryStorage, config.Meta{})
+	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())
 	docRecorder = memMeta
 	docManager, _ = NewManager(docRecorder)
 
 	// init plugin
-	err = plugin.Init(&config.Plugin{}, memMeta)
+	err = plugin.Init(&config.Plugin{})
 	Expect(err).Should(BeNil())
 })

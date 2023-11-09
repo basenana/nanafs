@@ -62,7 +62,7 @@ var _ = BeforeSuite(func() {
 	notifyImpl = notify.NewNotify(memMeta)
 
 	// init plugin
-	Expect(plugin.Init(&config.Plugin{}, memMeta)).Should(BeNil())
+	Expect(plugin.Init(&config.Plugin{})).Should(BeNil())
 })
 
 func init() {

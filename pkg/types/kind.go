@@ -16,7 +16,7 @@
 
 package types
 
-// Kind of Object
+// Kind of Entry
 type Kind string
 
 const (

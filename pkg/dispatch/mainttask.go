@@ -125,7 +125,7 @@ func (c *entryCleanExecutor) handleEvent(ctx context.Context, evt *types.EntryEv
 		needUpdate = true
 	}
 
-	if types.IsGroup(entry.Kind) || (!dentry.IsFileOpened(evt.RefID) && entry.RefCount == 0) {
+	if types.IsGroup(entry.Kind) || (!dentry.IsFileOpened(evt.RefID)) {
 		task.Status = types.ScheduledTaskWait
 		needUpdate = true
 	}

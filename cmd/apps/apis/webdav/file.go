@@ -31,7 +31,7 @@ type File struct {
 	entryID int64
 	name    string
 	file    dentry.File
-	attr    dentry.Attr
+	attr    types.OpenAttr
 	off     int64
 	size    int64
 	mgr     *pathmgr.PathManager
@@ -163,7 +163,7 @@ func (d *Dir) Close() error {
 	return nil
 }
 
-func openFile(enPath string, entry *types.Metadata, mgr *pathmgr.PathManager, attr dentry.Attr) (webdav.File, error) {
+func openFile(enPath string, entry *types.Metadata, mgr *pathmgr.PathManager, attr types.OpenAttr) (webdav.File, error) {
 	if types.IsGroup(entry.Kind) {
 		return &Dir{path: enPath, mgr: mgr, entryID: entry.ID, kind: entry.Kind}, nil
 	}

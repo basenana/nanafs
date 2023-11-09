@@ -42,7 +42,7 @@ func (m mockConfig) GetConfig() (config.Config, error) {
 }
 
 func NewMockController() controller.Controller {
-	m, _ := metastore.NewMetaStorage("memory", config.Meta{})
+	m, _ := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	ctrl, _ := controller.New(mockConfig{}, m)
 	return ctrl
 }

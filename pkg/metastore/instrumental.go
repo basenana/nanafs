@@ -41,6 +41,8 @@ var (
 		},
 		[]string{"operation"},
 	)
+
+	disableMetrics bool
 )
 
 func init() {
@@ -64,66 +66,130 @@ func (i instrumentalStore) SystemInfo(ctx context.Context) (*types.SystemInfo, e
 	return info, err
 }
 
-func (i instrumentalStore) GetObject(ctx context.Context, id int64) (*types.Object, error) {
-	const operation = "get_object"
+func (i instrumentalStore) GetEntry(ctx context.Context, id int64) (*types.Metadata, error) {
+	const operation = "get_entry"
 	defer logOperationLatency(operation, time.Now())
-	obj, err := i.store.GetObject(ctx, id)
+	en, err := i.store.GetEntry(ctx, id)
 	logOperationError(operation, err)
-	return obj, err
+	return en, err
 }
 
-func (i instrumentalStore) GetObjectExtendData(ctx context.Context, obj *types.Object) error {
-	const operation = "get_object_extend_data"
+func (i instrumentalStore) FindEntry(ctx context.Context, parentID int64, name string) (*types.Metadata, error) {
+	const operation = "find_entry"
 	defer logOperationLatency(operation, time.Now())
-	err := i.store.GetObjectExtendData(ctx, obj)
+	en, err := i.store.FindEntry(ctx, parentID, name)
 	logOperationError(operation, err)
-	return err
+	return en, err
 }
 
-func (i instrumentalStore) ListObjects(ctx context.Context, filter types.Filter) ([]*types.Object, error) {
-	const operation = "list_objects"
+func (i instrumentalStore) CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata) error {
+	const operation = "create_entry"
 	defer logOperationLatency(operation, time.Now())
-	objList, err := i.store.ListObjects(ctx, filter)
-	logOperationError(operation, err)
-	return objList, err
-}
-
-func (i instrumentalStore) SaveObjects(ctx context.Context, obj ...*types.Object) error {
-	const operation = "save_objects"
-	defer logOperationLatency(operation, time.Now())
-	err := i.store.SaveObjects(ctx, obj...)
+	err := i.store.CreateEntry(ctx, parentID, newEntry)
 	logOperationError(operation, err)
 	return err
 }
 
-func (i instrumentalStore) DestroyObject(ctx context.Context, src, obj *types.Object) error {
-	const operation = "destroy_object"
+func (i instrumentalStore) RemoveEntry(ctx context.Context, parentID, entryID int64) error {
+	const operation = "remove_entry"
 	defer logOperationLatency(operation, time.Now())
-	err := i.store.DestroyObject(ctx, src, obj)
+	err := i.store.RemoveEntry(ctx, parentID, entryID)
 	logOperationError(operation, err)
 	return err
 }
 
-func (i instrumentalStore) ListChildren(ctx context.Context, parentId int64) (Iterator, error) {
-	const operation = "list_children"
+func (i instrumentalStore) DeleteRemovedEntry(ctx context.Context, entryID int64) error {
+	const operation = "delete_removed_entry"
 	defer logOperationLatency(operation, time.Now())
-	iter, err := i.store.ListChildren(ctx, parentId)
-	logOperationError(operation, err)
-	return iter, err
-}
-
-func (i instrumentalStore) MirrorObject(ctx context.Context, srcObj, dstParent, object *types.Object) error {
-	const operation = "mirror_object"
-	defer logOperationLatency(operation, time.Now())
-	err := i.store.MirrorObject(ctx, srcObj, dstParent, object)
+	err := i.store.DeleteRemovedEntry(ctx, entryID)
 	logOperationError(operation, err)
 	return err
 }
 
-func (i instrumentalStore) ChangeParent(ctx context.Context, srcParent, dstParent, obj *types.Object, opt types.ChangeParentOption) error {
-	const operation = "change_parent"
+func (i instrumentalStore) UpdateEntryMetadata(ctx context.Context, entry *types.Metadata) error {
+	const operation = "update_entry_metadata"
 	defer logOperationLatency(operation, time.Now())
-	err := i.store.ChangeParent(ctx, srcParent, dstParent, obj, opt)
+	err := i.store.UpdateEntryMetadata(ctx, entry)
+	logOperationError(operation, err)
+	return err
+}
+
+func (i instrumentalStore) ListEntryChildren(ctx context.Context, parentId int64) (EntryIterator, error) {
+	const operation = "list_entry_children"
+	defer logOperationLatency(operation, time.Now())
+	it, err := i.store.ListEntryChildren(ctx, parentId)
+	logOperationError(operation, err)
+	return it, err
+}
+
+func (i instrumentalStore) FilterEntries(ctx context.Context, filter types.Filter) (EntryIterator, error) {
+	const operation = "filter_entries"
+	defer logOperationLatency(operation, time.Now())
+	it, err := i.store.FilterEntries(ctx, filter)
+	logOperationError(operation, err)
+	return it, err
+}
+
+func (i instrumentalStore) Open(ctx context.Context, id int64, attr types.OpenAttr) (*types.Metadata, error) {
+	const operation = "open"
+	defer logOperationLatency(operation, time.Now())
+	en, err := i.store.Open(ctx, id, attr)
+	logOperationError(operation, err)
+	return en, err
+}
+
+func (i instrumentalStore) Flush(ctx context.Context, id int64, size int64) error {
+	const operation = "flush"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.Flush(ctx, id, size)
+	logOperationError(operation, err)
+	return err
+}
+
+func (i instrumentalStore) MirrorEntry(ctx context.Context, newEntry *types.Metadata) error {
+	const operation = "mirror_entry"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.MirrorEntry(ctx, newEntry)
+	logOperationError(operation, err)
+	return err
+}
+
+func (i instrumentalStore) ChangeEntryParent(ctx context.Context, targetEntryId int64, newParentId int64, newName string, opt types.ChangeParentAttr) error {
+	const operation = "change_entry_parent"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.ChangeEntryParent(ctx, targetEntryId, newParentId, newName, opt)
+	logOperationError(operation, err)
+	return err
+}
+
+func (i instrumentalStore) GetEntryExtendData(ctx context.Context, id int64) (types.ExtendData, error) {
+	const operation = "get_entry_extend_data"
+	defer logOperationLatency(operation, time.Now())
+	ed, err := i.store.GetEntryExtendData(ctx, id)
+	logOperationError(operation, err)
+	return ed, err
+}
+
+func (i instrumentalStore) UpdateEntryExtendData(ctx context.Context, id int64, ed types.ExtendData) error {
+	const operation = "update_entry_extend_data"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.UpdateEntryExtendData(ctx, id, ed)
+	logOperationError(operation, err)
+	return err
+}
+
+func (i instrumentalStore) GetEntryLabels(ctx context.Context, id int64) (types.Labels, error) {
+	const operation = "get_entry_labels"
+	defer logOperationLatency(operation, time.Now())
+	labels, err := i.store.GetEntryLabels(ctx, id)
+	logOperationError(operation, err)
+	return labels, err
+}
+
+func (i instrumentalStore) UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error {
+	const operation = "update_entry_labels"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.UpdateEntryLabels(ctx, id, labels)
 	logOperationError(operation, err)
 	return err
 }
@@ -144,12 +210,12 @@ func (i instrumentalStore) ListSegments(ctx context.Context, oid, chunkID int64,
 	return segList, err
 }
 
-func (i instrumentalStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Object, error) {
+func (i instrumentalStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Metadata, error) {
 	const operation = "append_segments"
 	defer logOperationLatency(operation, time.Now())
-	obj, err := i.store.AppendSegments(ctx, seg)
+	en, err := i.store.AppendSegments(ctx, seg)
 	logOperationError(operation, err)
-	return obj, err
+	return en, err
 }
 
 func (i instrumentalStore) DeleteSegment(ctx context.Context, segID int64) error {
@@ -182,10 +248,6 @@ func (i instrumentalStore) UpdateNotificationStatus(ctx context.Context, nid, st
 	err := i.store.UpdateNotificationStatus(ctx, nid, status)
 	logOperationError(operation, err)
 	return err
-}
-
-func (i instrumentalStore) PluginRecorder(plugin types.PlugScope) PluginRecorder {
-	return i.store.PluginRecorder(plugin)
 }
 
 func (i instrumentalStore) ListTask(ctx context.Context, taskID string, filter types.ScheduledTaskFilter) ([]*types.ScheduledTask, error) {
@@ -306,6 +368,10 @@ func (i instrumentalStore) DeleteDocument(ctx context.Context, id string) error 
 	err := i.store.DeleteDocument(ctx, id)
 	logOperationError(operation, err)
 	return err
+}
+
+func DisableMetrics() {
+	disableMetrics = true
 }
 
 func logOperationLatency(operation string, startAt time.Time) {

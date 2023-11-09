@@ -367,15 +367,14 @@ func (c *segReader) mergePage(ctx context.Context, pageIndex int64, page *pageNo
 
 type chunkWriter struct {
 	*chunkReader
-	unready      int32
-	writers      map[int64]*segWriter
-	ref          int32
-	commitLimit  int32
-	invalidCache InvalidCacheHook
-	writerMux    sync.Mutex
+	unready     int32
+	writers     map[int64]*segWriter
+	ref         int32
+	commitLimit int32
+	writerMux   sync.Mutex
 }
 
-func NewChunkWriter(reader Reader, hook InvalidCacheHook) Writer {
+func NewChunkWriter(reader Reader) Writer {
 	r, ok := reader.(*chunkReader)
 	if !ok {
 		return nil
@@ -386,7 +385,7 @@ func NewChunkWriter(reader Reader, hook InvalidCacheHook) Writer {
 	defer fileChunkMux.Unlock()
 	w, ok := fileChunkWriters[r.entry.ID]
 	if !ok {
-		cw := &chunkWriter{chunkReader: r, writers: map[int64]*segWriter{}, ref: 1, invalidCache: hook}
+		cw := &chunkWriter{chunkReader: r, writers: map[int64]*segWriter{}, ref: 1}
 		fileChunkWriters[r.entry.ID] = cw
 		return cw
 	}
@@ -773,13 +772,13 @@ func (w *segWriter) commitSegment(ctx context.Context) {
 			continue
 		}
 
-		newObj, err := w.store.AppendSegments(context.Background(), types.ChunkSeg{
-			ID:       seg.segID,
-			ChunkID:  w.chunkID,
-			ObjectID: w.entry.ID,
-			Off:      seg.off,
-			Len:      seg.size,
-			State:    0,
+		updatedEn, err := w.store.AppendSegments(context.Background(), types.ChunkSeg{
+			ID:      seg.segID,
+			ChunkID: w.chunkID,
+			EntryID: w.entry.ID,
+			Off:     seg.off,
+			Len:     seg.size,
+			State:   0,
 		})
 		if err != nil {
 			w.logger.Errorw("append segment error", "entry", w.entry.ID, "chunk", w.chunkID, "err", err)
@@ -788,9 +787,8 @@ func (w *segWriter) commitSegment(ctx context.Context) {
 			chunkDiscardSegmentCounter.Inc()
 			continue
 		}
-		w.invalidCache(w.entry.ID)
 		w.invalidate(w.chunkID)
-		w.entry = &newObj.Metadata
+		w.entry = updatedEn
 		w.uncommitted = w.uncommitted[1:]
 		atomic.AddInt32(&w.unready, -1)
 	}
@@ -1003,7 +1001,7 @@ func CompactChunksData(ctx context.Context, entry *types.Metadata, chunkStore me
 		// rebuild new sequential segment
 		if reader == nil {
 			reader = NewChunkReader(entry, chunkStore, dataStore)
-			writer = NewChunkWriter(reader, noneInvalidCache)
+			writer = NewChunkWriter(reader)
 			buf = make([]byte, fileChunkSize)
 		}
 		readN, err = reader.ReadAt(ctx, buf, chunkStart)

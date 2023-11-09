@@ -27,10 +27,10 @@ import (
 
 var defaultQuery Query
 
-func InitQuery(objectStore metastore.ObjectStore) {
+func InitQuery(entryStore metastore.DEntry) {
 	defaultQuery = &query{
-		objectStore: objectStore,
-		logger:      logger.NewLogger("ruleQuery"),
+		entry:  entryStore,
+		logger: logger.NewLogger("ruleQuery"),
 	}
 }
 
@@ -42,16 +42,16 @@ type Query interface {
 }
 
 type query struct {
-	rules       []types.Rule
-	labels      []types.LabelMatch
-	objectStore metastore.ObjectStore
-	logger      *zap.SugaredLogger
+	rules  []types.Rule
+	labels []types.LabelMatch
+	entry  metastore.DEntry
+	logger *zap.SugaredLogger
 }
 
 func (q *query) Reset() Query {
 	q.rules = nil
 	q.labels = nil
-	return &query{objectStore: q.objectStore, logger: q.logger}
+	return &query{entry: q.entry, logger: q.logger}
 }
 
 func (q *query) Rule(rule types.Rule) Query {
@@ -71,48 +71,48 @@ func (q *query) Results(ctx context.Context) ([]*types.Metadata, error) {
 	var (
 		startAt = time.Now()
 		entries []*types.Metadata
-		objects []*types.Object
 		err     error
 	)
 	defer q.logger.Infow("query entries with rules and labels",
 		"ruleCount", len(q.rules), "labelCount", len(q.labels), "cost", time.Since(startAt).String())
 
 	if len(q.labels) == 0 {
-		q.logger.Warnf("scan all object without lable query")
+		q.logger.Warnf("scan all entries without lable query")
 	}
 
-	objects, err = q.objectStore.ListObjects(ctx, types.Filter{Label: mergeLabelMatch(q.labels)})
+	var entriesIt metastore.EntryIterator
+	entriesIt, err = q.entry.FilterEntries(ctx, types.Filter{Label: mergeLabelMatch(q.labels)})
 	if err != nil {
-		q.logger.Errorw("list objects from store with label match failed", "err", err)
+		q.logger.Errorw("list entries from store with label match failed", "err", err)
 		return nil, err
 	}
 
 	if len(q.rules) == 0 {
 		// labels only
-		entries = make([]*types.Metadata, len(objects))
-		for i := range objects {
-			entries[i] = &objects[i].Metadata
+		for entriesIt.HasNext() {
+			entries = append(entries, entriesIt.Next())
 		}
 		return entries, nil
 	}
 
 	// filter in memory
-	entries = make([]*types.Metadata, 0, len(objects)/2)
-	for i := range objects {
-		obj := objects[i]
-		err = q.objectStore.GetObjectExtendData(ctx, obj)
+	for entriesIt.HasNext() {
+		en := entriesIt.Next()
+		ed, err := q.entry.GetEntryExtendData(ctx, en.ID)
 		if err != nil {
-			q.logger.Errorw("get object extend data failed", "obj", obj.ID, "err", err)
+			q.logger.Errorw("get entry extend data failed", "entry", en.ID, "err", err)
 			return nil, err
 		}
 
-		if Filter(mergeRules(q.rules), &obj.Metadata, obj.ExtendData, obj.Labels) {
-			entries = append(entries, &obj.Metadata)
+		labels, err := q.entry.GetEntryLabels(ctx, en.ID)
+		if err != nil {
+			q.logger.Errorw("get entry labels failed", "entry", en.ID, "err", err)
+			return nil, err
 		}
-	}
 
-	if len(objects) > 100 && len(entries) < len(objects)/2 {
-		q.logger.Warnf("slow memory filter performance")
+		if Filter(mergeRules(q.rules), en, &ed, &labels) {
+			entries = append(entries, en)
+		}
 	}
 	return entries, nil
 }

@@ -18,7 +18,6 @@ package db
 
 import (
 	"context"
-	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
@@ -34,35 +33,6 @@ func SqlError2Error(err error) error {
 	default:
 		return err
 	}
-}
-
-func queryFilter(tx *gorm.DB, filter types.Filter, scopeIds []int64) *gorm.DB {
-	if filter.ID != 0 {
-		tx = tx.Where("id = ?", filter.ID)
-	} else if len(scopeIds) > 0 {
-		tx = tx.Where("id IN ?", scopeIds)
-	}
-
-	if filter.ParentID != 0 {
-		tx = tx.Where("parent_id = ?", filter.ParentID)
-	}
-	if filter.RefID != 0 {
-		tx = tx.Where("ref_id = ?", filter.RefID)
-	}
-	if filter.Name != "" {
-		tx = tx.Where("name = ?", filter.Name)
-	}
-	if filter.Namespace != "" {
-		tx = tx.Where("namespace = ?", filter.Namespace)
-	}
-	if filter.Kind != "" {
-		tx = tx.Where("kind = ?", filter.Kind)
-	}
-	return tx
-}
-
-func labelSearchKey(k, v string) string {
-	return fmt.Sprintf("%s=%s", k, v)
 }
 
 type Logger struct {

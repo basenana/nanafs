@@ -71,17 +71,17 @@ var _ = BeforeSuite(func() {
 	// init mocked file
 	root, err := entryMgr.Root(context.TODO())
 	Expect(err).Should(BeNil())
-	txtFile, err := entryMgr.CreateEntry(context.TODO(), root.ID, dentry.EntryAttr{
+	txtFile, err := entryMgr.CreateEntry(context.TODO(), root.ID, types.EntryAttr{
 		Name: "target.txt", Kind: types.RawKind, Access: root.Access})
 	Expect(err).Should(BeNil())
 	targetID = txtFile.ID
 
-	f, err := entryMgr.Open(context.TODO(), txtFile.ID, dentry.Attr{Write: true})
+	f, err := entryMgr.Open(context.TODO(), txtFile.ID, types.OpenAttr{Write: true})
 	Expect(err).Should(BeNil())
 	_, err = f.WriteAt(context.TODO(), []byte("Hello World!"), 0)
 	Expect(err).Should(BeNil())
 	Expect(f.Close(context.TODO())).Should(BeNil())
 
 	// init plugin
-	Expect(plugin.Init(&config.Plugin{}, memMeta)).Should(BeNil())
+	Expect(plugin.Init(&config.Plugin{})).Should(BeNil())
 })

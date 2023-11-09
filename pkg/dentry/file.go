@@ -38,7 +38,7 @@ var (
 )
 
 type File interface {
-	GetAttr() Attr
+	GetAttr() types.OpenAttr
 	WriteAt(ctx context.Context, data []byte, off int64) (int64, error)
 	ReadAt(ctx context.Context, dest []byte, off int64) (int64, error)
 	Fsync(ctx context.Context) error
@@ -47,21 +47,20 @@ type File interface {
 }
 
 type file struct {
-	entryID    int64
-	size       int64
-	cacheStore *metaCache
+	entryID int64
+	size    int64
 
 	reader bio.Reader
 	writer bio.Writer
 
-	attr Attr
+	attr types.OpenAttr
 	cfg  *config.FS
 	mux  sync.Mutex
 }
 
 var _ File = &file{}
 
-func (f *file) GetAttr() Attr {
+func (f *file) GetAttr() types.OpenAttr {
 	return f.attr
 }
 
@@ -77,7 +76,6 @@ func (f *file) WriteAt(ctx context.Context, data []byte, off int64) (int64, erro
 	if f.size < off+n {
 		f.size = off + n
 	}
-	f.cacheStore.delEntryCache(f.entryID)
 	return n, err
 }
 
@@ -90,7 +88,6 @@ func (f *file) Flush(ctx context.Context) error {
 	if err != nil {
 		fileEntryLogger.Errorw("flush file error", "entry", f.entryID, "err", err)
 	}
-	f.cacheStore.delEntryCache(f.entryID)
 	return err
 }
 
@@ -134,14 +131,14 @@ func (f *file) Close(ctx context.Context) (err error) {
 	return nil
 }
 
-func openFile(en *types.Metadata, attr Attr, store metastore.ObjectStore, cacheStore *metaCache, fileStorage storage.Storage, cfg *config.FS) (File, error) {
-	f := &file{entryID: en.ID, size: en.Size, cacheStore: cacheStore, attr: attr, cfg: cfg}
+func openFile(en *types.Metadata, attr types.OpenAttr, chunkStore metastore.ChunkStore, fileStorage storage.Storage, cfg *config.FS) (File, error) {
+	f := &file{entryID: en.ID, size: en.Size, attr: attr, cfg: cfg}
 	if fileStorage == nil {
 		return nil, logOperationError(fileOperationErrorCounter, "init", fmt.Errorf("storage %s not found", en.Storage))
 	}
-	f.reader = bio.NewChunkReader(en, store.(metastore.ChunkStore), fileStorage)
+	f.reader = bio.NewChunkReader(en, chunkStore, fileStorage)
 	if attr.Write {
-		f.writer = bio.NewChunkWriter(f.reader, cacheStore.delEntryCache)
+		f.writer = bio.NewChunkWriter(f.reader)
 	}
 	increaseOpenedFile(en.ID)
 	return f, nil
@@ -150,17 +147,18 @@ func openFile(en *types.Metadata, attr Attr, store metastore.ObjectStore, cacheS
 type symlink struct {
 	entryID int64
 	mgr     *manager
+	store   metastore.DEntry
 
 	plugin.MemFS
 	size       int64
 	modifiedAt time.Time
 	data       []byte
-	attr       Attr
+	attr       types.OpenAttr
 }
 
 var _ File = &symlink{}
 
-func (s *symlink) GetAttr() Attr {
+func (s *symlink) GetAttr() types.OpenAttr {
 	return s.attr
 }
 
@@ -195,13 +193,7 @@ func (s *symlink) Fsync(ctx context.Context) error {
 
 func (s *symlink) Flush(ctx context.Context) (err error) {
 	defer trace.StartRegion(ctx, "dentry.symlink.Flush").End()
-	en, err := s.mgr.GetEntry(ctx, s.entryID)
-	if err != nil {
-		return err
-	}
-	en.Size = s.size
-	en.ModifiedAt = s.modifiedAt
-	err = s.mgr.cache.updateEntries(ctx, en)
+	err = s.mgr.store.Flush(ctx, s.entryID, s.size)
 	if err != nil {
 		return err
 	}
@@ -210,7 +202,6 @@ func (s *symlink) Flush(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	//eData.Symlink, err = base64.StdEncoding.EncodeToString(s.data)
 	eData.Symlink = string(s.data[:s.size])
 	return s.mgr.UpdateEntryExtendData(ctx, s.entryID, eData)
 }
@@ -226,7 +217,7 @@ func (s *symlink) Close(ctx context.Context) error {
 	return s.Flush(ctx)
 }
 
-func openSymlink(mgr *manager, en *types.Metadata, attr Attr) (File, error) {
+func openSymlink(mgr *manager, en *types.Metadata, attr types.OpenAttr) (File, error) {
 	if en.Kind != types.SymLinkKind {
 		return nil, fmt.Errorf("not symlink")
 	}
@@ -253,16 +244,16 @@ func openSymlink(mgr *manager, en *types.Metadata, attr Attr) (File, error) {
 }
 
 type extFile struct {
-	attr       Attr
+	attr       types.OpenAttr
 	entryID    int64
 	modifiedAt time.Time
-	cacheStore *metaCache
+	store      metastore.DEntry
 	cfg        *config.FS
 	size       int64
 	stub       plugin.MirrorPlugin
 }
 
-func (e *extFile) GetAttr() Attr {
+func (e *extFile) GetAttr() types.OpenAttr {
 	return e.attr
 }
 
@@ -280,13 +271,7 @@ func (e *extFile) ReadAt(ctx context.Context, dest []byte, off int64) (int64, er
 }
 
 func (e *extFile) Fsync(ctx context.Context) error {
-	entry, err := e.cacheStore.getEntry(ctx, e.entryID)
-	if err != nil {
-		return err
-	}
-	entry.Size = e.size
-	entry.ModifiedAt = e.modifiedAt
-	err = e.cacheStore.updateEntries(ctx, entry)
+	err := e.store.Flush(ctx, e.entryID, e.size)
 	if err != nil {
 		return err
 	}
@@ -302,11 +287,10 @@ func (e *extFile) Close(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer e.cacheStore.delEntryCache(e.entryID)
 	return e.stub.Close(ctx)
 }
 
-func openExternalFile(en *types.Metadata, ps *types.PlugScope, attr Attr, cacheStore *metaCache, cfg *config.FS) (File, error) {
+func openExternalFile(en *types.Metadata, ps *types.PlugScope, attr types.OpenAttr, store metastore.DEntry, cfg *config.FS) (File, error) {
 	if ps == nil {
 		return nil, fmt.Errorf("extend entry has no plug scop")
 	}
@@ -314,7 +298,7 @@ func openExternalFile(en *types.Metadata, ps *types.PlugScope, attr Attr, cacheS
 	if err != nil {
 		return nil, fmt.Errorf("build mirror plugin failed: %s", err)
 	}
-	eFile := &extFile{entryID: en.ID, size: en.Size, modifiedAt: en.ModifiedAt, attr: attr, cacheStore: cacheStore, cfg: cfg, stub: stub}
+	eFile := &extFile{entryID: en.ID, size: en.Size, modifiedAt: en.ModifiedAt, store: store, attr: attr, cfg: cfg, stub: stub}
 	if attr.Trunc || en.Size == 0 {
 		err = stub.Trunc(context.TODO())
 		if err != nil {
@@ -324,15 +308,6 @@ func openExternalFile(en *types.Metadata, ps *types.PlugScope, attr Attr, cacheS
 		eFile.size = 0
 	}
 	return eFile, nil
-}
-
-type Attr struct {
-	EntryID int64
-	Read    bool
-	Write   bool
-	Create  bool
-	Trunc   bool
-	Direct  bool
 }
 
 var (
