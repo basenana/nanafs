@@ -376,6 +376,15 @@ func (s *sqlMetaStore) SystemInfo(ctx context.Context) (*types.SystemInfo, error
 		return result, nil
 	}
 
+	var totalChunk int64
+	res = s.WithContext(ctx).Model(&db.ObjectChunk{}).Count(&totalChunk)
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
+	}
+	if totalChunk == 0 {
+		return result, nil
+	}
+
 	// real usage in storage
 	res = s.WithContext(ctx).Model(&db.ObjectChunk{}).Select("SUM(len) as file_size_total").Scan(&result.FileSizeTotal)
 	if res.Error != nil {
@@ -1154,7 +1163,11 @@ func (s *sqlMetaStore) SaveTask(ctx context.Context, task *types.ScheduledTask) 
 
 func (s *sqlMetaStore) DeleteFinishedTask(ctx context.Context, aliveTime time.Duration) error {
 	defer trace.StartRegion(ctx, "metastore.sql.DeleteFinishedTask").End()
-	res := s.WithContext(ctx).Where("status = ? AND created_time < ?", types.ScheduledTaskFinish, time.Now().Add(-1*aliveTime)).Delete(&db.ScheduledTask{})
+	res := s.WithContext(ctx).
+		Where("status IN ? AND created_time < ?",
+			[]string{types.ScheduledTaskFinish, types.ScheduledTaskSucceed, types.ScheduledTaskFailed},
+			time.Now().Add(-1*aliveTime)).
+		Delete(&db.ScheduledTask{})
 	if res.Error != nil {
 		return db.SqlError2Error(res.Error)
 	}
