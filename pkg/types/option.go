@@ -21,6 +21,8 @@ type EntryAttr struct {
 	Kind        Kind
 	Access      Access
 	Dev         int64
+	ExtendData  ExtendData
+	Labels      Labels
 	PlugScope   *PlugScope
 	GroupFilter *Rule
 }

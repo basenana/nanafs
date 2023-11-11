@@ -25,9 +25,9 @@ const (
 	entryNameMaxLength    = 255
 	entryDefaultNamespace = "personal"
 
-	VersionKey         = "nanafs.version"
-	KindKey            = "nanafs.kind"
-	LabelPluginNameKey = "nanafs.plugin.name"
+	LabelKeyPluginPrefix = "org.basenana.internal.plugin/"
+	LabelKeyPluginKind   = LabelKeyPluginPrefix + "kind"
+	LabelKeyPluginName   = LabelKeyPluginPrefix + "name"
 )
 
 type SystemInfo struct {

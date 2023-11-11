@@ -49,6 +49,8 @@ type Manager interface {
 	GetEntryExtendField(ctx context.Context, id int64, fKey string) (*string, error)
 	SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string) error
 	RemoveEntryExtendField(ctx context.Context, id int64, fKey string) error
+	GetEntryLabels(ctx context.Context, id int64) (types.Labels, error)
+	UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error
 
 	Open(ctx context.Context, entryId int64, attr types.OpenAttr) (File, error)
 	OpenGroup(ctx context.Context, entryID int64) (Group, error)
@@ -173,6 +175,16 @@ func (m *manager) RemoveEntryExtendField(ctx context.Context, id int64, fKey str
 		return types.ErrNotFound
 	}
 	return m.UpdateEntryExtendData(ctx, id, ed)
+}
+
+func (m *manager) GetEntryLabels(ctx context.Context, id int64) (types.Labels, error) {
+	defer trace.StartRegion(ctx, "dentry.manager.GetEntryLabels").End()
+	return m.store.GetEntryLabels(ctx, id)
+}
+
+func (m *manager) UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error {
+	defer trace.StartRegion(ctx, "dentry.manager.UpdateEntryLabels").End()
+	return m.store.UpdateEntryLabels(ctx, id, labels)
 }
 
 func (m *manager) CreateEntry(ctx context.Context, parentId int64, attr types.EntryAttr) (*types.Metadata, error) {

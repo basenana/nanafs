@@ -17,15 +17,15 @@
 package pluginapi
 
 const (
-	ResEntryIdKey          = "nanafs.workflow.entry_id"
-	ResEntryPathKey        = "nanafs.workflow.entry_path"
-	ResEntryURIKey         = "nanafs.workflow.entry_uri"
-	ResEntryDocumentsKey   = "nanafs.workflow.entry_documents"
-	ResEntryDocSummaryKey  = "nanafs.workflow.entry_summary"
-	ResEntryDocKeyWordsKey = "nanafs.workflow.entry_keywords"
-	ResCollectManifests    = "nanafs.workflow.collect_manifests"
-	ResPluginName          = "nanafs.workflow.plugin_name"
-	ResPluginVersion       = "nanafs.workflow.plugin_version"
-	ResPluginType          = "nanafs.workflow.plugin_type"
-	ResPluginAction        = "nanafs.workflow.plugin_action"
+	ResEntryIdKey          = "org.basenana.workflow/entry_id"
+	ResEntryPathKey        = "org.basenana.workflow/entry_path"
+	ResEntryURIKey         = "org.basenana.workflow/entry_uri"
+	ResEntryDocumentsKey   = "org.basenana.workflow/entry_documents"
+	ResEntryDocSummaryKey  = "org.basenana.workflow/entry_summary"
+	ResEntryDocKeyWordsKey = "org.basenana.workflow/entry_keywords"
+	ResCollectManifests    = "org.basenana.workflow/collect_manifests"
+	ResPluginName          = "org.basenana.workflow/plugin_name"
+	ResPluginVersion       = "org.basenana.workflow/plugin_version"
+	ResPluginType          = "org.basenana.workflow/plugin_type"
+	ResPluginAction        = "org.basenana.workflow/plugin_action"
 )

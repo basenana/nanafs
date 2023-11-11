@@ -51,6 +51,8 @@ type Controller interface {
 	GetEntryExtendField(ctx context.Context, id int64, fKey string) (*string, error)
 	SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string) error
 	RemoveEntryExtendField(ctx context.Context, id int64, fKey string) error
+	ConfigEntrySourcePlugin(ctx context.Context, id int64, scope types.ExtendData) error
+	CleanupEntrySourcePlugin(ctx context.Context, id int64) error
 
 	OpenFile(ctx context.Context, entryId int64, attr types.OpenAttr) (dentry.File, error)
 	ReadFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error)
@@ -295,37 +297,6 @@ func (c *controller) ChangeEntryParent(ctx context.Context, targetId, oldParentI
 		return err
 	}
 	dentry.PublicEntryActionEvent(events.ActionTypeChangeParent, target)
-	return nil
-}
-
-func (c *controller) GetEntryExtendField(ctx context.Context, id int64, fKey string) (*string, error) {
-	defer trace.StartRegion(ctx, "controller.GetEntryExtendField").End()
-	result, err := c.entry.GetEntryExtendField(ctx, id, fKey)
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-func (c *controller) SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string) error {
-	defer trace.StartRegion(ctx, "controller.SetEntryExtendField").End()
-	c.logger.Debugw("set entry extend filed", "entry", id, "key", fKey)
-	err := c.entry.SetEntryExtendField(ctx, id, fKey, fVal)
-	if err != nil {
-		c.logger.Errorw("set entry extend filed failed", "entry", id, "key", fKey, "err", err)
-		return err
-	}
-	return nil
-}
-
-func (c *controller) RemoveEntryExtendField(ctx context.Context, id int64, fKey string) error {
-	defer trace.StartRegion(ctx, "controller.RemoveEntryExtendField").End()
-	c.logger.Debugw("remove entry extend filed", "entry", id, "key", fKey)
-	err := c.entry.RemoveEntryExtendField(ctx, id, fKey)
-	if err != nil {
-		c.logger.Errorw("remove entry extend filed failed", "entry", id, "key", fKey, "err", err)
-		return err
-	}
 	return nil
 }
 
