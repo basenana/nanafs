@@ -78,6 +78,19 @@ func buildMigrations() []*gormigrate.Migration {
 				return nil
 			},
 		},
+		{
+			ID: "2023111200",
+			Migrate: func(db *gorm.DB) error {
+				err := db.AutoMigrate(&ObjectProperty{})
+				_ = db.Exec("UPDATE object_property SET encoded=true WHERE 1=1;")
+				err = db.AutoMigrate(&Document{})
+				_ = db.Exec("UPDATE document SET desync=false WHERE 1=1;")
+				return err
+			},
+			Rollback: func(db *gorm.DB) error {
+				return nil
+			},
+		},
 	}
 }
 

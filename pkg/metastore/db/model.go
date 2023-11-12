@@ -135,10 +135,11 @@ func (o Label) TableName() string {
 }
 
 type ObjectProperty struct {
-	ID    int64  `gorm:"column:id;autoIncrement"`
-	OID   int64  `gorm:"column:oid;index:prop_oid"`
-	Name  string `gorm:"column:key;index:prop_name"`
-	Value string `gorm:"column:value"`
+	ID      int64  `gorm:"column:id;autoIncrement"`
+	OID     int64  `gorm:"column:oid;index:prop_oid"`
+	Name    string `gorm:"column:key;index:prop_name"`
+	Value   string `gorm:"column:value"`
+	Encoded bool   `gorm:"column:encoded"`
 }
 
 func (o ObjectProperty) TableName() string {
@@ -382,6 +383,7 @@ type Document struct {
 	KeyWords  string    `gorm:"column:keywords"`
 	Content   string    `gorm:"column:content"`
 	Summary   string    `gorm:"column:summary"`
+	Desync    bool      `gorm:"column:desync"`
 	CreatedAt time.Time `gorm:"column:created_at"`
 	ChangedAt time.Time `gorm:"column:changed_at"`
 }
@@ -398,6 +400,7 @@ func (d *Document) From(document *types.Document) *Document {
 	d.Source = document.Source
 	d.Content = document.Content
 	d.Summary = document.Summary
+	d.Desync = document.Desync
 	d.CreatedAt = document.CreatedAt
 	d.ChangedAt = document.ChangedAt
 	return d
@@ -412,6 +415,7 @@ func (d *Document) To() *types.Document {
 		KeyWords:  strings.Split(d.KeyWords, ","),
 		Content:   d.Content,
 		Summary:   d.Summary,
+		Desync:    d.Desync,
 		CreatedAt: d.CreatedAt,
 		ChangedAt: d.ChangedAt,
 	}

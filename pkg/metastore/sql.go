@@ -20,13 +20,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"runtime/trace"
+	"sync"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"gorm.io/gorm/clause"
-	"runtime/trace"
-	"sync"
-	"time"
 
 	"github.com/glebarez/sqlite"
 	"go.uber.org/zap"
@@ -280,6 +281,12 @@ func (s *sqliteMetaStore) GetDocument(ctx context.Context, id string) (*types.Do
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	return s.dbStore.GetDocument(ctx, id)
+}
+
+func (s *sqliteMetaStore) FindDocument(ctx context.Context, uri string) (*types.Document, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.FindDocument(ctx, uri)
 }
 
 func (s *sqliteMetaStore) DeleteDocument(ctx context.Context, id string) error {
@@ -1423,7 +1430,7 @@ func (s *sqlMetaStore) SaveDocument(ctx context.Context, doc *types.Document) er
 func (s *sqlMetaStore) ListDocument(ctx context.Context) ([]*types.Document, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListDocument").End()
 	docList := make([]db.Document, 0)
-	res := s.WithContext(ctx).Order("time DESC").Find(&docList)
+	res := s.WithContext(ctx).Order("created_at DESC").Find(&docList)
 	if res.Error != nil {
 		return nil, db.SqlError2Error(res.Error)
 	}
@@ -1439,6 +1446,16 @@ func (s *sqlMetaStore) GetDocument(ctx context.Context, id string) (*types.Docum
 	defer trace.StartRegion(ctx, "metastore.sql.GetDocument").End()
 	doc := &db.Document{}
 	res := s.WithContext(ctx).Where("id = ?", id).First(doc)
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
+	}
+	return doc.To(), nil
+}
+
+func (s *sqlMetaStore) FindDocument(ctx context.Context, uri string) (*types.Document, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.GetDocument").End()
+	doc := &db.Document{}
+	res := s.WithContext(ctx).Where("uri = ?", uri).First(doc)
 	if res.Error != nil {
 		return nil, db.SqlError2Error(res.Error)
 	}

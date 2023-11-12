@@ -18,8 +18,6 @@ package types
 
 import "time"
 
-const ()
-
 type Document struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
@@ -28,6 +26,7 @@ type Document struct {
 	KeyWords  []string  `json:"key_words,omitempty"`
 	Content   string    `json:"content,omitempty"`
 	Summary   string    `json:"summary,omitempty"`
+	Desync    bool      `json:"desync"`
 	CreatedAt time.Time `json:"created_at"`
 	ChangedAt time.Time `json:"changed_at"`
 }

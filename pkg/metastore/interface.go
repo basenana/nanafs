@@ -87,5 +87,6 @@ type DocumentRecorder interface {
 	SaveDocument(ctx context.Context, doc *types.Document) error
 	ListDocument(ctx context.Context) ([]*types.Document, error)
 	GetDocument(ctx context.Context, id string) (*types.Document, error)
+	FindDocument(ctx context.Context, uri string) (*types.Document, error)
 	DeleteDocument(ctx context.Context, id string) error
 }
