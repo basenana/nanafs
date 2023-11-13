@@ -135,10 +135,11 @@ func (o Label) TableName() string {
 }
 
 type ObjectProperty struct {
-	ID    int64  `gorm:"column:id;autoIncrement"`
-	OID   int64  `gorm:"column:oid;index:prop_oid"`
-	Name  string `gorm:"column:key;index:prop_name"`
-	Value string `gorm:"column:value"`
+	ID      int64  `gorm:"column:id;autoIncrement"`
+	OID     int64  `gorm:"column:oid;index:prop_oid"`
+	Name    string `gorm:"column:key;index:prop_name"`
+	Value   string `gorm:"column:value"`
+	Encoded bool   `gorm:"column:encoded"`
 }
 
 func (o ObjectProperty) TableName() string {
@@ -180,6 +181,15 @@ func (o *ObjectExtend) ToExtData() types.ExtendData {
 		_ = json.Unmarshal(o.PlugScope, &ext.PlugScope)
 	}
 	return ext
+}
+
+type ObjectURI struct {
+	OID int64  `gorm:"column:oid;primaryKey"`
+	Uri string `gorm:"column:uri;index:obj_uri"`
+}
+
+func (o ObjectURI) TableName() string {
+	return "object_uri"
 }
 
 type ObjectChunk struct {
@@ -246,6 +256,7 @@ type Workflow struct {
 	ID              string    `gorm:"column:id;primaryKey"`
 	Name            string    `gorm:"column:name"`
 	Rule            string    `gorm:"column:rule"`
+	Cron            string    `gorm:"column:cron"`
 	Steps           string    `gorm:"column:steps"`
 	Enable          bool      `gorm:"column:enable;index:wf_enable"`
 	CreatedAt       time.Time `gorm:"column:created_at;index:wf_creat"`
@@ -375,15 +386,17 @@ func (o *WorkflowJob) To() (*types.WorkflowJob, error) {
 }
 
 type Document struct {
-	ID        string    `gorm:"column:id;primaryKey"`
-	Name      string    `gorm:"column:name;index:name"`
-	Source    string    `gorm:"column:source;index:source"`
-	Uri       string    `gorm:"column:uri;index:uri"`
-	KeyWords  string    `gorm:"column:keywords"`
-	Content   string    `gorm:"column:content"`
-	Summary   string    `gorm:"column:summary"`
-	CreatedAt time.Time `gorm:"column:created_at"`
-	ChangedAt time.Time `gorm:"column:changed_at"`
+	ID            string    `gorm:"column:id;primaryKey"`
+	Name          string    `gorm:"column:name;index:doc_name"`
+	Source        string    `gorm:"column:source;index:doc_source"`
+	Uri           string    `gorm:"column:uri;index:doc_uri"`
+	ParentEntryID *int64    `gorm:"column:parent_entry_id;index:doc_parent_entry_id"`
+	KeyWords      string    `gorm:"column:keywords"`
+	Content       string    `gorm:"column:content"`
+	Summary       string    `gorm:"column:summary"`
+	Desync        bool      `gorm:"column:desync"`
+	CreatedAt     time.Time `gorm:"column:created_at"`
+	ChangedAt     time.Time `gorm:"column:changed_at"`
 }
 
 func (d *Document) TableName() string {
@@ -394,10 +407,12 @@ func (d *Document) From(document *types.Document) *Document {
 	d.ID = document.ID
 	d.Name = document.Name
 	d.Uri = document.Uri
+	d.ParentEntryID = document.ParentEntryID
 	d.KeyWords = strings.Join(document.KeyWords, ",")
 	d.Source = document.Source
 	d.Content = document.Content
 	d.Summary = document.Summary
+	d.Desync = document.Desync
 	d.CreatedAt = document.CreatedAt
 	d.ChangedAt = document.ChangedAt
 	return d
@@ -405,15 +420,17 @@ func (d *Document) From(document *types.Document) *Document {
 
 func (d *Document) To() *types.Document {
 	result := &types.Document{
-		ID:        d.ID,
-		Name:      d.Name,
-		Uri:       d.Uri,
-		Source:    d.Source,
-		KeyWords:  strings.Split(d.KeyWords, ","),
-		Content:   d.Content,
-		Summary:   d.Summary,
-		CreatedAt: d.CreatedAt,
-		ChangedAt: d.ChangedAt,
+		ID:            d.ID,
+		Name:          d.Name,
+		Uri:           d.Uri,
+		ParentEntryID: d.ParentEntryID,
+		Source:        d.Source,
+		KeyWords:      strings.Split(d.KeyWords, ","),
+		Content:       d.Content,
+		Summary:       d.Summary,
+		Desync:        d.Desync,
+		CreatedAt:     d.CreatedAt,
+		ChangedAt:     d.ChangedAt,
 	}
 	return result
 }

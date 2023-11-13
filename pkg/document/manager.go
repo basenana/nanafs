@@ -18,6 +18,7 @@ package document
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -30,9 +31,9 @@ import (
 
 type Manager interface {
 	ListDocuments(ctx context.Context) ([]*types.Document, error)
-	CreateDocument(ctx context.Context, doc *types.Document) error
-	UpdateDocument(ctx context.Context, doc *types.Document) error
+	SaveDocument(ctx context.Context, doc *types.Document) error
 	GetDocument(ctx context.Context, id string) (*types.Document, error)
+	FindDocument(ctx context.Context, uri string) (*types.Document, error)
 	DeleteDocument(ctx context.Context, id string) error
 }
 
@@ -59,28 +60,50 @@ func (m *manager) ListDocuments(ctx context.Context) ([]*types.Document, error) 
 	return result, nil
 }
 
-func (m *manager) CreateDocument(ctx context.Context, doc *types.Document) error {
+func (m *manager) SaveDocument(ctx context.Context, doc *types.Document) error {
 	if doc.ID == "" {
-		doc.ID = uuid.New().String()
-	}
-	doc.CreatedAt = time.Now()
-	doc.ChangedAt = time.Now()
-	if err := m.recorder.SaveDocument(ctx, doc); err != nil {
-		return err
-	}
-	return nil
-}
+		crtDoc, err := m.recorder.FindDocument(ctx, doc.Uri)
+		if err != nil {
+			if errors.Is(err, types.ErrNotFound) {
+				// create new one
+				doc.ID = uuid.New().String()
+				doc.CreatedAt = time.Now()
+				doc.ChangedAt = time.Now()
+				return m.recorder.SaveDocument(ctx, doc)
+			}
+			return err
+		}
 
-func (m *manager) UpdateDocument(ctx context.Context, doc *types.Document) error {
-	doc.ChangedAt = time.Now()
-	if err := m.recorder.SaveDocument(ctx, doc); err != nil {
+		// update
+		crtDoc.ChangedAt = time.Now()
+		crtDoc.Summary = doc.Summary
+		crtDoc.KeyWords = doc.KeyWords
+		crtDoc.Content = doc.Content
+		crtDoc.Desync = doc.Desync
+		return m.recorder.SaveDocument(ctx, crtDoc)
+	}
+	// update
+	crtDoc, err := m.recorder.GetDocument(ctx, doc.ID)
+	if err != nil {
 		return err
 	}
-	return nil
+	if (doc.Name != "" && crtDoc.Name != doc.Name) || (doc.Uri != "" && crtDoc.Uri != doc.Uri) {
+		return errors.New("can't update name or uri of doc")
+	}
+	crtDoc.ChangedAt = time.Now()
+	crtDoc.Summary = doc.Summary
+	crtDoc.KeyWords = doc.KeyWords
+	crtDoc.Content = doc.Content
+	crtDoc.Desync = doc.Desync
+	return m.recorder.SaveDocument(ctx, crtDoc)
 }
 
 func (m *manager) GetDocument(ctx context.Context, id string) (*types.Document, error) {
 	return m.recorder.GetDocument(ctx, id)
+}
+
+func (m *manager) FindDocument(ctx context.Context, uri string) (*types.Document, error) {
+	return m.recorder.FindDocument(ctx, uri)
 }
 
 func (m *manager) DeleteDocument(ctx context.Context, id string) error {
