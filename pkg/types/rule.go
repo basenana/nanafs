@@ -23,6 +23,7 @@ const (
 
 	RuleOpEqual     = "equal"
 	RuleOpBeginWith = "prefix"
+	RuleOpEndWith   = "suffix"
 	RuleOpPattern   = "pattern"
 	RuleOpBefore    = "before"
 	RuleOpAfter     = "after"

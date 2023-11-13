@@ -367,7 +367,7 @@ var _ = Describe("TestSqliteLabelOperation", func() {
 })
 
 func InitRootEntry() *types.Metadata {
-	acc := types.Access{
+	acc := &types.Access{
 		Permissions: []types.Permission{
 			types.PermOwnerRead,
 			types.PermOwnerWrite,

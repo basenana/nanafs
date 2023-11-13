@@ -377,7 +377,7 @@ func (m *manager) changeEntryParentByFileCopy(ctx context.Context, targetEntry, 
 	attr := types.EntryAttr{
 		Name:      newName,
 		Kind:      targetEntry.Kind,
-		Access:    targetEntry.Access,
+		Access:    &targetEntry.Access,
 		PlugScope: newParentEd.PlugScope,
 	}
 	en, err := m.CreateEntry(ctx, newParent.ID, attr)

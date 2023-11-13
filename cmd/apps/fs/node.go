@@ -202,7 +202,7 @@ func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode u
 	newCh, err := n.R.CreateEntry(ctx, n.entryID, types.EntryAttr{
 		Name:   name,
 		Kind:   fileKindFromMode(mode),
-		Access: *acc,
+		Access: acc,
 		Dev:    int64(MountDev),
 	})
 	if err != nil {
@@ -296,7 +296,7 @@ func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fus
 	newDir, err := n.R.CreateEntry(ctx, n.entryID, types.EntryAttr{
 		Name:   name,
 		Kind:   types.GroupKind,
-		Access: *acc,
+		Access: acc,
 		Dev:    int64(MountDev),
 	})
 	if err != nil {
@@ -331,7 +331,7 @@ func (n *NanaNode) Mknod(ctx context.Context, name string, mode uint32, dev uint
 	newCh, err := n.R.CreateEntry(ctx, n.entryID, types.EntryAttr{
 		Name:   name,
 		Kind:   fileKindFromMode(mode),
-		Access: *acc,
+		Access: acc,
 		Dev:    int64(dev),
 	})
 	if err != nil {
@@ -368,10 +368,6 @@ func (n *NanaNode) Link(ctx context.Context, target fs.InodeEmbedder, name strin
 func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.EntryOut) (node *fs.Inode, errno syscall.Errno) {
 	defer trace.StartRegion(ctx, "fs.node.Symlink").End()
 	defer logOperationLatency("entry_symlink", time.Now())
-	entry, err := n.R.GetEntry(ctx, n.entryID)
-	if err != nil {
-		return nil, Error2FuseSysError("entry_symlink", err)
-	}
 	exist, err := n.R.FindEntry(ctx, n.entryID, name)
 	if err != nil {
 		if err != types.ErrNotFound {
@@ -382,10 +378,9 @@ func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.E
 		return nil, Error2FuseSysError("entry_symlink", types.ErrIsExist)
 	}
 	newLink, err := n.R.CreateEntry(ctx, n.entryID, types.EntryAttr{
-		Name:   name,
-		Kind:   types.SymLinkKind,
-		Access: entry.Access,
-		Dev:    int64(MountDev),
+		Name: name,
+		Kind: types.SymLinkKind,
+		Dev:  int64(MountDev),
 	})
 	if err != nil {
 		return nil, Error2FuseSysError("entry_symlink", err)

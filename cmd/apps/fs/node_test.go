@@ -35,9 +35,9 @@ var _ = Describe("TestAccess", func() {
 		root *NanaNode
 	)
 
-	acc := types.Access{}
-	dentry.UpdateAccessWithMode(&acc, 0655)
-	dentry.UpdateAccessWithOwnID(&acc, cfg.FS.Owner.Uid, cfg.FS.Owner.Gid)
+	acc := &types.Access{}
+	dentry.UpdateAccessWithMode(acc, 0655)
+	dentry.UpdateAccessWithOwnID(acc, cfg.FS.Owner.Uid, cfg.FS.Owner.Gid)
 
 	BeforeEach(func() {
 		var err error
@@ -80,9 +80,9 @@ var _ = Describe("TestGetattr", func() {
 		root *NanaNode
 	)
 
-	acc := types.Access{}
-	dentry.UpdateAccessWithMode(&acc, 0655)
-	dentry.UpdateAccessWithOwnID(&acc, cfg.FS.Owner.Uid, cfg.FS.Owner.Gid)
+	acc := &types.Access{}
+	dentry.UpdateAccessWithMode(acc, 0655)
+	dentry.UpdateAccessWithOwnID(acc, cfg.FS.Owner.Uid, cfg.FS.Owner.Gid)
 
 	BeforeEach(func() {
 		var err error
@@ -121,9 +121,9 @@ var _ = Describe("TestOpen", func() {
 		root *NanaNode
 	)
 
-	acc := types.Access{}
-	dentry.UpdateAccessWithMode(&acc, 0655)
-	dentry.UpdateAccessWithOwnID(&acc, cfg.FS.Owner.Uid, cfg.FS.Owner.Gid)
+	acc := &types.Access{}
+	dentry.UpdateAccessWithMode(acc, 0655)
+	dentry.UpdateAccessWithOwnID(acc, cfg.FS.Owner.Uid, cfg.FS.Owner.Gid)
 
 	BeforeEach(func() {
 		var err error
@@ -214,9 +214,9 @@ var _ = Describe("TestLookup", func() {
 		fileName = "file.txt"
 	)
 
-	acc := types.Access{}
-	dentry.UpdateAccessWithMode(&acc, 0655)
-	dentry.UpdateAccessWithOwnID(&acc, cfg.FS.Owner.Uid, cfg.FS.Owner.Gid)
+	acc := &types.Access{}
+	dentry.UpdateAccessWithMode(acc, 0655)
+	dentry.UpdateAccessWithOwnID(acc, cfg.FS.Owner.Uid, cfg.FS.Owner.Gid)
 
 	BeforeEach(func() {
 		var err error
@@ -264,9 +264,9 @@ var _ = Describe("TestOpendir", func() {
 		root     *NanaNode
 	)
 
-	acc := types.Access{}
-	dentry.UpdateAccessWithMode(&acc, 0655)
-	dentry.UpdateAccessWithOwnID(&acc, cfg.FS.Owner.Uid, cfg.FS.Owner.Gid)
+	acc := &types.Access{}
+	dentry.UpdateAccessWithMode(acc, 0655)
+	dentry.UpdateAccessWithOwnID(acc, cfg.FS.Owner.Uid, cfg.FS.Owner.Gid)
 
 	BeforeEach(func() {
 		var err error
@@ -323,9 +323,9 @@ var _ = Describe("TestReaddir", func() {
 		ctl  controller.Controller
 	)
 
-	acc := types.Access{}
-	dentry.UpdateAccessWithMode(&acc, 0655)
-	dentry.UpdateAccessWithOwnID(&acc, cfg.FS.Owner.Uid, cfg.FS.Owner.Gid)
+	acc := &types.Access{}
+	dentry.UpdateAccessWithMode(acc, 0655)
+	dentry.UpdateAccessWithOwnID(acc, cfg.FS.Owner.Uid, cfg.FS.Owner.Gid)
 
 	BeforeEach(func() {
 		var err error
@@ -455,9 +455,9 @@ var _ = Describe("TestLink", func() {
 		root *NanaNode
 	)
 
-	acc := types.Access{}
-	dentry.UpdateAccessWithMode(&acc, 0655)
-	dentry.UpdateAccessWithOwnID(&acc, cfg.FS.Owner.Uid, cfg.FS.Owner.Gid)
+	acc := &types.Access{}
+	dentry.UpdateAccessWithMode(acc, 0655)
+	dentry.UpdateAccessWithOwnID(acc, cfg.FS.Owner.Uid, cfg.FS.Owner.Gid)
 
 	BeforeEach(func() {
 		var err error
@@ -499,9 +499,9 @@ var _ = Describe("TestRmdir", func() {
 		dirName = "files"
 	)
 
-	acc := types.Access{}
-	dentry.UpdateAccessWithMode(&acc, 0655)
-	dentry.UpdateAccessWithOwnID(&acc, cfg.FS.Owner.Uid, cfg.FS.Owner.Gid)
+	acc := &types.Access{}
+	dentry.UpdateAccessWithMode(acc, 0655)
+	dentry.UpdateAccessWithOwnID(acc, cfg.FS.Owner.Uid, cfg.FS.Owner.Gid)
 
 	BeforeEach(func() {
 		var err error
@@ -552,9 +552,9 @@ var _ = Describe("TestRename", func() {
 		root *NanaNode
 	)
 
-	acc := types.Access{}
-	dentry.UpdateAccessWithMode(&acc, 0655)
-	dentry.UpdateAccessWithOwnID(&acc, cfg.FS.Owner.Uid, cfg.FS.Owner.Gid)
+	acc := &types.Access{}
+	dentry.UpdateAccessWithMode(acc, 0655)
+	dentry.UpdateAccessWithOwnID(acc, cfg.FS.Owner.Uid, cfg.FS.Owner.Gid)
 
 	BeforeEach(func() {
 		var err error

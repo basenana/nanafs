@@ -129,12 +129,7 @@ func (c *controller) CreateEntry(ctx context.Context, parentId int64, attr types
 	}
 
 	c.logger.Debugw("create entry", "parent", parentId, "entryName", attr.Name)
-	entry, err := c.entry.CreateEntry(ctx, parentId, types.EntryAttr{
-		Name:   attr.Name,
-		Kind:   attr.Kind,
-		Access: attr.Access,
-		Dev:    attr.Dev,
-	})
+	entry, err := c.entry.CreateEntry(ctx, parentId, attr)
 	if err != nil {
 		c.logger.Errorw("create entry error", "parent", parentId, "entryName", attr.Name, "err", err)
 		return nil, err
@@ -209,11 +204,7 @@ func (c *controller) MirrorEntry(ctx context.Context, srcId, dstParentId int64, 
 		return nil, types.ErrIsExist
 	}
 
-	entry, err := c.entry.MirrorEntry(ctx, srcId, dstParentId, types.EntryAttr{
-		Name:   attr.Name,
-		Kind:   attr.Kind,
-		Access: attr.Access,
-	})
+	entry, err := c.entry.MirrorEntry(ctx, srcId, dstParentId, attr)
 	if err != nil {
 		c.logger.Errorw("mirror entry failed", "src", srcId, "err", err.Error())
 		return nil, err

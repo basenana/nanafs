@@ -19,7 +19,7 @@ package dentry
 import "github.com/basenana/nanafs/pkg/types"
 
 func initRootEntry() *types.Metadata {
-	acc := types.Access{
+	acc := &types.Access{
 		Permissions: []types.Permission{
 			types.PermOwnerRead,
 			types.PermOwnerWrite,
@@ -36,11 +36,7 @@ func initRootEntry() *types.Metadata {
 }
 
 func initMirrorEntry(src, newParent *types.Metadata, attr types.EntryAttr) (*types.Metadata, error) {
-	result, err := types.InitNewEntry(newParent, types.EntryAttr{
-		Name:   attr.Name,
-		Kind:   attr.Kind,
-		Access: attr.Access,
-	})
+	result, err := types.InitNewEntry(newParent, attr)
 	if err != nil {
 		return nil, err
 	}

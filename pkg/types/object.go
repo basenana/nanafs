@@ -130,15 +130,19 @@ func InitNewEntry(parent *Metadata, attr EntryAttr) (*Metadata, error) {
 
 	md := NewMetadata(attr.Name, attr.Kind)
 	md.Dev = attr.Dev
-	md.Access = Access{
-		Permissions: attr.Access.Permissions,
-		UID:         attr.Access.UID,
-		GID:         attr.Access.GID,
-	}
 
 	if parent != nil {
 		md.ParentID = parent.ID
 		md.Storage = parent.Storage
+		md.Access = parent.Access
+	}
+
+	if attr.Access != nil {
+		md.Access = Access{
+			Permissions: attr.Access.Permissions,
+			UID:         attr.Access.UID,
+			GID:         attr.Access.GID,
+		}
 	}
 	return &md, nil
 }

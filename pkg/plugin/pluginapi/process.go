@@ -17,14 +17,15 @@
 package pluginapi
 
 type Request struct {
-	Action        string
-	WorkPath      string
-	EntryId       int64
-	ParentEntryId int64
-	EntryPath     string
-	EntryURI      string
-	CacheData     *CachedData
-	Parameter     map[string]any
+	Action           string
+	WorkPath         string
+	EntryId          int64
+	ParentEntryId    int64
+	EntryPath        string
+	EntryURI         string
+	CacheData        *CachedData
+	Parameter        map[string]any
+	ParentProperties map[string]string
 }
 
 func NewRequest() *Request {

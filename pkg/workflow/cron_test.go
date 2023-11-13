@@ -47,9 +47,8 @@ var _ = Describe("testConfigEntrySourcePlugin", func() {
 			root, err := entryMgr.Root(ctx)
 			Expect(err).Should(BeNil())
 			en, err := entryMgr.CreateEntry(ctx, root.ID, types.EntryAttr{
-				Name:   "test-rss-group",
-				Kind:   types.GroupKind,
-				Access: root.Access,
+				Name: "test-rss-group",
+				Kind: types.GroupKind,
 			})
 			Expect(err).Should(BeNil())
 			entryID = en.ID

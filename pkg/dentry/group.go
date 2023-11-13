@@ -101,12 +101,7 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*type
 		return nil, err
 	}
 
-	entry, err := types.InitNewEntry(group, types.EntryAttr{
-		Name:   attr.Name,
-		Kind:   attr.Kind,
-		Access: attr.Access,
-		Dev:    attr.Dev,
-	})
+	entry, err := types.InitNewEntry(group, attr)
 	if err != nil {
 		return nil, err
 	}
@@ -354,9 +349,8 @@ func (e *extGroup) syncEntry(ctx context.Context, mirrored *pluginapi.Entry, crt
 			newEnEd types.ExtendData
 		)
 		newEn, err = types.InitNewEntry(grp, types.EntryAttr{
-			Name:   mirrored.Name,
-			Kind:   mirrored.Kind,
-			Access: grp.Access,
+			Name: mirrored.Name,
+			Kind: mirrored.Kind,
 		})
 		if err != nil {
 			return nil, err
