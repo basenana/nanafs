@@ -19,14 +19,15 @@ package types
 import "time"
 
 type Document struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Uri       string    `json:"uri"`
-	Source    string    `json:"source"`
-	KeyWords  []string  `json:"key_words,omitempty"`
-	Content   string    `json:"content,omitempty"`
-	Summary   string    `json:"summary,omitempty"`
-	Desync    bool      `json:"desync"`
-	CreatedAt time.Time `json:"created_at"`
-	ChangedAt time.Time `json:"changed_at"`
+	ID            string    `json:"id"`
+	Name          string    `json:"name"`
+	Uri           string    `json:"uri"`
+	ParentEntryID *int64    `json:"parent_entry_id"`
+	Source        string    `json:"source"`
+	KeyWords      []string  `json:"key_words,omitempty"`
+	Content       string    `json:"content,omitempty"`
+	Summary       string    `json:"summary,omitempty"`
+	Desync        bool      `json:"desync"`
+	CreatedAt     time.Time `json:"created_at"`
+	ChangedAt     time.Time `json:"changed_at"`
 }

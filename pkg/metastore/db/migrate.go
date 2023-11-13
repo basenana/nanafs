@@ -83,8 +83,7 @@ func buildMigrations() []*gormigrate.Migration {
 			Migrate: func(db *gorm.DB) error {
 				err := db.AutoMigrate(&ObjectProperty{})
 				_ = db.Exec("UPDATE object_property SET encoded=true WHERE 1=1;")
-				err = db.AutoMigrate(&Document{})
-				_ = db.Exec("UPDATE document SET desync=false WHERE 1=1;")
+				err = db.AutoMigrate(&ObjectURI{})
 				return err
 			},
 			Rollback: func(db *gorm.DB) error {
