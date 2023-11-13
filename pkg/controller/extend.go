@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
 	"runtime/trace"
@@ -28,20 +29,20 @@ const (
 	attrSourcePluginPrefix = "org.basenana.plugin.source/"
 )
 
-func (c *controller) GetEntryExtendField(ctx context.Context, id int64, fKey string) (*string, error) {
+func (c *controller) GetEntryExtendField(ctx context.Context, id int64, fKey string) (*string, bool, error) {
 	defer trace.StartRegion(ctx, "controller.GetEntryExtendField").End()
 	result, err := c.entry.GetEntryExtendField(ctx, id, fKey)
 	if err != nil {
-		return nil, err
+		return nil, true, err
 	}
-	return result, nil
+	return result, true, nil
 }
 
-func (c *controller) SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string) error {
+func (c *controller) SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string, encoded bool) error {
 	defer trace.StartRegion(ctx, "controller.SetEntryExtendField").End()
 	c.logger.Debugw("set entry extend filed", "entry", id, "key", fKey)
 	if strings.HasPrefix(fKey, attrSourcePluginPrefix) {
-		scope, err := buildPluginScopeFromAttr(fKey, fVal)
+		scope, err := buildPluginScopeFromAttr(fKey, fVal, encoded)
 		if err != nil {
 			c.logger.Errorw("build plugin scope from attr failed",
 				"entry", id, "key", fKey, "val", fVal, "err", err)
@@ -73,6 +74,8 @@ func (c *controller) RemoveEntryExtendField(ctx context.Context, id int64, fKey 
 }
 
 func (c *controller) ConfigEntrySourcePlugin(ctx context.Context, id int64, patch types.ExtendData) error {
+	defer trace.StartRegion(ctx, "controller.ConfigEntrySourcePlugin").End()
+	c.logger.Infow("setup entry source plugin config", "entry", id)
 	// todo: check group entry
 	ed, err := c.entry.GetEntryExtendData(ctx, id)
 	if err != nil {
@@ -125,6 +128,7 @@ func (c *controller) ConfigEntrySourcePlugin(ctx context.Context, id int64, patc
 }
 
 func (c *controller) CleanupEntrySourcePlugin(ctx context.Context, id int64) error {
+	defer trace.StartRegion(ctx, "controller.CleanupEntrySourcePlugin").End()
 	ed, err := c.entry.GetEntryExtendData(ctx, id)
 	if err != nil {
 		c.logger.Errorw("cleanup entry source plugin encounter query entry extend data failed", "entry", id, "err", err)
@@ -173,7 +177,14 @@ func (c *controller) CleanupEntrySourcePlugin(ctx context.Context, id int64) err
 	return nil
 }
 
-func buildPluginScopeFromAttr(fKey, fVal string) (types.ExtendData, error) {
+func buildPluginScopeFromAttr(fKey, fVal string, encoded bool) (types.ExtendData, error) {
+	if encoded {
+		rawVal, err := base64.StdEncoding.DecodeString(fVal)
+		if err != nil {
+			return types.ExtendData{}, err
+		}
+		fVal = strings.TrimSpace(string(rawVal))
+	}
 	sourceCfgKey := strings.TrimPrefix(fKey, attrSourcePluginPrefix)
 	switch sourceCfgKey {
 	case "rssurl":

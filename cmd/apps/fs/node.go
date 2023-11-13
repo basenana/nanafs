@@ -131,7 +131,7 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 func (n *NanaNode) Getxattr(ctx context.Context, attr string, dest []byte) (uint32, syscall.Errno) {
 	defer trace.StartRegion(ctx, "fs.node.Getxattr").End()
 	defer logOperationLatency("entry_get_xattr", time.Now())
-	encodedData, err := n.R.GetEntryExtendField(ctx, n.entryID, attr)
+	encodedData, _, err := n.R.GetEntryExtendField(ctx, n.entryID, attr)
 	if err != nil {
 		return 0, Error2FuseSysError("entry_get_xattr", err)
 	}
@@ -153,7 +153,7 @@ func (n *NanaNode) Getxattr(ctx context.Context, attr string, dest []byte) (uint
 func (n *NanaNode) Setxattr(ctx context.Context, attr string, data []byte, flags uint32) syscall.Errno {
 	defer trace.StartRegion(ctx, "fs.node.Setxattr").End()
 	defer logOperationLatency("entry_set_xattr", time.Now())
-	if err := n.R.SetEntryExtendField(ctx, n.entryID, attr, xattrRawData2Content(data)); err != nil {
+	if err := n.R.SetEntryExtendField(ctx, n.entryID, attr, xattrRawData2Content(data), true); err != nil {
 		return Error2FuseSysError("entry_set_xattr", err)
 	}
 	return NoErr

@@ -18,6 +18,7 @@ package apps
 
 import (
 	"fmt"
+	"github.com/basenana/nanafs/pkg/rule"
 	"path"
 	"time"
 
@@ -84,6 +85,7 @@ var daemonCmd = &cobra.Command{
 
 		bio.InitPageCache(cfg.FS)
 		storage.InitLocalCache(cfg)
+		rule.InitQuery(meta)
 
 		// init friday
 		err = friday.InitFriday(cfg.Friday)

@@ -54,16 +54,17 @@ func RegisterOperators(entryMgr dentry.Manager, docMgr document.Manager, cfg Loc
 }
 
 type localExecutor struct {
-	job       *types.WorkflowJob
-	workdir   string
-	entryPath string
-	entryURI  string
-	entryMgr  dentry.Manager
-	docMgr    document.Manager
-	config    LocalConfig
-	results   map[string]any
-	resultMux sync.Mutex
-	logger    *zap.SugaredLogger
+	job        *types.WorkflowJob
+	workdir    string
+	entryPath  string
+	entryURI   string
+	entryMgr   dentry.Manager
+	docMgr     document.Manager
+	cachedData *pluginapi.CachedData
+	config     LocalConfig
+	results    map[string]any
+	resultMux  sync.Mutex
+	logger     *zap.SugaredLogger
 }
 
 var _ jobrun.Executor = &localExecutor{}
@@ -95,6 +96,13 @@ func (b *localExecutor) Setup(ctx context.Context) (err error) {
 			b.logger.Errorw("query entry dir failed", "err", err)
 			return logOperationError(localExecName, "setup", err)
 		}
+	} else if b.job.Target.ParentEntryID != 0 {
+		// base on parent entry
+		b.cachedData, err = initParentDirCacheData(ctx, b.entryMgr, b.job.Target.ParentEntryID)
+		if err != nil {
+			b.logger.Errorw("build parent cache data failed", "parent", b.job.Target.ParentEntryID, "err", err)
+			return logOperationError(localExecName, "setup", err)
+		}
 	}
 	b.logger.Infow("job setup", "workdir", b.workdir, "entryPath", b.entryPath)
 
@@ -109,6 +117,7 @@ func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobS
 	req.WorkPath = b.workdir
 	req.EntryId = b.job.Target.EntryID
 	req.ParentEntryId = b.job.Target.ParentEntryID
+	req.CacheData = b.cachedData
 	req.EntryPath = b.entryPath
 	req.EntryURI = b.entryURI
 
@@ -125,8 +134,20 @@ func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobS
 	req.Parameter[pluginapi.ResPluginType] = step.Plugin.PluginType
 	req.Parameter[pluginapi.ResPluginAction] = step.Plugin.Action
 
+	ps := *step.Plugin
+	if b.job.Target.ParentEntryID != 0 {
+		ed, err := b.entryMgr.GetEntryExtendData(ctx, b.job.Target.ParentEntryID)
+		if err != nil {
+			err = fmt.Errorf("get parent entry extend data error: %s", err)
+			return logOperationError(localExecName, "do_operation", err)
+		}
+		if ed.PlugScope != nil {
+			ps = mergeParentEntryPlugScope(ps, *ed.PlugScope)
+		}
+	}
+
 	if step.Plugin.PluginType == types.TypeSource {
-		info, err := plugin.SourceInfo(ctx, *step.Plugin)
+		info, err := plugin.SourceInfo(ctx, ps)
 		if err != nil {
 			err = fmt.Errorf("get source info error: %s", err)
 			return logOperationError(localExecName, "do_operation", err)
@@ -134,8 +155,8 @@ func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobS
 		b.logger.Infow("running source plugin", "plugin", step.Plugin.PluginName, "source", info)
 	}
 
-	req.Action = step.Plugin.Action
-	resp, err := plugin.Call(ctx, *step.Plugin, req)
+	req.Action = ps.Action
+	resp, err := plugin.Call(ctx, ps, req)
 	if err != nil {
 		err = fmt.Errorf("plugin action error: %s", err)
 		return logOperationError(localExecName, "do_operation", err)
@@ -177,6 +198,14 @@ func (b *localExecutor) Collect(ctx context.Context) error {
 		// collect files
 		err := b.collectFiles(ctx, manifests)
 		if err != nil {
+			return err
+		}
+	}
+
+	if b.cachedData != nil && b.cachedData.NeedReCache() {
+		b.logger.Infow("collect cache data")
+		if err := writeParentDirCacheData(ctx, b.entryMgr, b.job.Target.ParentEntryID, b.cachedData); err != nil {
+			b.logger.Errorw("write parent cached data back failed", "err", err)
 			return err
 		}
 	}

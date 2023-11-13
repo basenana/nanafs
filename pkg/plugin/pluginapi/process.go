@@ -23,6 +23,7 @@ type Request struct {
 	ParentEntryId int64
 	EntryPath     string
 	EntryURI      string
+	CacheData     *CachedData
 	Parameter     map[string]any
 }
 

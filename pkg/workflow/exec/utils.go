@@ -18,7 +18,13 @@ package exec
 
 import (
 	"context"
+	"fmt"
+	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 	"github.com/prometheus/client_golang/prometheus"
+	"io"
 	"time"
 )
 
@@ -45,6 +51,104 @@ func init() {
 		execOperationTimeUsage,
 		execOperationErrorCounter,
 	)
+}
+
+func initParentDirCacheData(ctx context.Context, entryMgr dentry.Manager, parentEntryID int64) (*pluginapi.CachedData, error) {
+	parent, err := entryMgr.OpenGroup(ctx, parentEntryID)
+	if err != nil {
+		return nil, fmt.Errorf("open parent %d entry failed: %s", parentEntryID, err)
+	}
+	cachedDataEn, err := parent.FindEntry(ctx, pluginapi.CachedDataFile)
+	if err != nil && err != types.ErrNotFound {
+		return nil, fmt.Errorf("find cached data entry %s failed: %s", pluginapi.CachedDataFile, err)
+	}
+
+	if cachedDataEn != nil {
+		cachedDataFile, err := entryMgr.Open(ctx, cachedDataEn.ID, types.OpenAttr{Read: true})
+		if err != nil {
+			return nil, fmt.Errorf("open cached data entry %d failed: %s", cachedDataEn.ID, err)
+		}
+
+		cachedData, err := pluginapi.OpenCacheData(utils.NewReaderWithContextReaderAt(ctx, cachedDataFile))
+		if err != nil {
+			return nil, fmt.Errorf("load cached entry failed: %s", err)
+		}
+		return cachedData, nil
+	}
+	return pluginapi.InitCacheData(), nil
+}
+
+func writeParentDirCacheData(ctx context.Context, entryMgr dentry.Manager, parentEntryID int64, data *pluginapi.CachedData) error {
+	if !data.NeedReCache() {
+		return nil
+	}
+
+	parent, err := entryMgr.OpenGroup(ctx, parentEntryID)
+	if err != nil {
+		return fmt.Errorf("open parent %d entry failed: %s", parentEntryID, err)
+	}
+	cachedDataEn, err := parent.FindEntry(ctx, pluginapi.CachedDataFile)
+	if err != nil && err != types.ErrNotFound {
+		return fmt.Errorf("find cached data entry %s failed: %s", pluginapi.CachedDataFile, err)
+	}
+
+	if cachedDataEn == nil {
+		cachedDataEn, err = parent.CreateEntry(ctx, types.EntryAttr{Name: pluginapi.CachedDataFile, Kind: types.RawKind})
+		if err != nil {
+			return fmt.Errorf("create new cached data entry failed: %s", err)
+		}
+	}
+
+	newReader, err := data.Reader()
+	if err != nil {
+		return fmt.Errorf("open cached data entry reader failed: %s", err)
+	}
+
+	f, err := entryMgr.Open(ctx, cachedDataEn.ID, types.OpenAttr{Write: true, Trunc: true})
+	if err != nil {
+		return fmt.Errorf("open cached data entry %d failed: %s", cachedDataEn.ID, err)
+	}
+
+	_, err = io.Copy(utils.NewWriterWithContextWriter(ctx, f), newReader)
+	if err != nil {
+		return fmt.Errorf("copy cached new content to entry cahed data file failed: %s", err)
+	}
+
+	err = f.Close(ctx)
+	if err != nil {
+		return fmt.Errorf("close cahed data file failed: %s", err)
+	}
+	return nil
+}
+
+func mergeParentEntryPlugScope(step, entryDef types.PlugScope) types.PlugScope {
+	if step.PluginName != entryDef.PluginName {
+		return step
+	}
+	ps := types.PlugScope{
+		PluginName: step.PluginName,
+		Version:    step.Version,
+		PluginType: step.PluginType,
+		Action:     entryDef.Action,
+		Parameters: map[string]string{},
+	}
+
+	if entryDef.Parameters != nil {
+		for k, v := range entryDef.Parameters {
+			ps.Parameters[k] = v
+		}
+	}
+
+	// do overwrite
+	if step.Action != "" {
+		ps.Action = step.Action
+	}
+	if step.Parameters != nil {
+		for k, v := range step.Parameters {
+			ps.Parameters[k] = v
+		}
+	}
+	return ps
 }
 
 func logOperationLatency(execName, operation string, startAt time.Time) {

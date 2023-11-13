@@ -17,6 +17,7 @@
 package pluginapi
 
 const (
+	ResWorkflowKeyPrefix   = "org.basenana.workflow/"
 	ResEntryIdKey          = "org.basenana.workflow/entry_id"
 	ResEntryPathKey        = "org.basenana.workflow/entry_path"
 	ResEntryURIKey         = "org.basenana.workflow/entry_uri"
