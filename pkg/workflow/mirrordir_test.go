@@ -79,9 +79,8 @@ var _ = Describe("TestMirrorPlugin", func() {
 		It("create workflow should be succeed", func() {
 			var err error
 			workflow1, err = entryMgr.CreateEntry(ctx, workflowDir.ID, types.EntryAttr{
-				Name:   id2MirrorFile(workflowID1),
-				Kind:   types.RawKind,
-				Access: workflowDir.Access,
+				Name: id2MirrorFile(workflowID1),
+				Kind: types.RawKind,
 			})
 			Expect(err).Should(BeNil())
 
@@ -97,9 +96,8 @@ var _ = Describe("TestMirrorPlugin", func() {
 			Expect(err).Should(BeNil())
 
 			workflow2, err = entryMgr.CreateEntry(ctx, workflowDir.ID, types.EntryAttr{
-				Name:   id2MirrorFile(workflowID2),
-				Kind:   types.RawKind,
-				Access: workflowDir.Access,
+				Name: id2MirrorFile(workflowID2),
+				Kind: types.RawKind,
 			})
 			Expect(err).Should(BeNil())
 
@@ -151,7 +149,7 @@ var _ = Describe("TestMirrorPlugin", func() {
 		It("create dummy entry should be succeed", func() {
 			root, err := entryMgr.Root(ctx)
 			Expect(err).Should(BeNil())
-			targetEn, err = entryMgr.CreateEntry(ctx, root.ID, types.EntryAttr{Name: "test_workflow_mirror_dir.txt", Kind: types.RawKind, Access: root.Access})
+			targetEn, err = entryMgr.CreateEntry(ctx, root.ID, types.EntryAttr{Name: "test_workflow_mirror_dir.txt", Kind: types.RawKind})
 			Expect(err).Should(BeNil())
 
 			f, err := entryMgr.Open(ctx, targetEn.ID, types.OpenAttr{Write: true})
@@ -171,9 +169,8 @@ var _ = Describe("TestMirrorPlugin", func() {
 
 			// trigger workflow
 			workflowJob, err = entryMgr.CreateEntry(ctx, jobWorkflowGroupDir.ID, types.EntryAttr{
-				Name:   id2MirrorFile(jobID),
-				Kind:   types.RawKind,
-				Access: workflowDir.Access,
+				Name: id2MirrorFile(jobID),
+				Kind: types.RawKind,
 			})
 			Expect(err).Should(BeNil())
 

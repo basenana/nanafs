@@ -280,7 +280,7 @@ var _ = Describe("TestSqliteLabelOperation", func() {
 			}})).Should(BeNil())
 
 			Expect(sqlite.UpdateEntryExtendData(context.TODO(), entry3.ID, types.ExtendData{
-				Properties: types.Properties{Fields: map[string]string{"custom_field": "cus_value"}},
+				Properties: types.Properties{Fields: map[string]types.PropertyItem{"custom_field": {Value: "cus_value"}}},
 			})).Should(BeNil())
 		})
 		It("add object labels should succeed", func() {
@@ -367,7 +367,7 @@ var _ = Describe("TestSqliteLabelOperation", func() {
 })
 
 func InitRootEntry() *types.Metadata {
-	acc := types.Access{
+	acc := &types.Access{
 		Permissions: []types.Permission{
 			types.PermOwnerRead,
 			types.PermOwnerWrite,

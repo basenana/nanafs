@@ -94,7 +94,7 @@ var _ = Describe("TestQuery", func() {
 		It("test-filter-by-rule-1", func() {
 			got := doQuery([]types.Rule{
 				{Labels: &types.LabelMatch{Include: []types.Label{{Key: "test.nanafs.labels1", Value: "label_value"}}}},
-				{Operation: types.RuleOpIn, Column: "properties.fields.customKey1", Value: "customValue,customValue2"},
+				{Operation: types.RuleOpIn, Column: "properties.customKey1", Value: "customValue,customValue2"},
 			}, nil)
 			gomega.Expect(isMatchAllWanted([]int64{10001, 10002}, got)).Should(gomega.BeNil())
 		})
@@ -103,8 +103,8 @@ var _ = Describe("TestQuery", func() {
 			got := doQuery([]types.Rule{
 				{Logic: types.RuleLogicAny, Rules: []types.Rule{
 					{Labels: &types.LabelMatch{Include: []types.Label{{Key: "test.nanafs.labels1", Value: "label_value"}}}},
-					{Operation: types.RuleOpIn, Column: "properties.fields.customKey1", Value: "customValue,customValue2"},
-					{Operation: types.RuleOpEqual, Column: "properties.fields.customKey3", Value: "customValue3"},
+					{Operation: types.RuleOpIn, Column: "properties.customKey1", Value: "customValue,customValue2"},
+					{Operation: types.RuleOpEqual, Column: "properties.customKey3", Value: "customValue3"},
 				}},
 			}, nil)
 			gomega.Expect(isMatchAllWanted([]int64{10001, 10002, 10003}, got)).Should(gomega.BeNil())
@@ -113,7 +113,7 @@ var _ = Describe("TestQuery", func() {
 			got := doQuery([]types.Rule{
 				{Logic: types.RuleLogicAll, Rules: []types.Rule{
 					{Labels: &types.LabelMatch{Include: []types.Label{{Key: "test.nanafs.labels3", Value: "label_value3"}}}},
-					{Operation: types.RuleOpEqual, Column: "properties.fields.customKey3", Value: "customValue3"},
+					{Operation: types.RuleOpEqual, Column: "properties.customKey3", Value: "customValue3"},
 				}},
 			}, nil)
 			gomega.Expect(isMatchAllWanted([]int64{10003}, got)).Should(gomega.BeNil())
@@ -122,7 +122,7 @@ var _ = Describe("TestQuery", func() {
 
 	Context("test filter by rules and labels", func() {
 		It("test-filter-by-rule-and-label-1", func() {
-			got := doQuery([]types.Rule{{Operation: types.RuleOpIn, Column: "properties.fields.customKey1", Value: "customValue,customValue2"}},
+			got := doQuery([]types.Rule{{Operation: types.RuleOpIn, Column: "properties.customKey1", Value: "customValue,customValue2"}},
 				[]types.LabelMatch{{Include: []types.Label{{Key: "test.nanafs.labels1", Value: "label_value"}}}})
 			gomega.Expect(isMatchAllWanted([]int64{10001, 10002}, got)).Should(gomega.BeNil())
 		})
@@ -168,10 +168,10 @@ func mockedObjectForQuery(ctx context.Context, entryStore metastore.DEntry) erro
 		{
 			Metadata: createMetadata(10001),
 			ExtendData: &types.ExtendData{
-				Properties: types.Properties{Fields: map[string]string{
-					"customKey1": "customValue",
-					"customKey2": "customValue",
-					"customKey3": "customValue2",
+				Properties: types.Properties{Fields: map[string]types.PropertyItem{
+					"customKey1": {Value: "customValue"},
+					"customKey2": {Value: "customValue"},
+					"customKey3": {Value: "customValue2"},
 				}},
 			},
 			Labels: &types.Labels{Labels: []types.Label{
@@ -183,8 +183,8 @@ func mockedObjectForQuery(ctx context.Context, entryStore metastore.DEntry) erro
 		{
 			Metadata: createMetadata(10002),
 			ExtendData: &types.ExtendData{
-				Properties: types.Properties{Fields: map[string]string{
-					"customKey1": "customValue2",
+				Properties: types.Properties{Fields: map[string]types.PropertyItem{
+					"customKey1": {Value: "customValue2"},
 				}},
 			},
 			Labels: &types.Labels{Labels: []types.Label{
@@ -194,9 +194,9 @@ func mockedObjectForQuery(ctx context.Context, entryStore metastore.DEntry) erro
 		{
 			Metadata: createMetadata(10003),
 			ExtendData: &types.ExtendData{
-				Properties: types.Properties{Fields: map[string]string{
-					"customKey1": "customValue2",
-					"customKey3": "customValue3",
+				Properties: types.Properties{Fields: map[string]types.PropertyItem{
+					"customKey1": {Value: "customValue2"},
+					"customKey3": {Value: "customValue3"},
 				}},
 			},
 			Labels: &types.Labels{Labels: []types.Label{
@@ -205,7 +205,7 @@ func mockedObjectForQuery(ctx context.Context, entryStore metastore.DEntry) erro
 		},
 		{
 			Metadata:   createMetadata(10004),
-			ExtendData: &types.ExtendData{Properties: types.Properties{Fields: map[string]string{}}},
+			ExtendData: &types.ExtendData{Properties: types.Properties{Fields: map[string]types.PropertyItem{}}},
 			Labels:     &types.Labels{Labels: []types.Label{}},
 		},
 	}

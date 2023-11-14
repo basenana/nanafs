@@ -51,6 +51,13 @@ func (i *SummaryPlugin) Run(ctx context.Context, request *pluginapi.Request) (*p
 		return nil, fmt.Errorf("entry id is empty")
 	}
 
+	if request.ParentProperties == nil {
+		return nil, fmt.Errorf("parent properties is nil")
+	}
+	if enabled := request.ParentProperties[propertyKeyFridayEnabled]; enabled != "true" {
+		return pluginapi.NewResponseWithResult(nil), nil
+	}
+
 	rawDocs := request.Parameter[pluginapi.ResEntryDocumentsKey]
 	docs, ok := rawDocs.([]types.FDocument)
 	if !ok || len(docs) == 0 {

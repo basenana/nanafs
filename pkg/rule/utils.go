@@ -19,10 +19,35 @@ package rule
 import (
 	"encoding/json"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 )
 
-func objectToMap(obj *object) map[string]interface{} {
-	raw, _ := json.Marshal(obj)
+type entryMatch struct {
+	*types.Metadata
+	Properties map[string]string `json:"properties"`
+}
+
+func entryToMap(entry *types.Metadata, ed *types.ExtendData) map[string]interface{} {
+	if entry == nil {
+		return make(map[string]interface{})
+	}
+
+	m := entryMatch{Metadata: entry, Properties: make(map[string]string)}
+	if ed != nil {
+		var err error
+		for k, v := range ed.Properties.Fields {
+			val := v.Value
+			if v.Encoded {
+				val, err = utils.DecodeBase64String(v.Value)
+				if err != nil {
+					continue
+				}
+			}
+			m.Properties[k] = val
+		}
+	}
+
+	raw, _ := json.Marshal(m)
 	result := make(map[string]interface{})
 	_ = json.Unmarshal(raw, &result)
 	return result

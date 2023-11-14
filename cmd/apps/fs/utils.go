@@ -17,7 +17,6 @@
 package fs
 
 import (
-	"encoding/base64"
 	"github.com/prometheus/client_golang/prometheus"
 	"os"
 	"syscall"
@@ -259,14 +258,6 @@ func openFileAttr(flags uint32) types.OpenAttr {
 		attr.Write = true
 	}
 	return attr
-}
-
-func xattrRawData2Content(raw []byte) string {
-	return base64.StdEncoding.EncodeToString(raw)
-}
-
-func xattrContent2RawData(data string) ([]byte, error) {
-	return base64.StdEncoding.DecodeString(data)
 }
 
 func logOperationLatency(operation string, startAt time.Time) {

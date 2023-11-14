@@ -19,6 +19,8 @@ package buildin
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
@@ -31,6 +33,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -41,6 +44,11 @@ const (
 	archiveFileTypeHtml       = "html"
 	archiveFileTypeRawHtml    = "rawhtml"
 	archiveFileTypeWebArchive = "webarchive"
+
+	rssPostMetaID        = "org.basenana.plugin.rss/id"
+	rssPostMetaLink      = "org.basenana.plugin.rss/link"
+	rssPostMetaTitle     = "org.basenana.plugin.rss/title"
+	rssPostMetaUpdatedAt = "org.basenana.plugin.rss/updated_at"
 )
 
 type rssSource struct {
@@ -90,7 +98,7 @@ func (r *RssSourcePlugin) Run(ctx context.Context, request *pluginapi.Request) (
 	}
 	source.EntryId = request.ParentEntryId
 
-	entries, err := r.syncRssSource(ctx, source, request.WorkPath)
+	entries, err := r.syncRssSource(ctx, source, request)
 	if err != nil {
 		r.logger.Warnw("sync rss failed", "source", source.FeedUrl, "err", err)
 		return pluginapi.NewFailedResponse(fmt.Sprintf("sync rss failed: %s", err)), nil
@@ -139,9 +147,18 @@ func (r *RssSourcePlugin) rssSources(pluginParams map[string]string) (src rssSou
 	return
 }
 
-func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, workdir string) ([]pluginapi.Entry, error) {
+func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, request *pluginapi.Request) ([]pluginapi.Entry, error) {
+	var (
+		workdir    = request.WorkPath
+		cachedData = request.CacheData
+	)
+
+	if cachedData == nil {
+		return nil, fmt.Errorf("cached data is nil")
+	}
+
 	fp := gofeed.NewParser()
-	feed, err := fp.ParseURL(source.FeedUrl)
+	feed, err := fp.ParseURLWithContext(source.FeedUrl, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -155,8 +172,16 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, w
 		}
 	}
 
+	syncCachedRecords := listCachedSyncRecords(cachedData)
 	newEntries := make([]pluginapi.Entry, 0)
 	for _, item := range feed.Items {
+		basicID := basicPostID(item.Link)
+
+		// TODO: check last post time
+		if _, ok := syncCachedRecords[basicID]; ok {
+			continue
+		}
+
 		filePath := path.Join(workdir, item.Title)
 		switch source.FileType {
 		case archiveFileTypeUrl:
@@ -221,12 +246,44 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, w
 			Kind: types.RawKind,
 			Size: fInfo.Size(),
 			Parameters: map[string]string{
-				pluginapi.ResEntryDocumentsKey: item.Content,
+				rssPostMetaID:        item.GUID,
+				rssPostMetaTitle:     item.Title,
+				rssPostMetaLink:      item.Link,
+				rssPostMetaUpdatedAt: item.Updated,
 			},
 			IsGroup: false,
 		})
+		setCachedSyncRecord(cachedData, basicID)
 	}
 	return newEntries, nil
+}
+
+type rssSyncRecord struct {
+	ID     string
+	SyncAt time.Time
+}
+
+func listCachedSyncRecords(data *pluginapi.CachedData) map[string]rssSyncRecord {
+	result := make(map[string]rssSyncRecord)
+	rawDataList := data.ListItems("posts")
+	for _, rawData := range rawDataList {
+		r := rssSyncRecord{}
+		if err := json.Unmarshal([]byte(rawData), &r); err != nil {
+			continue
+		}
+		result[r.ID] = r
+	}
+	return result
+}
+
+func setCachedSyncRecord(data *pluginapi.CachedData, postID string) {
+	record := &rssSyncRecord{ID: postID, SyncAt: time.Now()}
+	rawData, _ := json.Marshal(record)
+	data.SetItem("posts", postID, string(rawData))
+}
+
+func basicPostID(postURL string) string {
+	return base64.StdEncoding.EncodeToString([]byte(strings.TrimSpace(postURL)))
 }
 
 func BuildRssSourcePlugin(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) *RssSourcePlugin {

@@ -46,9 +46,11 @@ type Manager interface {
 
 	GetEntryExtendData(ctx context.Context, id int64) (types.ExtendData, error)
 	UpdateEntryExtendData(ctx context.Context, id int64, ed types.ExtendData) error
-	GetEntryExtendField(ctx context.Context, id int64, fKey string) (*string, error)
-	SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string) error
+	GetEntryExtendField(ctx context.Context, id int64, fKey string) (*string, bool, error)
+	SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string, encoded bool) error
 	RemoveEntryExtendField(ctx context.Context, id int64, fKey string) error
+	GetEntryLabels(ctx context.Context, id int64) (types.Labels, error)
+	UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error
 
 	Open(ctx context.Context, entryId int64, attr types.OpenAttr) (File, error)
 	OpenGroup(ctx context.Context, entryID int64) (Group, error)
@@ -124,23 +126,23 @@ func (m *manager) UpdateEntryExtendData(ctx context.Context, id int64, ed types.
 	return m.store.UpdateEntryExtendData(ctx, id, ed)
 }
 
-func (m *manager) GetEntryExtendField(ctx context.Context, id int64, fKey string) (*string, error) {
+func (m *manager) GetEntryExtendField(ctx context.Context, id int64, fKey string) (*string, bool, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.GetEntryExtendField").End()
 	ed, err := m.GetEntryExtendData(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if ed.Properties.Fields == nil {
-		return nil, nil
+		return nil, false, nil
 	}
-	fVal, ok := ed.Properties.Fields[fKey]
+	item, ok := ed.Properties.Fields[fKey]
 	if !ok {
-		return nil, nil
+		return nil, false, nil
 	}
-	return &fVal, nil
+	return &item.Value, item.Encoded, nil
 }
 
-func (m *manager) SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string) error {
+func (m *manager) SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string, encoded bool) error {
 	defer trace.StartRegion(ctx, "dentry.manager.SetEntryExtendField").End()
 	ed, err := m.GetEntryExtendData(ctx, id)
 	if err != nil {
@@ -148,9 +150,9 @@ func (m *manager) SetEntryExtendField(ctx context.Context, id int64, fKey, fVal 
 	}
 
 	if ed.Properties.Fields == nil {
-		ed.Properties.Fields = map[string]string{}
+		ed.Properties.Fields = map[string]types.PropertyItem{}
 	}
-	ed.Properties.Fields[fKey] = fVal
+	ed.Properties.Fields[fKey] = types.PropertyItem{Value: fVal, Encoded: encoded}
 
 	return m.UpdateEntryExtendData(ctx, id, ed)
 }
@@ -163,7 +165,7 @@ func (m *manager) RemoveEntryExtendField(ctx context.Context, id int64, fKey str
 	}
 
 	if ed.Properties.Fields == nil {
-		ed.Properties.Fields = map[string]string{}
+		ed.Properties.Fields = map[string]types.PropertyItem{}
 	}
 	_, ok := ed.Properties.Fields[fKey]
 	if ok {
@@ -173,6 +175,16 @@ func (m *manager) RemoveEntryExtendField(ctx context.Context, id int64, fKey str
 		return types.ErrNotFound
 	}
 	return m.UpdateEntryExtendData(ctx, id, ed)
+}
+
+func (m *manager) GetEntryLabels(ctx context.Context, id int64) (types.Labels, error) {
+	defer trace.StartRegion(ctx, "dentry.manager.GetEntryLabels").End()
+	return m.store.GetEntryLabels(ctx, id)
+}
+
+func (m *manager) UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error {
+	defer trace.StartRegion(ctx, "dentry.manager.UpdateEntryLabels").End()
+	return m.store.UpdateEntryLabels(ctx, id, labels)
 }
 
 func (m *manager) CreateEntry(ctx context.Context, parentId int64, attr types.EntryAttr) (*types.Metadata, error) {
@@ -365,7 +377,7 @@ func (m *manager) changeEntryParentByFileCopy(ctx context.Context, targetEntry, 
 	attr := types.EntryAttr{
 		Name:      newName,
 		Kind:      targetEntry.Kind,
-		Access:    targetEntry.Access,
+		Access:    &targetEntry.Access,
 		PlugScope: newParentEd.PlugScope,
 	}
 	en, err := m.CreateEntry(ctx, newParent.ID, attr)

@@ -50,6 +50,13 @@ func (i *KeywordsPlugin) Run(ctx context.Context, request *pluginapi.Request) (*
 		return nil, fmt.Errorf("entry id is empty")
 	}
 
+	if request.ParentProperties == nil {
+		return nil, fmt.Errorf("parent properties is nil")
+	}
+	if enabled := request.ParentProperties[propertyKeyFridayEnabled]; enabled != "true" {
+		return pluginapi.NewResponseWithResult(nil), nil
+	}
+
 	rawSummary := request.Parameter[pluginapi.ResEntryDocSummaryKey]
 	summery, ok := rawSummary.(string)
 	if !ok || len(summery) == 0 {

@@ -157,11 +157,6 @@ func copyEntryToJobWorkDir(ctx context.Context, entryPath string, entry *types.M
 }
 
 func collectFile2BaseEntry(ctx context.Context, entryMgr dentry.Manager, baseEntryId int64, workdir string, tmpEn pluginapi.Entry) error {
-	baseEn, err := entryMgr.GetEntry(ctx, baseEntryId)
-	if err != nil {
-		return fmt.Errorf("query base entry failed: %s", err)
-	}
-
 	grp, err := entryMgr.OpenGroup(ctx, baseEntryId)
 	if err != nil {
 		return fmt.Errorf("open base entry group failed: %s", err)
@@ -174,7 +169,7 @@ func collectFile2BaseEntry(ctx context.Context, entryMgr dentry.Manager, baseEnt
 
 	// TODO: overwrite existed file
 	if err == nil {
-		return fmt.Errorf("file %s/%s is existed", baseEn.Name, tmpEn.Name)
+		return fmt.Errorf("file %s is existed", tmpEn.Name)
 	}
 
 	tmpFile, err := os.Open(path.Join(workdir, tmpEn.Name))
@@ -183,9 +178,29 @@ func collectFile2BaseEntry(ctx context.Context, entryMgr dentry.Manager, baseEnt
 	}
 	defer tmpFile.Close()
 
-	newEn, err := grp.CreateEntry(ctx, types.EntryAttr{Name: tmpEn.Name, Kind: tmpEn.Kind, Access: baseEn.Access})
+	var ed *types.ExtendData
+	if len(tmpEn.Parameters) > 0 {
+		ed = &types.ExtendData{}
+		ed.Properties.Fields = map[string]types.PropertyItem{}
+		for k, v := range tmpEn.Parameters {
+			if strings.HasPrefix(k, pluginapi.ResWorkflowKeyPrefix) {
+				continue
+			}
+			ed.Properties.Fields[k] = types.PropertyItem{Value: v}
+		}
+	}
+	newEn, err := grp.CreateEntry(ctx, types.EntryAttr{Name: tmpEn.Name, Kind: tmpEn.Kind})
 	if err != nil {
 		return fmt.Errorf("create new entry failed: %s", err)
+	}
+
+	if ed != nil {
+		// update entry properties
+		err = entryMgr.UpdateEntryExtendData(ctx, newEn.ID, *ed)
+		if err != nil {
+			_ = grp.RemoveEntry(ctx, newEn.ID)
+			return fmt.Errorf("update entry extend data failed: %s", err)
+		}
 	}
 
 	f, err := entryMgr.Open(ctx, newEn.ID, types.OpenAttr{Write: true})

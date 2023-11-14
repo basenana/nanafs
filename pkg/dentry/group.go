@@ -101,12 +101,7 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*type
 		return nil, err
 	}
 
-	entry, err := types.InitNewEntry(group, types.EntryAttr{
-		Name:   attr.Name,
-		Kind:   attr.Kind,
-		Access: attr.Access,
-		Dev:    attr.Dev,
-	})
+	entry, err := types.InitNewEntry(group, attr)
 	if err != nil {
 		return nil, err
 	}
@@ -116,16 +111,24 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*type
 		return nil, err
 	}
 
-	ed := types.ExtendData{}
+	ed := attr.ExtendData
+	labels := attr.Labels
 	switch entry.Kind {
 	case types.ExternalGroupKind:
 		entry.Storage = externalStorage
-		if attr.PlugScope.Parameters == nil {
-			attr.PlugScope.Parameters = map[string]string{}
+		if attr.PlugScope != nil {
+			if attr.PlugScope.Parameters == nil {
+				attr.PlugScope.Parameters = map[string]string{}
+			}
+			ed.PlugScope = attr.PlugScope
+			ed.PlugScope.Parameters[types.PlugScopeEntryName] = attr.Name
+			ed.PlugScope.Parameters[types.PlugScopeEntryPath] = "/"
 		}
-		ed.PlugScope = attr.PlugScope
-		ed.PlugScope.Parameters[types.PlugScopeEntryName] = attr.Name
-		ed.PlugScope.Parameters[types.PlugScopeEntryPath] = "/"
+
+		labels.Labels = append(labels.Labels, []types.Label{
+			{Key: types.LabelKeyPluginName, Value: ed.PlugScope.PluginName},
+			{Key: types.LabelKeyPluginKind, Value: string(types.TypeMirror)},
+		}...)
 	case types.SmartGroupKind:
 		ed.GroupFilter = attr.GroupFilter
 	default:
@@ -136,6 +139,12 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*type
 	if err = g.store.UpdateEntryExtendData(ctx, entry.ID, ed); err != nil {
 		_ = g.store.RemoveEntry(ctx, entry.ParentID, entry.ID)
 		return nil, err
+	}
+	if len(labels.Labels) > 0 {
+		if err = g.store.UpdateEntryLabels(ctx, entry.ID, labels); err != nil {
+			_ = g.store.RemoveEntry(ctx, entry.ParentID, entry.ID)
+			return nil, err
+		}
 	}
 	return entry, nil
 }
@@ -340,9 +349,8 @@ func (e *extGroup) syncEntry(ctx context.Context, mirrored *pluginapi.Entry, crt
 			newEnEd types.ExtendData
 		)
 		newEn, err = types.InitNewEntry(grp, types.EntryAttr{
-			Name:   mirrored.Name,
-			Kind:   mirrored.Kind,
-			Access: grp.Access,
+			Name: mirrored.Name,
+			Kind: mirrored.Kind,
 		})
 		if err != nil {
 			return nil, err

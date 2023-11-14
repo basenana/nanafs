@@ -14,29 +14,30 @@
  limitations under the License.
 */
 
-package types
+package utils
 
-const (
-	RuleLogicAll = "all"
-	RuleLogicAny = "any"
-	RuleLogicNot = "not"
+import "encoding/base64"
 
-	RuleOpEqual     = "equal"
-	RuleOpBeginWith = "prefix"
-	RuleOpEndWith   = "suffix"
-	RuleOpPattern   = "pattern"
-	RuleOpBefore    = "before"
-	RuleOpAfter     = "after"
-	RuleOpIn        = "in"
-)
+func EncodeBase64(s []byte) string {
+	return base64.StdEncoding.EncodeToString(s)
+}
 
-type Rule struct {
-	Logic string `json:"logic,omitempty"`
-	Rules []Rule `json:"rules,omitempty"`
+func EncodeStringBase64(s string) string {
+	return EncodeBase64([]byte(s))
+}
 
-	Operation string `json:"operation,omitempty"`
-	Column    string `json:"column,omitempty"`
-	Value     string `json:"value,omitempty"`
+func DecodeBase64(s string) ([]byte, error) {
+	raw, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return nil, err
+	}
+	return raw, nil
+}
 
-	Labels *LabelMatch `json:"labels,omitempty"`
+func DecodeBase64String(s string) (string, error) {
+	raw, err := DecodeBase64(s)
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
 }

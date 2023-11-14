@@ -22,17 +22,15 @@ import (
 )
 
 const (
-	MemoryMeta           = "memory"
-	SqliteMeta           = "sqlite"
-	PostgresMeta         = "postgres"
-	S3Storage            = "s3"
-	OSSStorage           = "oss"
-	MinioStorage         = "minio"
-	WebdavStorage        = "webdav"
-	LocalStorage         = "local"
-	MemoryStorage        = "memory"
-	AliyunDriverStorage  = "aliyundriver"
-	AliyunDriverStorage1 = "aliyundriver_webtoken"
+	MemoryMeta    = "memory"
+	SqliteMeta    = "sqlite"
+	PostgresMeta  = "postgres"
+	S3Storage     = "s3"
+	OSSStorage    = "oss"
+	MinioStorage  = "minio"
+	WebdavStorage = "webdav"
+	LocalStorage  = "local"
+	MemoryStorage = "memory"
 
 	AESEncryption      = "AES"
 	ChaCha20Encryption = "ChaCha20"
@@ -56,15 +54,14 @@ type Meta struct {
 }
 
 type Storage struct {
-	ID           string               `json:"id"`
-	Type         string               `json:"type"`
-	LocalDir     string               `json:"local_dir,omitempty"`
-	S3           *S3Config            `json:"s3,omitempty"`
-	MinIO        *MinIOConfig         `json:"minio,omitempty"`
-	OSS          *OSSConfig           `json:"oss,omitempty"`
-	AliyunDriver *AliyunDriverConfig  `json:"aliyun_driver,omitempty"`
-	Webdav       *WebdavStorageConfig `json:"webdav,omitempty"`
-	Encryption   *Encryption          `json:"encryption,omitempty"`
+	ID         string               `json:"id"`
+	Type       string               `json:"type"`
+	LocalDir   string               `json:"local_dir,omitempty"`
+	S3         *S3Config            `json:"s3,omitempty"`
+	MinIO      *MinIOConfig         `json:"minio,omitempty"`
+	OSS        *OSSConfig           `json:"oss,omitempty"`
+	Webdav     *WebdavStorageConfig `json:"webdav,omitempty"`
+	Encryption *Encryption          `json:"encryption,omitempty"`
 }
 
 type S3Config struct {
@@ -90,10 +87,6 @@ type OSSConfig struct {
 	AccessKeyID     string `json:"access_key_id"`
 	AccessKeySecret string `json:"access_key_secret"`
 	BucketName      string `json:"bucket_name"`
-}
-
-type AliyunDriverConfig struct {
-	RefreshToken string `json:"refresh_token"`
 }
 
 type WebdavStorageConfig struct {
