@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/utils"
 	"sync"
 	"time"
 
@@ -147,7 +148,15 @@ func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobS
 		}
 		if ed.Properties.Fields != nil {
 			for k, v := range ed.Properties.Fields {
-				req.ParentProperties[k] = v
+				val := v.Value
+				if v.Encoded {
+					val, err = utils.DecodeBase64String(val)
+					if err != nil {
+						b.logger.Warnw("decode extend property value failed", "key", k)
+						continue
+					}
+				}
+				req.ParentProperties[k] = val
 			}
 		}
 	}

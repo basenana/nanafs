@@ -48,8 +48,8 @@ type Controller interface {
 	ListEntryChildren(ctx context.Context, entryId int64) ([]*types.Metadata, error)
 	ChangeEntryParent(ctx context.Context, targetId, oldParentId, newParentId int64, newName string, opt types.ChangeParentAttr) error
 
-	GetEntryExtendField(ctx context.Context, id int64, fKey string) (*string, bool, error)
-	SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string, encoded bool) error
+	GetEntryExtendField(ctx context.Context, id int64, fKey string) ([]byte, error)
+	SetEntryExtendField(ctx context.Context, id int64, fKey string, fVal []byte) error
 	RemoveEntryExtendField(ctx context.Context, id int64, fKey string) error
 	ConfigEntrySourcePlugin(ctx context.Context, id int64, scope types.ExtendData) error
 	CleanupEntrySourcePlugin(ctx context.Context, id int64) error

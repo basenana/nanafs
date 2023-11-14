@@ -18,12 +18,24 @@ package utils
 
 import "encoding/base64"
 
-func EncodeBase64(s string) string {
-	return base64.StdEncoding.EncodeToString([]byte(s))
+func EncodeBase64(s []byte) string {
+	return base64.StdEncoding.EncodeToString(s)
 }
 
-func DecodeBase64(s string) (string, error) {
+func EncodeStringBase64(s string) string {
+	return EncodeBase64([]byte(s))
+}
+
+func DecodeBase64(s string) ([]byte, error) {
 	raw, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return nil, err
+	}
+	return raw, nil
+}
+
+func DecodeBase64String(s string) (string, error) {
+	raw, err := DecodeBase64(s)
 	if err != nil {
 		return "", err
 	}

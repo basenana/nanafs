@@ -181,12 +181,12 @@ func collectFile2BaseEntry(ctx context.Context, entryMgr dentry.Manager, baseEnt
 	var ed *types.ExtendData
 	if len(tmpEn.Parameters) > 0 {
 		ed = &types.ExtendData{}
-		ed.Properties.Fields = map[string]string{}
+		ed.Properties.Fields = map[string]types.PropertyItem{}
 		for k, v := range tmpEn.Parameters {
 			if strings.HasPrefix(k, pluginapi.ResWorkflowKeyPrefix) {
 				continue
 			}
-			ed.Properties.Fields[k] = v
+			ed.Properties.Fields[k] = types.PropertyItem{Value: v}
 		}
 	}
 	newEn, err := grp.CreateEntry(ctx, types.EntryAttr{Name: tmpEn.Name, Kind: tmpEn.Kind})

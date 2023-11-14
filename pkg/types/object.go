@@ -122,7 +122,12 @@ type Label struct {
 }
 
 type Properties struct {
-	Fields map[string]string `json:"fields,omitempty"`
+	Fields map[string]PropertyItem `json:"fields,omitempty"`
+}
+
+type PropertyItem struct {
+	Value   string `json:"value"`
+	Encoded bool   `json:"encoded"`
 }
 
 func InitNewEntry(parent *Metadata, attr EntryAttr) (*Metadata, error) {

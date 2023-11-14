@@ -21,6 +21,12 @@ import (
 	"testing"
 )
 
+type object struct {
+	*types.Metadata
+	*types.ExtendData
+	*types.Labels
+}
+
 func TestObjectFilter(t *testing.T) {
 	obj := &object{
 		Metadata: &types.Metadata{ID: 1024, Name: "test_file_1"},

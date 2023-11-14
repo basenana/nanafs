@@ -18,7 +18,6 @@ package controller
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
@@ -30,21 +29,37 @@ const (
 	attrSourcePluginPrefix = "org.basenana.plugin.source/"
 )
 
-func (c *controller) GetEntryExtendField(ctx context.Context, id int64, fKey string) (*string, bool, error) {
+func (c *controller) GetEntryExtendField(ctx context.Context, id int64, fKey string) ([]byte, error) {
 	defer trace.StartRegion(ctx, "controller.GetEntryExtendField").End()
-	result, err := c.entry.GetEntryExtendField(ctx, id, fKey)
+	str, encoded, err := c.entry.GetEntryExtendField(ctx, id, fKey)
 	if err != nil {
-		return nil, true, err
+		return nil, err
 	}
-	return result, true, nil
+
+	if str == nil {
+		return nil, nil
+	}
+
+	var result []byte
+	if encoded {
+		result, err = utils.DecodeBase64(*str)
+		if err != nil {
+			c.logger.Errorw("decode entry extend property error", "entry", id, "key", fKey)
+			return nil, err
+		}
+	} else {
+		result = []byte(*str)
+	}
+
+	return result, nil
 }
 
-func (c *controller) SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string, encoded bool) error {
+func (c *controller) SetEntryExtendField(ctx context.Context, id int64, fKey string, fVal []byte) error {
 	defer trace.StartRegion(ctx, "controller.SetEntryExtendField").End()
 	c.logger.Debugw("set entry extend filed", "entry", id, "key", fKey)
 
 	if strings.HasPrefix(fKey, attrSourcePluginPrefix) {
-		scope, err := buildPluginScopeFromAttr(fKey, fVal, encoded)
+		scope, err := buildPluginScopeFromAttr(fKey, string(fVal))
 		if err != nil {
 			c.logger.Errorw("build plugin scope from attr failed",
 				"entry", id, "key", fKey, "val", fVal, "err", err)
@@ -54,22 +69,14 @@ func (c *controller) SetEntryExtendField(ctx context.Context, id int64, fKey, fV
 	}
 
 	if fKey == types.LabelKeyGroupFeedID {
-		if encoded {
-			var err error
-			fVal, err = utils.DecodeBase64(fVal)
-			if err != nil {
-				c.logger.Errorw("set group feed failed: decode base64 error", "val", fVal, "err", err)
-				return err
-			}
-		}
-		if err := c.EnableGroupFeed(ctx, id, strings.TrimSpace(fVal)); err != nil {
+		if err := c.EnableGroupFeed(ctx, id, strings.TrimSpace(string(fVal))); err != nil {
 			c.logger.Errorw("enable group feed failed", "val", fVal, "err", err)
 			return types.ErrUnsupported
 		}
 		return nil
 	}
 
-	err := c.entry.SetEntryExtendField(ctx, id, fKey, fVal)
+	err := c.entry.SetEntryExtendField(ctx, id, fKey, utils.EncodeBase64(fVal), true)
 	if err != nil {
 		c.logger.Errorw("set entry extend filed failed", "entry", id, "key", fKey, "err", err)
 		return err
@@ -202,7 +209,7 @@ func (c *controller) ConfigEntrySourcePlugin(ctx context.Context, id int64, patc
 	ed.PlugScope = patch.PlugScope
 	if len(patch.Properties.Fields) > 0 {
 		if ed.Properties.Fields == nil {
-			ed.Properties.Fields = map[string]string{}
+			ed.Properties.Fields = map[string]types.PropertyItem{}
 		}
 		for k, v := range patch.Properties.Fields {
 			ed.Properties.Fields[attrSourcePluginPrefix+k] = v
@@ -293,14 +300,8 @@ func (c *controller) CleanupEntrySourcePlugin(ctx context.Context, id int64) err
 	return nil
 }
 
-func buildPluginScopeFromAttr(fKey, fVal string, encoded bool) (types.ExtendData, error) {
-	if encoded {
-		rawVal, err := base64.StdEncoding.DecodeString(fVal)
-		if err != nil {
-			return types.ExtendData{}, err
-		}
-		fVal = strings.TrimSpace(string(rawVal))
-	}
+func buildPluginScopeFromAttr(fKey, fVal string) (types.ExtendData, error) {
+	fVal = strings.TrimSpace(fVal)
 	sourceCfgKey := strings.TrimPrefix(fKey, attrSourcePluginPrefix)
 	switch sourceCfgKey {
 	case "rssurl":

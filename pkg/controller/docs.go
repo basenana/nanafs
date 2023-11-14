@@ -40,10 +40,10 @@ func BuildRssPluginScopeFromURL(url string) (types.ExtendData, error) {
 	}
 	return types.ExtendData{
 		Properties: types.Properties{
-			Fields: map[string]string{
-				"site_name": siteName,
-				"site_url":  siteURL,
-				"feed_url":  url,
+			Fields: map[string]types.PropertyItem{
+				"site_name": {Value: siteName},
+				"site_url":  {Value: siteURL},
+				"feed_url":  {Value: url},
 			},
 		},
 		PlugScope: &ps,

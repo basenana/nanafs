@@ -131,29 +131,25 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 func (n *NanaNode) Getxattr(ctx context.Context, attr string, dest []byte) (uint32, syscall.Errno) {
 	defer trace.StartRegion(ctx, "fs.node.Getxattr").End()
 	defer logOperationLatency("entry_get_xattr", time.Now())
-	encodedData, _, err := n.R.GetEntryExtendField(ctx, n.entryID, attr)
+	data, err := n.R.GetEntryExtendField(ctx, n.entryID, attr)
 	if err != nil {
 		return 0, Error2FuseSysError("entry_get_xattr", err)
 	}
-	if encodedData == nil {
+	if data == nil {
 		return 0, ENOAttr
 	}
-	raw, err := xattrContent2RawData(*encodedData)
-	if err != nil {
-		return 0, Error2FuseSysError("entry_get_xattr", err)
-	}
-	if len(raw) > len(dest) {
-		return uint32(len(raw)), syscall.ERANGE
+	if len(data) > len(dest) {
+		return uint32(len(data)), syscall.ERANGE
 	}
 
-	copy(dest, raw)
-	return uint32(len(raw)), NoErr
+	copy(dest, data)
+	return uint32(len(data)), NoErr
 }
 
 func (n *NanaNode) Setxattr(ctx context.Context, attr string, data []byte, flags uint32) syscall.Errno {
 	defer trace.StartRegion(ctx, "fs.node.Setxattr").End()
 	defer logOperationLatency("entry_set_xattr", time.Now())
-	if err := n.R.SetEntryExtendField(ctx, n.entryID, attr, xattrRawData2Content(data), true); err != nil {
+	if err := n.R.SetEntryExtendField(ctx, n.entryID, attr, data); err != nil {
 		return Error2FuseSysError("entry_set_xattr", err)
 	}
 	return NoErr

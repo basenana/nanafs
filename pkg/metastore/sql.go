@@ -310,6 +310,10 @@ func newSqliteMetaStore(meta config.Meta) (*sqliteMetaStore, error) {
 		return nil, err
 	}
 
+	dbConn.SetMaxIdleConns(1)
+	dbConn.SetMaxOpenConns(1)
+	dbConn.SetConnMaxLifetime(time.Hour)
+
 	dbStore, err := buildSqlMetaStore(dbEntity)
 	if err != nil {
 		return nil, err
@@ -706,7 +710,7 @@ func (s *sqlMetaStore) GetEntryExtendData(ctx context.Context, id int64) (types.
 
 	ed := ext.ToExtData()
 	for _, p := range property {
-		ed.Properties.Fields[p.Name] = p.Value
+		ed.Properties.Fields[p.Name] = types.PropertyItem{Value: p.Value, Encoded: p.Encoded}
 	}
 	return ed, nil
 }
@@ -733,7 +737,7 @@ func (s *sqlMetaStore) UpdateEntryExtendData(ctx context.Context, id int64, ed t
 			return res.Error
 		}
 
-		propertiesMap := map[string]string{}
+		propertiesMap := map[string]types.PropertyItem{}
 		for k, v := range ed.Properties.Fields {
 			propertiesMap[k] = v
 		}
@@ -741,8 +745,9 @@ func (s *sqlMetaStore) UpdateEntryExtendData(ctx context.Context, id int64, ed t
 		for i := range objectProperties {
 			oldKv := objectProperties[i]
 			if newV, ok := propertiesMap[oldKv.Name]; ok {
-				if oldKv.Value != newV {
-					oldKv.Value = newV
+				if oldKv.Value != newV.Value {
+					oldKv.Value = newV.Value
+					oldKv.Encoded = newV.Encoded
 					needUpdatePropertiesModels = append(needUpdatePropertiesModels, oldKv)
 				}
 				delete(propertiesMap, oldKv.Name)
@@ -752,7 +757,8 @@ func (s *sqlMetaStore) UpdateEntryExtendData(ctx context.Context, id int64, ed t
 		}
 
 		for k, v := range propertiesMap {
-			needCreatePropertiesModels = append(needCreatePropertiesModels, db.ObjectProperty{OID: id, Name: k, Value: v})
+			needCreatePropertiesModels = append(needCreatePropertiesModels,
+				db.ObjectProperty{OID: id, Name: k, Value: v.Value, Encoded: v.Encoded})
 		}
 
 		if len(needCreatePropertiesModels) > 0 {
