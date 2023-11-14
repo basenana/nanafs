@@ -188,8 +188,21 @@ type ObjectURI struct {
 	Uri string `gorm:"column:uri;index:obj_uri"`
 }
 
-func (o ObjectURI) TableName() string {
+func (o *ObjectURI) TableName() string {
 	return "object_uri"
+}
+
+func (o *ObjectURI) ToEntryUri() *types.EntryUri {
+	return &types.EntryUri{
+		ID:  o.OID,
+		Uri: o.Uri,
+	}
+}
+
+func (o *ObjectURI) FromEntryUri(entryUri *types.EntryUri) *ObjectURI {
+	o.OID = entryUri.ID
+	o.Uri = entryUri.Uri
+	return o
 }
 
 type ObjectChunk struct {

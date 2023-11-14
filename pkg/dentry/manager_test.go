@@ -18,13 +18,15 @@ package dentry
 
 import (
 	"context"
+	"time"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	"time"
 )
 
 var _ = Describe("TestRootEntryInit", func() {
@@ -98,6 +100,34 @@ var _ = Describe("TestEntryManage", func() {
 			Expect(err).Should(BeNil())
 			_, err = grp.FindEntry(context.TODO(), "test_create_file1")
 			Expect(err).Should(BeNil())
+		})
+	})
+	Context("get entry uri", func() {
+		It("get entry uri should be succeed", func() {
+			parentName := "test_uri_parent"
+			entryName := "test_uri"
+			parentUri := "/test_uri_parent"
+			uri := "/test_uri_parent/test_uri"
+			parent, err := entryManager.CreateEntry(context.TODO(), root.ID, types.EntryAttr{
+				Name:   parentName,
+				Kind:   types.GroupKind,
+				Access: accessPermissions,
+			})
+			Expect(err).Should(BeNil())
+			entry, err := entryManager.CreateEntry(context.TODO(), parent.ID, types.EntryAttr{
+				Name:   entryName,
+				Kind:   types.RawKind,
+				Access: accessPermissions,
+			})
+			Expect(err).Should(BeNil())
+
+			parentEntry, err := entryManager.GetEntryByUri(context.TODO(), parentUri)
+			Expect(err).Should(BeNil())
+			Expect(parentEntry.ID).Should(Equal(parent.ID))
+
+			entryUri, err := entryManager.GetEntryByUri(context.TODO(), uri)
+			Expect(err).Should(BeNil())
+			Expect(entryUri.ID).Should(Equal(entry.ID))
 		})
 	})
 	Context("delete file entry", func() {

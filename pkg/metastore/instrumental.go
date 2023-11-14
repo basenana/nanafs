@@ -56,6 +56,30 @@ type instrumentalStore struct {
 	store Meta
 }
 
+func (i instrumentalStore) SaveEntryUri(ctx context.Context, entryUri *types.EntryUri) error {
+	const operation = "save_entry_uri"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.SaveEntryUri(ctx, entryUri)
+	logOperationError(operation, err)
+	return err
+}
+
+func (i instrumentalStore) GetEntryUri(ctx context.Context, uri string) (*types.EntryUri, error) {
+	const operation = "get_entry_uri"
+	defer logOperationLatency(operation, time.Now())
+	en, err := i.store.GetEntryUri(ctx, uri)
+	logOperationError(operation, err)
+	return en, err
+}
+
+func (i instrumentalStore) DeleteEntryUri(ctx context.Context, id int64) error {
+	const operation = "delete_entry_uri"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.DeleteEntryUri(ctx, id)
+	logOperationError(operation, err)
+	return err
+}
+
 var _ Meta = &instrumentalStore{}
 
 func (i instrumentalStore) SystemInfo(ctx context.Context) (*types.SystemInfo, error) {

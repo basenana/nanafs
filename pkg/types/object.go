@@ -17,8 +17,9 @@
 package types
 
 import (
-	"github.com/basenana/nanafs/utils"
 	"time"
+
+	"github.com/basenana/nanafs/utils"
 )
 
 const (
@@ -77,6 +78,11 @@ func NewMetadata(name string, kind Kind) Metadata {
 		result.RefCount = 2
 	}
 	return result
+}
+
+type EntryUri struct {
+	ID  int64  `json:"id"`
+	Uri string `json:"uri"`
 }
 
 type ExtendData struct {

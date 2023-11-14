@@ -19,6 +19,13 @@ package dentry
 import (
 	"context"
 	"fmt"
+	"io"
+	"path"
+	"runtime/trace"
+	"strings"
+
+	"go.uber.org/zap"
+
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/bio"
 	"github.com/basenana/nanafs/pkg/events"
@@ -28,15 +35,13 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
-	"go.uber.org/zap"
-	"io"
-	"runtime/trace"
 )
 
 type Manager interface {
 	Root(ctx context.Context) (*types.Metadata, error)
 
 	GetEntry(ctx context.Context, id int64) (*types.Metadata, error)
+	GetEntryByUri(ctx context.Context, uri string) (*types.Metadata, error)
 	CreateEntry(ctx context.Context, parentId int64, attr types.EntryAttr) (*types.Metadata, error)
 	RemoveEntry(ctx context.Context, parentId, entryId int64) error
 	DestroyEntry(ctx context.Context, entryId int64) error
@@ -112,6 +117,41 @@ func (m *manager) Root(ctx context.Context) (*types.Metadata, error) {
 func (m *manager) GetEntry(ctx context.Context, id int64) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.GetEntryMetadata").End()
 	return m.store.GetEntry(ctx, id)
+}
+
+func (m *manager) GetEntryByUri(ctx context.Context, uri string) (*types.Metadata, error) {
+	defer trace.StartRegion(ctx, "dentry.manager.GetEntryUri").End()
+	if uri == "/" {
+		return m.store.GetEntry(ctx, RootEntryID)
+	}
+	uri = strings.TrimSuffix(uri, "/")
+	entryUri, err := m.store.GetEntryUri(ctx, uri)
+	if err != nil {
+		if err != types.ErrNotFound {
+			return nil, err
+		}
+		parent, base := path.Split(uri)
+		parentEntry, err := m.GetEntryByUri(ctx, parent)
+		if err != nil {
+			return nil, err
+		}
+
+		grp, err := m.OpenGroup(ctx, parentEntry.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		entry, err := grp.FindEntry(ctx, base)
+		if err != nil {
+			return nil, err
+		}
+
+		entryUri = &types.EntryUri{ID: entry.ID, Uri: uri}
+		if err = m.store.SaveEntryUri(ctx, entryUri); err != nil {
+			return nil, err
+		}
+	}
+	return m.store.GetEntry(ctx, entryUri.ID)
 }
 
 func (m *manager) GetEntryExtendData(ctx context.Context, id int64) (types.ExtendData, error) {

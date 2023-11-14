@@ -85,6 +85,24 @@ func (s *sqliteMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int
 	return s.dbStore.RemoveEntry(ctx, parentID, entryID)
 }
 
+func (s *sqliteMetaStore) SaveEntryUri(ctx context.Context, entryUri *types.EntryUri) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.SaveEntryUri(ctx, entryUri)
+}
+
+func (s *sqliteMetaStore) GetEntryUri(ctx context.Context, uri string) (*types.EntryUri, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.GetEntryUri(ctx, uri)
+}
+
+func (s *sqliteMetaStore) DeleteEntryUri(ctx context.Context, id int64) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.DeleteEntryUri(ctx, id)
+}
+
 func (s *sqliteMetaStore) DeleteRemovedEntry(ctx context.Context, entryID int64) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
@@ -466,6 +484,48 @@ func (s *sqlMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry
 		return db.SqlError2Error(err)
 	}
 	return nil
+}
+
+func (s *sqlMetaStore) SaveEntryUri(ctx context.Context, entryUri *types.EntryUri) error {
+	defer trace.StartRegion(ctx, "metastore.sql.CreateEntryUri").End()
+	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		entryUriMod := &db.ObjectURI{}
+		res := tx.Where("oid = ?", entryUri.ID).First(entryUriMod)
+		if res.Error != nil {
+			if res.Error == gorm.ErrRecordNotFound {
+				entryUriMod = entryUriMod.FromEntryUri(entryUri)
+				res = tx.Create(entryUriMod)
+				return res.Error
+			}
+			return res.Error
+		}
+		entryUriMod = entryUriMod.FromEntryUri(entryUri)
+		res = tx.Updates(entryUriMod)
+		return res.Error
+	})
+	if err != nil {
+		return db.SqlError2Error(err)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) GetEntryUri(ctx context.Context, uri string) (*types.EntryUri, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.GetEntryUri").End()
+	var entryUri = &db.ObjectURI{Uri: uri}
+	res := s.WithContext(ctx).Where("uri = ?", uri).First(entryUri)
+	if err := res.Error; err != nil {
+		if err != gorm.ErrRecordNotFound {
+			s.logger.Errorw("get entryUri by uri failed", "uri", uri, "err", err)
+		}
+		return nil, db.SqlError2Error(err)
+	}
+	return entryUri.ToEntryUri(), nil
+}
+
+func (s *sqlMetaStore) DeleteEntryUri(ctx context.Context, id int64) error {
+	defer trace.StartRegion(ctx, "metastore.sql.DeleteSegment").End()
+	res := s.WithContext(ctx).Delete(&db.ObjectURI{OID: id})
+	return db.SqlError2Error(res.Error)
 }
 
 func (s *sqlMetaStore) UpdateEntryMetadata(ctx context.Context, entry *types.Metadata) error {
