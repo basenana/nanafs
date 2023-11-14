@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 	"runtime/trace"
 	"strings"
 )
@@ -41,6 +42,7 @@ func (c *controller) GetEntryExtendField(ctx context.Context, id int64, fKey str
 func (c *controller) SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string, encoded bool) error {
 	defer trace.StartRegion(ctx, "controller.SetEntryExtendField").End()
 	c.logger.Debugw("set entry extend filed", "entry", id, "key", fKey)
+
 	if strings.HasPrefix(fKey, attrSourcePluginPrefix) {
 		scope, err := buildPluginScopeFromAttr(fKey, fVal, encoded)
 		if err != nil {
@@ -49,6 +51,22 @@ func (c *controller) SetEntryExtendField(ctx context.Context, id int64, fKey, fV
 			return types.ErrUnsupported
 		}
 		return c.ConfigEntrySourcePlugin(ctx, id, scope)
+	}
+
+	if fKey == types.LabelKeyGroupFeedID {
+		if encoded {
+			var err error
+			fVal, err = utils.DecodeBase64(fVal)
+			if err != nil {
+				c.logger.Errorw("set group feed failed: decode base64 error", "val", fVal, "err", err)
+				return err
+			}
+		}
+		if err := c.EnableGroupFeed(ctx, id, strings.TrimSpace(fVal)); err != nil {
+			c.logger.Errorw("enable group feed failed", "val", fVal, "err", err)
+			return types.ErrUnsupported
+		}
+		return nil
 	}
 
 	err := c.entry.SetEntryExtendField(ctx, id, fKey, fVal)
@@ -65,9 +83,107 @@ func (c *controller) RemoveEntryExtendField(ctx context.Context, id int64, fKey 
 	if strings.HasPrefix(fKey, attrSourcePluginPrefix) {
 		return c.CleanupEntrySourcePlugin(ctx, id)
 	}
+	if fKey == types.LabelKeyGroupFeedID {
+		return c.DisableGroupFeed(ctx, id)
+	}
 	err := c.entry.RemoveEntryExtendField(ctx, id, fKey)
 	if err != nil {
 		c.logger.Errorw("remove entry extend filed failed", "entry", id, "key", fKey, "err", err)
+		return err
+	}
+	return nil
+}
+
+func (c *controller) EnableGroupFeed(ctx context.Context, id int64, feedID string) error {
+	defer trace.StartRegion(ctx, "controller.EnableGroupFeed").End()
+	en, err := c.entry.GetEntry(ctx, id)
+	if err != nil {
+		c.logger.Errorw("enable group feed failed", "entry", id, "err", err)
+		return err
+	}
+	if !types.IsGroup(en.Kind) {
+		c.logger.Errorw("enable group feed failed", "entry", id, "err", types.ErrNoGroup)
+		return types.ErrNoGroup
+	}
+
+	if len(feedID) == 0 {
+		return fmt.Errorf("feed id is empty")
+	}
+
+	// TODO: using document manager
+	// TODO: check feed id is already existed?
+	labels, err := c.entry.GetEntryLabels(ctx, id)
+	if err != nil {
+		c.logger.Errorw("enable group feed failed when query labels", "entry", id, "err", err)
+		return err
+	}
+
+	var (
+		updated, found bool
+	)
+	for _, l := range labels.Labels {
+		if l.Key == types.LabelKeyGroupFeedID {
+			found = true
+			if l.Value != feedID {
+				l.Value = feedID
+				updated = true
+			}
+			break
+		}
+	}
+
+	if !found {
+		labels.Labels = append(labels.Labels, types.Label{Key: types.LabelKeyGroupFeedID, Value: feedID})
+		updated = true
+	}
+
+	if updated {
+		err = c.entry.UpdateEntryLabels(ctx, id, labels)
+		if err != nil {
+			c.logger.Errorw("enable group feed failed when write back labels", "entry", id, "err", err)
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *controller) DisableGroupFeed(ctx context.Context, id int64) error {
+	defer trace.StartRegion(ctx, "controller.DisableGroupFeed").End()
+	en, err := c.entry.GetEntry(ctx, id)
+	if err != nil {
+		c.logger.Errorw("disable group feed failed", "entry", id, "err", err)
+		return err
+	}
+	if !types.IsGroup(en.Kind) {
+		c.logger.Errorw("disable group feed failed", "entry", id, "err", types.ErrNoGroup)
+		return err
+	}
+
+	labels, err := c.entry.GetEntryLabels(ctx, id)
+	if err != nil {
+		c.logger.Errorw("disable group feed failed when query lables", "entry", id, "err", err)
+		return err
+	}
+
+	var (
+		idx   int
+		total = len(labels.Labels)
+	)
+	for idx = 0; idx < total; idx++ {
+		if labels.Labels[idx].Key == types.LabelKeyGroupFeedID {
+			break
+		}
+	}
+
+	if idx == total {
+		return nil
+	}
+
+	labels.Labels = append(labels.Labels[0:idx], labels.Labels[idx+1:total]...)
+
+	err = c.entry.UpdateEntryLabels(ctx, id, labels)
+	if err != nil {
+		c.logger.Errorw("disable group feed failed when write back labels", "entry", id, "err", err)
 		return err
 	}
 	return nil

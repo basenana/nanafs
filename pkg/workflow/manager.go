@@ -103,6 +103,26 @@ func NewManager(entryMgr dentry.Manager, docMgr document.Manager, notify *notify
 func (m *manager) StartCron(stopCh chan struct{}) {
 	cronCtx, canF := context.WithCancel(context.Background())
 	m.cron.Start(cronCtx)
+
+	// delay register
+	time.Sleep(time.Minute)
+	allWorkflows, err := m.ListWorkflows(cronCtx)
+	if err != nil {
+		m.logger.Errorw("init cron workflows failed: list workflows error", "err", err)
+	}
+
+	if len(allWorkflows) > 0 {
+		for i, wf := range allWorkflows {
+			if wf.Cron == "" {
+				continue
+			}
+			err = m.cron.Register(allWorkflows[i])
+			if err != nil {
+				m.logger.Errorw("init cron workflows failed: registry workflow error", "workflow", wf.Id, "err", err)
+			}
+		}
+	}
+
 	<-stopCh
 	canF()
 }

@@ -54,6 +54,9 @@ type Controller interface {
 	ConfigEntrySourcePlugin(ctx context.Context, id int64, scope types.ExtendData) error
 	CleanupEntrySourcePlugin(ctx context.Context, id int64) error
 
+	EnableGroupFeed(ctx context.Context, id int64, feedID string) error
+	DisableGroupFeed(ctx context.Context, id int64) error
+
 	OpenFile(ctx context.Context, entryId int64, attr types.OpenAttr) (dentry.File, error)
 	ReadFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error)
 	WriteFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error)

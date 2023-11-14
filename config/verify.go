@@ -210,14 +210,6 @@ func checkStorageConfig(sConfig Storage) error {
 		if cfg.BucketName == "" {
 			return fmt.Errorf("OSS config bucket_name is empty")
 		}
-	case AliyunDriverStorage1:
-		cfg := sConfig.AliyunDriver
-		if cfg == nil {
-			return fmt.Errorf("aliyun_driver config is nil")
-		}
-		if cfg.RefreshToken == "" {
-			return fmt.Errorf("aliyun driver refresh_token is empty")
-		}
 	case WebdavStorage:
 		cfg := sConfig.Webdav
 		if cfg == nil {

@@ -14,27 +14,18 @@
  limitations under the License.
 */
 
-package logger
+package utils
 
-import "go.uber.org/zap"
+import "encoding/base64"
 
-type CronLogger interface {
-	Info(msg string, keysAndValues ...interface{})
-	Error(err error, msg string, keysAndValues ...interface{})
+func EncodeBase64(s string) string {
+	return base64.StdEncoding.EncodeToString([]byte(s))
 }
 
-type cronLogger struct {
-	logger *zap.SugaredLogger
-}
-
-func (c cronLogger) Info(msg string, keysAndValues ...interface{}) {
-	c.logger.Infow(msg, keysAndValues...)
-}
-
-func (c cronLogger) Error(err error, msg string, keysAndValues ...interface{}) {
-	c.logger.With(zap.Error(err)).Errorw(msg, keysAndValues...)
-}
-
-func NewCronLogger() CronLogger {
-	return cronLogger{logger: NewLogger("cronWorkflow")}
+func DecodeBase64(s string) (string, error) {
+	raw, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
 }

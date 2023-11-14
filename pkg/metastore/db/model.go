@@ -272,6 +272,7 @@ func (o *Workflow) From(wf *types.WorkflowSpec) (*Workflow, error) {
 	o.ID = wf.Id
 	o.Name = wf.Name
 	o.Enable = wf.Enable
+	o.Cron = wf.Cron
 	o.CreatedAt = wf.CreatedAt
 	o.UpdatedAt = wf.UpdatedAt
 	o.LastTriggeredAt = wf.LastTriggeredAt
@@ -295,6 +296,7 @@ func (o *Workflow) To() (*types.WorkflowSpec, error) {
 		Id:              o.ID,
 		Name:            o.Name,
 		Enable:          o.Enable,
+		Cron:            o.Cron,
 		Steps:           []types.WorkflowStepSpec{},
 		CreatedAt:       o.CreatedAt,
 		UpdatedAt:       o.UpdatedAt,
