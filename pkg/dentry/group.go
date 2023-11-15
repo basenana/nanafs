@@ -19,6 +19,7 @@ package dentry
 import (
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
@@ -133,6 +134,7 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*type
 		ed.GroupFilter = attr.GroupFilter
 	default:
 		// skip create extend data
+		PublicEntryActionEvent(events.ActionTypeCreate, entry)
 		return entry, nil
 	}
 
@@ -146,6 +148,8 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*type
 			return nil, err
 		}
 	}
+
+	PublicEntryActionEvent(events.ActionTypeCreate, entry)
 	return entry, nil
 }
 

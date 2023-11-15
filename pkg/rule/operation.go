@@ -39,7 +39,7 @@ func NewRuleOperation(opType, col, val string) Operation {
 	case types.RuleOpBeginWith:
 		return BeginWith{ColumnKey: col, Content: val}
 	case types.RuleOpEndWith:
-		return BeginWith{ColumnKey: col, Content: val}
+		return EndWith{ColumnKey: col, Content: val}
 	case types.RuleOpPattern:
 		return Pattern{ColumnKey: col, Content: val}
 	case types.RuleOpBefore, types.RuleOpAfter:

@@ -137,7 +137,6 @@ func (c *controller) CreateEntry(ctx context.Context, parentId int64, attr types
 		c.logger.Errorw("create entry error", "parent", parentId, "entryName", attr.Name, "err", err)
 		return nil, err
 	}
-	dentry.PublicEntryActionEvent(events.ActionTypeCreate, entry)
 	return entry, nil
 }
 

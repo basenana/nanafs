@@ -25,6 +25,7 @@ import (
 	"go.uber.org/zap"
 	"strings"
 	"sync"
+	"time"
 )
 
 type Controller struct {
@@ -35,7 +36,8 @@ type Controller struct {
 	logger   *zap.SugaredLogger
 }
 
-func (c *Controller) TriggerJob(ctx context.Context, jID string) error {
+func (c *Controller) TriggerJob(jID string, timeout time.Duration) error {
+	ctx := context.Background()
 	job, err := c.recorder.GetWorkflowJob(ctx, jID)
 	if err != nil {
 		return err
@@ -46,11 +48,11 @@ func (c *Controller) TriggerJob(ctx context.Context, jID string) error {
 	c.mux.Unlock()
 
 	c.logger.Infof("trigger flow %s", jID)
-	go c.startJobRunner(ctx, jID)
+	go c.startJobRunner(ctx, jID, timeout)
 	return nil
 }
 
-func (c *Controller) startJobRunner(ctx context.Context, jID string) {
+func (c *Controller) startJobRunner(ctx context.Context, jID string, timeout time.Duration) {
 	c.mux.Lock()
 	r, ok := c.runners[jID]
 	c.mux.Unlock()
@@ -64,6 +66,9 @@ func (c *Controller) startJobRunner(ctx context.Context, jID string) {
 		delete(c.runners, jID)
 		c.mux.Unlock()
 	}()
+
+	ctx, canF := context.WithTimeout(ctx, timeout)
+	defer canF()
 
 	err := r.Start(ctx)
 	if err != nil {

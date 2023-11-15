@@ -36,10 +36,10 @@ func BuildEntryEvent(actionType string, entry *types.Metadata) *types.EntryEvent
 	return &types.EntryEvent{
 		Id:              uuid.New().String(),
 		Type:            actionType,
-		Source:          fmt.Sprintf("/object/%d", entry.ID),
+		Source:          fmt.Sprintf("/entry/%d", entry.ID),
 		SpecVersion:     "1.0",
 		Time:            time.Now(),
-		RefType:         "object",
+		RefType:         "entry",
 		RefID:           entry.ID,
 		DataContentType: "application/json",
 		Data:            types.NewEventData(entry),

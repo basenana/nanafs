@@ -24,6 +24,7 @@ import (
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/pkg/workflow"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/getsentry/sentry-go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -89,8 +90,11 @@ func (d *Dispatcher) dispatch(ctx context.Context, taskID string, exec executor,
 	}
 
 	if err := exec.execute(ctx, task); err != nil {
-		task.Result = fmt.Sprintf("refID: %d, msg: %s", task.Event.RefID, err)
 		task.Status = types.ScheduledTaskFailed
+		if err == ErrNeedRetry {
+			task.Status = types.ScheduledTaskWait
+		}
+		task.Result = fmt.Sprintf("refID: %d, msg: %s", task.Event.RefID, err)
 		taskFinishStatusCounter.WithLabelValues(taskID, types.ScheduledTaskFailed)
 		sentry.CaptureException(err)
 		d.logger.Errorw("execute task error", "recordID", task.ID, "taskID", task.TaskID, "err", err,
@@ -144,7 +148,7 @@ func (d *Dispatcher) findRunnableTasks(ctx context.Context, taskID string) ([]*t
 			waitCount += 1
 		case types.ScheduledTaskExecuting:
 			if time.Now().After(t.ExpirationTime) {
-				t.Status = types.ScheduledTaskFinish
+				t.Status = types.ScheduledTaskFailed
 				t.Result = "timeout"
 				_ = d.recorder.SaveTask(ctx, t)
 			}
@@ -156,7 +160,7 @@ func (d *Dispatcher) findRunnableTasks(ctx context.Context, taskID string) ([]*t
 	return runnable, nil
 }
 
-func Init(entry dentry.Manager, notify *notify.Notify, recorder metastore.ScheduledTaskRecorder) (*Dispatcher, error) {
+func Init(entry dentry.Manager, wfMgr workflow.Manager, notify *notify.Notify, recorder metastore.ScheduledTaskRecorder) (*Dispatcher, error) {
 	d := &Dispatcher{
 		entry:     entry,
 		notify:    notify,
@@ -166,6 +170,7 @@ func Init(entry dentry.Manager, notify *notify.Notify, recorder metastore.Schedu
 		logger:    logger.NewLogger("dispatcher"),
 	}
 	registerMaintainExecutor(d.executors, entry, recorder)
+	registerWorkflowExecutor(d.executors, entry, wfMgr, recorder)
 
 	if _, err := events.Subscribe(events.TopicAllActions, d.handleEvent); err != nil {
 		return nil, err
