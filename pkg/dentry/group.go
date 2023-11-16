@@ -155,15 +155,28 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*type
 
 func (g *stdGroup) UpdateEntry(ctx context.Context, entry *types.Metadata) error {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.UpdateEntry").End()
-	return g.store.UpdateEntryMetadata(ctx, entry)
+	err := g.store.UpdateEntryMetadata(ctx, entry)
+	if err != nil {
+		return err
+	}
+	PublicEntryActionEvent(events.ActionTypeUpdate, entry)
+	return nil
 }
 
 func (g *stdGroup) RemoveEntry(ctx context.Context, entryId int64) error {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.RemoveEntry").End()
-	err := g.store.RemoveEntry(ctx, g.entryID, entryId)
+	en, err := g.store.GetEntry(ctx, entryId)
 	if err != nil {
 		return err
 	}
+	if en.ParentID != g.entryID {
+		return types.ErrNotFound
+	}
+	err = g.store.RemoveEntry(ctx, g.entryID, entryId)
+	if err != nil {
+		return err
+	}
+	PublicEntryActionEvent(events.ActionTypeDestroy, en)
 	return nil
 }
 

@@ -340,7 +340,13 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntryId int64, ov
 	}
 
 	if oldParent.Storage == externalStorage || newParent.Storage == externalStorage || oldParent.Storage != newParent.Storage {
-		return m.changeEntryParentByFileCopy(ctx, target, oldParent, newParent, newName, opt)
+		err = m.changeEntryParentByFileCopy(ctx, target, oldParent, newParent, newName, opt)
+		if err != nil {
+			m.logger.Errorw("change entry parent by file copy failed", "err", err)
+			return err
+		}
+		PublicEntryActionEvent(events.ActionTypeChangeParent, target)
+		return nil
 	}
 
 	err = m.store.ChangeEntryParent(ctx, targetEntryId, newParentId, newName, opt)
@@ -348,6 +354,7 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntryId int64, ov
 		m.logger.Errorw("change object parent failed", "entry", target.ID, "newParent", newParentId, "newName", newName, "err", err)
 		return err
 	}
+	PublicEntryActionEvent(events.ActionTypeChangeParent, target)
 	return nil
 }
 
