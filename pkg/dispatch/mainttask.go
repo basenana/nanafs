@@ -42,10 +42,14 @@ type compactExecutor struct {
 	*maintainExecutor
 }
 
-func (c *compactExecutor) handleEvent(ctx context.Context, evt *types.EntryEvent) error {
+func (c *compactExecutor) handleEvent(evt *types.EntryEvent) error {
 	if evt.Type != events.ActionTypeCompact {
 		return nil
 	}
+
+	ctx, canF := context.WithTimeout(context.Background(), time.Hour)
+	defer canF()
+
 	task, err := getWaitingTask(ctx, c.recorder, maintainTaskIDChunkCompact, evt)
 	if err != nil {
 		c.logger.Errorw("[compactExecutor] list scheduled task error", "entry", evt.RefID, "err", err.Error())
@@ -95,8 +99,8 @@ type entryCleanExecutor struct {
 	*maintainExecutor
 }
 
-func (c *entryCleanExecutor) handleEvent(ctx context.Context, evt *types.EntryEvent) error {
-	if evt.Type != events.ActionTypeDestroy && evt.Type != events.ActionTypeClose {
+func (c *entryCleanExecutor) handleEvent(evt *types.EntryEvent) error {
+	if evt.Type != events.ActionTypeDestroy {
 		return nil
 	}
 
@@ -105,10 +109,8 @@ func (c *entryCleanExecutor) handleEvent(ctx context.Context, evt *types.EntryEv
 		return nil
 	}
 
-	if types.IsGroup(entry.Kind) {
-		return nil
-	}
-
+	ctx, canF := context.WithTimeout(context.Background(), time.Hour)
+	defer canF()
 	task, err := getWaitingTask(ctx, c.recorder, maintainTaskIDEntryCleanup, evt)
 	if err != nil {
 		return err
@@ -161,13 +163,18 @@ func (c *entryCleanExecutor) execute(ctx context.Context, task *types.ScheduledT
 func registerMaintainExecutor(
 	executors map[string]executor,
 	entry dentry.Manager,
-	recorder metastore.ScheduledTaskRecorder) {
-	e := &maintainExecutor{
-		entry:    entry,
-		recorder: recorder,
-		logger:   logger.NewLogger("maintainExecutor"),
-	}
+	recorder metastore.ScheduledTaskRecorder) error {
+	e := &maintainExecutor{entry: entry, recorder: recorder, logger: logger.NewLogger("maintainExecutor")}
+	ce := &compactExecutor{maintainExecutor: e}
+	ee := &entryCleanExecutor{maintainExecutor: e}
 
-	executors[maintainTaskIDChunkCompact] = &compactExecutor{maintainExecutor: e}
-	executors[maintainTaskIDEntryCleanup] = &entryCleanExecutor{maintainExecutor: e}
+	executors[maintainTaskIDChunkCompact] = ce
+	executors[maintainTaskIDEntryCleanup] = ee
+	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeCompact), ce.handleEvent); err != nil {
+		return err
+	}
+	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeDestroy), ee.handleEvent); err != nil {
+		return err
+	}
+	return nil
 }

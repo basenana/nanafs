@@ -211,7 +211,7 @@ func (c *controller) MirrorEntry(ctx context.Context, srcId, dstParentId int64, 
 	}
 	c.logger.Debugw("mirror entry", "src", srcId, "dstParent", dstParentId, "entry", entry.ID)
 
-	events.Publish(events.EntryActionTopic(events.TopicEntryActionFmt, events.ActionTypeMirror),
+	events.Publish(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeMirror),
 		dentry.BuildEntryEvent(events.ActionTypeMirror, entry))
 	return entry, nil
 }

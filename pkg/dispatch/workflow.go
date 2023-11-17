@@ -42,7 +42,7 @@ type workflowExecutor struct {
 	logger   *zap.SugaredLogger
 }
 
-func (w workflowExecutor) handleEvent(ctx context.Context, evt *types.EntryEvent) error {
+func (w workflowExecutor) handleEvent(evt *types.EntryEvent) error {
 	if evt.Type != events.ActionTypeCreate {
 		return nil
 	}
@@ -50,6 +50,9 @@ func (w workflowExecutor) handleEvent(ctx context.Context, evt *types.EntryEvent
 		return nil
 	}
 
+	time.Sleep(time.Second * 15) // delay for more update after create
+	ctx, canF := context.WithTimeout(context.Background(), time.Hour)
+	defer canF()
 	en, err := w.entry.GetEntry(ctx, evt.RefID)
 	if err != nil {
 		w.logger.Errorw("[workflowAutoTrigger] get entry failed", "entry", evt.RefID, "err", err)
@@ -171,7 +174,7 @@ func registerWorkflowExecutor(
 	executors map[string]executor,
 	entry dentry.Manager,
 	wfMgr workflow.Manager,
-	recorder metastore.ScheduledTaskRecorder) {
+	recorder metastore.ScheduledTaskRecorder) error {
 	e := &workflowExecutor{
 		entry:    entry,
 		manager:  wfMgr,
@@ -179,4 +182,8 @@ func registerWorkflowExecutor(
 		logger:   logger.NewLogger("workflowExecutor"),
 	}
 	executors[workflowAutoTriggerExecID] = e
+	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeCreate), e.handleEvent); err != nil {
+		return err
+	}
+	return nil
 }

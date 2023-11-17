@@ -60,7 +60,7 @@ var (
 	buildInWorflows = []*types.WorkflowSpec{
 		{
 
-			Id:   "internal.rss",
+			Id:   "buildin.rss",
 			Name: "RSS Collect",
 			Rule: types.Rule{
 				Labels: &types.LabelMatch{
@@ -85,7 +85,7 @@ var (
 			Enable: true,
 		},
 		{
-			Id:   "internal.docload",
+			Id:   "buildin.docload",
 			Name: "Document Load",
 			Rule: types.Rule{
 				Operation: types.RuleOpEndWith,

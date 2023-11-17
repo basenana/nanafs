@@ -524,6 +524,7 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64)
 			}
 
 			if entryChildCount > 0 {
+				s.logger.Infow("delete a not empty group", "entryChildCount", entryChildCount)
 				return types.ErrNotEmpty
 			}
 
@@ -1563,7 +1564,10 @@ func queryFilter(tx *gorm.DB, filter types.Filter, scopeIds []int64) *gorm.DB {
 
 	if filter.ParentID != 0 {
 		tx = tx.Where("parent_id = ?", filter.ParentID)
+	} else {
+		tx = tx.Where("parent_id > 0")
 	}
+
 	if filter.RefID != 0 {
 		tx = tx.Where("ref_id = ?", filter.RefID)
 	}

@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/types"
@@ -33,6 +32,10 @@ import (
 )
 
 const taskExecutionInterval = 5 * time.Minute
+
+type executor interface {
+	execute(ctx context.Context, task *types.ScheduledTask) error
+}
 
 type Dispatcher struct {
 	entry     dentry.Manager
@@ -113,19 +116,6 @@ func (d *Dispatcher) dispatch(ctx context.Context, taskID string, exec executor,
 	return nil
 }
 
-func (d *Dispatcher) handleEvent(evt *types.EntryEvent) {
-	ctx, canF := context.WithCancel(context.Background())
-	defer canF()
-
-	var err error
-	for tID, exec := range d.executors {
-		err = exec.handleEvent(ctx, evt)
-		if err != nil {
-			d.logger.Errorw("handle event error", "taskID", tID, "err", err)
-		}
-	}
-}
-
 func (d *Dispatcher) findRunnableTasks(ctx context.Context, taskID string) ([]*types.ScheduledTask, error) {
 	tasks, err := d.recorder.ListTask(ctx, taskID,
 		types.ScheduledTaskFilter{Status: []string{types.ScheduledTaskWait, types.ScheduledTaskExecuting}})
@@ -169,11 +159,14 @@ func Init(entry dentry.Manager, wfMgr workflow.Manager, notify *notify.Notify, r
 		metricCh:  make(chan prometheus.Metric, 10),
 		logger:    logger.NewLogger("dispatcher"),
 	}
-	registerMaintainExecutor(d.executors, entry, recorder)
-	registerWorkflowExecutor(d.executors, entry, wfMgr, recorder)
 
-	if _, err := events.Subscribe(events.TopicAllActions, d.handleEvent); err != nil {
+	if err := registerMaintainExecutor(d.executors, entry, recorder); err != nil {
 		return nil, err
 	}
+
+	if err := registerWorkflowExecutor(d.executors, entry, wfMgr, recorder); err != nil {
+		return nil, err
+	}
+
 	return d, nil
 }

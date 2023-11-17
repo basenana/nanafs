@@ -208,11 +208,7 @@ func (s *symlink) Flush(ctx context.Context) (err error) {
 
 func (s *symlink) Close(ctx context.Context) error {
 	defer trace.StartRegion(ctx, "dentry.symlink.Close").End()
-	en, err := s.mgr.GetEntry(ctx, s.entryID)
-	if err != nil {
-		return err
-	}
-	defer PublicFileActionEvent(events.ActionTypeClose, en)
+	defer s.mgr.publicEntryActionEvent(events.TopicNamespaceFile, events.ActionTypeClose, s.entryID)
 	defer decreaseOpenedFile(s.entryID)
 	return s.Flush(ctx)
 }

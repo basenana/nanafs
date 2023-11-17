@@ -72,9 +72,11 @@ func NewManager(store metastore.Meta, cfg config.Config) (Manager, error) {
 		store:     store,
 		metastore: store,
 		storages:  storages,
+		eventQ:    make(chan *entryEvent, 8),
 		cfg:       cfg,
 		logger:    logger.NewLogger("entryManager"),
 	}
+	go mgr.entryActionEventHandler()
 	fileEntryLogger = mgr.logger.Named("files")
 	return mgr, nil
 }
@@ -83,6 +85,7 @@ type manager struct {
 	store     metastore.DEntry
 	metastore metastore.Meta
 	storages  map[string]storage.Storage
+	eventQ    chan *entryEvent
 	cfg       config.Config
 	logger    *zap.SugaredLogger
 }
@@ -336,7 +339,7 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntryId int64, ov
 			m.logger.Errorw("remove entry failed when overwrite old one", "err", err)
 			return err
 		}
-		PublicEntryActionEvent(events.ActionTypeDestroy, overwriteEntry)
+		m.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeDestroy, overwriteEntry.ID)
 	}
 
 	if oldParent.Storage == externalStorage || newParent.Storage == externalStorage || oldParent.Storage != newParent.Storage {
@@ -345,7 +348,7 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntryId int64, ov
 			m.logger.Errorw("change entry parent by file copy failed", "err", err)
 			return err
 		}
-		PublicEntryActionEvent(events.ActionTypeChangeParent, target)
+		m.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeChangeParent, target.ID)
 		return nil
 	}
 
@@ -354,7 +357,7 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntryId int64, ov
 		m.logger.Errorw("change object parent failed", "entry", target.ID, "newParent", newParentId, "newName", newName, "err", err)
 		return err
 	}
-	PublicEntryActionEvent(events.ActionTypeChangeParent, target)
+	m.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeChangeParent, target.ID)
 	return nil
 }
 
@@ -429,7 +432,7 @@ func (m *manager) Open(ctx context.Context, entryId int64, attr types.OpenAttr) 
 		if err := m.CleanEntryData(ctx, entryId); err != nil {
 			m.logger.Errorw("clean entry with trunc error", "entry", entryId, "err", err)
 		}
-		PublicFileActionEvent(events.ActionTypeTrunc, entry)
+		m.publicEntryActionEvent(events.TopicNamespaceFile, events.ActionTypeTrunc, entryId)
 	}
 
 	var f File
@@ -452,7 +455,7 @@ func (m *manager) Open(ctx context.Context, entryId int64, attr types.OpenAttr) 
 	if err != nil {
 		return nil, err
 	}
-	PublicFileActionEvent(events.ActionTypeOpen, entry)
+	m.publicEntryActionEvent(events.TopicNamespaceFile, events.ActionTypeOpen, entryId)
 	return instrumentalFile{file: f}, nil
 }
 func (m *manager) OpenGroup(ctx context.Context, groupId int64) (Group, error) {
@@ -465,7 +468,7 @@ func (m *manager) OpenGroup(ctx context.Context, groupId int64) (Group, error) {
 		return nil, types.ErrNoGroup
 	}
 	var (
-		stdGrp       = &stdGroup{entryID: entry.ID, name: entry.Name, store: m.store}
+		stdGrp       = &stdGroup{entryID: entry.ID, name: entry.Name, mgr: m, store: m.store}
 		grp    Group = stdGrp
 	)
 	switch entry.Kind {

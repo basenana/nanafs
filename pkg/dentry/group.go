@@ -64,6 +64,7 @@ func (e emptyGroup) ListChildren(ctx context.Context) ([]*types.Metadata, error)
 type stdGroup struct {
 	entryID int64
 	name    string
+	mgr     *manager
 	store   metastore.DEntry
 }
 
@@ -134,7 +135,7 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*type
 		ed.GroupFilter = attr.GroupFilter
 	default:
 		// skip create extend data
-		PublicEntryActionEvent(events.ActionTypeCreate, entry)
+		g.mgr.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeCreate, entry.ID)
 		return entry, nil
 	}
 
@@ -149,7 +150,7 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*type
 		}
 	}
 
-	PublicEntryActionEvent(events.ActionTypeCreate, entry)
+	g.mgr.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeCreate, entry.ID)
 	return entry, nil
 }
 
@@ -159,7 +160,7 @@ func (g *stdGroup) UpdateEntry(ctx context.Context, entry *types.Metadata) error
 	if err != nil {
 		return err
 	}
-	PublicEntryActionEvent(events.ActionTypeUpdate, entry)
+	g.mgr.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeUpdate, entry.ID)
 	return nil
 }
 
@@ -176,7 +177,7 @@ func (g *stdGroup) RemoveEntry(ctx context.Context, entryId int64) error {
 	if err != nil {
 		return err
 	}
-	PublicEntryActionEvent(events.ActionTypeDestroy, en)
+	g.mgr.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeDestroy, entryId)
 	return nil
 }
 
