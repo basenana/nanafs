@@ -84,6 +84,7 @@ func (p *PDF) Load(_ context.Context) ([]types.FDocument, error) {
 			return nil, err
 		}
 
+		// TODO: using HTML fmt?
 		result = append(result, types.FDocument{
 			Content: text,
 			Metadata: map[string]any{

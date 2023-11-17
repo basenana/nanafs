@@ -551,9 +551,8 @@ func initWorkflowMirrorDir(root *types.Metadata, entryMgr dentry.Manager) error 
 	}
 
 	_, err = entryMgr.CreateEntry(context.Background(), root.ID, types.EntryAttr{
-		Name:   MirrorRootDirName,
-		Kind:   types.ExternalGroupKind,
-		Access: root.Access,
+		Name: MirrorRootDirName,
+		Kind: types.ExternalGroupKind,
 		PlugScope: &types.PlugScope{
 			PluginName: MirrorPluginName,
 			Version:    MirrorPluginVersion,

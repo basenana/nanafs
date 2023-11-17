@@ -38,6 +38,8 @@ func NewRuleOperation(opType, col, val string) Operation {
 		return Equal{ColumnKey: col, Content: val}
 	case types.RuleOpBeginWith:
 		return BeginWith{ColumnKey: col, Content: val}
+	case types.RuleOpEndWith:
+		return EndWith{ColumnKey: col, Content: val}
 	case types.RuleOpPattern:
 		return Pattern{ColumnKey: col, Content: val}
 	case types.RuleOpBefore, types.RuleOpAfter:
@@ -85,7 +87,34 @@ type BeginWith struct {
 }
 
 func (b BeginWith) Apply(value map[string]interface{}) bool {
-	return strings.HasPrefix(Get(b.ColumnKey, value), b.Content)
+	var (
+		allPrefix = strings.Split(b.Content, itemDelimiter)
+		val       = Get(b.ColumnKey, value)
+	)
+	for _, p := range allPrefix {
+		if strings.HasPrefix(val, p) {
+			return true
+		}
+	}
+	return false
+}
+
+type EndWith struct {
+	ColumnKey string
+	Content   string
+}
+
+func (b EndWith) Apply(value map[string]interface{}) bool {
+	var (
+		allPrefix = strings.Split(b.Content, itemDelimiter)
+		val       = Get(b.ColumnKey, value)
+	)
+	for _, p := range allPrefix {
+		if strings.HasSuffix(val, p) {
+			return true
+		}
+	}
+	return false
 }
 
 type Before struct {

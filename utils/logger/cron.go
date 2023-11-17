@@ -36,5 +36,5 @@ func (c cronLogger) Error(err error, msg string, keysAndValues ...interface{}) {
 }
 
 func NewCronLogger() CronLogger {
-	return cronLogger{logger: NewLogger("Cron")}
+	return cronLogger{logger: NewLogger("cronWorkflow")}
 }

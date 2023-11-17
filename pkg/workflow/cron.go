@@ -136,14 +136,20 @@ func (c *CronHandler) filterAndTrigger(ctx context.Context, wf *types.WorkflowSp
 }
 
 func newCronHandler(mgr Manager) *CronHandler {
-	c := cron.New(
-		cron.WithLocation(time.Local),
-		cron.WithLogger(logger.NewCronLogger()),
-	)
-
+	c := cron.New(getCronOptions()...)
 	return &CronHandler{
-		Cron:   c,
-		mgr:    mgr,
-		logger: logger.NewLogger("cronHandler"),
+		Cron:     c,
+		mgr:      mgr,
+		registry: map[string]cronRecord{},
+		logger:   logger.NewLogger("cronHandler"),
 	}
 }
+
+var (
+	getCronOptions = func() []cron.Option {
+		return []cron.Option{
+			cron.WithLocation(time.Local),
+			cron.WithLogger(logger.NewCronLogger()),
+		}
+	}
+)

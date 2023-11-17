@@ -117,7 +117,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 		It("create dummy entry should be succeed", func() {
 			root, err := entryMgr.Root(ctx)
 			Expect(err).Should(BeNil())
-			en, err = entryMgr.CreateEntry(ctx, root.ID, types.EntryAttr{Name: "test_workflow.txt", Kind: types.RawKind, Access: root.Access})
+			en, err = entryMgr.CreateEntry(ctx, root.ID, types.EntryAttr{Name: "test_workflow.txt", Kind: types.RawKind})
 			Expect(err).Should(BeNil())
 
 			f, err := entryMgr.Open(ctx, en.ID, types.OpenAttr{Write: true})

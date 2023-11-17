@@ -110,7 +110,7 @@ func TestRule_Apply(t *testing.T) {
 				Value:     tt.fields.Value,
 			}
 			if got := NewRuleOperation(r.Operation, r.Column, r.Value).
-				Apply(objectToMap(tt.args.value)); got != tt.want {
+				Apply(entryToMap(tt.args.value.Metadata, tt.args.value.ExtendData)); got != tt.want {
 				t.Errorf("Apply() = %v, want %v", got, tt.want)
 			}
 		})

@@ -19,8 +19,10 @@ package types
 type EntryAttr struct {
 	Name        string
 	Kind        Kind
-	Access      Access
+	Access      *Access
 	Dev         int64
+	ExtendData  ExtendData
+	Labels      Labels
 	PlugScope   *PlugScope
 	GroupFilter *Rule
 }

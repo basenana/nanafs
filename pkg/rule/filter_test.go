@@ -21,9 +21,15 @@ import (
 	"testing"
 )
 
+type object struct {
+	*types.Metadata
+	*types.ExtendData
+	*types.Labels
+}
+
 func TestObjectFilter(t *testing.T) {
 	obj := &object{
-		Metadata: &types.Metadata{ID: 1024, Name: "test_file_1"},
+		Metadata: &types.Metadata{ID: 1024, Name: "test_file_1.txt"},
 		Labels: &types.Labels{Labels: []types.Label{
 			{Key: "test-key-1", Value: "test-val-1"},
 			{Key: "test-key-2", Value: "test-val-2"},
@@ -44,8 +50,13 @@ func TestObjectFilter(t *testing.T) {
 					{
 						Operation: types.RuleOpEqual,
 						Column:    "name",
-						Value:     "test_file_1",
+						Value:     "test_file_1.txt",
 						Labels:    nil,
+					},
+					{
+						Operation: types.RuleOpEndWith,
+						Column:    "name",
+						Value:     "txt",
 					},
 					{
 						Labels: &types.LabelMatch{

@@ -17,7 +17,7 @@
 package workflow
 
 import (
-	"context"
+	"github.com/basenana/nanafs/pkg/rule"
 	"os"
 	"testing"
 	"time"
@@ -41,7 +41,6 @@ var (
 	stopCh   = make(chan struct{})
 	tempDir  string
 	entryMgr dentry.Manager
-	memMeta  metastore.Meta
 	docMgr   document.Manager
 	mgr      Manager
 )
@@ -50,17 +49,6 @@ func TestWorkflow(t *testing.T) {
 	logger.InitLogger()
 	defer logger.Sync()
 	RegisterFailHandler(Fail)
-	//
-	//var err error
-	//tempDir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-wf-")
-	//if err != nil {
-	//	panic(err)
-	//}
-	//memMeta, err = metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
-	//if err != nil {
-	//	panic(err)
-	//}
-	//
 	testcfg.DefaultReporterConfig.SlowSpecThreshold = time.Minute.Seconds()
 	RunSpecs(t, "Workflow Suite")
 }
@@ -73,8 +61,7 @@ var _ = BeforeSuite(func() {
 	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())
 
-	_, err = memMeta.SystemInfo(context.Background())
-	Expect(err).Should(BeNil())
+	rule.InitQuery(memMeta)
 
 	storage.InitLocalCache(config.Config{CacheDir: tempDir, CacheSize: 1})
 	entryMgr, err = dentry.NewManager(memMeta, config.Config{
@@ -94,6 +81,8 @@ var _ = BeforeSuite(func() {
 
 	mgr, err = NewManager(entryMgr, docMgr, notify.NewNotify(memMeta), memMeta, config.Workflow{Enable: true, JobWorkdir: tempDir}, config.FUSE{})
 	Expect(err).Should(BeNil())
+
+	go mgr.Start(stopCh)
 })
 
 var _ = AfterSuite(func() {

@@ -46,8 +46,6 @@ func NewStorage(storageID, storageType string, cfg config.Storage) (s Storage, e
 		s, err = newMinioStorage(storageID, cfg.MinIO)
 	case WebdavStorage:
 		s, err = newWebdavStorage(storageID, cfg.Webdav)
-	case AliyunDriverStorage, UnofficialAliyunDriverStorage:
-		s, err = newUnofficialAliyunDriverStorage(storageType, storageID, cfg.AliyunDriver)
 	case LocalStorage:
 		s, err = newLocalStorage(storageID, cfg.LocalDir)
 	case MemoryStorage:

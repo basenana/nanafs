@@ -172,7 +172,7 @@ func (c *chunkReader) Close() {
 		delete(fileChunkReaders, c.entry.ID)
 		fileChunkMux.Unlock()
 		if c.needCompact {
-			events.Publish(events.EntryActionTopic(events.TopicFileActionFmt, events.ActionTypeCompact),
+			events.Publish(events.EntryActionTopic(events.TopicNamespaceFile, events.ActionTypeCompact),
 				buildCompactEvent(c.entry))
 		}
 		c.page.close()

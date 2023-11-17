@@ -96,6 +96,7 @@ func (r *runner) Start(ctx context.Context) (err error) {
 	r.executor, err = newExecutor(defaultExecName, r.job)
 	if err != nil {
 		r.job.Status = FailedStatus
+		r.job.Message = err.Error()
 		r.logger.Errorw("build executor failed", "err", err)
 		return err
 	}
@@ -108,12 +109,14 @@ func (r *runner) Start(ctx context.Context) (err error) {
 
 	if err = r.executor.Setup(ctx); err != nil {
 		r.job.Status = ErrorStatus
+		r.job.Message = err.Error()
 		r.logger.Errorw("setup executor failed", "err", err)
 		return err
 	}
 
 	if err = r.pushEvent2FlowFSM(fsm.Event{Type: TriggerEvent, Status: r.job.Status, Obj: r.job}); err != nil {
 		r.job.Status = ErrorStatus
+		r.job.Message = err.Error()
 		r.logger.Errorw("trigger job failed", "err", err)
 		return err
 	}

@@ -17,13 +17,51 @@
 package controller
 
 import (
+	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/plugin"
+	"github.com/basenana/nanafs/pkg/storage"
+	"github.com/basenana/nanafs/utils/logger"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
-func TestFs(t *testing.T) {
+var (
+	ctrl       Controller
+	entryStore metastore.DEntry
+)
+
+func TestController(t *testing.T) {
+	logger.InitLogger()
+	defer logger.Sync()
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Fs Suite")
+	RunSpecs(t, "Controller Suite")
+}
+
+var _ = BeforeSuite(func() {
+	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
+	Expect(err).Should(BeNil())
+	entryStore = memMeta
+
+	ctrl, err = New(mockConfig{}, memMeta)
+	Expect(err).Should(BeNil())
+
+	// init plugin
+	err = plugin.Init(&config.Plugin{})
+	Expect(err).Should(BeNil())
+})
+
+type mockConfig struct{}
+
+var _ config.Loader = mockConfig{}
+
+func (m mockConfig) GetConfig() (config.Config, error) {
+	var cfg = config.Config{
+		FS:       &config.FS{Owner: config.FSOwner{Uid: 0, Gid: 0}, Writeback: false},
+		Meta:     config.Meta{Type: metastore.MemoryMeta},
+		Storages: []config.Storage{{ID: "test-memory-0", Type: storage.MemoryStorage}},
+	}
+	return cfg, nil
 }

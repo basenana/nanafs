@@ -26,6 +26,11 @@ import (
 )
 
 var (
+	ErrNeedRetry   = fmt.Errorf("need retry")
+	defaultTimeout = time.Hour * 6
+)
+
+var (
 	taskExecutionLatency = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "dispatch_task_execution_latency_seconds",

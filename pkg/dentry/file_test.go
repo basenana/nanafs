@@ -53,7 +53,7 @@ func newMockFileEntry(name string) *types.Metadata {
 	if err == nil {
 		return en
 	}
-	en, err = entryManager.CreateEntry(context.TODO(), root.ID, types.EntryAttr{Name: name, Kind: types.RawKind, Access: types.Access{}})
+	en, err = entryManager.CreateEntry(context.TODO(), root.ID, types.EntryAttr{Name: name, Kind: types.RawKind})
 	if err != nil {
 		panic(fmt.Errorf("init file entry failed: %s", err))
 	}

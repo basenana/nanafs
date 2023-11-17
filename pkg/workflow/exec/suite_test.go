@@ -72,7 +72,7 @@ var _ = BeforeSuite(func() {
 	root, err := entryMgr.Root(context.TODO())
 	Expect(err).Should(BeNil())
 	txtFile, err := entryMgr.CreateEntry(context.TODO(), root.ID, types.EntryAttr{
-		Name: "target.txt", Kind: types.RawKind, Access: root.Access})
+		Name: "target.txt", Kind: types.RawKind})
 	Expect(err).Should(BeNil())
 	targetID = txtFile.ID
 

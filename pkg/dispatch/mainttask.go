@@ -18,7 +18,6 @@ package dispatch
 
 import (
 	"context"
-	"fmt"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
@@ -43,10 +42,14 @@ type compactExecutor struct {
 	*maintainExecutor
 }
 
-func (c *compactExecutor) handleEvent(ctx context.Context, evt *types.EntryEvent) error {
+func (c *compactExecutor) handleEvent(evt *types.EntryEvent) error {
 	if evt.Type != events.ActionTypeCompact {
 		return nil
 	}
+
+	ctx, canF := context.WithTimeout(context.Background(), time.Hour)
+	defer canF()
+
 	task, err := getWaitingTask(ctx, c.recorder, maintainTaskIDChunkCompact, evt)
 	if err != nil {
 		c.logger.Errorw("[compactExecutor] list scheduled task error", "entry", evt.RefID, "err", err.Error())
@@ -76,7 +79,7 @@ func (c *compactExecutor) handleEvent(ctx context.Context, evt *types.EntryEvent
 func (c *compactExecutor) execute(ctx context.Context, task *types.ScheduledTask) error {
 	entry := task.Event.Data
 	if dentry.IsFileOpened(entry.ID) {
-		return fmt.Errorf("file is opened")
+		return ErrNeedRetry
 	}
 
 	en, err := c.entry.GetEntry(ctx, entry.ID)
@@ -96,8 +99,8 @@ type entryCleanExecutor struct {
 	*maintainExecutor
 }
 
-func (c *entryCleanExecutor) handleEvent(ctx context.Context, evt *types.EntryEvent) error {
-	if evt.Type != events.ActionTypeDestroy && evt.Type != events.ActionTypeClose {
+func (c *entryCleanExecutor) handleEvent(evt *types.EntryEvent) error {
+	if evt.Type != events.ActionTypeDestroy {
 		return nil
 	}
 
@@ -106,55 +109,52 @@ func (c *entryCleanExecutor) handleEvent(ctx context.Context, evt *types.EntryEv
 		return nil
 	}
 
+	ctx, canF := context.WithTimeout(context.Background(), time.Hour)
+	defer canF()
 	task, err := getWaitingTask(ctx, c.recorder, maintainTaskIDEntryCleanup, evt)
 	if err != nil {
 		return err
 	}
 
-	needUpdate := false
-	if task == nil {
-		task = &types.ScheduledTask{
-			TaskID:         maintainTaskIDEntryCleanup,
-			Status:         types.ScheduledTaskInitial,
-			RefType:        evt.RefType,
-			RefID:          evt.RefID,
-			CreatedTime:    time.Now(),
-			ExpirationTime: time.Now().Add(time.Hour),
-			Event:          *evt,
-		}
-		needUpdate = true
+	if task != nil {
+		return nil
 	}
 
-	if types.IsGroup(entry.Kind) || (!dentry.IsFileOpened(evt.RefID)) {
-		task.Status = types.ScheduledTaskWait
-		needUpdate = true
+	task = &types.ScheduledTask{
+		TaskID:         maintainTaskIDEntryCleanup,
+		Status:         types.ScheduledTaskWait,
+		RefType:        evt.RefType,
+		RefID:          evt.RefID,
+		CreatedTime:    time.Now(),
+		ExpirationTime: time.Now().Add(time.Hour),
+		Event:          *evt,
 	}
-
-	if needUpdate {
-		return c.recorder.SaveTask(ctx, task)
-	}
-	return nil
+	return c.recorder.SaveTask(ctx, task)
 }
 
 func (c *entryCleanExecutor) execute(ctx context.Context, task *types.ScheduledTask) error {
-	evt := task.Event
-	en, err := c.entry.GetEntry(ctx, evt.RefID)
+	entry := task.Event.Data
+	if dentry.IsFileOpened(entry.ID) {
+		return ErrNeedRetry
+	}
+
+	en, err := c.entry.GetEntry(ctx, entry.ID)
 	if err != nil {
-		c.logger.Errorw("[entryCleanExecutor] get entry failed", "entry", evt.RefID, "task", task.ID, "err", err)
+		c.logger.Errorw("[entryCleanExecutor] get entry failed", "entry", entry.ID, "task", task.ID, "err", err)
 		return err
 	}
 
 	if !types.IsGroup(en.Kind) {
 		err = c.entry.CleanEntryData(ctx, en.ID)
 		if err != nil {
-			c.logger.Errorw("[entryCleanExecutor] get entry failed", "entry", evt.RefID, "task", task.ID, "err", err)
+			c.logger.Errorw("[entryCleanExecutor] get entry failed", "entry", entry.ID, "task", task.ID, "err", err)
 			return err
 		}
 	}
 
 	err = c.entry.DestroyEntry(ctx, en.ID)
 	if err != nil {
-		c.logger.Errorw("[entryCleanExecutor] get entry failed", "entry", evt.RefID, "task", task.ID, "err", err)
+		c.logger.Errorw("[entryCleanExecutor] get entry failed", "entry", entry.ID, "task", task.ID, "err", err)
 		return err
 	}
 	return nil
@@ -163,13 +163,18 @@ func (c *entryCleanExecutor) execute(ctx context.Context, task *types.ScheduledT
 func registerMaintainExecutor(
 	executors map[string]executor,
 	entry dentry.Manager,
-	recorder metastore.ScheduledTaskRecorder) {
-	e := &maintainExecutor{
-		entry:    entry,
-		recorder: recorder,
-		logger:   logger.NewLogger("maintainExecutor"),
-	}
+	recorder metastore.ScheduledTaskRecorder) error {
+	e := &maintainExecutor{entry: entry, recorder: recorder, logger: logger.NewLogger("maintainExecutor")}
+	ce := &compactExecutor{maintainExecutor: e}
+	ee := &entryCleanExecutor{maintainExecutor: e}
 
-	executors[maintainTaskIDChunkCompact] = &compactExecutor{maintainExecutor: e}
-	executors[maintainTaskIDEntryCleanup] = &entryCleanExecutor{maintainExecutor: e}
+	executors[maintainTaskIDChunkCompact] = ce
+	executors[maintainTaskIDEntryCleanup] = ee
+	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeCompact), ce.handleEvent); err != nil {
+		return err
+	}
+	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeDestroy), ee.handleEvent); err != nil {
+		return err
+	}
+	return nil
 }

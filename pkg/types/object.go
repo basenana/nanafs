@@ -26,9 +26,11 @@ const (
 	entryNameMaxLength    = 255
 	entryDefaultNamespace = "personal"
 
-	VersionKey         = "nanafs.version"
-	KindKey            = "nanafs.kind"
-	LabelPluginNameKey = "nanafs.plugin.name"
+	LabelKeyPluginPrefix = "org.basenana.internal.plugin/"
+	LabelKeyPluginKind   = LabelKeyPluginPrefix + "kind"
+	LabelKeyPluginName   = LabelKeyPluginPrefix + "name"
+
+	LabelKeyGroupFeedID = "org.basenana.internal.feed/id"
 )
 
 type SystemInfo struct {
@@ -127,7 +129,12 @@ type Label struct {
 }
 
 type Properties struct {
-	Fields map[string]string `json:"fields,omitempty"`
+	Fields map[string]PropertyItem `json:"fields,omitempty"`
+}
+
+type PropertyItem struct {
+	Value   string `json:"value"`
+	Encoded bool   `json:"encoded"`
 }
 
 func InitNewEntry(parent *Metadata, attr EntryAttr) (*Metadata, error) {
@@ -137,15 +144,19 @@ func InitNewEntry(parent *Metadata, attr EntryAttr) (*Metadata, error) {
 
 	md := NewMetadata(attr.Name, attr.Kind)
 	md.Dev = attr.Dev
-	md.Access = Access{
-		Permissions: attr.Access.Permissions,
-		UID:         attr.Access.UID,
-		GID:         attr.Access.GID,
-	}
 
 	if parent != nil {
 		md.ParentID = parent.ID
 		md.Storage = parent.Storage
+		md.Access = parent.Access
+	}
+
+	if attr.Access != nil {
+		md.Access = Access{
+			Permissions: attr.Access.Permissions,
+			UID:         attr.Access.UID,
+			GID:         attr.Access.GID,
+		}
 	}
 	return &md, nil
 }

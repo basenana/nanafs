@@ -19,6 +19,7 @@ package dentry
 import (
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
@@ -63,6 +64,7 @@ func (e emptyGroup) ListChildren(ctx context.Context) ([]*types.Metadata, error)
 type stdGroup struct {
 	entryID int64
 	name    string
+	mgr     *manager
 	store   metastore.DEntry
 }
 
@@ -101,12 +103,7 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*type
 		return nil, err
 	}
 
-	entry, err := types.InitNewEntry(group, types.EntryAttr{
-		Name:   attr.Name,
-		Kind:   attr.Kind,
-		Access: attr.Access,
-		Dev:    attr.Dev,
-	})
+	entry, err := types.InitNewEntry(group, attr)
 	if err != nil {
 		return nil, err
 	}
@@ -116,20 +113,29 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*type
 		return nil, err
 	}
 
-	ed := types.ExtendData{}
+	ed := attr.ExtendData
+	labels := attr.Labels
 	switch entry.Kind {
 	case types.ExternalGroupKind:
 		entry.Storage = externalStorage
-		if attr.PlugScope.Parameters == nil {
-			attr.PlugScope.Parameters = map[string]string{}
+		if attr.PlugScope != nil {
+			if attr.PlugScope.Parameters == nil {
+				attr.PlugScope.Parameters = map[string]string{}
+			}
+			ed.PlugScope = attr.PlugScope
+			ed.PlugScope.Parameters[types.PlugScopeEntryName] = attr.Name
+			ed.PlugScope.Parameters[types.PlugScopeEntryPath] = "/"
 		}
-		ed.PlugScope = attr.PlugScope
-		ed.PlugScope.Parameters[types.PlugScopeEntryName] = attr.Name
-		ed.PlugScope.Parameters[types.PlugScopeEntryPath] = "/"
+
+		labels.Labels = append(labels.Labels, []types.Label{
+			{Key: types.LabelKeyPluginName, Value: ed.PlugScope.PluginName},
+			{Key: types.LabelKeyPluginKind, Value: string(types.TypeMirror)},
+		}...)
 	case types.SmartGroupKind:
 		ed.GroupFilter = attr.GroupFilter
 	default:
 		// skip create extend data
+		g.mgr.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeCreate, entry.ID)
 		return entry, nil
 	}
 
@@ -137,20 +143,41 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*type
 		_ = g.store.RemoveEntry(ctx, entry.ParentID, entry.ID)
 		return nil, err
 	}
+	if len(labels.Labels) > 0 {
+		if err = g.store.UpdateEntryLabels(ctx, entry.ID, labels); err != nil {
+			_ = g.store.RemoveEntry(ctx, entry.ParentID, entry.ID)
+			return nil, err
+		}
+	}
+
+	g.mgr.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeCreate, entry.ID)
 	return entry, nil
 }
 
 func (g *stdGroup) UpdateEntry(ctx context.Context, entry *types.Metadata) error {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.UpdateEntry").End()
-	return g.store.UpdateEntryMetadata(ctx, entry)
+	err := g.store.UpdateEntryMetadata(ctx, entry)
+	if err != nil {
+		return err
+	}
+	g.mgr.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeUpdate, entry.ID)
+	return nil
 }
 
 func (g *stdGroup) RemoveEntry(ctx context.Context, entryId int64) error {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.RemoveEntry").End()
-	err := g.store.RemoveEntry(ctx, g.entryID, entryId)
+	en, err := g.store.GetEntry(ctx, entryId)
 	if err != nil {
 		return err
 	}
+	if en.ParentID != g.entryID {
+		return types.ErrNotFound
+	}
+	err = g.store.RemoveEntry(ctx, g.entryID, entryId)
+	if err != nil {
+		return err
+	}
+	g.mgr.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeDestroy, entryId)
 	return nil
 }
 
@@ -340,9 +367,8 @@ func (e *extGroup) syncEntry(ctx context.Context, mirrored *pluginapi.Entry, crt
 			newEnEd types.ExtendData
 		)
 		newEn, err = types.InitNewEntry(grp, types.EntryAttr{
-			Name:   mirrored.Name,
-			Kind:   mirrored.Kind,
-			Access: grp.Access,
+			Name: mirrored.Name,
+			Kind: mirrored.Kind,
 		})
 		if err != nil {
 			return nil, err

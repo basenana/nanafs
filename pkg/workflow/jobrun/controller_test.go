@@ -48,7 +48,7 @@ var _ = Describe("TestJobPauseAndResume", func() {
 			Expect(err).Should(BeNil())
 		})
 		It("start should be succeed", func() {
-			Expect(ctrl.TriggerJob(ctx, job.Id)).Should(BeNil())
+			Expect(ctrl.TriggerJob(job.Id, time.Hour)).Should(BeNil())
 		})
 		It("wait first step status should be succeed", func() {
 			Eventually(func() string {
@@ -127,7 +127,7 @@ var _ = Describe("TestJobCancel", func() {
 			Expect(err).Should(BeNil())
 		})
 		It("start should be succeed", func() {
-			Expect(ctrl.TriggerJob(ctx, job.Id)).Should(BeNil())
+			Expect(ctrl.TriggerJob(job.Id, time.Hour)).Should(BeNil())
 		})
 		It("wait first step status should be succeed", func() {
 			Eventually(func() string {

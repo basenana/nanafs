@@ -51,9 +51,11 @@ type Manager interface {
 
 	GetEntryExtendData(ctx context.Context, id int64) (types.ExtendData, error)
 	UpdateEntryExtendData(ctx context.Context, id int64, ed types.ExtendData) error
-	GetEntryExtendField(ctx context.Context, id int64, fKey string) (*string, error)
-	SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string) error
+	GetEntryExtendField(ctx context.Context, id int64, fKey string) (*string, bool, error)
+	SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string, encoded bool) error
 	RemoveEntryExtendField(ctx context.Context, id int64, fKey string) error
+	GetEntryLabels(ctx context.Context, id int64) (types.Labels, error)
+	UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error
 
 	Open(ctx context.Context, entryId int64, attr types.OpenAttr) (File, error)
 	OpenGroup(ctx context.Context, entryID int64) (Group, error)
@@ -75,9 +77,11 @@ func NewManager(store metastore.Meta, cfg config.Config) (Manager, error) {
 		store:     store,
 		metastore: store,
 		storages:  storages,
+		eventQ:    make(chan *entryEvent, 8),
 		cfg:       cfg,
 		logger:    logger.NewLogger("entryManager"),
 	}
+	go mgr.entryActionEventHandler()
 	fileEntryLogger = mgr.logger.Named("files")
 	return mgr, nil
 }
@@ -86,6 +90,7 @@ type manager struct {
 	store     metastore.DEntry
 	metastore metastore.Meta
 	storages  map[string]storage.Storage
+	eventQ    chan *entryEvent
 	cfg       config.Config
 	logger    *zap.SugaredLogger
 }
@@ -164,23 +169,23 @@ func (m *manager) UpdateEntryExtendData(ctx context.Context, id int64, ed types.
 	return m.store.UpdateEntryExtendData(ctx, id, ed)
 }
 
-func (m *manager) GetEntryExtendField(ctx context.Context, id int64, fKey string) (*string, error) {
+func (m *manager) GetEntryExtendField(ctx context.Context, id int64, fKey string) (*string, bool, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.GetEntryExtendField").End()
 	ed, err := m.GetEntryExtendData(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if ed.Properties.Fields == nil {
-		return nil, nil
+		return nil, false, nil
 	}
-	fVal, ok := ed.Properties.Fields[fKey]
+	item, ok := ed.Properties.Fields[fKey]
 	if !ok {
-		return nil, nil
+		return nil, false, nil
 	}
-	return &fVal, nil
+	return &item.Value, item.Encoded, nil
 }
 
-func (m *manager) SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string) error {
+func (m *manager) SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string, encoded bool) error {
 	defer trace.StartRegion(ctx, "dentry.manager.SetEntryExtendField").End()
 	ed, err := m.GetEntryExtendData(ctx, id)
 	if err != nil {
@@ -188,9 +193,9 @@ func (m *manager) SetEntryExtendField(ctx context.Context, id int64, fKey, fVal 
 	}
 
 	if ed.Properties.Fields == nil {
-		ed.Properties.Fields = map[string]string{}
+		ed.Properties.Fields = map[string]types.PropertyItem{}
 	}
-	ed.Properties.Fields[fKey] = fVal
+	ed.Properties.Fields[fKey] = types.PropertyItem{Value: fVal, Encoded: encoded}
 
 	return m.UpdateEntryExtendData(ctx, id, ed)
 }
@@ -203,7 +208,7 @@ func (m *manager) RemoveEntryExtendField(ctx context.Context, id int64, fKey str
 	}
 
 	if ed.Properties.Fields == nil {
-		ed.Properties.Fields = map[string]string{}
+		ed.Properties.Fields = map[string]types.PropertyItem{}
 	}
 	_, ok := ed.Properties.Fields[fKey]
 	if ok {
@@ -213,6 +218,16 @@ func (m *manager) RemoveEntryExtendField(ctx context.Context, id int64, fKey str
 		return types.ErrNotFound
 	}
 	return m.UpdateEntryExtendData(ctx, id, ed)
+}
+
+func (m *manager) GetEntryLabels(ctx context.Context, id int64) (types.Labels, error) {
+	defer trace.StartRegion(ctx, "dentry.manager.GetEntryLabels").End()
+	return m.store.GetEntryLabels(ctx, id)
+}
+
+func (m *manager) UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error {
+	defer trace.StartRegion(ctx, "dentry.manager.UpdateEntryLabels").End()
+	return m.store.UpdateEntryLabels(ctx, id, labels)
 }
 
 func (m *manager) CreateEntry(ctx context.Context, parentId int64, attr types.EntryAttr) (*types.Metadata, error) {
@@ -364,11 +379,17 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntryId int64, ov
 			m.logger.Errorw("remove entry failed when overwrite old one", "err", err)
 			return err
 		}
-		PublicEntryActionEvent(events.ActionTypeDestroy, overwriteEntry)
+		m.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeDestroy, overwriteEntry.ID)
 	}
 
 	if oldParent.Storage == externalStorage || newParent.Storage == externalStorage || oldParent.Storage != newParent.Storage {
-		return m.changeEntryParentByFileCopy(ctx, target, oldParent, newParent, newName, opt)
+		err = m.changeEntryParentByFileCopy(ctx, target, oldParent, newParent, newName, opt)
+		if err != nil {
+			m.logger.Errorw("change entry parent by file copy failed", "err", err)
+			return err
+		}
+		m.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeChangeParent, target.ID)
+		return nil
 	}
 
 	err = m.store.ChangeEntryParent(ctx, targetEntryId, newParentId, newName, opt)
@@ -376,6 +397,7 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntryId int64, ov
 		m.logger.Errorw("change object parent failed", "entry", target.ID, "newParent", newParentId, "newName", newName, "err", err)
 		return err
 	}
+	m.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeChangeParent, target.ID)
 	return nil
 }
 
@@ -405,7 +427,7 @@ func (m *manager) changeEntryParentByFileCopy(ctx context.Context, targetEntry, 
 	attr := types.EntryAttr{
 		Name:      newName,
 		Kind:      targetEntry.Kind,
-		Access:    targetEntry.Access,
+		Access:    &targetEntry.Access,
 		PlugScope: newParentEd.PlugScope,
 	}
 	en, err := m.CreateEntry(ctx, newParent.ID, attr)
@@ -450,7 +472,7 @@ func (m *manager) Open(ctx context.Context, entryId int64, attr types.OpenAttr) 
 		if err := m.CleanEntryData(ctx, entryId); err != nil {
 			m.logger.Errorw("clean entry with trunc error", "entry", entryId, "err", err)
 		}
-		PublicFileActionEvent(events.ActionTypeTrunc, entry)
+		m.publicEntryActionEvent(events.TopicNamespaceFile, events.ActionTypeTrunc, entryId)
 	}
 
 	var f File
@@ -473,7 +495,7 @@ func (m *manager) Open(ctx context.Context, entryId int64, attr types.OpenAttr) 
 	if err != nil {
 		return nil, err
 	}
-	PublicFileActionEvent(events.ActionTypeOpen, entry)
+	m.publicEntryActionEvent(events.TopicNamespaceFile, events.ActionTypeOpen, entryId)
 	return instrumentalFile{file: f}, nil
 }
 func (m *manager) OpenGroup(ctx context.Context, groupId int64) (Group, error) {
@@ -486,7 +508,7 @@ func (m *manager) OpenGroup(ctx context.Context, groupId int64) (Group, error) {
 		return nil, types.ErrNoGroup
 	}
 	var (
-		stdGrp       = &stdGroup{entryID: entry.ID, name: entry.Name, store: m.store}
+		stdGrp       = &stdGroup{entryID: entry.ID, name: entry.Name, mgr: m, store: m.store}
 		grp    Group = stdGrp
 	)
 	switch entry.Kind {

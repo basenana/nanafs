@@ -20,10 +20,10 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/pkg/workflow"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/getsentry/sentry-go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -32,6 +32,10 @@ import (
 )
 
 const taskExecutionInterval = 5 * time.Minute
+
+type executor interface {
+	execute(ctx context.Context, task *types.ScheduledTask) error
+}
 
 type Dispatcher struct {
 	entry     dentry.Manager
@@ -89,8 +93,11 @@ func (d *Dispatcher) dispatch(ctx context.Context, taskID string, exec executor,
 	}
 
 	if err := exec.execute(ctx, task); err != nil {
-		task.Result = fmt.Sprintf("refID: %d, msg: %s", task.Event.RefID, err)
 		task.Status = types.ScheduledTaskFailed
+		if err == ErrNeedRetry {
+			task.Status = types.ScheduledTaskWait
+		}
+		task.Result = fmt.Sprintf("refID: %d, msg: %s", task.Event.RefID, err)
 		taskFinishStatusCounter.WithLabelValues(taskID, types.ScheduledTaskFailed)
 		sentry.CaptureException(err)
 		d.logger.Errorw("execute task error", "recordID", task.ID, "taskID", task.TaskID, "err", err,
@@ -107,19 +114,6 @@ func (d *Dispatcher) dispatch(ctx context.Context, taskID string, exec executor,
 		return err
 	}
 	return nil
-}
-
-func (d *Dispatcher) handleEvent(evt *types.EntryEvent) {
-	ctx, canF := context.WithCancel(context.Background())
-	defer canF()
-
-	var err error
-	for tID, exec := range d.executors {
-		err = exec.handleEvent(ctx, evt)
-		if err != nil {
-			d.logger.Errorw("handle event error", "taskID", tID, "err", err)
-		}
-	}
 }
 
 func (d *Dispatcher) findRunnableTasks(ctx context.Context, taskID string) ([]*types.ScheduledTask, error) {
@@ -144,7 +138,7 @@ func (d *Dispatcher) findRunnableTasks(ctx context.Context, taskID string) ([]*t
 			waitCount += 1
 		case types.ScheduledTaskExecuting:
 			if time.Now().After(t.ExpirationTime) {
-				t.Status = types.ScheduledTaskFinish
+				t.Status = types.ScheduledTaskFailed
 				t.Result = "timeout"
 				_ = d.recorder.SaveTask(ctx, t)
 			}
@@ -156,7 +150,7 @@ func (d *Dispatcher) findRunnableTasks(ctx context.Context, taskID string) ([]*t
 	return runnable, nil
 }
 
-func Init(entry dentry.Manager, notify *notify.Notify, recorder metastore.ScheduledTaskRecorder) (*Dispatcher, error) {
+func Init(entry dentry.Manager, wfMgr workflow.Manager, notify *notify.Notify, recorder metastore.ScheduledTaskRecorder) (*Dispatcher, error) {
 	d := &Dispatcher{
 		entry:     entry,
 		notify:    notify,
@@ -165,10 +159,14 @@ func Init(entry dentry.Manager, notify *notify.Notify, recorder metastore.Schedu
 		metricCh:  make(chan prometheus.Metric, 10),
 		logger:    logger.NewLogger("dispatcher"),
 	}
-	registerMaintainExecutor(d.executors, entry, recorder)
 
-	if _, err := events.Subscribe(events.TopicAllActions, d.handleEvent); err != nil {
+	if err := registerMaintainExecutor(d.executors, entry, recorder); err != nil {
 		return nil, err
 	}
+
+	if err := registerWorkflowExecutor(d.executors, entry, wfMgr, recorder); err != nil {
+		return nil, err
+	}
+
 	return d, nil
 }

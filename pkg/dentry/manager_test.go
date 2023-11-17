@@ -403,7 +403,7 @@ func mustGetSourceEntry(entry *types.Metadata) *types.Metadata {
 	return entry
 }
 
-var accessPermissions = types.Access{
+var accessPermissions = &types.Access{
 	Permissions: []types.Permission{
 		types.PermOwnerRead,
 		types.PermOwnerWrite,

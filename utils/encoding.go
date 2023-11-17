@@ -14,23 +14,30 @@
  limitations under the License.
 */
 
-package events
+package utils
 
-var (
-	TopicNamespaceEntry = "action.entry."
-	TopicNamespaceFile  = "action.file."
+import "encoding/base64"
 
-	ActionTypeCreate       = "create"
-	ActionTypeUpdate       = "update"
-	ActionTypeDestroy      = "destroy"
-	ActionTypeMirror       = "mirror"
-	ActionTypeChangeParent = "change_parent"
-	ActionTypeTrunc        = "trunc"
-	ActionTypeOpen         = "open"
-	ActionTypeClose        = "close"
-	ActionTypeCompact      = "compact"
-)
+func EncodeBase64(s []byte) string {
+	return base64.StdEncoding.EncodeToString(s)
+}
 
-func EntryActionTopic(topicNamespace string, actionType string) string {
-	return topicNamespace + actionType
+func EncodeStringBase64(s string) string {
+	return EncodeBase64([]byte(s))
+}
+
+func DecodeBase64(s string) ([]byte, error) {
+	raw, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return nil, err
+	}
+	return raw, nil
+}
+
+func DecodeBase64String(s string) (string, error) {
+	raw, err := DecodeBase64(s)
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
 }
