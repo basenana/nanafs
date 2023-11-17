@@ -16,14 +16,9 @@
 
 package events
 
-import (
-	"fmt"
-)
-
 var (
-	TopicAllActions     = "action.*.*"
-	TopicEntryActionFmt = "action.entry.%s"
-	TopicFileActionFmt  = "action.file.%s"
+	TopicNamespaceEntry = "action.entry."
+	TopicNamespaceFile  = "action.file."
 
 	ActionTypeCreate       = "create"
 	ActionTypeUpdate       = "update"
@@ -36,6 +31,6 @@ var (
 	ActionTypeCompact      = "compact"
 )
 
-func EntryActionTopic(topicFmt string, actionType string) string {
-	return fmt.Sprintf(topicFmt, actionType)
+func EntryActionTopic(topicNamespace string, actionType string) string {
+	return topicNamespace + actionType
 }

@@ -19,6 +19,7 @@ package dentry
 import (
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
@@ -63,6 +64,7 @@ func (e emptyGroup) ListChildren(ctx context.Context) ([]*types.Metadata, error)
 type stdGroup struct {
 	entryID int64
 	name    string
+	mgr     *manager
 	store   metastore.DEntry
 }
 
@@ -133,6 +135,7 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*type
 		ed.GroupFilter = attr.GroupFilter
 	default:
 		// skip create extend data
+		g.mgr.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeCreate, entry.ID)
 		return entry, nil
 	}
 
@@ -146,20 +149,35 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*type
 			return nil, err
 		}
 	}
+
+	g.mgr.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeCreate, entry.ID)
 	return entry, nil
 }
 
 func (g *stdGroup) UpdateEntry(ctx context.Context, entry *types.Metadata) error {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.UpdateEntry").End()
-	return g.store.UpdateEntryMetadata(ctx, entry)
+	err := g.store.UpdateEntryMetadata(ctx, entry)
+	if err != nil {
+		return err
+	}
+	g.mgr.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeUpdate, entry.ID)
+	return nil
 }
 
 func (g *stdGroup) RemoveEntry(ctx context.Context, entryId int64) error {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.RemoveEntry").End()
-	err := g.store.RemoveEntry(ctx, g.entryID, entryId)
+	en, err := g.store.GetEntry(ctx, entryId)
 	if err != nil {
 		return err
 	}
+	if en.ParentID != g.entryID {
+		return types.ErrNotFound
+	}
+	err = g.store.RemoveEntry(ctx, g.entryID, entryId)
+	if err != nil {
+		return err
+	}
+	g.mgr.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeDestroy, entryId)
 	return nil
 }
 

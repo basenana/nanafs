@@ -82,7 +82,7 @@ var _ = BeforeSuite(func() {
 	mgr, err = NewManager(entryMgr, docMgr, notify.NewNotify(memMeta), memMeta, config.Workflow{Enable: true, JobWorkdir: tempDir}, config.FUSE{})
 	Expect(err).Should(BeNil())
 
-	go mgr.StartCron(stopCh)
+	go mgr.Start(stopCh)
 })
 
 var _ = AfterSuite(func() {

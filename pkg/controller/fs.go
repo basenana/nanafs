@@ -70,12 +70,12 @@ func (c *controller) FsInfo(ctx context.Context) Info {
 }
 
 func (c *controller) StartBackendTask(stopCh chan struct{}) {
-	st, err := dispatch.Init(c.entry, c.notify, c.meta)
+	st, err := dispatch.Init(c.entry, c.workflow, c.notify, c.meta)
 	if err != nil {
 		c.logger.Panicf("start backend task failed: %s", err)
 	}
 	go st.Run(stopCh)
-	go c.workflow.StartCron(stopCh)
+	go c.workflow.Start(stopCh)
 }
 
 func (c *controller) SetupShutdownHandler(stopCh chan struct{}) chan struct{} {

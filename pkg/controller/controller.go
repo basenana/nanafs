@@ -137,7 +137,6 @@ func (c *controller) CreateEntry(ctx context.Context, parentId int64, attr types
 		c.logger.Errorw("create entry error", "parent", parentId, "entryName", attr.Name, "err", err)
 		return nil, err
 	}
-	dentry.PublicEntryActionEvent(events.ActionTypeCreate, entry)
 	return entry, nil
 }
 
@@ -160,7 +159,6 @@ func (c *controller) UpdateEntry(ctx context.Context, entry *types.Metadata) err
 		c.logger.Errorw("save entry error", "entry", entryID, "err", err)
 		return err
 	}
-	dentry.PublicEntryActionEvent(events.ActionTypeUpdate, en)
 	return nil
 }
 
@@ -188,7 +186,6 @@ func (c *controller) DestroyEntry(ctx context.Context, parentId, entryId int64, 
 		c.logger.Errorw("delete entry failed", "entry", entryId, "err", err.Error())
 		return err
 	}
-	dentry.PublicEntryActionEvent(events.ActionTypeDestroy, en)
 	return nil
 }
 
@@ -214,7 +211,7 @@ func (c *controller) MirrorEntry(ctx context.Context, srcId, dstParentId int64, 
 	}
 	c.logger.Debugw("mirror entry", "src", srcId, "dstParent", dstParentId, "entry", entry.ID)
 
-	events.Publish(events.EntryActionTopic(events.TopicEntryActionFmt, events.ActionTypeMirror),
+	events.Publish(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeMirror),
 		dentry.BuildEntryEvent(events.ActionTypeMirror, entry))
 	return entry, nil
 }
@@ -290,7 +287,6 @@ func (c *controller) ChangeEntryParent(ctx context.Context, targetId, oldParentI
 		c.logger.Errorw("change object parent failed", "target", targetId, "newParent", newParentId, "newName", newName, "err", err)
 		return err
 	}
-	dentry.PublicEntryActionEvent(events.ActionTypeChangeParent, target)
 	return nil
 }
 

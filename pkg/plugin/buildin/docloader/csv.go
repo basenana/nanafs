@@ -70,6 +70,7 @@ func (c CSV) Load(_ context.Context) (result []types.FDocument, err error) {
 		}
 
 		rown++
+		// TODO: using HTML fmt?
 		result = append(result, types.FDocument{
 			Content:  strings.Join(content, "\n"),
 			Metadata: map[string]any{"type": csvLoader, "row": rown},

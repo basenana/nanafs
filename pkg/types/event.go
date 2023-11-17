@@ -33,40 +33,24 @@ type EntryEvent struct {
 }
 
 type EventData struct {
-	ID         int64     `json:"id"`
-	Name       string    `json:"name"`
-	ParentID   int64     `json:"parent_id"`
-	RefID      int64     `json:"ref_id,omitempty"`
-	RefCount   int       `json:"ref_count,omitempty"`
-	Kind       Kind      `json:"kind"`
-	KindMap    int64     `json:"kind_map"`
-	Version    int64     `json:"version"`
-	Dev        int64     `json:"dev"`
-	Namespace  string    `json:"namespace,omitempty"`
-	Storage    string    `json:"storage"`
-	CreatedAt  time.Time `json:"created_at"`
-	ChangedAt  time.Time `json:"changed_at"`
-	ModifiedAt time.Time `json:"modified_at"`
-	AccessAt   time.Time `json:"access_at"`
+	ID        int64  `json:"id"`
+	ParentID  int64  `json:"parent_id"`
+	RefID     int64  `json:"ref_id,omitempty"`
+	Kind      Kind   `json:"kind"`
+	KindMap   int64  `json:"kind_map"`
+	Namespace string `json:"namespace,omitempty"`
+	Storage   string `json:"storage"`
 }
 
 func NewEventData(entry *Metadata) EventData {
 	return EventData{
-		ID:         entry.ID,
-		Name:       entry.Name,
-		ParentID:   entry.ParentID,
-		RefID:      entry.RefID,
-		RefCount:   entry.RefCount,
-		Kind:       entry.Kind,
-		KindMap:    entry.KindMap,
-		Version:    entry.Version,
-		Dev:        entry.Dev,
-		Namespace:  entry.Namespace,
-		Storage:    entry.Storage,
-		CreatedAt:  entry.CreatedAt,
-		ChangedAt:  entry.ChangedAt,
-		ModifiedAt: entry.ModifiedAt,
-		AccessAt:   entry.AccessAt,
+		ID:        entry.ID,
+		ParentID:  entry.ParentID,
+		RefID:     entry.RefID,
+		Kind:      entry.Kind,
+		KindMap:   entry.KindMap,
+		Namespace: entry.Namespace,
+		Storage:   entry.Storage,
 	}
 }
 

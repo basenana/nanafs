@@ -17,6 +17,7 @@
 package dentry
 
 import (
+	"context"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/types"
@@ -24,22 +25,44 @@ import (
 	"time"
 )
 
-func PublicEntryActionEvent(actionType string, en *types.Metadata) {
-	events.Publish(events.EntryActionTopic(events.TopicEntryActionFmt, actionType), BuildEntryEvent(actionType, en))
+type entryEvent struct {
+	entryID    int64
+	topicNS    string
+	actionType string
 }
 
-func PublicFileActionEvent(actionType string, en *types.Metadata) {
-	events.Publish(events.EntryActionTopic(events.TopicFileActionFmt, actionType), BuildEntryEvent(actionType, en))
+func (m *manager) publicEntryActionEvent(topicNS, actionType string, entryID int64) {
+	m.eventQ <- &entryEvent{entryID: entryID, topicNS: topicNS, actionType: actionType}
+}
+
+func (m *manager) entryActionEventHandler() {
+	m.logger.Debugw("start entryActionEventHandler")
+	for evt := range m.eventQ {
+		if evt.entryID == 0 {
+			m.logger.Errorw("handle entry event error: entry id is empty", "entry", evt.entryID, "action", evt.actionType)
+			continue
+		}
+		en, err := m.store.GetEntry(context.Background(), evt.entryID)
+		if err != nil {
+			m.logger.Errorw("encounter error when handle entry event", "entry", evt.entryID, "action", evt.actionType, "err", err)
+			continue
+		}
+		events.Publish(events.EntryActionTopic(evt.topicNS, evt.actionType), BuildEntryEvent(evt.actionType, en))
+	}
+}
+
+func PublicEntryActionEvent(actionType string, en *types.Metadata) {
+	events.Publish(events.EntryActionTopic(events.TopicNamespaceEntry, actionType), BuildEntryEvent(actionType, en))
 }
 
 func BuildEntryEvent(actionType string, entry *types.Metadata) *types.EntryEvent {
 	return &types.EntryEvent{
 		Id:              uuid.New().String(),
 		Type:            actionType,
-		Source:          fmt.Sprintf("/object/%d", entry.ID),
+		Source:          fmt.Sprintf("/entry/%d", entry.ID),
 		SpecVersion:     "1.0",
 		Time:            time.Now(),
-		RefType:         "object",
+		RefType:         "entry",
 		RefID:           entry.ID,
 		DataContentType: "application/json",
 		Data:            types.NewEventData(entry),

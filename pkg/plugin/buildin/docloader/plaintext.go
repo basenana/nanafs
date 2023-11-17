@@ -47,6 +47,7 @@ func (l Text) Load(_ context.Context) ([]types.FDocument, error) {
 		return nil, err
 	}
 
+	// TODO: using HTML fmt?
 	return []types.FDocument{
 		{
 			Content:  buf.String(),

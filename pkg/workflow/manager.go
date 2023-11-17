@@ -37,7 +37,7 @@ import (
 )
 
 type Manager interface {
-	StartCron(stopCh chan struct{})
+	Start(stopCh chan struct{})
 
 	ListWorkflows(ctx context.Context) ([]*types.WorkflowSpec, error)
 	GetWorkflow(ctx context.Context, wfId string) (*types.WorkflowSpec, error)
@@ -100,9 +100,13 @@ func NewManager(entryMgr dentry.Manager, docMgr document.Manager, notify *notify
 	return mgr, nil
 }
 
-func (m *manager) StartCron(stopCh chan struct{}) {
+func (m *manager) Start(stopCh chan struct{}) {
 	cronCtx, canF := context.WithCancel(context.Background())
 	m.cron.Start(cronCtx)
+
+	if err := registerBuildInWorkflow(cronCtx, m); err != nil {
+		m.logger.Errorw("register build-in workflow failed", "err", err)
+	}
 
 	// delay register
 	time.Sleep(time.Minute)
@@ -258,6 +262,11 @@ func (m *manager) TriggerWorkflow(ctx context.Context, wfId string, tgt types.Wo
 		}
 		job.Id = attr.JobID
 	}
+
+	if attr.Timeout == 0 {
+		attr.Timeout = time.Hour
+	}
+
 	job.TriggerReason = attr.Reason
 
 	err = m.recorder.SaveWorkflowJob(ctx, job)
@@ -265,7 +274,7 @@ func (m *manager) TriggerWorkflow(ctx context.Context, wfId string, tgt types.Wo
 		return nil, err
 	}
 
-	if err = m.ctrl.TriggerJob(ctx, job.Id); err != nil {
+	if err = m.ctrl.TriggerJob(job.Id, attr.Timeout); err != nil {
 		m.logger.Errorw("trigger job flow failed", "job", job.Id, "err", err)
 		return nil, err
 	}
@@ -307,7 +316,7 @@ func (m *manager) CancelWorkflowJob(ctx context.Context, jobId string) error {
 
 type disabledManager struct{}
 
-func (d disabledManager) StartCron(stopCh chan struct{}) {}
+func (d disabledManager) Start(stopCh chan struct{}) {}
 
 func (d disabledManager) ListWorkflows(ctx context.Context) ([]*types.WorkflowSpec, error) {
 	return make([]*types.WorkflowSpec, 0), nil
@@ -354,6 +363,7 @@ func (d disabledManager) CancelWorkflowJob(ctx context.Context, jobId string) er
 }
 
 type JobAttr struct {
-	JobID  string
-	Reason string
+	JobID   string
+	Reason  string
+	Timeout time.Duration
 }
