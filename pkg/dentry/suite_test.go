@@ -18,14 +18,16 @@ package dentry
 
 import (
 	"context"
+	"os"
+	"testing"
+
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
-	"os"
-	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -34,6 +36,7 @@ import (
 var (
 	metaStoreObj metastore.Meta
 	entryManager Manager
+	docManager   document.Manager
 	root         *types.Metadata
 
 	workdir string
@@ -61,6 +64,7 @@ var _ = BeforeSuite(func() {
 		ID:   storage.MemoryStorage,
 		Type: storage.MemoryStorage,
 	}}})
+	docManager, _ = document.NewManager(metaStoreObj)
 
 	// init root
 	root, err = entryManager.Root(context.TODO())

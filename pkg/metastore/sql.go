@@ -600,6 +600,11 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64)
 			}
 		}
 
+		res = tx.Model(&db.ObjectURI{}).Where("oid = ?", entryID).Update("invalid", true)
+		if res.Error != nil {
+			return res.Error
+		}
+
 		entryRef := (*entryMod.RefCount) - 1
 		entryMod.ParentID = &noneParentID
 		entryMod.RefCount = &entryRef
@@ -616,9 +621,16 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64)
 
 func (s *sqlMetaStore) DeleteRemovedEntry(ctx context.Context, entryID int64) error {
 	defer trace.StartRegion(ctx, "metastore.sql.DeleteRemovedEntry").End()
-	var entryMod = &db.Object{ID: entryID}
+	var (
+		entryMod    = &db.Object{ID: entryID}
+		entryUriMod = &db.ObjectURI{OID: entryID}
+	)
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		res := tx.Where("id = ?", entryID).First(entryMod)
+		if res.Error != nil {
+			return res.Error
+		}
+		res = tx.Where("oid = ?", entryID).First(entryUriMod)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -640,6 +652,15 @@ func (s *sqlMetaStore) DeleteRemovedEntry(ctx context.Context, entryID int64) er
 			return res.Error
 		}
 		res = tx.Where("ref_type = 'object' AND ref_id = ?", entryID).Delete(&db.Label{})
+		if res.Error != nil {
+			return res.Error
+		}
+
+		res = tx.Where("uri = ?", entryUriMod.Uri).Delete(&db.Document{})
+		if res.Error != nil {
+			return res.Error
+		}
+		res = tx.Where("oid = ?", entryMod.ID).Delete(&db.ObjectURI{})
 		if res.Error != nil {
 			return res.Error
 		}
@@ -909,11 +930,16 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, targetEntryId int6
 			enModel          = &db.Object{ID: targetEntryId}
 			srcParentEnModel = &db.Object{}
 			dstParentEnModel = &db.Object{}
+			entryUriMod      = &db.ObjectURI{OID: targetEntryId}
 			nowTime          = time.Now().UnixNano()
 			srcParentEntryID int64
 			updateErr        error
 		)
 		res := tx.Where("id = ?", targetEntryId).First(enModel)
+		if res.Error != nil {
+			return res.Error
+		}
+		res = tx.Where("oid = ?", targetEntryId).First(entryUriMod)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -951,6 +977,16 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, targetEntryId int6
 
 			srcParentRef := *srcParentEnModel.RefCount - 1
 			srcParentEnModel.RefCount = &srcParentRef
+		}
+
+		res = tx.Model(&db.Document{}).Where("uri = ?", entryUriMod.Uri).Update("desync", true)
+		if res.Error != nil {
+			return res.Error
+		}
+
+		res = tx.Where("oid = ?", targetEntryId).Delete(&db.ObjectURI{})
+		if res.Error != nil {
+			return res.Error
 		}
 
 		srcParentEnModel.ChangedAt = nowTime

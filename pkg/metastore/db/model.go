@@ -184,8 +184,9 @@ func (o *ObjectExtend) ToExtData() types.ExtendData {
 }
 
 type ObjectURI struct {
-	OID int64  `gorm:"column:oid;primaryKey"`
-	Uri string `gorm:"column:uri;index:obj_uri"`
+	OID     int64  `gorm:"column:oid;primaryKey"`
+	Uri     string `gorm:"column:uri;index:obj_uri"`
+	Invalid bool   `gorm:"column:invalid"`
 }
 
 func (o *ObjectURI) TableName() string {
@@ -194,8 +195,9 @@ func (o *ObjectURI) TableName() string {
 
 func (o *ObjectURI) ToEntryUri() *types.EntryUri {
 	return &types.EntryUri{
-		ID:  o.OID,
-		Uri: o.Uri,
+		ID:      o.OID,
+		Uri:     o.Uri,
+		Invalid: o.Invalid,
 	}
 }
 
@@ -420,7 +422,7 @@ func (d *Document) From(document *types.Document) *Document {
 	d.ID = document.ID
 	d.Name = document.Name
 	d.Uri = document.Uri
-	d.ParentEntryID = document.ParentEntryID
+	d.ParentEntryID = &document.ParentEntryID
 	d.KeyWords = strings.Join(document.KeyWords, ",")
 	d.Source = document.Source
 	d.Content = document.Content
@@ -436,7 +438,7 @@ func (d *Document) To() *types.Document {
 		ID:            d.ID,
 		Name:          d.Name,
 		Uri:           d.Uri,
-		ParentEntryID: d.ParentEntryID,
+		ParentEntryID: *d.ParentEntryID,
 		Source:        d.Source,
 		KeyWords:      strings.Split(d.KeyWords, ","),
 		Content:       d.Content,

@@ -326,6 +326,22 @@ var _ = Describe("TestChangeEntryParent", func() {
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
+			_, err = entryManager.GetEntryByUri(context.TODO(), "/test_mv_grp1/test_mv_grp1_file1")
+			Expect(err).Should(BeNil())
+			err = docManager.SaveDocument(context.TODO(), &types.Document{
+				Name:          "test_mv_grp1_file1",
+				Uri:           "/test_mv_grp1/test_mv_grp1_file1",
+				ParentEntryID: grp1.ID,
+			})
+			Expect(err).Should(BeNil())
+			_, err = entryManager.GetEntryByUri(context.TODO(), "/test_mv_grp1/test_mv_grp1_file2")
+			Expect(err).Should(BeNil())
+			err = docManager.SaveDocument(context.TODO(), &types.Document{
+				Name:          "test_mv_grp1_file2",
+				Uri:           "/test_mv_grp1/test_mv_grp1_file2",
+				ParentEntryID: grp1.ID,
+			})
+			Expect(err).Should(BeNil())
 		})
 		It("create grp2 and files should be succeed", func() {
 			var err error
@@ -341,20 +357,37 @@ var _ = Describe("TestChangeEntryParent", func() {
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
+			_, err = entryManager.GetEntryByUri(context.TODO(), "/test_mv_grp2/test_mv_grp2_file2")
+			Expect(err).Should(BeNil())
+			err = docManager.SaveDocument(context.TODO(), &types.Document{
+				Name:          "test_mv_grp2_file2",
+				Uri:           "/test_mv_grp2/test_mv_grp2_file2",
+				ParentEntryID: grp1.ID,
+			})
+			Expect(err).Should(BeNil())
 		})
 	})
 	Context("mv file src grp1 and files", func() {
 		It("should be succeed", func() {
 			err := entryManager.ChangeEntryParent(context.TODO(), grp1File1.ID, nil, grp1.ID, grp2.ID, "test_mv_grp2_file1", types.ChangeParentAttr{})
 			Expect(err).Should(BeNil())
+			doc, err := docManager.FindDocument(context.TODO(), "/test_mv_grp1/test_mv_grp1_file1")
+			Expect(err).Should(BeNil())
+			Expect(doc.Desync).Should(BeTrue())
 		})
 		It("has existed file should be failed", func() {
 			err := entryManager.ChangeEntryParent(context.TODO(), grp1File2.ID, &grp2File2.ID, grp1.ID, grp2.ID, "test_mv_grp2_file2", types.ChangeParentAttr{})
 			Expect(err).Should(Equal(types.ErrIsExist))
+			doc, err := docManager.FindDocument(context.TODO(), "/test_mv_grp1/test_mv_grp1_file2")
+			Expect(err).Should(BeNil())
+			Expect(doc.Desync).Should(BeFalse())
 		})
 		It("has existed file should be succeed if enable replace", func() {
 			err := entryManager.ChangeEntryParent(context.TODO(), grp1File2.ID, &grp2File2.ID, grp1.ID, grp2.ID, "test_mv_grp2_file2", types.ChangeParentAttr{Replace: true})
 			Expect(err).Should(BeNil())
+			doc, err := docManager.FindDocument(context.TODO(), "/test_mv_grp1/test_mv_grp1_file2")
+			Expect(err).Should(BeNil())
+			Expect(doc.Desync).Should(BeTrue())
 		})
 	})
 })

@@ -208,12 +208,13 @@ func collectFile2Document(ctx context.Context, docMgr document.Manager, entryMgr
 		return fmt.Errorf("query entry failed: %s", err)
 	}
 	err = docMgr.SaveDocument(ctx, &types.Document{
-		Name:     baseEn.Name,
-		Uri:      entryURI,
-		Source:   "collect",
-		KeyWords: keyWords,
-		Content:  content.String(),
-		Summary:  summary,
+		Name:          baseEn.Name,
+		ParentEntryID: baseEn.ParentID,
+		Uri:           entryURI,
+		Source:        "collect",
+		KeyWords:      keyWords,
+		Content:       content.String(),
+		Summary:       summary,
 	})
 	if err != nil {
 		return fmt.Errorf("create new entry failed: %s", err)

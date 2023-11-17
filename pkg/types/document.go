@@ -22,7 +22,7 @@ type Document struct {
 	ID            string    `json:"id"`
 	Name          string    `json:"name"`
 	Uri           string    `json:"uri"`
-	ParentEntryID *int64    `json:"parent_entry_id"`
+	ParentEntryID int64     `json:"parent_entry_id"`
 	Source        string    `json:"source"`
 	KeyWords      []string  `json:"key_words,omitempty"`
 	Content       string    `json:"content,omitempty"`
