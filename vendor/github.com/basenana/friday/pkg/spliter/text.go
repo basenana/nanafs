@@ -49,7 +49,13 @@ func NewTextSpliter(chunkSize int, chunkOverlap int, separator string) Spliter {
 }
 
 func (t *TextSpliter) length(d string) int {
-	return len(d)
+	// todo: it should be more accurate
+	// https://platform.openai.com/docs/guides/text-generation/managing-tokens
+	pured := strings.TrimSpace(d)
+	if pured == "" {
+		return 0
+	}
+	return len(strings.Split(strings.TrimSpace(pured), " "))
 }
 
 func (t *TextSpliter) Split(text string) []string {

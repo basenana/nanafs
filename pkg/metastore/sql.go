@@ -19,7 +19,9 @@ package metastore
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"path"
 	"runtime/trace"
 	"sync"
 	"time"
@@ -469,6 +471,11 @@ func (s *sqlMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry
 			return nil
 		}
 
+		_, err := s.getAndSaveEntryUri(tx, entryMod)
+		if err != nil {
+			return err
+		}
+
 		res = tx.Where("id = ?", parentID).First(parentMod)
 		if res.Error != nil {
 			return res.Error
@@ -488,6 +495,39 @@ func (s *sqlMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry
 		return db.SqlError2Error(err)
 	}
 	return nil
+}
+
+func (s *sqlMetaStore) getAndSaveEntryUri(tx *gorm.DB, entry *db.Object) (string, error) {
+	if entry.ID == 1 {
+		return "/", nil
+	}
+	var (
+		entryUriMod    = &db.ObjectURI{OID: entry.ID}
+		parentEntryMod = &db.Object{ID: *entry.ParentID}
+	)
+	res := tx.Where("oid = ?", entry.ID).First(entryUriMod)
+	if res.Error != nil {
+		if res.Error == gorm.ErrRecordNotFound {
+			res = tx.Where("id = ?", *entry.ParentID).First(parentEntryMod)
+			if res.Error != nil {
+				return "", res.Error
+			}
+			parentUri, err := s.getAndSaveEntryUri(tx, parentEntryMod)
+			if err != nil {
+				return "", err
+			}
+			uri := path.Join(parentUri, entry.Name)
+			if err := tx.Create(&db.ObjectURI{
+				OID: entry.ID,
+				Uri: uri,
+			}); err.Error != nil {
+				return "", err.Error
+			}
+			return uri, nil
+		}
+		return "", res.Error
+	}
+	return entryUriMod.Uri, nil
 }
 
 func (s *sqlMetaStore) SaveEntryUri(ctx context.Context, entryUri *types.EntryUri) error {
@@ -636,7 +676,7 @@ func (s *sqlMetaStore) DeleteRemovedEntry(ctx context.Context, entryID int64) er
 			return res.Error
 		}
 		res = tx.Where("oid = ?", entryID).First(entryUriMod)
-		if res.Error != nil {
+		if res.Error != nil && res.Error != gorm.ErrRecordNotFound {
 			return res.Error
 		}
 
@@ -661,13 +701,15 @@ func (s *sqlMetaStore) DeleteRemovedEntry(ctx context.Context, entryID int64) er
 			return res.Error
 		}
 
-		res = tx.Where("uri = ?", entryUriMod.Uri).Delete(&db.Document{})
-		if res.Error != nil {
-			return res.Error
-		}
-		res = tx.Where("oid = ?", entryMod.ID).Delete(&db.ObjectURI{})
-		if res.Error != nil {
-			return res.Error
+		if entryUriMod != nil {
+			res = tx.Model(&db.Document{}).Where("uri = ?", entryUriMod.Uri).Update("desync", true)
+			if res.Error != nil {
+				return res.Error
+			}
+			res = tx.Where("oid = ?", entryMod.ID).Delete(&db.ObjectURI{})
+			if res.Error != nil {
+				return res.Error
+			}
 		}
 		return nil
 	})
@@ -946,10 +988,16 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, targetEntryId int6
 		if res.Error != nil {
 			return res.Error
 		}
-		res = tx.Where("oid = ?", targetEntryId).First(entryUriMod)
+		res = tx.Where("id = ?", newParentId).First(dstParentEnModel)
 		if res.Error != nil {
 			return res.Error
 		}
+
+		res = tx.Where("oid = ?", targetEntryId).First(entryUriMod)
+		if res.Error != nil && res.Error != gorm.ErrRecordNotFound {
+			return res.Error
+		}
+
 		if enModel.ParentID != nil {
 			srcParentEntryID = *enModel.ParentID
 		}
@@ -967,10 +1015,6 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, targetEntryId int6
 			return res.Error
 		}
 		if types.IsGroup(types.Kind(enModel.Kind)) && newParentId != srcParentEntryID {
-			res = tx.Where("id = ?", newParentId).First(dstParentEnModel)
-			if res.Error != nil {
-				return res.Error
-			}
 			dstParentEnModel.ChangedAt = nowTime
 			dstParentEnModel.ModifiedAt = nowTime
 			dstParentRef := *dstParentEnModel.RefCount + 1
@@ -986,22 +1030,29 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, targetEntryId int6
 			srcParentEnModel.RefCount = &srcParentRef
 		}
 
-		res = tx.Model(&db.Document{}).Where("uri = ?", entryUriMod.Uri).Update("desync", true)
-		if res.Error != nil {
-			return res.Error
-		}
-
-		res = tx.Where("oid = ?", targetEntryId).Delete(&db.ObjectURI{})
-		if res.Error != nil {
-			return res.Error
-		}
-
 		srcParentEnModel.ChangedAt = nowTime
 		srcParentEnModel.ModifiedAt = nowTime
 		if updateErr = updateEntryWithVersion(tx, srcParentEnModel); updateErr != nil {
 			s.logger.Errorw("update src parent entry failed when change parent",
 				"entry", targetEntryId, "srcParent", srcParentEntryID, "dstParent", newParentId, "err", updateErr)
 			return updateErr
+		}
+
+		if entryUriMod != nil {
+			res = tx.Model(&db.Document{}).Where("uri = ?", entryUriMod.Uri).Update("desync", true)
+			if res.Error != nil && !errors.Is(res.Error, gorm.ErrRecordNotFound) {
+				return res.Error
+			}
+
+			dstParentUri, err := s.getAndSaveEntryUri(tx, dstParentEnModel)
+			if err != nil {
+				return err
+			}
+			entryUriMod.Uri = path.Join(dstParentUri, enModel.Name)
+			res = tx.Updates(entryUriMod)
+			if res.Error != nil {
+				return res.Error
+			}
 		}
 		return nil
 	})

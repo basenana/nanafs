@@ -55,7 +55,7 @@ func (o *OpenAIV1) Chat(prompt prompts.PromptTemplate, parameters map[string]str
 }
 
 func (o *OpenAIV1) chat(prompt prompts.PromptTemplate, parameters map[string]string) ([]string, error) {
-	path := "chat/completions"
+	path := "v1/chat/completions"
 
 	model := "gpt-3.5-turbo"
 	p, err := prompt.String(parameters)

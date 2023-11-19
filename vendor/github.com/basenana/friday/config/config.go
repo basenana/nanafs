@@ -23,7 +23,8 @@ type Config struct {
 	LimitToken int `json:"limit_token,omitempty"`
 
 	// openai key
-	OpenAIKey string `json:"open_ai_key,omitempty"` // if openai is used for embedding or llm, it is needed
+	OpenAIBaseUrl string `json:"open_ai_base_url,omitempty"` // if openai is used for embedding or llm, it is needed, default is "https://api.openai.com"
+	OpenAIKey     string `json:"open_ai_key,omitempty"`      // if openai is used for embedding or llm, it is needed
 
 	// embedding config
 	EmbeddingType  EmbeddingType `json:"embedding_type"`

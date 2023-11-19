@@ -60,7 +60,7 @@ func (o *OpenAIV1) Embedding(doc string) (*EmbeddingResult, error) {
 }
 
 func (o *OpenAIV1) embedding(doc string) (*EmbeddingResult, error) {
-	path := "embeddings"
+	path := "v1/embeddings"
 
 	model := "text-embedding-ada-002"
 	data := map[string]string{

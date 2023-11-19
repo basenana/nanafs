@@ -45,6 +45,8 @@ github.com/aymerick/douceur v0.2.0 h1:Mv+mAeH1Q+n9Fr+oyamOlAkUNPWPlA8PPGR0QAaYuP
 github.com/aymerick/douceur v0.2.0/go.mod h1:wlT5vV2O3h55X9m7iVYN0TBM0NH/MmbLnd30/FjWUq4=
 github.com/basenana/friday v0.0.0-20231107140133-92814f90b0c3 h1:u2OM1KNt/4x5alVt5epjrtI+RuY7xR5raTvUeKkNAmA=
 github.com/basenana/friday v0.0.0-20231107140133-92814f90b0c3/go.mod h1:Om+vgL0RjYbp6phowWeqtDglXk776fVzRvWD/yfEUtM=
+github.com/basenana/friday v0.0.0-20231119060351-edba7344526d h1:mqnzbvY9889v7qoQsAnbhT3RDjztUu19O5sJkaWkBn0=
+github.com/basenana/friday v0.0.0-20231119060351-edba7344526d/go.mod h1:Om+vgL0RjYbp6phowWeqtDglXk776fVzRvWD/yfEUtM=
 github.com/benbjohnson/clock v1.1.0 h1:Q92kusRqC1XV2MjkWETPvjJVqKetz1OzxZB7mHJLju8=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=

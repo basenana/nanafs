@@ -27,9 +27,9 @@ type OpenAIEmbedding struct {
 
 var _ embedding.Embedding = &OpenAIEmbedding{}
 
-func NewOpenAIEmbedding(key string, rateLimit int) embedding.Embedding {
+func NewOpenAIEmbedding(baseUrl, key string, rateLimit int) embedding.Embedding {
 	return &OpenAIEmbedding{
-		OpenAIV1: v1.NewOpenAIV1(key, rateLimit),
+		OpenAIV1: v1.NewOpenAIV1(baseUrl, key, rateLimit),
 	}
 }
 

@@ -56,7 +56,7 @@ func (o *OpenAIV1) Completion(prompt prompts.PromptTemplate, parameters map[stri
 }
 
 func (o *OpenAIV1) completion(prompt prompts.PromptTemplate, parameters map[string]string) ([]string, error) {
-	path := "completions"
+	path := "v1/completions"
 
 	model := "text-davinci-003"
 	p, err := prompt.String(parameters)

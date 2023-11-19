@@ -36,13 +36,13 @@ type OpenAIV1 struct {
 	rateLimit int
 }
 
-func NewOpenAIV1(key string, rateLimit int) *OpenAIV1 {
+func NewOpenAIV1(baseUrl, key string, rateLimit int) *OpenAIV1 {
 	if rateLimit <= 0 {
 		rateLimit = defaultRateLimit
 	}
 	return &OpenAIV1{
 		log:       logger.NewLogger("openai"),
-		baseUri:   "https://api.openai.com/v1",
+		baseUri:   baseUrl,
 		key:       key,
 		rateLimit: rateLimit,
 	}
