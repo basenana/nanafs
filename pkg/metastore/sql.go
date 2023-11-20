@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"path"
 	"runtime/trace"
 	"sync"
 	"time"
@@ -507,39 +506,6 @@ func (s *sqlMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry
 		return db.SqlError2Error(err)
 	}
 	return nil
-}
-
-func (s *sqlMetaStore) getAndSaveEntryUri(tx *gorm.DB, entry *db.Object) (string, error) {
-	if entry.ID == 1 {
-		return "/", nil
-	}
-	var (
-		entryUriMod    = &db.ObjectURI{OID: entry.ID}
-		parentEntryMod = &db.Object{ID: *entry.ParentID}
-	)
-	res := tx.Where("oid = ?", entry.ID).First(entryUriMod)
-	if res.Error != nil {
-		if res.Error == gorm.ErrRecordNotFound {
-			res = tx.Where("id = ?", *entry.ParentID).First(parentEntryMod)
-			if res.Error != nil {
-				return "", res.Error
-			}
-			parentUri, err := s.getAndSaveEntryUri(tx, parentEntryMod)
-			if err != nil {
-				return "", err
-			}
-			uri := path.Join(parentUri, entry.Name)
-			if err := tx.Create(&db.ObjectURI{
-				OID: entry.ID,
-				Uri: uri,
-			}); err.Error != nil {
-				return "", err.Error
-			}
-			return uri, nil
-		}
-		return "", res.Error
-	}
-	return entryUriMod.Uri, nil
 }
 
 func (s *sqlMetaStore) SaveEntryUri(ctx context.Context, entryUri *types.EntryUri) error {
