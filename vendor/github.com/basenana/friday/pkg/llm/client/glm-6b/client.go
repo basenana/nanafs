@@ -18,6 +18,7 @@ package glm_6b
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -26,15 +27,18 @@ import (
 
 	"github.com/basenana/friday/pkg/llm"
 	"github.com/basenana/friday/pkg/llm/prompts"
+	"github.com/basenana/friday/pkg/utils/logger"
 )
 
 type GLM struct {
+	log     logger.Logger
 	baseUri string
 }
 
 func NewGLM(uri string) llm.LLM {
 	return &GLM{
 		baseUri: uri,
+		log:     logger.NewLogger("glm"),
 	}
 }
 
@@ -61,6 +65,7 @@ func (o *GLM) request(path string, method string, body io.Reader) ([]byte, error
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("fail to call glm-6b, status code error: %d", resp.StatusCode)
 	}
+	o.log.Debugf("openai response: %s", respBody)
 	return respBody, nil
 }
 
@@ -71,7 +76,7 @@ type CompletionResult struct {
 	Time     string     `json:"time"`
 }
 
-func (o *GLM) Completion(prompt prompts.PromptTemplate, parameters map[string]string) ([]string, error) {
+func (o *GLM) Completion(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, error) {
 	path := ""
 
 	p, err := prompt.String(parameters)
@@ -100,7 +105,7 @@ func (o *GLM) Completion(prompt prompts.PromptTemplate, parameters map[string]st
 	return ans, err
 }
 
-func (o *GLM) Chat(prompt prompts.PromptTemplate, parameters map[string]string) ([]string, error) {
+func (o *GLM) Chat(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, error) {
 	path := ""
 
 	p, err := prompt.String(parameters)

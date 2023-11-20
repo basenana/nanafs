@@ -217,15 +217,15 @@ func collectFile2BaseEntry(ctx context.Context, entryMgr dentry.Manager, baseEnt
 	return nil
 }
 
-func collectFile2Document(ctx context.Context, docMgr document.Manager, entryMgr dentry.Manager, entryId int64, entryURI string, content bytes.Buffer, summary string, keyWords []string) error {
+func collectFile2Document(ctx context.Context, docMgr document.Manager, entryMgr dentry.Manager, entryId int64, content bytes.Buffer, summary string, keyWords []string) error {
 	baseEn, err := entryMgr.GetEntry(ctx, entryId)
 	if err != nil {
 		return fmt.Errorf("query entry failed: %s", err)
 	}
 	err = docMgr.SaveDocument(ctx, &types.Document{
+		OID:           baseEn.ID,
 		Name:          baseEn.Name,
 		ParentEntryID: baseEn.ParentID,
-		Uri:           entryURI,
 		Source:        "collect",
 		KeyWords:      keyWords,
 		Content:       content.String(),

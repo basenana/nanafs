@@ -18,13 +18,15 @@ package dispatch
 
 import (
 	"context"
+	"time"
+
+	"go.uber.org/zap"
+
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
-	"go.uber.org/zap"
-	"time"
 )
 
 const (
@@ -170,7 +172,7 @@ func registerMaintainExecutor(
 
 	executors[maintainTaskIDChunkCompact] = ce
 	executors[maintainTaskIDEntryCleanup] = ee
-	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeCompact), ce.handleEvent); err != nil {
+	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceFile, events.ActionTypeCompact), ce.handleEvent); err != nil {
 		return err
 	}
 	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeDestroy), ee.handleEvent); err != nil {

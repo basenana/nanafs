@@ -73,7 +73,7 @@ func (i *IngestPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pl
 	}
 
 	i.log.Infow("get docs", "length", buf.Len(), "entryId", request.EntryId)
-	err := friday.IngestFile(fmt.Sprintf("entry_%d", request.EntryId), buf.String())
+	err := friday.IngestFile(ctx, fmt.Sprintf("entry_%d", request.EntryId), buf.String())
 	if err != nil {
 		return pluginapi.NewFailedResponse(fmt.Sprintf("ingest documents failed: %s", err)), nil
 	}

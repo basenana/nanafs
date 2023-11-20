@@ -17,20 +17,21 @@
 package friday
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/basenana/friday/pkg/llm/prompts"
 )
 
-func (f *Friday) Question(q string) (string, error) {
+func (f *Friday) Question(ctx context.Context, q string) (string, error) {
 	prompt := prompts.NewQuestionPrompt()
-	c, err := f.searchDocs(q)
+	c, err := f.searchDocs(ctx, q)
 	if err != nil {
 		return "", err
 	}
 	if f.LLM != nil {
-		ans, err := f.LLM.Chat(prompt, map[string]string{
+		ans, err := f.LLM.Chat(ctx, prompt, map[string]string{
 			"context":  c,
 			"question": q,
 		})
@@ -43,9 +44,9 @@ func (f *Friday) Question(q string) (string, error) {
 	return c, nil
 }
 
-func (f *Friday) searchDocs(q string) (string, error) {
+func (f *Friday) searchDocs(ctx context.Context, q string) (string, error) {
 	f.Log.Debugf("vector query for %s ...", q)
-	qv, _, err := f.Embedding.VectorQuery(q)
+	qv, _, err := f.Embedding.VectorQuery(ctx, q)
 	if err != nil {
 		return "", fmt.Errorf("vector embedding error: %w", err)
 	}

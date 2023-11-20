@@ -18,6 +18,7 @@ package huggingface
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -52,7 +53,7 @@ type vectorResults struct {
 	Result [][]float32
 }
 
-func (h HuggingFace) VectorQuery(doc string) ([]float32, map[string]interface{}, error) {
+func (h HuggingFace) VectorQuery(ctx context.Context, doc string) ([]float32, map[string]interface{}, error) {
 	path := "/embeddings/query"
 
 	model := h.model
@@ -72,7 +73,7 @@ func (h HuggingFace) VectorQuery(doc string) ([]float32, map[string]interface{},
 	return res.Result, nil, err
 }
 
-func (h HuggingFace) VectorDocs(docs []string) ([][]float32, []map[string]interface{}, error) {
+func (h HuggingFace) VectorDocs(ctx context.Context, docs []string) ([][]float32, []map[string]interface{}, error) {
 	path := "/embeddings/docs"
 
 	model := h.model

@@ -35,7 +35,7 @@ func Query(gCtx *gin.Context) {
 		gCtx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid question"})
 		return
 	}
-	answer, err := friday.Question(q.Question)
+	answer, err := friday.Question(gCtx, q.Question)
 	if err != nil {
 		gCtx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

@@ -386,18 +386,42 @@ func (i instrumentalStore) GetDocument(ctx context.Context, id string) (*types.D
 	return doc, err
 }
 
-func (i instrumentalStore) FindDocument(ctx context.Context, uri string) (*types.Document, error) {
-	const operation = "find_document"
-	defer logOperationLatency(operation, time.Now())
-	doc, err := i.store.FindDocument(ctx, uri)
-	logOperationError(operation, err)
-	return doc, err
-}
-
 func (i instrumentalStore) DeleteDocument(ctx context.Context, id string) error {
 	const operation = "delete_document"
 	defer logOperationLatency(operation, time.Now())
 	err := i.store.DeleteDocument(ctx, id)
+	logOperationError(operation, err)
+	return err
+}
+
+func (i instrumentalStore) GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error) {
+	const operation = "GetDocumentByEntryId"
+	defer logOperationLatency(operation, time.Now())
+	doc, err := i.store.GetDocumentByEntryId(ctx, oid)
+	logOperationError(operation, err)
+	return doc, err
+}
+
+func (i instrumentalStore) GetDocumentByName(ctx context.Context, name string) (*types.Document, error) {
+	const operation = "GetDocumentByName"
+	defer logOperationLatency(operation, time.Now())
+	doc, err := i.store.GetDocumentByName(ctx, name)
+	logOperationError(operation, err)
+	return doc, err
+}
+
+func (i instrumentalStore) GetEntryUriById(ctx context.Context, id int64) (*types.EntryUri, error) {
+	const operation = "GetEntryUriById"
+	defer logOperationLatency(operation, time.Now())
+	doc, err := i.store.GetEntryUriById(ctx, id)
+	logOperationError(operation, err)
+	return doc, err
+}
+
+func (i instrumentalStore) DeleteEntryUriByPrefix(ctx context.Context, prefix string) error {
+	const operation = "DeleteEntryUriByPrefix"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.DeleteEntryUriByPrefix(ctx, prefix)
 	logOperationError(operation, err)
 	return err
 }

@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/basenana/friday/pkg/models"
+	"github.com/basenana/friday/pkg/utils/files"
 	"github.com/basenana/friday/pkg/utils/logger"
 )
 
@@ -49,13 +50,7 @@ func NewTextSpliter(chunkSize int, chunkOverlap int, separator string) Spliter {
 }
 
 func (t *TextSpliter) length(d string) int {
-	// todo: it should be more accurate
-	// https://platform.openai.com/docs/guides/text-generation/managing-tokens
-	pured := strings.TrimSpace(d)
-	if pured == "" {
-		return 0
-	}
-	return len(strings.Split(strings.TrimSpace(pured), " "))
+	return files.Length(d)
 }
 
 func (t *TextSpliter) Split(text string) []string {

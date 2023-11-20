@@ -23,6 +23,7 @@ import (
 	"path"
 	"runtime/trace"
 	"strings"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -83,7 +84,8 @@ func NewManager(store metastore.Meta, cfg config.Config) (Manager, error) {
 	}
 	go mgr.entryActionEventHandler()
 	fileEntryLogger = mgr.logger.Named("files")
-	return mgr, nil
+	err = registerEntryExecutor(mgr)
+	return mgr, err
 }
 
 type manager struct {
@@ -553,4 +555,130 @@ func (m *manager) ChunkCompact(ctx context.Context, entryId int64) error {
 
 func (m *manager) MustCloseAll() {
 	bio.CloseAll()
+}
+
+func (m *manager) handleEvent(evt *types.EntryEvent) error {
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Hour)
+	defer cancel()
+
+	entry := evt.Data
+
+	switch evt.Type {
+	case events.ActionTypeCreate:
+		en, err := m.GetEntry(ctx, entry.ID)
+		if err != nil {
+			m.logger.Errorw("[uriCreateExecutor] get entry failed", "entry", entry.ID, "err", err)
+			return err
+		}
+		_, err = m.getOrSaveEntryUri(ctx, en)
+		if err != nil {
+			m.logger.Errorw("[uriCreateExecutor] get or save entry uri failed", "entry", entry.ID, "err", err)
+			return err
+		}
+	case events.ActionTypeDestroy:
+		err := m.store.DeleteEntryUri(ctx, entry.ID)
+		if err != nil {
+			if err == types.ErrNotFound {
+				return nil
+			}
+			m.logger.Errorw("[uriCleanExecutor] delete entryUri failed", "entry", entry.ID, "err", err)
+			return err
+		}
+	case events.ActionTypeChangeParent:
+		entryUri, err := m.store.GetEntryUriById(ctx, entry.ID)
+		if err != nil {
+			if err == types.ErrNotFound {
+				return nil
+			}
+			m.logger.Errorw("[uriCleanExecutor] get entry uri failed", "entry", entry.ID, "err", err)
+			return err
+		}
+
+		err = m.store.DeleteEntryUriByPrefix(ctx, entryUri.Uri)
+		if err != nil {
+			m.logger.Errorw("[uriCleanExecutor] delete entry uri by prefix failed", "entry", entry.ID, "uri prefix", entryUri.Uri, "err", err)
+			return err
+		}
+		err = m.store.DeleteEntryUri(ctx, entry.ID)
+		if err != nil {
+			m.logger.Errorw("[uriCleanExecutor] delete entryUri failed", "entry", entry.ID, "err", err)
+			return err
+		}
+	case events.ActionTypeUpdate:
+		en, err := m.GetEntry(ctx, entry.ID)
+		if err != nil {
+			m.logger.Errorw("[uriCleanExecutor] get entry failed", "entry", entry.ID, "err", err)
+			return err
+		}
+
+		entryUri, err := m.store.GetEntryUriById(ctx, entry.ID)
+		if err != nil {
+			if err == types.ErrNotFound {
+				return nil
+			}
+			m.logger.Errorw("[uriCleanExecutor] get entry uri failed", "entry", entry.ID, "err", err)
+			return err
+		}
+
+		if !strings.HasSuffix(entryUri.Uri, en.Name) {
+			err = m.store.DeleteEntryUriByPrefix(ctx, entryUri.Uri)
+			if err != nil {
+				m.logger.Errorw("[uriCleanExecutor] delete entry uri by prefix failed", "entry", entry.ID, "uri prefix", entryUri.Uri, "err", err)
+				return err
+			}
+			err = m.store.DeleteEntryUri(ctx, entry.ID)
+			if err != nil {
+				m.logger.Errorw("[uriCleanExecutor] delete entryUri failed", "entry", entry.ID, "err", err)
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (m *manager) getOrSaveEntryUri(ctx context.Context, entry *types.Metadata) (uri string, err error) {
+	if entry.ID == RootEntryID {
+		return "/", nil
+	}
+	var (
+		entryUri    = &types.EntryUri{}
+		parentEntry = &types.Metadata{}
+		parentUri   = ""
+	)
+	entryUri, err = m.store.GetEntryUriById(ctx, entry.ID)
+	if err != nil {
+		if err == types.ErrNotFound {
+			parentEntry, err = m.store.GetEntry(ctx, entry.ParentID)
+			if err != nil {
+				return
+			}
+			parentUri, err = m.getOrSaveEntryUri(ctx, parentEntry)
+			if err != nil {
+				return
+			}
+
+			uri = path.Join(parentUri, entry.Name)
+			err = m.store.SaveEntryUri(ctx, &types.EntryUri{ID: entry.ID, Uri: uri})
+			return
+		}
+		return
+	}
+	uri = entryUri.Uri
+	return
+}
+
+func registerEntryExecutor(entryMgr *manager) error {
+	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeCreate), entryMgr.handleEvent); err != nil {
+		return err
+	}
+	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeDestroy), entryMgr.handleEvent); err != nil {
+		return err
+	}
+	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeUpdate), entryMgr.handleEvent); err != nil {
+		return err
+	}
+	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeChangeParent), entryMgr.handleEvent); err != nil {
+		return err
+	}
+	return nil
 }

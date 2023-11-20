@@ -17,6 +17,8 @@
 package withvector
 
 import (
+	"context"
+
 	"github.com/basenana/friday/config"
 	"github.com/basenana/friday/pkg/embedding"
 	huggingfaceembedding "github.com/basenana/friday/pkg/embedding/huggingface"
@@ -40,7 +42,7 @@ func NewFridayWithVector(conf *config.Config, vectorClient vectorstore.VectorSto
 		if conf.OpenAIBaseUrl == "" {
 			conf.OpenAIBaseUrl = "https://api.openai.com"
 		}
-		llmClient = openaiv1.NewOpenAIV1(conf.OpenAIBaseUrl, conf.OpenAIKey, conf.LLMRateLimit)
+		llmClient = openaiv1.NewOpenAIV1(conf.OpenAIBaseUrl, conf.OpenAIKey, conf.LLMQueryPerMinute, conf.LLMBurst)
 	}
 	if conf.LLMType == config.LLMGLM6B {
 		llmClient = glm_6b.NewGLM(conf.LLMUrl)
@@ -51,11 +53,11 @@ func NewFridayWithVector(conf *config.Config, vectorClient vectorstore.VectorSto
 		if conf.OpenAIBaseUrl == "" {
 			conf.OpenAIBaseUrl = "https://api.openai.com"
 		}
-		embeddingModel = openaiembedding.NewOpenAIEmbedding(conf.OpenAIBaseUrl, conf.OpenAIKey, conf.LLMRateLimit)
+		embeddingModel = openaiembedding.NewOpenAIEmbedding(conf.OpenAIBaseUrl, conf.OpenAIKey, conf.LLMQueryPerMinute, conf.LLMBurst)
 	}
 	if conf.EmbeddingType == config.EmbeddingHuggingFace {
 		embeddingModel = huggingfaceembedding.NewHuggingFace(conf.EmbeddingUrl, conf.EmbeddingModel)
-		testEmbed, _, err := embeddingModel.VectorQuery("test")
+		testEmbed, _, err := embeddingModel.VectorQuery(context.TODO(), "test")
 		if err != nil {
 			return nil, err
 		}
@@ -77,8 +79,12 @@ func NewFridayWithVector(conf *config.Config, vectorClient vectorstore.VectorSto
 	}
 	textSpliter := spliter.NewTextSpliter(chunkSize, overlapSize, separator)
 
+	log := conf.Logger
+	if conf.Logger == nil {
+		log = logger.NewLogger("friday")
+	}
 	f = &friday.Friday{
-		Log:        logger.NewLogger("friday"),
+		Log:        log,
 		LimitToken: conf.LimitToken,
 		LLM:        llmClient,
 		Embedding:  embeddingModel,

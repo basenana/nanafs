@@ -404,9 +404,9 @@ func (o *WorkflowJob) To() (*types.WorkflowJob, error) {
 
 type Document struct {
 	ID            string    `gorm:"column:id;primaryKey"`
+	OID           int64     `gorm:"column:oid;index:doc_oid"`
 	Name          string    `gorm:"column:name;index:doc_name"`
 	Source        string    `gorm:"column:source;index:doc_source"`
-	Uri           string    `gorm:"column:uri;index:doc_uri"`
 	ParentEntryID *int64    `gorm:"column:parent_entry_id;index:doc_parent_entry_id"`
 	KeyWords      string    `gorm:"column:keywords"`
 	Content       string    `gorm:"column:content"`
@@ -422,8 +422,8 @@ func (d *Document) TableName() string {
 
 func (d *Document) From(document *types.Document) *Document {
 	d.ID = document.ID
+	d.OID = document.OID
 	d.Name = document.Name
-	d.Uri = document.Uri
 	d.ParentEntryID = &document.ParentEntryID
 	d.KeyWords = strings.Join(document.KeyWords, ",")
 	d.Source = document.Source
@@ -438,8 +438,8 @@ func (d *Document) From(document *types.Document) *Document {
 func (d *Document) To() *types.Document {
 	result := &types.Document{
 		ID:            d.ID,
+		OID:           d.OID,
 		Name:          d.Name,
-		Uri:           d.Uri,
 		ParentEntryID: *d.ParentEntryID,
 		Source:        d.Source,
 		KeyWords:      strings.Split(d.KeyWords, ","),

@@ -18,12 +18,13 @@ package controller
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/dispatch"
-	"github.com/basenana/nanafs/pkg/plugin"
 	"math"
 	"runtime/trace"
 	"sync"
 	"time"
+
+	"github.com/basenana/nanafs/pkg/dispatch"
+	"github.com/basenana/nanafs/pkg/plugin"
 )
 
 const (

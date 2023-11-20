@@ -17,15 +17,17 @@
 package summary
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/basenana/friday/pkg/llm/prompts"
+	"github.com/basenana/friday/pkg/utils/files"
 )
 
-func (s *Summary) MapReduce(docs []string) (summary string, err error) {
+func (s *Summary) MapReduce(ctx context.Context, docs []string) (summary string, err error) {
 	// map
-	splitedSummaries, err := s.mapSummaries(docs)
+	splitedSummaries, err := s.mapSummaries(ctx, docs)
 	if err != nil {
 		return "", err
 	}
@@ -37,7 +39,7 @@ func (s *Summary) MapReduce(docs []string) (summary string, err error) {
 	}
 
 	// reduce
-	return s.reduce(splitedSummaries)
+	return s.reduce(ctx, splitedSummaries)
 }
 
 func (s *Summary) splitDocs(p prompts.PromptTemplate, docs []string) ([][]string, error) {
@@ -68,10 +70,15 @@ func (s *Summary) getLength(p prompts.PromptTemplate, docs []string) (length int
 	if err != nil {
 		return 0, err
 	}
-	return len(res), nil
+
+	ress := strings.Split(res, "\n")
+	for _, r := range ress {
+		length += files.Length(r)
+	}
+	return length, nil
 }
 
-func (s *Summary) mapSummaries(docs []string) ([]string, error) {
+func (s *Summary) mapSummaries(ctx context.Context, docs []string) ([]string, error) {
 	newDocs, err := s.splitDocs(s.summaryPrompt, docs)
 	if err != nil {
 		return nil, err
@@ -80,7 +87,7 @@ func (s *Summary) mapSummaries(docs []string) ([]string, error) {
 
 	splitedSummaries := []string{}
 	for _, splitedDocs := range newDocs {
-		d, err := s.Stuff(splitedDocs)
+		d, err := s.Stuff(ctx, splitedDocs)
 		if err != nil {
 			return nil, err
 		}
@@ -89,7 +96,7 @@ func (s *Summary) mapSummaries(docs []string) ([]string, error) {
 	return splitedSummaries, nil
 }
 
-func (s *Summary) reduce(summaries []string) (summary string, err error) {
+func (s *Summary) reduce(ctx context.Context, summaries []string) (summary string, err error) {
 	newSummaries, err := s.splitDocs(s.combinePrompt, summaries)
 	if err != nil {
 		return "", err
@@ -97,7 +104,7 @@ func (s *Summary) reduce(summaries []string) (summary string, err error) {
 	combinedSummaries := []string{}
 	for _, subSummaries := range newSummaries {
 		subSummary := strings.Join(subSummaries, "\n")
-		res, err := s.llm.Chat(s.combinePrompt, map[string]string{"context": subSummary})
+		res, err := s.llm.Chat(ctx, s.combinePrompt, map[string]string{"context": subSummary})
 		if err != nil {
 			return "", err
 		}
@@ -107,5 +114,5 @@ func (s *Summary) reduce(summaries []string) (summary string, err error) {
 	if len(combinedSummaries) == 1 {
 		return combinedSummaries[0], nil
 	}
-	return s.reduce(combinedSummaries)
+	return s.reduce(ctx, combinedSummaries)
 }

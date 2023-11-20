@@ -16,9 +16,13 @@
 
 package llm
 
-import "github.com/basenana/friday/pkg/llm/prompts"
+import (
+	"context"
+
+	"github.com/basenana/friday/pkg/llm/prompts"
+)
 
 type LLM interface {
-	Completion(prompt prompts.PromptTemplate, parameters map[string]string) ([]string, error)
-	Chat(prompt prompts.PromptTemplate, parameters map[string]string) ([]string, error)
+	Completion(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, error)
+	Chat(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, error)
 }

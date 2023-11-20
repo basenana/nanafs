@@ -305,7 +305,7 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 		return nil, err
 	}
 
-	ctl.document, err = document.NewManager(meta)
+	ctl.document, err = document.NewManager(meta, ctl.entry)
 	if err != nil {
 		return nil, err
 	}

@@ -26,27 +26,36 @@ import (
 )
 
 var _ = Describe("testDocumentManage", func() {
-	var docId, uri string
+	var (
+		docId string
+		entry *types.Metadata
+		err   error
+	)
 	Context("document", func() {
 		It("create should be succeed", func() {
+			entry, err = entryMgr.CreateEntry(context.TODO(), root.ID, types.EntryAttr{
+				Name: "test_doc",
+				Kind: types.RawKind,
+			})
+			Expect(err).Should(BeNil())
 			doc := &types.Document{
-				Name: "test_create_doc",
-				Uri:  "/test/doc",
+				Name:          entry.Name,
+				ParentEntryID: entry.ParentID,
+				OID:           entry.ID,
 			}
 			err := docManager.SaveDocument(context.TODO(), doc)
 			Expect(err).Should(BeNil())
 			docId = doc.ID
-			uri = doc.Uri
 		})
 		It("query should be succeed", func() {
 			doc, err := docManager.GetDocument(context.TODO(), docId)
 			Expect(err).Should(BeNil())
-			Expect(doc.Name).Should(Equal("test_create_doc"))
+			Expect(doc.Name).Should(Equal(entry.Name))
 		})
-		It("find should be succeed", func() {
-			doc, err := docManager.FindDocument(context.TODO(), uri)
+		It("get by entry id should be succeed", func() {
+			doc, err := docManager.GetDocumentByEntryId(context.TODO(), entry.ID)
 			Expect(err).Should(BeNil())
-			Expect(doc.Name).Should(Equal("test_create_doc"))
+			Expect(doc.Name).Should(Equal(entry.Name))
 		})
 		It("list should be succeed", func() {
 			docs, err := docManager.ListDocuments(context.TODO())
@@ -56,7 +65,7 @@ var _ = Describe("testDocumentManage", func() {
 		It("update should be succeed", func() {
 			err := docManager.SaveDocument(context.TODO(), &types.Document{
 				ID:      docId,
-				Name:    "test_create_doc",
+				Name:    entry.Name,
 				Content: "abc",
 			})
 			Expect(err).Should(BeNil())
@@ -70,7 +79,7 @@ var _ = Describe("testDocumentManage", func() {
 			summary := "this is summary"
 			newDoc := &types.Document{
 				Name:     "test_create_doc",
-				Uri:      uri,
+				OID:      entry.ID,
 				Source:   "",
 				KeyWords: keywords,
 				Content:  content,

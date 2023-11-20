@@ -19,7 +19,11 @@ package buildin
 import (
 	"net/url"
 	"strings"
+
+	"github.com/basenana/nanafs/utils"
 )
+
+var maxAITaskParallel = utils.NewParallelLimiter(3)
 
 func readableHtmlContent(urlStr, title, content string) string {
 	var hostStr string

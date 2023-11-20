@@ -19,7 +19,6 @@ package metastore
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"path"
 	"runtime/trace"
@@ -103,6 +102,18 @@ func (s *sqliteMetaStore) DeleteEntryUri(ctx context.Context, id int64) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	return s.dbStore.DeleteEntryUri(ctx, id)
+}
+
+func (s *sqliteMetaStore) GetEntryUriById(ctx context.Context, id int64) (*types.EntryUri, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.GetEntryUriById(ctx, id)
+}
+
+func (s *sqliteMetaStore) DeleteEntryUriByPrefix(ctx context.Context, prefix string) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.DeleteEntryUriByPrefix(ctx, prefix)
 }
 
 func (s *sqliteMetaStore) DeleteRemovedEntry(ctx context.Context, entryID int64) error {
@@ -303,10 +314,16 @@ func (s *sqliteMetaStore) GetDocument(ctx context.Context, id string) (*types.Do
 	return s.dbStore.GetDocument(ctx, id)
 }
 
-func (s *sqliteMetaStore) FindDocument(ctx context.Context, uri string) (*types.Document, error) {
+func (s *sqliteMetaStore) GetDocumentByName(ctx context.Context, name string) (*types.Document, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.FindDocument(ctx, uri)
+	return s.dbStore.GetDocumentByName(ctx, name)
+}
+
+func (s *sqliteMetaStore) GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.GetDocumentByEntryId(ctx, oid)
 }
 
 func (s *sqliteMetaStore) DeleteDocument(ctx context.Context, id string) error {
@@ -471,11 +488,6 @@ func (s *sqlMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry
 			return nil
 		}
 
-		_, err := s.getAndSaveEntryUri(tx, entryMod)
-		if err != nil {
-			return err
-		}
-
 		res = tx.Where("id = ?", parentID).First(parentMod)
 		if res.Error != nil {
 			return res.Error
@@ -566,9 +578,22 @@ func (s *sqlMetaStore) GetEntryUri(ctx context.Context, uri string) (*types.Entr
 	return entryUri.ToEntryUri(), nil
 }
 
+func (s *sqlMetaStore) GetEntryUriById(ctx context.Context, id int64) (*types.EntryUri, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.GetEntryUriById").End()
+	var entryUri = &db.ObjectURI{OID: id}
+	res := s.WithContext(ctx).Where("oid = ?", id).First(entryUri)
+	return entryUri.ToEntryUri(), db.SqlError2Error(res.Error)
+}
+
 func (s *sqlMetaStore) DeleteEntryUri(ctx context.Context, id int64) error {
-	defer trace.StartRegion(ctx, "metastore.sql.DeleteSegment").End()
+	defer trace.StartRegion(ctx, "metastore.sql.DeleteEntryUri").End()
 	res := s.WithContext(ctx).Delete(&db.ObjectURI{OID: id})
+	return db.SqlError2Error(res.Error)
+}
+
+func (s *sqlMetaStore) DeleteEntryUriByPrefix(ctx context.Context, prefix string) error {
+	defer trace.StartRegion(ctx, "metastore.sql.DeleteEntryUri").End()
+	res := s.WithContext(ctx).Where("uri LIKE ?", prefix+"%").Delete(&db.ObjectURI{})
 	return db.SqlError2Error(res.Error)
 }
 
@@ -645,11 +670,6 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64)
 			}
 		}
 
-		res = tx.Model(&db.ObjectURI{}).Where("oid = ?", entryID).Update("invalid", true)
-		if res.Error != nil {
-			return res.Error
-		}
-
 		entryRef := (*entryMod.RefCount) - 1
 		entryMod.ParentID = &noneParentID
 		entryMod.RefCount = &entryRef
@@ -667,16 +687,11 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64)
 func (s *sqlMetaStore) DeleteRemovedEntry(ctx context.Context, entryID int64) error {
 	defer trace.StartRegion(ctx, "metastore.sql.DeleteRemovedEntry").End()
 	var (
-		entryMod    = &db.Object{ID: entryID}
-		entryUriMod = &db.ObjectURI{OID: entryID}
+		entryMod = &db.Object{ID: entryID}
 	)
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		res := tx.Where("id = ?", entryID).First(entryMod)
 		if res.Error != nil {
-			return res.Error
-		}
-		res = tx.Where("oid = ?", entryID).First(entryUriMod)
-		if res.Error != nil && res.Error != gorm.ErrRecordNotFound {
 			return res.Error
 		}
 
@@ -701,16 +716,6 @@ func (s *sqlMetaStore) DeleteRemovedEntry(ctx context.Context, entryID int64) er
 			return res.Error
 		}
 
-		if entryUriMod != nil {
-			res = tx.Model(&db.Document{}).Where("uri = ?", entryUriMod.Uri).Update("desync", true)
-			if res.Error != nil {
-				return res.Error
-			}
-			res = tx.Where("oid = ?", entryMod.ID).Delete(&db.ObjectURI{})
-			if res.Error != nil {
-				return res.Error
-			}
-		}
 		return nil
 	})
 	if err != nil {
@@ -979,7 +984,6 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, targetEntryId int6
 			enModel          = &db.Object{ID: targetEntryId}
 			srcParentEnModel = &db.Object{}
 			dstParentEnModel = &db.Object{}
-			entryUriMod      = &db.ObjectURI{OID: targetEntryId}
 			nowTime          = time.Now().UnixNano()
 			srcParentEntryID int64
 			updateErr        error
@@ -990,11 +994,6 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, targetEntryId int6
 		}
 		res = tx.Where("id = ?", newParentId).First(dstParentEnModel)
 		if res.Error != nil {
-			return res.Error
-		}
-
-		res = tx.Where("oid = ?", targetEntryId).First(entryUriMod)
-		if res.Error != nil && res.Error != gorm.ErrRecordNotFound {
 			return res.Error
 		}
 
@@ -1038,22 +1037,6 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, targetEntryId int6
 			return updateErr
 		}
 
-		if entryUriMod != nil {
-			res = tx.Model(&db.Document{}).Where("uri = ?", entryUriMod.Uri).Update("desync", true)
-			if res.Error != nil && !errors.Is(res.Error, gorm.ErrRecordNotFound) {
-				return res.Error
-			}
-
-			dstParentUri, err := s.getAndSaveEntryUri(tx, dstParentEnModel)
-			if err != nil {
-				return err
-			}
-			entryUriMod.Uri = path.Join(dstParentUri, enModel.Name)
-			res = tx.Updates(entryUriMod)
-			if res.Error != nil {
-				return res.Error
-			}
-		}
 		return nil
 	})
 }
@@ -1606,10 +1589,20 @@ func (s *sqlMetaStore) GetDocument(ctx context.Context, id string) (*types.Docum
 	return doc.To(), nil
 }
 
-func (s *sqlMetaStore) FindDocument(ctx context.Context, uri string) (*types.Document, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.GetDocument").End()
+func (s *sqlMetaStore) GetDocumentByName(ctx context.Context, name string) (*types.Document, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.GetDocumentByName").End()
 	doc := &db.Document{}
-	res := s.WithContext(ctx).Where("uri = ?", uri).First(doc)
+	res := s.WithContext(ctx).Where("name = ?", name).First(doc)
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
+	}
+	return doc.To(), nil
+}
+
+func (s *sqlMetaStore) GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.GetDocumentByEntryId").End()
+	doc := &db.Document{}
+	res := s.WithContext(ctx).Where("oid = ?", oid).First(doc)
 	if res.Error != nil {
 		return nil, db.SqlError2Error(res.Error)
 	}

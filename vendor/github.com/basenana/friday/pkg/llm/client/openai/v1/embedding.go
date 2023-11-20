@@ -17,10 +17,8 @@
 package v1
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
-	"strings"
-	"time"
 )
 
 type EmbeddingResult struct {
@@ -45,31 +43,20 @@ type Usage struct {
 	TotalTokens  int `json:"total_tokens"`
 }
 
-func (o *OpenAIV1) Embedding(doc string) (*EmbeddingResult, error) {
-	answer, err := o.embedding(doc)
-	if err != nil {
-		errMsg := err.Error()
-		if strings.Contains(errMsg, "rate_limit_exceeded") {
-			o.log.Warnf("meets rate limit exceeded, sleep %d second and retry", o.rateLimit)
-			time.Sleep(time.Duration(o.rateLimit) * time.Second)
-			return o.embedding(doc)
-		}
-		return nil, err
-	}
-	return answer, err
+func (o *OpenAIV1) Embedding(ctx context.Context, doc string) (*EmbeddingResult, error) {
+	return o.embedding(ctx, doc)
 }
 
-func (o *OpenAIV1) embedding(doc string) (*EmbeddingResult, error) {
+func (o *OpenAIV1) embedding(ctx context.Context, doc string) (*EmbeddingResult, error) {
 	path := "v1/embeddings"
 
 	model := "text-embedding-ada-002"
-	data := map[string]string{
+	data := map[string]interface{}{
 		"model": model,
 		"input": doc,
 	}
-	postBody, _ := json.Marshal(data)
 
-	respBody, err := o.request(path, "POST", bytes.NewBuffer(postBody))
+	respBody, err := o.request(ctx, path, "POST", data)
 	if err != nil {
 		return nil, err
 	}

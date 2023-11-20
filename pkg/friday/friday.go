@@ -17,6 +17,7 @@
 package friday
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/basenana/friday/config"
@@ -53,7 +54,7 @@ func InitFridayFromConfig() (err error) {
 	return InitFriday(&cfg)
 }
 
-func IngestFile(fileName, content string) error {
+func IngestFile(ctx context.Context, fileName, content string) error {
 	if fridayClient == nil {
 		return fmt.Errorf("fridayClient is nil, can not use it")
 	}
@@ -61,17 +62,17 @@ func IngestFile(fileName, content string) error {
 		Source:  fileName,
 		Content: content,
 	}
-	return fridayClient.IngestFromFile(file)
+	return fridayClient.IngestFromFile(ctx, file)
 }
 
-func Question(q string) (answer string, err error) {
+func Question(ctx context.Context, q string) (answer string, err error) {
 	if fridayClient == nil {
 		return "", fmt.Errorf("fridayClient is nil, can not use it")
 	}
-	return fridayClient.Question(q)
+	return fridayClient.Question(ctx, q)
 }
 
-func SummaryFile(fileName, content string) (string, error) {
+func SummaryFile(ctx context.Context, fileName, content string) (string, error) {
 	if fridayClient == nil {
 		return "", fmt.Errorf("fridayClient is nil, can not use it")
 	}
@@ -79,7 +80,7 @@ func SummaryFile(fileName, content string) (string, error) {
 		Source:  fileName,
 		Content: content,
 	}
-	result, err := fridayClient.SummaryFromFile(file, summary.MapReduce)
+	result, err := fridayClient.SummaryFromFile(ctx, file, summary.MapReduce)
 	if err != nil {
 		return "", err
 	}
@@ -89,9 +90,9 @@ func SummaryFile(fileName, content string) (string, error) {
 	return result[fileName], nil
 }
 
-func Keywords(content string) ([]string, error) {
+func Keywords(ctx context.Context, content string) ([]string, error) {
 	if fridayClient == nil {
 		return nil, fmt.Errorf("fridayClient is nil, can not use it")
 	}
-	return fridayClient.Keywords(content)
+	return fridayClient.Keywords(ctx, content)
 }

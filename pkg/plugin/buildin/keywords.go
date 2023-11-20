@@ -46,6 +46,10 @@ func (i *KeywordsPlugin) Type() types.PluginType { return types.TypeProcess }
 func (i *KeywordsPlugin) Version() string { return KeywordsPluginVersion }
 
 func (i *KeywordsPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
+	if enabled := request.ParentProperties[propertyKeyFridayEnabled]; enabled != "true" {
+		return pluginapi.NewResponseWithResult(nil), nil
+	}
+
 	if request.EntryId == 0 {
 		return nil, fmt.Errorf("entry id is empty")
 	}
@@ -53,9 +57,10 @@ func (i *KeywordsPlugin) Run(ctx context.Context, request *pluginapi.Request) (*
 	if request.ParentProperties == nil {
 		return nil, fmt.Errorf("parent properties is nil")
 	}
-	if enabled := request.ParentProperties[propertyKeyFridayEnabled]; enabled != "true" {
-		return pluginapi.NewResponseWithResult(nil), nil
+	if err := maxAITaskParallel.Acquire(ctx); err != nil {
+		return nil, err
 	}
+	defer maxAITaskParallel.Release()
 
 	rawSummary := request.Parameter[pluginapi.ResEntryDocSummaryKey]
 	summery, ok := rawSummary.(string)
@@ -64,9 +69,9 @@ func (i *KeywordsPlugin) Run(ctx context.Context, request *pluginapi.Request) (*
 	}
 
 	i.log.Infow("get summary", "entryId", request.EntryId)
-	keywords, err := friday.Keywords(summery)
+	keywords, err := friday.Keywords(ctx, summery)
 	if err != nil {
-		return pluginapi.NewFailedResponse(fmt.Sprintf("summary documents failed: %s", err)), nil
+		return pluginapi.NewFailedResponse(fmt.Sprintf("get documents keywords failed: %s", err)), nil
 	}
 
 	return pluginapi.NewResponseWithResult(map[string]any{

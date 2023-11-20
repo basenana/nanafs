@@ -16,7 +16,9 @@
 
 package embedding
 
+import "context"
+
 type Embedding interface {
-	VectorQuery(doc string) ([]float32, map[string]interface{}, error)
-	VectorDocs(docs []string) ([][]float32, []map[string]interface{}, error)
+	VectorQuery(ctx context.Context, doc string) ([]float32, map[string]interface{}, error)
+	VectorDocs(ctx context.Context, docs []string) ([][]float32, []map[string]interface{}, error)
 }

@@ -17,6 +17,8 @@
 package v1
 
 import (
+	"context"
+
 	"github.com/basenana/friday/pkg/embedding"
 	"github.com/basenana/friday/pkg/llm/client/openai/v1"
 )
@@ -27,14 +29,14 @@ type OpenAIEmbedding struct {
 
 var _ embedding.Embedding = &OpenAIEmbedding{}
 
-func NewOpenAIEmbedding(baseUrl, key string, rateLimit int) embedding.Embedding {
+func NewOpenAIEmbedding(baseUrl, key string, qpm, burst int) embedding.Embedding {
 	return &OpenAIEmbedding{
-		OpenAIV1: v1.NewOpenAIV1(baseUrl, key, rateLimit),
+		OpenAIV1: v1.NewOpenAIV1(baseUrl, key, qpm, burst),
 	}
 }
 
-func (o *OpenAIEmbedding) VectorQuery(doc string) ([]float32, map[string]interface{}, error) {
-	res, err := o.Embedding(doc)
+func (o *OpenAIEmbedding) VectorQuery(ctx context.Context, doc string) ([]float32, map[string]interface{}, error) {
+	res, err := o.Embedding(ctx, doc)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -46,12 +48,12 @@ func (o *OpenAIEmbedding) VectorQuery(doc string) ([]float32, map[string]interfa
 	return res.Data[0].Embedding, metadata, nil
 }
 
-func (o *OpenAIEmbedding) VectorDocs(docs []string) ([][]float32, []map[string]interface{}, error) {
+func (o *OpenAIEmbedding) VectorDocs(ctx context.Context, docs []string) ([][]float32, []map[string]interface{}, error) {
 	res := make([][]float32, len(docs))
 	metadata := make([]map[string]interface{}, len(docs))
 
 	for i, doc := range docs {
-		r, err := o.Embedding(doc)
+		r, err := o.Embedding(ctx, doc)
 		if err != nil {
 			return nil, nil, err
 		}

@@ -17,12 +17,13 @@
 package summary
 
 import (
+	"context"
 	"strings"
 )
 
-func (s *Summary) Stuff(docs []string) (summaries string, err error) {
+func (s *Summary) Stuff(ctx context.Context, docs []string) (summaries string, err error) {
 	doc := strings.Join(docs, "\n")
-	answers, err := s.llm.Chat(s.summaryPrompt, map[string]string{"context": doc})
+	answers, err := s.llm.Chat(ctx, s.summaryPrompt, map[string]string{"context": doc})
 	if err != nil {
 		return "", err
 	}
