@@ -17,15 +17,16 @@
 package friday
 
 import (
+	"context"
 	"strings"
 
 	"github.com/basenana/friday/pkg/llm/prompts"
 )
 
-func (f *Friday) Keywords(content string) (keywords []string, err error) {
+func (f *Friday) Keywords(ctx context.Context, content string) (keywords []string, err error) {
 	prompt := prompts.NewKeywordsPrompt()
 
-	answers, err := f.LLM.Chat(prompt, map[string]string{"context": content})
+	answers, err := f.LLM.Chat(ctx, prompt, map[string]string{"context": content})
 	if err != nil {
 		return []string{}, err
 	}

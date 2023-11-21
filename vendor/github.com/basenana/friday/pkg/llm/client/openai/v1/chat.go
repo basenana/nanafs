@@ -17,10 +17,8 @@
 package v1
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
-	"strings"
-	"time"
 
 	"github.com/basenana/friday/pkg/llm/prompts"
 )
@@ -40,29 +38,18 @@ type ChatChoice struct {
 	FinishReason string            `json:"finish_reason"`
 }
 
-func (o *OpenAIV1) Chat(prompt prompts.PromptTemplate, parameters map[string]string) ([]string, error) {
-	answer, err := o.chat(prompt, parameters)
-	if err != nil {
-		errMsg := err.Error()
-		if strings.Contains(errMsg, "rate_limit_exceeded") {
-			o.log.Warnf("meets rate limit exceeded, sleep %d second and retry", o.rateLimit)
-			time.Sleep(time.Duration(o.rateLimit) * time.Second)
-			return o.chat(prompt, parameters)
-		}
-		return nil, err
-	}
-	return answer, err
+func (o *OpenAIV1) Chat(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, error) {
+	return o.chat(ctx, prompt, parameters)
 }
 
-func (o *OpenAIV1) chat(prompt prompts.PromptTemplate, parameters map[string]string) ([]string, error) {
-	path := "chat/completions"
+func (o *OpenAIV1) chat(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, error) {
+	path := "v1/chat/completions"
 
 	model := "gpt-3.5-turbo"
 	p, err := prompt.String(parameters)
 	if err != nil {
 		return nil, err
 	}
-	o.log.Debugf("final prompt: %s", p)
 
 	data := map[string]interface{}{
 		"model":             model,
@@ -74,9 +61,8 @@ func (o *OpenAIV1) chat(prompt prompts.PromptTemplate, parameters map[string]str
 		"presence_penalty":  0,
 		"n":                 1,
 	}
-	postBody, _ := json.Marshal(data)
 
-	respBody, err := o.request(path, "POST", bytes.NewBuffer(postBody))
+	respBody, err := o.request(ctx, path, "POST", data)
 	if err != nil {
 		return nil, err
 	}

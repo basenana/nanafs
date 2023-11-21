@@ -17,6 +17,8 @@
 package summary
 
 import (
+	"context"
+
 	"github.com/basenana/friday/pkg/llm"
 	"github.com/basenana/friday/pkg/llm/prompts"
 	"github.com/basenana/friday/pkg/utils/logger"
@@ -54,16 +56,16 @@ func NewSummary(l llm.LLM, limitToken int) *Summary {
 	}
 }
 
-func (s *Summary) Summary(docs []string, summaryType SummaryType) (summary string, err error) {
+func (s *Summary) Summary(ctx context.Context, docs []string, summaryType SummaryType) (summary string, err error) {
 	switch summaryType {
 	case MapReduce:
-		return s.MapReduce(docs)
+		return s.MapReduce(ctx, docs)
 	case Refine:
 		// todo
 		return "", err
 	case Stuff:
 		fallthrough
 	default:
-		return s.Stuff(docs)
+		return s.Stuff(ctx, docs)
 	}
 }

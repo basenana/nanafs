@@ -17,6 +17,7 @@
 package friday
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -31,7 +32,7 @@ import (
 )
 
 // IngestFromFile ingest a whole file providing models.File
-func (f *Friday) IngestFromFile(file models.File) error {
+func (f *Friday) IngestFromFile(ctx context.Context, file models.File) error {
 	elements := []models.Element{}
 	parentDir := filepath.Dir(file.Source)
 	// split doc
@@ -48,11 +49,11 @@ func (f *Friday) IngestFromFile(file models.File) error {
 		elements = append(elements, e)
 	}
 	// ingest
-	return f.Ingest(elements)
+	return f.Ingest(ctx, elements)
 }
 
 // Ingest ingest elements of a file
-func (f *Friday) Ingest(elements []models.Element) error {
+func (f *Friday) Ingest(ctx context.Context, elements []models.Element) error {
 	f.Log.Debugf("Ingesting %d ...", len(elements))
 	for i, element := range elements {
 		// id: sha256(source)-group
@@ -67,7 +68,7 @@ func (f *Friday) Ingest(elements []models.Element) error {
 			continue
 		}
 
-		vectors, m, err := f.Embedding.VectorQuery(element.Content)
+		vectors, m, err := f.Embedding.VectorQuery(ctx, element.Content)
 		if err != nil {
 			return err
 		}
@@ -83,7 +84,7 @@ func (f *Friday) Ingest(elements []models.Element) error {
 }
 
 // IngestFromElementFile ingest a whole file given an element-style origin file
-func (f *Friday) IngestFromElementFile(ps string) error {
+func (f *Friday) IngestFromElementFile(ctx context.Context, ps string) error {
 	doc, err := os.ReadFile(ps)
 	if err != nil {
 		return err
@@ -93,11 +94,11 @@ func (f *Friday) IngestFromElementFile(ps string) error {
 		return err
 	}
 	merged := f.Spliter.Merge(elements)
-	return f.Ingest(merged)
+	return f.Ingest(ctx, merged)
 }
 
 // IngestFromOriginFile ingest a whole file given an origin file
-func (f *Friday) IngestFromOriginFile(ps string) error {
+func (f *Friday) IngestFromOriginFile(ctx context.Context, ps string) error {
 	fs, err := files.ReadFiles(ps)
 	if err != nil {
 		return err
@@ -120,5 +121,5 @@ func (f *Friday) IngestFromOriginFile(ps string) error {
 		}
 	}
 
-	return f.Ingest(elements)
+	return f.Ingest(ctx, elements)
 }

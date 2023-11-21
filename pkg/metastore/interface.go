@@ -41,6 +41,12 @@ type DEntry interface {
 	DeleteRemovedEntry(ctx context.Context, entryID int64) error
 	UpdateEntryMetadata(ctx context.Context, entry *types.Metadata) error
 
+	SaveEntryUri(ctx context.Context, entryUri *types.EntryUri) error
+	GetEntryUri(ctx context.Context, uri string) (*types.EntryUri, error)
+	GetEntryUriById(ctx context.Context, id int64) (*types.EntryUri, error)
+	DeleteEntryUri(ctx context.Context, id int64) error
+	DeleteEntryUriByPrefix(ctx context.Context, prefix string) error
+
 	ListEntryChildren(ctx context.Context, parentId int64) (EntryIterator, error)
 	FilterEntries(ctx context.Context, filter types.Filter) (EntryIterator, error)
 
@@ -87,6 +93,7 @@ type DocumentRecorder interface {
 	SaveDocument(ctx context.Context, doc *types.Document) error
 	ListDocument(ctx context.Context) ([]*types.Document, error)
 	GetDocument(ctx context.Context, id string) (*types.Document, error)
-	FindDocument(ctx context.Context, uri string) (*types.Document, error)
+	GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error)
+	GetDocumentByName(ctx context.Context, name string) (*types.Document, error)
 	DeleteDocument(ctx context.Context, id string) error
 }

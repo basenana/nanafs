@@ -26,7 +26,7 @@ type KeywordsPrompt struct {
 	Context  string
 }
 
-const KeyWordsTemplate = `Extract keywords from the following, separated by comma and reply in zh-CN Language.:
+const KeyWordsTemplate = `Extract keywords from the following, separated by comma and reply in zh-CN Language:
 
 
 "{{ .Context }}"

@@ -20,9 +20,9 @@ import "time"
 
 type Document struct {
 	ID            string    `json:"id"`
+	OID           int64     `json:"oid"`
 	Name          string    `json:"name"`
-	Uri           string    `json:"uri"`
-	ParentEntryID *int64    `json:"parent_entry_id"`
+	ParentEntryID int64     `json:"parent_entry_id"`
 	Source        string    `json:"source"`
 	KeyWords      []string  `json:"key_words,omitempty"`
 	Content       string    `json:"content,omitempty"`

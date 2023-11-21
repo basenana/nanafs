@@ -24,6 +24,8 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
@@ -33,23 +35,27 @@ type Manager interface {
 	ListDocuments(ctx context.Context) ([]*types.Document, error)
 	SaveDocument(ctx context.Context, doc *types.Document) error
 	GetDocument(ctx context.Context, id string) (*types.Document, error)
-	FindDocument(ctx context.Context, uri string) (*types.Document, error)
+	GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error)
 	DeleteDocument(ctx context.Context, id string) error
 }
 
 type manager struct {
 	logger   *zap.SugaredLogger
 	recorder metastore.DocumentRecorder
+	entryMgr dentry.Manager
 }
 
 var _ Manager = &manager{}
 
-func NewManager(recorder metastore.DocumentRecorder) (Manager, error) {
+func NewManager(recorder metastore.DocumentRecorder, entryMgr dentry.Manager) (Manager, error) {
 	docLogger := logger.NewLogger("document")
-	return &manager{
+	docMgr := &manager{
 		logger:   docLogger,
 		recorder: recorder,
-	}, nil
+		entryMgr: entryMgr,
+	}
+	err := registerDocExecutor(docMgr)
+	return docMgr, err
 }
 
 func (m *manager) ListDocuments(ctx context.Context) ([]*types.Document, error) {
@@ -62,7 +68,7 @@ func (m *manager) ListDocuments(ctx context.Context) ([]*types.Document, error) 
 
 func (m *manager) SaveDocument(ctx context.Context, doc *types.Document) error {
 	if doc.ID == "" {
-		crtDoc, err := m.recorder.FindDocument(ctx, doc.Uri)
+		crtDoc, err := m.recorder.GetDocumentByEntryId(ctx, doc.OID)
 		if err != nil {
 			if errors.Is(err, types.ErrNotFound) {
 				// create new one
@@ -87,9 +93,11 @@ func (m *manager) SaveDocument(ctx context.Context, doc *types.Document) error {
 	if err != nil {
 		return err
 	}
-	if (doc.Name != "" && crtDoc.Name != doc.Name) || (doc.Uri != "" && crtDoc.Uri != doc.Uri) {
-		return errors.New("can't update name or uri of doc")
+	if doc.OID != 0 && crtDoc.OID != doc.OID {
+		return errors.New("can't update oid of doc")
 	}
+	crtDoc.Name = doc.Name
+	crtDoc.ParentEntryID = doc.ParentEntryID
 	crtDoc.ChangedAt = time.Now()
 	crtDoc.Summary = doc.Summary
 	crtDoc.KeyWords = doc.KeyWords
@@ -102,10 +110,101 @@ func (m *manager) GetDocument(ctx context.Context, id string) (*types.Document, 
 	return m.recorder.GetDocument(ctx, id)
 }
 
-func (m *manager) FindDocument(ctx context.Context, uri string) (*types.Document, error) {
-	return m.recorder.FindDocument(ctx, uri)
+func (m *manager) GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error) {
+	return m.recorder.GetDocumentByEntryId(ctx, oid)
 }
 
 func (m *manager) DeleteDocument(ctx context.Context, id string) error {
 	return m.recorder.DeleteDocument(ctx, id)
+}
+
+func (m *manager) handleEvent(evt *types.EntryEvent) error {
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Hour)
+	defer cancel()
+
+	entry := evt.Data
+
+	switch evt.Type {
+	case events.ActionTypeDestroy:
+		doc, err := m.GetDocumentByEntryId(ctx, entry.ID)
+		if err != nil {
+			if err == types.ErrNotFound {
+				return nil
+			}
+			m.logger.Errorw("[docCleanExecutor] get doc failed", "entry", entry.ID, "err", err)
+			return err
+		}
+
+		err = m.DeleteDocument(ctx, doc.ID)
+		if err != nil {
+			m.logger.Errorw("[docCleanExecutor] delete doc failed", "entry", entry.ID, "document", doc.ID, "err", err)
+			return err
+		}
+		return nil
+	case events.ActionTypeChangeParent:
+		fallthrough
+	case events.ActionTypeUpdate:
+		en, err := m.entryMgr.GetEntry(ctx, entry.ID)
+		if err != nil {
+			m.logger.Errorw("[docUpdateExecutor] get entry failed", "entry", entry.ID, "err", err)
+			return err
+		}
+
+		doc, err := m.GetDocumentByEntryId(ctx, en.ID)
+		if err != nil {
+			if err == types.ErrNotFound {
+				return nil
+			}
+			m.logger.Errorw("[docUpdateExecutor] get doc failed", "entry", entry.ID, "err", err)
+			return err
+		}
+
+		if doc.Name != en.Name || doc.ParentEntryID != en.ParentID {
+			doc.Name = en.Name
+			doc.ParentEntryID = en.ParentID
+			err = m.SaveDocument(ctx, doc)
+			if err != nil {
+				m.logger.Errorw("[docUpdateExecutor] update doc failed", "entry", entry.ID, "document", doc.ID, "err", err)
+				return err
+			}
+		}
+		return nil
+	case events.ActionTypeCompact:
+		doc, err := m.GetDocumentByEntryId(ctx, entry.ID)
+		if err != nil {
+			if err == types.ErrNotFound {
+				return nil
+			}
+			m.logger.Errorw("[docDesyncExecutor] get entry failed", "entry", entry.ID, "err", err)
+			return err
+		}
+		if doc.Desync {
+			return nil
+		}
+		doc.Desync = true
+		err = m.SaveDocument(ctx, doc)
+		if err != nil {
+			m.logger.Errorw("[docDesyncExecutor] update doc failed", "entry", entry.ID, "document", doc.ID, "err", err)
+			return err
+		}
+		return nil
+	}
+
+	return nil
+}
+
+func registerDocExecutor(docMgr *manager) error {
+	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeDestroy), docMgr.handleEvent); err != nil {
+		return err
+	}
+	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeUpdate), docMgr.handleEvent); err != nil {
+		return err
+	}
+	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeChangeParent), docMgr.handleEvent); err != nil {
+		return err
+	}
+	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceFile, events.ActionTypeCompact), docMgr.handleEvent); err != nil {
+		return err
+	}
+	return nil
 }

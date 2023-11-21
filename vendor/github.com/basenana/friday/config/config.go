@@ -16,14 +16,20 @@
 
 package config
 
+import (
+	"github.com/basenana/friday/pkg/utils/logger"
+)
+
 type Config struct {
-	Debug bool `json:"debug,omitempty"`
+	Debug  bool `json:"debug,omitempty"`
+	Logger logger.Logger
 
 	// llm limit token
 	LimitToken int `json:"limit_token,omitempty"`
 
 	// openai key
-	OpenAIKey string `json:"open_ai_key,omitempty"` // if openai is used for embedding or llm, it is needed
+	OpenAIBaseUrl string `json:"open_ai_base_url,omitempty"` // if openai is used for embedding or llm, it is needed, default is "https://api.openai.com"
+	OpenAIKey     string `json:"open_ai_key,omitempty"`      // if openai is used for embedding or llm, it is needed
 
 	// embedding config
 	EmbeddingType  EmbeddingType `json:"embedding_type"`
@@ -36,9 +42,10 @@ type Config struct {
 	EmbeddingDim    int             `json:"embedding_dim,omitempty"` // embedding dimension, default is 1536
 
 	// LLM
-	LLMType      LLMType `json:"llm_type"`
-	LLMUrl       string  `json:"llm_url,omitempty"`        // only needed for glm-6b
-	LLMRateLimit int     `json:"llm_rate_limit,omitempty"` // only needed for openai, rate_limit, in seconds, default is 60
+	LLMType           LLMType `json:"llm_type"`
+	LLMUrl            string  `json:"llm_url,omitempty"`              // only needed for glm-6b
+	LLMQueryPerMinute int     `json:"llm_query_per_minute,omitempty"` // only needed for openai, qpm, default is 3
+	LLMBurst          int     `json:"llm_burst,omitempty"`            // only needed for openai, burst, default is 5
 
 	// text spliter
 	SpliterChunkSize    int    `json:"spliter_chunk_size,omitempty"`    // chunk of files splited to store, default is 4000

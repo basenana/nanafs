@@ -17,10 +17,11 @@
 package workflow
 
 import (
-	"github.com/basenana/nanafs/pkg/rule"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/basenana/nanafs/pkg/rule"
 
 	testcfg "github.com/onsi/ginkgo/config"
 
@@ -73,7 +74,7 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).Should(BeNil())
 
-	docMgr, err = document.NewManager(memMeta)
+	docMgr, err = document.NewManager(memMeta, entryMgr)
 	Expect(err).Should(BeNil())
 
 	// init plugin

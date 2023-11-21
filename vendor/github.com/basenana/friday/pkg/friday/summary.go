@@ -17,14 +17,16 @@
 package friday
 
 import (
+	"context"
+
 	"github.com/basenana/friday/pkg/friday/summary"
 	"github.com/basenana/friday/pkg/models"
 	"github.com/basenana/friday/pkg/utils/files"
 )
 
-func (f *Friday) Summary(elements []models.Element, summaryType summary.SummaryType) (map[string]string, error) {
+func (f *Friday) Summary(ctx context.Context, elements []models.Element, summaryType summary.SummaryType) (map[string]string, error) {
 	result := make(map[string]string)
-	s := summary.NewSummary(f.LLM, 0)
+	s := summary.NewSummary(f.LLM, f.LimitToken)
 
 	docs := make(map[string][]string)
 	for _, element := range elements {
@@ -35,7 +37,7 @@ func (f *Friday) Summary(elements []models.Element, summaryType summary.SummaryT
 		}
 	}
 	for source, doc := range docs {
-		summaryOfFile, err := s.Summary(doc, summaryType)
+		summaryOfFile, err := s.Summary(ctx, doc, summaryType)
 		if err != nil {
 			return nil, err
 		}
@@ -45,12 +47,12 @@ func (f *Friday) Summary(elements []models.Element, summaryType summary.SummaryT
 	return result, nil
 }
 
-func (f *Friday) SummaryFromFile(file models.File, summaryType summary.SummaryType) (map[string]string, error) {
-	s := summary.NewSummary(f.LLM, 0)
+func (f *Friday) SummaryFromFile(ctx context.Context, file models.File, summaryType summary.SummaryType) (map[string]string, error) {
+	s := summary.NewSummary(f.LLM, f.LimitToken)
 	// split doc
 	docs := f.Spliter.Split(file.Content)
 	// summary
-	summaryOfFile, err := s.Summary(docs, summaryType)
+	summaryOfFile, err := s.Summary(ctx, docs, summaryType)
 	if err != nil {
 		return nil, err
 	}
@@ -59,8 +61,8 @@ func (f *Friday) SummaryFromFile(file models.File, summaryType summary.SummaryTy
 	}, err
 }
 
-func (f *Friday) SummaryFromOriginFile(ps string, summaryType summary.SummaryType) (map[string]string, error) {
-	s := summary.NewSummary(f.LLM, 0)
+func (f *Friday) SummaryFromOriginFile(ctx context.Context, ps string, summaryType summary.SummaryType) (map[string]string, error) {
+	s := summary.NewSummary(f.LLM, f.LimitToken)
 	fs, err := files.ReadFiles(ps)
 	if err != nil {
 		return nil, err
@@ -70,7 +72,7 @@ func (f *Friday) SummaryFromOriginFile(ps string, summaryType summary.SummaryTyp
 	for name, file := range fs {
 		// split doc
 		subDocs := f.Spliter.Split(file)
-		summaryOfFile, err := s.Summary(subDocs, summaryType)
+		summaryOfFile, err := s.Summary(ctx, subDocs, summaryType)
 		if err != nil {
 			return nil, err
 		}

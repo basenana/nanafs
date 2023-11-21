@@ -17,10 +17,12 @@
 package document
 
 import (
+	"context"
 	"os"
 	"testing"
 
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/storage"
@@ -33,10 +35,11 @@ import (
 
 var (
 	docRecorder metastore.DocumentRecorder
-	docManager  Manager
-	root        *types.Metadata
+	docManager  *manager
+	entryMgr    dentry.Manager
 
 	workdir string
+	root    *types.Metadata
 )
 
 func TestDEntry(t *testing.T) {
@@ -57,9 +60,25 @@ var _ = BeforeSuite(func() {
 	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())
 	docRecorder = memMeta
-	docManager, _ = NewManager(docRecorder)
+	entryMgr, err = dentry.NewManager(memMeta, config.Config{
+		FS: &config.FS{},
+		Storages: []config.Storage{{
+			ID:   storage.MemoryStorage,
+			Type: storage.MemoryStorage,
+		}},
+	})
+	Expect(err).Should(BeNil())
+	docManager = &manager{
+		logger:   logger.NewLogger("doc"),
+		recorder: docRecorder,
+		entryMgr: entryMgr,
+	}
 
 	// init plugin
 	err = plugin.Init(&config.Plugin{})
+	Expect(err).Should(BeNil())
+
+	// init root
+	root, err = entryMgr.Root(context.TODO())
 	Expect(err).Should(BeNil())
 })

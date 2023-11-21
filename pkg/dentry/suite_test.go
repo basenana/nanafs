@@ -18,14 +18,15 @@ package dentry
 
 import (
 	"context"
+	"os"
+	"testing"
+
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
-	"os"
-	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -34,6 +35,7 @@ import (
 var (
 	metaStoreObj metastore.Meta
 	entryManager Manager
+	entryMgr     *manager
 	root         *types.Metadata
 
 	workdir string
@@ -61,6 +63,21 @@ var _ = BeforeSuite(func() {
 		ID:   storage.MemoryStorage,
 		Type: storage.MemoryStorage,
 	}}})
+	storages := make(map[string]storage.Storage)
+	storages[storage.MemoryStorage], err = storage.NewStorage(
+		storage.MemoryStorage,
+		storage.MemoryStorage,
+		config.Storage{ID: storage.MemoryStorage, Type: storage.MemoryStorage},
+	)
+	Expect(err).Should(BeNil())
+	entryMgr = &manager{
+		store:     metaStoreObj,
+		metastore: metaStoreObj,
+		storages:  storages,
+		eventQ:    make(chan *entryEvent, 8),
+		cfg:       config.Config{FS: &config.FS{}},
+		logger:    logger.NewLogger("entryManager"),
+	}
 
 	// init root
 	root, err = entryManager.Root(context.TODO())

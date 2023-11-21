@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/basenana/friday/pkg/models"
+	"github.com/basenana/friday/pkg/utils/files"
 	"github.com/basenana/friday/pkg/utils/logger"
 )
 
@@ -49,7 +50,7 @@ func NewTextSpliter(chunkSize int, chunkOverlap int, separator string) Spliter {
 }
 
 func (t *TextSpliter) length(d string) int {
-	return len(d)
+	return files.Length(d)
 }
 
 func (t *TextSpliter) Split(text string) []string {

@@ -18,13 +18,16 @@ package dentry
 
 import (
 	"context"
+	"time"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	"time"
 )
 
 var _ = Describe("TestRootEntryInit", func() {
@@ -98,6 +101,34 @@ var _ = Describe("TestEntryManage", func() {
 			Expect(err).Should(BeNil())
 			_, err = grp.FindEntry(context.TODO(), "test_create_file1")
 			Expect(err).Should(BeNil())
+		})
+	})
+	Context("get entry uri", func() {
+		It("get entry uri should be succeed", func() {
+			parentName := "test_uri_parent"
+			entryName := "test_uri"
+			parentUri := "/test_uri_parent"
+			uri := "/test_uri_parent/test_uri"
+			parent, err := entryManager.CreateEntry(context.TODO(), root.ID, types.EntryAttr{
+				Name:   parentName,
+				Kind:   types.GroupKind,
+				Access: accessPermissions,
+			})
+			Expect(err).Should(BeNil())
+			entry, err := entryManager.CreateEntry(context.TODO(), parent.ID, types.EntryAttr{
+				Name:   entryName,
+				Kind:   types.RawKind,
+				Access: accessPermissions,
+			})
+			Expect(err).Should(BeNil())
+
+			parentEntry, err := entryManager.GetEntryByUri(context.TODO(), parentUri)
+			Expect(err).Should(BeNil())
+			Expect(parentEntry.ID).Should(Equal(parent.ID))
+
+			entryUri, err := entryManager.GetEntryByUri(context.TODO(), uri)
+			Expect(err).Should(BeNil())
+			Expect(entryUri.ID).Should(Equal(entry.ID))
 		})
 	})
 	Context("delete file entry", func() {
@@ -296,6 +327,10 @@ var _ = Describe("TestChangeEntryParent", func() {
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
+			_, err = entryManager.GetEntryByUri(context.TODO(), "/test_mv_grp1/test_mv_grp1_file1")
+			Expect(err).Should(BeNil())
+			_, err = entryManager.GetEntryByUri(context.TODO(), "/test_mv_grp1/test_mv_grp1_file2")
+			Expect(err).Should(BeNil())
 		})
 		It("create grp2 and files should be succeed", func() {
 			var err error
@@ -311,6 +346,8 @@ var _ = Describe("TestChangeEntryParent", func() {
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
+			_, err = entryManager.GetEntryByUri(context.TODO(), "/test_mv_grp2/test_mv_grp2_file2")
+			Expect(err).Should(BeNil())
 		})
 	})
 	Context("mv file src grp1 and files", func() {
@@ -325,6 +362,149 @@ var _ = Describe("TestChangeEntryParent", func() {
 		It("has existed file should be succeed if enable replace", func() {
 			err := entryManager.ChangeEntryParent(context.TODO(), grp1File2.ID, &grp2File2.ID, grp1.ID, grp2.ID, "test_mv_grp2_file2", types.ChangeParentAttr{Replace: true})
 			Expect(err).Should(BeNil())
+		})
+	})
+})
+
+var _ = Describe("TestHandleEvent", func() {
+	var (
+		grp1      *types.Metadata
+		grp1File1 *types.Metadata
+		grp1File2 *types.Metadata
+		grp1File3 *types.Metadata
+		grp2      *types.Metadata
+		grp2File1 *types.Metadata
+	)
+
+	Context("create grp and files", func() {
+		It("create grp and files should be succeed", func() {
+			var err error
+			grp1, err = entryManager.CreateEntry(context.TODO(), root.ID, types.EntryAttr{
+				Name:   "test_uri_grp1",
+				Kind:   types.GroupKind,
+				Access: accessPermissions,
+			})
+			Expect(err).Should(BeNil())
+			grp1File1, err = entryManager.CreateEntry(context.TODO(), grp1.ID, types.EntryAttr{
+				Name:   "test_uri_grp1_file1",
+				Kind:   types.RawKind,
+				Access: accessPermissions,
+			})
+			Expect(err).Should(BeNil())
+			grp1File2, err = entryManager.CreateEntry(context.TODO(), grp1.ID, types.EntryAttr{
+				Name:   "test_uri_grp1_file2",
+				Kind:   types.RawKind,
+				Access: accessPermissions,
+			})
+			Expect(err).Should(BeNil())
+			grp1File3, err = entryManager.CreateEntry(context.TODO(), grp1.ID, types.EntryAttr{
+				Name:   "test_uri_grp1_file3",
+				Kind:   types.RawKind,
+				Access: accessPermissions,
+			})
+			Expect(err).Should(BeNil())
+			grp2, err = entryManager.CreateEntry(context.TODO(), root.ID, types.EntryAttr{
+				Name:   "test_uri_grp2",
+				Kind:   types.GroupKind,
+				Access: accessPermissions,
+			})
+			Expect(err).Should(BeNil())
+			grp2File1, err = entryManager.CreateEntry(context.TODO(), grp2.ID, types.EntryAttr{
+				Name:   "test_uri_grp2_file1",
+				Kind:   types.RawKind,
+				Access: accessPermissions,
+			})
+			Expect(err).Should(BeNil())
+		})
+	})
+	Context("test handle action", func() {
+		It("create should be succeed", func() {
+			err := entryMgr.handleEvent(&types.EntryEvent{
+				Type: events.ActionTypeCreate,
+				Data: types.EventData{
+					ID:       grp1File1.ID,
+					ParentID: grp1.ID,
+				},
+			})
+			Expect(err).Should(BeNil())
+			grp1EntryUri, err := entryMgr.store.GetEntryUriById(context.TODO(), grp1.ID)
+			Expect(err).Should(BeNil())
+			Expect(grp1EntryUri.Uri).Should(Equal("/test_uri_grp1"))
+
+			entryUri, err := entryMgr.store.GetEntryUriById(context.TODO(), grp1File1.ID)
+			Expect(err).Should(BeNil())
+			Expect(entryUri.Uri).Should(Equal("/test_uri_grp1/test_uri_grp1_file1"))
+		})
+		It("destroy should be succeed", func() {
+			err := entryMgr.handleEvent(&types.EntryEvent{
+				Type: events.ActionTypeDestroy,
+				Data: types.EventData{
+					ID:       grp1File1.ID,
+					ParentID: grp1.ID,
+				},
+			})
+			Expect(err).Should(BeNil())
+			_, err = entryMgr.store.GetEntryUriById(context.TODO(), grp1File1.ID)
+			Expect(err).Should(Equal(types.ErrNotFound))
+		})
+		It("change parent should be succeed", func() {
+			grp1file2Uri, err := entryMgr.GetEntryByUri(context.TODO(), "/test_uri_grp1/test_uri_grp1_file2")
+			Expect(err).Should(BeNil())
+			Expect(grp1file2Uri.ID).Should(Equal(grp1File2.ID))
+
+			err = entryManager.ChangeEntryParent(context.TODO(), grp1File2.ID, nil, grp1.ID, grp2.ID, grp1File2.Name, types.ChangeParentAttr{})
+			Expect(err).Should(BeNil())
+
+			err = entryMgr.handleEvent(&types.EntryEvent{
+				Type: events.ActionTypeChangeParent,
+				Data: types.EventData{
+					ID:       grp1File2.ID,
+					ParentID: grp2.ID,
+				},
+			})
+			Expect(err).Should(BeNil())
+			_, err = entryMgr.store.GetEntryUriById(context.TODO(), grp1File2.ID)
+			Expect(err).Should(Equal(types.ErrNotFound))
+		})
+		It("update name should be succeed", func() {
+			grp1file3Uri, err := entryMgr.GetEntryByUri(context.TODO(), "/test_uri_grp1/test_uri_grp1_file3")
+			Expect(err).Should(BeNil())
+			Expect(grp1file3Uri.ID).Should(Equal(grp1File3.ID))
+
+			err = entryManager.ChangeEntryParent(context.TODO(), grp1File2.ID, nil, grp1.ID, grp1.ID, "test_uri_grp1_file4", types.ChangeParentAttr{})
+			Expect(err).Should(BeNil())
+
+			err = entryMgr.handleEvent(&types.EntryEvent{
+				Type: events.ActionTypeChangeParent,
+				Data: types.EventData{
+					ID:       grp1File3.ID,
+					ParentID: grp1.ID,
+				},
+			})
+			Expect(err).Should(BeNil())
+			_, err = entryMgr.store.GetEntryUriById(context.TODO(), grp1File3.ID)
+			Expect(err).Should(Equal(types.ErrNotFound))
+		})
+		It("update parent name should be succeed", func() {
+			grp2file1Uri, err := entryMgr.GetEntryByUri(context.TODO(), "/test_uri_grp2/test_uri_grp2_file1")
+			Expect(err).Should(BeNil())
+			Expect(grp2file1Uri.ID).Should(Equal(grp2File1.ID))
+
+			err = entryManager.ChangeEntryParent(context.TODO(), grp2.ID, nil, root.ID, root.ID, "test_uri_grp3", types.ChangeParentAttr{})
+			Expect(err).Should(BeNil())
+
+			err = entryMgr.handleEvent(&types.EntryEvent{
+				Type: events.ActionTypeChangeParent,
+				Data: types.EventData{
+					ID:       grp2.ID,
+					ParentID: root.ID,
+				},
+			})
+			Expect(err).Should(BeNil())
+			_, err = entryMgr.store.GetEntryUriById(context.TODO(), grp2.ID)
+			Expect(err).Should(Equal(types.ErrNotFound))
+			_, err = entryMgr.store.GetEntryUriById(context.TODO(), grp2File1.ID)
+			Expect(err).Should(Equal(types.ErrNotFound))
 		})
 	})
 })

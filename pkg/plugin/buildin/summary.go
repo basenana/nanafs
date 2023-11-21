@@ -51,6 +51,11 @@ func (i *SummaryPlugin) Run(ctx context.Context, request *pluginapi.Request) (*p
 		return nil, fmt.Errorf("entry id is empty")
 	}
 
+	if err := maxAITaskParallel.Acquire(ctx); err != nil {
+		return nil, err
+	}
+	defer maxAITaskParallel.Release()
+
 	if request.ParentProperties == nil {
 		return nil, fmt.Errorf("parent properties is nil")
 	}
@@ -71,7 +76,7 @@ func (i *SummaryPlugin) Run(ctx context.Context, request *pluginapi.Request) (*p
 	}
 
 	i.log.Infow("get docs", "length", buf.Len(), "entryId", request.EntryId)
-	summary, err := friday.SummaryFile(fmt.Sprintf("entry_%d", request.EntryId), buf.String())
+	summary, err := friday.SummaryFile(ctx, fmt.Sprintf("entry_%d", request.EntryId), buf.String())
 	if err != nil {
 		return pluginapi.NewFailedResponse(fmt.Sprintf("summary documents failed: %s", err)), nil
 	}

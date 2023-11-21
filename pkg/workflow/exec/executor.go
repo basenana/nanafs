@@ -20,9 +20,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/utils"
 	"sync"
 	"time"
+
+	"github.com/basenana/nanafs/utils"
 
 	"go.uber.org/zap"
 
@@ -240,7 +241,6 @@ func (b *localExecutor) Collect(ctx context.Context) error {
 		// collect documents
 		var (
 			entryID  int64
-			entryURI string
 			summary  string
 			keyWords []string
 		)
@@ -251,7 +251,6 @@ func (b *localExecutor) Collect(ctx context.Context) error {
 		if _, ok := b.results[pluginapi.ResEntryURIKey]; !ok {
 			return fmt.Errorf("content is empty")
 		}
-		entryURI = b.results[pluginapi.ResEntryURIKey].(string)
 
 		if _, ok := b.results[pluginapi.ResEntryDocSummaryKey]; ok {
 			summary = b.results[pluginapi.ResEntryDocSummaryKey].(string)
@@ -259,7 +258,7 @@ func (b *localExecutor) Collect(ctx context.Context) error {
 		if _, ok := b.results[pluginapi.ResEntryDocKeyWordsKey]; ok {
 			keyWords = b.results[pluginapi.ResEntryDocKeyWordsKey].([]string)
 		}
-		err := b.collectDocuments(ctx, entryID, entryURI, buf, summary, keyWords)
+		err := b.collectDocuments(ctx, entryID, buf, summary, keyWords)
 		if err != nil {
 			return err
 		}
@@ -285,9 +284,9 @@ func (b *localExecutor) collectFiles(ctx context.Context, manifests []pluginapi.
 	return nil
 }
 
-func (b *localExecutor) collectDocuments(ctx context.Context, entryId int64, entryURI string, content bytes.Buffer, summary string, keyWords []string) error {
-	b.logger.Infow("collect documents", "entryUIR", entryURI)
-	if err := collectFile2Document(ctx, b.docMgr, b.entryMgr, entryId, entryURI, content, summary, keyWords); err != nil {
+func (b *localExecutor) collectDocuments(ctx context.Context, entryId int64, content bytes.Buffer, summary string, keyWords []string) error {
+	b.logger.Infow("collect documents", "entryId", entryId)
+	if err := collectFile2Document(ctx, b.docMgr, b.entryMgr, entryId, content, summary, keyWords); err != nil {
 		return logOperationError(localExecName, "collect", err)
 	}
 	return nil

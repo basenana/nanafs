@@ -19,19 +19,33 @@ package dispatch
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
+	"time"
+
+	"github.com/getsentry/sentry-go"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
+
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow"
 	"github.com/basenana/nanafs/utils/logger"
-	"github.com/getsentry/sentry-go"
-	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/zap"
-	"time"
 )
 
-const taskExecutionInterval = 5 * time.Minute
+var taskExecutionInterval = 5 * time.Minute
+
+func init() {
+	intervalStr := os.Getenv("SCHED_TASK_EXEC_INTERVAL_SECONDS")
+	if intervalStr != "" {
+		intervalSec, err := strconv.Atoi(intervalStr)
+		if err == nil {
+			taskExecutionInterval = time.Duration(intervalSec) * time.Second
+		}
+	}
+}
 
 type executor interface {
 	execute(ctx context.Context, task *types.ScheduledTask) error
@@ -48,6 +62,7 @@ type Dispatcher struct {
 
 func (d *Dispatcher) Run(stopCh chan struct{}) {
 	ticker := time.NewTicker(taskExecutionInterval)
+	d.logger.Infow("start scheduled task dispatcher", "interval", taskExecutionInterval.String())
 	for {
 		select {
 		case <-stopCh:
