@@ -35,6 +35,7 @@ import (
 var (
 	metaStoreObj metastore.Meta
 	entryManager Manager
+	entryMgr     *manager
 	root         *types.Metadata
 
 	workdir string
@@ -62,6 +63,21 @@ var _ = BeforeSuite(func() {
 		ID:   storage.MemoryStorage,
 		Type: storage.MemoryStorage,
 	}}})
+	storages := make(map[string]storage.Storage)
+	storages[storage.MemoryStorage], err = storage.NewStorage(
+		storage.MemoryStorage,
+		storage.MemoryStorage,
+		config.Storage{ID: storage.MemoryStorage, Type: storage.MemoryStorage},
+	)
+	Expect(err).Should(BeNil())
+	entryMgr = &manager{
+		store:     metaStoreObj,
+		metastore: metaStoreObj,
+		storages:  storages,
+		eventQ:    make(chan *entryEvent, 8),
+		cfg:       config.Config{FS: &config.FS{}},
+		logger:    logger.NewLogger("entryManager"),
+	}
 
 	// init root
 	root, err = entryManager.Root(context.TODO())

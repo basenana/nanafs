@@ -35,7 +35,7 @@ import (
 
 var (
 	docRecorder metastore.DocumentRecorder
-	docManager  Manager
+	docManager  *manager
 	entryMgr    dentry.Manager
 
 	workdir string
@@ -68,7 +68,11 @@ var _ = BeforeSuite(func() {
 		}},
 	})
 	Expect(err).Should(BeNil())
-	docManager, _ = NewManager(docRecorder, entryMgr)
+	docManager = &manager{
+		logger:   logger.NewLogger("doc"),
+		recorder: docRecorder,
+		entryMgr: entryMgr,
+	}
 
 	// init plugin
 	err = plugin.Init(&config.Plugin{})
