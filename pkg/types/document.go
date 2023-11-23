@@ -31,3 +31,7 @@ type Document struct {
 	CreatedAt     time.Time `json:"created_at"`
 	ChangedAt     time.Time `json:"changed_at"`
 }
+
+func (d *Document) BleveType() string {
+	return "document"
+}

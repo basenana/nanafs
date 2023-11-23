@@ -42,18 +42,18 @@ var (
 	root    *types.Metadata
 )
 
-func TestDEntry(t *testing.T) {
+func TestDocument(t *testing.T) {
 	logger.InitLogger()
 	defer logger.Sync()
 	RegisterFailHandler(Fail)
 
 	var err error
-	workdir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-dentry-")
+	workdir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-doc-")
 	Expect(err).Should(BeNil())
 	t.Logf("unit test workdir on: %s", workdir)
 	storage.InitLocalCache(config.Config{CacheDir: workdir, CacheSize: 1})
 
-	RunSpecs(t, "DEntry Suite")
+	RunSpecs(t, "Document Suite")
 }
 
 var _ = BeforeSuite(func() {
