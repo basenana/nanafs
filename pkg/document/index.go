@@ -18,10 +18,10 @@ package document
 
 import (
 	"context"
-	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils/logger"
+	"fmt"
+	"strconv"
+	"time"
+
 	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/analysis"
 	"github.com/blevesearch/bleve/v2/analysis/char/html"
@@ -32,7 +32,11 @@ import (
 	"github.com/blevesearch/bleve/v2/index/upsidedown/store/boltdb"
 	"github.com/blevesearch/bleve/v2/registry"
 	"go.uber.org/zap"
-	"time"
+
+	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils/logger"
 )
 
 const (
@@ -40,27 +44,27 @@ const (
 )
 
 type Indexer struct {
-	b      bleve.Index
-	doc    metastore.DocumentRecorder
-	cfg    config.Indexer
-	logger *zap.SugaredLogger
+	b        bleve.Index
+	recorder metastore.DEntry
+	cfg      config.Indexer
+	logger   *zap.SugaredLogger
 }
 
-func NewDocumentIndexer(doc metastore.DocumentRecorder, cfg config.Indexer) (*Indexer, error) {
+func NewDocumentIndexer(recorder metastore.DEntry, cfg config.Indexer) (*Indexer, error) {
 	b, err := openBleveLocalIndexer(cfg)
 	if err != nil {
 		return nil, err
 	}
 	return &Indexer{
-		b:      b,
-		doc:    doc,
-		cfg:    cfg,
-		logger: logger.NewLogger("indexer"),
+		b:        b,
+		recorder: recorder,
+		cfg:      cfg,
+		logger:   logger.NewLogger("indexer"),
 	}, nil
 }
 
 func (i *Indexer) Index(ctx context.Context, doc *types.Document) error {
-	err := i.b.Index(doc.ID, doc)
+	err := i.b.Index(int64ToStr(doc.ID), doc)
 	if err != nil {
 		i.logger.Errorw("index document failed", "document", doc.ID, "err", err)
 		return err
@@ -69,7 +73,7 @@ func (i *Indexer) Index(ctx context.Context, doc *types.Document) error {
 }
 
 func (i *Indexer) Delete(ctx context.Context, doc *types.Document) error {
-	err := i.b.Delete(doc.ID)
+	err := i.b.Delete(int64ToStr(doc.ID))
 	if err != nil {
 		i.logger.Errorw("delete document index failed", "document", doc.ID, "err", err)
 		return err
@@ -103,7 +107,12 @@ func (i *Indexer) Query(ctx context.Context, query, dialect string) ([]*types.Do
 		oneDoc  *types.Document
 	)
 	for _, match := range result.Hits {
-		oneDoc, err = i.doc.GetDocument(ctx, match.ID)
+		matchId, err := strToInt64(match.ID)
+		if err != nil {
+			i.logger.Errorw("turn doc id to int64 failed", "document", match.ID, "err", err)
+			return nil, err
+		}
+		oneDoc, err = i.recorder.GetDocument(ctx, matchId)
 		if err != nil {
 			i.logger.Errorw("get document failed", "document", match.ID, "err", err)
 			return nil, err
@@ -207,4 +216,12 @@ func AnalyzerConstructor(config map[string]interface{}, cache *registry.Cache) (
 
 func init() {
 	registry.RegisterAnalyzer(HtmlAnalyzer, AnalyzerConstructor)
+}
+
+func int64ToStr(s int64) string {
+	return fmt.Sprintf("doc_%d", s)
+}
+
+func strToInt64(s string) (int64, error) {
+	return strconv.ParseInt(s[4:], 10, 64)
 }

@@ -18,12 +18,14 @@ package document
 
 import (
 	"context"
-	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/types"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 	"path"
 	"time"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+
+	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 var _ = Describe("testDocumentManage", func() {
@@ -35,12 +37,12 @@ var _ = Describe("testDocumentManage", func() {
 	Context("init document indexer", func() {
 		It("init should be succeed", func() {
 			var err error
-			indexer, err = NewDocumentIndexer(docRecorder, cfg)
+			indexer, err = NewDocumentIndexer(docManager.recorder, cfg)
 			Expect(err).Should(BeNil())
 		})
 		It("insert one document should be succeed", func() {
 			Expect(indexer).ShouldNot(BeNil())
-			err := docRecorder.SaveDocument(ctx, needIndexedDoc)
+			err := docManager.recorder.SaveDocument(ctx, needIndexedDoc)
 			Expect(err).Should(BeNil())
 			err = indexer.Index(ctx, needIndexedDoc)
 			Expect(err).Should(BeNil())
@@ -57,7 +59,7 @@ var _ = Describe("testDocumentManage", func() {
 
 var (
 	needIndexedDoc = &types.Document{
-		ID:            "test-index-doc-1",
+		ID:            1727330397221748736,
 		OID:           1000,
 		Name:          "Hello World!",
 		ParentEntryID: 1,
