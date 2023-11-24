@@ -403,7 +403,7 @@ func (o *WorkflowJob) To() (*types.WorkflowJob, error) {
 }
 
 type Document struct {
-	ID            string    `gorm:"column:id;primaryKey"`
+	ID            int64     `gorm:"column:id;primaryKey"`
 	OID           int64     `gorm:"column:oid;index:doc_oid"`
 	Name          string    `gorm:"column:name;index:doc_name"`
 	Source        string    `gorm:"column:source;index:doc_source"`
@@ -436,13 +436,17 @@ func (d *Document) From(document *types.Document) *Document {
 }
 
 func (d *Document) To() *types.Document {
+	keyWords := []string{}
+	if strings.TrimSpace(d.KeyWords) != "" {
+		keyWords = strings.Split(d.KeyWords, ",")
+	}
 	result := &types.Document{
 		ID:            d.ID,
 		OID:           d.OID,
 		Name:          d.Name,
 		ParentEntryID: *d.ParentEntryID,
 		Source:        d.Source,
-		KeyWords:      strings.Split(d.KeyWords, ","),
+		KeyWords:      keyWords,
 		Content:       d.Content,
 		Summary:       d.Summary,
 		Desync:        d.Desync,

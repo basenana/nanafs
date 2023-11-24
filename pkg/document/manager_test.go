@@ -28,7 +28,7 @@ import (
 
 var _ = Describe("testDocumentManage", func() {
 	var (
-		docId string
+		docId int64
 		entry *types.Metadata
 		err   error
 	)
@@ -98,6 +98,65 @@ var _ = Describe("testDocumentManage", func() {
 			doc, err := docManager.GetDocument(context.TODO(), docId)
 			Expect(err).ShouldNot(BeNil())
 			Expect(doc).Should(BeNil())
+		})
+	})
+	Context("Feed", func() {
+		var (
+			grp     *types.Metadata
+			grpFile *types.Metadata
+			doc     *types.Document
+		)
+		It("create group should succeed", func() {
+			var err error
+			grp, err = entryMgr.CreateEntry(context.TODO(), root.ID, types.EntryAttr{
+				Name:   "test_feed_grp",
+				Kind:   types.GroupKind,
+				Access: accessPermissions,
+			})
+			Expect(err).Should(BeNil())
+			grpFile, err = entryMgr.CreateEntry(context.TODO(), grp.ID, types.EntryAttr{
+				Name:   "test_feed_grp_file",
+				Kind:   types.RawKind,
+				Access: accessPermissions,
+			})
+			Expect(err).Should(BeNil())
+			err = docManager.SaveDocument(context.TODO(), &types.Document{
+				OID:           grpFile.ID,
+				Name:          grpFile.Name,
+				ParentEntryID: grp.ID,
+				Content:       "this is content",
+				Summary:       "this is summary",
+			})
+			Expect(err).Should(BeNil())
+			doc, err = docManager.GetDocumentByEntryId(context.TODO(), grpFile.ID)
+			Expect(err).Should(BeNil())
+		})
+		It("Enable should succeed", func() {
+			err := docManager.EnableGroupFeed(context.TODO(), grp.ID, "test-feed")
+			Expect(err).Should(BeNil())
+			labels, err := docManager.recorder.GetEntryLabels(context.TODO(), grp.ID)
+			Expect(err).Should(BeNil())
+			Expect(labels.Get(labelKeyGroupFeedID).Value).Should(Equal("test-feed"))
+		})
+		It("Get group by feed should succeed", func() {
+			entry, err := docManager.GetGroupByFeedId(context.TODO(), "test-feed")
+			Expect(err).Should(BeNil())
+			Expect(entry.ID).Should(Equal(grp.ID))
+		})
+		It("Get docs by feed should succeed", func() {
+			docs, err := docManager.GetDocsByFeedId(context.TODO(), "test-feed", 1)
+			Expect(err).Should(BeNil())
+			Expect(len(docs)).Should(Equal(1))
+			Expect(docs[0].ID).Should(Equal(doc.ID))
+			Expect(docs[0].Content).Should(Equal(doc.Content))
+			Expect(docs[0].KeyWords).Should(Equal(doc.KeyWords))
+		})
+		It("Disable should succeed", func() {
+			err := docManager.DisableGroupFeed(context.TODO(), grp.ID)
+			Expect(err).Should(BeNil())
+			labels, err := docManager.recorder.GetEntryLabels(context.TODO(), grp.ID)
+			Expect(err).Should(BeNil())
+			Expect(labels.Get(labelKeyGroupFeedID)).Should(BeNil())
 		})
 	})
 })

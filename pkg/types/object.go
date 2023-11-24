@@ -29,8 +29,6 @@ const (
 	LabelKeyPluginPrefix = "org.basenana.internal.plugin/"
 	LabelKeyPluginKind   = LabelKeyPluginPrefix + "kind"
 	LabelKeyPluginName   = LabelKeyPluginPrefix + "name"
-
-	LabelKeyGroupFeedID = "org.basenana.internal.feed/id"
 )
 
 type SystemInfo struct {

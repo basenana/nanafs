@@ -19,14 +19,21 @@ package controller
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
 	"runtime/trace"
 	"strings"
+
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 )
 
 const (
 	attrSourcePluginPrefix = "org.basenana.plugin.source/"
+	attrFeedId             = "org.basenana.document/feed"
+
+	rssPostMetaID        = "org.basenana.plugin.rss/id"
+	rssPostMetaLink      = "org.basenana.plugin.rss/link"
+	rssPostMetaTitle     = "org.basenana.plugin.rss/title"
+	rssPostMetaUpdatedAt = "org.basenana.plugin.rss/updated_at"
 )
 
 func (c *controller) GetEntryExtendField(ctx context.Context, id int64, fKey string) ([]byte, error) {
@@ -68,7 +75,7 @@ func (c *controller) SetEntryExtendField(ctx context.Context, id int64, fKey str
 		return c.ConfigEntrySourcePlugin(ctx, id, scope)
 	}
 
-	if fKey == types.LabelKeyGroupFeedID {
+	if fKey == attrFeedId {
 		if err := c.EnableGroupFeed(ctx, id, strings.TrimSpace(string(fVal))); err != nil {
 			c.logger.Errorw("enable group feed failed", "val", fVal, "err", err)
 			return types.ErrUnsupported
@@ -90,7 +97,7 @@ func (c *controller) RemoveEntryExtendField(ctx context.Context, id int64, fKey 
 	if strings.HasPrefix(fKey, attrSourcePluginPrefix) {
 		return c.CleanupEntrySourcePlugin(ctx, id)
 	}
-	if fKey == types.LabelKeyGroupFeedID {
+	if fKey == attrFeedId {
 		return c.DisableGroupFeed(ctx, id)
 	}
 	err := c.entry.RemoveEntryExtendField(ctx, id, fKey)
@@ -117,41 +124,7 @@ func (c *controller) EnableGroupFeed(ctx context.Context, id int64, feedID strin
 		return fmt.Errorf("feed id is empty")
 	}
 
-	// TODO: using document manager
-	// TODO: check feed id is already existed?
-	labels, err := c.entry.GetEntryLabels(ctx, id)
-	if err != nil {
-		c.logger.Errorw("enable group feed failed when query labels", "entry", id, "err", err)
-		return err
-	}
-
-	var (
-		updated, found bool
-	)
-	for _, l := range labels.Labels {
-		if l.Key == types.LabelKeyGroupFeedID {
-			found = true
-			if l.Value != feedID {
-				l.Value = feedID
-				updated = true
-			}
-			break
-		}
-	}
-
-	if !found {
-		labels.Labels = append(labels.Labels, types.Label{Key: types.LabelKeyGroupFeedID, Value: feedID})
-		updated = true
-	}
-
-	if updated {
-		err = c.entry.UpdateEntryLabels(ctx, id, labels)
-		if err != nil {
-			c.logger.Errorw("enable group feed failed when write back labels", "entry", id, "err", err)
-			return err
-		}
-	}
-	return nil
+	return c.document.EnableGroupFeed(ctx, id, feedID)
 }
 
 func (c *controller) DisableGroupFeed(ctx context.Context, id int64) error {
@@ -166,34 +139,52 @@ func (c *controller) DisableGroupFeed(ctx context.Context, id int64) error {
 		return err
 	}
 
-	labels, err := c.entry.GetEntryLabels(ctx, id)
+	return c.document.DisableGroupFeed(ctx, id)
+}
+
+func (c *controller) GetDocumentsByFeed(ctx context.Context, feedId string, count int) (*types.Feed, error) {
+	group, err := c.document.GetGroupByFeedId(ctx, feedId)
 	if err != nil {
-		c.logger.Errorw("disable group feed failed when query lables", "entry", id, "err", err)
-		return err
+		c.logger.Errorw("get group by feed failed", "feedid", feedId, "err", err)
+		return nil, err
+	}
+	gExtend, err := c.entry.GetEntryExtendData(ctx, group.ID)
+	if err != nil {
+		c.logger.Errorw("get group extendData failed", "feedid", feedId, "entry", group.ID, "err", err)
+		return nil, err
 	}
 
-	var (
-		idx   int
-		total = len(labels.Labels)
-	)
-	for idx = 0; idx < total; idx++ {
-		if labels.Labels[idx].Key == types.LabelKeyGroupFeedID {
-			break
+	groupFeed := &types.Feed{
+		FeedId:    feedId,
+		GroupName: group.Name,
+		SiteUrl:   gExtend.Properties.Fields[attrSourcePluginPrefix+"site_url"].Value,
+		SiteName:  gExtend.Properties.Fields[attrSourcePluginPrefix+"site_name"].Value,
+		FeedUrl:   gExtend.Properties.Fields[attrSourcePluginPrefix+"feed_url"].Value,
+	}
+
+	docs, err := c.document.GetDocsByFeedId(ctx, feedId, count)
+	if err != nil {
+		c.logger.Errorw("get docs by feed failed", "feedid", feedId, "err", err)
+		return nil, err
+	}
+
+	docFeeds := make([]types.DocumentFeed, len(docs))
+	for i, doc := range docs {
+		eExtend, err := c.entry.GetEntryExtendData(ctx, doc.OID)
+		if err != nil {
+			c.logger.Errorw("get entry extendData failed", "feedid", feedId, "entry", doc.OID, "err", err)
+			return nil, err
+		}
+		docFeeds[i] = types.DocumentFeed{
+			ID:        eExtend.Properties.Fields[rssPostMetaID].Value,
+			Title:     eExtend.Properties.Fields[rssPostMetaTitle].Value,
+			Link:      eExtend.Properties.Fields[rssPostMetaLink].Value,
+			UpdatedAt: eExtend.Properties.Fields[rssPostMetaUpdatedAt].Value,
+			Document:  *doc,
 		}
 	}
-
-	if idx == total {
-		return nil
-	}
-
-	labels.Labels = append(labels.Labels[0:idx], labels.Labels[idx+1:total]...)
-
-	err = c.entry.UpdateEntryLabels(ctx, id, labels)
-	if err != nil {
-		c.logger.Errorw("disable group feed failed when write back labels", "entry", id, "err", err)
-		return err
-	}
-	return nil
+	groupFeed.Documents = docFeeds
+	return groupFeed, nil
 }
 
 func (c *controller) ConfigEntrySourcePlugin(ctx context.Context, id int64, patch types.ExtendData) error {

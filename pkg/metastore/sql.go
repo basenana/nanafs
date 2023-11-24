@@ -301,13 +301,13 @@ func (s *sqliteMetaStore) SaveDocument(ctx context.Context, doc *types.Document)
 	return s.dbStore.SaveDocument(ctx, doc)
 }
 
-func (s *sqliteMetaStore) ListDocument(ctx context.Context) ([]*types.Document, error) {
+func (s *sqliteMetaStore) ListDocument(ctx context.Context, parentId int64) ([]*types.Document, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.ListDocument(ctx)
+	return s.dbStore.ListDocument(ctx, parentId)
 }
 
-func (s *sqliteMetaStore) GetDocument(ctx context.Context, id string) (*types.Document, error) {
+func (s *sqliteMetaStore) GetDocument(ctx context.Context, id int64) (*types.Document, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	return s.dbStore.GetDocument(ctx, id)
@@ -325,7 +325,7 @@ func (s *sqliteMetaStore) GetDocumentByEntryId(ctx context.Context, oid int64) (
 	return s.dbStore.GetDocumentByEntryId(ctx, oid)
 }
 
-func (s *sqliteMetaStore) DeleteDocument(ctx context.Context, id string) error {
+func (s *sqliteMetaStore) DeleteDocument(ctx context.Context, id int64) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	return s.dbStore.DeleteDocument(ctx, id)
@@ -1530,10 +1530,10 @@ func (s *sqlMetaStore) SaveDocument(ctx context.Context, doc *types.Document) er
 	return nil
 }
 
-func (s *sqlMetaStore) ListDocument(ctx context.Context) ([]*types.Document, error) {
+func (s *sqlMetaStore) ListDocument(ctx context.Context, parentId int64) ([]*types.Document, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListDocument").End()
 	docList := make([]db.Document, 0)
-	res := s.WithContext(ctx).Order("created_at DESC").Find(&docList)
+	res := s.WithContext(ctx).Where("parent_entry_id = ?", parentId).Order("created_at DESC").Find(&docList)
 	if res.Error != nil {
 		return nil, db.SqlError2Error(res.Error)
 	}
@@ -1545,7 +1545,7 @@ func (s *sqlMetaStore) ListDocument(ctx context.Context) ([]*types.Document, err
 	return result, nil
 }
 
-func (s *sqlMetaStore) GetDocument(ctx context.Context, id string) (*types.Document, error) {
+func (s *sqlMetaStore) GetDocument(ctx context.Context, id int64) (*types.Document, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.GetDocument").End()
 	doc := &db.Document{}
 	res := s.WithContext(ctx).Where("id = ?", id).First(doc)
@@ -1575,7 +1575,7 @@ func (s *sqlMetaStore) GetDocumentByEntryId(ctx context.Context, oid int64) (*ty
 	return doc.To(), nil
 }
 
-func (s *sqlMetaStore) DeleteDocument(ctx context.Context, id string) error {
+func (s *sqlMetaStore) DeleteDocument(ctx context.Context, id int64) error {
 	defer trace.StartRegion(ctx, "metastore.sql.DeleteDocument").End()
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		res := tx.Where("id = ?", id).Delete(&db.Document{})

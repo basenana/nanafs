@@ -370,15 +370,15 @@ func (i instrumentalStore) SaveDocument(ctx context.Context, doc *types.Document
 	return err
 }
 
-func (i instrumentalStore) ListDocument(ctx context.Context) ([]*types.Document, error) {
+func (i instrumentalStore) ListDocument(ctx context.Context, parentId int64) ([]*types.Document, error) {
 	const operation = "list_document"
 	defer logOperationLatency(operation, time.Now())
-	docList, err := i.store.ListDocument(ctx)
+	docList, err := i.store.ListDocument(ctx, parentId)
 	logOperationError(operation, err)
 	return docList, err
 }
 
-func (i instrumentalStore) GetDocument(ctx context.Context, id string) (*types.Document, error) {
+func (i instrumentalStore) GetDocument(ctx context.Context, id int64) (*types.Document, error) {
 	const operation = "get_document"
 	defer logOperationLatency(operation, time.Now())
 	doc, err := i.store.GetDocument(ctx, id)
@@ -386,7 +386,7 @@ func (i instrumentalStore) GetDocument(ctx context.Context, id string) (*types.D
 	return doc, err
 }
 
-func (i instrumentalStore) DeleteDocument(ctx context.Context, id string) error {
+func (i instrumentalStore) DeleteDocument(ctx context.Context, id int64) error {
 	const operation = "delete_document"
 	defer logOperationLatency(operation, time.Now())
 	err := i.store.DeleteDocument(ctx, id)

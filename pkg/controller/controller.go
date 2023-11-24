@@ -56,6 +56,7 @@ type Controller interface {
 
 	EnableGroupFeed(ctx context.Context, id int64, feedID string) error
 	DisableGroupFeed(ctx context.Context, id int64) error
+	GetDocumentsByFeed(ctx context.Context, feedId string, count int) (*types.Feed, error)
 
 	OpenFile(ctx context.Context, entryId int64, attr types.OpenAttr) (dentry.File, error)
 	ReadFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error)

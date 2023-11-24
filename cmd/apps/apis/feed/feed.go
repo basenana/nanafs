@@ -53,8 +53,8 @@ type Item struct {
 	Author      *Author
 	Description string // used as description in rss, summary in atom
 	Id          string // used as guid in rss, id in atom
-	Updated     time.Time
-	Created     time.Time
+	Updated     string
+	Created     string
 	Content     string
 }
 

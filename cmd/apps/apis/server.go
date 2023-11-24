@@ -27,6 +27,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 
+	apifeed "github.com/basenana/nanafs/cmd/apps/apis/feed"
 	apifriday "github.com/basenana/nanafs/cmd/apps/apis/friday"
 	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
 	"github.com/basenana/nanafs/cmd/apps/apis/webdav"
@@ -82,7 +83,7 @@ func NewPathEntryManager(ctrl controller.Controller) (*pathmgr.PathManager, erro
 	return pathmgr.New(ctrl)
 }
 
-func NewApiServer(mgr *pathmgr.PathManager, cfg config.Config) (*Server, error) {
+func NewApiServer(ctrl controller.Controller, mgr *pathmgr.PathManager, cfg config.Config) (*Server, error) {
 	apiConfig := cfg.Api
 	if apiConfig.Enable && apiConfig.Port == 0 {
 		return nil, fmt.Errorf("http port not set")
@@ -91,6 +92,7 @@ func NewApiServer(mgr *pathmgr.PathManager, cfg config.Config) (*Server, error) 
 		cfg.Api.Host = "127.0.0.1"
 	}
 
+	feedServer := apifeed.NewFeedServer(ctrl)
 	s := &Server{
 		engine:    gin.New(),
 		apiConfig: apiConfig,
@@ -99,6 +101,7 @@ func NewApiServer(mgr *pathmgr.PathManager, cfg config.Config) (*Server, error) 
 
 	s.engine.GET("/_ping", s.Ping)
 	s.engine.POST("/friday/query", apifriday.Query)
+	s.engine.GET("/feed/:feedId", feedServer.Atom)
 
 	if apiConfig.Metrics {
 		s.engine.GET("/metrics", gin.WrapH(promhttp.Handler()))

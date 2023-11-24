@@ -34,9 +34,8 @@ import (
 )
 
 var (
-	docRecorder metastore.DocumentRecorder
-	docManager  *manager
-	entryMgr    dentry.Manager
+	docManager *manager
+	entryMgr   dentry.Manager
 
 	workdir string
 	root    *types.Metadata
@@ -59,7 +58,6 @@ func TestDEntry(t *testing.T) {
 var _ = BeforeSuite(func() {
 	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())
-	docRecorder = memMeta
 	entryMgr, err = dentry.NewManager(memMeta, config.Config{
 		FS: &config.FS{},
 		Storages: []config.Storage{{
@@ -70,7 +68,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 	docManager = &manager{
 		logger:   logger.NewLogger("doc"),
-		recorder: docRecorder,
+		recorder: memMeta,
 		entryMgr: entryMgr,
 	}
 

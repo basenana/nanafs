@@ -28,7 +28,6 @@ type Meta interface {
 	ChunkStore
 	NotificationRecorder
 	ScheduledTaskRecorder
-	DocumentRecorder
 }
 
 type DEntry interface {
@@ -59,6 +58,13 @@ type DEntry interface {
 	UpdateEntryExtendData(ctx context.Context, id int64, ed types.ExtendData) error
 	GetEntryLabels(ctx context.Context, id int64) (types.Labels, error)
 	UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error
+
+	SaveDocument(ctx context.Context, doc *types.Document) error
+	ListDocument(ctx context.Context, parentId int64) ([]*types.Document, error)
+	GetDocument(ctx context.Context, id int64) (*types.Document, error)
+	GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error)
+	GetDocumentByName(ctx context.Context, name string) (*types.Document, error)
+	DeleteDocument(ctx context.Context, id int64) error
 }
 
 type ChunkStore interface {
@@ -87,13 +93,4 @@ type NotificationRecorder interface {
 	ListNotifications(ctx context.Context) ([]types.Notification, error)
 	RecordNotification(ctx context.Context, nid string, no types.Notification) error
 	UpdateNotificationStatus(ctx context.Context, nid, status string) error
-}
-
-type DocumentRecorder interface {
-	SaveDocument(ctx context.Context, doc *types.Document) error
-	ListDocument(ctx context.Context) ([]*types.Document, error)
-	GetDocument(ctx context.Context, id string) (*types.Document, error)
-	GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error)
-	GetDocumentByName(ctx context.Context, name string) (*types.Document, error)
-	DeleteDocument(ctx context.Context, id string) error
 }

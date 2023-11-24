@@ -18,9 +18,10 @@ package apps
 
 import (
 	"fmt"
-	"github.com/basenana/nanafs/pkg/rule"
 	"path"
 	"time"
+
+	"github.com/basenana/nanafs/pkg/rule"
 
 	"github.com/spf13/cobra"
 
@@ -118,7 +119,7 @@ func run(ctrl controller.Controller, cfg config.Config, stopCh chan struct{}) {
 		log.Panicf("init api path entry manager error: %s", err)
 	}
 	if cfg.Api.Enable {
-		s, err := apis.NewApiServer(pathEntryMgr, cfg)
+		s, err := apis.NewApiServer(ctrl, pathEntryMgr, cfg)
 		if err != nil {
 			log.Panicw("init http server failed", "err", err.Error())
 		}
