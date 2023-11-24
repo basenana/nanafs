@@ -32,6 +32,7 @@ type Config struct {
 	Workflow Workflow           `json:"workflow"`
 	Plugin   *Plugin            `json:"plugin,omitempty"`
 	FS       *FS                `json:"fs,omitempty"`
+	Indexer  *Indexer           `json:"indexer,omitempty"`
 	Friday   *fridayconf.Config `json:"friday,omitempty"`
 
 	CacheDir  string `json:"cache_dir,omitempty"`
@@ -76,4 +77,8 @@ type OverwriteUser struct {
 	GID      int64  `json:"gid"`
 	Username string `json:"username"`
 	Password string `json:"password"`
+}
+
+type Indexer struct {
+	LocalIndexerDir string `json:"local_indexer_dir"`
 }

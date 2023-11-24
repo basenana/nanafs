@@ -49,3 +49,7 @@ type DocumentFeed struct {
 	UpdatedAt string   `json:"updated_at"`
 	Document  Document `json:"document"`
 }
+
+func (d *Document) BleveType() string {
+	return "document"
+}
