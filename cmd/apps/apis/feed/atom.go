@@ -60,7 +60,7 @@ func (a *AtomXmlGenerator) Generate(f Feed) interface{} {
 		entries = append(entries, &AtomEntry{
 			Title:   item.Title,
 			Links:   []AtomLink{link},
-			Updated: item.Updated.Format(time.RFC3339),
+			Updated: item.Updated,
 			Id:      item.Id,
 			Content: &AtomContent{
 				Content: item.Content,

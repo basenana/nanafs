@@ -51,7 +51,7 @@ var _ = Describe("TestAtomXmlGenerator", func() {
 						Link:        &Link{Href: "https://blog.hdls.me/a.html"},
 						Description: "summary for A",
 						Id:          "https://blog.hdls.me/a.html",
-						Updated:     updated,
+						Updated:     updatedStr,
 						Content:     "content for A",
 					},
 					{
@@ -59,7 +59,7 @@ var _ = Describe("TestAtomXmlGenerator", func() {
 						Link:        &Link{Href: "https://blog.hdls.me/b.html"},
 						Description: "summary for B",
 						Id:          "https://blog.hdls.me/b.html",
-						Updated:     updated,
+						Updated:     updatedStr,
 						Content:     "content for B",
 					},
 				},
