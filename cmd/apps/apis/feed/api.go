@@ -59,9 +59,17 @@ func (f *FeedServer) Atom(gCtx *gin.Context) {
 			contents := make([]string, 0)
 			if doc.Document.Summary != "" {
 				summaries := strings.Split(doc.Document.Summary, "\n")
-				sumContents := []string{fmt.Sprintf("<p><b>Summary</b>: %s</p>", summaries[0])}
-				for _, sum := range summaries[1:] {
-					sumContents = append(sumContents, fmt.Sprintf("<p>%s</p>", sum))
+				sumContents := make([]string, 0)
+				for j, sum := range summaries {
+					s := strings.TrimSpace(sum)
+					if s == "" {
+						continue
+					}
+					if j == 0 {
+						sumContents = append(sumContents, fmt.Sprintf("<p><b>Summary</b>: %s</p>", s))
+						continue
+					}
+					sumContents = append(sumContents, fmt.Sprintf("<p>%s</p>", s))
 				}
 				contents = append(contents, strings.Join(sumContents, ""))
 			}

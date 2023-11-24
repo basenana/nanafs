@@ -101,7 +101,7 @@ func NewApiServer(ctrl controller.Controller, mgr *pathmgr.PathManager, cfg conf
 
 	s.engine.GET("/_ping", s.Ping)
 	s.engine.POST("/friday/query", apifriday.Query)
-	s.engine.GET("/feed/:feedId", feedServer.Atom)
+	s.engine.GET("/feed/:feedId/atom.xml", feedServer.Atom)
 
 	if apiConfig.Metrics {
 		s.engine.GET("/metrics", gin.WrapH(promhttp.Handler()))
