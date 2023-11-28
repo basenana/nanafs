@@ -25,7 +25,6 @@ import (
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/document"
-	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/types"
@@ -211,9 +210,6 @@ func (c *controller) MirrorEntry(ctx context.Context, srcId, dstParentId int64, 
 		return nil, err
 	}
 	c.logger.Debugw("mirror entry", "src", srcId, "dstParent", dstParentId, "entry", entry.ID)
-
-	events.Publish(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeMirror),
-		dentry.BuildEntryEvent(events.ActionTypeMirror, entry))
 	return entry, nil
 }
 

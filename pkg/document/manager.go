@@ -19,6 +19,7 @@ package document
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"go.uber.org/zap"
@@ -49,9 +50,10 @@ type Manager interface {
 }
 
 type manager struct {
-	logger   *zap.SugaredLogger
 	recorder metastore.DEntry
 	entryMgr dentry.Manager
+	indexer  *Indexer
+	logger   *zap.SugaredLogger
 }
 
 var _ Manager = &manager{}
@@ -84,6 +86,7 @@ func (m *manager) SaveDocument(ctx context.Context, doc *types.Document) error {
 				doc.ID = utils.GenerateNewID()
 				doc.CreatedAt = time.Now()
 				doc.ChangedAt = time.Now()
+				m.publicDocActionEvent(events.ActionTypeCreate, doc)
 				return m.recorder.SaveDocument(ctx, doc)
 			}
 			return err
@@ -95,6 +98,7 @@ func (m *manager) SaveDocument(ctx context.Context, doc *types.Document) error {
 		crtDoc.KeyWords = doc.KeyWords
 		crtDoc.Content = doc.Content
 		crtDoc.Desync = doc.Desync
+		m.publicDocActionEvent(events.ActionTypeUpdate, doc)
 		return m.recorder.SaveDocument(ctx, crtDoc)
 	}
 	// update
@@ -112,6 +116,7 @@ func (m *manager) SaveDocument(ctx context.Context, doc *types.Document) error {
 	crtDoc.KeyWords = doc.KeyWords
 	crtDoc.Content = doc.Content
 	crtDoc.Desync = doc.Desync
+	m.publicDocActionEvent(events.ActionTypeUpdate, doc)
 	return m.recorder.SaveDocument(ctx, crtDoc)
 }
 
@@ -124,7 +129,16 @@ func (m *manager) GetDocumentByEntryId(ctx context.Context, oid int64) (*types.D
 }
 
 func (m *manager) DeleteDocument(ctx context.Context, id int64) error {
-	return m.recorder.DeleteDocument(ctx, id)
+	doc, err := m.GetDocument(ctx, id)
+	if err != nil {
+		return err
+	}
+	err = m.recorder.DeleteDocument(ctx, id)
+	if err != nil {
+		return err
+	}
+	m.publicDocActionEvent(events.ActionTypeDestroy, doc)
+	return nil
 }
 
 func (m *manager) GetGroupByFeedId(ctx context.Context, feedID string) (*types.Metadata, error) {
@@ -262,7 +276,7 @@ func (m *manager) DisableGroupFeed(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (m *manager) handleEvent(evt *types.EntryEvent) error {
+func (m *manager) handleEntryEvent(evt *types.EntryEvent) error {
 	ctx, cancel := context.WithTimeout(context.TODO(), time.Hour)
 	defer cancel()
 
@@ -338,17 +352,25 @@ func (m *manager) handleEvent(evt *types.EntryEvent) error {
 }
 
 func registerDocExecutor(docMgr *manager) error {
-	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeDestroy), docMgr.handleEvent); err != nil {
-		return err
+	eventMappings := []struct {
+		topic   string
+		action  string
+		handler func(*types.EntryEvent) error
+	}{
+		{events.TopicNamespaceEntry, events.ActionTypeDestroy, docMgr.handleEntryEvent},
+		{events.TopicNamespaceEntry, events.ActionTypeUpdate, docMgr.handleEntryEvent},
+		{events.TopicNamespaceEntry, events.ActionTypeChangeParent, docMgr.handleEntryEvent},
+		{events.TopicNamespaceFile, events.ActionTypeCompact, docMgr.handleEntryEvent},
+		{events.TopicNamespaceDocument, events.ActionTypeCreate, docMgr.handleDocumentEvent},
+		{events.TopicNamespaceDocument, events.ActionTypeUpdate, docMgr.handleDocumentEvent},
+		{events.TopicNamespaceDocument, events.ActionTypeDestroy, docMgr.handleDocumentEvent},
 	}
-	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeUpdate), docMgr.handleEvent); err != nil {
-		return err
+
+	for _, mapping := range eventMappings {
+		if _, err := events.Subscribe(events.NamespacedTopic(mapping.topic, mapping.action), mapping.handler); err != nil {
+			return fmt.Errorf("register doc event executor failed: %w", err)
+		}
 	}
-	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeChangeParent), docMgr.handleEvent); err != nil {
-		return err
-	}
-	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceFile, events.ActionTypeCompact), docMgr.handleEvent); err != nil {
-		return err
-	}
+
 	return nil
 }

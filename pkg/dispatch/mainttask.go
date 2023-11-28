@@ -172,10 +172,10 @@ func registerMaintainExecutor(
 
 	executors[maintainTaskIDChunkCompact] = ce
 	executors[maintainTaskIDEntryCleanup] = ee
-	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceFile, events.ActionTypeCompact), ce.handleEvent); err != nil {
+	if _, err := events.Subscribe(events.NamespacedTopic(events.TopicNamespaceFile, events.ActionTypeCompact), ce.handleEvent); err != nil {
 		return err
 	}
-	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeDestroy), ee.handleEvent); err != nil {
+	if _, err := events.Subscribe(events.NamespacedTopic(events.TopicNamespaceEntry, events.ActionTypeDestroy), ee.handleEvent); err != nil {
 		return err
 	}
 	return nil

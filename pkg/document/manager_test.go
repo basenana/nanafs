@@ -234,7 +234,7 @@ var _ = Describe("TestHandleEvent", func() {
 	})
 	Context("test handle action", func() {
 		It("destroy should be succeed", func() {
-			err := docManager.handleEvent(&types.EntryEvent{
+			err := docManager.handleEntryEvent(&types.EntryEvent{
 				Type: events.ActionTypeDestroy,
 				Data: types.EventData{
 					ID:       grp1File1.ID,
@@ -249,7 +249,7 @@ var _ = Describe("TestHandleEvent", func() {
 			err := entryMgr.ChangeEntryParent(context.TODO(), grp1File2.ID, nil, grp1.ID, root.ID, grp1File2.Name, types.ChangeParentAttr{})
 			Expect(err).Should(BeNil())
 
-			err = docManager.handleEvent(&types.EntryEvent{
+			err = docManager.handleEntryEvent(&types.EntryEvent{
 				Type: events.ActionTypeChangeParent,
 				Data: types.EventData{
 					ID:       grp1File2.ID,
@@ -265,7 +265,7 @@ var _ = Describe("TestHandleEvent", func() {
 			err := entryMgr.ChangeEntryParent(context.TODO(), grp1File3.ID, nil, grp1.ID, grp1.ID, "test3", types.ChangeParentAttr{})
 			Expect(err).Should(BeNil())
 
-			err = docManager.handleEvent(&types.EntryEvent{
+			err = docManager.handleEntryEvent(&types.EntryEvent{
 				Type: events.ActionTypeUpdate,
 				Data: types.EventData{
 					ID:       grp1File3.ID,
@@ -279,7 +279,7 @@ var _ = Describe("TestHandleEvent", func() {
 			Expect(doc.Name).Should(Equal("test3"))
 		})
 		It("compact should be succeed", func() {
-			err := docManager.handleEvent(&types.EntryEvent{
+			err := docManager.handleEntryEvent(&types.EntryEvent{
 				Type: events.ActionTypeCompact,
 				Data: types.EventData{
 					ID:       grp1File4.ID,

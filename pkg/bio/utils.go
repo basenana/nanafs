@@ -48,7 +48,7 @@ func buildCompactEvent(entry *types.Metadata) *types.EntryEvent {
 		RefType:         "entry",
 		RefID:           entry.ID,
 		DataContentType: "application/json",
-		Data:            types.NewEventData(entry),
+		Data:            types.NewEventDataFromEntry(entry),
 	}
 }
 

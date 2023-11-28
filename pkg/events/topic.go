@@ -17,8 +17,9 @@
 package events
 
 var (
-	TopicNamespaceEntry = "action.entry."
-	TopicNamespaceFile  = "action.file."
+	TopicNamespaceEntry    = "action.entry."
+	TopicNamespaceFile     = "action.file."
+	TopicNamespaceDocument = "action.document."
 
 	ActionTypeCreate       = "create"
 	ActionTypeUpdate       = "update"
@@ -31,6 +32,6 @@ var (
 	ActionTypeCompact      = "compact"
 )
 
-func EntryActionTopic(topicNamespace string, actionType string) string {
+func NamespacedTopic(topicNamespace string, actionType string) string {
 	return topicNamespace + actionType
 }

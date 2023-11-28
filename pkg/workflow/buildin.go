@@ -90,7 +90,7 @@ var (
 			Rule: types.Rule{
 				Operation: types.RuleOpEndWith,
 				Column:    "name",
-				Value:     "html,htm,pdf",
+				Value:     "html,htm,webarchive,pdf",
 			},
 			Steps: []types.WorkflowStepSpec{
 				{
