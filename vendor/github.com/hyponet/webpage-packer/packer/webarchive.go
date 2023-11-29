@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
+	"golang.org/x/net/html/charset"
 	"howett.net/plist"
 	"io"
 	"io/ioutil"
@@ -185,12 +186,22 @@ func (w *webArchiver) loadWebPageFromUrl(ctx context.Context, cli *http.Client, 
 		bodyReader = resp.Body
 	}
 
+	// fix text/html; charset=utf-8
+	contentTypeParts := strings.Split(resp.Header.Get("Content-Type"), ";")
+	contentType := strings.TrimSpace(contentTypeParts[0])
+
+	if strings.Contains(contentType, MIMEHTML) {
+		rawReader := bodyReader
+		bodyReader, err = charset.NewReader(rawReader, resp.Header.Get("Content-Type"))
+		if err != nil {
+			return fmt.Errorf("new charset reader with url %s error: %s", urlStr, err)
+		}
+	}
+
 	data, err := ioutil.ReadAll(bodyReader)
 	if err != nil {
 		return fmt.Errorf("read response body with url %s error: %s", urlStr, err)
 	}
-
-	contentType := resp.Header.Get("Content-Type")
 	item := WebResourceItem{
 		WebResourceURL:      urlStr,
 		WebResourceMIMEType: contentType,
@@ -203,10 +214,6 @@ func (w *webArchiver) loadWebPageFromUrl(ctx context.Context, cli *http.Client, 
 
 	switch {
 	case strings.Contains(contentType, MIMEHTML):
-		newHtml := xssSanitize(string(data))
-		data = []byte(newHtml)
-		item.WebResourceData = data
-
 		query, err := goquery.NewDocumentFromReader(bytes.NewReader(data))
 		if err != nil {
 			return fmt.Errorf("build doc query with url %s error: %s", urlStr, err)
@@ -223,10 +230,12 @@ func (w *webArchiver) loadWebPageFromUrl(ctx context.Context, cli *http.Client, 
 			}
 			srcVal, isExisted = selection.Attr("data-src")
 			if isExisted {
+				selection.SetAttr("src", srcVal)
 				nextUrl(w.workerQ, urlStr, srcVal)
 			}
 			srcVal, isExisted = selection.Attr("data-src-retina")
 			if isExisted {
+				selection.SetAttr("src", srcVal)
 				nextUrl(w.workerQ, urlStr, srcVal)
 			}
 		})
@@ -249,6 +258,15 @@ func (w *webArchiver) loadWebPageFromUrl(ctx context.Context, cli *http.Client, 
 			}
 		})
 
+		patchedHtml, err := query.Html()
+		if err != nil {
+			return err
+		}
+
+		newHtml := xssSanitize(patchedHtml)
+		data = []byte(newHtml)
+		item.WebResourceData = data
+		w.resource.WebSubresources[0] = item
 		close(w.workerQ)
 
 	case strings.Contains(contentType, MIMECSS):

@@ -47,12 +47,8 @@ func (m *manager) entryActionEventHandler() {
 			m.logger.Errorw("encounter error when handle entry event", "entry", evt.entryID, "action", evt.actionType, "err", err)
 			continue
 		}
-		events.Publish(events.EntryActionTopic(evt.topicNS, evt.actionType), BuildEntryEvent(evt.actionType, en))
+		events.Publish(events.NamespacedTopic(evt.topicNS, evt.actionType), BuildEntryEvent(evt.actionType, en))
 	}
-}
-
-func PublicEntryActionEvent(actionType string, en *types.Metadata) {
-	events.Publish(events.EntryActionTopic(events.TopicNamespaceEntry, actionType), BuildEntryEvent(actionType, en))
 }
 
 func BuildEntryEvent(actionType string, entry *types.Metadata) *types.EntryEvent {
@@ -65,6 +61,6 @@ func BuildEntryEvent(actionType string, entry *types.Metadata) *types.EntryEvent
 		RefType:         "entry",
 		RefID:           entry.ID,
 		DataContentType: "application/json",
-		Data:            types.NewEventData(entry),
+		Data:            types.NewEventDataFromEntry(entry),
 	}
 }

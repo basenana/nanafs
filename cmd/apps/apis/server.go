@@ -27,7 +27,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 
-	apifeed "github.com/basenana/nanafs/cmd/apps/apis/feed"
+	apifeed "github.com/basenana/nanafs/cmd/apps/apis/document"
 	apifriday "github.com/basenana/nanafs/cmd/apps/apis/friday"
 	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
 	"github.com/basenana/nanafs/cmd/apps/apis/webdav"
@@ -92,7 +92,7 @@ func NewApiServer(ctrl controller.Controller, mgr *pathmgr.PathManager, cfg conf
 		cfg.Api.Host = "127.0.0.1"
 	}
 
-	feedServer := apifeed.NewFeedServer(ctrl)
+	docAPIServer := apifeed.NewDocumentAPIServer(ctrl)
 	s := &Server{
 		engine:    gin.New(),
 		apiConfig: apiConfig,
@@ -101,7 +101,8 @@ func NewApiServer(ctrl controller.Controller, mgr *pathmgr.PathManager, cfg conf
 
 	s.engine.GET("/_ping", s.Ping)
 	s.engine.POST("/friday/query", apifriday.Query)
-	s.engine.GET("/feed/:feedId/atom.xml", feedServer.Atom)
+	s.engine.GET("/document/query", docAPIServer.Query)
+	s.engine.GET("/feed/:feedId/atom.xml", docAPIServer.Atom)
 
 	if apiConfig.Metrics {
 		s.engine.GET("/metrics", gin.WrapH(promhttp.Handler()))

@@ -328,7 +328,7 @@ func (m *manager) MirrorEntry(ctx context.Context, srcId, dstParentId int64, att
 		m.logger.Errorw("update dst parent object ref count error", "srcEntry", srcId, "dstParent", dstParentId, "err", err.Error())
 		return nil, err
 	}
-
+	m.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeMirror, en.ID)
 	return en, nil
 }
 
@@ -668,16 +668,16 @@ func (m *manager) getOrSaveEntryUri(ctx context.Context, entry *types.Metadata) 
 }
 
 func registerEntryExecutor(entryMgr *manager) error {
-	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeCreate), entryMgr.handleEvent); err != nil {
+	if _, err := events.Subscribe(events.NamespacedTopic(events.TopicNamespaceEntry, events.ActionTypeCreate), entryMgr.handleEvent); err != nil {
 		return err
 	}
-	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeDestroy), entryMgr.handleEvent); err != nil {
+	if _, err := events.Subscribe(events.NamespacedTopic(events.TopicNamespaceEntry, events.ActionTypeDestroy), entryMgr.handleEvent); err != nil {
 		return err
 	}
-	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeUpdate), entryMgr.handleEvent); err != nil {
+	if _, err := events.Subscribe(events.NamespacedTopic(events.TopicNamespaceEntry, events.ActionTypeUpdate), entryMgr.handleEvent); err != nil {
 		return err
 	}
-	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeChangeParent), entryMgr.handleEvent); err != nil {
+	if _, err := events.Subscribe(events.NamespacedTopic(events.TopicNamespaceEntry, events.ActionTypeChangeParent), entryMgr.handleEvent); err != nil {
 		return err
 	}
 	return nil

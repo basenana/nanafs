@@ -182,7 +182,7 @@ func registerWorkflowExecutor(
 		logger:   logger.NewLogger("workflowExecutor"),
 	}
 	executors[workflowAutoTriggerExecID] = e
-	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeCreate), e.handleEvent); err != nil {
+	if _, err := events.Subscribe(events.NamespacedTopic(events.TopicNamespaceEntry, events.ActionTypeCreate), e.handleEvent); err != nil {
 		return err
 	}
 	return nil

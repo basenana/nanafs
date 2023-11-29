@@ -14,7 +14,7 @@
   limitations under the License.
 */
 
-package feed
+package document
 
 import (
 	"encoding/xml"

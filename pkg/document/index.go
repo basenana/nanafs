@@ -72,10 +72,10 @@ func (i *Indexer) Index(ctx context.Context, doc *types.Document) error {
 	return err
 }
 
-func (i *Indexer) Delete(ctx context.Context, doc *types.Document) error {
-	err := i.b.Delete(int64ToStr(doc.ID))
+func (i *Indexer) Delete(ctx context.Context, docID int64) error {
+	err := i.b.Delete(int64ToStr(docID))
 	if err != nil {
-		i.logger.Errorw("delete document index failed", "document", doc.ID, "err", err)
+		i.logger.Errorw("delete document index failed", "document", docID, "err", err)
 		return err
 	}
 	return err

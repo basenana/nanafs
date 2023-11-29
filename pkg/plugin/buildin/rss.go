@@ -184,6 +184,10 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 			continue
 		}
 
+		if item.Content == "" && item.Description != "" {
+			item.Content = item.Description
+		}
+
 		filePath := path.Join(workdir, item.Title)
 		switch source.FileType {
 		case archiveFileTypeUrl:

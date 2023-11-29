@@ -14,10 +14,12 @@
   limitations under the License.
 */
 
-package feed
+package document
 
 import (
 	"fmt"
+	"github.com/basenana/nanafs/utils/logger"
+	"go.uber.org/zap"
 	"strconv"
 	"strings"
 
@@ -26,15 +28,31 @@ import (
 	"github.com/basenana/nanafs/pkg/controller"
 )
 
-type FeedServer struct {
-	ctrl controller.Controller
+type Server struct {
+	ctrl   controller.Controller
+	logger *zap.SugaredLogger
 }
 
-func NewFeedServer(ctrl controller.Controller) *FeedServer {
-	return &FeedServer{ctrl: ctrl}
+func NewDocumentAPIServer(ctrl controller.Controller) *Server {
+	return &Server{ctrl: ctrl, logger: logger.NewLogger("documentAPI")}
 }
 
-func (f *FeedServer) Atom(gCtx *gin.Context) {
+func (f *Server) Query(gCtx *gin.Context) {
+	queryStr := gCtx.Query("q")
+	docList, err := f.ctrl.QueryDocuments(gCtx, queryStr)
+	if err != nil {
+		gCtx.String(400, "Invalid parameter")
+		return
+	}
+
+	for _, doc := range docList {
+		f.logger.Infof("hit: %s", doc.Name)
+	}
+
+	gCtx.String(200, "OK")
+}
+
+func (f *Server) Atom(gCtx *gin.Context) {
 	feedId := gCtx.Param("feedId")
 	countStr := gCtx.Query("count")
 	count := 20

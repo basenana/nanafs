@@ -21,6 +21,9 @@ func xssSanitize(bodyContent string) string {
 }
 
 func nextUrl(workQ chan string, topUrl, nextUrl string) {
+	if nextUrl == "" {
+		return
+	}
 	topParsedUrl, err := url.Parse(topUrl)
 	if err != nil {
 		return

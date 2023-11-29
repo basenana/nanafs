@@ -19,6 +19,8 @@ package document
 import (
 	"context"
 	"errors"
+	"fmt"
+	"github.com/basenana/nanafs/config"
 	"time"
 
 	"go.uber.org/zap"
@@ -37,6 +39,7 @@ const (
 
 type Manager interface {
 	ListDocuments(ctx context.Context, parentId int64) ([]*types.Document, error)
+	QueryDocuments(ctx context.Context, query string) ([]*types.Document, error)
 	SaveDocument(ctx context.Context, doc *types.Document) error
 	GetDocument(ctx context.Context, id int64) (*types.Document, error)
 	GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error)
@@ -49,14 +52,15 @@ type Manager interface {
 }
 
 type manager struct {
-	logger   *zap.SugaredLogger
 	recorder metastore.DEntry
 	entryMgr dentry.Manager
+	indexer  *Indexer
+	logger   *zap.SugaredLogger
 }
 
 var _ Manager = &manager{}
 
-func NewManager(recorder metastore.DEntry, entryMgr dentry.Manager) (Manager, error) {
+func NewManager(recorder metastore.DEntry, entryMgr dentry.Manager, indexerCfg *config.Indexer) (Manager, error) {
 	docLogger := logger.NewLogger("document")
 	docMgr := &manager{
 		logger:   docLogger,
@@ -64,7 +68,18 @@ func NewManager(recorder metastore.DEntry, entryMgr dentry.Manager) (Manager, er
 		entryMgr: entryMgr,
 	}
 	err := registerDocExecutor(docMgr)
-	return docMgr, err
+	if err != nil {
+		return nil, err
+	}
+
+	if indexerCfg != nil {
+		docMgr.indexer, err = NewDocumentIndexer(recorder, *indexerCfg)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return docMgr, nil
 }
 
 func (m *manager) ListDocuments(ctx context.Context, parentId int64) ([]*types.Document, error) {
@@ -73,6 +88,13 @@ func (m *manager) ListDocuments(ctx context.Context, parentId int64) ([]*types.D
 		return nil, err
 	}
 	return result, nil
+}
+
+func (m *manager) QueryDocuments(ctx context.Context, query string) ([]*types.Document, error) {
+	if m.indexer == nil {
+		return nil, fmt.Errorf("indexer not enable")
+	}
+	return m.indexer.Query(ctx, query, QueryDialectBleve)
 }
 
 func (m *manager) SaveDocument(ctx context.Context, doc *types.Document) error {
@@ -84,8 +106,14 @@ func (m *manager) SaveDocument(ctx context.Context, doc *types.Document) error {
 				doc.ID = utils.GenerateNewID()
 				doc.CreatedAt = time.Now()
 				doc.ChangedAt = time.Now()
-				return m.recorder.SaveDocument(ctx, doc)
+				if err = m.recorder.SaveDocument(ctx, doc); err != nil {
+					m.logger.Errorw("create document failed", "document", doc.ID, "err", err)
+					return err
+				}
+				m.publicDocActionEvent(events.ActionTypeCreate, doc)
+				return nil
 			}
+			m.logger.Errorw("create document failed", "err", err)
 			return err
 		}
 
@@ -95,7 +123,12 @@ func (m *manager) SaveDocument(ctx context.Context, doc *types.Document) error {
 		crtDoc.KeyWords = doc.KeyWords
 		crtDoc.Content = doc.Content
 		crtDoc.Desync = doc.Desync
-		return m.recorder.SaveDocument(ctx, crtDoc)
+		if err = m.recorder.SaveDocument(ctx, crtDoc); err != nil {
+			m.logger.Errorw("update document failed", "document", crtDoc.ID, "err", err)
+			return err
+		}
+		m.publicDocActionEvent(events.ActionTypeUpdate, doc)
+		return nil
 	}
 	// update
 	crtDoc, err := m.recorder.GetDocument(ctx, doc.ID)
@@ -112,7 +145,12 @@ func (m *manager) SaveDocument(ctx context.Context, doc *types.Document) error {
 	crtDoc.KeyWords = doc.KeyWords
 	crtDoc.Content = doc.Content
 	crtDoc.Desync = doc.Desync
-	return m.recorder.SaveDocument(ctx, crtDoc)
+	if err = m.recorder.SaveDocument(ctx, crtDoc); err != nil {
+		m.logger.Errorw("update document failed", "document", doc.ID, "err", err)
+		return err
+	}
+	m.publicDocActionEvent(events.ActionTypeUpdate, doc)
+	return nil
 }
 
 func (m *manager) GetDocument(ctx context.Context, id int64) (*types.Document, error) {
@@ -124,7 +162,16 @@ func (m *manager) GetDocumentByEntryId(ctx context.Context, oid int64) (*types.D
 }
 
 func (m *manager) DeleteDocument(ctx context.Context, id int64) error {
-	return m.recorder.DeleteDocument(ctx, id)
+	doc, err := m.GetDocument(ctx, id)
+	if err != nil {
+		return err
+	}
+	err = m.recorder.DeleteDocument(ctx, id)
+	if err != nil {
+		return err
+	}
+	m.publicDocActionEvent(events.ActionTypeDestroy, doc)
+	return nil
 }
 
 func (m *manager) GetGroupByFeedId(ctx context.Context, feedID string) (*types.Metadata, error) {
@@ -262,7 +309,7 @@ func (m *manager) DisableGroupFeed(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (m *manager) handleEvent(evt *types.EntryEvent) error {
+func (m *manager) handleEntryEvent(evt *types.EntryEvent) error {
 	ctx, cancel := context.WithTimeout(context.TODO(), time.Hour)
 	defer cancel()
 
@@ -338,17 +385,25 @@ func (m *manager) handleEvent(evt *types.EntryEvent) error {
 }
 
 func registerDocExecutor(docMgr *manager) error {
-	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeDestroy), docMgr.handleEvent); err != nil {
-		return err
+	eventMappings := []struct {
+		topic   string
+		action  string
+		handler func(*types.EntryEvent) error
+	}{
+		{events.TopicNamespaceEntry, events.ActionTypeDestroy, docMgr.handleEntryEvent},
+		{events.TopicNamespaceEntry, events.ActionTypeUpdate, docMgr.handleEntryEvent},
+		{events.TopicNamespaceEntry, events.ActionTypeChangeParent, docMgr.handleEntryEvent},
+		{events.TopicNamespaceFile, events.ActionTypeCompact, docMgr.handleEntryEvent},
+		{events.TopicNamespaceDocument, events.ActionTypeCreate, docMgr.handleDocumentEvent},
+		{events.TopicNamespaceDocument, events.ActionTypeUpdate, docMgr.handleDocumentEvent},
+		{events.TopicNamespaceDocument, events.ActionTypeDestroy, docMgr.handleDocumentEvent},
 	}
-	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeUpdate), docMgr.handleEvent); err != nil {
-		return err
+
+	for _, mapping := range eventMappings {
+		if _, err := events.Subscribe(events.NamespacedTopic(mapping.topic, mapping.action), mapping.handler); err != nil {
+			return fmt.Errorf("register doc event executor failed: %w", err)
+		}
 	}
-	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceEntry, events.ActionTypeChangeParent), docMgr.handleEvent); err != nil {
-		return err
-	}
-	if _, err := events.Subscribe(events.EntryActionTopic(events.TopicNamespaceFile, events.ActionTypeCompact), docMgr.handleEvent); err != nil {
-		return err
-	}
+
 	return nil
 }

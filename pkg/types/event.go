@@ -34,15 +34,15 @@ type EntryEvent struct {
 
 type EventData struct {
 	ID        int64  `json:"id"`
-	ParentID  int64  `json:"parent_id"`
+	ParentID  int64  `json:"parent_id,omitempty"`
 	RefID     int64  `json:"ref_id,omitempty"`
-	Kind      Kind   `json:"kind"`
-	KindMap   int64  `json:"kind_map"`
+	Kind      Kind   `json:"kind,omitempty"`
+	KindMap   int64  `json:"kind_map,omitempty"`
 	Namespace string `json:"namespace,omitempty"`
-	Storage   string `json:"storage"`
+	Storage   string `json:"storage,omitempty"`
 }
 
-func NewEventData(entry *Metadata) EventData {
+func NewEventDataFromEntry(entry *Metadata) EventData {
 	return EventData{
 		ID:        entry.ID,
 		ParentID:  entry.ParentID,
@@ -52,6 +52,10 @@ func NewEventData(entry *Metadata) EventData {
 		Namespace: entry.Namespace,
 		Storage:   entry.Storage,
 	}
+}
+
+func NewEventDataFromDocument(doc *Document) EventData {
+	return EventData{ID: doc.ID}
 }
 
 const (

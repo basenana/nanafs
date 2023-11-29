@@ -74,7 +74,7 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).Should(BeNil())
 
-	docMgr, err = document.NewManager(memMeta, entryMgr)
+	docMgr, err = document.NewManager(memMeta, entryMgr, nil)
 	Expect(err).Should(BeNil())
 
 	// init plugin
