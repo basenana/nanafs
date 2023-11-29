@@ -56,6 +56,7 @@ type Controller interface {
 	EnableGroupFeed(ctx context.Context, id int64, feedID string) error
 	DisableGroupFeed(ctx context.Context, id int64) error
 	GetDocumentsByFeed(ctx context.Context, feedId string, count int) (*types.Feed, error)
+	QueryDocuments(ctx context.Context, query string) ([]*types.Document, error)
 
 	OpenFile(ctx context.Context, entryId int64, attr types.OpenAttr) (dentry.File, error)
 	ReadFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error)
@@ -302,7 +303,7 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 		return nil, err
 	}
 
-	ctl.document, err = document.NewManager(meta, ctl.entry)
+	ctl.document, err = document.NewManager(meta, ctl.entry, cfg.Indexer)
 	if err != nil {
 		return nil, err
 	}

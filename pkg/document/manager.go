@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/basenana/nanafs/config"
 	"time"
 
 	"go.uber.org/zap"
@@ -38,6 +39,7 @@ const (
 
 type Manager interface {
 	ListDocuments(ctx context.Context, parentId int64) ([]*types.Document, error)
+	QueryDocuments(ctx context.Context, query string) ([]*types.Document, error)
 	SaveDocument(ctx context.Context, doc *types.Document) error
 	GetDocument(ctx context.Context, id int64) (*types.Document, error)
 	GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error)
@@ -58,7 +60,7 @@ type manager struct {
 
 var _ Manager = &manager{}
 
-func NewManager(recorder metastore.DEntry, entryMgr dentry.Manager) (Manager, error) {
+func NewManager(recorder metastore.DEntry, entryMgr dentry.Manager, indexerCfg *config.Indexer) (Manager, error) {
 	docLogger := logger.NewLogger("document")
 	docMgr := &manager{
 		logger:   docLogger,
@@ -66,7 +68,18 @@ func NewManager(recorder metastore.DEntry, entryMgr dentry.Manager) (Manager, er
 		entryMgr: entryMgr,
 	}
 	err := registerDocExecutor(docMgr)
-	return docMgr, err
+	if err != nil {
+		return nil, err
+	}
+
+	if indexerCfg != nil {
+		docMgr.indexer, err = NewDocumentIndexer(recorder, *indexerCfg)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return docMgr, nil
 }
 
 func (m *manager) ListDocuments(ctx context.Context, parentId int64) ([]*types.Document, error) {
@@ -75,6 +88,13 @@ func (m *manager) ListDocuments(ctx context.Context, parentId int64) ([]*types.D
 		return nil, err
 	}
 	return result, nil
+}
+
+func (m *manager) QueryDocuments(ctx context.Context, query string) ([]*types.Document, error) {
+	if m.indexer == nil {
+		return nil, fmt.Errorf("indexer not enable")
+	}
+	return m.indexer.Query(ctx, query, QueryDialectBleve)
 }
 
 func (m *manager) SaveDocument(ctx context.Context, doc *types.Document) error {
@@ -86,9 +106,14 @@ func (m *manager) SaveDocument(ctx context.Context, doc *types.Document) error {
 				doc.ID = utils.GenerateNewID()
 				doc.CreatedAt = time.Now()
 				doc.ChangedAt = time.Now()
+				if err = m.recorder.SaveDocument(ctx, doc); err != nil {
+					m.logger.Errorw("create document failed", "document", doc.ID, "err", err)
+					return err
+				}
 				m.publicDocActionEvent(events.ActionTypeCreate, doc)
-				return m.recorder.SaveDocument(ctx, doc)
+				return nil
 			}
+			m.logger.Errorw("create document failed", "err", err)
 			return err
 		}
 
@@ -98,8 +123,12 @@ func (m *manager) SaveDocument(ctx context.Context, doc *types.Document) error {
 		crtDoc.KeyWords = doc.KeyWords
 		crtDoc.Content = doc.Content
 		crtDoc.Desync = doc.Desync
+		if err = m.recorder.SaveDocument(ctx, crtDoc); err != nil {
+			m.logger.Errorw("update document failed", "document", crtDoc.ID, "err", err)
+			return err
+		}
 		m.publicDocActionEvent(events.ActionTypeUpdate, doc)
-		return m.recorder.SaveDocument(ctx, crtDoc)
+		return nil
 	}
 	// update
 	crtDoc, err := m.recorder.GetDocument(ctx, doc.ID)
@@ -116,8 +145,12 @@ func (m *manager) SaveDocument(ctx context.Context, doc *types.Document) error {
 	crtDoc.KeyWords = doc.KeyWords
 	crtDoc.Content = doc.Content
 	crtDoc.Desync = doc.Desync
+	if err = m.recorder.SaveDocument(ctx, crtDoc); err != nil {
+		m.logger.Errorw("update document failed", "document", doc.ID, "err", err)
+		return err
+	}
 	m.publicDocActionEvent(events.ActionTypeUpdate, doc)
-	return m.recorder.SaveDocument(ctx, crtDoc)
+	return nil
 }
 
 func (m *manager) GetDocument(ctx context.Context, id int64) (*types.Document, error) {

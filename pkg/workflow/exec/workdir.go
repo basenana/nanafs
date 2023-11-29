@@ -23,6 +23,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/basenana/nanafs/pkg/dentry"
@@ -224,7 +225,7 @@ func collectFile2Document(ctx context.Context, docMgr document.Manager, entryMgr
 	}
 	err = docMgr.SaveDocument(ctx, &types.Document{
 		OID:           baseEn.ID,
-		Name:          baseEn.Name,
+		Name:          trimFileExtension(baseEn.Name),
 		ParentEntryID: baseEn.ParentID,
 		Source:        "collect",
 		KeyWords:      keyWords,
@@ -236,4 +237,9 @@ func collectFile2Document(ctx context.Context, docMgr document.Manager, entryMgr
 	}
 
 	return nil
+}
+
+func trimFileExtension(fileName string) string {
+	fileName = strings.TrimSuffix(fileName, filepath.Ext(fileName))
+	return strings.TrimSpace(fileName)
 }

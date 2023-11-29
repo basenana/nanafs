@@ -142,51 +142,6 @@ func (c *controller) DisableGroupFeed(ctx context.Context, id int64) error {
 	return c.document.DisableGroupFeed(ctx, id)
 }
 
-func (c *controller) GetDocumentsByFeed(ctx context.Context, feedId string, count int) (*types.Feed, error) {
-	group, err := c.document.GetGroupByFeedId(ctx, feedId)
-	if err != nil {
-		c.logger.Errorw("get group by feed failed", "feedid", feedId, "err", err)
-		return nil, err
-	}
-	gExtend, err := c.entry.GetEntryExtendData(ctx, group.ID)
-	if err != nil {
-		c.logger.Errorw("get group extendData failed", "feedid", feedId, "entry", group.ID, "err", err)
-		return nil, err
-	}
-
-	groupFeed := &types.Feed{
-		FeedId:    feedId,
-		GroupName: group.Name,
-		SiteUrl:   gExtend.Properties.Fields[attrSourcePluginPrefix+"site_url"].Value,
-		SiteName:  gExtend.Properties.Fields[attrSourcePluginPrefix+"site_name"].Value,
-		FeedUrl:   gExtend.Properties.Fields[attrSourcePluginPrefix+"feed_url"].Value,
-	}
-
-	docs, err := c.document.GetDocsByFeedId(ctx, feedId, count)
-	if err != nil {
-		c.logger.Errorw("get docs by feed failed", "feedid", feedId, "err", err)
-		return nil, err
-	}
-
-	docFeeds := make([]types.DocumentFeed, len(docs))
-	for i, doc := range docs {
-		eExtend, err := c.entry.GetEntryExtendData(ctx, doc.OID)
-		if err != nil {
-			c.logger.Errorw("get entry extendData failed", "feedid", feedId, "entry", doc.OID, "err", err)
-			return nil, err
-		}
-		docFeeds[i] = types.DocumentFeed{
-			ID:        eExtend.Properties.Fields[rssPostMetaID].Value,
-			Title:     eExtend.Properties.Fields[rssPostMetaTitle].Value,
-			Link:      eExtend.Properties.Fields[rssPostMetaLink].Value,
-			UpdatedAt: eExtend.Properties.Fields[rssPostMetaUpdatedAt].Value,
-			Document:  *doc,
-		}
-	}
-	groupFeed.Documents = docFeeds
-	return groupFeed, nil
-}
-
 func (c *controller) ConfigEntrySourcePlugin(ctx context.Context, id int64, patch types.ExtendData) error {
 	defer trace.StartRegion(ctx, "controller.ConfigEntrySourcePlugin").End()
 	c.logger.Infow("setup entry source plugin config", "entry", id)
