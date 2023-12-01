@@ -15,6 +15,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 )
 
 type WebArchive struct {
@@ -104,10 +105,12 @@ func (w *webArchiver) workerRun(ctx context.Context, opt Option, errCh chan erro
 				w.seen[urlStr] = struct{}{}
 				w.mux.Unlock()
 				if err := w.loadWebPageFromUrl(ctx, cli, headers, urlStr); err != nil {
-					select {
-					case errCh <- err:
-					default:
+					if len(w.resource.WebSubresources) == 0 {
+						select {
+						case errCh <- err:
+						default:
 
+						}
 					}
 				}
 			}
@@ -163,10 +166,18 @@ func (w *webArchiver) loadWebPageFromUrl(ctx context.Context, cli *http.Client, 
 		req.Header.Set(k, v)
 	}
 
-	resp, err := cli.Do(req.WithContext(ctx))
+	var resp *http.Response
+	for i := 0; i < 10; i++ {
+		resp, err = cli.Do(req.WithContext(ctx))
+		if err == nil {
+			break
+		}
+		time.Sleep(time.Second * 5)
+	}
 	if err != nil {
 		return fmt.Errorf("do request with url %s error: %s", urlStr, err)
 	}
+
 	defer func() {
 		_, _ = ioutil.ReadAll(resp.Body)
 		_ = resp.Body.Close()
@@ -263,8 +274,8 @@ func (w *webArchiver) loadWebPageFromUrl(ctx context.Context, cli *http.Client, 
 			return err
 		}
 
-		newHtml := xssSanitize(patchedHtml)
-		data = []byte(newHtml)
+		//patchedHtml = xssSanitize(patchedHtml)
+		data = []byte(patchedHtml)
 		item.WebResourceData = data
 		w.resource.WebSubresources[0] = item
 		close(w.workerQ)
