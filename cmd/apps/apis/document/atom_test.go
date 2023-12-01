@@ -74,7 +74,6 @@ var _ = Describe("TestAtomXmlGenerator", func() {
 			Expect(x).Should(Equal(`<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom">
   <title>hdls</title>
   <link href="https://blog.hdls.me/"></link>
-  <link href="https:/blog.hdls.me/atom.xml" rel="self"></link>
   <updated>2023-11-11T21:34:50+08:00</updated>
   <id>https://blog.hdls.me/</id>
   <author>

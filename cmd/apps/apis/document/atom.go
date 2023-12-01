@@ -18,7 +18,6 @@ package document
 
 import (
 	"encoding/xml"
-	"path"
 	"time"
 )
 
@@ -34,10 +33,6 @@ func (a *AtomXmlGenerator) Generate(f Feed) interface{} {
 	links := []AtomLink{}
 	if f.Link != nil {
 		links = append(links, AtomLink{Href: f.Link.Href, Rel: f.Link.Rel})
-		links = append(links, AtomLink{
-			Href: path.Join(f.Link.Href, "/atom.xml"),
-			Rel:  "self",
-		})
 	}
 	generator := AtomGenerator{}
 	if f.Generator != nil {
