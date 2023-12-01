@@ -45,6 +45,10 @@ var _ = Describe("TestAtomXmlGenerator", func() {
 				Author:      &Author{Name: "hdls"},
 				Updated:     updated,
 				Id:          "https://blog.hdls.me/",
+				Generator: &Generator{
+					Value: "NanaFS",
+					URI:   "https://github.com/basenana/nanafs",
+				},
 				Items: []*Item{
 					{
 						Title:       "artitle A",
@@ -65,6 +69,7 @@ var _ = Describe("TestAtomXmlGenerator", func() {
 				},
 			}
 			x, err := ToXML(atomGenerator, f)
+			fmt.Println(x)
 			Expect(err).Should(BeNil())
 			Expect(x).Should(Equal(`<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom">
   <title>hdls</title>
@@ -75,6 +80,7 @@ var _ = Describe("TestAtomXmlGenerator", func() {
   <author>
     <name>hdls</name>
   </author>
+  <generator uri="https://github.com/basenana/nanafs">NanaFS</generator>
   <entry>
     <title>artitle A</title>
     <link href="https://blog.hdls.me/a.html"></link>

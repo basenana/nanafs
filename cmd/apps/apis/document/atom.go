@@ -39,6 +39,14 @@ func (a *AtomXmlGenerator) Generate(f Feed) interface{} {
 			Rel:  "self",
 		})
 	}
+	generator := AtomGenerator{}
+	if f.Generator != nil {
+		generator = AtomGenerator{
+			Value:   f.Generator.Value,
+			URI:     f.Generator.URI,
+			Version: f.Generator.Version,
+		}
+	}
 	author := AtomAuthor{}
 	if f.Author != nil {
 		author = AtomAuthor{
@@ -74,13 +82,14 @@ func (a *AtomXmlGenerator) Generate(f Feed) interface{} {
 		})
 	}
 	af := &AtomFeed{
-		Xmlns:   ns,
-		Title:   f.Title,
-		Link:    links,
-		Updated: f.Updated.Format(time.RFC3339),
-		Id:      f.Id,
-		Author:  &author,
-		Entries: entries,
+		Xmlns:     ns,
+		Title:     f.Title,
+		Link:      links,
+		Updated:   f.Updated.Format(time.RFC3339),
+		Id:        f.Id,
+		Author:    &author,
+		Generator: &generator,
+		Entries:   entries,
 	}
 	return af
 }
@@ -89,12 +98,20 @@ type AtomFeed struct {
 	XMLName xml.Name `xml:"feed"`
 	Xmlns   string   `xml:"xmlns,attr"`
 
-	Title   string `xml:"title"` // required
-	Link    []AtomLink
-	Updated string       `xml:"updated"` // required
-	Id      string       `xml:"id"`      // required
-	Author  *AtomAuthor  `xml:"author,omitempty"`
-	Entries []*AtomEntry `xml:"entry"`
+	Title     string `xml:"title"` // required
+	Link      []AtomLink
+	Updated   string         `xml:"updated"` // required
+	Id        string         `xml:"id"`      // required
+	Author    *AtomAuthor    `xml:"author,omitempty"`
+	Generator *AtomGenerator `xml:"generator,omitempty"`
+	Entries   []*AtomEntry   `xml:"entry"`
+}
+
+type AtomGenerator struct {
+	XMLName xml.Name `xml:"generator"`
+	Value   string   `xml:",chardata"`
+	URI     string   `xml:"uri,attr"`
+	Version string   `xml:"version,attr,omitempty"`
 }
 
 type AtomLink struct {

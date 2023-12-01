@@ -44,7 +44,12 @@ type Feed struct {
 	Updated     time.Time
 	Created     time.Time
 	Id          string
+	Generator   *Generator
 	Items       []*Item
+}
+
+type Generator struct {
+	Value, URI, Version string
 }
 
 type Item struct {
