@@ -111,15 +111,6 @@ var (
 						Parameters: map[string]string{},
 					},
 				},
-				{
-					Name: "keywords",
-					Plugin: &types.PlugScope{
-						PluginName: "keywords",
-						Version:    "1.0",
-						PluginType: types.TypeProcess,
-						Parameters: map[string]string{},
-					},
-				},
 			},
 			Enable: true,
 		},

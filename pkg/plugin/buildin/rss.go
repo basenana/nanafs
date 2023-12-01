@@ -153,6 +153,7 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 	var (
 		workdir    = request.WorkPath
 		cachedData = request.CacheData
+		nowTime    = time.Now()
 	)
 
 	if cachedData == nil {
@@ -163,6 +164,13 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 	feed, err := fp.ParseURLWithContext(source.FeedUrl, ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	// using html file when using RSSHub
+	// https://github.com/DIYgod/RSSHub
+	if feed.Generator == "RSSHub" {
+		r.logger.Infow("using html file for RSSHub source")
+		source.FileType = archiveFileTypeHtml
 	}
 
 	headers := make(map[string]string)
@@ -188,34 +196,34 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 			item.Content = item.Description
 		}
 
-		filePath := path.Join(workdir, item.Title)
+		fileName := item.Title
 		switch source.FileType {
 		case archiveFileTypeUrl:
-			filePath += ".url"
+			fileName += ".url"
 			buf := bytes.Buffer{}
 			buf.WriteString("[InternetShortcut]")
 			buf.WriteString("\n")
 			buf.WriteString(fmt.Sprintf("URL=%s", item.Link))
 
-			err = os.WriteFile(filePath, buf.Bytes(), 0655)
+			err = os.WriteFile(safetyFilePathJoin(workdir, fileName), buf.Bytes(), 0655)
 			if err != nil {
 				return nil, fmt.Errorf("pack to url file failed: %s", err)
 			}
 
 		case archiveFileTypeHtml:
-			filePath += ".html"
+			fileName += ".html"
 			htmlContent := readableHtmlContent(item.Link, item.Title, item.Content)
-			err = os.WriteFile(filePath, []byte(htmlContent), 0655)
+			err = os.WriteFile(safetyFilePathJoin(workdir, fileName), []byte(htmlContent), 0655)
 			if err != nil {
 				return nil, fmt.Errorf("pack to html file failed: %s", err)
 			}
 
 		case archiveFileTypeRawHtml:
-			filePath += ".html"
+			fileName += ".html"
 			p := packer.NewHtmlPacker()
 			err = p.Pack(ctx, packer.Option{
 				URL:         item.Link,
-				FilePath:    filePath,
+				FilePath:    safetyFilePathJoin(workdir, fileName),
 				Timeout:     source.Timeout,
 				ClutterFree: source.ClutterFree,
 				Headers:     headers,
@@ -225,11 +233,11 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 			}
 
 		case archiveFileTypeWebArchive:
-			filePath += ".webarchive"
+			fileName += ".webarchive"
 			p := packer.NewWebArchivePacker()
 			err = p.Pack(ctx, packer.Option{
 				URL:         item.Link,
-				FilePath:    filePath,
+				FilePath:    safetyFilePathJoin(workdir, fileName),
 				Timeout:     source.Timeout,
 				ClutterFree: source.ClutterFree,
 				Headers:     headers,
@@ -242,9 +250,18 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 			return nil, fmt.Errorf("unknown rss archive file type %s", source.FileType)
 		}
 
+		filePath := safetyFilePathJoin(workdir, fileName)
 		fInfo, err := os.Stat(filePath)
 		if err != nil {
 			return nil, fmt.Errorf("stat archive file error: %s", err)
+		}
+
+		updatedAtSelect := []*time.Time{item.UpdatedParsed, item.PublishedParsed, &nowTime}
+		var updatedAt *time.Time
+		for i := range updatedAtSelect {
+			if updatedAt = updatedAtSelect[i]; updatedAt != nil {
+				break
+			}
 		}
 
 		newEntries = append(newEntries, pluginapi.Entry{
@@ -255,7 +272,7 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 				rssPostMetaID:        item.GUID,
 				rssPostMetaTitle:     item.Title,
 				rssPostMetaLink:      item.Link,
-				rssPostMetaUpdatedAt: item.Updated,
+				rssPostMetaUpdatedAt: updatedAt.Format(time.RFC3339),
 			},
 			IsGroup: false,
 		})

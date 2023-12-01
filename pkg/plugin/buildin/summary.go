@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"regexp"
 
 	"go.uber.org/zap"
 
@@ -33,6 +34,8 @@ const (
 	SummaryPluginName    = "summary"
 	SummaryPluginVersion = "1.0"
 )
+
+var htmlCharFilterRegexp = regexp.MustCompile(`</?[!\w]+((\s+\w+(\s*=\s*(?:".*?"|'.*?'|[^'">\s]+))?)+\s*|\s*)/?>`)
 
 type SummaryPlugin struct {
 	spec  types.PluginSpec
@@ -70,13 +73,21 @@ func (i *SummaryPlugin) Run(ctx context.Context, request *pluginapi.Request) (*p
 	}
 
 	buf := bytes.Buffer{}
+	var docType string
 	for _, doc := range docs {
+		if doc.Metadata != nil {
+			rawType, hasType := doc.Metadata["type"]
+			if hasType {
+				docType, _ = rawType.(string)
+			}
+		}
 		buf.WriteString(doc.Content)
 		buf.WriteString("\n")
 	}
 
-	i.log.Infow("get docs", "length", buf.Len(), "entryId", request.EntryId)
-	summary, err := friday.SummaryFile(ctx, fmt.Sprintf("entry_%d", request.EntryId), buf.String())
+	trimmedContent := contentTrim(docType, buf.String())
+	i.log.Infow("get docs", "length", len(trimmedContent), "entryId", request.EntryId)
+	summary, err := friday.SummaryFile(ctx, fmt.Sprintf("entry_%d", request.EntryId), trimmedContent)
 	if err != nil {
 		return pluginapi.NewFailedResponse(fmt.Sprintf("summary documents failed: %s", err)), nil
 	}
@@ -92,4 +103,12 @@ func NewSummaryPlugin(spec types.PluginSpec, scope types.PlugScope) (*SummaryPlu
 		scope: scope,
 		log:   logger.NewLogger("summaryPlugin"),
 	}, nil
+}
+
+func contentTrim(contentType, content string) string {
+	switch contentType {
+	case "html", "htm", "webarchive":
+		return string(htmlCharFilterRegexp.ReplaceAll([]byte(content), []byte{}))
+	}
+	return content
 }

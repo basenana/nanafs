@@ -24,6 +24,11 @@ func nextUrl(workQ chan string, topUrl, nextUrl string) {
 	if nextUrl == "" {
 		return
 	}
+
+	if strings.HasPrefix(nextUrl, "data:") {
+		return
+	}
+
 	topParsedUrl, err := url.Parse(topUrl)
 	if err != nil {
 		return

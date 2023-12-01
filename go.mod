@@ -19,7 +19,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/hanwen/go-fuse/v2 v2.3.0
 	github.com/hyponet/eventbus v1.0.0
-	github.com/hyponet/webpage-packer v0.0.0-20231127141339-e72050bf4d10
+	github.com/hyponet/webpage-packer v0.0.0-20231201131423-f3db639fa08f
 	github.com/ledongthuc/pdf v0.0.0-20220302134840-0c2507a12d80
 	github.com/minio/minio-go/v7 v7.0.52
 	github.com/mmcdole/gofeed v1.2.1
@@ -31,8 +31,8 @@ require (
 	github.com/slok/go-http-metrics v0.10.0
 	github.com/studio-b12/gowebdav v0.9.0
 	go.uber.org/zap v1.24.0
-	golang.org/x/net v0.18.0
-	golang.org/x/sys v0.14.0
+	golang.org/x/net v0.19.0
+	golang.org/x/sys v0.15.0
 	gorm.io/driver/postgres v1.5.2
 )
 
@@ -125,7 +125,7 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	howett.net/plist v1.0.0 // indirect
+	howett.net/plist v1.0.1 // indirect
 	modernc.org/libc v1.22.2 // indirect
 	modernc.org/mathutil v1.5.0 // indirect
 	modernc.org/memory v1.5.0 // indirect
@@ -147,6 +147,6 @@ require (
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/arch v0.3.0 // indirect
-	golang.org/x/crypto v0.15.0 // indirect
+	golang.org/x/crypto v0.16.0 // indirect
 	gorm.io/gorm v1.25.4
 )

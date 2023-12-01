@@ -448,7 +448,6 @@ func (s *sqlMetaStore) GetEntry(ctx context.Context, id int64) (*types.Metadata,
 	var objMod = &db.Object{ID: id}
 	res := s.WithContext(ctx).Where("id = ?", id).First(objMod)
 	if err := res.Error; err != nil {
-		s.logger.Errorw("get entry by id failed", "entry", id, "err", err)
 		return nil, db.SqlError2Error(err)
 	}
 	return objMod.ToEntry(), nil
@@ -713,6 +712,9 @@ func (s *sqlMetaStore) FilterEntries(ctx context.Context, filter types.Filter) (
 		scopeIds, err = listEntryIdsWithLabelMatcher(ctx, s.DB, filter.Label)
 		if err != nil {
 			return nil, db.SqlError2Error(err)
+		}
+		if len(scopeIds) == 0 {
+			return newTransactionEntryIterator(s.DB, 0), nil
 		}
 	}
 

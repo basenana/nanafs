@@ -20,8 +20,10 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
+	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -109,11 +111,24 @@ func (f *Server) Atom(gCtx *gin.Context) {
 		}
 	}
 
+	sort.Slice(items, func(i, j int) bool {
+		it1, it2 := items[i], items[j]
+		var itTime1, itTime2 time.Time
+		if it1.Updated != "" {
+			itTime1, _ = time.Parse(time.RFC3339, it1.Updated)
+		}
+		if it2.Updated != "" {
+			itTime2, _ = time.Parse(time.RFC3339, it2.Updated)
+		}
+		return itTime2.Before(itTime1)
+	})
+
 	feed := Feed{
-		Title: docFeed.SiteName,
-		Link:  &Link{Href: docFeed.SiteUrl},
-		Id:    docFeed.SiteUrl,
-		Items: items,
+		Title:   docFeed.SiteName,
+		Link:    &Link{Href: docFeed.SiteUrl},
+		Id:      docFeed.SiteUrl,
+		Items:   items,
+		Updated: time.Now(),
 	}
 
 	x, err := ToXML(NewAtomGenerator(), feed)
@@ -122,5 +137,5 @@ func (f *Server) Atom(gCtx *gin.Context) {
 		return
 	}
 
-	gCtx.String(200, x)
+	gCtx.Data(200, "application/xml; charset=utf-8", []byte(x))
 }

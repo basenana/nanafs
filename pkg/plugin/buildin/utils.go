@@ -18,12 +18,22 @@ package buildin
 
 import (
 	"net/url"
+	"path"
+	"regexp"
 	"strings"
 
 	"github.com/basenana/nanafs/utils"
 )
 
-var maxAITaskParallel = utils.NewParallelLimiter(3)
+var (
+	maxAITaskParallel = utils.NewParallelLimiter(3)
+	fileNameSafety    = regexp.MustCompile(`[\\/:*?"<>|]`)
+)
+
+func safetyFilePathJoin(parent, filename string) string {
+	safeFilename := fileNameSafety.ReplaceAllString(filename, " ")
+	return path.Clean(path.Join(parent, safeFilename))
+}
 
 func readableHtmlContent(urlStr, title, content string) string {
 	var hostStr string

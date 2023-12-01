@@ -199,7 +199,7 @@ func (m *manager) GetGroupByFeedId(ctx context.Context, feedID string) (*types.M
 	}
 
 	if !types.IsGroup(entry.Kind) {
-		m.logger.Errorw("entry is not group when get docs by feed id failed", "feedid", feedID, "entryid", entry.ID, "err", err)
+		m.logger.Errorw("entry is not group when get group by feed id failed", "feedid", feedID, "entryid", entry.ID, "err", err)
 		return nil, types.ErrNoGroup
 	}
 	return entry, nil
@@ -239,6 +239,9 @@ func (m *manager) GetDocsByFeedId(ctx context.Context, feedID string, count int)
 		return nil, err
 	}
 
+	if len(documents) < count {
+		return documents, nil
+	}
 	return documents[:count], nil
 }
 
