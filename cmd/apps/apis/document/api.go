@@ -18,12 +18,15 @@ package document
 
 import (
 	"fmt"
-	"github.com/basenana/nanafs/utils/logger"
-	"go.uber.org/zap"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"go.uber.org/zap"
+
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils/logger"
 
 	"github.com/gin-gonic/gin"
 
@@ -68,6 +71,10 @@ func (f *Server) Atom(gCtx *gin.Context) {
 	}
 	docFeed, err := f.ctrl.GetDocumentsByFeed(gCtx, feedId, count)
 	if err != nil {
+		if err == types.ErrNotFound {
+			gCtx.String(404, "Not found")
+			return
+		}
 		gCtx.String(500, "Internal error")
 		return
 	}
@@ -124,10 +131,14 @@ func (f *Server) Atom(gCtx *gin.Context) {
 	})
 
 	feed := Feed{
-		Title:   docFeed.SiteName,
-		Link:    &Link{Href: docFeed.SiteUrl},
-		Id:      docFeed.SiteUrl,
-		Items:   items,
+		Title: docFeed.SiteName,
+		Link:  &Link{Href: docFeed.SiteUrl},
+		Id:    docFeed.SiteUrl,
+		Items: items,
+		Generator: &Generator{
+			Value: "NanaFS",
+			URI:   "https://github.com/basenana/nanafs",
+		},
 		Updated: time.Now(),
 	}
 
