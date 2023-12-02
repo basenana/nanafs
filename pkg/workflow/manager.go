@@ -110,6 +110,7 @@ func (m *manager) Start(stopCh chan struct{}) {
 
 	// delay register
 	time.Sleep(time.Minute)
+
 	allWorkflows, err := m.ListWorkflows(cronCtx)
 	if err != nil {
 		m.logger.Errorw("init cron workflows failed: list workflows error", "err", err)
@@ -124,6 +125,21 @@ func (m *manager) Start(stopCh chan struct{}) {
 			if err != nil {
 				m.logger.Errorw("init cron workflows failed: registry workflow error", "workflow", wf.Id, "err", err)
 			}
+		}
+	}
+
+	runnerJobs, err := m.recorder.ListWorkflowJob(cronCtx, types.JobFilter{Status: jobrun.RunningStatus})
+	if err != nil {
+		m.logger.Errorw("re-trigger jobs failed: list runner jobs error", "err", err)
+	}
+
+	for _, job := range runnerJobs {
+		if job.Status != jobrun.RunningStatus {
+			continue
+		}
+		m.logger.Infow("re-trigger job", "job", job.Id, "createdAt", job.CreatedAt.Format(time.RFC3339))
+		if err = m.ctrl.TriggerJob(job.Id, defaultJobTimeout); err != nil {
+			m.logger.Errorw("re-trigger jobs failed: trigger job failed", "job", job.Id, "err", err)
 		}
 	}
 
@@ -264,7 +280,7 @@ func (m *manager) TriggerWorkflow(ctx context.Context, wfId string, tgt types.Wo
 	}
 
 	if attr.Timeout == 0 {
-		attr.Timeout = time.Hour
+		attr.Timeout = defaultJobTimeout
 	}
 
 	job.TriggerReason = attr.Reason

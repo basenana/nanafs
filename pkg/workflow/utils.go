@@ -32,6 +32,10 @@ var (
 	wfLogger            *zap.SugaredLogger
 )
 
+const (
+	defaultJobTimeout = time.Hour
+)
+
 func assembleWorkflowJob(spec *types.WorkflowSpec, tgt types.WorkflowTarget) (*types.WorkflowJob, error) {
 	var globalParam = map[string]string{}
 	j := &types.WorkflowJob{
