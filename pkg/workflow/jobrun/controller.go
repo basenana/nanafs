@@ -73,18 +73,7 @@ func (c *Controller) startJobRunner(ctx context.Context, jID string, timeout tim
 	err := r.Start(ctx)
 	if err != nil {
 		c.logger.Errorf("start runner failed, err: %s", err)
-		_ = c.notify.RecordWarn(context.TODO(), "WorkflowJobFailed", fmt.Sprintf("start runner error: %s", err), "JobController")
-	}
-
-	job, err := c.recorder.GetWorkflowJob(ctx, jID)
-	if err != nil {
-		c.logger.Errorf("query workflow job %s failed, err: %s", jID, err)
-		return
-	}
-
-	if IsFinishedStatus(job.Status) && job.Status != SucceedStatus || job.Status != CanceledStatus {
-		_ = c.notify.RecordWarn(context.TODO(), "WorkflowJobFailed",
-			fmt.Sprintf("job %s status: %s message: %s", jID, job.Status, job.Message), "JobController")
+		_ = c.notify.RecordWarn(context.TODO(), "Workflow job failed", fmt.Sprintf("job %s runner error: %s", jID, err), "JobController")
 	}
 }
 

@@ -51,11 +51,14 @@ type executor interface {
 	execute(ctx context.Context, task *types.ScheduledTask) error
 }
 
+type routineTask func(ctx context.Context) error
+
 type Dispatcher struct {
 	entry     dentry.Manager
 	notify    *notify.Notify
 	recorder  metastore.ScheduledTaskRecorder
 	executors map[string]executor
+	routines  [24][]routineTask
 	metricCh  chan prometheus.Metric
 	logger    *zap.SugaredLogger
 }
@@ -63,6 +66,7 @@ type Dispatcher struct {
 func (d *Dispatcher) Run(stopCh chan struct{}) {
 	ticker := time.NewTicker(taskExecutionInterval)
 	d.logger.Infow("start scheduled task dispatcher", "interval", taskExecutionInterval.String())
+	go d.runRoutineTask(stopCh)
 	for {
 		select {
 		case <-stopCh:
@@ -116,7 +120,7 @@ func (d *Dispatcher) dispatch(ctx context.Context, taskID string, exec executor,
 		taskFinishStatusCounter.WithLabelValues(taskID, types.ScheduledTaskFailed)
 		sentry.CaptureException(err)
 		d.logger.Errorw("execute task error", "recordID", task.ID, "taskID", task.TaskID, "err", err,
-			"recordNotificationErr", d.notify.RecordWarn(ctx, fmt.Sprintf("task %s failed", task.TaskID), task.Result, "dispatcher"))
+			"recordNotificationErr", d.notify.RecordWarn(ctx, fmt.Sprintf("Scheduled task %s failed", task.TaskID), task.Result, "Dispatcher"))
 	} else {
 		task.Result = "succeed"
 		task.Status = types.ScheduledTaskSucceed
@@ -165,21 +169,64 @@ func (d *Dispatcher) findRunnableTasks(ctx context.Context, taskID string) ([]*t
 	return runnable, nil
 }
 
+func (d *Dispatcher) runRoutineTask(stopCh chan struct{}) {
+	var (
+		index  = -1
+		ticker = time.NewTicker(time.Hour)
+	)
+	d.logger.Infow("start routine task dispatcher")
+	for {
+		select {
+		case <-stopCh:
+			d.logger.Infow("routine task dispatcher stopped")
+			return
+		case <-ticker.C:
+			index += 1
+			index %= 24
+		}
+
+		tasks := d.routines[index]
+		if len(tasks) == 0 {
+			continue
+		}
+
+		ctx, canF := context.WithTimeout(context.Background(), time.Hour)
+		for _, t := range tasks {
+			if err := t(ctx); err != nil {
+				d.logger.Errorw("routine task failed", "err", err)
+			}
+		}
+		canF()
+	}
+}
+
+func (d *Dispatcher) registerExecutor(taskID string, e executor) {
+	d.executors[taskID] = e
+}
+
+func (d *Dispatcher) registerRoutineTask(periodH int, task routineTask) {
+	periodH %= 24
+	for i := 0; i < 24; i += periodH {
+		d.routines[i] = append(d.routines[i], task)
+	}
+}
+
 func Init(entry dentry.Manager, wfMgr workflow.Manager, notify *notify.Notify, recorder metastore.ScheduledTaskRecorder) (*Dispatcher, error) {
 	d := &Dispatcher{
 		entry:     entry,
 		notify:    notify,
 		recorder:  recorder,
 		executors: map[string]executor{},
+		routines:  [24][]routineTask{},
 		metricCh:  make(chan prometheus.Metric, 10),
 		logger:    logger.NewLogger("dispatcher"),
 	}
 
-	if err := registerMaintainExecutor(d.executors, entry, recorder); err != nil {
+	if err := registerMaintainExecutor(d, entry, recorder); err != nil {
 		return nil, err
 	}
 
-	if err := registerWorkflowExecutor(d.executors, entry, wfMgr, recorder); err != nil {
+	if err := registerWorkflowExecutor(d, entry, wfMgr, recorder); err != nil {
 		return nil, err
 	}
 

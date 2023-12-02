@@ -19,12 +19,14 @@ package exec
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/document"
@@ -55,7 +57,21 @@ func initWorkdir(ctx context.Context, jobWorkdir string, job *types.WorkflowJob)
 		return workdir, fmt.Errorf("job workdir is existed and not a dir")
 	}
 
-	return workdir, utils.Mkdir(workdir)
+	if err = utils.Mkdir(workdir); err != nil {
+		return "", err
+	}
+
+	// workdir info
+	infoFile := path.Join(workdir, ".workflowinfo.json")
+	info := map[string]string{
+		"workflow": job.Workflow,
+		"job":      job.Id,
+		"init_at":  time.Now().Format(time.RFC3339),
+	}
+	infoRaw, _ := json.Marshal(info)
+	_ = os.WriteFile(infoFile, infoRaw, 0655)
+
+	return workdir, nil
 }
 
 func cleanupWorkdir(ctx context.Context, workdir string) error {
