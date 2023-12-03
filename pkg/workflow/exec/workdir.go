@@ -186,7 +186,7 @@ func collectFile2BaseEntry(ctx context.Context, entryMgr dentry.Manager, baseEnt
 
 	// TODO: overwrite existed file
 	if err == nil {
-		return fmt.Errorf("file %s is existed", tmpEn.Name)
+		return nil
 	}
 
 	tmpFile, err := os.Open(path.Join(workdir, tmpEn.Name))
