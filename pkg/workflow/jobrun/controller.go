@@ -57,7 +57,7 @@ func (c *Controller) startJobRunner(ctx context.Context, jID string, timeout tim
 	r, ok := c.runners[jID]
 	c.mux.Unlock()
 	if !ok {
-		c.logger.Errorf("start runner failed, err: runner %s not found", jID)
+		c.logger.Errorw("start runner failed, err: runner not found", "job", jID)
 		return
 	}
 
@@ -70,21 +70,23 @@ func (c *Controller) startJobRunner(ctx context.Context, jID string, timeout tim
 	ctx, canF := context.WithTimeout(ctx, timeout)
 	defer canF()
 
-	err := r.Start(ctx)
-	if err != nil {
-		c.logger.Errorf("start runner failed, err: %s", err)
-		_ = c.notify.RecordWarn(context.TODO(), "WorkflowJobFailed", fmt.Sprintf("start runner error: %s", err), "JobController")
-	}
-
 	job, err := c.recorder.GetWorkflowJob(ctx, jID)
 	if err != nil {
-		c.logger.Errorf("query workflow job %s failed, err: %s", jID, err)
+		c.logger.Errorw("start runner failed: query jobs error", "job", jID, "err", err)
 		return
 	}
 
-	if IsFinishedStatus(job.Status) && job.Status != SucceedStatus || job.Status != CanceledStatus {
-		_ = c.notify.RecordWarn(context.TODO(), "WorkflowJobFailed",
-			fmt.Sprintf("job %s status: %s message: %s", jID, job.Status, job.Message), "JobController")
+	wf, err := c.recorder.GetWorkflow(ctx, job.Workflow)
+	if err != nil {
+		c.logger.Errorw("start runner failed: query workflow error", "job", jID, "workflow", job.Workflow, "err", err)
+		return
+	}
+
+	err = r.Start(ctx)
+	if err != nil {
+		c.logger.Errorw("start runner failed: job failed", "job", jID, "err", err)
+		_ = c.notify.RecordWarn(context.TODO(), fmt.Sprintf("Workflow %s failed", wf.Name),
+			fmt.Sprintf("job %s failed: %s", jID, err), "JobController")
 	}
 }
 

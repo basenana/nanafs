@@ -163,15 +163,15 @@ func (c *entryCleanExecutor) execute(ctx context.Context, task *types.ScheduledT
 }
 
 func registerMaintainExecutor(
-	executors map[string]executor,
+	d *Dispatcher,
 	entry dentry.Manager,
 	recorder metastore.ScheduledTaskRecorder) error {
 	e := &maintainExecutor{entry: entry, recorder: recorder, logger: logger.NewLogger("maintainExecutor")}
 	ce := &compactExecutor{maintainExecutor: e}
 	ee := &entryCleanExecutor{maintainExecutor: e}
 
-	executors[maintainTaskIDChunkCompact] = ce
-	executors[maintainTaskIDEntryCleanup] = ee
+	d.registerExecutor(maintainTaskIDChunkCompact, ce)
+	d.registerExecutor(maintainTaskIDEntryCleanup, ee)
 	if _, err := events.Subscribe(events.NamespacedTopic(events.TopicNamespaceFile, events.ActionTypeCompact), ce.handleEvent); err != nil {
 		return err
 	}

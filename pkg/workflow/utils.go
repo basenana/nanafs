@@ -17,10 +17,7 @@
 package workflow
 
 import (
-	"bytes"
-	"context"
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	"github.com/google/uuid"
@@ -33,6 +30,10 @@ import (
 var (
 	defaultLinuxWorkdir = "/var/lib/nanafs/workflow"
 	wfLogger            *zap.SugaredLogger
+)
+
+const (
+	defaultJobTimeout = time.Hour
 )
 
 func assembleWorkflowJob(spec *types.WorkflowSpec, tgt types.WorkflowTarget) (*types.WorkflowJob, error) {
@@ -84,40 +85,4 @@ func initWorkflow(wf *types.WorkflowSpec) *types.WorkflowSpec {
 	wf.CreatedAt = time.Now()
 	wf.UpdatedAt = time.Now()
 	return wf
-}
-
-func entryID2FusePath(ctx context.Context, entryID int64, mgr dentry.Manager, fuseCfg config.FUSE) (string, error) {
-	if !fuseCfg.Enable || fuseCfg.RootPath == "" {
-		return "", nil
-	}
-
-	var (
-		parent *types.Metadata
-		err    error
-
-		reversedNames []string
-	)
-	for {
-		parent, err = mgr.GetEntry(ctx, entryID)
-		if err != nil {
-			return "", err
-		}
-		entryID = parent.ParentID
-		if entryID == 0 {
-			return "", types.ErrNotFound
-		}
-		if entryID == 1 {
-			break
-		}
-		reversedNames = append(reversedNames, parent.Name)
-	}
-
-	buf := &bytes.Buffer{}
-	buf.WriteString("/")
-	for i := len(reversedNames) - 1; i >= 0; i -= 1 {
-		buf.WriteString("/")
-		buf.WriteString(reversedNames[i])
-	}
-
-	return buf.String(), nil
 }

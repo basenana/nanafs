@@ -170,8 +170,55 @@ func (w workflowExecutor) execute(ctx context.Context, task *types.ScheduledTask
 	return nil
 }
 
+const (
+	succeedJobLiveTime = time.Hour * 24
+	failedJobLiveTime  = time.Hour * 24 * 7
+)
+
+func (w workflowExecutor) cleanUpFinishJobs(ctx context.Context) error {
+	needCleanUp, deleted := 0, 0
+	succeedJob, err := w.recorder.ListWorkflowJob(ctx, types.JobFilter{Status: jobrun.SucceedStatus})
+	if err != nil {
+		w.logger.Errorw("[cleanUpFinishJobs] list succeed jobs failed", "err", err)
+	}
+	for _, j := range succeedJob {
+		if time.Since(j.FinishAt) < succeedJobLiveTime {
+			continue
+		}
+		needCleanUp += 1
+		err = w.recorder.DeleteWorkflowJob(ctx, j.Id)
+		if err != nil {
+			w.logger.Errorw("[cleanUpFinishJobs] delete succeed jobs failed", "job", j.Id, "err", err)
+			continue
+		}
+		deleted += 1
+	}
+
+	failedJob, err := w.recorder.ListWorkflowJob(ctx, types.JobFilter{Status: jobrun.FailedStatus})
+	if err != nil {
+		w.logger.Errorw("[cleanUpFinishJobs] list succeed jobs failed", "err", err)
+	}
+	for _, j := range failedJob {
+		if time.Since(j.FinishAt) < failedJobLiveTime {
+			continue
+		}
+		needCleanUp += 1
+		err = w.recorder.DeleteWorkflowJob(ctx, j.Id)
+		if err != nil {
+			w.logger.Errorw("[cleanUpFinishJobs] delete error jobs failed", "job", j.Id, "err", err)
+			continue
+		}
+		deleted += 1
+	}
+
+	if needCleanUp > 0 {
+		w.logger.Infof("[cleanUpFinishJobs] finish, need cleanup %d jobs, deleted %d", needCleanUp, deleted)
+	}
+	return nil
+}
+
 func registerWorkflowExecutor(
-	executors map[string]executor,
+	d *Dispatcher,
 	entry dentry.Manager,
 	wfMgr workflow.Manager,
 	recorder metastore.ScheduledTaskRecorder) error {
@@ -181,7 +228,8 @@ func registerWorkflowExecutor(
 		recorder: recorder,
 		logger:   logger.NewLogger("workflowExecutor"),
 	}
-	executors[workflowAutoTriggerExecID] = e
+	d.registerExecutor(workflowAutoTriggerExecID, e)
+	d.registerRoutineTask(6, e.cleanUpFinishJobs)
 	if _, err := events.Subscribe(events.NamespacedTopic(events.TopicNamespaceEntry, events.ActionTypeCreate), e.handleEvent); err != nil {
 		return err
 	}
