@@ -63,6 +63,14 @@ var _ = BeforeSuite(func() {
 
 	// init plugin
 	Expect(plugin.Init(&config.Plugin{})).Should(BeNil())
+
+	// init fake workflow to test wf job
+	fakeWf := &types.WorkflowSpec{
+		Id:   "fake-workflow-1",
+		Name: "fake-workflow-1",
+	}
+	err = recorder.SaveWorkflow(context.TODO(), fakeWf)
+	Expect(err).Should(BeNil())
 })
 
 func init() {
