@@ -36,8 +36,11 @@ CONCISE SUMMARY: `
 
 var _ PromptTemplate = &SummaryPrompt{}
 
-func NewSummaryPrompt() PromptTemplate {
-	return &SummaryPrompt{template: SummaryTemplate}
+func NewSummaryPrompt(t string) PromptTemplate {
+	if t == "" {
+		t = SummaryTemplate
+	}
+	return &SummaryPrompt{template: t}
 }
 
 func (p *SummaryPrompt) String(promptContext map[string]string) (string, error) {

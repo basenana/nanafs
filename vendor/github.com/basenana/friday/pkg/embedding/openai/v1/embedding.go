@@ -19,8 +19,10 @@ package v1
 import (
 	"context"
 
+	"github.com/basenana/friday/config"
 	"github.com/basenana/friday/pkg/embedding"
 	"github.com/basenana/friday/pkg/llm/client/openai/v1"
+	"github.com/basenana/friday/pkg/utils/logger"
 )
 
 type OpenAIEmbedding struct {
@@ -29,9 +31,9 @@ type OpenAIEmbedding struct {
 
 var _ embedding.Embedding = &OpenAIEmbedding{}
 
-func NewOpenAIEmbedding(baseUrl, key string, qpm, burst int) embedding.Embedding {
+func NewOpenAIEmbedding(log logger.Logger, baseUrl, key string, conf config.OpenAIConfig) embedding.Embedding {
 	return &OpenAIEmbedding{
-		OpenAIV1: v1.NewOpenAIV1(baseUrl, key, qpm, burst),
+		OpenAIV1: v1.NewOpenAIV1(log, baseUrl, key, conf),
 	}
 }
 

@@ -26,7 +26,7 @@ import (
 
 func (f *Friday) Summary(ctx context.Context, elements []models.Element, summaryType summary.SummaryType) (map[string]string, error) {
 	result := make(map[string]string)
-	s := summary.NewSummary(f.LLM, f.LimitToken)
+	s := summary.NewSummary(f.Log, f.LLM, f.LimitToken, f.Prompts)
 
 	docs := make(map[string][]string)
 	for _, element := range elements {
@@ -48,7 +48,7 @@ func (f *Friday) Summary(ctx context.Context, elements []models.Element, summary
 }
 
 func (f *Friday) SummaryFromFile(ctx context.Context, file models.File, summaryType summary.SummaryType) (map[string]string, error) {
-	s := summary.NewSummary(f.LLM, f.LimitToken)
+	s := summary.NewSummary(f.Log, f.LLM, f.LimitToken, f.Prompts)
 	// split doc
 	docs := f.Spliter.Split(file.Content)
 	// summary
@@ -62,7 +62,7 @@ func (f *Friday) SummaryFromFile(ctx context.Context, file models.File, summaryT
 }
 
 func (f *Friday) SummaryFromOriginFile(ctx context.Context, ps string, summaryType summary.SummaryType) (map[string]string, error) {
-	s := summary.NewSummary(f.LLM, f.LimitToken)
+	s := summary.NewSummary(f.Log, f.LLM, f.LimitToken, f.Prompts)
 	fs, err := files.ReadFiles(ps)
 	if err != nil {
 		return nil, err

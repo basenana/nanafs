@@ -36,66 +36,80 @@ type Logger interface {
 	Infof(string, ...interface{})
 	Debug(interface{})
 	Debugf(string, ...interface{})
+	SetDebug(enable bool)
 	With(string) Logger
 }
 
 type defaultLog struct {
-	name string
+	name  string
+	debug bool
 	*glog.Logger
 }
 
-func (l defaultLog) printLogf(level string, format string, v ...interface{}) {
+func (l *defaultLog) printLogf(level string, format string, v ...interface{}) {
 	l.Print(fmt.Sprintf(defaultLogFmt, level, fmt.Sprintf(format, v...)))
 }
 
-func (l defaultLog) printLog(level string, v interface{}) {
+func (l *defaultLog) printLog(level string, v interface{}) {
 	l.Print(fmt.Sprintf(defaultLogFmt, level, v))
 }
 
-func (l defaultLog) Error(v interface{}) {
+func (l *defaultLog) Error(v interface{}) {
 	l.printLog("ERROR", v)
 }
 
-func (l defaultLog) Errorf(format string, v ...interface{}) {
+func (l *defaultLog) Errorf(format string, v ...interface{}) {
 	l.printLogf("ERROR", format, v...)
 }
 
-func (l defaultLog) Warn(v interface{}) {
+func (l *defaultLog) Warn(v interface{}) {
 	l.printLog("WARN", v)
 }
 
-func (l defaultLog) Warnf(format string, v ...interface{}) {
+func (l *defaultLog) Warnf(format string, v ...interface{}) {
 	l.printLogf("WARN", format, v...)
 }
 
-func (l defaultLog) Info(v interface{}) {
+func (l *defaultLog) Info(v interface{}) {
 	l.printLog("INFO", v)
 }
 
-func (l defaultLog) Infof(format string, v ...interface{}) {
+func (l *defaultLog) Infof(format string, v ...interface{}) {
 	l.printLogf("INFO", format, v...)
 }
 
-func (l defaultLog) Debug(v interface{}) {
-	l.printLog("DEBUG", v)
+func (l *defaultLog) Debug(v interface{}) {
+	if l.debug {
+		l.printLog("DEBUG", v)
+	}
 }
 
-func (l defaultLog) Debugf(format string, v ...interface{}) {
-	l.printLogf("DEBUG", format, v...)
+func (l *defaultLog) Debugf(format string, v ...interface{}) {
+	if l.debug {
+		l.printLogf("DEBUG", format, v...)
+	}
 }
 
-func (l defaultLog) With(name string) Logger {
+func (l *defaultLog) With(name string) Logger {
 	if l.name != "" {
 		name = fmt.Sprintf("%s.%s", l.name, name)
 	}
-	return defaultLog{
+	return &defaultLog{
 		name:   name,
 		Logger: glog.New(os.Stdout, name+" - ", glog.LstdFlags),
 	}
 }
 
-func buildDefaultLogger() defaultLog {
-	return defaultLog{
+func (l *defaultLog) SetDebug(enable bool) {
+	if enable {
+		l.debug = true
+		return
+	}
+	l.debug = false
+}
+
+func buildDefaultLogger() *defaultLog {
+	return &defaultLog{
 		name:   defaultLogName,
 		Logger: glog.New(os.Stdout, defaultLogName, glog.LstdFlags),
 	}

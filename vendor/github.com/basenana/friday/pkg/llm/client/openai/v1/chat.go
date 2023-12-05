@@ -45,20 +45,19 @@ func (o *OpenAIV1) Chat(ctx context.Context, prompt prompts.PromptTemplate, para
 func (o *OpenAIV1) chat(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, error) {
 	path := "v1/chat/completions"
 
-	model := "gpt-3.5-turbo"
 	p, err := prompt.String(parameters)
 	if err != nil {
 		return nil, err
 	}
 
 	data := map[string]interface{}{
-		"model":             model,
+		"model":             *o.conf.Model,
 		"messages":          []interface{}{map[string]string{"role": "user", "content": p}},
-		"max_tokens":        1024,
-		"temperature":       0.7,
+		"max_tokens":        *o.conf.MaxReturnToken,
+		"temperature":       *o.conf.Temperature,
 		"top_p":             1,
-		"frequency_penalty": 0,
-		"presence_penalty":  0,
+		"frequency_penalty": *o.conf.FrequencyPenalty,
+		"presence_penalty":  *o.conf.PresencePenalty,
 		"n":                 1,
 	}
 

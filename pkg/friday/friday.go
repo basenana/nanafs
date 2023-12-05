@@ -36,7 +36,7 @@ func InitFriday(cfg *config.Config) (err error) {
 	if cfg == nil {
 		return nil
 	}
-	pgClient, err := postgres.NewPostgresClient(cfg.VectorUrl)
+	pgClient, err := postgres.NewPostgresClient(cfg.VectorStoreConfig.VectorUrl)
 	if err != nil {
 		return err
 	}

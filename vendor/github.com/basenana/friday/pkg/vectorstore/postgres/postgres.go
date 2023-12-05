@@ -175,3 +175,13 @@ func (p *PostgresClient) Exist(id string) (bool, error) {
 
 	return exist, err
 }
+
+func (p *PostgresClient) Inited(ctx context.Context) (bool, error) {
+	var count int64
+	res := p.dEntity.WithContext(ctx).Model(&db.BleveKV{}).Count(&count)
+	if res.Error != nil {
+		return false, res.Error
+	}
+
+	return count > 0, nil
+}

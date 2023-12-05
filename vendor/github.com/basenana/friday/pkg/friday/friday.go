@@ -24,7 +24,13 @@ import (
 	"github.com/basenana/friday/pkg/vectorstore"
 )
 
-const defaultTopK = 6
+const (
+	defaultTopK               = 6
+	questionPromptKey         = "question"
+	keywordsPromptKey         = "keywords"
+	wechatPromptKey           = "wechat"
+	wechatConclusionPromptKey = "wechat-conclusion"
+)
 
 var (
 	Fri *Friday
@@ -36,6 +42,7 @@ type Friday struct {
 	LimitToken int
 
 	LLM       llm.LLM
+	Prompts   map[string]string
 	Embedding embedding.Embedding
 	Vector    vectorstore.VectorStore
 	Spliter   spliter.Spliter

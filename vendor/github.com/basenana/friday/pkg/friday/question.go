@@ -25,7 +25,7 @@ import (
 )
 
 func (f *Friday) Question(ctx context.Context, q string) (string, error) {
-	prompt := prompts.NewQuestionPrompt()
+	prompt := prompts.NewQuestionPrompt(questionPromptKey)
 	c, err := f.searchDocs(ctx, q)
 	if err != nil {
 		return "", err

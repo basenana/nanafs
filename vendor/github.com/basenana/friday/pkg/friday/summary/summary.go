@@ -24,7 +24,11 @@ import (
 	"github.com/basenana/friday/pkg/utils/logger"
 )
 
-const DefaultSummaryLimitToken = 4000
+const (
+	DefaultSummaryLimitToken = 4000
+	combinePromptKey         = "combine"
+	summaryPromptKey         = "summary"
+)
 
 type Summary struct {
 	log logger.Logger
@@ -43,15 +47,15 @@ const (
 	Refine    SummaryType = "Refine"
 )
 
-func NewSummary(l llm.LLM, limitToken int) *Summary {
+func NewSummary(log logger.Logger, l llm.LLM, limitToken int, ps map[string]string) *Summary {
 	if limitToken <= 0 {
 		limitToken = DefaultSummaryLimitToken
 	}
 	return &Summary{
-		log:           logger.NewLogger("summary"),
+		log:           log,
 		llm:           l,
-		summaryPrompt: prompts.NewSummaryPrompt(),
-		combinePrompt: prompts.NewCombinePrompt(),
+		summaryPrompt: prompts.NewSummaryPrompt(ps[summaryPromptKey]),
+		combinePrompt: prompts.NewCombinePrompt(ps[combinePromptKey]),
 		limitToken:    limitToken,
 	}
 }

@@ -33,60 +33,68 @@ import (
 )
 
 func NewFridayWithVector(conf *config.Config, vectorClient vectorstore.VectorStore) (f *friday.Friday, err error) {
+	log := conf.Logger
+	if conf.Logger == nil {
+		log = logger.NewLogger("friday")
+	}
+	log.SetDebug(conf.Debug)
+
 	var (
 		llmClient      llm.LLM
 		embeddingModel embedding.Embedding
+		prompts        = make(map[string]string)
 	)
 	// init LLM client
-	if conf.LLMType == config.LLMOpenAI {
+	if conf.LLMConfig.LLMType == config.LLMOpenAI {
 		if conf.OpenAIBaseUrl == "" {
 			conf.OpenAIBaseUrl = "https://api.openai.com"
 		}
-		llmClient = openaiv1.NewOpenAIV1(conf.OpenAIBaseUrl, conf.OpenAIKey, conf.LLMQueryPerMinute, conf.LLMBurst)
+		llmClient = openaiv1.NewOpenAIV1(log, conf.OpenAIBaseUrl, conf.OpenAIKey, conf.LLMConfig.OpenAI)
 	}
-	if conf.LLMType == config.LLMGLM6B {
-		llmClient = glm_6b.NewGLM(conf.LLMUrl)
+	if conf.LLMConfig.LLMType == config.LLMGLM6B {
+		llmClient = glm_6b.NewGLM(log, conf.LLMConfig.GLM6B.Url)
+	}
+
+	if conf.LLMConfig.Prompts != nil {
+		prompts = conf.LLMConfig.Prompts
 	}
 
 	// init embedding client
-	if conf.EmbeddingType == config.EmbeddingOpenAI {
+	if conf.EmbeddingConfig.EmbeddingType == config.EmbeddingOpenAI {
 		if conf.OpenAIBaseUrl == "" {
 			conf.OpenAIBaseUrl = "https://api.openai.com"
 		}
-		embeddingModel = openaiembedding.NewOpenAIEmbedding(conf.OpenAIBaseUrl, conf.OpenAIKey, conf.LLMQueryPerMinute, conf.LLMBurst)
+		embeddingModel = openaiembedding.NewOpenAIEmbedding(log, conf.OpenAIBaseUrl, conf.OpenAIKey, conf.LLMConfig.OpenAI)
 	}
-	if conf.EmbeddingType == config.EmbeddingHuggingFace {
-		embeddingModel = huggingfaceembedding.NewHuggingFace(conf.EmbeddingUrl, conf.EmbeddingModel)
+	if conf.EmbeddingConfig.EmbeddingType == config.EmbeddingHuggingFace {
+		embeddingModel = huggingfaceembedding.NewHuggingFace(log, conf.EmbeddingConfig.EmbeddingUrl, conf.EmbeddingConfig.EmbeddingModel)
 		testEmbed, _, err := embeddingModel.VectorQuery(context.TODO(), "test")
 		if err != nil {
 			return nil, err
 		}
-		conf.EmbeddingDim = len(testEmbed)
+		conf.VectorStoreConfig.EmbeddingDim = len(testEmbed)
 	}
 
 	// init text spliter
 	chunkSize := spliter.DefaultChunkSize
 	overlapSize := spliter.DefaultChunkOverlap
 	separator := "\n"
-	if conf.SpliterChunkSize > 0 {
-		chunkSize = conf.SpliterChunkSize
+	if conf.TextSpliterConfig.SpliterChunkSize > 0 {
+		chunkSize = conf.TextSpliterConfig.SpliterChunkSize
 	}
-	if conf.SpliterChunkOverlap > 0 {
-		overlapSize = conf.SpliterChunkOverlap
+	if conf.TextSpliterConfig.SpliterChunkOverlap > 0 {
+		overlapSize = conf.TextSpliterConfig.SpliterChunkOverlap
 	}
-	if conf.SpliterSeparator != "" {
-		separator = conf.SpliterSeparator
+	if conf.TextSpliterConfig.SpliterSeparator != "" {
+		separator = conf.TextSpliterConfig.SpliterSeparator
 	}
-	textSpliter := spliter.NewTextSpliter(chunkSize, overlapSize, separator)
+	textSpliter := spliter.NewTextSpliter(log, chunkSize, overlapSize, separator)
 
-	log := conf.Logger
-	if conf.Logger == nil {
-		log = logger.NewLogger("friday")
-	}
 	f = &friday.Friday{
 		Log:        log,
 		LimitToken: conf.LimitToken,
 		LLM:        llmClient,
+		Prompts:    prompts,
 		Embedding:  embeddingModel,
 		Vector:     vectorClient,
 		Spliter:    textSpliter,

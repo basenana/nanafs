@@ -34,8 +34,11 @@ const WeChatConclusionTemplate = `请根据以下每天发生的事情，总结�
 
 var _ PromptTemplate = &WeChatConclusionPrompt{}
 
-func NewWeChatConclusionPrompt() PromptTemplate {
-	return &WeChatConclusionPrompt{template: WeChatConclusionTemplate}
+func NewWeChatConclusionPrompt(t string) PromptTemplate {
+	if t == "" {
+		t = WeChatConclusionTemplate
+	}
+	return &WeChatConclusionPrompt{template: t}
 }
 
 func (w *WeChatConclusionPrompt) String(promptContext map[string]string) (string, error) {

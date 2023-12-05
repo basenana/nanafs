@@ -20,14 +20,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/utils"
-	"regexp"
 
 	"go.uber.org/zap"
 
 	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 )
 
@@ -35,8 +34,6 @@ const (
 	SummaryPluginName    = "summary"
 	SummaryPluginVersion = "1.0"
 )
-
-var htmlCharFilterRegexp = regexp.MustCompile(`</?[!\w]+((\s+\w+(\s*=\s*(?:".*?"|'.*?'|[^'">\s]+))?)+\s*|\s*)/?>`)
 
 type SummaryPlugin struct {
 	spec  types.PluginSpec
@@ -86,7 +83,7 @@ func (i *SummaryPlugin) Run(ctx context.Context, request *pluginapi.Request) (*p
 		buf.WriteString("\n")
 	}
 
-	trimmedContent := contentTrim(docType, buf.String())
+	trimmedContent := utils.ContentTrim(docType, buf.String())
 	i.logger(ctx).Infow("get docs", "length", len(trimmedContent), "entryId", request.EntryId)
 	summary, err := friday.SummaryFile(ctx, fmt.Sprintf("entry_%d", request.EntryId), trimmedContent)
 	if err != nil {
@@ -107,12 +104,4 @@ func NewSummaryPlugin(spec types.PluginSpec, scope types.PlugScope) (*SummaryPlu
 		scope: scope,
 		log:   logger.NewLogger("summaryPlugin"),
 	}, nil
-}
-
-func contentTrim(contentType, content string) string {
-	switch contentType {
-	case "html", "htm", "webarchive":
-		return string(htmlCharFilterRegexp.ReplaceAll([]byte(content), []byte{}))
-	}
-	return content
 }

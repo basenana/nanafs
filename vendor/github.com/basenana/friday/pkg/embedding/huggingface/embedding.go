@@ -37,9 +37,9 @@ type HuggingFace struct {
 
 var _ embedding.Embedding = &HuggingFace{}
 
-func NewHuggingFace(baseUri string, model string) embedding.Embedding {
+func NewHuggingFace(log logger.Logger, baseUri string, model string) embedding.Embedding {
 	return &HuggingFace{
-		log:     logger.NewLogger("huggingface"),
+		log:     log,
 		baseUri: baseUri,
 		model:   model,
 	}

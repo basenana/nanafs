@@ -33,8 +33,11 @@ const CombineTemplate = `Combine these summaries and reply in zh-CN Language:
 
 var _ PromptTemplate = &CombinePrompt{}
 
-func NewCombinePrompt() PromptTemplate {
-	return &CombinePrompt{template: CombineTemplate}
+func NewCombinePrompt(t string) PromptTemplate {
+	if t == "" {
+		t = CombineTemplate
+	}
+	return &CombinePrompt{template: t}
 }
 
 func (p *CombinePrompt) String(promptContext map[string]string) (string, error) {
