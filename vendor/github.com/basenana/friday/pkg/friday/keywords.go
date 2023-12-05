@@ -24,7 +24,7 @@ import (
 )
 
 func (f *Friday) Keywords(ctx context.Context, content string) (keywords []string, err error) {
-	prompt := prompts.NewKeywordsPrompt()
+	prompt := prompts.NewKeywordsPrompt(f.Prompts[keywordsPromptKey])
 
 	answers, err := f.LLM.Chat(ctx, prompt, map[string]string{"context": content})
 	if err != nil {

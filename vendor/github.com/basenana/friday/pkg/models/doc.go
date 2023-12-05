@@ -16,6 +16,18 @@
 
 package models
 
+import "time"
+
+type Document struct {
+	ID          int64     `json:"id"`
+	Title       string    `json:"title"`
+	ParentID    int64     `json:"parent_id"`
+	HtmlContent string    `json:"html_content"`
+	Keywords    string    `json:"keywords"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
 type Doc struct {
 	Id       string
 	Metadata map[string]interface{}

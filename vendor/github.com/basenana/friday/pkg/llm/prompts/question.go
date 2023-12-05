@@ -47,8 +47,11 @@ Question:
 
 var _ PromptTemplate = &QuestionPrompt{}
 
-func NewQuestionPrompt() PromptTemplate {
-	return &QuestionPrompt{template: QuestionTemplate}
+func NewQuestionPrompt(t string) PromptTemplate {
+	if t == "" {
+		t = QuestionTemplate
+	}
+	return &QuestionPrompt{template: t}
 }
 
 func (p *QuestionPrompt) String(promptContext map[string]string) (string, error) {

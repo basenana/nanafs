@@ -82,6 +82,10 @@ func (c *controller) GetDocumentsByFeed(ctx context.Context, feedId string, coun
 	return groupFeed, nil
 }
 
+func (c *controller) GetDocumentsByEntryId(ctx context.Context, entryId int64) (*types.Document, error) {
+	return c.document.GetDocumentByEntryId(ctx, entryId)
+}
+
 func BuildRssPluginScopeFromURL(url string) (types.ExtendData, error) {
 	siteName, siteURL, err := parseRssUrl(url)
 	if err != nil {

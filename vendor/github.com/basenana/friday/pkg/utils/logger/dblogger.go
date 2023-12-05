@@ -46,7 +46,7 @@ func (l *DBLogger) Error(ctx context.Context, s string, i ...interface{}) {
 
 func (l *DBLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql string, rowsAffected int64), err error) {
 	sqlContent, rows := fc()
-	l.Debugf("trace sql: %s\nrows: %s, err: %v", sqlContent, rows, err)
+	l.Debugf("trace sql: %s\nrows: %d, err: %v", sqlContent, rows, err)
 	switch {
 	case err != nil && err != gorm.ErrRecordNotFound && err != context.Canceled:
 		l.Debugf("trace error, sql: %s\nrows: %s, err: %v", sqlContent, rows, err)

@@ -25,7 +25,9 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 
 	"github.com/gin-gonic/gin"
@@ -55,6 +57,44 @@ func (f *Server) Query(gCtx *gin.Context) {
 	}
 
 	gCtx.String(200, "OK")
+}
+
+func (f *Server) Summary(gCtx *gin.Context) {
+	entryIdStr := gCtx.Query("entryId")
+	entryId, err := strconv.ParseInt(entryIdStr, 10, 64)
+	if err != nil {
+		gCtx.String(400, "Invalid parameter: %s", err)
+		return
+	}
+	doc, err := f.ctrl.GetDocumentsByEntryId(gCtx, entryId)
+	if err != nil {
+		gCtx.String(400, "Invalid parameter: %s", err)
+		return
+	}
+	entry, err := f.ctrl.GetEntry(gCtx, entryId)
+	if err != nil {
+		gCtx.String(400, "Invalid parameter: %s", err)
+		return
+	}
+	sum := doc.Summary
+	if sum == "" {
+		f.logger.Infow("summary of doc is none, call friday to summary", "entryId", doc.OID, "docId", doc.ID)
+		s := strings.Split(entry.Name, ".")
+		if len(s) == 0 {
+			gCtx.String(400, "Invalid parameter: can not get doc type")
+			return
+		}
+		docType := s[len(s)-1]
+		content := utils.ContentTrim(docType, doc.Content)
+		sum, err = friday.SummaryFile(gCtx, doc.Name, content)
+		if err != nil {
+			gCtx.String(500, "Internal Error: %s", err)
+			return
+		}
+	}
+	gCtx.JSON(200, map[string]string{
+		"summary": sum,
+	})
 }
 
 func (f *Server) Atom(gCtx *gin.Context) {

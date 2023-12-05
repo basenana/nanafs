@@ -35,10 +35,10 @@ type GLM struct {
 	baseUri string
 }
 
-func NewGLM(uri string) llm.LLM {
+func NewGLM(log logger.Logger, uri string) llm.LLM {
 	return &GLM{
 		baseUri: uri,
-		log:     logger.NewLogger("glm"),
+		log:     log,
 	}
 }
 

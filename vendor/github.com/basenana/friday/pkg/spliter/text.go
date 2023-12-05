@@ -39,8 +39,7 @@ type TextSpliter struct {
 
 var _ Spliter = &TextSpliter{}
 
-func NewTextSpliter(chunkSize int, chunkOverlap int, separator string) Spliter {
-	log := logger.NewLogger("text")
+func NewTextSpliter(log logger.Logger, chunkSize int, chunkOverlap int, separator string) Spliter {
 	return &TextSpliter{
 		log:          log,
 		separator:    separator,

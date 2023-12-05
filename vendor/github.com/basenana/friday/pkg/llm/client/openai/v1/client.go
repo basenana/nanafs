@@ -28,13 +28,19 @@ import (
 
 	"golang.org/x/time/rate"
 
+	"github.com/basenana/friday/config"
 	"github.com/basenana/friday/pkg/llm"
 	"github.com/basenana/friday/pkg/utils/logger"
 )
 
 const (
-	defaultQueryPerMinute = 3
-	defaultBurst          = 5
+	defaultQueryPerMinute           = 3
+	defaultBurst                    = 5
+	defaultTemperature      float32 = 0.7
+	defaultFrequencyPenalty uint    = 0
+	defaultPresencePenalty  uint    = 0
+	defaultMaxReturnToken           = 1024
+	defaultModel                    = "gpt-3.5-turbo"
 )
 
 type OpenAIV1 struct {
@@ -44,23 +50,46 @@ type OpenAIV1 struct {
 	key     string
 
 	limiter *rate.Limiter
+
+	conf config.OpenAIConfig
 }
 
-func NewOpenAIV1(baseUrl, key string, qpm, burst int) *OpenAIV1 {
-	if qpm <= 0 {
-		qpm = defaultQueryPerMinute
+func NewOpenAIV1(log logger.Logger, baseUrl, key string, conf config.OpenAIConfig) *OpenAIV1 {
+	if conf.QueryPerMinute <= 0 {
+		conf.QueryPerMinute = defaultQueryPerMinute
 	}
-	if burst <= 0 {
-		burst = defaultBurst
+	if conf.Burst <= 0 {
+		conf.Burst = defaultBurst
+	}
+	defaultTemp := defaultTemperature
+	if conf.Temperature == nil {
+		conf.Temperature = &defaultTemp
+	}
+	defaultMRT := defaultMaxReturnToken
+	if conf.MaxReturnToken == nil {
+		conf.MaxReturnToken = &defaultMRT
+	}
+	defaultMl := defaultModel
+	if conf.Model == nil {
+		conf.Model = &defaultMl
+	}
+	defaultFreqPenalty := defaultPresencePenalty
+	if conf.FrequencyPenalty == nil {
+		conf.FrequencyPenalty = &defaultFreqPenalty
+	}
+	defaultPrePenalty := defaultPresencePenalty
+	if conf.PresencePenalty == nil {
+		conf.PresencePenalty = &defaultPrePenalty
 	}
 
-	limiter := rate.NewLimiter(rate.Limit(qpm), burst*60)
+	limiter := rate.NewLimiter(rate.Limit(conf.QueryPerMinute), conf.Burst*60)
 
 	return &OpenAIV1{
-		log:     logger.NewLogger("openai"),
+		log:     log,
 		baseUri: baseUrl,
 		key:     key,
 		limiter: limiter,
+		conf:    conf,
 	}
 }
 
@@ -93,7 +122,7 @@ func (o *OpenAIV1) request(ctx context.Context, path string, method string, data
 			client := &http.Client{}
 			resp, err := client.Do(req)
 			if err != nil {
-				o.log.Errorf("fail to call openai, sleep 30s and retry. err: %v", err)
+				o.log.Debugf("fail to call openai, sleep 30s and retry. err: %v", err)
 				time.Sleep(time.Second * 30)
 				continue
 			}
@@ -103,7 +132,7 @@ func (o *OpenAIV1) request(ctx context.Context, path string, method string, data
 			_ = resp.Body.Close()
 
 			if resp.StatusCode != 200 {
-				o.log.Errorf("fail to call openai, sleep 30s and retry. status code error: %d, resp body: %s", resp.StatusCode, string(respBody))
+				o.log.Debugf("fail to call openai, sleep 30s and retry. status code error: %d, resp body: %s", resp.StatusCode, string(respBody))
 				time.Sleep(time.Second * 30)
 				continue
 			}

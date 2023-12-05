@@ -42,3 +42,13 @@ func (v *Index) Update(vector *Index) {
 	v.Vector = vector.Vector
 	v.ChangedAt = time.Now().UnixNano()
 }
+
+type BleveKV struct {
+	ID    string `gorm:"column:id;primaryKey"`
+	Key   []byte `gorm:"column:key"`
+	Value []byte `gorm:"column:value"`
+}
+
+func (v *BleveKV) TableName() string {
+	return "friday_blevekv"
+}

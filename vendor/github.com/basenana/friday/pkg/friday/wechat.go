@@ -31,7 +31,7 @@ import (
 
 func (f *Friday) ChatConclusion(ctx context.Context, chat string) (string, error) {
 	if f.LLM != nil {
-		p := prompts.NewWeChatPrompt()
+		p := prompts.NewWeChatPrompt(wechatPromptKey)
 		ans, err := f.LLM.Chat(ctx, p, map[string]string{
 			"context": chat,
 		})
