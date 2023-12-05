@@ -19,7 +19,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/hanwen/go-fuse/v2 v2.3.0
 	github.com/hyponet/eventbus v1.0.0
-	github.com/hyponet/webpage-packer v0.0.0-20231201131423-f3db639fa08f
+	github.com/hyponet/webpage-packer v0.0.0-20231205130517-cacb2331677f
 	github.com/ledongthuc/pdf v0.0.0-20220302134840-0c2507a12d80
 	github.com/minio/minio-go/v7 v7.0.52
 	github.com/mmcdole/gofeed v1.2.1

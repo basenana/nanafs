@@ -400,7 +400,7 @@ github.com/hanwen/go-fuse/v2/splice
 # github.com/hyponet/eventbus v1.0.0
 ## explicit; go 1.18
 github.com/hyponet/eventbus/bus
-# github.com/hyponet/webpage-packer v0.0.0-20231201131423-f3db639fa08f
+# github.com/hyponet/webpage-packer v0.0.0-20231205130517-cacb2331677f
 ## explicit; go 1.18
 github.com/hyponet/webpage-packer/packer
 # github.com/inconshreveable/mousetrap v1.1.0

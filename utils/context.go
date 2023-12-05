@@ -25,17 +25,26 @@ import (
 
 const (
 	apiTraceContextKey = "api.trace"
+	jobTraceContextKey = "workflow.trace"
 )
 
 func NewApiContext(r *http.Request) context.Context {
 	return context.WithValue(r.Context(), apiTraceContextKey, uuid.New().String())
 }
 
-func ContextLog(ctx context.Context, log *zap.SugaredLogger) *zap.SugaredLogger {
+func NewWorkflowJobContext(ctx context.Context, jobID string) context.Context {
+	return context.WithValue(ctx, jobTraceContextKey, jobID)
+}
+
+func WorkflowJobLogger(ctx context.Context, log *zap.SugaredLogger) *zap.SugaredLogger {
+	return contextLog(ctx, "job", jobTraceContextKey, log)
+}
+
+func contextLog(ctx context.Context, objectType, traceKey string, log *zap.SugaredLogger) *zap.SugaredLogger {
 	traceID := ""
-	traceObj := ctx.Value(apiTraceContextKey)
+	traceObj := ctx.Value(traceKey)
 	if traceObj != nil {
 		traceID = traceObj.(string)
 	}
-	return log.With(zap.String("trace", traceID))
+	return log.With(zap.String(objectType, traceID))
 }

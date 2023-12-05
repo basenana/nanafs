@@ -71,9 +71,10 @@ func initParentDirCacheData(ctx context.Context, entryMgr dentry.Manager, parent
 
 		cachedData, err := pluginapi.OpenCacheData(utils.NewReaderWithContextReaderAt(ctx, cachedDataFile))
 		if err != nil {
+			_ = cachedDataFile.Close(ctx)
 			return nil, fmt.Errorf("load cached entry failed: %s", err)
 		}
-		return cachedData, nil
+		return cachedData, cachedDataFile.Close(ctx)
 	}
 	return pluginapi.InitCacheData(), nil
 }
@@ -111,6 +112,7 @@ func writeParentDirCacheData(ctx context.Context, entryMgr dentry.Manager, paren
 
 	_, err = io.Copy(utils.NewWriterWithContextWriter(ctx, f), newReader)
 	if err != nil {
+		_ = f.Close(ctx)
 		return fmt.Errorf("copy cached new content to entry cahed data file failed: %s", err)
 	}
 

@@ -191,6 +191,9 @@ func (w *webArchiver) loadWebPageFromUrl(ctx context.Context, cli *http.Client, 
 	switch resp.Header.Get("Content-Encoding") {
 	case "gzip":
 		bodyReader, err = gzip.NewReader(resp.Body)
+		if err != nil {
+			return fmt.Errorf("new gzip reader failed: %w", err)
+		}
 	case "deflate":
 		bodyReader = flate.NewReader(resp.Body)
 	default:
