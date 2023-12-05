@@ -22,6 +22,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/basenana/nanafs/utils"
 	"net/url"
 	"os"
 	"path"
@@ -63,9 +64,9 @@ type rssSource struct {
 }
 
 type RssSourcePlugin struct {
-	spec   types.PluginSpec
-	scope  types.PlugScope
-	logger *zap.SugaredLogger
+	spec  types.PluginSpec
+	scope types.PlugScope
+	l     *zap.SugaredLogger
 }
 
 func (r *RssSourcePlugin) Name() string {
@@ -83,7 +84,7 @@ func (r *RssSourcePlugin) Version() string {
 func (r *RssSourcePlugin) SourceInfo() (string, error) {
 	source, err := r.rssSources(r.scope.Parameters)
 	if err != nil {
-		r.logger.Errorw("get source info from rss plugin params failed", "err", err)
+		r.l.Errorw("get source info from rss plugin params failed", "err", err)
 		return "", err
 	}
 	return source.FeedUrl, nil
@@ -95,18 +96,18 @@ func (r *RssSourcePlugin) Run(ctx context.Context, request *pluginapi.Request) (
 	}
 	source, err := r.rssSources(r.scope.Parameters)
 	if err != nil {
-		r.logger.Errorw("get rss source failed", "err", err)
+		r.l.Errorw("get rss source failed", "err", err)
 		return nil, err
 	}
 	source.EntryId = request.ParentEntryId
 
 	entries, err := r.syncRssSource(ctx, source, request)
 	if err != nil {
-		r.logger.Warnw("sync rss failed", "source", source.FeedUrl, "err", err)
+		r.l.Warnw("sync rss failed", "source", source.FeedUrl, "err", err)
 		return pluginapi.NewFailedResponse(fmt.Sprintf("sync rss failed: %s", err)), nil
 	}
 	results := []pluginapi.CollectManifest{{BaseEntry: source.EntryId, NewFiles: entries}}
-	r.logger.Infow("sync rss finish", "baseEntry", source.EntryId, "entries", len(entries))
+	r.l.Infow("sync rss finish", "baseEntry", source.EntryId, "entries", len(entries))
 
 	return pluginapi.NewResponseWithResult(map[string]any{pluginapi.ResCollectManifests: results}), nil
 }
@@ -160,6 +161,7 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 		return nil, fmt.Errorf("cached data is nil")
 	}
 
+	r.logger(ctx).Infow("parse rss source", "feed", source.FeedUrl)
 	fp := gofeed.NewParser()
 	feed, err := fp.ParseURLWithContext(source.FeedUrl, ctx)
 	if err != nil {
@@ -169,7 +171,7 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 	// using html file when using RSSHub
 	// https://github.com/DIYgod/RSSHub
 	if feed.Generator == "RSSHub" {
-		r.logger.Infow("using html file for RSSHub source")
+		r.logger(ctx).Infow("using html file for RSSHub source")
 		source.FileType = archiveFileTypeHtml
 	}
 
@@ -195,6 +197,8 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 		if item.Content == "" && item.Description != "" {
 			item.Content = item.Description
 		}
+
+		r.logger(ctx).Infow("parse rss post", "link", item.Link)
 
 		fileName := item.Title
 		switch source.FileType {
@@ -229,7 +233,8 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 				Headers:     headers,
 			})
 			if err != nil {
-				return nil, fmt.Errorf("pack to raw html file failed: %s", err)
+				r.logger(ctx).Warnw("pack to raw html file failed", "link", item.Link, "err", err)
+				continue
 			}
 
 		case archiveFileTypeWebArchive:
@@ -243,7 +248,8 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 				Headers:     headers,
 			})
 			if err != nil {
-				return nil, fmt.Errorf("pack to webarchive failed: %s", err)
+				r.logger(ctx).Warnw("pack to webarchive failed", "link", item.Link, "err", err)
+				continue
 			}
 
 		default:
@@ -281,6 +287,10 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 	return newEntries, nil
 }
 
+func (r *RssSourcePlugin) logger(ctx context.Context) *zap.SugaredLogger {
+	return utils.WorkflowJobLogger(ctx, r.l)
+}
+
 type rssSyncRecord struct {
 	ID     string
 	SyncAt time.Time
@@ -310,5 +320,5 @@ func basicPostID(postURL string) string {
 }
 
 func BuildRssSourcePlugin(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) *RssSourcePlugin {
-	return &RssSourcePlugin{spec: spec, scope: scope, logger: logger.NewLogger("rssPlugin")}
+	return &RssSourcePlugin{spec: spec, scope: scope, l: logger.NewLogger("rssPlugin")}
 }

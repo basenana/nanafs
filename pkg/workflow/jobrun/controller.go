@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
+	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"strings"
@@ -37,7 +38,7 @@ type Controller struct {
 }
 
 func (c *Controller) TriggerJob(jID string, timeout time.Duration) error {
-	ctx := context.Background()
+	ctx := utils.NewWorkflowJobContext(context.Background(), jID)
 	job, err := c.recorder.GetWorkflowJob(ctx, jID)
 	if err != nil {
 		return err
