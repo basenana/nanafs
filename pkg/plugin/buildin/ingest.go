@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/utils"
 
 	"go.uber.org/zap"
 
@@ -72,13 +73,17 @@ func (i *IngestPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pl
 		buf.WriteString("\n")
 	}
 
-	i.log.Infow("get docs", "length", buf.Len(), "entryId", request.EntryId)
+	i.logger(ctx).Infow("get docs", "length", buf.Len(), "entryId", request.EntryId)
 	err := friday.IngestFile(ctx, fmt.Sprintf("entry_%d", request.EntryId), buf.String())
 	if err != nil {
 		return pluginapi.NewFailedResponse(fmt.Sprintf("ingest documents failed: %s", err)), nil
 	}
 
 	return pluginapi.NewResponseWithResult(nil), nil
+}
+
+func (i *IngestPlugin) logger(ctx context.Context) *zap.SugaredLogger {
+	return utils.WorkflowJobLogger(ctx, i.log)
 }
 
 func NewIngestPlugin(spec types.PluginSpec, scope types.PlugScope) (*IngestPlugin, error) {

@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/utils"
 	"regexp"
 
 	"go.uber.org/zap"
@@ -86,7 +87,7 @@ func (i *SummaryPlugin) Run(ctx context.Context, request *pluginapi.Request) (*p
 	}
 
 	trimmedContent := contentTrim(docType, buf.String())
-	i.log.Infow("get docs", "length", len(trimmedContent), "entryId", request.EntryId)
+	i.logger(ctx).Infow("get docs", "length", len(trimmedContent), "entryId", request.EntryId)
 	summary, err := friday.SummaryFile(ctx, fmt.Sprintf("entry_%d", request.EntryId), trimmedContent)
 	if err != nil {
 		return pluginapi.NewFailedResponse(fmt.Sprintf("summary documents failed: %s", err)), nil
@@ -95,6 +96,9 @@ func (i *SummaryPlugin) Run(ctx context.Context, request *pluginapi.Request) (*p
 	return pluginapi.NewResponseWithResult(map[string]any{
 		pluginapi.ResEntryDocSummaryKey: summary,
 	}), nil
+}
+func (i *SummaryPlugin) logger(ctx context.Context) *zap.SugaredLogger {
+	return utils.WorkflowJobLogger(ctx, i.log)
 }
 
 func NewSummaryPlugin(spec types.PluginSpec, scope types.PlugScope) (*SummaryPlugin, error) {
