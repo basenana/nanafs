@@ -32,24 +32,32 @@ type Document struct {
 	ChangedAt     time.Time `json:"changed_at"`
 }
 
-type Feed struct {
+func (d *Document) BleveType() string {
+	return "document"
+}
+
+type DocumentFeed struct {
+	ID         string
+	Display    string
+	ParentID   int64
+	Keywords   string
+	IndexQuery string
+}
+
+type FeedResult struct {
 	FeedId    string `json:"feed_id"`
 	GroupName string `json:"group_name"`
 	SiteUrl   string `json:"site_url"`
 	SiteName  string `json:"site_name"`
 	FeedUrl   string `json:"feed_url"`
 
-	Documents []DocumentFeed `json:"documents"`
+	Documents []FeedResultItem `json:"documents"`
 }
 
-type DocumentFeed struct {
+type FeedResultItem struct {
 	ID        string   `json:"id"`
 	Title     string   `json:"title"`
 	Link      string   `json:"link"`
 	UpdatedAt string   `json:"updated_at"`
 	Document  Document `json:"document"`
-}
-
-func (d *Document) BleveType() string {
-	return "document"
 }

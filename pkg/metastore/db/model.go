@@ -408,7 +408,7 @@ type Document struct {
 	Name          string    `gorm:"column:name;index:doc_name"`
 	Source        string    `gorm:"column:source;index:doc_source"`
 	ParentEntryID *int64    `gorm:"column:parent_entry_id;index:doc_parent_entry_id"`
-	KeyWords      string    `gorm:"column:keywords"`
+	Keywords      string    `gorm:"column:keywords"`
 	Content       string    `gorm:"column:content"`
 	Summary       string    `gorm:"column:summary"`
 	Desync        bool      `gorm:"column:desync"`
@@ -425,7 +425,7 @@ func (d *Document) From(document *types.Document) *Document {
 	d.OID = document.OID
 	d.Name = document.Name
 	d.ParentEntryID = &document.ParentEntryID
-	d.KeyWords = strings.Join(document.KeyWords, ",")
+	d.Keywords = strings.Join(document.KeyWords, ",")
 	d.Source = document.Source
 	d.Content = document.Content
 	d.Summary = document.Summary
@@ -437,8 +437,8 @@ func (d *Document) From(document *types.Document) *Document {
 
 func (d *Document) To() *types.Document {
 	keyWords := []string{}
-	if strings.TrimSpace(d.KeyWords) != "" {
-		keyWords = strings.Split(d.KeyWords, ",")
+	if strings.TrimSpace(d.Keywords) != "" {
+		keyWords = strings.Split(d.Keywords, ",")
 	}
 	result := &types.Document{
 		ID:            d.ID,
@@ -454,4 +454,17 @@ func (d *Document) To() *types.Document {
 		ChangedAt:     d.ChangedAt,
 	}
 	return result
+}
+
+type DocumentFeed struct {
+	ID          string    `gorm:"column:id;primaryKey"`
+	DisplayName string    `gorm:"column:display_name"`
+	ParentID    *int64    `gorm:"column:parent_id"`
+	Keywords    *string   `gorm:"column:keywords"`
+	IndexQuery  *string   `gorm:"column:index_query"`
+	CreatedAt   time.Time `gorm:"column:created_at"`
+}
+
+func (d *DocumentFeed) TableName() string {
+	return "document_feed"
 }

@@ -65,6 +65,9 @@ type DEntry interface {
 	GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error)
 	GetDocumentByName(ctx context.Context, name string) (*types.Document, error)
 	DeleteDocument(ctx context.Context, id int64) error
+	GetDocumentFeed(ctx context.Context, feedID string) (*types.DocumentFeed, error)
+	EnableDocumentFeed(ctx context.Context, feed types.DocumentFeed) error
+	DisableDocumentFeed(ctx context.Context, feed types.DocumentFeed) error
 }
 
 type ChunkStore interface {

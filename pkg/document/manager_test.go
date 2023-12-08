@@ -138,18 +138,13 @@ var _ = Describe("testDocumentManage", func() {
 			Expect(err).Should(BeNil())
 			Expect(labels.Get(labelKeyGroupFeedID).Value).Should(Equal("test-feed"))
 		})
-		It("Get group by feed should succeed", func() {
-			entry, err := docManager.GetGroupByFeedId(context.TODO(), "test-feed")
-			Expect(err).Should(BeNil())
-			Expect(entry.ID).Should(Equal(grp.ID))
-		})
 		It("Get docs by feed should succeed", func() {
-			docs, err := docManager.GetDocsByFeedId(context.TODO(), "test-feed", 1)
+			result, err := docManager.GetDocsByFeedId(context.TODO(), "test-feed", 1)
 			Expect(err).Should(BeNil())
-			Expect(len(docs)).Should(Equal(1))
-			Expect(docs[0].ID).Should(Equal(doc.ID))
-			Expect(docs[0].Content).Should(Equal(doc.Content))
-			Expect(docs[0].KeyWords).Should(Equal(doc.KeyWords))
+			Expect(len(result.Documents)).Should(Equal(1))
+			Expect(result.Documents[0].Document.ID).Should(Equal(doc.ID))
+			Expect(result.Documents[0].Document.Content).Should(Equal(doc.Content))
+			Expect(result.Documents[0].Document.KeyWords).Should(Equal(doc.KeyWords))
 		})
 		It("Disable should succeed", func() {
 			err := docManager.DisableGroupFeed(context.TODO(), grp.ID)
