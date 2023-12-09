@@ -68,6 +68,9 @@ type DEntry interface {
 	GetDocumentFeed(ctx context.Context, feedID string) (*types.DocumentFeed, error)
 	EnableDocumentFeed(ctx context.Context, feed types.DocumentFeed) error
 	DisableDocumentFeed(ctx context.Context, feed types.DocumentFeed) error
+
+	ListFridayAccount(ctx context.Context, refId int64) ([]*types.FridayAccount, error)
+	CreateFridayAccount(ctx context.Context, account *types.FridayAccount) error
 }
 
 type ChunkStore interface {

@@ -9,7 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.26
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.36.0
 	github.com/aws/smithy-go v1.13.5
-	github.com/basenana/friday v0.0.0-20231205133028-564ca738d5c3
+	github.com/basenana/friday v0.0.0-20231209065908-7ba12e67f748
 	github.com/blevesearch/bleve/v2 v2.3.10
 	github.com/bluele/gcache v0.0.2
 	github.com/getsentry/sentry-go v0.22.0
@@ -71,6 +71,7 @@ require (
 	github.com/blevesearch/zapx/v13 v13.3.10 // indirect
 	github.com/blevesearch/zapx/v14 v14.3.10 // indirect
 	github.com/blevesearch/zapx/v15 v15.3.13 // indirect
+	github.com/cdipaolo/goml v0.0.0-20220715001353-00e0c845ae1c // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect

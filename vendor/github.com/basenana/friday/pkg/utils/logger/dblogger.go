@@ -55,6 +55,6 @@ func (l *DBLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql st
 	}
 }
 
-func NewDbLogger() *DBLogger {
-	return &DBLogger{NewLogger("database")}
+func NewDbLogger(log Logger) *DBLogger {
+	return &DBLogger{log}
 }

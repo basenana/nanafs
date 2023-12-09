@@ -23,15 +23,15 @@ import (
 	"github.com/basenana/friday/pkg/llm/prompts"
 )
 
-func (f *Friday) Keywords(ctx context.Context, content string) (keywords []string, err error) {
+func (f *Friday) Keywords(ctx context.Context, content string) ([]string, map[string]int, error) {
 	prompt := prompts.NewKeywordsPrompt(f.Prompts[keywordsPromptKey])
 
-	answers, err := f.LLM.Chat(ctx, prompt, map[string]string{"context": content})
+	answers, usage, err := f.LLM.Chat(ctx, prompt, map[string]string{"context": content})
 	if err != nil {
-		return []string{}, err
+		return []string{}, nil, err
 	}
 	answer := answers[0]
-	keywords = strings.Split(answer, ",")
+	keywords := strings.Split(answer, ",")
 	result := []string{}
 	for _, keyword := range keywords {
 		if len(keyword) != 0 {
@@ -39,5 +39,5 @@ func (f *Friday) Keywords(ctx context.Context, content string) (keywords []strin
 		}
 	}
 	f.Log.Debugf("Keywords result: %v", result)
-	return result, nil
+	return result, usage, nil
 }

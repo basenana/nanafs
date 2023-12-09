@@ -35,14 +35,19 @@ func Question(gCtx *gin.Context) {
 		gCtx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid question"})
 		return
 	}
-	answer, err := friday.Question(gCtx, q.Question)
+	answer, usage, err := friday.Question(gCtx, q.Question)
 	if err != nil {
 		gCtx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	gCtx.JSON(200, map[string]string{
+	res := map[string]any{
 		"status": "ok",
 		"answer": answer,
 		"time":   time.Now().Format(time.RFC3339),
-	})
+	}
+	for k, v := range usage {
+		res[k] = v
+	}
+
+	gCtx.JSON(200, res)
 }

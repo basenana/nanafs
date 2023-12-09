@@ -60,13 +60,13 @@ func NewSummary(log logger.Logger, l llm.LLM, limitToken int, ps map[string]stri
 	}
 }
 
-func (s *Summary) Summary(ctx context.Context, docs []string, summaryType SummaryType) (summary string, err error) {
+func (s *Summary) Summary(ctx context.Context, docs []string, summaryType SummaryType) (string, map[string]int, error) {
 	switch summaryType {
 	case MapReduce:
 		return s.MapReduce(ctx, docs)
 	case Refine:
 		// todo
-		return "", err
+		return "", nil, nil
 	case Stuff:
 		fallthrough
 	default:

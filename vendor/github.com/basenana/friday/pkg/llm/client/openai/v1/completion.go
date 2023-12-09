@@ -39,17 +39,17 @@ type Choice struct {
 	Logprobs     interface{} `json:"logprobs"`
 }
 
-func (o *OpenAIV1) Completion(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, error) {
+func (o *OpenAIV1) Completion(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, map[string]int, error) {
 	return o.completion(ctx, prompt, parameters)
 }
 
-func (o *OpenAIV1) completion(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, error) {
+func (o *OpenAIV1) completion(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, map[string]int, error) {
 	path := "v1/completions"
 
 	model := "text-davinci-003"
 	p, err := prompt.String(parameters)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	o.log.Debugf("final prompt: %s", p)
 
@@ -67,17 +67,17 @@ func (o *OpenAIV1) completion(ctx context.Context, prompt prompts.PromptTemplate
 
 	respBody, err := o.request(ctx, path, "POST", data)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var res CompletionResult
 	err = json.Unmarshal(respBody, &res)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	ans := make([]string, len(res.Choices))
 	for i, c := range res.Choices {
 		ans[i] = c.Text
 	}
-	return ans, err
+	return ans, res.Usage, err
 }

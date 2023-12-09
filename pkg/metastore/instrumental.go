@@ -450,6 +450,22 @@ func (i instrumentalStore) DeleteEntryUriByPrefix(ctx context.Context, prefix st
 	return err
 }
 
+func (i instrumentalStore) ListFridayAccount(ctx context.Context, refId int64) ([]*types.FridayAccount, error) {
+	const operation = "list_friday_account"
+	defer logOperationLatency(operation, time.Now())
+	res, err := i.store.ListFridayAccount(ctx, refId)
+	logOperationError(operation, err)
+	return res, err
+}
+
+func (i instrumentalStore) CreateFridayAccount(ctx context.Context, account *types.FridayAccount) error {
+	const operation = "create_friday_account"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.CreateFridayAccount(ctx, account)
+	logOperationError(operation, err)
+	return err
+}
+
 func DisableMetrics() {
 	disableMetrics = true
 }

@@ -25,21 +25,28 @@ import (
 	"github.com/basenana/friday/pkg/utils/files"
 )
 
-func (s *Summary) MapReduce(ctx context.Context, docs []string) (summary string, err error) {
+func (s *Summary) MapReduce(ctx context.Context, docs []string) (string, map[string]int, error) {
 	// map
-	splitedSummaries, err := s.mapSummaries(ctx, docs)
+	splitedSummaries, usage, err := s.mapSummaries(ctx, docs)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	if splitedSummaries == nil {
-		return "", fmt.Errorf("fail to split summaries")
+		return "", nil, fmt.Errorf("fail to split summaries")
 	}
 	if len(splitedSummaries) == 1 {
-		return splitedSummaries[0], nil
+		return splitedSummaries[0], usage, nil
 	}
 
 	// reduce
-	return s.reduce(ctx, splitedSummaries)
+	res, reduceUsage, err := s.reduce(ctx, splitedSummaries)
+	if err != nil {
+		return "", nil, err
+	}
+	for k, v := range reduceUsage {
+		usage[k] = usage[k] + v
+	}
+	return res, usage, nil
 }
 
 func (s *Summary) splitDocs(p prompts.PromptTemplate, docs []string) ([][]string, error) {
@@ -78,41 +85,49 @@ func (s *Summary) getLength(p prompts.PromptTemplate, docs []string) (length int
 	return length, nil
 }
 
-func (s *Summary) mapSummaries(ctx context.Context, docs []string) ([]string, error) {
+func (s *Summary) mapSummaries(ctx context.Context, docs []string) ([]string, map[string]int, error) {
 	newDocs, err := s.splitDocs(s.summaryPrompt, docs)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	s.log.Debugf("spilt docs to %d newDocs", len(newDocs))
 
 	splitedSummaries := []string{}
+	totalUsage := make(map[string]int)
 	for _, splitedDocs := range newDocs {
-		d, err := s.Stuff(ctx, splitedDocs)
+		d, usage, err := s.Stuff(ctx, splitedDocs)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		splitedSummaries = append(splitedSummaries, d)
+		for k, v := range usage {
+			totalUsage[k] = totalUsage[k] + v
+		}
 	}
-	return splitedSummaries, nil
+	return splitedSummaries, totalUsage, nil
 }
 
-func (s *Summary) reduce(ctx context.Context, summaries []string) (summary string, err error) {
+func (s *Summary) reduce(ctx context.Context, summaries []string) (string, map[string]int, error) {
 	newSummaries, err := s.splitDocs(s.combinePrompt, summaries)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	combinedSummaries := []string{}
+	totalUsage := make(map[string]int)
 	for _, subSummaries := range newSummaries {
 		subSummary := strings.Join(subSummaries, "\n")
-		res, err := s.llm.Chat(ctx, s.combinePrompt, map[string]string{"context": subSummary})
+		res, usage, err := s.llm.Chat(ctx, s.combinePrompt, map[string]string{"context": subSummary})
 		if err != nil {
-			return "", err
+			return "", usage, err
 		}
 		combinedSummaries = append(combinedSummaries, res[0])
+		for k, v := range usage {
+			totalUsage[k] = totalUsage[k] + v
+		}
 	}
 
 	if len(combinedSummaries) == 1 {
-		return combinedSummaries[0], nil
+		return combinedSummaries[0], totalUsage, nil
 	}
 	return s.reduce(ctx, combinedSummaries)
 }

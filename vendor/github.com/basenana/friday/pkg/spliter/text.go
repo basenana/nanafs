@@ -17,7 +17,6 @@
 package spliter
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/basenana/friday/pkg/models"
@@ -63,7 +62,7 @@ func (t *TextSpliter) Split(text string) []string {
 func (t *TextSpliter) Merge(elements []models.Element) []models.Element {
 	elementGroups := map[string][]models.Element{}
 	for _, element := range elements {
-		source := element.Metadata.Source
+		source := element.Name
 		if _, ok := elementGroups[source]; !ok {
 			elementGroups[source] = []models.Element{element}
 			continue
@@ -80,12 +79,9 @@ func (t *TextSpliter) Merge(elements []models.Element) []models.Element {
 		merged := t.merge(splits)
 		for i, content := range merged {
 			mergedElements = append(mergedElements, models.Element{
+				Name:    source,
+				Group:   i,
 				Content: content,
-				Metadata: models.Metadata{
-					Source: source,
-					Title:  subElements[0].Metadata.Title,
-					Group:  strconv.Itoa(i),
-				},
 			})
 		}
 	}

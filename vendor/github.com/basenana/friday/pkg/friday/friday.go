@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	defaultTopK               = 6
+	DefaultTopK               = 6
 	questionPromptKey         = "question"
 	keywordsPromptKey         = "keywords"
 	wechatPromptKey           = "wechat"
@@ -41,9 +41,13 @@ type Friday struct {
 
 	LimitToken int
 
-	LLM       llm.LLM
-	Prompts   map[string]string
+	LLM     llm.LLM
+	Prompts map[string]string
+
 	Embedding embedding.Embedding
-	Vector    vectorstore.VectorStore
-	Spliter   spliter.Spliter
+
+	Vector     vectorstore.VectorStore
+	VectorTopK *int
+
+	Spliter spliter.Spliter
 }

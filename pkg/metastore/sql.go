@@ -350,6 +350,18 @@ func (s *sqliteMetaStore) DisableDocumentFeed(ctx context.Context, feed types.Do
 	return s.dbStore.DisableDocumentFeed(ctx, feed)
 }
 
+func (s *sqliteMetaStore) ListFridayAccount(ctx context.Context, refId int64) ([]*types.FridayAccount, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.ListFridayAccount(ctx, refId)
+}
+
+func (s *sqliteMetaStore) CreateFridayAccount(ctx context.Context, account *types.FridayAccount) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.CreateFridayAccount(ctx, account)
+}
+
 func newSqliteMetaStore(meta config.Meta) (*sqliteMetaStore, error) {
 	dbEntity, err := gorm.Open(sqlite.Open(meta.Path), &gorm.Config{Logger: db.NewDbLogger()})
 	if err != nil {
@@ -1674,6 +1686,33 @@ func (s *sqlMetaStore) DisableDocumentFeed(ctx context.Context, feed types.Docum
 			return res.Error
 		}
 		return types.ErrNotFound
+	})
+	return db.SqlError2Error(err)
+}
+
+func (s *sqlMetaStore) ListFridayAccount(ctx context.Context, refId int64) ([]*types.FridayAccount, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.ListFridayAccount").End()
+	accountList := make([]db.FridayAccount, 0)
+	query := s.WithContext(ctx).Where("ref_id = ?", refId)
+	res := query.Order("created_at DESC").Find(&accountList)
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
+	}
+
+	result := make([]*types.FridayAccount, len(accountList))
+	for i, account := range accountList {
+		result[i] = account.To()
+	}
+	return result, nil
+}
+
+func (s *sqlMetaStore) CreateFridayAccount(ctx context.Context, account *types.FridayAccount) error {
+	defer trace.StartRegion(ctx, "metastore.sql.CreateFridayAccount").End()
+	accountMod := &db.FridayAccount{}
+	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		accountMod = accountMod.From(account)
+		res := tx.Create(accountMod)
+		return res.Error
 	})
 	return db.SqlError2Error(err)
 }

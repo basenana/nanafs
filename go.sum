@@ -53,6 +53,12 @@ github.com/basenana/friday v0.0.0-20231204151222-72e7fc3de07f h1:5jjQtAuY4Ld8mr9
 github.com/basenana/friday v0.0.0-20231204151222-72e7fc3de07f/go.mod h1:l0m9tX7pY7jGmCVBDwy66qr5UOBrSZVSfJnq7j6prEk=
 github.com/basenana/friday v0.0.0-20231205133028-564ca738d5c3 h1:+ygnCHQtcKsDacPfUCCh7R1DTu9MeR36EvvQP/eQtkI=
 github.com/basenana/friday v0.0.0-20231205133028-564ca738d5c3/go.mod h1:l0m9tX7pY7jGmCVBDwy66qr5UOBrSZVSfJnq7j6prEk=
+github.com/basenana/friday v0.0.0-20231206152142-6b4e0d5b1bef h1:w4OQkYzjInNVdRxaSavxQUik8yPOdwlqsjv1yYDts94=
+github.com/basenana/friday v0.0.0-20231206152142-6b4e0d5b1bef/go.mod h1:OGCCDNAXqN/ZTqO8EsaGGUBt5GrVwb/BVdnDQA4KbZI=
+github.com/basenana/friday v0.0.0-20231207142041-8f7eb86afc78 h1:PPj10ZL8OUIzT2wciS1RPA9Ayl6J6X719NV0y+gTCV0=
+github.com/basenana/friday v0.0.0-20231207142041-8f7eb86afc78/go.mod h1:OGCCDNAXqN/ZTqO8EsaGGUBt5GrVwb/BVdnDQA4KbZI=
+github.com/basenana/friday v0.0.0-20231209065908-7ba12e67f748 h1:STmXI0Q6G3P55zZJRpkgJKQrcyb3/bTgKD/f2QJSU2Y=
+github.com/basenana/friday v0.0.0-20231209065908-7ba12e67f748/go.mod h1:OGCCDNAXqN/ZTqO8EsaGGUBt5GrVwb/BVdnDQA4KbZI=
 github.com/benbjohnson/clock v1.1.0 h1:Q92kusRqC1XV2MjkWETPvjJVqKetz1OzxZB7mHJLju8=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
@@ -97,6 +103,8 @@ github.com/bwmarrin/snowflake v0.3.0/go.mod h1:NdZxfVWX+oR6y2K0o6qAYv6gIOP9rjG0/
 github.com/bytedance/sonic v1.5.0/go.mod h1:ED5hyg4y6t3/9Ku1R6dU/4KyJ48DZ4jPhfY1O2AihPM=
 github.com/bytedance/sonic v1.9.1 h1:6iJ6NqdoxCDr6mbY8h18oSO+cShGSMRGCEo7F2h0x8s=
 github.com/bytedance/sonic v1.9.1/go.mod h1:i736AoUSYt75HyZLoJW9ERYxcy6eaN6h4BZXU064P/U=
+github.com/cdipaolo/goml v0.0.0-20220715001353-00e0c845ae1c h1:uqJXOhayPfl/QruVBP6VF0KUWNDzO/F14X8CPEkkFD8=
+github.com/cdipaolo/goml v0.0.0-20220715001353-00e0c845ae1c/go.mod h1:Ue8jgVLdBDCtsh1laikvraXqXzKCyKiruCcCcaeNDFE=
 github.com/cespare/xxhash/v2 v2.2.0 h1:DC2CZ1Ep5Y4k3ZQ899DldepgrayRUGE6BBZ/cd9Cj44=
 github.com/cespare/xxhash/v2 v2.2.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/chenzhuoyu/base64x v0.0.0-20211019084208-fb5309c8db06/go.mod h1:DH46F32mSOjUmXrMHnKwZdA8wcEefY7UVqBKYGjpdQY=

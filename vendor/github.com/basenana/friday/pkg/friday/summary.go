@@ -24,60 +24,66 @@ import (
 	"github.com/basenana/friday/pkg/utils/files"
 )
 
-func (f *Friday) Summary(ctx context.Context, elements []models.Element, summaryType summary.SummaryType) (map[string]string, error) {
+func (f *Friday) Summary(ctx context.Context, elements []models.Element, summaryType summary.SummaryType) (map[string]string, map[string]int, error) {
 	result := make(map[string]string)
 	s := summary.NewSummary(f.Log, f.LLM, f.LimitToken, f.Prompts)
 
 	docs := make(map[string][]string)
 	for _, element := range elements {
-		if _, ok := docs[element.Metadata.Source]; !ok {
-			docs[element.Metadata.Source] = []string{element.Content}
+		if _, ok := docs[element.Name]; !ok {
+			docs[element.Name] = []string{element.Content}
 		} else {
-			docs[element.Metadata.Source] = append(docs[element.Metadata.Source], element.Content)
+			docs[element.Name] = append(docs[element.Name], element.Content)
 		}
 	}
+	totalUsage := make(map[string]int)
 	for source, doc := range docs {
-		summaryOfFile, err := s.Summary(ctx, doc, summaryType)
+		summaryOfFile, usage, err := s.Summary(ctx, doc, summaryType)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		result[source] = summaryOfFile
+		for k, v := range usage {
+			totalUsage[k] = totalUsage[k] + v
+		}
 	}
 	f.Log.Debugf("Summary result: %s", result)
-	return result, nil
+	return result, totalUsage, nil
 }
 
-func (f *Friday) SummaryFromFile(ctx context.Context, file models.File, summaryType summary.SummaryType) (map[string]string, error) {
+func (f *Friday) SummaryFromFile(ctx context.Context, file models.File, summaryType summary.SummaryType) (map[string]string, map[string]int, error) {
 	s := summary.NewSummary(f.Log, f.LLM, f.LimitToken, f.Prompts)
 	// split doc
 	docs := f.Spliter.Split(file.Content)
 	// summary
-	summaryOfFile, err := s.Summary(ctx, docs, summaryType)
+	summaryOfFile, usage, err := s.Summary(ctx, docs, summaryType)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return map[string]string{
-		file.Source: summaryOfFile,
-	}, err
+	return map[string]string{file.Name: summaryOfFile}, usage, err
 }
 
-func (f *Friday) SummaryFromOriginFile(ctx context.Context, ps string, summaryType summary.SummaryType) (map[string]string, error) {
+func (f *Friday) SummaryFromOriginFile(ctx context.Context, ps string, summaryType summary.SummaryType) (map[string]string, map[string]int, error) {
 	s := summary.NewSummary(f.Log, f.LLM, f.LimitToken, f.Prompts)
 	fs, err := files.ReadFiles(ps)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	result := make(map[string]string)
+	totalUsage := make(map[string]int)
 	for name, file := range fs {
 		// split doc
 		subDocs := f.Spliter.Split(file)
-		summaryOfFile, err := s.Summary(ctx, subDocs, summaryType)
+		summaryOfFile, usage, err := s.Summary(ctx, subDocs, summaryType)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		result[name] = summaryOfFile
+		for k, v := range usage {
+			totalUsage[k] = totalUsage[k] + v
+		}
 	}
 
-	return result, nil
+	return result, totalUsage, nil
 }

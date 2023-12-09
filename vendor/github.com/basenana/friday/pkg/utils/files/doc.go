@@ -17,7 +17,9 @@
 package files
 
 import (
+	"fmt"
 	"regexp"
+	"strconv"
 )
 
 func Length(doc string) int {
@@ -37,4 +39,12 @@ func Length(doc string) int {
 	punctuationCount := len(punctuation)
 
 	return wordCount + punctuationCount
+}
+
+func Int64ToStr(s int64) string {
+	return fmt.Sprintf("doc_%d", s)
+}
+
+func StrToInt64(s string) (int64, error) {
+	return strconv.ParseInt(s[4:], 10, 64)
 }

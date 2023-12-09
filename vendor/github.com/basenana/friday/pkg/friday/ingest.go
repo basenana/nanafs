@@ -18,33 +18,27 @@ package friday
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
+
+	"github.com/google/uuid"
 
 	"github.com/basenana/friday/pkg/models"
 	"github.com/basenana/friday/pkg/utils/files"
 )
 
 // IngestFromFile ingest a whole file providing models.File
-func (f *Friday) IngestFromFile(ctx context.Context, file models.File) error {
+func (f *Friday) IngestFromFile(ctx context.Context, file models.File) (map[string]int, error) {
 	elements := []models.Element{}
-	parentDir := filepath.Dir(file.Source)
 	// split doc
 	subDocs := f.Spliter.Split(file.Content)
 	for i, subDoc := range subDocs {
 		e := models.Element{
-			Content: subDoc,
-			Metadata: models.Metadata{
-				Source:    file.Source,
-				Group:     strconv.Itoa(i),
-				ParentDir: parentDir,
-			},
+			Name:     file.Name,
+			Group:    i,
+			OID:      file.OID,
+			ParentId: file.ParentId,
+			Content:  subDoc,
 		}
 		elements = append(elements, e)
 	}
@@ -53,69 +47,74 @@ func (f *Friday) IngestFromFile(ctx context.Context, file models.File) error {
 }
 
 // Ingest ingest elements of a file
-func (f *Friday) Ingest(ctx context.Context, elements []models.Element) error {
+func (f *Friday) Ingest(ctx context.Context, elements []models.Element) (map[string]int, error) {
+	totalToken := make(map[string]int)
 	f.Log.Debugf("Ingesting %d ...", len(elements))
 	for i, element := range elements {
-		// id: sha256(source)-group
-		h := sha256.New()
-		h.Write([]byte(element.Metadata.Source))
-		val := hex.EncodeToString(h.Sum(nil))[:64]
-		id := fmt.Sprintf("%s-%s", val, element.Metadata.Group)
-		if exist, err := f.Vector.Exist(id); err != nil {
-			return err
-		} else if exist {
-			f.Log.Debugf("vector %d(th) id(%s) source(%s) exist, skip ...", i, id, element.Metadata.Source)
+		exist, err := f.Vector.Get(ctx, element.OID, element.Name, element.Group)
+		if err != nil {
+			return nil, err
+		}
+		if exist != nil && exist.Content == element.Content {
+			f.Log.Debugf("vector %d(th) name(%s) group(%d) exist, skip ...", i, element.Name, element.Group)
 			continue
 		}
 
 		vectors, m, err := f.Embedding.VectorQuery(ctx, element.Content)
 		if err != nil {
-			return err
+			return nil, err
+		}
+		for k, v := range m {
+			totalToken[k] = v.(int)
 		}
 
-		t := strings.TrimSpace(element.Content)
+		if exist != nil {
+			element.ID = exist.ID
+			element.OID = exist.OID
+			element.ParentId = exist.ParentId
+		} else {
+			element.ID = uuid.New().String()
+		}
+		element.Vector = vectors
 
-		f.Log.Debugf("store %d(th) vector id (%s) source(%s) ...", i, id, element.Metadata.Source)
-		if err := f.Vector.Store(id, t, element.Metadata, m, vectors); err != nil {
-			return err
+		f.Log.Debugf("store %d(th) vector name(%s) group(%d)  ...", i, element.Name, element.Group)
+		if err := f.Vector.Store(ctx, &element, m); err != nil {
+			return nil, err
 		}
 	}
-	return nil
+	return totalToken, nil
 }
 
 // IngestFromElementFile ingest a whole file given an element-style origin file
-func (f *Friday) IngestFromElementFile(ctx context.Context, ps string) error {
+func (f *Friday) IngestFromElementFile(ctx context.Context, ps string) (map[string]int, error) {
 	doc, err := os.ReadFile(ps)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	elements := []models.Element{}
+
 	if err := json.Unmarshal(doc, &elements); err != nil {
-		return err
+		return nil, err
 	}
 	merged := f.Spliter.Merge(elements)
 	return f.Ingest(ctx, merged)
 }
 
 // IngestFromOriginFile ingest a whole file given an origin file
-func (f *Friday) IngestFromOriginFile(ctx context.Context, ps string) error {
+func (f *Friday) IngestFromOriginFile(ctx context.Context, ps string) (map[string]int, error) {
 	fs, err := files.ReadFiles(ps)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	elements := []models.Element{}
 	for n, file := range fs {
-		parentDir := filepath.Dir(n)
 		subDocs := f.Spliter.Split(file)
 		for i, subDoc := range subDocs {
 			e := models.Element{
 				Content: subDoc,
-				Metadata: models.Metadata{
-					Source:    n,
-					Group:     strconv.Itoa(i),
-					ParentDir: parentDir,
-				},
+				Name:    n,
+				Group:   i,
 			}
 			elements = append(elements, e)
 		}

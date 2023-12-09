@@ -75,6 +75,11 @@ func NewFridayWithVector(conf *config.Config, vectorClient vectorstore.VectorSto
 		conf.VectorStoreConfig.EmbeddingDim = len(testEmbed)
 	}
 
+	defaultVectorTopK := friday.DefaultTopK
+	if conf.VectorStoreConfig.TopK == nil {
+		conf.VectorStoreConfig.TopK = &defaultVectorTopK
+	}
+
 	// init text spliter
 	chunkSize := spliter.DefaultChunkSize
 	overlapSize := spliter.DefaultChunkOverlap
@@ -97,6 +102,7 @@ func NewFridayWithVector(conf *config.Config, vectorClient vectorstore.VectorSto
 		Prompts:    prompts,
 		Embedding:  embeddingModel,
 		Vector:     vectorClient,
+		VectorTopK: conf.VectorStoreConfig.TopK,
 		Spliter:    textSpliter,
 	}
 	return

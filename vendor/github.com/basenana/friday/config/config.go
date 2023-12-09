@@ -74,6 +74,7 @@ type EmbeddingConfig struct {
 type VectorStoreConfig struct {
 	VectorStoreType VectorStoreType `json:"vector_store_type"`
 	VectorUrl       string          `json:"vector_url"`
+	TopK            *int            `json:"top_k,omitempty"`         // topk of knn, default is 6
 	EmbeddingDim    int             `json:"embedding_dim,omitempty"` // embedding dimension, default is 1536
 }
 
@@ -102,4 +103,5 @@ type VectorStoreType string
 const (
 	VectorStoreRedis    VectorStoreType = "redis"
 	VectorStorePostgres VectorStoreType = "postgres"
+	VectorStorePGVector VectorStoreType = "pgvector"
 )

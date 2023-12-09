@@ -19,6 +19,7 @@ package buildin
 import (
 	"context"
 	"fmt"
+
 	"github.com/basenana/nanafs/utils"
 
 	"go.uber.org/zap"
@@ -70,13 +71,16 @@ func (i *KeywordsPlugin) Run(ctx context.Context, request *pluginapi.Request) (*
 	}
 
 	i.logger(ctx).Infow("get summary", "entryId", request.EntryId)
-	keywords, err := friday.Keywords(ctx, summery)
+	keywords, usage, err := friday.Keywords(ctx, summery)
 	if err != nil {
 		return pluginapi.NewFailedResponse(fmt.Sprintf("get documents keywords failed: %s", err)), nil
 	}
 
 	return pluginapi.NewResponseWithResult(map[string]any{
-		pluginapi.ResEntryDocKeyWordsKey: keywords,
+		pluginapi.ResEntryDocKeyWordsKey: map[string]any{
+			"keywords": keywords,
+			"usage":    usage,
+		},
 	}), nil
 }
 

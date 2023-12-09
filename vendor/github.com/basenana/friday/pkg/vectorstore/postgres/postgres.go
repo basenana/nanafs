@@ -20,9 +20,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"sort"
 	"time"
 
+	"github.com/cdipaolo/goml/base"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
@@ -37,10 +38,11 @@ type PostgresClient struct {
 	dEntity *db.Entity
 }
 
-var _ vectorstore.VectorStore = &PostgresClient{}
-
-func NewPostgresClient(postgresUrl string) (*PostgresClient, error) {
-	dbObj, err := gorm.Open(postgres.Open(postgresUrl), &gorm.Config{Logger: logger.NewDbLogger()})
+func NewPostgresClient(log logger.Logger, postgresUrl string) (*PostgresClient, error) {
+	if log == nil {
+		log = logger.NewLogger("database")
+	}
+	dbObj, err := gorm.Open(postgres.Open(postgresUrl), &gorm.Config{Logger: logger.NewDbLogger(log)})
 	if err != nil {
 		panic(err)
 	}
@@ -58,52 +60,47 @@ func NewPostgresClient(postgresUrl string) (*PostgresClient, error) {
 		return nil, err
 	}
 
-	dbEnt, err := db.NewDbEntity(dbObj)
+	dbEnt, err := db.NewDbEntity(dbObj, Migrate)
 	if err != nil {
 		return nil, err
 	}
 
 	return &PostgresClient{
-		log:     logger.NewLogger("postgres"),
+		log:     log,
 		dEntity: dbEnt,
 	}, nil
 }
 
-func (p *PostgresClient) Store(id, content string, metadata models.Metadata, extra map[string]interface{}, vectors []float32) error {
-	ctx := context.Background()
-
-	if extra == nil {
-		extra = make(map[string]interface{})
-	}
-	extra["category"] = metadata.Category
-	extra["group"] = metadata.Group
-
-	var m string
-	b, err := json.Marshal(metadata)
-	if err != nil {
-		return err
-	}
-	m = string(b)
-
-	vectorJson, _ := json.Marshal(vectors)
-	v := &db.Index{
-		ID:        id,
-		Name:      metadata.Source,
-		ParentDir: metadata.ParentDir,
-		Context:   content,
-		Metadata:  m,
-		Vector:    string(vectorJson),
-		CreatedAt: time.Now().UnixNano(),
-		ChangedAt: time.Now().UnixNano(),
-	}
+func (p *PostgresClient) Store(ctx context.Context, element *models.Element, extra map[string]any) error {
 	return p.dEntity.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		vModel := db.Index{ID: id}
-		res := tx.First(vModel)
+		if extra == nil {
+			extra = make(map[string]interface{})
+		}
+		extra["name"] = element.Name
+		extra["group"] = element.Group
+
+		b, err := json.Marshal(extra)
+		if err != nil {
+			return err
+		}
+
+		var v *Index
+		v, err = v.From(element)
+		if err != nil {
+			return err
+		}
+
+		v.Extra = string(b)
+
+		vModel := &Index{}
+		res := tx.Where("name = ? AND idx_group = ?", element.Name, element.Group).First(vModel)
 		if res.Error != nil && res.Error != gorm.ErrRecordNotFound {
 			return res.Error
 		}
 
 		if res.Error == gorm.ErrRecordNotFound {
+			v.CreatedAt = time.Now().UnixNano()
+			v.ChangedAt = time.Now().UnixNano()
 			res = tx.Create(v)
 			if res.Error != nil {
 				return res.Error
@@ -112,7 +109,7 @@ func (p *PostgresClient) Store(id, content string, metadata models.Metadata, ext
 		}
 
 		vModel.Update(v)
-		res = tx.Where("id = ?", id).Updates(vModel)
+		res = tx.Where("name = ? AND idx_group = ?", element.Name, element.Group).Updates(vModel)
 		if res.Error != nil || res.RowsAffected == 0 {
 			if res.RowsAffected == 0 {
 				return errors.New("operation conflict")
@@ -123,65 +120,93 @@ func (p *PostgresClient) Store(id, content string, metadata models.Metadata, ext
 	})
 }
 
-func (p *PostgresClient) Search(vectors []float32, k int) ([]models.Doc, error) {
-	ctx := context.Background()
-	var (
-		vectorModels = make([]db.Index, 0)
-		result       = make([]models.Doc, 0)
-	)
-	if err := p.dEntity.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		query := p.dEntity.DB.WithContext(ctx)
-		vectorJson, _ := json.Marshal(vectors)
-		res := query.Order(fmt.Sprintf("vector <-> '%s'", string(vectorJson))).Limit(k).Find(&vectorModels)
-		if res.Error != nil {
-			return res.Error
-		}
-		return nil
-	}); err != nil {
-		return nil, err
+func (p *PostgresClient) Search(ctx context.Context, parentId int64, vectors []float32, k int) ([]*models.Doc, error) {
+	vectors64 := make([]float64, 0)
+	for _, v := range vectors {
+		vectors64 = append(vectors64, float64(v))
+	}
+	// query from db
+	existIndexes := make([]Index, 0)
+	var res *gorm.DB
+	if parentId == 0 {
+		res = p.dEntity.WithContext(ctx).Find(&existIndexes)
+	} else {
+		res = p.dEntity.WithContext(ctx).Where("parent_entry_id = ?", parentId).Find(&existIndexes)
+	}
+	if res.Error != nil {
+		return nil, res.Error
 	}
 
-	for _, v := range vectorModels {
-		metadata := make(map[string]interface{})
-		if err := json.Unmarshal([]byte(v.Metadata), &metadata); err != nil {
+	// knn search
+	dists := distances{}
+	for _, index := range existIndexes {
+		var vector []float64
+		err := json.Unmarshal([]byte(index.Vector), &vector)
+		if err != nil {
 			return nil, err
 		}
-		result = append(result, models.Doc{
-			Id:       v.ID,
-			Metadata: metadata,
-			Content:  v.Context,
+
+		dists = append(dists, distance{
+			Index: index,
+			dist:  base.EuclideanDistance(vector, vectors64),
 		})
 	}
-	return result, nil
+
+	sort.Sort(dists)
+
+	minKIndexes := dists[0:k]
+	results := make([]*models.Doc, 0)
+	for _, index := range minKIndexes {
+		results = append(results, index.ToDoc())
+	}
+
+	return results, nil
 }
 
-func (p *PostgresClient) Exist(id string) (bool, error) {
-	ctx := context.Background()
-	var exist = false
-	err := p.dEntity.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		vModel := db.Index{ID: id}
-		res := tx.First(&vModel)
-		if res.Error != nil && res.Error != gorm.ErrRecordNotFound {
-			return res.Error
-		}
-
+func (p *PostgresClient) Get(ctx context.Context, oid int64, name string, group int) (*models.Element, error) {
+	vModel := &Index{}
+	var res *gorm.DB
+	if oid == 0 {
+		res = p.dEntity.WithContext(ctx).Where("name = ? AND idx_group = ?", name, group).First(vModel)
+	} else {
+		res = p.dEntity.WithContext(ctx).Where("name = ? AND oid = ? AND idx_group = ?", name, oid, group).First(vModel)
+	}
+	if res.Error != nil {
 		if res.Error == gorm.ErrRecordNotFound {
-			exist = false
-			return nil
+			return nil, nil
 		}
-		exist = true
-		return nil
-	})
-
-	return exist, err
+		return nil, res.Error
+	}
+	return vModel.To()
 }
+
+var _ vectorstore.VectorStore = &PostgresClient{}
 
 func (p *PostgresClient) Inited(ctx context.Context) (bool, error) {
 	var count int64
-	res := p.dEntity.WithContext(ctx).Model(&db.BleveKV{}).Count(&count)
+	res := p.dEntity.WithContext(ctx).Model(&BleveKV{}).Count(&count)
 	if res.Error != nil {
 		return false, res.Error
 	}
 
 	return count > 0, nil
+}
+
+type distance struct {
+	Index
+	dist float64
+}
+
+type distances []distance
+
+func (d distances) Len() int {
+	return len(d)
+}
+
+func (d distances) Less(i, j int) bool {
+	return d[i].dist < d[j].dist
+}
+
+func (d distances) Swap(i, j int) {
+	d[i], d[j] = d[j], d[i]
 }
