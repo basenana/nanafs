@@ -36,7 +36,7 @@ func InitFriday(cfg *config.Config) (err error) {
 	if cfg == nil {
 		return nil
 	}
-	pgClient, err := postgres.NewPostgresClient(cfg.VectorStoreConfig.VectorUrl)
+	pgClient, err := postgres.NewPostgresClient(cfg.Logger, cfg.VectorStoreConfig.VectorUrl)
 	if err != nil {
 		return err
 	}
@@ -54,45 +54,47 @@ func InitFridayFromConfig() (err error) {
 	return InitFriday(&cfg)
 }
 
-func IngestFile(ctx context.Context, fileName, content string) error {
+func IngestFile(ctx context.Context, entryId, parentId int64, fileName, content string) (map[string]int, error) {
 	if fridayClient == nil {
-		return fmt.Errorf("fridayClient is nil, can not use it")
+		return nil, fmt.Errorf("fridayClient is nil, can not use it")
 	}
 	file := models.File{
-		Source:  fileName,
-		Content: content,
+		Name:     fileName,
+		OID:      entryId,
+		ParentId: parentId,
+		Content:  content,
 	}
 	return fridayClient.IngestFromFile(ctx, file)
 }
 
-func Question(ctx context.Context, q string) (answer string, err error) {
+func Question(ctx context.Context, q string) (answer string, usage map[string]int, err error) {
 	if fridayClient == nil {
-		return "", fmt.Errorf("fridayClient is nil, can not use it")
+		return "", nil, fmt.Errorf("fridayClient is nil, can not use it")
 	}
-	return fridayClient.Question(ctx, q)
+	return fridayClient.Question(ctx, 0, q)
 }
 
-func SummaryFile(ctx context.Context, fileName, content string) (string, error) {
+func SummaryFile(ctx context.Context, fileName, content string) (string, map[string]int, error) {
 	if fridayClient == nil {
-		return "", fmt.Errorf("fridayClient is nil, can not use it")
+		return "", nil, fmt.Errorf("fridayClient is nil, can not use it")
 	}
 	file := models.File{
-		Source:  fileName,
+		Name:    fileName,
 		Content: content,
 	}
-	result, err := fridayClient.SummaryFromFile(ctx, file, summary.MapReduce)
+	result, usage, err := fridayClient.SummaryFromFile(ctx, file, summary.MapReduce)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	if result == nil || result[fileName] == "" {
-		return "", fmt.Errorf("fail to summary file %s", fileName)
+		return "", nil, fmt.Errorf("fail to summary file %s", fileName)
 	}
-	return result[fileName], nil
+	return result[fileName], usage, nil
 }
 
-func Keywords(ctx context.Context, content string) ([]string, error) {
+func Keywords(ctx context.Context, content string) ([]string, map[string]int, error) {
 	if fridayClient == nil {
-		return nil, fmt.Errorf("fridayClient is nil, can not use it")
+		return nil, nil, fmt.Errorf("fridayClient is nil, can not use it")
 	}
 	return fridayClient.Keywords(ctx, content)
 }

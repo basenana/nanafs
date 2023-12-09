@@ -60,6 +60,7 @@ func (f *Server) Query(gCtx *gin.Context) {
 }
 
 func (f *Server) Summary(gCtx *gin.Context) {
+	force := gCtx.Query("force")
 	entryIdStr := gCtx.Query("entryId")
 	entryId, err := strconv.ParseInt(entryIdStr, 10, 64)
 	if err != nil {
@@ -77,7 +78,8 @@ func (f *Server) Summary(gCtx *gin.Context) {
 		return
 	}
 	sum := doc.Summary
-	if sum == "" {
+	usage := make(map[string]int)
+	if sum == "" || force == "true" {
 		f.logger.Infow("summary of doc is none, call friday to summary", "entryId", doc.OID, "docId", doc.ID)
 		s := strings.Split(entry.Name, ".")
 		if len(s) == 0 {
@@ -86,15 +88,19 @@ func (f *Server) Summary(gCtx *gin.Context) {
 		}
 		docType := s[len(s)-1]
 		content := utils.ContentTrim(docType, doc.Content)
-		sum, err = friday.SummaryFile(gCtx, doc.Name, content)
+		sum, usage, err = friday.SummaryFile(gCtx, doc.Name, content)
 		if err != nil {
 			gCtx.String(500, "Internal Error: %s", err)
 			return
 		}
 	}
-	gCtx.JSON(200, map[string]string{
+	res := map[string]any{
 		"summary": sum,
-	})
+	}
+	for k, v := range usage {
+		res[k] = v
+	}
+	gCtx.JSON(200, res)
 }
 
 func (f *Server) Atom(gCtx *gin.Context) {

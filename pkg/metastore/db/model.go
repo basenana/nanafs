@@ -468,3 +468,43 @@ type DocumentFeed struct {
 func (d *DocumentFeed) TableName() string {
 	return "document_feed"
 }
+
+type FridayAccount struct {
+	ID             int64     `gorm:"column:id;primaryKey"`
+	RefId          int64     `gorm:"column:ref_id;index:fridayaccount_ref_id"`
+	RefType        string    `gorm:"column:ref_type;index:fridayaccount_ref_type"`
+	Type           string    `gorm:"column:type;index:fridayaccount_type"`
+	CompleteTokens int       `gorm:"column:complete_tokens"`
+	PromptTokens   int       `gorm:"column:prompt_tokens"`
+	TotalTokens    int       `gorm:"column:total_tokens"`
+	CreatedAt      time.Time `gorm:"column:created_at"`
+}
+
+func (a *FridayAccount) TableName() string {
+	return "friday_account"
+}
+
+func (a *FridayAccount) To() *types.FridayAccount {
+	return &types.FridayAccount{
+		ID:             a.ID,
+		RefID:          a.RefId,
+		RefType:        a.RefType,
+		Type:           a.Type,
+		CompleteTokens: a.CompleteTokens,
+		PromptTokens:   a.PromptTokens,
+		TotalTokens:    a.TotalTokens,
+		CreatedAt:      a.CreatedAt,
+	}
+}
+
+func (a *FridayAccount) From(account *types.FridayAccount) *FridayAccount {
+	a.ID = account.ID
+	a.RefId = account.RefID
+	a.RefType = account.RefType
+	a.Type = account.Type
+	a.PromptTokens = account.PromptTokens
+	a.CompleteTokens = account.CompleteTokens
+	a.TotalTokens = account.TotalTokens
+	a.CreatedAt = account.CreatedAt
+	return a
+}

@@ -240,9 +240,10 @@ func (b *localExecutor) Collect(ctx context.Context) error {
 
 		// collect documents
 		var (
-			entryID  int64
-			summary  string
-			keyWords []string
+			entryID    int64
+			summary    string
+			keyWords   []string
+			totalUsage = make(map[string]any)
 		)
 		if _, ok := b.results[pluginapi.ResEntryIdKey]; !ok {
 			return fmt.Errorf("content is empty")
@@ -253,12 +254,16 @@ func (b *localExecutor) Collect(ctx context.Context) error {
 		}
 
 		if _, ok := b.results[pluginapi.ResEntryDocSummaryKey]; ok {
-			summary = b.results[pluginapi.ResEntryDocSummaryKey].(string)
+			summaryVal := b.results[pluginapi.ResEntryDocSummaryKey].(map[string]any)
+			summary = summaryVal["summary"].(string)
+			totalUsage["summary"] = summaryVal["usage"]
 		}
 		if _, ok := b.results[pluginapi.ResEntryDocKeyWordsKey]; ok {
-			keyWords = b.results[pluginapi.ResEntryDocKeyWordsKey].([]string)
+			keyWordsVal := b.results[pluginapi.ResEntryDocKeyWordsKey].(map[string]any)
+			keyWords = keyWordsVal["keywords"].([]string)
+			totalUsage["keywords"] = keyWordsVal["usage"]
 		}
-		err := b.collectDocuments(ctx, entryID, buf, summary, keyWords)
+		err := b.collectDocuments(ctx, entryID, buf, summary, keyWords, totalUsage)
 		if err != nil {
 			return err
 		}
@@ -284,9 +289,9 @@ func (b *localExecutor) collectFiles(ctx context.Context, manifests []pluginapi.
 	return nil
 }
 
-func (b *localExecutor) collectDocuments(ctx context.Context, entryId int64, content bytes.Buffer, summary string, keyWords []string) error {
+func (b *localExecutor) collectDocuments(ctx context.Context, entryId int64, content bytes.Buffer, summary string, keyWords []string, usage map[string]any) error {
 	b.logger.Infow("collect documents", "entryId", entryId)
-	if err := collectFile2Document(ctx, b.docMgr, b.entryMgr, entryId, content, summary, keyWords); err != nil {
+	if err := collectFile2Document(ctx, b.docMgr, b.entryMgr, entryId, content, summary, keyWords, usage); err != nil {
 		return logOperationError(localExecName, "collect", err)
 	}
 	return nil

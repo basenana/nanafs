@@ -23,6 +23,6 @@ import (
 )
 
 type LLM interface {
-	Completion(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, error)
-	Chat(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, error)
+	Completion(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, map[string]int, error)
+	Chat(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, map[string]int, error)
 }

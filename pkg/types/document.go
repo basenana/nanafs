@@ -57,3 +57,14 @@ type FeedResultItem struct {
 	UpdatedAt string   `json:"updated_at"`
 	Document  Document `json:"document"`
 }
+
+type FridayAccount struct {
+	ID             int64
+	RefID          int64
+	RefType        string
+	Type           string
+	CompleteTokens int
+	PromptTokens   int
+	TotalTokens    int
+	CreatedAt      time.Time
+}

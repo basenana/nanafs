@@ -76,12 +76,12 @@ type CompletionResult struct {
 	Time     string     `json:"time"`
 }
 
-func (o *GLM) Completion(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, error) {
+func (o *GLM) Completion(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, map[string]int, error) {
 	path := ""
 
 	p, err := prompt.String(parameters)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	data := map[string]interface{}{
 		"prompt":      p,
@@ -93,24 +93,24 @@ func (o *GLM) Completion(ctx context.Context, prompt prompts.PromptTemplate, par
 
 	respBody, err := o.request(path, "POST", bytes.NewBuffer(postBody))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var res CompletionResult
 	err = json.Unmarshal(respBody, &res)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	ans := []string{res.Response}
-	return ans, err
+	return ans, nil, err
 }
 
-func (o *GLM) Chat(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, error) {
+func (o *GLM) Chat(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, map[string]int, error) {
 	path := ""
 
 	p, err := prompt.String(parameters)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	data := map[string]interface{}{
 		"prompt":      p,
@@ -122,14 +122,14 @@ func (o *GLM) Chat(ctx context.Context, prompt prompts.PromptTemplate, parameter
 
 	respBody, err := o.request(path, "POST", bytes.NewBuffer(postBody))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var res CompletionResult
 	err = json.Unmarshal(respBody, &res)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	ans := []string{res.Response}
-	return ans, err
+	return ans, nil, err
 }

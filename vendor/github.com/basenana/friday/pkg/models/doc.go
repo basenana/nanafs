@@ -30,6 +30,9 @@ type Document struct {
 
 type Doc struct {
 	Id       string
-	Metadata map[string]interface{}
+	OID      int64
+	Name     string
+	Group    int
+	ParentId int64
 	Content  string
 }

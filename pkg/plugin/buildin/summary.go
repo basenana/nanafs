@@ -85,13 +85,16 @@ func (i *SummaryPlugin) Run(ctx context.Context, request *pluginapi.Request) (*p
 
 	trimmedContent := utils.ContentTrim(docType, buf.String())
 	i.logger(ctx).Infow("get docs", "length", len(trimmedContent), "entryId", request.EntryId)
-	summary, err := friday.SummaryFile(ctx, fmt.Sprintf("entry_%d", request.EntryId), trimmedContent)
+	summary, usage, err := friday.SummaryFile(ctx, fmt.Sprintf("entry_%d", request.EntryId), trimmedContent)
 	if err != nil {
 		return pluginapi.NewFailedResponse(fmt.Sprintf("summary documents failed: %s", err)), nil
 	}
 
 	return pluginapi.NewResponseWithResult(map[string]any{
-		pluginapi.ResEntryDocSummaryKey: summary,
+		pluginapi.ResEntryDocSummaryKey: map[string]any{
+			"summary": summary,
+			"usage":   usage,
+		},
 	}), nil
 }
 func (i *SummaryPlugin) logger(ctx context.Context) *zap.SugaredLogger {

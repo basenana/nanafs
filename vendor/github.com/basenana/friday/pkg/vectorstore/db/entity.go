@@ -24,9 +24,9 @@ type Entity struct {
 	*gorm.DB
 }
 
-func NewDbEntity(db *gorm.DB) (*Entity, error) {
+func NewDbEntity(db *gorm.DB, migrate func(db *gorm.DB) error) (*Entity, error) {
 	ent := &Entity{DB: db}
-	if err := Migrate(db); err != nil {
+	if err := migrate(db); err != nil {
 		return nil, err
 	}
 	return ent, nil

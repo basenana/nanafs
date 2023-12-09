@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/basenana/friday/pkg/llm/prompts"
@@ -29,45 +28,49 @@ import (
 	"github.com/basenana/friday/pkg/utils/files"
 )
 
-func (f *Friday) ChatConclusion(ctx context.Context, chat string) (string, error) {
+func (f *Friday) ChatConclusion(ctx context.Context, chat string) (string, map[string]int, error) {
 	if f.LLM != nil {
 		p := prompts.NewWeChatPrompt(wechatPromptKey)
-		ans, err := f.LLM.Chat(ctx, p, map[string]string{
+		ans, usage, err := f.LLM.Chat(ctx, p, map[string]string{
 			"context": chat,
 		})
 		if err != nil {
-			return "", fmt.Errorf("llm completion error: %w", err)
+			return "", nil, fmt.Errorf("llm completion error: %w", err)
 		}
-		return ans[0], nil
+		return ans[0], usage, nil
 	}
-	return "", nil
+	return "", nil, nil
 }
 
-func (f *Friday) ChatConclusionFromElementFile(ctx context.Context, chatFile string) (string, error) {
+func (f *Friday) ChatConclusionFromElementFile(ctx context.Context, chatFile string) (string, map[string]int, error) {
 	var ans []string
 	doc, err := os.ReadFile(chatFile)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	elements := []models.Element{}
 	if err = json.Unmarshal(doc, &elements); err != nil {
-		return "", err
+		return "", nil, err
 	}
 	merged := f.Spliter.Merge(elements)
+	totalUsage := make(map[string]int)
 	for _, m := range merged {
-		a, err := f.ChatConclusion(ctx, m.Content)
+		a, usage, err := f.ChatConclusion(ctx, m.Content)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 		ans = append(ans, a)
+		for k, v := range usage {
+			totalUsage[k] = totalUsage[k] + v
+		}
 	}
-	return strings.Join(ans, "\n=============\n"), nil
+	return strings.Join(ans, "\n=============\n"), totalUsage, nil
 }
 
-func (f *Friday) ChatConclusionFromFile(ctx context.Context, chatFile string) (string, error) {
+func (f *Friday) ChatConclusionFromFile(ctx context.Context, chatFile string) (string, map[string]int, error) {
 	fs, err := files.ReadFiles(chatFile)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	elements := []models.Element{}
@@ -76,22 +79,24 @@ func (f *Friday) ChatConclusionFromFile(ctx context.Context, chatFile string) (s
 		for i, subDoc := range subDocs {
 			e := models.Element{
 				Content: subDoc,
-				Metadata: models.Metadata{
-					Source: n,
-					Group:  strconv.Itoa(i),
-				},
+				Name:    n,
+				Group:   i,
 			}
 			elements = append(elements, e)
 		}
 	}
 
 	var ans []string
+	totalUsage := make(map[string]int)
 	for _, m := range elements {
-		a, err := f.ChatConclusion(ctx, m.Content)
+		a, usage, err := f.ChatConclusion(ctx, m.Content)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 		ans = append(ans, a)
+		for k, v := range usage {
+			totalUsage[k] = totalUsage[k] + v
+		}
 	}
-	return strings.Join(ans, "\n=============\n"), nil
+	return strings.Join(ans, "\n=============\n"), totalUsage, nil
 }

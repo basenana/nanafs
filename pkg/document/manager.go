@@ -20,10 +20,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/basenana/nanafs/config"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/basenana/nanafs/config"
 
 	"go.uber.org/zap"
 
@@ -55,6 +56,8 @@ type Manager interface {
 	EnableGroupFeed(ctx context.Context, id int64, feedID string) error
 	DisableGroupFeed(ctx context.Context, id int64) error
 	GetDocsByFeedId(ctx context.Context, feedID string, count int) (*types.FeedResult, error)
+
+	CreateFridayAccount(ctx context.Context, account *types.FridayAccount) error
 }
 
 type manager struct {
@@ -286,11 +289,8 @@ func (m *manager) EnableGroupFeed(ctx context.Context, id int64, feedID string) 
 		return err
 	}
 
-	if existedFeed != nil {
-		if existedFeed.ParentID == id {
-			return nil
-		}
-		return types.ErrIsExist
+	if existedFeed != nil && existedFeed.ParentID == id {
+		return nil
 	}
 
 	feed := types.DocumentFeed{ID: feedID, Display: entry.Name, ParentID: id}
@@ -306,6 +306,17 @@ func (m *manager) DisableGroupFeed(ctx context.Context, id int64) error {
 	err := m.recorder.DisableDocumentFeed(ctx, types.DocumentFeed{ParentID: id})
 	if err != nil {
 		m.logger.Errorw("disable group feed failed", "entry", id, "err", err)
+		return err
+	}
+	return nil
+}
+
+func (m *manager) CreateFridayAccount(ctx context.Context, account *types.FridayAccount) error {
+	account.CreatedAt = time.Now()
+	account.ID = utils.GenerateNewID()
+	err := m.recorder.CreateFridayAccount(ctx, account)
+	if err != nil {
+		m.logger.Errorw("save friday account failed", "refId", account.RefID, "refType", account.RefType, "err", err)
 		return err
 	}
 	return nil

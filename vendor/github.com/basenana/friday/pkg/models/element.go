@@ -17,20 +17,18 @@
 package models
 
 type File struct {
-	Name    string `json:"name"`
-	Source  string `json:"source"`
-	Content string `json:"content"`
+	Name     string `json:"name"`
+	OID      int64  `json:"oid"`
+	ParentId int64  `json:"parent_id"`
+	Content  string `json:"content"`
 }
 
 type Element struct {
-	Content  string   `json:"content"`
-	Metadata Metadata `json:"metadata"`
-}
-
-type Metadata struct {
-	Source    string `json:"source"`
-	Title     string `json:"title"`
-	ParentDir string `json:"parent_dir"`
-	Group     string `json:"group"`
-	Category  string `json:"category"`
+	ID       string    `json:"id"`
+	Name     string    `json:"name"`
+	Group    int       `json:"group"`
+	OID      int64     `json:"oid"`
+	ParentId int64     `json:"parent_id"`
+	Content  string    `json:"content"`
+	Vector   []float32 `json:"vector"`
 }

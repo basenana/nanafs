@@ -24,40 +24,40 @@ import (
 	"github.com/basenana/friday/pkg/llm/prompts"
 )
 
-func (f *Friday) Question(ctx context.Context, q string) (string, error) {
-	prompt := prompts.NewQuestionPrompt(questionPromptKey)
-	c, err := f.searchDocs(ctx, q)
+func (f *Friday) Question(ctx context.Context, parentId int64, q string) (string, map[string]int, error) {
+	prompt := prompts.NewQuestionPrompt(f.Prompts[questionPromptKey])
+	c, err := f.searchDocs(ctx, parentId, q)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	if f.LLM != nil {
-		ans, err := f.LLM.Chat(ctx, prompt, map[string]string{
+		ans, usage, err := f.LLM.Chat(ctx, prompt, map[string]string{
 			"context":  c,
 			"question": q,
 		})
 		if err != nil {
-			return "", fmt.Errorf("llm completion error: %w", err)
+			return "", nil, fmt.Errorf("llm completion error: %w", err)
 		}
 		f.Log.Debugf("Question result: %s", c)
-		return ans[0], nil
+		return ans[0], usage, nil
 	}
-	return c, nil
+	return c, nil, nil
 }
 
-func (f *Friday) searchDocs(ctx context.Context, q string) (string, error) {
+func (f *Friday) searchDocs(ctx context.Context, parentId int64, q string) (string, error) {
 	f.Log.Debugf("vector query for %s ...", q)
 	qv, _, err := f.Embedding.VectorQuery(ctx, q)
 	if err != nil {
 		return "", fmt.Errorf("vector embedding error: %w", err)
 	}
-	contexts, err := f.Vector.Search(qv, defaultTopK)
+	docs, err := f.Vector.Search(ctx, parentId, qv, *f.VectorTopK)
 	if err != nil {
 		return "", fmt.Errorf("vector search error: %w", err)
 	}
 
 	cs := []string{}
-	for _, c := range contexts {
-		f.Log.Debugf("searched from [%s] for %s", c.Metadata["source"], c.Content)
+	for _, c := range docs {
+		f.Log.Debugf("searched from [%s] for %s", c.Name, c.Content)
 		cs = append(cs, c.Content)
 	}
 	return strings.Join(cs, "\n"), nil

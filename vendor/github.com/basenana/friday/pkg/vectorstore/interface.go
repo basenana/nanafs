@@ -16,10 +16,14 @@
 
 package vectorstore
 
-import "github.com/basenana/friday/pkg/models"
+import (
+	"context"
+
+	"github.com/basenana/friday/pkg/models"
+)
 
 type VectorStore interface {
-	Store(id, content string, metadata models.Metadata, extra map[string]interface{}, vectors []float32) error
-	Search(vectors []float32, k int) ([]models.Doc, error)
-	Exist(id string) (bool, error)
+	Store(ctx context.Context, element *models.Element, extra map[string]any) error
+	Search(ctx context.Context, parentId int64, vectors []float32, k int) ([]*models.Doc, error)
+	Get(ctx context.Context, oid int64, name string, group int) (*models.Element, error)
 }

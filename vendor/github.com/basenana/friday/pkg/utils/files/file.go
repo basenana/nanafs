@@ -48,7 +48,7 @@ func ReadFiles(ps string) (docs map[string]string, err error) {
 		}
 		return
 	}
-	if !strings.HasSuffix(p.Name(), ".md") && !strings.HasSuffix(p.Name(), ".txt") {
+	if !strings.HasSuffix(p.Name(), ".md") && !strings.HasSuffix(p.Name(), ".txt") && !strings.HasSuffix(p.Name(), ".html") {
 		return
 	}
 	doc, err := os.ReadFile(ps)

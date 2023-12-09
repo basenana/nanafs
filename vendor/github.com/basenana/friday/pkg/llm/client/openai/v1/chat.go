@@ -38,16 +38,16 @@ type ChatChoice struct {
 	FinishReason string            `json:"finish_reason"`
 }
 
-func (o *OpenAIV1) Chat(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, error) {
+func (o *OpenAIV1) Chat(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, map[string]int, error) {
 	return o.chat(ctx, prompt, parameters)
 }
 
-func (o *OpenAIV1) chat(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, error) {
+func (o *OpenAIV1) chat(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, map[string]int, error) {
 	path := "v1/chat/completions"
 
 	p, err := prompt.String(parameters)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	data := map[string]interface{}{
@@ -63,17 +63,17 @@ func (o *OpenAIV1) chat(ctx context.Context, prompt prompts.PromptTemplate, para
 
 	respBody, err := o.request(ctx, path, "POST", data)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var res ChatResult
 	err = json.Unmarshal(respBody, &res)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	ans := make([]string, len(res.Choices))
 	for i, c := range res.Choices {
 		ans[i] = c.Message["content"]
 	}
-	return ans, err
+	return ans, res.Usage, err
 }
