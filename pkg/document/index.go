@@ -51,20 +51,25 @@ type Indexer struct {
 }
 
 func NewDocumentIndexer(recorder metastore.DEntry, cfg config.Indexer) (*Indexer, error) {
-	b, err := openBleveLocalIndexer(cfg)
+	b, rebuild, err := openBleveLocalIndexer(cfg)
 	if err != nil {
 		return nil, err
 	}
-	return &Indexer{
+	index := &Indexer{
 		b:        b,
 		recorder: recorder,
 		cfg:      cfg,
 		logger:   logger.NewLogger("indexer"),
-	}, nil
+	}
+	if rebuild {
+		go index.rebuild()
+	}
+	return index, nil
 }
 
 func (i *Indexer) Index(ctx context.Context, doc *types.Document) error {
-	err := i.b.Index(int64ToStr(doc.ID), doc)
+	bd := newBleveDocument(doc)
+	err := i.b.Index(bd.ID, bd)
 	if err != nil {
 		i.logger.Errorw("index document failed", "document", doc.ID, "err", err)
 		return err
@@ -100,7 +105,8 @@ func (i *Indexer) Query(ctx context.Context, query, dialect string) ([]*types.Do
 		return nil, err
 	}
 
-	i.logger.Infow(result.String())
+	i.logger.Infof("%d matches, showing %d through %d, took %s",
+		result.Total, result.Request.From+1, result.Request.From+len(result.Hits), result.Took)
 
 	var (
 		docList []*types.Document
@@ -122,13 +128,62 @@ func (i *Indexer) Query(ctx context.Context, query, dialect string) ([]*types.Do
 	return docList, nil
 }
 
-func openBleveLocalIndexer(cfg config.Indexer) (bleve.Index, error) {
+func (i *Indexer) rebuild() {
+	i.logger.Infow("rebuild index")
+	ctx := context.Background()
+	allDoc, err := i.recorder.ListDocument(ctx, 0)
+	if err != nil {
+		i.logger.Errorw("rebuild index failed: list all document failed", "err", err)
+		return
+	}
+	for j := range allDoc {
+		doc := allDoc[j]
+		if err = i.Index(ctx, doc); err != nil {
+			i.logger.Errorw("rebuild index failed: index document failed", "doc", doc.ID, "err", err)
+		}
+	}
+	i.logger.Infow("rebuild index finish")
+}
+
+type BleveDocument struct {
+	ID            string    `json:"id"`
+	OID           int64     `json:"oid"`
+	Name          string    `json:"name"`
+	ParentEntryID int64     `json:"parent_entry_id"`
+	Source        string    `json:"source"`
+	KeyWords      []string  `json:"keywords,omitempty"`
+	Content       string    `json:"content,omitempty"`
+	Summary       string    `json:"summary,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+	ChangedAt     time.Time `json:"changed_at"`
+}
+
+func newBleveDocument(doc *types.Document) *BleveDocument {
+	return &BleveDocument{
+		ID:            int64ToStr(doc.ID),
+		OID:           doc.OID,
+		Name:          doc.Name,
+		ParentEntryID: doc.ParentEntryID,
+		Source:        doc.Source,
+		KeyWords:      doc.KeyWords,
+		Content:       doc.Content,
+		Summary:       doc.Summary,
+		CreatedAt:     doc.CreatedAt,
+		ChangedAt:     doc.ChangedAt,
+	}
+}
+
+func (d *BleveDocument) BleveType() string {
+	return "document"
+}
+
+func openBleveLocalIndexer(cfg config.Indexer) (bleve.Index, bool, error) {
 	index, err := bleve.Open(cfg.LocalIndexerDir)
 	if err != nil && err != bleve.ErrorIndexPathDoesNotExist {
-		return nil, err
+		return nil, false, err
 	}
 	if err == nil {
-		return index, nil
+		return index, false, nil
 	}
 
 	mapping := bleve.NewIndexMapping()
@@ -166,7 +221,7 @@ func openBleveLocalIndexer(cfg config.Indexer) (bleve.Index, error) {
 
 	documentMapping.AddFieldMappingsAt("source", indexButNoStoreTextField)
 	documentMapping.AddFieldMappingsAt("content", indexAndStoreHtmlField)
-	documentMapping.AddFieldMappingsAt("key_words", indexButNoStoreTextField)
+	documentMapping.AddFieldMappingsAt("keywords", indexButNoStoreTextField)
 	documentMapping.AddFieldMappingsAt("summary", indexButNoStoreTextField)
 	documentMapping.AddFieldMappingsAt("created_at", indexButNoStoreDataField)
 	documentMapping.AddFieldMappingsAt("changed_at", indexButNoStoreDataField)
@@ -175,9 +230,9 @@ func openBleveLocalIndexer(cfg config.Indexer) (bleve.Index, error) {
 
 	index, err = bleve.NewUsing(cfg.LocalIndexerDir, mapping, upsidedown.Name, boltdb.Name, map[string]interface{}{})
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return index, nil
+	return index, true, nil
 }
 
 const HtmlAnalyzer = "html"

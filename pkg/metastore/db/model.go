@@ -459,7 +459,7 @@ func (d *Document) To() *types.Document {
 type DocumentFeed struct {
 	ID          string    `gorm:"column:id;primaryKey"`
 	DisplayName string    `gorm:"column:display_name"`
-	ParentID    *int64    `gorm:"column:parent_id"`
+	ParentID    *int64    `gorm:"column:parent_id;index:docfeed_parent_id"`
 	Keywords    *string   `gorm:"column:keywords"`
 	IndexQuery  *string   `gorm:"column:index_query"`
 	CreatedAt   time.Time `gorm:"column:created_at"`

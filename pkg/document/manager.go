@@ -36,7 +36,6 @@ import (
 )
 
 const (
-	labelKeyGroupFeedID    = "org.basenana.internal.feed/id"
 	attrSourcePluginPrefix = "org.basenana.plugin.source/"
 
 	rssPostMetaID        = "org.basenana.plugin.rss/id"
@@ -202,6 +201,7 @@ func (m *manager) GetDocsByFeedId(ctx context.Context, feedID string, count int)
 			m.logger.Errorw("query feed parent entry failed", "feed", feedID, "entry", feed.ParentID, "err", err)
 			return nil, err
 		}
+		result.GroupName = parentEn.Name
 
 		gExtend, err := m.recorder.GetEntryExtendData(ctx, parentEn.ID)
 		if err != nil {
@@ -219,7 +219,6 @@ func (m *manager) GetDocsByFeedId(ctx context.Context, feedID string, count int)
 
 			}
 		}
-
 		documents, err = m.recorder.ListDocument(ctx, feed.ParentID)
 		if err != nil {
 			return nil, err
@@ -265,6 +264,7 @@ func (m *manager) GetDocsByFeedId(ctx context.Context, feedID string, count int)
 			Document:  *doc,
 		}
 	}
+	result.Documents = docFeeds
 
 	return result, nil
 }

@@ -1554,7 +1554,11 @@ func (s *sqlMetaStore) SaveDocument(ctx context.Context, doc *types.Document) er
 func (s *sqlMetaStore) ListDocument(ctx context.Context, parentId int64) ([]*types.Document, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListDocument").End()
 	docList := make([]db.Document, 0)
-	res := s.WithContext(ctx).Where("parent_entry_id = ?", parentId).Order("created_at DESC").Find(&docList)
+	query := s.WithContext(ctx)
+	if parentId > 0 {
+		query = query.Where("parent_entry_id = ?", parentId)
+	}
+	res := query.Order("created_at DESC").Find(&docList)
 	if res.Error != nil {
 		return nil, db.SqlError2Error(res.Error)
 	}
@@ -1615,7 +1619,7 @@ func (s *sqlMetaStore) GetDocumentFeed(ctx context.Context, feedID string) (*typ
 	if err != nil {
 		return nil, db.SqlError2Error(err)
 	}
-	result := &types.DocumentFeed{ID: feedID}
+	result := &types.DocumentFeed{ID: feedID, Display: feedMod.DisplayName}
 	if feedMod.ParentID != nil {
 		result.ParentID = *feedMod.ParentID
 	}
@@ -1666,7 +1670,7 @@ func (s *sqlMetaStore) DisableDocumentFeed(ctx context.Context, feed types.Docum
 			res := tx.Where("id = ?", feed.ID).Delete(&db.DocumentFeed{})
 			return res.Error
 		case feed.ParentID > 0:
-			res := tx.Where("parent_id = ?", feed.ID).Delete(&db.DocumentFeed{})
+			res := tx.Where("parent_id = ?", feed.ParentID).Delete(&db.DocumentFeed{})
 			return res.Error
 		}
 		return types.ErrNotFound

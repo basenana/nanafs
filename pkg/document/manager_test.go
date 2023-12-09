@@ -134,9 +134,8 @@ var _ = Describe("testDocumentManage", func() {
 		It("Enable should succeed", func() {
 			err := docManager.EnableGroupFeed(context.TODO(), grp.ID, "test-feed")
 			Expect(err).Should(BeNil())
-			labels, err := docManager.recorder.GetEntryLabels(context.TODO(), grp.ID)
+			_, err = docManager.recorder.GetDocumentFeed(context.TODO(), "test-feed")
 			Expect(err).Should(BeNil())
-			Expect(labels.Get(labelKeyGroupFeedID).Value).Should(Equal("test-feed"))
 		})
 		It("Get docs by feed should succeed", func() {
 			result, err := docManager.GetDocsByFeedId(context.TODO(), "test-feed", 1)
@@ -149,9 +148,8 @@ var _ = Describe("testDocumentManage", func() {
 		It("Disable should succeed", func() {
 			err := docManager.DisableGroupFeed(context.TODO(), grp.ID)
 			Expect(err).Should(BeNil())
-			labels, err := docManager.recorder.GetEntryLabels(context.TODO(), grp.ID)
-			Expect(err).Should(BeNil())
-			Expect(labels.Get(labelKeyGroupFeedID)).Should(BeNil())
+			_, err = docManager.recorder.GetDocumentFeed(context.TODO(), "test-feed")
+			Expect(err).Should(Equal(types.ErrNotFound))
 		})
 	})
 })
