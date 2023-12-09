@@ -395,7 +395,7 @@ func (i instrumentalStore) DeleteDocument(ctx context.Context, id int64) error {
 }
 
 func (i instrumentalStore) GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error) {
-	const operation = "GetDocumentByEntryId"
+	const operation = "get_document_by_entry_id"
 	defer logOperationLatency(operation, time.Now())
 	doc, err := i.store.GetDocumentByEntryId(ctx, oid)
 	logOperationError(operation, err)
@@ -403,15 +403,39 @@ func (i instrumentalStore) GetDocumentByEntryId(ctx context.Context, oid int64) 
 }
 
 func (i instrumentalStore) GetDocumentByName(ctx context.Context, name string) (*types.Document, error) {
-	const operation = "GetDocumentByName"
+	const operation = "get_document_by_name"
 	defer logOperationLatency(operation, time.Now())
 	doc, err := i.store.GetDocumentByName(ctx, name)
 	logOperationError(operation, err)
 	return doc, err
 }
 
+func (i instrumentalStore) GetDocumentFeed(ctx context.Context, feedID string) (*types.DocumentFeed, error) {
+	const operation = "get_document_feed"
+	defer logOperationLatency(operation, time.Now())
+	feed, err := i.store.GetDocumentFeed(ctx, feedID)
+	logOperationError(operation, err)
+	return feed, err
+}
+
+func (i instrumentalStore) EnableDocumentFeed(ctx context.Context, feed types.DocumentFeed) error {
+	const operation = "enable_document_feed"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.EnableDocumentFeed(ctx, feed)
+	logOperationError(operation, err)
+	return err
+}
+
+func (i instrumentalStore) DisableDocumentFeed(ctx context.Context, feed types.DocumentFeed) error {
+	const operation = "disable_document_feed"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.DisableDocumentFeed(ctx, feed)
+	logOperationError(operation, err)
+	return err
+}
+
 func (i instrumentalStore) GetEntryUriById(ctx context.Context, id int64) (*types.EntryUri, error) {
-	const operation = "GetEntryUriById"
+	const operation = "get_entry_uri_by_id"
 	defer logOperationLatency(operation, time.Now())
 	doc, err := i.store.GetEntryUriById(ctx, id)
 	logOperationError(operation, err)
@@ -419,7 +443,7 @@ func (i instrumentalStore) GetEntryUriById(ctx context.Context, id int64) (*type
 }
 
 func (i instrumentalStore) DeleteEntryUriByPrefix(ctx context.Context, prefix string) error {
-	const operation = "DeleteEntryUriByPrefix"
+	const operation = "delete_entry_uri_by_prefix"
 	defer logOperationLatency(operation, time.Now())
 	err := i.store.DeleteEntryUriByPrefix(ctx, prefix)
 	logOperationError(operation, err)

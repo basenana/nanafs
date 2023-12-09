@@ -29,11 +29,6 @@ import (
 const (
 	attrSourcePluginPrefix = "org.basenana.plugin.source/"
 	attrFeedId             = "org.basenana.document/feed"
-
-	rssPostMetaID        = "org.basenana.plugin.rss/id"
-	rssPostMetaLink      = "org.basenana.plugin.rss/link"
-	rssPostMetaTitle     = "org.basenana.plugin.rss/title"
-	rssPostMetaUpdatedAt = "org.basenana.plugin.rss/updated_at"
 )
 
 func (c *controller) GetEntryExtendField(ctx context.Context, id int64, fKey string) ([]byte, error) {

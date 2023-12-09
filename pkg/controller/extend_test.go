@@ -26,6 +26,13 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 )
 
+const (
+	rssPostMetaID        = "org.basenana.plugin.rss/id"
+	rssPostMetaLink      = "org.basenana.plugin.rss/link"
+	rssPostMetaTitle     = "org.basenana.plugin.rss/title"
+	rssPostMetaUpdatedAt = "org.basenana.plugin.rss/updated_at"
+)
+
 func init() {
 	parseRssUrl = func(url string) (string, string, error) {
 		return "Hypo's Blog", "https://blog.ihypo.net", nil
