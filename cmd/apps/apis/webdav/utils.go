@@ -36,7 +36,8 @@ func Stat(entry *types.Metadata) Info {
 
 func mode2EntryAttr(mode os.FileMode) types.EntryAttr {
 	attr := types.EntryAttr{
-		Kind: fileKindFromMode(uint32(mode)),
+		Kind:   fileKindFromMode(uint32(mode)),
+		Access: &types.Access{},
 	}
 	dentry.UpdateAccessWithMode(attr.Access, uint32(mode))
 	return attr
