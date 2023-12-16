@@ -59,6 +59,8 @@ github.com/basenana/friday v0.0.0-20231207142041-8f7eb86afc78 h1:PPj10ZL8OUIzT2w
 github.com/basenana/friday v0.0.0-20231207142041-8f7eb86afc78/go.mod h1:OGCCDNAXqN/ZTqO8EsaGGUBt5GrVwb/BVdnDQA4KbZI=
 github.com/basenana/friday v0.0.0-20231209065908-7ba12e67f748 h1:STmXI0Q6G3P55zZJRpkgJKQrcyb3/bTgKD/f2QJSU2Y=
 github.com/basenana/friday v0.0.0-20231209065908-7ba12e67f748/go.mod h1:OGCCDNAXqN/ZTqO8EsaGGUBt5GrVwb/BVdnDQA4KbZI=
+github.com/basenana/friday v0.0.0-20231216063336-c2c9735897d8 h1:jGuzKXoNJ4lIHe/SJmCfMZWSmo3DdDu7evZWNmxXkcs=
+github.com/basenana/friday v0.0.0-20231216063336-c2c9735897d8/go.mod h1:OGCCDNAXqN/ZTqO8EsaGGUBt5GrVwb/BVdnDQA4KbZI=
 github.com/benbjohnson/clock v1.1.0 h1:Q92kusRqC1XV2MjkWETPvjJVqKetz1OzxZB7mHJLju8=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=

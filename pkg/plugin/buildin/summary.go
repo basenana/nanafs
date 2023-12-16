@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/basenana/friday/pkg/utils/files"
 	"go.uber.org/zap"
 
 	"github.com/basenana/nanafs/pkg/friday"
@@ -33,6 +34,7 @@ import (
 const (
 	SummaryPluginName    = "summary"
 	SummaryPluginVersion = "1.0"
+	DefaultSummaryToken  = 300
 )
 
 type SummaryPlugin struct {
@@ -84,7 +86,12 @@ func (i *SummaryPlugin) Run(ctx context.Context, request *pluginapi.Request) (*p
 	}
 
 	trimmedContent := utils.ContentTrim(docType, buf.String())
-	i.logger(ctx).Infow("get docs", "length", len(trimmedContent), "entryId", request.EntryId)
+	length := files.Length(trimmedContent)
+	if length <= DefaultSummaryToken {
+		i.logger(ctx).Infow("skip summary, length less than default summary token.", "length", length, "default token", DefaultSummaryToken, "entryId", request.EntryId)
+		return pluginapi.NewResponseWithResult(map[string]any{}), nil
+	}
+	i.logger(ctx).Infow("get docs", "length", length, "entryId", request.EntryId)
 	summary, usage, err := friday.SummaryFile(ctx, fmt.Sprintf("entry_%d", request.EntryId), trimmedContent)
 	if err != nil {
 		return pluginapi.NewFailedResponse(fmt.Sprintf("summary documents failed: %s", err)), nil
