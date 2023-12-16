@@ -34,17 +34,6 @@ func buildMigrations() []*gormigrate.Migration {
 				return nil
 			},
 		},
-		{
-			ID: "2023111900",
-			Migrate: func(db *gorm.DB) error {
-				return db.AutoMigrate(
-					&BleveKV{},
-				)
-			},
-			Rollback: func(db *gorm.DB) error {
-				return nil
-			},
-		},
 	}
 }
 
