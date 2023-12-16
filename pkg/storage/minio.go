@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/minio/minio-go/v7"
@@ -131,6 +132,9 @@ func (m *minioStorage) Head(ctx context.Context, key int64, idx int64) (Info, er
 	info, err := m.cli.StatObject(ctx, m.bucket, minioObjectName(key, idx), minio.StatObjectOptions{})
 	if err != nil {
 		m.logger.Errorw("head object failed", "object", minioObjectName(key, idx), "err", err)
+		if rErr := minio.ToErrorResponse(err); rErr.Code == "NoSuchKey" {
+			err = types.ErrNotFound
+		}
 		return Info{}, err
 	}
 	return Info{Key: info.Key, Size: info.Size}, nil

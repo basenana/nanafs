@@ -136,7 +136,7 @@ func (m *manager) SaveDocument(ctx context.Context, doc *types.Document) error {
 			m.logger.Errorw("update document failed", "document", crtDoc.ID, "err", err)
 			return err
 		}
-		m.publicDocActionEvent(events.ActionTypeUpdate, doc)
+		m.publicDocActionEvent(events.ActionTypeUpdate, crtDoc)
 		return nil
 	}
 	// update
@@ -158,7 +158,7 @@ func (m *manager) SaveDocument(ctx context.Context, doc *types.Document) error {
 		m.logger.Errorw("update document failed", "document", doc.ID, "err", err)
 		return err
 	}
-	m.publicDocActionEvent(events.ActionTypeUpdate, doc)
+	m.publicDocActionEvent(events.ActionTypeUpdate, crtDoc)
 	return nil
 }
 
