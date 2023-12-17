@@ -61,7 +61,7 @@ p, li { line-height: 150%; }
 h1, h2, h3 { color: #333; }
 a { color: #3366cc; border-bottom: 1px dotted #3366cc; text-decoration: none; }
 a:hover { color: #2647a3; border-bottom-color: color: #66ccff; }
-img { max-width: 90%; margin: 0 auto; }
+img { max-width: 50%; height: auto; margin: 10px auto; }
 pre { overflow: auto; }
 blockquote { color: #888888; padding: 10px; }
 figure { width: 100%; margin: 0px; }

@@ -104,7 +104,7 @@ func (w *webArchiver) workerRun(ctx context.Context, opt Option, errCh chan erro
 				w.mux.Lock()
 				w.seen[urlStr] = struct{}{}
 				w.mux.Unlock()
-				if err := w.loadWebPageFromUrl(ctx, cli, headers, urlStr); err != nil {
+				if err := w.loadWebPageFromUrl(ctx, cli, headers, urlStr, opt); err != nil {
 					if len(w.resource.WebSubresources) == 0 {
 						select {
 						case errCh <- err:
@@ -141,7 +141,7 @@ func (w *webArchiver) ReadContent(ctx context.Context, opt Option) (string, erro
 		}()
 
 		cli, headers := newHttpClient(opt)
-		if err := w.loadWebPageFromUrl(ctx, cli, headers, opt.URL); err != nil {
+		if err := w.loadWebPageFromUrl(ctx, cli, headers, opt.URL, opt); err != nil {
 			return "", err
 		}
 		if len(w.resource.WebSubresources) == 0 {
@@ -157,7 +157,7 @@ func (w *webArchiver) ReadContent(ctx context.Context, opt Option) (string, erro
 	return content, nil
 }
 
-func (w *webArchiver) loadWebPageFromUrl(ctx context.Context, cli *http.Client, headers map[string]string, urlStr string) error {
+func (w *webArchiver) loadWebPageFromUrl(ctx context.Context, cli *http.Client, headers map[string]string, urlStr string, opt Option) error {
 	req, err := http.NewRequest(http.MethodGet, urlStr, nil)
 	if err != nil {
 		return fmt.Errorf("build request with url %s error: %s", urlStr, err)
@@ -228,6 +228,14 @@ func (w *webArchiver) loadWebPageFromUrl(ctx context.Context, cli *http.Client, 
 
 	switch {
 	case strings.Contains(contentType, MIMEHTML):
+		if opt.ClutterFree {
+			clutterFreeData, err := htmlContentClutterFree(urlStr, string(data))
+			if err != nil {
+				return fmt.Errorf("pre clutter free error: %s", err)
+			}
+			data = []byte(clutterFreeData)
+		}
+
 		query, err := goquery.NewDocumentFromReader(bytes.NewReader(data))
 		if err != nil {
 			return fmt.Errorf("build doc query with url %s error: %s", urlStr, err)
