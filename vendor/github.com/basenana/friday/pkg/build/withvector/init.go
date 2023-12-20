@@ -21,10 +21,12 @@ import (
 
 	"github.com/basenana/friday/config"
 	"github.com/basenana/friday/pkg/embedding"
+	geminiembedding "github.com/basenana/friday/pkg/embedding/gemini"
 	huggingfaceembedding "github.com/basenana/friday/pkg/embedding/huggingface"
 	openaiembedding "github.com/basenana/friday/pkg/embedding/openai/v1"
 	"github.com/basenana/friday/pkg/friday"
 	"github.com/basenana/friday/pkg/llm"
+	"github.com/basenana/friday/pkg/llm/client/gemini"
 	glm_6b "github.com/basenana/friday/pkg/llm/client/glm-6b"
 	openaiv1 "github.com/basenana/friday/pkg/llm/client/openai/v1"
 	"github.com/basenana/friday/pkg/spliter"
@@ -54,6 +56,9 @@ func NewFridayWithVector(conf *config.Config, vectorClient vectorstore.VectorSto
 	if conf.LLMConfig.LLMType == config.LLMGLM6B {
 		llmClient = glm_6b.NewGLM(log, conf.LLMConfig.GLM6B.Url)
 	}
+	if conf.LLMConfig.LLMType == config.LLMGemini {
+		llmClient = gemini.NewGemini(log, conf.LLMConfig.Gemini)
+	}
 
 	if conf.LLMConfig.Prompts != nil {
 		prompts = conf.LLMConfig.Prompts
@@ -64,15 +69,18 @@ func NewFridayWithVector(conf *config.Config, vectorClient vectorstore.VectorSto
 		if conf.OpenAIBaseUrl == "" {
 			conf.OpenAIBaseUrl = "https://api.openai.com"
 		}
-		embeddingModel = openaiembedding.NewOpenAIEmbedding(log, conf.OpenAIBaseUrl, conf.OpenAIKey, conf.LLMConfig.OpenAI)
+		embeddingModel = openaiembedding.NewOpenAIEmbedding(log, conf.OpenAIBaseUrl, conf.OpenAIKey, conf.EmbeddingConfig.OpenAI)
 	}
 	if conf.EmbeddingConfig.EmbeddingType == config.EmbeddingHuggingFace {
-		embeddingModel = huggingfaceembedding.NewHuggingFace(log, conf.EmbeddingConfig.EmbeddingUrl, conf.EmbeddingConfig.EmbeddingModel)
+		embeddingModel = huggingfaceembedding.NewHuggingFace(log, conf.EmbeddingConfig.HuggingFace)
 		testEmbed, _, err := embeddingModel.VectorQuery(context.TODO(), "test")
 		if err != nil {
 			return nil, err
 		}
 		conf.VectorStoreConfig.EmbeddingDim = len(testEmbed)
+	}
+	if conf.EmbeddingConfig.EmbeddingType == config.EmbeddingGemini {
+		embeddingModel = geminiembedding.NewGeminiEmbedding(log, conf.EmbeddingConfig.Gemini)
 	}
 
 	defaultVectorTopK := friday.DefaultTopK

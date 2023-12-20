@@ -23,46 +23,27 @@ import (
 	"github.com/basenana/friday/pkg/llm/prompts"
 )
 
-type CompletionResult struct {
-	Id      string         `json:"id"`
-	Object  string         `json:"object"`
-	Created int            `json:"created"`
-	Model   string         `json:"model"`
-	Choices []Choice       `json:"choices"`
-	Usage   map[string]int `json:"usage"`
-}
-
-type Choice struct {
-	Index        int         `json:"index"`
-	Text         string      `json:"text"`
-	FinishReason string      `json:"finish_reason"`
-	Logprobs     interface{} `json:"logprobs"`
-}
-
 func (o *OpenAIV1) Completion(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, map[string]int, error) {
 	return o.completion(ctx, prompt, parameters)
 }
 
 func (o *OpenAIV1) completion(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, map[string]int, error) {
-	path := "v1/completions"
+	path := "v1/chat/completions"
 
-	model := "text-davinci-003"
 	p, err := prompt.String(parameters)
 	if err != nil {
 		return nil, nil, err
 	}
-	o.log.Debugf("final prompt: %s", p)
 
 	data := map[string]interface{}{
-		"model":             model,
-		"prompt":            p,
-		"max_tokens":        1024,
-		"temperature":       0.7,
+		"model":             *o.conf.Model,
+		"messages":          []interface{}{map[string]string{"role": "user", "content": p}},
+		"max_tokens":        *o.conf.MaxReturnToken,
+		"temperature":       *o.conf.Temperature,
 		"top_p":             1,
-		"frequency_penalty": 0,
-		"presence_penalty":  0,
+		"frequency_penalty": *o.conf.FrequencyPenalty,
+		"presence_penalty":  *o.conf.PresencePenalty,
 		"n":                 1,
-		"best_of":           1,
 	}
 
 	respBody, err := o.request(ctx, path, "POST", data)
@@ -70,14 +51,14 @@ func (o *OpenAIV1) completion(ctx context.Context, prompt prompts.PromptTemplate
 		return nil, nil, err
 	}
 
-	var res CompletionResult
+	var res ChatResult
 	err = json.Unmarshal(respBody, &res)
 	if err != nil {
 		return nil, nil, err
 	}
 	ans := make([]string, len(res.Choices))
 	for i, c := range res.Choices {
-		ans[i] = c.Text
+		ans[i] = c.Message["content"]
 	}
 	return ans, res.Usage, err
 }

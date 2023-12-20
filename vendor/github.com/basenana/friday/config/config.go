@@ -49,6 +49,7 @@ type LLMConfig struct {
 	Prompts map[string]string `json:"prompts,omitempty"`
 	OpenAI  OpenAIConfig      `json:"openai,omitempty"`
 	GLM6B   GLM6BConfig       `json:"glm6b,omitempty"`
+	Gemini  GeminiConfig      `json:"gemini,omitempty"`
 }
 
 type GLM6BConfig struct {
@@ -65,10 +66,23 @@ type OpenAIConfig struct {
 	Temperature      *float32 `json:"temperature,omitempty"`
 }
 
+type GeminiConfig struct {
+	QueryPerMinute int     `json:"query_per_minute,omitempty"` // qpm, default is 3
+	Burst          int     `json:"burst,omitempty"`            // burst, default is 5
+	Model          *string `json:"model,omitempty"`            // model of gemini, default for llm is "gemini-pro"; default for embedding is "embedding-001"
+	Key            string  `json:"key"`                        // key of Gemini api
+}
+
 type EmbeddingConfig struct {
-	EmbeddingType  EmbeddingType `json:"embedding_type"`
-	EmbeddingUrl   string        `json:"embedding_url,omitempty"`   // only needed for huggingface
-	EmbeddingModel string        `json:"embedding_model,omitempty"` // only needed for huggingface
+	EmbeddingType EmbeddingType     `json:"embedding_type"`
+	OpenAI        OpenAIConfig      `json:"openai,omitempty"`
+	HuggingFace   HuggingFaceConfig `json:"hugging_face,omitempty"`
+	Gemini        GeminiConfig      `json:"gemini,omitempty"`
+}
+
+type HuggingFaceConfig struct {
+	EmbeddingUrl   string `json:"embedding_url,omitempty"`
+	EmbeddingModel string `json:"embedding_model,omitempty"`
 }
 
 type VectorStoreConfig struct {
@@ -89,6 +103,7 @@ type LLMType string
 const (
 	LLMGLM6B  LLMType = "glm-6b"
 	LLMOpenAI LLMType = "openai"
+	LLMGemini LLMType = "gemini"
 )
 
 type EmbeddingType string
@@ -96,6 +111,7 @@ type EmbeddingType string
 const (
 	EmbeddingOpenAI      EmbeddingType = "openai"
 	EmbeddingHuggingFace EmbeddingType = "huggingface"
+	EmbeddingGemini      EmbeddingType = "gemini"
 )
 
 type VectorStoreType string

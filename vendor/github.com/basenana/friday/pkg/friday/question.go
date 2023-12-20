@@ -31,7 +31,7 @@ func (f *Friday) Question(ctx context.Context, parentId int64, q string) (string
 		return "", nil, err
 	}
 	if f.LLM != nil {
-		ans, usage, err := f.LLM.Chat(ctx, prompt, map[string]string{
+		ans, usage, err := f.LLM.Completion(ctx, prompt, map[string]string{
 			"context":  c,
 			"question": q,
 		})

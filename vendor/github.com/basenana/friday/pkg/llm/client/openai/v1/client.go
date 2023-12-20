@@ -73,7 +73,7 @@ func NewOpenAIV1(log logger.Logger, baseUrl, key string, conf config.OpenAIConfi
 	if conf.Model == nil {
 		conf.Model = &defaultMl
 	}
-	defaultFreqPenalty := defaultPresencePenalty
+	defaultFreqPenalty := defaultFrequencyPenalty
 	if conf.FrequencyPenalty == nil {
 		conf.FrequencyPenalty = &defaultFreqPenalty
 	}

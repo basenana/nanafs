@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/basenana/friday/config"
 	"github.com/basenana/friday/pkg/embedding"
 	"github.com/basenana/friday/pkg/utils/logger"
 )
@@ -37,11 +38,11 @@ type HuggingFace struct {
 
 var _ embedding.Embedding = &HuggingFace{}
 
-func NewHuggingFace(log logger.Logger, baseUri string, model string) embedding.Embedding {
+func NewHuggingFace(log logger.Logger, conf config.HuggingFaceConfig) embedding.Embedding {
 	return &HuggingFace{
 		log:     log,
-		baseUri: baseUri,
-		model:   model,
+		baseUri: conf.EmbeddingUrl,
+		model:   conf.EmbeddingModel,
 	}
 }
 
