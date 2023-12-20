@@ -116,7 +116,7 @@ func (s *Summary) reduce(ctx context.Context, summaries []string) (string, map[s
 	totalUsage := make(map[string]int)
 	for _, subSummaries := range newSummaries {
 		subSummary := strings.Join(subSummaries, "\n")
-		res, usage, err := s.llm.Chat(ctx, s.combinePrompt, map[string]string{"context": subSummary})
+		res, usage, err := s.llm.Completion(ctx, s.combinePrompt, map[string]string{"context": subSummary})
 		if err != nil {
 			return "", usage, err
 		}

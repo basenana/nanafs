@@ -23,6 +23,16 @@ import (
 )
 
 type LLM interface {
-	Completion(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, map[string]int, error)
-	Chat(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, map[string]int, error)
+	// Completion chat with llm just once
+	Completion(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) (answers []string, tokens map[string]int, err error)
+	/*
+		Chat: chat with llm with history.
+		 history example: [
+			  {"user": "Hello robot!"}
+			  {"assistant": "Hello"}
+			  {"user": "When is today?"}
+			  {"assistant": "Today is Monday"}
+		 ]
+	*/
+	Chat(ctx context.Context, history []map[string]string, prompt prompts.PromptTemplate, parameters map[string]string) (answers []string, tokens map[string]int, err error)
 }

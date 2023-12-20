@@ -23,7 +23,7 @@ import (
 
 func (s *Summary) Stuff(ctx context.Context, docs []string) (string, map[string]int, error) {
 	doc := strings.Join(docs, "\n")
-	answers, usage, err := s.llm.Chat(ctx, s.summaryPrompt, map[string]string{"context": doc})
+	answers, usage, err := s.llm.Completion(ctx, s.summaryPrompt, map[string]string{"context": doc})
 	if err != nil {
 		return "", nil, err
 	}

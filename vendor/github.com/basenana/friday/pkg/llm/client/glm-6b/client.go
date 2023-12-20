@@ -105,7 +105,8 @@ func (o *GLM) Completion(ctx context.Context, prompt prompts.PromptTemplate, par
 	return ans, nil, err
 }
 
-func (o *GLM) Chat(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, map[string]int, error) {
+// todo: not supported
+func (o *GLM) Chat(ctx context.Context, history []map[string]string, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, map[string]int, error) {
 	path := ""
 
 	p, err := prompt.String(parameters)

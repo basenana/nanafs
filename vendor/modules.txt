@@ -128,16 +128,18 @@ github.com/aws/smithy-go/waiter
 ## explicit
 github.com/aymerick/douceur/css
 github.com/aymerick/douceur/parser
-# github.com/basenana/friday v0.0.0-20231216063336-c2c9735897d8
+# github.com/basenana/friday v0.0.0-20231219152848-7dd1f5bcfab3
 ## explicit; go 1.20
 github.com/basenana/friday/config
 github.com/basenana/friday/pkg/build/withvector
 github.com/basenana/friday/pkg/embedding
+github.com/basenana/friday/pkg/embedding/gemini
 github.com/basenana/friday/pkg/embedding/huggingface
 github.com/basenana/friday/pkg/embedding/openai/v1
 github.com/basenana/friday/pkg/friday
 github.com/basenana/friday/pkg/friday/summary
 github.com/basenana/friday/pkg/llm
+github.com/basenana/friday/pkg/llm/client/gemini
 github.com/basenana/friday/pkg/llm/client/glm-6b
 github.com/basenana/friday/pkg/llm/client/openai/v1
 github.com/basenana/friday/pkg/llm/prompts
