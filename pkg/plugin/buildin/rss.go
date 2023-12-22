@@ -52,6 +52,8 @@ const (
 	rssPostMetaLink      = "org.basenana.plugin.rss/link"
 	rssPostMetaTitle     = "org.basenana.plugin.rss/title"
 	rssPostMetaUpdatedAt = "org.basenana.plugin.rss/updated_at"
+
+	rssPostMaxCollect = 50
 )
 
 type rssSource struct {
@@ -162,6 +164,12 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 	}
 
 	r.logger(ctx).Infow("parse rss source", "feed", source.FeedUrl)
+	siteURL, err := parseSiteURL(source.FeedUrl)
+	if err != nil {
+		r.logger(ctx).Errorw("parse rss site url failed", "feed", source.FeedUrl, "err", err)
+		return nil, err
+	}
+
 	fp := gofeed.NewParser()
 	feed, err := fp.ParseURLWithContext(source.FeedUrl, ctx)
 	if err != nil {
@@ -186,7 +194,13 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 
 	syncCachedRecords := listCachedSyncRecords(cachedData)
 	newEntries := make([]pluginapi.Entry, 0)
-	for _, item := range feed.Items {
+	for i, item := range feed.Items {
+		if i > rssPostMaxCollect {
+			r.logger(ctx).Infow("soo many post need to collect, skip", "collectLimit", rssPostMaxCollect)
+			break
+		}
+
+		item.Link = absoluteURL(siteURL, item.Link)
 		basicID := basicPostID(item.Link)
 
 		// TODO: check last post time
@@ -317,6 +331,22 @@ func setCachedSyncRecord(data *pluginapi.CachedData, postID string) {
 
 func basicPostID(postURL string) string {
 	return base64.StdEncoding.EncodeToString([]byte(strings.TrimSpace(postURL)))
+}
+
+func parseSiteURL(feed string) (string, error) {
+	sURL, err := url.Parse(feed)
+	if err != nil {
+		return "", err
+	}
+	sURL.Path = ""
+	return sURL.String(), nil
+}
+
+func absoluteURL(sitURL, link string) string {
+	if strings.HasPrefix(link, "/") {
+		return sitURL + link
+	}
+	return link
 }
 
 func BuildRssSourcePlugin(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) *RssSourcePlugin {

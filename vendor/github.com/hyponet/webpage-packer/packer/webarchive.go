@@ -32,11 +32,12 @@ type WebResourceItem struct {
 }
 
 type webArchiver struct {
-	workerQ  chan string
-	resource *WebArchive
-	seen     map[string]struct{}
-	parallel int
-	mux      sync.Mutex
+	workerQ    chan string
+	hasMainRes bool
+	resource   *WebArchive
+	seen       map[string]struct{}
+	parallel   int
+	mux        sync.Mutex
 }
 
 func (w *webArchiver) Pack(ctx context.Context, opt Option) error {
@@ -63,7 +64,12 @@ func (w *webArchiver) Pack(ctx context.Context, opt Option) error {
 	select {
 	case err := <-errCh:
 		return err
+	case <-ctx.Done():
+		return ctx.Err()
 	default:
+		if len(w.resource.WebSubresources) == 0 {
+			return fmt.Errorf("no resource packed")
+		}
 		w.resource.WebMainResource = w.resource.WebSubresources[0]
 	}
 
@@ -228,6 +234,16 @@ func (w *webArchiver) loadWebPageFromUrl(ctx context.Context, cli *http.Client, 
 
 	switch {
 	case strings.Contains(contentType, MIMEHTML):
+
+		w.mux.Lock()
+		// only one page
+		if w.hasMainRes {
+			w.mux.Unlock()
+			break
+		}
+		w.hasMainRes = true
+		w.mux.Unlock()
+
 		if opt.ClutterFree {
 			clutterFreeData, err := htmlContentClutterFree(urlStr, string(data))
 			if err != nil {
@@ -300,7 +316,7 @@ func (w *webArchiver) loadWebPageFromUrl(ctx context.Context, cli *http.Client, 
 
 func NewWebArchivePacker() Packer {
 	return &webArchiver{
-		workerQ:  make(chan string, 5),
+		workerQ:  make(chan string, 1024),
 		resource: &WebArchive{},
 		seen:     map[string]struct{}{},
 		parallel: 10,
