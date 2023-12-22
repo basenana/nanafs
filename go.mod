@@ -19,7 +19,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/hanwen/go-fuse/v2 v2.3.0
 	github.com/hyponet/eventbus v1.0.0
-	github.com/hyponet/webpage-packer v1.0.0
+	github.com/hyponet/webpage-packer v1.0.2
 	github.com/ledongthuc/pdf v0.0.0-20220302134840-0c2507a12d80
 	github.com/minio/minio-go/v7 v7.0.52
 	github.com/mmcdole/gofeed v1.2.1
@@ -148,6 +148,6 @@ require (
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/arch v0.3.0 // indirect
-	golang.org/x/crypto v0.16.0 // indirect
+	golang.org/x/crypto v0.17.0 // indirect
 	gorm.io/gorm v1.25.4
 )

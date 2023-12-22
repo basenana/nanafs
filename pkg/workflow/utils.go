@@ -33,7 +33,7 @@ var (
 )
 
 const (
-	defaultJobTimeout = time.Hour
+	defaultJobTimeout = time.Hour * 3
 )
 
 func assembleWorkflowJob(spec *types.WorkflowSpec, tgt types.WorkflowTarget) (*types.WorkflowJob, error) {

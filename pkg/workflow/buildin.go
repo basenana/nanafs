@@ -70,7 +70,7 @@ var (
 					},
 				},
 			},
-			Cron: "*/15 * * * *",
+			Cron: "*/30 * * * *",
 			Steps: []types.WorkflowStepSpec{
 				{
 					Name: "collect",

@@ -111,9 +111,16 @@ func (b *localExecutor) Setup(ctx context.Context) (err error) {
 	return
 }
 
-func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobStep) error {
+func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobStep) (err error) {
 	startAt := time.Now()
 	defer logOperationLatency(localExecName, "do_operation", startAt)
+
+	defer func() {
+		if panicErr := utils.Recover(); panicErr != nil {
+			b.logger.Errorw("executor panic", "err", panicErr)
+			err = panicErr
+		}
+	}()
 
 	req := pluginapi.NewRequest()
 	req.WorkPath = b.workdir
@@ -188,7 +195,7 @@ func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobS
 		}
 		b.resultMux.Unlock()
 	}
-	return nil
+	return err
 }
 
 func (b *localExecutor) Collect(ctx context.Context) error {
