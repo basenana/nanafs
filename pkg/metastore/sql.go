@@ -598,7 +598,7 @@ func (s *sqlMetaStore) UpdateEntryMetadata(ctx context.Context, entry *types.Met
 	var entryMod = (&db.Object{}).FromEntry(entry)
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		entryMod.ChangedAt = time.Now().UnixNano()
-		return updateEntryWithVersion(tx, entryMod)
+		return updateEntryAndCleanURICache(tx, entryMod)
 	})
 	if err != nil {
 		s.logger.Errorw("create entry failed", "entry", entry.ID, "err", err)
@@ -671,7 +671,7 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64)
 		entryMod.RefCount = &entryRef
 		entryMod.ModifiedAt = nowTime
 		entryMod.ChangedAt = nowTime
-		return updateEntryWithVersion(tx, entryMod)
+		return updateEntryAndCleanURICache(tx, entryMod)
 	})
 	if err != nil {
 		s.logger.Errorw("mark entry removed failed", "parent", parentID, "entry", entryID, "err", err)
@@ -1002,7 +1002,7 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, targetEntryId int6
 		enModel.Name = newName
 		enModel.ParentID = &newParentId
 		enModel.ChangedAt = nowTime
-		if updateErr = updateEntryWithVersion(tx, enModel); updateErr != nil {
+		if updateErr = updateEntryAndCleanURICache(tx, enModel); updateErr != nil {
 			s.logger.Errorw("update target entry failed when change parent",
 				"entry", targetEntryId, "srcParent", srcParentEntryID, "dstParent", newParentId, "err", updateErr)
 			return updateErr
@@ -1737,6 +1737,30 @@ func newPostgresMetaStore(meta config.Meta) (*sqlMetaStore, error) {
 	}
 
 	return buildSqlMetaStore(dbEntity)
+}
+
+func updateEntryAndCleanURICache(tx *gorm.DB, entryMod *db.Object) error {
+	// clean uri cache
+	uri := &db.ObjectURI{}
+	res := tx.Where("oid = ?", entryMod.ID).First(uri)
+	if res.Error != nil {
+		if !errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			return res.Error
+		}
+	} else {
+		res = tx.Where("oid = ?", entryMod.ID).Delete(&db.ObjectURI{})
+		if res.Error != nil {
+			return res.Error
+		}
+		if types.IsGroup(types.Kind(entryMod.Kind)) {
+			res = tx.Where("uri LIKE ?", uri.Uri+"%").Delete(&db.ObjectURI{})
+			if res.Error != nil {
+				return res.Error
+			}
+		}
+	}
+
+	return updateEntryWithVersion(tx, entryMod)
 }
 
 func updateEntryWithVersion(tx *gorm.DB, entryMod *db.Object) error {

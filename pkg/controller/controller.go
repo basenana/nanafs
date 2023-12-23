@@ -40,6 +40,7 @@ type Controller interface {
 	LoadRootEntry(ctx context.Context) (*types.Metadata, error)
 	FindEntry(ctx context.Context, parentId int64, name string) (*types.Metadata, error)
 	GetEntry(ctx context.Context, id int64) (*types.Metadata, error)
+	GetEntryByURI(ctx context.Context, uri string) (*types.Metadata, error)
 	CreateEntry(ctx context.Context, parentId int64, attr types.EntryAttr) (*types.Metadata, error)
 	UpdateEntry(ctx context.Context, entry *types.Metadata) error
 	DestroyEntry(ctx context.Context, parentId, entryId int64, attr types.DestroyObjectAttr) error
@@ -120,6 +121,18 @@ func (c *controller) GetEntry(ctx context.Context, id int64) (*types.Metadata, e
 	if err != nil {
 		if err != types.ErrNotFound {
 			c.logger.Errorw("get entry error", "entry", id, "err", err.Error())
+		}
+		return nil, err
+	}
+	return result, nil
+}
+
+func (c *controller) GetEntryByURI(ctx context.Context, uri string) (*types.Metadata, error) {
+	defer trace.StartRegion(ctx, "controller.GetEntryByURI").End()
+	result, err := c.entry.GetEntryByUri(ctx, uri)
+	if err != nil {
+		if err != types.ErrNotFound {
+			c.logger.Errorw("get entry error", "entryURI", uri, "err", err)
 		}
 		return nil, err
 	}

@@ -42,7 +42,7 @@ var _ = Describe("TestRunnerStart", func() {
 
 	Context("runner start", func() {
 		It("init runner should be succeed", func() {
-			r = NewRunner(job, recorder)
+			r = NewRunner(job, runnerDep{recorder: recorder, notify: notifyImpl})
 			Expect(r).ShouldNot(BeNil())
 
 			err := recorder.SaveWorkflowJob(ctx, job)
