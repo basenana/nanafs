@@ -98,22 +98,10 @@ func (s *sqliteMetaStore) GetEntryUri(ctx context.Context, uri string) (*types.E
 	return s.dbStore.GetEntryUri(ctx, uri)
 }
 
-func (s *sqliteMetaStore) DeleteEntryUri(ctx context.Context, id int64) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.DeleteEntryUri(ctx, id)
-}
-
 func (s *sqliteMetaStore) GetEntryUriById(ctx context.Context, id int64) (*types.EntryUri, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	return s.dbStore.GetEntryUriById(ctx, id)
-}
-
-func (s *sqliteMetaStore) DeleteEntryUriByPrefix(ctx context.Context, prefix string) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.DeleteEntryUriByPrefix(ctx, prefix)
 }
 
 func (s *sqliteMetaStore) DeleteRemovedEntry(ctx context.Context, entryID int64) error {
@@ -581,24 +569,12 @@ func (s *sqlMetaStore) GetEntryUriById(ctx context.Context, id int64) (*types.En
 	return entryUri.ToEntryUri(), db.SqlError2Error(res.Error)
 }
 
-func (s *sqlMetaStore) DeleteEntryUri(ctx context.Context, id int64) error {
-	defer trace.StartRegion(ctx, "metastore.sql.DeleteEntryUri").End()
-	res := s.WithContext(ctx).Delete(&db.ObjectURI{OID: id})
-	return db.SqlError2Error(res.Error)
-}
-
-func (s *sqlMetaStore) DeleteEntryUriByPrefix(ctx context.Context, prefix string) error {
-	defer trace.StartRegion(ctx, "metastore.sql.DeleteEntryUri").End()
-	res := s.WithContext(ctx).Where("uri LIKE ?", prefix+"%").Delete(&db.ObjectURI{})
-	return db.SqlError2Error(res.Error)
-}
-
 func (s *sqlMetaStore) UpdateEntryMetadata(ctx context.Context, entry *types.Metadata) error {
 	defer trace.StartRegion(ctx, "metastore.sql.UpdateEntry").End()
 	var entryMod = (&db.Object{}).FromEntry(entry)
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		entryMod.ChangedAt = time.Now().UnixNano()
-		return updateEntryWithVersion(tx, entryMod)
+		return updateEntryAndCleanURICache(tx, entryMod)
 	})
 	if err != nil {
 		s.logger.Errorw("create entry failed", "entry", entry.ID, "err", err)
@@ -671,7 +647,7 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64)
 		entryMod.RefCount = &entryRef
 		entryMod.ModifiedAt = nowTime
 		entryMod.ChangedAt = nowTime
-		return updateEntryWithVersion(tx, entryMod)
+		return updateEntryAndCleanURICache(tx, entryMod)
 	})
 	if err != nil {
 		s.logger.Errorw("mark entry removed failed", "parent", parentID, "entry", entryID, "err", err)
@@ -1002,7 +978,7 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, targetEntryId int6
 		enModel.Name = newName
 		enModel.ParentID = &newParentId
 		enModel.ChangedAt = nowTime
-		if updateErr = updateEntryWithVersion(tx, enModel); updateErr != nil {
+		if updateErr = updateEntryAndCleanURICache(tx, enModel); updateErr != nil {
 			s.logger.Errorw("update target entry failed when change parent",
 				"entry", targetEntryId, "srcParent", srcParentEntryID, "dstParent", newParentId, "err", updateErr)
 			return updateErr
@@ -1737,6 +1713,30 @@ func newPostgresMetaStore(meta config.Meta) (*sqlMetaStore, error) {
 	}
 
 	return buildSqlMetaStore(dbEntity)
+}
+
+func updateEntryAndCleanURICache(tx *gorm.DB, entryMod *db.Object) error {
+	// clean uri cache
+	uri := &db.ObjectURI{}
+	res := tx.Where("oid = ?", entryMod.ID).First(uri)
+	if res.Error != nil {
+		if !errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			return res.Error
+		}
+	} else {
+		res = tx.Where("oid = ?", entryMod.ID).Delete(&db.ObjectURI{})
+		if res.Error != nil {
+			return res.Error
+		}
+		if types.IsGroup(types.Kind(entryMod.Kind)) {
+			res = tx.Where("uri LIKE ?", uri.Uri+"%").Delete(&db.ObjectURI{})
+			if res.Error != nil {
+				return res.Error
+			}
+		}
+	}
+
+	return updateEntryWithVersion(tx, entryMod)
 }
 
 func updateEntryWithVersion(tx *gorm.DB, entryMod *db.Object) error {

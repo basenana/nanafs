@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow/fsm"
 	"github.com/basenana/nanafs/utils/logger"
@@ -41,8 +42,18 @@ type Runner interface {
 	Cancel() error
 }
 
-func NewRunner(j *types.WorkflowJob, recorder metastore.ScheduledTaskRecorder) Runner {
-	return &runner{job: j, recorder: recorder, logger: logger.NewLogger("jobrun").With(zap.String("job", j.Id))}
+type runnerDep struct {
+	recorder metastore.ScheduledTaskRecorder
+	notify   *notify.Notify
+}
+
+func NewRunner(j *types.WorkflowJob, dep runnerDep) Runner {
+	return &runner{
+		job:      j,
+		recorder: dep.recorder,
+		notify:   dep.notify,
+		logger:   logger.NewLogger("jobrun").With(zap.String("job", j.Id)),
+	}
 }
 
 type runner struct {
@@ -57,6 +68,7 @@ type runner struct {
 	mux      sync.Mutex
 
 	recorder metastore.ScheduledTaskRecorder
+	notify   *notify.Notify
 	logger   *zap.SugaredLogger
 }
 
@@ -247,6 +259,8 @@ func (r *runner) handleJobFailed(event fsm.Event) error {
 		return err
 	}
 	r.close(event.Message)
+	_ = r.notify.RecordWarn(context.TODO(), fmt.Sprintf("Workflow %s failed", r.job.Workflow),
+		fmt.Sprintf("run job %s failed: %s", r.job.Id, event.Message), "JobRunner")
 	return nil
 }
 

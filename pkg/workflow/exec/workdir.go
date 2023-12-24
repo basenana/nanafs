@@ -44,7 +44,7 @@ func initWorkdir(ctx context.Context, jobWorkdir string, job *types.WorkflowJob)
 		return "", fmt.Errorf("base job workdir %s: %s", jobWorkdir, err)
 	}
 
-	workdir := path.Join(jobWorkdir, fmt.Sprintf("pob-%s", job.Id))
+	workdir := path.Join(jobWorkdir, fmt.Sprintf("job-%s", job.Id))
 	enInfo, err := os.Stat(workdir)
 	if err != nil && !os.IsNotExist(err) {
 		return "", err

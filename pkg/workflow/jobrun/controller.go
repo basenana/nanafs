@@ -43,7 +43,7 @@ func (c *Controller) TriggerJob(jID string, timeout time.Duration) error {
 	if err != nil {
 		return err
 	}
-	r := NewRunner(job, c.recorder)
+	r := NewRunner(job, runnerDep{recorder: c.recorder, notify: c.notify})
 	c.mux.Lock()
 	c.runners[jID] = r
 	c.mux.Unlock()
@@ -87,7 +87,7 @@ func (c *Controller) startJobRunner(ctx context.Context, jID string, timeout tim
 	if err != nil {
 		c.logger.Errorw("start runner failed: job failed", "job", jID, "err", err)
 		_ = c.notify.RecordWarn(context.TODO(), fmt.Sprintf("Workflow %s failed", wf.Name),
-			fmt.Sprintf("job %s failed: %s", jID, err), "JobController")
+			fmt.Sprintf("trigger job %s failed: %s", jID, err), "JobController")
 	}
 }
 

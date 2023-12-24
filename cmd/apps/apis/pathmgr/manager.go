@@ -38,10 +38,6 @@ type PathManager struct {
 
 func (m *PathManager) Access(ctx context.Context, entryPath string, callerUid, callGid int64, perm os.FileMode) error {
 	var err error
-	entryPath, err = m.getPath(entryPath)
-	if err != nil {
-		return err
-	}
 	entry, err := m.FindEntry(ctx, entryPath)
 	if err != nil {
 		return err
@@ -153,13 +149,12 @@ func (m *PathManager) CreateAll(ctx context.Context, entryPath string, attr type
 		}
 
 		if err == types.ErrNotFound {
-			pp, base := path.Split(dirPath)
+			_, base := path.Split(dirPath)
 			en, err = m.ctrl.CreateEntry(ctx, parent.ID, types.EntryAttr{Name: base, Kind: types.GroupKind, Access: attr.Access})
 			if err != nil {
 				return nil, err
 			}
 			m.logger.Infow("create group entry", "path", dirPath, "entry", en.ID)
-			m.entries.Put(dirPath, &pathEntry{entryID: en.ID, parentPath: pp, baseName: base})
 		}
 		parent = en
 	}
@@ -179,7 +174,6 @@ func (m *PathManager) RemoveAll(ctx context.Context, entryPath string, recursion
 		return err
 	}
 
-	m.entries.Remove(targetPath)
 	parentEn, err := m.FindParentEntry(ctx, targetPath)
 	if err != nil {
 		return err
@@ -216,7 +210,6 @@ func (m *PathManager) RemoveAll(ctx context.Context, entryPath string, recursion
 			return err
 		}
 
-		m.entries.Remove(targetPath)
 		m.logger.Infow("delete entry", "path", targetPath, "entry", en.ID)
 		if err = m.ctrl.DestroyEntry(ctx, parentEn.ID, en.ID, types.DestroyObjectAttr{}); err != nil {
 			return err
@@ -251,56 +244,11 @@ func (m *PathManager) Rename(ctx context.Context, oldPath, entryPath string) err
 	if err != nil {
 		return err
 	}
-	m.entries.Remove(oldPath)
-	m.entries.Remove(entryPath)
 	return nil
 }
 
 func (m *PathManager) getPathEntry(ctx context.Context, entryPath string) (*types.Metadata, error) {
-	cached := m.entries.Get(entryPath)
-	if cached != nil {
-		pe := cached.(*pathEntry)
-		en, err := m.ctrl.GetEntry(ctx, pe.entryID)
-		if err == nil {
-			return en, err
-		}
-	}
-
-	root, err := m.ctrl.GetEntry(ctx, dentry.RootEntryID)
-	if err != nil {
-		return nil, err
-	}
-
-	var crt *types.Metadata
-	paths := m.splitPath(entryPath)
-	for _, p := range paths {
-		if p == "/" {
-			crt = root
-			m.entries.Put(p, &pathEntry{entryID: crt.ID, parentPath: p, baseName: p})
-			continue
-		}
-		if crt == nil {
-			return nil, types.ErrNotFound
-		}
-		parent, base := path.Split(p)
-		if base == "." || base == ".." {
-			return nil, types.ErrNoAccess
-		}
-
-		if !types.IsGroup(crt.Kind) {
-			return nil, types.ErrNoGroup
-		}
-
-		crt, err = m.ctrl.FindEntry(ctx, crt.ID, base)
-		if err != nil {
-			return nil, err
-		}
-		m.entries.Put(p, &pathEntry{entryID: crt.ID, parentPath: parent, baseName: base})
-	}
-	if crt != nil {
-		return crt, nil
-	}
-	return nil, types.ErrNotFound
+	return m.ctrl.GetEntryByURI(ctx, entryPath)
 }
 
 func (m *PathManager) getPath(entryPath string) (string, error) {
@@ -343,14 +291,7 @@ func New(controller controller.Controller) (*PathManager, error) {
 		return nil, err
 	}
 	return &PathManager{
-		ctrl:    controller,
-		entries: utils.NewLFUPool(1024),
-		logger:  logger.NewLogger("PathManager"),
+		ctrl:   controller,
+		logger: logger.NewLogger("PathManager"),
 	}, nil
-}
-
-type pathEntry struct {
-	entryID    int64
-	parentPath string
-	baseName   string
 }
