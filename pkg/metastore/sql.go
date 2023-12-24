@@ -98,22 +98,10 @@ func (s *sqliteMetaStore) GetEntryUri(ctx context.Context, uri string) (*types.E
 	return s.dbStore.GetEntryUri(ctx, uri)
 }
 
-func (s *sqliteMetaStore) DeleteEntryUri(ctx context.Context, id int64) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.DeleteEntryUri(ctx, id)
-}
-
 func (s *sqliteMetaStore) GetEntryUriById(ctx context.Context, id int64) (*types.EntryUri, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	return s.dbStore.GetEntryUriById(ctx, id)
-}
-
-func (s *sqliteMetaStore) DeleteEntryUriByPrefix(ctx context.Context, prefix string) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.DeleteEntryUriByPrefix(ctx, prefix)
 }
 
 func (s *sqliteMetaStore) DeleteRemovedEntry(ctx context.Context, entryID int64) error {
@@ -579,18 +567,6 @@ func (s *sqlMetaStore) GetEntryUriById(ctx context.Context, id int64) (*types.En
 	var entryUri = &db.ObjectURI{OID: id}
 	res := s.WithContext(ctx).Where("oid = ?", id).First(entryUri)
 	return entryUri.ToEntryUri(), db.SqlError2Error(res.Error)
-}
-
-func (s *sqlMetaStore) DeleteEntryUri(ctx context.Context, id int64) error {
-	defer trace.StartRegion(ctx, "metastore.sql.DeleteEntryUri").End()
-	res := s.WithContext(ctx).Delete(&db.ObjectURI{OID: id})
-	return db.SqlError2Error(res.Error)
-}
-
-func (s *sqlMetaStore) DeleteEntryUriByPrefix(ctx context.Context, prefix string) error {
-	defer trace.StartRegion(ctx, "metastore.sql.DeleteEntryUri").End()
-	res := s.WithContext(ctx).Where("uri LIKE ?", prefix+"%").Delete(&db.ObjectURI{})
-	return db.SqlError2Error(res.Error)
 }
 
 func (s *sqlMetaStore) UpdateEntryMetadata(ctx context.Context, entry *types.Metadata) error {

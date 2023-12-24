@@ -72,14 +72,6 @@ func (i instrumentalStore) GetEntryUri(ctx context.Context, uri string) (*types.
 	return en, err
 }
 
-func (i instrumentalStore) DeleteEntryUri(ctx context.Context, id int64) error {
-	const operation = "delete_entry_uri"
-	defer logOperationLatency(operation, time.Now())
-	err := i.store.DeleteEntryUri(ctx, id)
-	logOperationError(operation, err)
-	return err
-}
-
 var _ Meta = &instrumentalStore{}
 
 func (i instrumentalStore) SystemInfo(ctx context.Context) (*types.SystemInfo, error) {
@@ -440,14 +432,6 @@ func (i instrumentalStore) GetEntryUriById(ctx context.Context, id int64) (*type
 	doc, err := i.store.GetEntryUriById(ctx, id)
 	logOperationError(operation, err)
 	return doc, err
-}
-
-func (i instrumentalStore) DeleteEntryUriByPrefix(ctx context.Context, prefix string) error {
-	const operation = "delete_entry_uri_by_prefix"
-	defer logOperationLatency(operation, time.Now())
-	err := i.store.DeleteEntryUriByPrefix(ctx, prefix)
-	logOperationError(operation, err)
-	return err
 }
 
 func (i instrumentalStore) ListFridayAccount(ctx context.Context, refId int64) ([]*types.FridayAccount, error) {

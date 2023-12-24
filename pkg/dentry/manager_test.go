@@ -24,7 +24,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
@@ -419,32 +418,18 @@ var _ = Describe("TestHandleEvent", func() {
 	})
 	Context("test handle action", func() {
 		It("create should be succeed", func() {
-			err := entryMgr.handleEvent(&types.EntryEvent{
-				Type: events.ActionTypeCreate,
-				Data: types.EventData{
-					ID:       grp1File1.ID,
-					ParentID: grp1.ID,
-				},
-			})
+			queryEn, err := entryMgr.GetEntryByUri(context.TODO(), "/test_uri_grp1")
 			Expect(err).Should(BeNil())
-			grp1EntryUri, err := entryMgr.store.GetEntryUriById(context.TODO(), grp1.ID)
-			Expect(err).Should(BeNil())
-			Expect(grp1EntryUri.Uri).Should(Equal("/test_uri_grp1"))
+			Expect(queryEn.ID).Should(Equal(grp1.ID))
 
-			entryUri, err := entryMgr.store.GetEntryUriById(context.TODO(), grp1File1.ID)
+			queryEn, err = entryMgr.GetEntryByUri(context.TODO(), "/test_uri_grp1/test_uri_grp1_file1")
 			Expect(err).Should(BeNil())
-			Expect(entryUri.Uri).Should(Equal("/test_uri_grp1/test_uri_grp1_file1"))
+			Expect(queryEn.ID).Should(Equal(grp1File1.ID))
 		})
 		It("destroy should be succeed", func() {
-			err := entryMgr.handleEvent(&types.EntryEvent{
-				Type: events.ActionTypeDestroy,
-				Data: types.EventData{
-					ID:       grp1File1.ID,
-					ParentID: grp1.ID,
-				},
-			})
+			err := entryManager.RemoveEntry(context.TODO(), grp1File1.ParentID, grp1File1.ID)
 			Expect(err).Should(BeNil())
-			_, err = entryMgr.store.GetEntryUriById(context.TODO(), grp1File1.ID)
+			_, err = entryMgr.GetEntryByUri(context.TODO(), "/test_uri_grp1/test_uri_grp1_file1")
 			Expect(err).Should(Equal(types.ErrNotFound))
 		})
 		It("change parent should be succeed", func() {
@@ -455,15 +440,7 @@ var _ = Describe("TestHandleEvent", func() {
 			err = entryManager.ChangeEntryParent(context.TODO(), grp1File2.ID, nil, grp1.ID, grp2.ID, grp1File2.Name, types.ChangeParentAttr{})
 			Expect(err).Should(BeNil())
 
-			err = entryMgr.handleEvent(&types.EntryEvent{
-				Type: events.ActionTypeChangeParent,
-				Data: types.EventData{
-					ID:       grp1File2.ID,
-					ParentID: grp2.ID,
-				},
-			})
-			Expect(err).Should(BeNil())
-			_, err = entryMgr.store.GetEntryUriById(context.TODO(), grp1File2.ID)
+			_, err = entryMgr.GetEntryByUri(context.TODO(), "/test_uri_grp1/test_uri_grp1_file2")
 			Expect(err).Should(Equal(types.ErrNotFound))
 		})
 		It("update name should be succeed", func() {
@@ -471,18 +448,10 @@ var _ = Describe("TestHandleEvent", func() {
 			Expect(err).Should(BeNil())
 			Expect(grp1file3Uri.ID).Should(Equal(grp1File3.ID))
 
-			err = entryManager.ChangeEntryParent(context.TODO(), grp1File2.ID, nil, grp1.ID, grp1.ID, "test_uri_grp1_file4", types.ChangeParentAttr{})
+			err = entryManager.ChangeEntryParent(context.TODO(), grp1File3.ID, nil, grp1.ID, grp1.ID, "test_uri_grp1_file4", types.ChangeParentAttr{})
 			Expect(err).Should(BeNil())
 
-			err = entryMgr.handleEvent(&types.EntryEvent{
-				Type: events.ActionTypeChangeParent,
-				Data: types.EventData{
-					ID:       grp1File3.ID,
-					ParentID: grp1.ID,
-				},
-			})
-			Expect(err).Should(BeNil())
-			_, err = entryMgr.store.GetEntryUriById(context.TODO(), grp1File3.ID)
+			_, err = entryMgr.GetEntryByUri(context.TODO(), "/test_uri_grp1/test_uri_grp1_file3")
 			Expect(err).Should(Equal(types.ErrNotFound))
 		})
 		It("update parent name should be succeed", func() {
@@ -493,17 +462,9 @@ var _ = Describe("TestHandleEvent", func() {
 			err = entryManager.ChangeEntryParent(context.TODO(), grp2.ID, nil, root.ID, root.ID, "test_uri_grp3", types.ChangeParentAttr{})
 			Expect(err).Should(BeNil())
 
-			err = entryMgr.handleEvent(&types.EntryEvent{
-				Type: events.ActionTypeChangeParent,
-				Data: types.EventData{
-					ID:       grp2.ID,
-					ParentID: root.ID,
-				},
-			})
-			Expect(err).Should(BeNil())
-			_, err = entryMgr.store.GetEntryUriById(context.TODO(), grp2.ID)
+			_, err = entryMgr.GetEntryByUri(context.TODO(), "/test_uri_grp2")
 			Expect(err).Should(Equal(types.ErrNotFound))
-			_, err = entryMgr.store.GetEntryUriById(context.TODO(), grp2File1.ID)
+			_, err = entryMgr.GetEntryByUri(context.TODO(), "/test_uri_grp2/test_uri_grp2_file1")
 			Expect(err).Should(Equal(types.ErrNotFound))
 		})
 	})
