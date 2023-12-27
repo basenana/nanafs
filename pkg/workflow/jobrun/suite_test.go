@@ -38,6 +38,9 @@ var (
 	tempDir    string
 	recorder   metastore.ScheduledTaskRecorder
 	notifyImpl *notify.Notify
+	jobCtrl    *Controller
+
+	closeCtrlFn context.CancelFunc
 )
 
 func TestJobRun(t *testing.T) {
@@ -71,6 +74,15 @@ var _ = BeforeSuite(func() {
 	}
 	err = recorder.SaveWorkflow(context.TODO(), fakeWf)
 	Expect(err).Should(BeNil())
+
+	jobCtrl = NewJobController(recorder, notifyImpl)
+	var ctx context.Context
+	ctx, closeCtrlFn = context.WithCancel(context.Background())
+	jobCtrl.Start(ctx)
+})
+
+var _ = AfterSuite(func() {
+	closeCtrlFn()
 })
 
 func init() {

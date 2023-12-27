@@ -101,17 +101,18 @@ func NewManager(entryMgr dentry.Manager, docMgr document.Manager, notify *notify
 }
 
 func (m *manager) Start(stopCh chan struct{}) {
-	cronCtx, canF := context.WithCancel(context.Background())
-	m.cron.Start(cronCtx)
+	bgCtx, canF := context.WithCancel(context.Background())
+	m.cron.Start(bgCtx)
+	m.ctrl.Start(bgCtx)
 
-	if err := registerBuildInWorkflow(cronCtx, m); err != nil {
+	if err := registerBuildInWorkflow(bgCtx, m); err != nil {
 		m.logger.Errorw("register build-in workflow failed", "err", err)
 	}
 
 	// delay register
 	time.Sleep(time.Minute)
 
-	allWorkflows, err := m.ListWorkflows(cronCtx)
+	allWorkflows, err := m.ListWorkflows(bgCtx)
 	if err != nil {
 		m.logger.Errorw("init cron workflows failed: list workflows error", "err", err)
 	}
@@ -128,7 +129,7 @@ func (m *manager) Start(stopCh chan struct{}) {
 		}
 	}
 
-	runnerJobs, err := m.recorder.ListWorkflowJob(cronCtx, types.JobFilter{Status: jobrun.RunningStatus})
+	runnerJobs, err := m.recorder.ListWorkflowJob(bgCtx, types.JobFilter{Status: jobrun.RunningStatus})
 	if err != nil {
 		m.logger.Errorw("re-trigger jobs failed: list runner jobs error", "err", err)
 	}
@@ -138,7 +139,7 @@ func (m *manager) Start(stopCh chan struct{}) {
 			continue
 		}
 		m.logger.Infow("re-trigger job", "job", job.Id, "createdAt", job.CreatedAt.Format(time.RFC3339))
-		if err = m.ctrl.TriggerJob(job.Id, defaultJobTimeout); err != nil {
+		if err = m.ctrl.TriggerJob(bgCtx, job.Id); err != nil {
 			m.logger.Errorw("re-trigger jobs failed: trigger job failed", "job", job.Id, "err", err)
 		}
 	}
@@ -282,7 +283,7 @@ func (m *manager) TriggerWorkflow(ctx context.Context, wfId string, tgt types.Wo
 	if attr.Timeout == 0 {
 		attr.Timeout = defaultJobTimeout
 	}
-
+	job.TimeoutSeconds = int(attr.Timeout.Seconds())
 	job.TriggerReason = attr.Reason
 
 	err = m.recorder.SaveWorkflowJob(ctx, job)
@@ -290,7 +291,7 @@ func (m *manager) TriggerWorkflow(ctx context.Context, wfId string, tgt types.Wo
 		return nil, err
 	}
 
-	if err = m.ctrl.TriggerJob(job.Id, attr.Timeout); err != nil {
+	if err = m.ctrl.TriggerJob(ctx, job.Id); err != nil {
 		m.logger.Errorw("trigger job flow failed", "job", job.Id, "err", err)
 		return nil, err
 	}

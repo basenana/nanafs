@@ -21,36 +21,104 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
+	"sort"
 	"strings"
 	"sync"
 	"time"
+)
+
+const (
+	defaultWorkQueueSize = 5
 )
 
 type Controller struct {
 	runners  map[string]Runner
 	mux      sync.Mutex
 	recorder metastore.ScheduledTaskRecorder
+	signal   chan struct{}
 	notify   *notify.Notify
 	logger   *zap.SugaredLogger
 }
 
-func (c *Controller) TriggerJob(jID string, timeout time.Duration) error {
-	ctx := utils.NewWorkflowJobContext(context.Background(), jID)
+func (c *Controller) TriggerJob(ctx context.Context, jID string) error {
 	job, err := c.recorder.GetWorkflowJob(ctx, jID)
 	if err != nil {
 		return err
 	}
-	r := NewRunner(job, runnerDep{recorder: c.recorder, notify: c.notify})
-	c.mux.Lock()
-	c.runners[jID] = r
-	c.mux.Unlock()
+	if job.Status == InitializingStatus {
+		job.Status = PendingStatus
+		err = c.recorder.SaveWorkflowJob(ctx, job)
+		if err != nil {
+			c.logger.Errorw("set job status to pending failed", "err", err)
+			return err
+		}
+	}
 
-	c.logger.Infof("trigger flow %s", jID)
-	go c.startJobRunner(ctx, jID, timeout)
+	if job.Status == RunningStatus || job.Status == PendingStatus {
+		select {
+		case c.signal <- struct{}{}:
+		default:
+			// do nothing
+			c.logger.Warnw("trigger job blocked", "job", jID)
+		}
+	}
 	return nil
+}
+
+func (c *Controller) Start(ctx context.Context) {
+	for i := 0; i < defaultWorkQueueSize; i++ {
+		go c.jobWorkIterator(ctx)
+	}
+	go func() {
+		timer := time.NewTimer(time.Minute * 10)
+		c.logger.Infof("start job controller, waiting for next job")
+		for {
+			select {
+			case <-ctx.Done():
+				c.logger.Infof("stop find next job")
+				return
+			case <-timer.C:
+				c.signal <- struct{}{}
+			}
+		}
+	}()
+}
+
+func (c *Controller) jobWorkIterator(ctx context.Context) {
+	for {
+		select {
+		case <-c.signal:
+		case <-ctx.Done():
+			return
+		}
+		c.mux.Lock()
+		job, err := c.findNextRunnableJobInLock(ctx)
+		if err != nil {
+			c.logger.Errorw("find next runnable job failed", "err", err)
+			c.mux.Unlock()
+			continue
+		}
+		if job == nil {
+			// waiting for next shoot
+			c.mux.Unlock()
+			continue
+		}
+
+		jobCtx := utils.NewWorkflowJobContext(context.Background(), job.Id)
+		r := NewRunner(job, runnerDep{recorder: c.recorder, notify: c.notify})
+		c.runners[job.Id] = r
+		c.mux.Unlock()
+
+		if job.TimeoutSeconds == 0 {
+			job.TimeoutSeconds = 60 * 60 * 3 // 3H
+		}
+		c.logger.Infof("trigger flow %s", job.Id)
+		c.startJobRunner(jobCtx, job.Id, time.Duration(job.TimeoutSeconds)*time.Second)
+	}
 }
 
 func (c *Controller) startJobRunner(ctx context.Context, jID string, timeout time.Duration) {
@@ -66,6 +134,13 @@ func (c *Controller) startJobRunner(ctx context.Context, jID string, timeout tim
 		c.mux.Lock()
 		delete(c.runners, jID)
 		c.mux.Unlock()
+
+		// trigger next
+		select {
+		case c.signal <- struct{}{}:
+		default:
+			// do nothing
+		}
 	}()
 
 	ctx, canF := context.WithTimeout(ctx, timeout)
@@ -89,6 +164,47 @@ func (c *Controller) startJobRunner(ctx context.Context, jID string, timeout tim
 		_ = c.notify.RecordWarn(context.TODO(), fmt.Sprintf("Workflow %s failed", wf.Name),
 			fmt.Sprintf("trigger job %s failed: %s", jID, err), "JobController")
 	}
+}
+
+func (c *Controller) findNextRunnableJobInLock(ctx context.Context) (*types.WorkflowJob, error) {
+	runningJobs, err := c.recorder.ListWorkflowJob(ctx, types.JobFilter{Status: RunningStatus})
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(runningJobs, func(i, j int) bool {
+		return runningJobs[i].CreatedAt.Before(runningJobs[j].CreatedAt)
+	})
+
+	runningTarget := map[string]struct{}{}
+	for i, j := range runningJobs {
+		runningTarget[targetHash(j.Target)] = struct{}{}
+		_, ok := c.runners[j.Id]
+		if ok {
+			continue
+		}
+		return runningJobs[i], nil
+	}
+
+	pendingJobs, err := c.recorder.ListWorkflowJob(ctx, types.JobFilter{Status: PendingStatus})
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(pendingJobs, func(i, j int) bool {
+		return pendingJobs[i].CreatedAt.Before(pendingJobs[j].CreatedAt)
+	})
+
+	for i, j := range pendingJobs {
+		_, ok := c.runners[j.Id]
+		if ok {
+			continue
+		}
+		_, ok = runningTarget[targetHash(j.Target)]
+		if ok {
+			continue
+		}
+		return pendingJobs[i], nil
+	}
+	return nil, nil
 }
 
 func (c *Controller) PauseJob(jID string) error {
@@ -137,6 +253,7 @@ func NewJobController(recorder metastore.ScheduledTaskRecorder, notify *notify.N
 		runners:  make(map[string]Runner),
 		recorder: recorder,
 		notify:   notify,
+		signal:   make(chan struct{}, defaultWorkQueueSize*2),
 		logger:   logger.NewLogger("flow"),
 	}
 }

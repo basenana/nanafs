@@ -31,6 +31,7 @@ var _ = Describe("TestJobPauseAndResume", func() {
 			Id:       "TestJobControl-test-runner-1",
 			Workflow: "fake-workflow-1",
 			Target:   types.WorkflowTarget{},
+			Status:   InitializingStatus,
 			Steps: []types.WorkflowJobStep{
 				{StepName: "mock-step-1"},
 				{StepName: "mock-step-2"},
@@ -38,17 +39,24 @@ var _ = Describe("TestJobPauseAndResume", func() {
 				{StepName: "mock-step-4"},
 			},
 		}
-		ctrl *Controller
 	)
 
 	Context("runner start", func() {
 		It("init runner should be succeed", func() {
-			ctrl = NewJobController(recorder, notifyImpl)
 			err := recorder.SaveWorkflowJob(ctx, job)
 			Expect(err).Should(BeNil())
 		})
 		It("start should be succeed", func() {
-			Expect(ctrl.TriggerJob(job.Id, time.Hour)).Should(BeNil())
+			Expect(jobCtrl.TriggerJob(ctx, job.Id)).Should(BeNil())
+			Eventually(func() string {
+				jobs, err := recorder.ListWorkflowJob(ctx, types.JobFilter{JobID: "TestJobControl-test-runner-1"})
+				Expect(err).Should(BeNil())
+
+				if len(jobs) == 1 {
+					return jobs[0].Status
+				}
+				return ""
+			}, time.Second*30, time.Second).Should(Equal(RunningStatus))
 		})
 		It("wait first step status should be succeed", func() {
 			Eventually(func() string {
@@ -57,33 +65,30 @@ var _ = Describe("TestJobPauseAndResume", func() {
 
 				if len(jobs) == 1 {
 					return jobs[0].Steps[0].Status
-
 				}
 				return ""
 			}, time.Second*30, time.Second).Should(Equal(SucceedStatus))
 		})
 		It("pause should be succeed", func() {
-			Expect(ctrl.PauseJob(job.Id)).Should(BeNil())
+			Expect(jobCtrl.PauseJob(job.Id)).Should(BeNil())
 			Eventually(func() string {
 				jobs, err := recorder.ListWorkflowJob(ctx, types.JobFilter{JobID: "TestJobControl-test-runner-1"})
 				Expect(err).Should(BeNil())
 
 				if len(jobs) == 1 {
 					return jobs[0].Status
-
 				}
 				return ""
 			}, time.Second*30, time.Second).Should(Equal(PausedStatus))
 		})
 		It("resume should be succeed", func() {
-			Expect(ctrl.ResumeJob(job.Id)).Should(BeNil())
+			Expect(jobCtrl.ResumeJob(job.Id)).Should(BeNil())
 			Eventually(func() string {
 				jobs, err := recorder.ListWorkflowJob(ctx, types.JobFilter{JobID: "TestJobControl-test-runner-1"})
 				Expect(err).Should(BeNil())
 
 				if len(jobs) == 1 {
 					return jobs[0].Status
-
 				}
 				return ""
 			}, time.Second*30, time.Second).Should(Equal(RunningStatus))
@@ -95,7 +100,6 @@ var _ = Describe("TestJobPauseAndResume", func() {
 
 				if len(jobs) == 1 {
 					return jobs[0].Status
-
 				}
 				return ""
 			}, time.Second*30, time.Second).Should(Equal(SucceedStatus))
@@ -110,6 +114,7 @@ var _ = Describe("TestJobCancel", func() {
 			Id:       "TestJobControl-test-runner-2",
 			Workflow: "fake-workflow-1",
 			Target:   types.WorkflowTarget{},
+			Status:   InitializingStatus,
 			Steps: []types.WorkflowJobStep{
 				{StepName: "mock-step-1"},
 				{StepName: "mock-step-2"},
@@ -117,17 +122,25 @@ var _ = Describe("TestJobCancel", func() {
 				{StepName: "mock-step-4"},
 			},
 		}
-		ctrl *Controller
 	)
 
 	Context("runner start", func() {
 		It("init runner should be succeed", func() {
-			ctrl = NewJobController(recorder, notifyImpl)
 			err := recorder.SaveWorkflowJob(ctx, job)
 			Expect(err).Should(BeNil())
 		})
 		It("start should be succeed", func() {
-			Expect(ctrl.TriggerJob(job.Id, time.Hour)).Should(BeNil())
+			Expect(jobCtrl.TriggerJob(ctx, job.Id)).Should(BeNil())
+			Eventually(func() string {
+				jobs, err := recorder.ListWorkflowJob(ctx, types.JobFilter{JobID: "TestJobControl-test-runner-2"})
+				Expect(err).Should(BeNil())
+
+				if len(jobs) == 1 {
+					return jobs[0].Status
+
+				}
+				return ""
+			}, time.Second*30, time.Second).Should(Equal(RunningStatus))
 		})
 		It("wait first step status should be succeed", func() {
 			Eventually(func() string {
@@ -142,7 +155,7 @@ var _ = Describe("TestJobCancel", func() {
 			}, time.Second*30, time.Second).Should(Equal(SucceedStatus))
 		})
 		It("pause should be succeed", func() {
-			Expect(ctrl.PauseJob(job.Id)).Should(BeNil())
+			Expect(jobCtrl.PauseJob(job.Id)).Should(BeNil())
 			Eventually(func() string {
 				jobs, err := recorder.ListWorkflowJob(ctx, types.JobFilter{JobID: "TestJobControl-test-runner-2"})
 				Expect(err).Should(BeNil())
@@ -155,7 +168,7 @@ var _ = Describe("TestJobCancel", func() {
 			}, time.Second*30, time.Second).Should(Equal(PausedStatus))
 		})
 		It("cancel should be succeed", func() {
-			Expect(ctrl.CancelJob(job.Id)).Should(BeNil())
+			Expect(jobCtrl.CancelJob(job.Id)).Should(BeNil())
 			Eventually(func() string {
 				jobs, err := recorder.ListWorkflowJob(ctx, types.JobFilter{JobID: "TestJobControl-test-runner-2"})
 				Expect(err).Should(BeNil())

@@ -19,6 +19,7 @@ package workflow
 import (
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/pkg/workflow/exec"
 	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -43,6 +44,8 @@ func assembleWorkflowJob(spec *types.WorkflowSpec, tgt types.WorkflowTarget) (*t
 		Workflow:  spec.Id,
 		Target:    tgt,
 		Status:    jobrun.InitializingStatus,
+		Executor:  exec.LocalExecName,
+		QueueName: "default",
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}

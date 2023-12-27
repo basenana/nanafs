@@ -38,17 +38,20 @@ type WorkflowStepSpec struct {
 }
 
 type WorkflowJob struct {
-	Id            string            `json:"id"`
-	Workflow      string            `json:"workflow"`
-	TriggerReason string            `json:"trigger_reason,omitempty"`
-	Target        WorkflowTarget    `json:"target"`
-	Steps         []WorkflowJobStep `json:"steps"`
-	Status        string            `json:"status,omitempty"`
-	Message       string            `json:"message,omitempty"`
-	StartAt       time.Time         `json:"start_at"`
-	FinishAt      time.Time         `json:"finish_at"`
-	CreatedAt     time.Time         `json:"created_at"`
-	UpdatedAt     time.Time         `json:"updated_at"`
+	Id             string            `json:"id"`
+	Workflow       string            `json:"workflow"`
+	TriggerReason  string            `json:"trigger_reason,omitempty"`
+	Target         WorkflowTarget    `json:"target"`
+	Steps          []WorkflowJobStep `json:"steps"`
+	Status         string            `json:"status,omitempty"`
+	Message        string            `json:"message,omitempty"`
+	Executor       string            `json:"executor"`
+	QueueName      string            `json:"queue_name"`
+	TimeoutSeconds int               `json:"timeout"`
+	StartAt        time.Time         `json:"start_at"`
+	FinishAt       time.Time         `json:"finish_at"`
+	CreatedAt      time.Time         `json:"created_at"`
+	UpdatedAt      time.Time         `json:"updated_at"`
 }
 
 func (w *WorkflowJob) GetStatus() string {

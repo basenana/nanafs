@@ -353,7 +353,7 @@ func (o *WorkflowJob) From(job *types.WorkflowJob) (*WorkflowJob, error) {
 	o.TriggerReason = job.TriggerReason
 	o.Status = job.Status
 	o.Message = job.Message
-	o.Executor = "any"
+	o.Executor = job.Executor
 	o.StartAt = job.StartAt
 	o.FinishAt = job.FinishAt
 	o.CreatedAt = job.CreatedAt

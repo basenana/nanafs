@@ -16,7 +16,11 @@
 
 package jobrun
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"fmt"
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 var (
 	runnerExecTimeUsage = prometheus.NewHistogram(
@@ -39,4 +43,8 @@ func init() {
 		runnerExecTimeUsage,
 		runnerStartedCounter,
 	)
+}
+
+func targetHash(target types.WorkflowTarget) string {
+	return fmt.Sprintf("t-p%d-e%d", target.ParentEntryID, target.EntryID)
 }

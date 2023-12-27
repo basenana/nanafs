@@ -23,6 +23,7 @@ import (
 
 const (
 	InitializingStatus = "initializing"
+	PendingStatus      = "pending"
 	RunningStatus      = "running"
 	SucceedStatus      = "succeed"
 	FailedStatus       = "failed"

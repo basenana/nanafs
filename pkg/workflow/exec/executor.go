@@ -38,11 +38,11 @@ import (
 )
 
 const (
-	localExecName = "local"
+	LocalExecName = "local"
 )
 
 func RegisterOperators(entryMgr dentry.Manager, docMgr document.Manager, cfg LocalConfig) error {
-	jobrun.RegisterExecutorBuilder(localExecName, func(job *types.WorkflowJob) jobrun.Executor {
+	jobrun.RegisterExecutorBuilder(LocalExecName, func(job *types.WorkflowJob) jobrun.Executor {
 		return &localExecutor{
 			job:      job,
 			entryMgr: entryMgr,
@@ -77,33 +77,33 @@ func (b *localExecutor) Setup(ctx context.Context) (err error) {
 	}
 
 	startAt := time.Now()
-	defer logOperationLatency(localExecName, "setup", startAt)
+	defer logOperationLatency(LocalExecName, "setup", startAt)
 
 	// init workdir and copy entry file
 	b.workdir, err = initWorkdir(ctx, b.config.Workflow.JobWorkdir, b.job)
 	if err != nil {
 		b.logger.Errorw("init job workdir failed", "err", err)
-		return logOperationError(localExecName, "setup", err)
+		return logOperationError(LocalExecName, "setup", err)
 	}
 
 	if b.job.Target.EntryID != 0 {
 		b.entryPath, err = entryWorkdirInit(ctx, b.job.Target.EntryID, b.entryMgr, b.workdir)
 		if err != nil {
 			b.logger.Errorw("copy target file to workdir failed", "err", err)
-			return logOperationError(localExecName, "setup", err)
+			return logOperationError(LocalExecName, "setup", err)
 		}
 
 		b.entryURI, err = entryURIByEntryID(ctx, b.job.Target.EntryID, b.entryMgr)
 		if err != nil {
 			b.logger.Errorw("query entry dir failed", "err", err)
-			return logOperationError(localExecName, "setup", err)
+			return logOperationError(LocalExecName, "setup", err)
 		}
 	} else if b.job.Target.ParentEntryID != 0 {
 		// base on parent entry
 		b.cachedData, err = initParentDirCacheData(ctx, b.entryMgr, b.job.Target.ParentEntryID)
 		if err != nil {
 			b.logger.Errorw("build parent cache data failed", "parent", b.job.Target.ParentEntryID, "err", err)
-			return logOperationError(localExecName, "setup", err)
+			return logOperationError(LocalExecName, "setup", err)
 		}
 	}
 	b.logger.Infow("job setup", "workdir", b.workdir, "entryPath", b.entryPath)
@@ -113,7 +113,7 @@ func (b *localExecutor) Setup(ctx context.Context) (err error) {
 
 func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobStep) (err error) {
 	startAt := time.Now()
-	defer logOperationLatency(localExecName, "do_operation", startAt)
+	defer logOperationLatency(LocalExecName, "do_operation", startAt)
 
 	defer func() {
 		if panicErr := utils.Recover(); panicErr != nil {
@@ -149,7 +149,7 @@ func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobS
 		ed, err := b.entryMgr.GetEntryExtendData(ctx, b.job.Target.ParentEntryID)
 		if err != nil {
 			err = fmt.Errorf("get parent entry extend data error: %s", err)
-			return logOperationError(localExecName, "do_operation", err)
+			return logOperationError(LocalExecName, "do_operation", err)
 		}
 		if ed.PlugScope != nil {
 			ps = mergeParentEntryPlugScope(ps, *ed.PlugScope)
@@ -173,7 +173,7 @@ func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobS
 		info, err := plugin.SourceInfo(ctx, ps)
 		if err != nil {
 			err = fmt.Errorf("get source info error: %s", err)
-			return logOperationError(localExecName, "do_operation", err)
+			return logOperationError(LocalExecName, "do_operation", err)
 		}
 		b.logger.Infow("running source plugin", "plugin", step.Plugin.PluginName, "source", info)
 	}
@@ -182,11 +182,11 @@ func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobS
 	resp, err := plugin.Call(ctx, ps, req)
 	if err != nil {
 		err = fmt.Errorf("plugin action error: %s", err)
-		return logOperationError(localExecName, "do_operation", err)
+		return logOperationError(LocalExecName, "do_operation", err)
 	}
 	if !resp.IsSucceed {
 		err = fmt.Errorf("plugin action failed: %s", resp.Message)
-		return logOperationError(localExecName, "do_operation", err)
+		return logOperationError(LocalExecName, "do_operation", err)
 	}
 	if len(resp.Results) > 0 {
 		b.resultMux.Lock()
@@ -208,14 +208,14 @@ func (b *localExecutor) Collect(ctx context.Context) error {
 	}
 
 	startAt := time.Now()
-	defer logOperationLatency(localExecName, "collect", startAt)
+	defer logOperationLatency(LocalExecName, "collect", startAt)
 
 	if needManifestCollect {
 		manifests, ok := rawManifests.([]pluginapi.CollectManifest)
 		if !ok {
 			msg := fmt.Sprintf("load collect manifest objects failed: unknown type %v", rawManifests)
 			b.logger.Error(msg)
-			return logOperationError(localExecName, "collect", fmt.Errorf(msg))
+			return logOperationError(LocalExecName, "collect", fmt.Errorf(msg))
 		}
 
 		// collect files
@@ -291,7 +291,7 @@ func (b *localExecutor) collectFiles(ctx context.Context, manifests []pluginapi.
 	}
 	if len(errList) > 0 {
 		err := fmt.Errorf("collect file to base entry failed: %s, there are %d more similar errors", errList[0], len(errList))
-		return logOperationError(localExecName, "collect", err)
+		return logOperationError(LocalExecName, "collect", err)
 	}
 	return nil
 }
@@ -299,18 +299,18 @@ func (b *localExecutor) collectFiles(ctx context.Context, manifests []pluginapi.
 func (b *localExecutor) collectDocuments(ctx context.Context, entryId int64, content bytes.Buffer, summary string, keyWords []string, usage map[string]any) error {
 	b.logger.Infow("collect documents", "entryId", entryId)
 	if err := collectFile2Document(ctx, b.docMgr, b.entryMgr, entryId, content, summary, keyWords, usage); err != nil {
-		return logOperationError(localExecName, "collect", err)
+		return logOperationError(LocalExecName, "collect", err)
 	}
 	return nil
 }
 
 func (b *localExecutor) Teardown(ctx context.Context) {
 	startAt := time.Now()
-	defer logOperationLatency(localExecName, "teardown", startAt)
+	defer logOperationLatency(LocalExecName, "teardown", startAt)
 	err := cleanupWorkdir(ctx, b.workdir)
 	if err != nil {
 		b.logger.Errorw("teardown failed: cleanup workdir error", "err", err)
-		_ = logOperationError(localExecName, "teardown", err)
+		_ = logOperationError(LocalExecName, "teardown", err)
 		return
 	}
 }

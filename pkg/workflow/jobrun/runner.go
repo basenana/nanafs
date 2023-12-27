@@ -357,7 +357,7 @@ func (r *runner) stepRun(ctx context.Context, step *types.WorkflowJobStep) (need
 
 func (r *runner) initial() (err error) {
 	if r.job.Status == "" {
-		r.job.Status = InitializingStatus
+		r.job.Status = PendingStatus
 		if err = r.recorder.SaveWorkflowJob(r.ctx, r.job); err != nil {
 			r.logger.Errorf("initializing job status failed: %s")
 			return err
@@ -366,7 +366,7 @@ func (r *runner) initial() (err error) {
 	for i := range r.job.Steps {
 		step := r.job.Steps[i]
 		if step.Status == "" {
-			step.Status = InitializingStatus
+			step.Status = PendingStatus
 		}
 	}
 	if err = r.recorder.SaveWorkflowJob(r.ctx, r.job); err != nil {
@@ -401,7 +401,7 @@ func (r *runner) waitingForRunning(ctx context.Context) bool {
 			switch r.job.Status {
 			case SucceedStatus, FailedStatus, CanceledStatus, ErrorStatus:
 				return false
-			case InitializingStatus, RunningStatus:
+			case PendingStatus, RunningStatus:
 				return true
 			default:
 				time.Sleep(time.Second * 15)
@@ -457,7 +457,7 @@ func buildFlowFSM(r *runner) *fsm.FSM {
 		Logger: r.logger.Named("fsm"),
 	})
 
-	m.From([]string{InitializingStatus, RunningStatus}).
+	m.From([]string{PendingStatus, RunningStatus}).
 		To(RunningStatus).
 		When(TriggerEvent).
 		Do(r.handleJobRun)
@@ -467,17 +467,17 @@ func buildFlowFSM(r *runner) *fsm.FSM {
 		When(ExecuteFinishEvent).
 		Do(r.handleJobSucceed)
 
-	m.From([]string{InitializingStatus, RunningStatus}).
+	m.From([]string{PendingStatus, RunningStatus}).
 		To(ErrorStatus).
 		When(ExecuteErrorEvent).
 		Do(r.handleJobFailed)
 
-	m.From([]string{InitializingStatus, RunningStatus}).
+	m.From([]string{PendingStatus, RunningStatus}).
 		To(FailedStatus).
 		When(ExecuteFailedEvent).
 		Do(r.handleJobFailed)
 
-	m.From([]string{InitializingStatus, PausedStatus}).
+	m.From([]string{PendingStatus, PausedStatus}).
 		To(CanceledStatus).
 		When(ExecuteCancelEvent).
 		Do(r.handleJobCancel)

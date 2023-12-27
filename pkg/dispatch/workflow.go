@@ -142,13 +142,21 @@ func (w workflowExecutor) execute(ctx context.Context, task *types.ScheduledTask
 			continue
 		}
 
-		pendingJob, err := w.recorder.ListWorkflowJob(ctx, types.JobFilter{WorkFlowID: wf.Id, Status: jobrun.InitializingStatus, TargetEntry: en.ID})
+		sameTargetJob, err := w.recorder.ListWorkflowJob(ctx, types.JobFilter{WorkFlowID: wf.Id, TargetEntry: en.ID})
 		if err != nil {
-			w.logger.Errorw("[workflowAutoTrigger] query pending job failed", "entry", en.ID, "workflow", wf.Id, "err", err)
+			w.logger.Errorw("[workflowAutoTrigger] query same target job failed", "entry", en.ID, "workflow", wf.Id, "err", err)
 			continue
 		}
 
-		if len(pendingJob) > 0 {
+		needSkip := false
+		for _, j := range sameTargetJob {
+			if j.Status == jobrun.InitializingStatus || j.Status == jobrun.PendingStatus || j.Status == jobrun.RunningStatus {
+				w.logger.Debugw("[workflowAutoTrigger] found same target job, skip this event", "entry", en.ID, "job", j.Id)
+				needSkip = true
+				break
+			}
+		}
+		if needSkip {
 			continue
 		}
 
