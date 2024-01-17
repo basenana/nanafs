@@ -285,6 +285,8 @@ func init() {
 				{Name: "step-2", Plugin: ps},
 				{Name: "step-3", Plugin: ps},
 			},
+			QueueName: "default",
+			Executor:  "local",
 		}
 	)
 

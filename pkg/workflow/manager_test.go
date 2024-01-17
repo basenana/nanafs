@@ -43,6 +43,8 @@ var _ = Describe("TestWorkflowManage", func() {
 					},
 				},
 			},
+			QueueName: "default",
+			Executor:  "local",
 		}
 	)
 	Context("create a workflow", func() {
@@ -110,6 +112,8 @@ var _ = Describe("TestWorkflowJobManage", func() {
 				{Name: "step-1", Plugin: ps},
 				{Name: "step-2", Plugin: ps},
 			},
+			QueueName: "default",
+			Executor:  "local",
 		}
 		en *types.Metadata
 	)

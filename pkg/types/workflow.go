@@ -27,6 +27,8 @@ type WorkflowSpec struct {
 	Cron            string             `json:"cron,omitempty"`
 	Steps           []WorkflowStepSpec `json:"steps,omitempty"`
 	Enable          bool               `json:"enable"`
+	Executor        string             `json:"executor"`
+	QueueName       string             `json:"queue_name"`
 	CreatedAt       time.Time          `json:"created_at"`
 	UpdatedAt       time.Time          `json:"updated_at"`
 	LastTriggeredAt time.Time          `json:"last_triggered_at"`

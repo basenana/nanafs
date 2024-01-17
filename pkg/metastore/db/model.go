@@ -274,6 +274,8 @@ type Workflow struct {
 	Cron            string    `gorm:"column:cron"`
 	Steps           string    `gorm:"column:steps"`
 	Enable          bool      `gorm:"column:enable;index:wf_enable"`
+	QueueName       string    `gorm:"column:queue_name"`
+	Executor        string    `gorm:"column:executor"`
 	CreatedAt       time.Time `gorm:"column:created_at;index:wf_creat"`
 	UpdatedAt       time.Time `gorm:"column:updated_at"`
 	LastTriggeredAt time.Time `gorm:"column:last_triggered_at"`
@@ -288,6 +290,8 @@ func (o *Workflow) From(wf *types.WorkflowSpec) (*Workflow, error) {
 	o.Name = wf.Name
 	o.Enable = wf.Enable
 	o.Cron = wf.Cron
+	o.QueueName = wf.QueueName
+	o.Executor = wf.Executor
 	o.CreatedAt = wf.CreatedAt
 	o.UpdatedAt = wf.UpdatedAt
 	o.LastTriggeredAt = wf.LastTriggeredAt
@@ -313,6 +317,8 @@ func (o *Workflow) To() (*types.WorkflowSpec, error) {
 		Enable:          o.Enable,
 		Cron:            o.Cron,
 		Steps:           []types.WorkflowStepSpec{},
+		QueueName:       o.QueueName,
+		Executor:        o.Executor,
 		CreatedAt:       o.CreatedAt,
 		UpdatedAt:       o.UpdatedAt,
 		LastTriggeredAt: o.LastTriggeredAt,
@@ -336,6 +342,7 @@ type WorkflowJob struct {
 	Steps         string    `gorm:"column:steps"`
 	Status        string    `gorm:"column:status;index:job_status"`
 	Message       string    `gorm:"column:message"`
+	QueueName     string    `gorm:"column:queue_name;index:job_queue"`
 	Executor      string    `gorm:"column:executor;index:job_executor"`
 	StartAt       time.Time `gorm:"column:start_at"`
 	FinishAt      time.Time `gorm:"column:finish_at"`
@@ -353,6 +360,7 @@ func (o *WorkflowJob) From(job *types.WorkflowJob) (*WorkflowJob, error) {
 	o.TriggerReason = job.TriggerReason
 	o.Status = job.Status
 	o.Message = job.Message
+	o.QueueName = job.QueueName
 	o.Executor = job.Executor
 	o.StartAt = job.StartAt
 	o.FinishAt = job.FinishAt
@@ -383,6 +391,8 @@ func (o *WorkflowJob) To() (*types.WorkflowJob, error) {
 		Steps:         []types.WorkflowJobStep{},
 		Status:        o.Status,
 		Message:       o.Message,
+		Executor:      o.Executor,
+		QueueName:     o.QueueName,
 		StartAt:       o.StartAt,
 		FinishAt:      o.FinishAt,
 		CreatedAt:     o.CreatedAt,

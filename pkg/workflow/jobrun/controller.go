@@ -39,7 +39,8 @@ type Controller struct {
 	runners  map[string]Runner
 	mux      sync.Mutex
 	recorder metastore.ScheduledTaskRecorder
-	signal   chan struct{}
+	signal   chan string
+	queue    *queue
 	notify   *notify.Notify
 	logger   *zap.SugaredLogger
 }
@@ -58,11 +59,8 @@ func (c *Controller) TriggerJob(ctx context.Context, jID string) error {
 		}
 	}
 
-	if job.Status == RunningStatus || job.Status == PendingStatus {
-		select {
-		case c.signal <- struct{}{}:
-		default:
-			// do nothing
+	if job.Status == PendingStatus || job.Status == RunningStatus {
+		if c.queue.Put(jID) {
 			c.logger.Warnw("trigger job blocked", "job", jID)
 		}
 	}
@@ -70,9 +68,8 @@ func (c *Controller) TriggerJob(ctx context.Context, jID string) error {
 }
 
 func (c *Controller) Start(ctx context.Context) {
-	for i := 0; i < defaultWorkQueueSize; i++ {
-		go c.jobWorkIterator(ctx)
-	}
+	go c.jobWorkIterator(ctx)
+
 	go func() {
 		timer := time.NewTimer(time.Minute * 10)
 		c.logger.Infof("start job controller, waiting for next job")
@@ -82,32 +79,37 @@ func (c *Controller) Start(ctx context.Context) {
 				c.logger.Infof("stop find next job")
 				return
 			case <-timer.C:
-				c.signal <- struct{}{}
+				err := c.findNextRunnableJob(ctx)
+				if err != nil {
+					c.logger.Errorw("find next runnable job failed", "err", err)
+				}
 			}
 		}
 	}()
 }
 
 func (c *Controller) jobWorkIterator(ctx context.Context) {
+	var (
+		job     *types.WorkflowJob
+		err     error
+		workRun = make(chan struct{}, defaultWorkQueueSize)
+	)
+
 	for {
 		select {
-		case <-c.signal:
 		case <-ctx.Done():
 			return
-		}
-		c.mux.Lock()
-		job, err := c.findNextRunnableJobInLock(ctx)
-		if err != nil {
-			c.logger.Errorw("find next runnable job failed", "err", err)
-			c.mux.Unlock()
-			continue
-		}
-		if job == nil {
-			// waiting for next shoot
-			c.mux.Unlock()
-			continue
+		default:
+			jobID := c.queue.Next()
+			job, err = c.recorder.GetWorkflowJob(ctx, jobID)
+			if err != nil {
+				c.logger.Errorw("get workflow job error", "job", jobID, "err", err)
+				continue
+			}
 		}
 
+		workRun <- struct{}{}
+		c.mux.Lock()
 		jobCtx := utils.NewWorkflowJobContext(context.Background(), job.Id)
 		r := NewRunner(job, runnerDep{recorder: c.recorder, notify: c.notify})
 		c.runners[job.Id] = r
@@ -116,8 +118,11 @@ func (c *Controller) jobWorkIterator(ctx context.Context) {
 		if job.TimeoutSeconds == 0 {
 			job.TimeoutSeconds = 60 * 60 * 3 // 3H
 		}
-		c.logger.Infof("trigger flow %s", job.Id)
-		c.startJobRunner(jobCtx, job.Id, time.Duration(job.TimeoutSeconds)*time.Second)
+		go func(jobCtx context.Context, job *types.WorkflowJob) {
+			c.logger.Infof("trigger flow %s", job.Id)
+			c.startJobRunner(jobCtx, job.Id, time.Duration(job.TimeoutSeconds)*time.Second)
+			<-workRun
+		}(jobCtx, job)
 	}
 }
 
@@ -134,13 +139,6 @@ func (c *Controller) startJobRunner(ctx context.Context, jID string, timeout tim
 		c.mux.Lock()
 		delete(c.runners, jID)
 		c.mux.Unlock()
-
-		// trigger next
-		select {
-		case c.signal <- struct{}{}:
-		default:
-			// do nothing
-		}
 	}()
 
 	ctx, canF := context.WithTimeout(ctx, timeout)
@@ -166,34 +164,39 @@ func (c *Controller) startJobRunner(ctx context.Context, jID string, timeout tim
 	}
 }
 
-func (c *Controller) findNextRunnableJobInLock(ctx context.Context) (*types.WorkflowJob, error) {
-	runningJobs, err := c.recorder.ListWorkflowJob(ctx, types.JobFilter{Status: RunningStatus})
+func (c *Controller) findNextRunnableJob(ctx context.Context) error {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+
+	runningJobs, err := c.recorder.ListWorkflowJob(ctx, types.JobFilter{QueueName: "default", Status: RunningStatus})
 	if err != nil {
-		return nil, err
+		return err
 	}
 	sort.Slice(runningJobs, func(i, j int) bool {
 		return runningJobs[i].CreatedAt.Before(runningJobs[j].CreatedAt)
 	})
 
 	runningTarget := map[string]struct{}{}
-	for i, j := range runningJobs {
+	for _, j := range runningJobs {
 		runningTarget[targetHash(j.Target)] = struct{}{}
 		_, ok := c.runners[j.Id]
 		if ok {
 			continue
 		}
-		return runningJobs[i], nil
+		if c.queue.Put(j.Id) {
+			return nil
+		}
 	}
 
-	pendingJobs, err := c.recorder.ListWorkflowJob(ctx, types.JobFilter{Status: PendingStatus})
+	pendingJobs, err := c.recorder.ListWorkflowJob(ctx, types.JobFilter{QueueName: "default", Status: PendingStatus})
 	if err != nil {
-		return nil, err
+		return err
 	}
 	sort.Slice(pendingJobs, func(i, j int) bool {
 		return pendingJobs[i].CreatedAt.Before(pendingJobs[j].CreatedAt)
 	})
 
-	for i, j := range pendingJobs {
+	for _, j := range pendingJobs {
 		_, ok := c.runners[j.Id]
 		if ok {
 			continue
@@ -202,9 +205,12 @@ func (c *Controller) findNextRunnableJobInLock(ctx context.Context) (*types.Work
 		if ok {
 			continue
 		}
-		return pendingJobs[i], nil
+		if c.queue.Put(j.Id) {
+			return nil
+		}
 	}
-	return nil, nil
+
+	return nil
 }
 
 func (c *Controller) PauseJob(jID string) error {
@@ -253,7 +259,8 @@ func NewJobController(recorder metastore.ScheduledTaskRecorder, notify *notify.N
 		runners:  make(map[string]Runner),
 		recorder: recorder,
 		notify:   notify,
-		signal:   make(chan struct{}, defaultWorkQueueSize*2),
+		queue:    newQueue(),
+		signal:   make(chan string, defaultWorkQueueSize*2),
 		logger:   logger.NewLogger("flow"),
 	}
 }

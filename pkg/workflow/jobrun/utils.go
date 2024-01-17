@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/prometheus/client_golang/prometheus"
+	"sync"
 )
 
 var (
@@ -45,6 +46,41 @@ func init() {
 	)
 }
 
+type queue struct {
+	q       chan string
+	inQueue map[string]struct{}
+	mux     sync.Mutex
+}
+
+func (q *queue) Next() string {
+	next := <-q.q
+	q.mux.Lock()
+	delete(q.inQueue, next)
+	q.mux.Unlock()
+	return next
+}
+
+func (q *queue) Put(jobID string) (isFill bool) {
+	q.mux.Lock()
+	if _, ok := q.inQueue[jobID]; ok {
+		q.mux.Unlock()
+		return
+	}
+	select {
+	case q.q <- jobID:
+		q.inQueue[jobID] = struct{}{}
+	default:
+		// skip this job
+		isFill = true
+	}
+	q.mux.Unlock()
+	return
+}
+
 func targetHash(target types.WorkflowTarget) string {
 	return fmt.Sprintf("t-p%d-e%d", target.ParentEntryID, target.EntryID)
+}
+
+func newQueue() *queue {
+	return &queue{q: make(chan string, defaultWorkQueueSize*2), inQueue: make(map[string]struct{})}
 }

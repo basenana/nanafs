@@ -82,7 +82,9 @@ var (
 					},
 				},
 			},
-			Enable: true,
+			QueueName: "default",
+			Executor:  "local",
+			Enable:    true,
 		},
 		{
 			Id:   "buildin.docload",
@@ -102,6 +104,15 @@ var (
 						Parameters: map[string]string{},
 					},
 				},
+			},
+			QueueName: "default",
+			Executor:  "local",
+			Enable:    true,
+		},
+		{
+			Id:   "buildin.friday",
+			Name: "Document Summary",
+			Steps: []types.WorkflowStepSpec{
 				{
 					Name: "summary",
 					Plugin: &types.PlugScope{
@@ -112,7 +123,9 @@ var (
 					},
 				},
 			},
-			Enable: true,
+			QueueName: "friday",
+			Executor:  "datapipe",
+			Enable:    true,
 		},
 	}
 )
