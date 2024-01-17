@@ -38,10 +38,11 @@ import (
 )
 
 const (
-	LocalExecName = "local"
+	LocalExecName    = "local"
+	DataPipeExecName = "pipe"
 )
 
-func RegisterOperators(entryMgr dentry.Manager, docMgr document.Manager, cfg LocalConfig) error {
+func RegisterOperators(entryMgr dentry.Manager, docMgr document.Manager, cfg Config) error {
 	jobrun.RegisterExecutorBuilder(LocalExecName, func(job *types.WorkflowJob) jobrun.Executor {
 		return &localExecutor{
 			job:      job,
@@ -50,6 +51,16 @@ func RegisterOperators(entryMgr dentry.Manager, docMgr document.Manager, cfg Loc
 			config:   cfg,
 			results:  map[string]any{},
 			logger:   logger.NewLogger("localExecutor").With(zap.String("job", job.Id)),
+		}
+	})
+	jobrun.RegisterExecutorBuilder(DataPipeExecName, func(job *types.WorkflowJob) jobrun.Executor {
+		return &pipeExecutor{
+			job:      job,
+			entryMgr: entryMgr,
+			docMgr:   docMgr,
+			config:   cfg,
+			results:  map[string]any{},
+			logger:   logger.NewLogger("pipeExecutor").With(zap.String("job", job.Id)),
 		}
 	})
 	return nil
@@ -63,7 +74,7 @@ type localExecutor struct {
 	entryMgr   dentry.Manager
 	docMgr     document.Manager
 	cachedData *pluginapi.CachedData
-	config     LocalConfig
+	config     Config
 	results    map[string]any
 	resultMux  sync.Mutex
 	logger     *zap.SugaredLogger
@@ -246,12 +257,7 @@ func (b *localExecutor) Collect(ctx context.Context) error {
 		}
 
 		// collect documents
-		var (
-			entryID    int64
-			summary    string
-			keyWords   []string
-			totalUsage = make(map[string]any)
-		)
+		var entryID int64
 		if _, ok := b.results[pluginapi.ResEntryIdKey]; !ok {
 			return fmt.Errorf("content is empty")
 		}
@@ -260,17 +266,7 @@ func (b *localExecutor) Collect(ctx context.Context) error {
 			return fmt.Errorf("content is empty")
 		}
 
-		if _, ok := b.results[pluginapi.ResEntryDocSummaryKey]; ok {
-			summaryVal := b.results[pluginapi.ResEntryDocSummaryKey].(map[string]any)
-			summary = summaryVal["summary"].(string)
-			totalUsage["summary"] = summaryVal["usage"]
-		}
-		if _, ok := b.results[pluginapi.ResEntryDocKeyWordsKey]; ok {
-			keyWordsVal := b.results[pluginapi.ResEntryDocKeyWordsKey].(map[string]any)
-			keyWords = keyWordsVal["keywords"].([]string)
-			totalUsage["keywords"] = keyWordsVal["usage"]
-		}
-		err := b.collectDocuments(ctx, entryID, buf, summary, keyWords, totalUsage)
+		err := b.collectDocuments(ctx, entryID, buf)
 		if err != nil {
 			return err
 		}
@@ -296,9 +292,9 @@ func (b *localExecutor) collectFiles(ctx context.Context, manifests []pluginapi.
 	return nil
 }
 
-func (b *localExecutor) collectDocuments(ctx context.Context, entryId int64, content bytes.Buffer, summary string, keyWords []string, usage map[string]any) error {
+func (b *localExecutor) collectDocuments(ctx context.Context, entryId int64, content bytes.Buffer) error {
 	b.logger.Infow("collect documents", "entryId", entryId)
-	if err := collectFile2Document(ctx, b.docMgr, b.entryMgr, entryId, content, summary, keyWords, usage); err != nil {
+	if err := collectFile2Document(ctx, b.docMgr, b.entryMgr, entryId, content); err != nil {
 		return logOperationError(LocalExecName, "collect", err)
 	}
 	return nil
@@ -315,6 +311,112 @@ func (b *localExecutor) Teardown(ctx context.Context) {
 	}
 }
 
-type LocalConfig struct {
+type Config struct {
 	Workflow config.Workflow
+}
+
+type pipeExecutor struct {
+	job       *types.WorkflowJob
+	entryMgr  dentry.Manager
+	docMgr    document.Manager
+	config    Config
+	results   map[string]any
+	resultMux sync.Mutex
+	logger    *zap.SugaredLogger
+}
+
+var _ jobrun.Executor = &pipeExecutor{}
+
+func (p *pipeExecutor) Setup(ctx context.Context) error {
+	return nil
+}
+
+func (p *pipeExecutor) DoOperation(ctx context.Context, step types.WorkflowJobStep) (err error) {
+	startAt := time.Now()
+	defer logOperationLatency(DataPipeExecName, "do_operation", startAt)
+
+	defer func() {
+		if panicErr := utils.Recover(); panicErr != nil {
+			p.logger.Errorw("executor panic", "err", panicErr)
+			err = panicErr
+		}
+	}()
+
+	req := pluginapi.NewRequest()
+	req.EntryId = p.job.Target.EntryID
+	req.ParentEntryId = p.job.Target.ParentEntryID
+
+	req.Parameter = map[string]any{}
+	p.resultMux.Lock()
+	for k, v := range p.results {
+		req.Parameter[k] = v
+	}
+	p.resultMux.Unlock()
+	req.Parameter[pluginapi.ResEntryIdKey] = p.job.Target.EntryID
+	req.Parameter[pluginapi.ResPluginName] = step.Plugin.PluginName
+	req.Parameter[pluginapi.ResPluginVersion] = step.Plugin.Version
+	req.Parameter[pluginapi.ResPluginType] = step.Plugin.PluginType
+	req.Parameter[pluginapi.ResPluginAction] = step.Plugin.Action
+	req.ParentProperties = map[string]string{}
+
+	ps := *step.Plugin
+	if p.job.Target.ParentEntryID != 0 {
+		ed, err := p.entryMgr.GetEntryExtendData(ctx, p.job.Target.ParentEntryID)
+		if err != nil {
+			err = fmt.Errorf("get parent entry extend data error: %s", err)
+			return logOperationError(DataPipeExecName, "do_operation", err)
+		}
+		if ed.PlugScope != nil {
+			ps = mergeParentEntryPlugScope(ps, *ed.PlugScope)
+		}
+		if ed.Properties.Fields != nil {
+			for k, v := range ed.Properties.Fields {
+				val := v.Value
+				if v.Encoded {
+					val, err = utils.DecodeBase64String(val)
+					if err != nil {
+						p.logger.Warnw("decode extend property value failed", "key", k)
+						continue
+					}
+				}
+				req.ParentProperties[k] = val
+			}
+		}
+	}
+
+	if step.Plugin.PluginType == types.TypeSource {
+		info, err := plugin.SourceInfo(ctx, ps)
+		if err != nil {
+			err = fmt.Errorf("get source info error: %s", err)
+			return logOperationError(DataPipeExecName, "do_operation", err)
+		}
+		p.logger.Infow("running source plugin", "plugin", step.Plugin.PluginName, "source", info)
+	}
+
+	req.Action = ps.Action
+	resp, err := plugin.Call(ctx, ps, req)
+	if err != nil {
+		err = fmt.Errorf("plugin action error: %s", err)
+		return logOperationError(DataPipeExecName, "do_operation", err)
+	}
+	if !resp.IsSucceed {
+		err = fmt.Errorf("plugin action failed: %s", resp.Message)
+		return logOperationError(DataPipeExecName, "do_operation", err)
+	}
+	if len(resp.Results) > 0 {
+		p.resultMux.Lock()
+		for k, v := range resp.Results {
+			p.results[k] = v
+		}
+		p.resultMux.Unlock()
+	}
+	return err
+}
+
+func (p *pipeExecutor) Collect(ctx context.Context) error {
+	return nil
+}
+
+func (p *pipeExecutor) Teardown(ctx context.Context) {
+	return
 }

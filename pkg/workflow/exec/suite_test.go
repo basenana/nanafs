@@ -37,7 +37,7 @@ var (
 	targetID int64
 	entryMgr dentry.Manager
 
-	loCfg = LocalConfig{}
+	loCfg = Config{}
 )
 
 func TestExec(t *testing.T) {

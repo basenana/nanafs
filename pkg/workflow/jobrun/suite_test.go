@@ -85,10 +85,11 @@ var _ = AfterSuite(func() {
 	closeCtrlFn()
 })
 
+var fakeExecName = "fake"
+
 func init() {
 	// fake executor
-	defaultExecName = "fake"
-	RegisterExecutorBuilder(defaultExecName, func(job *types.WorkflowJob) Executor { return &fakeExecutor{} })
+	RegisterExecutorBuilder(fakeExecName, func(job *types.WorkflowJob) Executor { return &fakeExecutor{} })
 }
 
 type fakeExecutor struct{}

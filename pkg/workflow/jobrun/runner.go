@@ -29,12 +29,6 @@ import (
 	"time"
 )
 
-const (
-	localExecName = "local"
-)
-
-var defaultExecName = localExecName
-
 type Runner interface {
 	Start(ctx context.Context) error
 	Pause() error
@@ -105,7 +99,7 @@ func (r *runner) Start(ctx context.Context) (err error) {
 		r.logger.Errorw("build dag failed", "err", err)
 		return err
 	}
-	r.executor, err = newExecutor(defaultExecName, r.job)
+	r.executor, err = newExecutor(r.job.Executor, r.job)
 	if err != nil {
 		r.job.Status = FailedStatus
 		r.job.Message = err.Error()

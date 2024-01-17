@@ -32,6 +32,7 @@ var _ = Describe("TestJobPauseAndResume", func() {
 			Workflow: "fake-workflow-1",
 			Target:   types.WorkflowTarget{},
 			Status:   InitializingStatus,
+			Executor: fakeExecName,
 			Steps: []types.WorkflowJobStep{
 				{StepName: "mock-step-1"},
 				{StepName: "mock-step-2"},
@@ -115,6 +116,7 @@ var _ = Describe("TestJobCancel", func() {
 			Workflow: "fake-workflow-1",
 			Target:   types.WorkflowTarget{},
 			Status:   InitializingStatus,
+			Executor: fakeExecName,
 			Steps: []types.WorkflowJobStep{
 				{StepName: "mock-step-1"},
 				{StepName: "mock-step-2"},

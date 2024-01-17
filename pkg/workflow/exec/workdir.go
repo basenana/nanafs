@@ -234,7 +234,7 @@ func collectFile2BaseEntry(ctx context.Context, entryMgr dentry.Manager, baseEnt
 	return nil
 }
 
-func collectFile2Document(ctx context.Context, docMgr document.Manager, entryMgr dentry.Manager, entryId int64, content bytes.Buffer, summary string, keyWords []string, usage map[string]any) error {
+func collectFile2Document(ctx context.Context, docMgr document.Manager, entryMgr dentry.Manager, entryId int64, content bytes.Buffer) error {
 	baseEn, err := entryMgr.GetEntry(ctx, entryId)
 	if err != nil {
 		return fmt.Errorf("query entry failed: %s", err)
@@ -244,51 +244,13 @@ func collectFile2Document(ctx context.Context, docMgr document.Manager, entryMgr
 		Name:          trimFileExtension(baseEn.Name),
 		ParentEntryID: baseEn.ParentID,
 		Source:        "collect",
-		KeyWords:      keyWords,
 		Content:       content.String(),
-		Summary:       summary,
 	}
 	err = docMgr.SaveDocument(ctx, doc)
 	if err != nil {
 		return fmt.Errorf("create new entry failed: %s", err)
 	}
 
-	for k, v := range usage {
-		switch k {
-		case "summary":
-			u, ok := v.(map[string]int)
-			if !ok {
-				continue
-			}
-			err = docMgr.CreateFridayAccount(ctx, &types.FridayAccount{
-				RefID:          doc.ID,
-				RefType:        "document",
-				Type:           "summary",
-				CompleteTokens: u["completion_tokens"],
-				PromptTokens:   u["prompt_tokens"],
-				TotalTokens:    u["total_tokens"],
-			})
-			if err != nil {
-				return fmt.Errorf("create account of summary failed: %s", err)
-			}
-		case "keywords":
-			u, ok := v.(map[string]int)
-			if !ok {
-				continue
-			}
-			err = docMgr.CreateFridayAccount(ctx, &types.FridayAccount{
-				RefID:          doc.ID,
-				RefType:        "document",
-				Type:           "keywords",
-				CompleteTokens: u["completion_tokens"],
-				PromptTokens:   u["prompt_tokens"],
-				TotalTokens:    u["total_tokens"],
-			})
-			if err != nil {
-				return fmt.Errorf("create account of keywords failed: %s", err)
-			}
-		}
-	}
 	return nil
 }
 

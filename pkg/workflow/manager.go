@@ -78,7 +78,7 @@ func NewManager(entryMgr dentry.Manager, docMgr document.Manager, notify *notify
 		return nil, fmt.Errorf("init workflow job root workdir error: %s", err)
 	}
 
-	if err := exec.RegisterOperators(entryMgr, docMgr, exec.LocalConfig{Workflow: config}); err != nil {
+	if err := exec.RegisterOperators(entryMgr, docMgr, exec.Config{Workflow: config}); err != nil {
 		return nil, fmt.Errorf("register operators failed: %s", err)
 	}
 

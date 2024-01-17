@@ -90,9 +90,12 @@ func (c *Controller) Start(ctx context.Context) {
 
 func (c *Controller) jobWorkIterator(ctx context.Context) {
 	var (
-		job     *types.WorkflowJob
-		err     error
-		workRun = make(chan struct{}, defaultWorkQueueSize)
+		job           *types.WorkflowJob
+		err           error
+		queueAccounts = map[string]chan struct{}{
+			"friday":  make(chan struct{}, 1),
+			"default": make(chan struct{}, defaultWorkQueueSize),
+		}
 	)
 
 	for {
@@ -107,8 +110,12 @@ func (c *Controller) jobWorkIterator(ctx context.Context) {
 				continue
 			}
 		}
+		queueName := job.QueueName
+		if _, ok := queueAccounts[queueName]; !ok {
+			queueName = "default"
+		}
 
-		workRun <- struct{}{}
+		queueAccounts[queueName] <- struct{}{}
 		c.mux.Lock()
 		jobCtx := utils.NewWorkflowJobContext(context.Background(), job.Id)
 		r := NewRunner(job, runnerDep{recorder: c.recorder, notify: c.notify})
@@ -118,11 +125,11 @@ func (c *Controller) jobWorkIterator(ctx context.Context) {
 		if job.TimeoutSeconds == 0 {
 			job.TimeoutSeconds = 60 * 60 * 3 // 3H
 		}
-		go func(jobCtx context.Context, job *types.WorkflowJob) {
+		go func(jobCtx context.Context, job *types.WorkflowJob, queueName string) {
 			c.logger.Infof("trigger flow %s", job.Id)
 			c.startJobRunner(jobCtx, job.Id, time.Duration(job.TimeoutSeconds)*time.Second)
-			<-workRun
-		}(jobCtx, job)
+			<-queueAccounts[queueName]
+		}(jobCtx, job, queueName)
 	}
 }
 
@@ -168,7 +175,7 @@ func (c *Controller) findNextRunnableJob(ctx context.Context) error {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
-	runningJobs, err := c.recorder.ListWorkflowJob(ctx, types.JobFilter{QueueName: "default", Status: RunningStatus})
+	runningJobs, err := c.recorder.ListWorkflowJob(ctx, types.JobFilter{Status: RunningStatus})
 	if err != nil {
 		return err
 	}
@@ -188,7 +195,7 @@ func (c *Controller) findNextRunnableJob(ctx context.Context) error {
 		}
 	}
 
-	pendingJobs, err := c.recorder.ListWorkflowJob(ctx, types.JobFilter{QueueName: "default", Status: PendingStatus})
+	pendingJobs, err := c.recorder.ListWorkflowJob(ctx, types.JobFilter{Status: PendingStatus})
 	if err != nil {
 		return err
 	}
@@ -260,7 +267,6 @@ func NewJobController(recorder metastore.ScheduledTaskRecorder, notify *notify.N
 		recorder: recorder,
 		notify:   notify,
 		queue:    newQueue(),
-		signal:   make(chan string, defaultWorkQueueSize*2),
 		logger:   logger.NewLogger("flow"),
 	}
 }
