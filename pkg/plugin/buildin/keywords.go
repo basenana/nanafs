@@ -48,10 +48,6 @@ func (i *KeywordsPlugin) Type() types.PluginType { return types.TypeProcess }
 func (i *KeywordsPlugin) Version() string { return KeywordsPluginVersion }
 
 func (i *KeywordsPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
-	if enabled := request.ParentProperties[propertyKeyFridayEnabled]; enabled != "true" {
-		return pluginapi.NewResponseWithResult(nil), nil
-	}
-
 	if request.EntryId == 0 {
 		return nil, fmt.Errorf("entry id is empty")
 	}
@@ -64,14 +60,13 @@ func (i *KeywordsPlugin) Run(ctx context.Context, request *pluginapi.Request) (*
 	}
 	defer maxAITaskParallel.Release()
 
-	rawSummary := request.Parameter[pluginapi.ResEntryDocSummaryKey]
-	summery, ok := rawSummary.(string)
-	if !ok || len(summery) == 0 {
-		return nil, fmt.Errorf("summary of entry %d is empty", request.EntryId)
+	var summary string
+	if err := request.ContextResults.Load(pluginapi.ResEntryDocSummaryKey, &summary); err != nil || summary == "" {
+		return nil, fmt.Errorf("summary of entry %d is empty %w", request.EntryId, err)
 	}
 
 	i.logger(ctx).Infow("get summary", "entryId", request.EntryId)
-	keywords, usage, err := friday.Keywords(ctx, summery)
+	keywords, usage, err := friday.Keywords(ctx, summary)
 	if err != nil {
 		return pluginapi.NewFailedResponse(fmt.Sprintf("get documents keywords failed: %s", err)), nil
 	}

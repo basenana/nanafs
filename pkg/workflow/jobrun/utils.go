@@ -47,9 +47,10 @@ func init() {
 }
 
 type queue struct {
-	q       chan string
-	inQueue map[string]struct{}
-	mux     sync.Mutex
+	q              chan string
+	size, parallel int
+	inQueue        map[string]struct{}
+	mux            sync.Mutex
 }
 
 func (q *queue) Next() string {
@@ -77,10 +78,20 @@ func (q *queue) Put(jobID string) (isFill bool) {
 	return
 }
 
+func (q *queue) Size() int {
+	return q.size
+}
+
+func (q *queue) Parallel() int {
+	return q.parallel
+}
+
 func targetHash(target types.WorkflowTarget) string {
 	return fmt.Sprintf("t-p%d-e%d", target.ParentEntryID, target.EntryID)
 }
 
-func newQueue() *queue {
-	return &queue{q: make(chan string, defaultWorkQueueSize*2), inQueue: make(map[string]struct{})}
+func newQueue(parallel, size int) *queue {
+	return &queue{
+		q:        make(chan string, size),
+		parallel: parallel, size: size, inQueue: make(map[string]struct{})}
 }

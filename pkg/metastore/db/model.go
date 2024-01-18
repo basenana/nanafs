@@ -421,6 +421,8 @@ type Document struct {
 	Keywords      string    `gorm:"column:keywords"`
 	Content       string    `gorm:"column:content"`
 	Summary       string    `gorm:"column:summary"`
+	Marked        bool      `gorm:"column:marked;index:doc_is_marked"`
+	Unread        bool      `gorm:"column:unread;index:doc_is_unread"`
 	Desync        bool      `gorm:"column:desync"`
 	CreatedAt     time.Time `gorm:"column:created_at"`
 	ChangedAt     time.Time `gorm:"column:changed_at"`
@@ -439,6 +441,8 @@ func (d *Document) From(document *types.Document) *Document {
 	d.Source = document.Source
 	d.Content = document.Content
 	d.Summary = document.Summary
+	d.Marked = document.Marked
+	d.Unread = document.Unread
 	d.Desync = document.Desync
 	d.CreatedAt = document.CreatedAt
 	d.ChangedAt = document.ChangedAt
@@ -459,6 +463,8 @@ func (d *Document) To() *types.Document {
 		KeyWords:      keyWords,
 		Content:       d.Content,
 		Summary:       d.Summary,
+		Marked:        d.Marked,
+		Unread:        d.Unread,
 		Desync:        d.Desync,
 		CreatedAt:     d.CreatedAt,
 		ChangedAt:     d.ChangedAt,

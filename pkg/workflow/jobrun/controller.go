@@ -39,8 +39,9 @@ type Controller struct {
 	runners  map[string]Runner
 	mux      sync.Mutex
 	recorder metastore.ScheduledTaskRecorder
-	signal   chan string
-	queue    *queue
+	queues   map[string]*queue
+	filled   bool
+	rescan   chan struct{}
 	notify   *notify.Notify
 	logger   *zap.SugaredLogger
 }
@@ -60,15 +61,15 @@ func (c *Controller) TriggerJob(ctx context.Context, jID string) error {
 	}
 
 	if job.Status == PendingStatus || job.Status == RunningStatus {
-		if c.queue.Put(jID) {
-			c.logger.Warnw("trigger job blocked", "job", jID)
-		}
+		c.putJob2Queue(job)
 	}
 	return nil
 }
 
 func (c *Controller) Start(ctx context.Context) {
-	go c.jobWorkIterator(ctx)
+	for queueName := range c.queues {
+		go c.jobWorkIterator(ctx, c.queues[queueName])
+	}
 
 	go func() {
 		timer := time.NewTimer(time.Minute * 10)
@@ -78,24 +79,29 @@ func (c *Controller) Start(ctx context.Context) {
 			case <-ctx.Done():
 				c.logger.Infof("stop find next job")
 				return
-			case <-timer.C:
+			case <-c.rescan:
 				err := c.findNextRunnableJob(ctx)
 				if err != nil {
 					c.logger.Errorw("find next runnable job failed", "err", err)
 				}
+			case <-timer.C:
+				select {
+				case c.rescan <- struct{}{}:
+				default:
+				}
 			}
 		}
 	}()
+
+	// requeue all running jobs
+	c.rescan <- struct{}{}
 }
 
-func (c *Controller) jobWorkIterator(ctx context.Context) {
+func (c *Controller) jobWorkIterator(ctx context.Context, q *queue) {
 	var (
 		job           *types.WorkflowJob
 		err           error
-		queueAccounts = map[string]chan struct{}{
-			"friday":  make(chan struct{}, 1),
-			"default": make(chan struct{}, defaultWorkQueueSize),
-		}
+		parallelLimit = make(chan struct{}, q.Parallel())
 	)
 
 	for {
@@ -103,19 +109,14 @@ func (c *Controller) jobWorkIterator(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			jobID := c.queue.Next()
+			jobID := q.Next()
 			job, err = c.recorder.GetWorkflowJob(ctx, jobID)
 			if err != nil {
 				c.logger.Errorw("get workflow job error", "job", jobID, "err", err)
 				continue
 			}
 		}
-		queueName := job.QueueName
-		if _, ok := queueAccounts[queueName]; !ok {
-			queueName = "default"
-		}
-
-		queueAccounts[queueName] <- struct{}{}
+		parallelLimit <- struct{}{}
 		c.mux.Lock()
 		jobCtx := utils.NewWorkflowJobContext(context.Background(), job.Id)
 		r := NewRunner(job, runnerDep{recorder: c.recorder, notify: c.notify})
@@ -125,11 +126,15 @@ func (c *Controller) jobWorkIterator(ctx context.Context) {
 		if job.TimeoutSeconds == 0 {
 			job.TimeoutSeconds = 60 * 60 * 3 // 3H
 		}
-		go func(jobCtx context.Context, job *types.WorkflowJob, queueName string) {
+		go func(jobCtx context.Context, job *types.WorkflowJob) {
 			c.logger.Infof("trigger flow %s", job.Id)
 			c.startJobRunner(jobCtx, job.Id, time.Duration(job.TimeoutSeconds)*time.Second)
-			<-queueAccounts[queueName]
-		}(jobCtx, job, queueName)
+			<-parallelLimit
+			if c.filled {
+				c.filled = false
+				c.rescan <- struct{}{}
+			}
+		}(jobCtx, job)
 	}
 }
 
@@ -190,7 +195,7 @@ func (c *Controller) findNextRunnableJob(ctx context.Context) error {
 		if ok {
 			continue
 		}
-		if c.queue.Put(j.Id) {
+		if !c.putJob2Queue(j) {
 			return nil
 		}
 	}
@@ -212,7 +217,7 @@ func (c *Controller) findNextRunnableJob(ctx context.Context) error {
 		if ok {
 			continue
 		}
-		if c.queue.Put(j.Id) {
+		if !c.putJob2Queue(j) {
 			return nil
 		}
 	}
@@ -261,12 +266,35 @@ func (c *Controller) Shutdown() error {
 	return nil
 }
 
+func (c *Controller) putJob2Queue(job *types.WorkflowJob) bool {
+	if job == nil {
+		return false
+	}
+
+	queueName := job.QueueName
+	if _, ok := c.queues[queueName]; !ok {
+		queueName = "default"
+	}
+
+	if c.queues[queueName].Put(job.Id) {
+		c.filled = true
+		c.logger.Warnw("trigger job blocked", "job", job.Id)
+		return false
+	}
+	return true
+}
+
 func NewJobController(recorder metastore.ScheduledTaskRecorder, notify *notify.Notify) *Controller {
-	return &Controller{
+	ctrl := &Controller{
 		runners:  make(map[string]Runner),
 		recorder: recorder,
 		notify:   notify,
-		queue:    newQueue(),
-		logger:   logger.NewLogger("flow"),
+		queues: map[string]*queue{
+			"friday":  newQueue(defaultWorkQueueSize, 2),
+			"default": newQueue(defaultWorkQueueSize*2, defaultWorkQueueSize),
+		},
+		rescan: make(chan struct{}, 10),
+		logger: logger.NewLogger("flow"),
 	}
+	return ctrl
 }

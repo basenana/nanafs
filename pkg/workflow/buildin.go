@@ -23,6 +23,10 @@ import (
 	"reflect"
 )
 
+const (
+	BuildInWorkflowSummary = "buildin.summary"
+)
+
 func registerBuildInWorkflow(ctx context.Context, mgr Manager) error {
 	for i, bWf := range buildInWorflows {
 		old, err := mgr.GetWorkflow(ctx, bWf.Id)
@@ -110,13 +114,22 @@ var (
 			Enable:    true,
 		},
 		{
-			Id:   "buildin.friday",
+			Id:   BuildInWorkflowSummary,
 			Name: "Document Summary",
 			Steps: []types.WorkflowStepSpec{
 				{
 					Name: "summary",
 					Plugin: &types.PlugScope{
 						PluginName: "summary",
+						Version:    "1.0",
+						PluginType: types.TypeProcess,
+						Parameters: map[string]string{},
+					},
+				},
+				{
+					Name: "docmeta",
+					Plugin: &types.PlugScope{
+						PluginName: "docmeta",
 						Version:    "1.0",
 						PluginType: types.TypeProcess,
 						Parameters: map[string]string{},

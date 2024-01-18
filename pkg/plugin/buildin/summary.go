@@ -62,13 +62,13 @@ func (i *SummaryPlugin) Run(ctx context.Context, request *pluginapi.Request) (*p
 	if request.ParentProperties == nil {
 		return nil, fmt.Errorf("parent properties is nil")
 	}
-	if enabled := request.ParentProperties[propertyKeyFridayEnabled]; enabled != "true" {
-		return pluginapi.NewResponseWithResult(nil), nil
-	}
 
-	rawDocs := request.Parameter[pluginapi.ResEntryDocumentsKey]
-	docs, ok := rawDocs.([]types.FDocument)
-	if !ok || len(docs) == 0 {
+	var docs []types.FDocument
+	err := request.ContextResults.Load(pluginapi.ResEntryDocumentsKey, &docs)
+	if err != nil {
+		return nil, fmt.Errorf("load document summary error %w", err)
+	}
+	if len(docs) == 0 {
 		return nil, fmt.Errorf("content of entry %d is empty", request.EntryId)
 	}
 

@@ -89,7 +89,7 @@ func NewMemBasedResults() Results {
 }
 
 const (
-	defaultFileBasedFilename = ".nana.results.json"
+	defaultFileBasedFilename = ".workflowcontext.gob"
 )
 
 func ResultFilePath(basePath string) string {

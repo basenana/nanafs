@@ -20,12 +20,14 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/rule"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow"
 	"github.com/basenana/nanafs/pkg/workflow/jobrun"
+	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"time"
@@ -33,16 +35,18 @@ import (
 
 const (
 	workflowAutoTriggerExecID = "task.workflow.auto_trigger"
+	propertyKeyFridayEnabled  = "org.basenana.plugin.friday/enabled"
 )
 
 type workflowExecutor struct {
 	entry    dentry.Manager
+	doc      document.Manager
 	manager  workflow.Manager
 	recorder metastore.ScheduledTaskRecorder
 	logger   *zap.SugaredLogger
 }
 
-func (w workflowExecutor) handleEvent(evt *types.EntryEvent) error {
+func (w workflowExecutor) handleEntryEvent(evt *types.EntryEvent) error {
 	if evt.Type != events.ActionTypeCreate {
 		return nil
 	}
@@ -101,6 +105,65 @@ func (w workflowExecutor) handleEvent(evt *types.EntryEvent) error {
 		return nil
 	}
 
+	return nil
+}
+func (w workflowExecutor) handleDocEvent(evt *types.EntryEvent) error {
+	if evt.Type != events.ActionTypeCreate {
+		return nil
+	}
+	if evt.RefType != "document" {
+		return nil
+	}
+	ctx := context.Background()
+	doc, err := w.doc.GetDocument(ctx, evt.Data.ID)
+	if err != nil {
+		w.logger.Errorw("[handleDocEvent] query document failed", "document", evt.Data.ID, "err", err)
+		return err
+	}
+
+	if doc.OID == 0 {
+		return nil
+	}
+	entry, err := w.entry.GetEntry(ctx, doc.OID)
+	if err != nil {
+		w.logger.Errorw("[handleDocEvent] query document entry failed", "document", doc.ID, "entry", doc.OID, "err", err)
+		return err
+	}
+
+	ed, err := w.entry.GetEntryExtendData(ctx, entry.ParentID)
+	if err != nil {
+		err = fmt.Errorf("get parent entry extend data error: %s", err)
+		w.logger.Errorw("[handleDocEvent] query document parent entry ext data failed", "document", doc.ID, "parent", entry.ParentID, "err", err)
+	}
+
+	properties := make(map[string]string)
+	if ed.Properties.Fields != nil {
+		for k, v := range ed.Properties.Fields {
+			val := v.Value
+			if v.Encoded {
+				val, err = utils.DecodeBase64String(val)
+				if err != nil {
+					w.logger.Warnw("[handleDocEvent] decode extend property value failed", "key", k)
+					continue
+				}
+			}
+			properties[k] = val
+		}
+	}
+
+	if properties[propertyKeyFridayEnabled] != "true" {
+		return nil
+	}
+
+	job, err := w.manager.TriggerWorkflow(ctx, workflow.BuildInWorkflowSummary, types.WorkflowTarget{
+		EntryID:       entry.ID,
+		ParentEntryID: entry.ParentID,
+	}, workflow.JobAttr{Reason: "event: auto summary"})
+	if err != nil {
+		w.logger.Infow("[handleDocEvent] document has enable friday auto summary, but trigger failed", "document", doc.ID, "err", err)
+		return err
+	}
+	w.logger.Infow("[handleDocEvent] document has enable friday auto summary", "document", doc.ID, "job", job.Id)
 	return nil
 }
 
@@ -228,17 +291,24 @@ func (w workflowExecutor) cleanUpFinishJobs(ctx context.Context) error {
 func registerWorkflowExecutor(
 	d *Dispatcher,
 	entry dentry.Manager,
+	doc document.Manager,
 	wfMgr workflow.Manager,
 	recorder metastore.ScheduledTaskRecorder) error {
 	e := &workflowExecutor{
 		entry:    entry,
+		doc:      doc,
 		manager:  wfMgr,
 		recorder: recorder,
 		logger:   logger.NewLogger("workflowExecutor"),
 	}
 	d.registerExecutor(workflowAutoTriggerExecID, e)
 	d.registerRoutineTask(6, e.cleanUpFinishJobs)
-	if _, err := events.Subscribe(events.NamespacedTopic(events.TopicNamespaceEntry, events.ActionTypeCreate), e.handleEvent); err != nil {
+	if _, err := events.Subscribe(
+		events.NamespacedTopic(events.TopicNamespaceEntry, events.ActionTypeCreate), e.handleEntryEvent); err != nil {
+		return err
+	}
+	if _, err := events.Subscribe(
+		events.NamespacedTopic(events.TopicNamespaceDocument, events.ActionTypeCreate), e.handleDocEvent); err != nil {
 		return err
 	}
 	return nil

@@ -27,6 +27,8 @@ type Document struct {
 	KeyWords      []string  `json:"keywords,omitempty"`
 	Content       string    `json:"content,omitempty"`
 	Summary       string    `json:"summary,omitempty"`
+	Marked        bool      `json:"marked,omitempty"`
+	Unread        bool      `json:"unread,omitempty"`
 	Desync        bool      `json:"desync"`
 	CreatedAt     time.Time `json:"created_at"`
 	ChangedAt     time.Time `json:"changed_at"`

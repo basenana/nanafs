@@ -61,13 +61,21 @@ func (d DocMetaPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pl
 	}
 
 	totalUsage := make(map[string]any)
-	if _, ok := request.Parameter[pluginapi.ResEntryDocSummaryKey]; ok {
-		summaryVal := request.Parameter[pluginapi.ResEntryDocSummaryKey].(map[string]any)
+	if request.ContextResults.IsSet(pluginapi.ResEntryDocSummaryKey) {
+		var summaryVal = map[string]any{}
+		err = request.ContextResults.Load(pluginapi.ResEntryDocSummaryKey, &summaryVal)
+		if err != nil {
+			return nil, fmt.Errorf("load document summary error %w", err)
+		}
 		doc.Summary = summaryVal["summary"].(string)
 		totalUsage["summary"] = summaryVal["usage"]
 	}
-	if _, ok := request.Parameter[pluginapi.ResEntryDocKeyWordsKey]; ok {
-		keyWordsVal := request.Parameter[pluginapi.ResEntryDocKeyWordsKey].(map[string]any)
+	if request.ContextResults.IsSet(pluginapi.ResEntryDocKeyWordsKey) {
+		var keyWordsVal = map[string]any{}
+		err = request.ContextResults.Load(pluginapi.ResEntryDocKeyWordsKey, &keyWordsVal)
+		if err != nil {
+			return nil, fmt.Errorf("load document keywords error %w", err)
+		}
 		doc.KeyWords = keyWordsVal["keywords"].([]string)
 		totalUsage["keywords"] = keyWordsVal["usage"]
 	}

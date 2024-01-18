@@ -34,8 +34,6 @@ import (
 const (
 	IngestPluginName    = "ingest"
 	IngestPluginVersion = "1.0"
-
-	propertyKeyFridayEnabled = "org.basenana.plugin.friday/enabled"
 )
 
 type IngestPlugin struct {
@@ -58,13 +56,9 @@ func (i *IngestPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pl
 	if request.ParentProperties == nil {
 		return nil, fmt.Errorf("parent properties is nil")
 	}
-	if enabled := request.ParentProperties[propertyKeyFridayEnabled]; enabled != "true" {
-		return pluginapi.NewResponseWithResult(nil), nil
-	}
 
-	rawDocs := request.Parameter[pluginapi.ResEntryDocumentsKey]
-	docs, ok := rawDocs.([]types.FDocument)
-	if !ok || len(docs) == 0 {
+	var docs []types.FDocument
+	if err := request.ContextResults.Load(pluginapi.ResEntryDocumentsKey, &docs); err != nil {
 		return nil, fmt.Errorf("content of entry %d is empty", request.EntryId)
 	}
 

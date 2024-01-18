@@ -114,13 +114,13 @@ func (d *DelayProcessPlugin) Run(ctx context.Context, request *pluginapi.Request
 		defer timer.Stop()
 		select {
 		case <-timer.C:
-			return &pluginapi.Response{IsSucceed: true}, nil
+			return pluginapi.NewResponseWithResult(map[string]any{"delay_finish_at": time.Now().String()}), nil
 		case <-ctx.Done():
 			return &pluginapi.Response{IsSucceed: false, Message: ctx.Err().Error()}, nil
 		}
 	}
 
-	return &pluginapi.Response{IsSucceed: true}, nil
+	return pluginapi.NewResponseWithResult(nil), nil
 }
 
 func registerBuildInProcessPlugin(svc buildin.Services, r *registry) {

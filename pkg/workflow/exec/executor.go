@@ -19,8 +19,9 @@ package exec
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
-	"sync"
+	"path"
 	"time"
 
 	"github.com/basenana/nanafs/utils"
@@ -49,7 +50,6 @@ func RegisterOperators(entryMgr dentry.Manager, docMgr document.Manager, cfg Con
 			entryMgr: entryMgr,
 			docMgr:   docMgr,
 			config:   cfg,
-			results:  map[string]any{},
 			logger:   logger.NewLogger("localExecutor").With(zap.String("job", job.Id)),
 		}
 	})
@@ -59,7 +59,6 @@ func RegisterOperators(entryMgr dentry.Manager, docMgr document.Manager, cfg Con
 			entryMgr:   entryMgr,
 			docMgr:     docMgr,
 			config:     cfg,
-			results:    map[string]any{},
 			ctxResults: pluginapi.NewMemBasedResults(),
 			logger:     logger.NewLogger("pipeExecutor").With(zap.String("job", job.Id)),
 		}
@@ -76,9 +75,7 @@ type localExecutor struct {
 	docMgr     document.Manager
 	cachedData *pluginapi.CachedData
 	config     Config
-	results    map[string]any
 	ctxResults pluginapi.Results
-	resultMux  sync.Mutex
 	logger     *zap.SugaredLogger
 }
 
@@ -150,11 +147,6 @@ func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobS
 
 	req.Parameter = map[string]any{}
 	req.ContextResults = b.ctxResults
-	b.resultMux.Lock()
-	for k, v := range b.results {
-		req.Parameter[k] = v
-	}
-	b.resultMux.Unlock()
 	req.Parameter[pluginapi.ResEntryIdKey] = b.job.Target.EntryID
 	req.Parameter[pluginapi.ResEntryPathKey] = b.entryPath
 	req.Parameter[pluginapi.ResPluginName] = step.Plugin.PluginName
@@ -208,35 +200,24 @@ func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobS
 		return logOperationError(LocalExecName, "do_operation", err)
 	}
 	if len(resp.Results) > 0 {
-		b.resultMux.Lock()
-		for k, v := range resp.Results {
-			b.results[k] = v
+		if err = b.ctxResults.SetAll(resp.Results); err != nil {
+			b.logger.Errorw("set context result error", "err", err)
+			return logOperationError(LocalExecName, "do_operation", err)
 		}
-		b.resultMux.Unlock()
 	}
 	return err
 }
 
 func (b *localExecutor) Collect(ctx context.Context) error {
-	b.resultMux.Lock()
-	rawManifests, needManifestCollect := b.results[pluginapi.ResCollectManifests]
-	rawDocs, needDocCollect := b.results[pluginapi.ResEntryDocumentsKey]
-	b.resultMux.Unlock()
-	if !needDocCollect && !needManifestCollect {
-		return nil
-	}
-
 	startAt := time.Now()
 	defer logOperationLatency(LocalExecName, "collect", startAt)
-
-	if needManifestCollect {
-		manifests, ok := rawManifests.([]pluginapi.CollectManifest)
-		if !ok {
-			msg := fmt.Sprintf("load collect manifest objects failed: unknown type %v", rawManifests)
+	if b.ctxResults.IsSet(pluginapi.ResCollectManifests) {
+		var manifests []pluginapi.CollectManifest
+		if err := b.ctxResults.Load(pluginapi.ResCollectManifests, &manifests); err != nil {
+			msg := fmt.Sprintf("collect manifest objects failed: %s", err)
 			b.logger.Error(msg)
 			return logOperationError(LocalExecName, "collect", fmt.Errorf(msg))
 		}
-
 		// collect files
 		err := b.collectFiles(ctx, manifests)
 		if err != nil {
@@ -252,10 +233,12 @@ func (b *localExecutor) Collect(ctx context.Context) error {
 		}
 	}
 
-	if needDocCollect {
-		docs, ok := rawDocs.([]types.FDocument)
-		if !ok || len(docs) == 0 {
-			return fmt.Errorf("content is empty")
+	if b.ctxResults.IsSet(pluginapi.ResEntryDocumentsKey) {
+		var docs []types.FDocument
+		if err := b.ctxResults.Load(pluginapi.ResEntryDocumentsKey, &docs); err != nil {
+			msg := fmt.Sprintf("collect document objects failed: %s", err)
+			b.logger.Error(msg)
+			return logOperationError(LocalExecName, "collect", fmt.Errorf(msg))
 		}
 
 		buf := bytes.Buffer{}
@@ -265,15 +248,7 @@ func (b *localExecutor) Collect(ctx context.Context) error {
 		}
 
 		// collect documents
-		var entryID int64
-		if _, ok := b.results[pluginapi.ResEntryIdKey]; !ok {
-			return fmt.Errorf("content is empty")
-		}
-		entryID = b.results[pluginapi.ResEntryIdKey].(int64)
-		if _, ok := b.results[pluginapi.ResEntryURIKey]; !ok {
-			return fmt.Errorf("content is empty")
-		}
-
+		var entryID = b.job.Target.EntryID
 		err := b.collectDocuments(ctx, entryID, buf)
 		if err != nil {
 			return err
@@ -328,15 +303,38 @@ type pipeExecutor struct {
 	entryMgr   dentry.Manager
 	docMgr     document.Manager
 	config     Config
-	results    map[string]any
 	ctxResults pluginapi.Results
-	resultMux  sync.Mutex
 	logger     *zap.SugaredLogger
 }
 
 var _ jobrun.Executor = &pipeExecutor{}
 
 func (p *pipeExecutor) Setup(ctx context.Context) error {
+	var (
+		en  *types.Metadata
+		err error
+	)
+	if p.job.Target.EntryID != 0 {
+		en, err = p.entryMgr.GetEntry(ctx, p.job.Target.EntryID)
+		if err != nil && !errors.Is(err, types.ErrNotFound) {
+			return fmt.Errorf("get entry by id failed %w", err)
+		}
+	}
+
+	if en != nil {
+		doc, err := p.docMgr.GetDocumentByEntryId(ctx, p.job.Target.EntryID)
+		if err != nil && !errors.Is(err, types.ErrNotFound) {
+			return fmt.Errorf("get document by entry id failed %w", err)
+		}
+		if doc != nil {
+			err = p.ctxResults.Set(pluginapi.ResEntryDocumentsKey, []types.FDocument{
+				{Content: doc.Content, Metadata: map[string]any{"type": path.Ext(en.Name)}},
+			})
+			if err != nil {
+				return fmt.Errorf("setup docment content failed %w", err)
+			}
+		}
+	}
 	return nil
 }
 
@@ -356,11 +354,6 @@ func (p *pipeExecutor) DoOperation(ctx context.Context, step types.WorkflowJobSt
 	req.ParentEntryId = p.job.Target.ParentEntryID
 
 	req.Parameter = map[string]any{}
-	p.resultMux.Lock()
-	for k, v := range p.results {
-		req.Parameter[k] = v
-	}
-	p.resultMux.Unlock()
 	req.Parameter[pluginapi.ResEntryIdKey] = p.job.Target.EntryID
 	req.Parameter[pluginapi.ResPluginName] = step.Plugin.PluginName
 	req.Parameter[pluginapi.ResPluginVersion] = step.Plugin.Version
@@ -413,11 +406,10 @@ func (p *pipeExecutor) DoOperation(ctx context.Context, step types.WorkflowJobSt
 		return logOperationError(DataPipeExecName, "do_operation", err)
 	}
 	if len(resp.Results) > 0 {
-		p.resultMux.Lock()
-		for k, v := range resp.Results {
-			p.results[k] = v
+		if err = p.ctxResults.SetAll(resp.Results); err != nil {
+			p.logger.Errorw("set context result error", "err", err)
+			return logOperationError(DataPipeExecName, "do_operation", err)
 		}
-		p.resultMux.Unlock()
 	}
 	return err
 }

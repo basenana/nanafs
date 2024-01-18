@@ -118,7 +118,7 @@ func buildMigrations() []*gormigrate.Migration {
 		{
 			ID: "2023122700",
 			Migrate: func(db *gorm.DB) error {
-				err := db.AutoMigrate(&Workflow{}, &WorkflowJob{})
+				err := db.AutoMigrate(&Workflow{}, &WorkflowJob{}, &Document{})
 				if err != nil {
 					return err
 				}
