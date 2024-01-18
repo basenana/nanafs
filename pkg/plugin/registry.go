@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"io/ioutil"
 	"strings"
 	"sync"
@@ -58,7 +59,7 @@ func BuildPlugin(ctx context.Context, ps types.PlugScope) (Plugin, error) {
 	return pluginRegistry.BuildPlugin(ctx, ps)
 }
 
-func Init(cfg *config.Plugin) error {
+func Init(svc buildin.Services, cfg *config.Plugin) error {
 	if cfg == nil {
 		return nil
 	}
@@ -70,7 +71,7 @@ func Init(cfg *config.Plugin) error {
 	}
 
 	// register build-in plugins
-	registerBuildInProcessPlugin(r)
+	registerBuildInProcessPlugin(svc, r)
 	registerBuildInMirrorPlugin(r)
 	registerBuildInSourcePlugin(r)
 

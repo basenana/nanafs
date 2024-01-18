@@ -18,6 +18,9 @@ package controller
 
 import (
 	"context"
+	"github.com/basenana/nanafs/pkg/friday"
+	"github.com/basenana/nanafs/pkg/plugin"
+	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"runtime/trace"
 
 	"go.uber.org/zap"
@@ -323,6 +326,16 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 	}
 
 	ctl.notify = notify.NewNotify(meta)
+
+	// init friday
+	err = friday.InitFriday(cfg.Friday)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := plugin.Init(buildin.Services{DocumentManager: ctl.document}, cfg.Plugin); err != nil {
+		return nil, err
+	}
 	ctl.workflow, err = workflow.NewManager(ctl.entry, ctl.document, ctl.notify, meta, cfg.Workflow, cfg.FUSE)
 	if err != nil {
 		return nil, err

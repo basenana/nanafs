@@ -55,12 +55,13 @@ func RegisterOperators(entryMgr dentry.Manager, docMgr document.Manager, cfg Con
 	})
 	jobrun.RegisterExecutorBuilder(DataPipeExecName, func(job *types.WorkflowJob) jobrun.Executor {
 		return &pipeExecutor{
-			job:      job,
-			entryMgr: entryMgr,
-			docMgr:   docMgr,
-			config:   cfg,
-			results:  map[string]any{},
-			logger:   logger.NewLogger("pipeExecutor").With(zap.String("job", job.Id)),
+			job:        job,
+			entryMgr:   entryMgr,
+			docMgr:     docMgr,
+			config:     cfg,
+			results:    map[string]any{},
+			ctxResults: pluginapi.NewMemBasedResults(),
+			logger:     logger.NewLogger("pipeExecutor").With(zap.String("job", job.Id)),
 		}
 	})
 	return nil
@@ -76,6 +77,7 @@ type localExecutor struct {
 	cachedData *pluginapi.CachedData
 	config     Config
 	results    map[string]any
+	ctxResults pluginapi.Results
 	resultMux  sync.Mutex
 	logger     *zap.SugaredLogger
 }
@@ -94,6 +96,11 @@ func (b *localExecutor) Setup(ctx context.Context) (err error) {
 	b.workdir, err = initWorkdir(ctx, b.config.Workflow.JobWorkdir, b.job)
 	if err != nil {
 		b.logger.Errorw("init job workdir failed", "err", err)
+		return logOperationError(LocalExecName, "setup", err)
+	}
+	b.ctxResults, err = pluginapi.NewFileBasedResults(pluginapi.ResultFilePath(b.workdir))
+	if err != nil {
+		b.logger.Errorw("init job ctx result failed", "err", err)
 		return logOperationError(LocalExecName, "setup", err)
 	}
 
@@ -142,6 +149,7 @@ func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobS
 	req.EntryURI = b.entryURI
 
 	req.Parameter = map[string]any{}
+	req.ContextResults = b.ctxResults
 	b.resultMux.Lock()
 	for k, v := range b.results {
 		req.Parameter[k] = v
@@ -316,13 +324,14 @@ type Config struct {
 }
 
 type pipeExecutor struct {
-	job       *types.WorkflowJob
-	entryMgr  dentry.Manager
-	docMgr    document.Manager
-	config    Config
-	results   map[string]any
-	resultMux sync.Mutex
-	logger    *zap.SugaredLogger
+	job        *types.WorkflowJob
+	entryMgr   dentry.Manager
+	docMgr     document.Manager
+	config     Config
+	results    map[string]any
+	ctxResults pluginapi.Results
+	resultMux  sync.Mutex
+	logger     *zap.SugaredLogger
 }
 
 var _ jobrun.Executor = &pipeExecutor{}

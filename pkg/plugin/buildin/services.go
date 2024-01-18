@@ -21,6 +21,10 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 )
 
+type Services struct {
+	DocumentManager
+}
+
 type DocumentManager interface {
 	ListDocuments(ctx context.Context, parentId int64) ([]*types.Document, error)
 	QueryDocuments(ctx context.Context, query string) ([]*types.Document, error)

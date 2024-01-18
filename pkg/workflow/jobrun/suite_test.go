@@ -22,6 +22,7 @@ import (
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/plugin"
+	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
@@ -65,7 +66,7 @@ var _ = BeforeSuite(func() {
 	notifyImpl = notify.NewNotify(memMeta)
 
 	// init plugin
-	Expect(plugin.Init(&config.Plugin{})).Should(BeNil())
+	Expect(plugin.Init(buildin.Services{}, &config.Plugin{})).Should(BeNil())
 
 	// init fake workflow to test wf job
 	fakeWf := &types.WorkflowSpec{

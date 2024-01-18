@@ -18,6 +18,7 @@ package plugin
 
 import (
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"github.com/basenana/nanafs/utils/logger"
 	"testing"
 
@@ -34,5 +35,5 @@ func TestPlugin(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	// init plugin registry
-	Expect(Init(&config.Plugin{})).Should(BeNil())
+	Expect(Init(buildin.Services{}, &config.Plugin{})).Should(BeNil())
 })

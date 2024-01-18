@@ -123,7 +123,7 @@ func (d *DelayProcessPlugin) Run(ctx context.Context, request *pluginapi.Request
 	return &pluginapi.Response{IsSucceed: true}, nil
 }
 
-func registerBuildInProcessPlugin(r *registry) {
+func registerBuildInProcessPlugin(svc buildin.Services, r *registry) {
 	r.Register(
 		delayPluginName,
 		types.PluginSpec{Name: delayPluginName, Version: delayPluginVersion, Type: types.TypeProcess, Parameters: map[string]string{}},
@@ -161,6 +161,14 @@ func registerBuildInProcessPlugin(r *registry) {
 		types.PluginSpec{Name: buildin.KeywordsPluginName, Version: buildin.KeywordsPluginVersion, Type: types.TypeProcess, Parameters: map[string]string{}},
 		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
 			return buildin.NewKeyWordsPlugin(spec, scope)
+		},
+	)
+
+	r.Register(
+		buildin.DocMetaPluginName,
+		types.PluginSpec{Name: buildin.DocMetaPluginName, Version: buildin.DocMetaPluginVersion, Type: types.TypeProcess, Parameters: map[string]string{}},
+		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
+			return buildin.NewDocMetaPlugin(spec, scope, svc)
 		},
 	)
 }

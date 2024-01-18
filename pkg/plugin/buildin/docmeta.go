@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"time"
 )
@@ -95,4 +96,13 @@ func (d DocMetaPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pl
 		return pluginapi.NewFailedResponse(fmt.Sprintf("update document %d meta failed: %s", doc.ID, err)), nil
 	}
 	return pluginapi.NewResponseWithResult(nil), nil
+}
+
+func NewDocMetaPlugin(spec types.PluginSpec, scope types.PlugScope, svc Services) (*DocMetaPlugin, error) {
+	return &DocMetaPlugin{
+		spec:   spec,
+		scope:  scope,
+		docMgr: svc.DocumentManager,
+		log:    logger.NewLogger("docMetaPlugin"),
+	}, nil
 }
