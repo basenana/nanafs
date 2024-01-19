@@ -19,6 +19,7 @@ package dispatch
 import (
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/pkg/document"
 	"os"
 	"strconv"
 	"time"
@@ -211,7 +212,7 @@ func (d *Dispatcher) registerRoutineTask(periodH int, task routineTask) {
 	}
 }
 
-func Init(entry dentry.Manager, wfMgr workflow.Manager, notify *notify.Notify, recorder metastore.ScheduledTaskRecorder) (*Dispatcher, error) {
+func Init(entry dentry.Manager, doc document.Manager, wfMgr workflow.Manager, notify *notify.Notify, recorder metastore.ScheduledTaskRecorder) (*Dispatcher, error) {
 	d := &Dispatcher{
 		entry:     entry,
 		notify:    notify,
@@ -226,7 +227,7 @@ func Init(entry dentry.Manager, wfMgr workflow.Manager, notify *notify.Notify, r
 		return nil, err
 	}
 
-	if err := registerWorkflowExecutor(d, entry, wfMgr, recorder); err != nil {
+	if err := registerWorkflowExecutor(d, entry, doc, wfMgr, recorder); err != nil {
 		return nil, err
 	}
 

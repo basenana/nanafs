@@ -18,19 +18,24 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
 	"reflect"
 )
 
+const (
+	BuildInWorkflowSummary = "buildin.summary"
+)
+
 func registerBuildInWorkflow(ctx context.Context, mgr Manager) error {
-	for i, bWf := range buildInWorflows {
+	for i, bWf := range buildInWorkflows {
 		old, err := mgr.GetWorkflow(ctx, bWf.Id)
-		if err != nil && err != types.ErrNotFound {
+		if err != nil && !errors.Is(err, types.ErrNotFound) {
 			return fmt.Errorf("query workflow %s failed: %s", bWf.Id, err)
 		}
 
-		if err = createOrUpdateBuildInWorkflow(ctx, mgr, buildInWorflows[i], old); err != nil {
+		if err = createOrUpdateBuildInWorkflow(ctx, mgr, buildInWorkflows[i], old); err != nil {
 			return fmt.Errorf("create or update workflow %s failed: %s", bWf.Id, err)
 		}
 	}
@@ -52,12 +57,14 @@ func createOrUpdateBuildInWorkflow(ctx context.Context, mgr Manager, expect, old
 	old.Cron = expect.Cron
 	old.Rule = expect.Rule
 	old.Steps = expect.Steps
+	old.QueueName = expect.QueueName
+	old.Executor = expect.Executor
 	_, err := mgr.UpdateWorkflow(ctx, old)
 	return err
 }
 
 var (
-	buildInWorflows = []*types.WorkflowSpec{
+	buildInWorkflows = []*types.WorkflowSpec{
 		{
 
 			Id:   "buildin.rss",
@@ -82,7 +89,9 @@ var (
 					},
 				},
 			},
-			Enable: true,
+			QueueName: "default",
+			Executor:  "local",
+			Enable:    true,
 		},
 		{
 			Id:   "buildin.docload",
@@ -102,6 +111,15 @@ var (
 						Parameters: map[string]string{},
 					},
 				},
+			},
+			QueueName: "default",
+			Executor:  "local",
+			Enable:    true,
+		},
+		{
+			Id:   BuildInWorkflowSummary,
+			Name: "Document Summary",
+			Steps: []types.WorkflowStepSpec{
 				{
 					Name: "summary",
 					Plugin: &types.PlugScope{
@@ -111,8 +129,19 @@ var (
 						Parameters: map[string]string{},
 					},
 				},
+				{
+					Name: "docmeta",
+					Plugin: &types.PlugScope{
+						PluginName: "docmeta",
+						Version:    "1.0",
+						PluginType: types.TypeProcess,
+						Parameters: map[string]string{},
+					},
+				},
 			},
-			Enable: true,
+			QueueName: "friday",
+			Executor:  "pipe",
+			Enable:    true,
 		},
 	}
 )

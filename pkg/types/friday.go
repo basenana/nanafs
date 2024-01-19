@@ -18,5 +18,11 @@ package types
 
 type FDocument struct {
 	Content  string
-	Metadata map[string]any
+	Metadata map[string]string
+}
+
+type FLlmResult struct {
+	Summary  string
+	Keywords []string
+	Usage    map[string]int
 }

@@ -22,6 +22,7 @@ import (
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/plugin"
+	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
@@ -38,6 +39,9 @@ var (
 	tempDir    string
 	recorder   metastore.ScheduledTaskRecorder
 	notifyImpl *notify.Notify
+	jobCtrl    *Controller
+
+	closeCtrlFn context.CancelFunc
 )
 
 func TestJobRun(t *testing.T) {
@@ -62,7 +66,7 @@ var _ = BeforeSuite(func() {
 	notifyImpl = notify.NewNotify(memMeta)
 
 	// init plugin
-	Expect(plugin.Init(&config.Plugin{})).Should(BeNil())
+	Expect(plugin.Init(buildin.Services{}, &config.Plugin{})).Should(BeNil())
 
 	// init fake workflow to test wf job
 	fakeWf := &types.WorkflowSpec{
@@ -71,12 +75,22 @@ var _ = BeforeSuite(func() {
 	}
 	err = recorder.SaveWorkflow(context.TODO(), fakeWf)
 	Expect(err).Should(BeNil())
+
+	jobCtrl = NewJobController(recorder, notifyImpl)
+	var ctx context.Context
+	ctx, closeCtrlFn = context.WithCancel(context.Background())
+	jobCtrl.Start(ctx)
 })
+
+var _ = AfterSuite(func() {
+	closeCtrlFn()
+})
+
+var fakeExecName = "fake"
 
 func init() {
 	// fake executor
-	defaultExecName = "fake"
-	RegisterExecutorBuilder(defaultExecName, func(job *types.WorkflowJob) Executor { return &fakeExecutor{} })
+	RegisterExecutorBuilder(fakeExecName, func(job *types.WorkflowJob) Executor { return &fakeExecutor{} })
 }
 
 type fakeExecutor struct{}

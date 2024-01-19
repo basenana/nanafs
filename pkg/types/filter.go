@@ -30,6 +30,8 @@ type JobFilter struct {
 	WorkFlowID  string
 	JobID       string
 	Status      string
+	QueueName   string
+	Executor    string
 	TargetEntry int64
 }
 

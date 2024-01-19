@@ -21,36 +21,114 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
+	"math"
+	"sort"
 	"strings"
 	"sync"
 	"time"
+)
+
+const (
+	defaultWorkQueueSize = 5
 )
 
 type Controller struct {
 	runners  map[string]Runner
 	mux      sync.Mutex
 	recorder metastore.ScheduledTaskRecorder
+	queues   map[string]*queue
+	rescan   chan int
 	notify   *notify.Notify
 	logger   *zap.SugaredLogger
 }
 
-func (c *Controller) TriggerJob(jID string, timeout time.Duration) error {
-	ctx := utils.NewWorkflowJobContext(context.Background(), jID)
+func (c *Controller) TriggerJob(ctx context.Context, jID string) error {
 	job, err := c.recorder.GetWorkflowJob(ctx, jID)
 	if err != nil {
 		return err
 	}
-	r := NewRunner(job, runnerDep{recorder: c.recorder, notify: c.notify})
+	if job.Status == InitializingStatus {
+		job.Status = PendingStatus
+		err = c.recorder.SaveWorkflowJob(ctx, job)
+		if err != nil {
+			c.logger.Errorw("set job status to pending failed", "err", err)
+			return err
+		}
+	}
+
+	if job.Status == PendingStatus || job.Status == RunningStatus {
+		status := c.putJob2Queue(job)
+		c.logger.Infow("append job to workqueue", "job", jID, "status", status)
+	}
+	return nil
+}
+
+func (c *Controller) Start(ctx context.Context) {
+	for queueName := range c.queues {
+		go c.jobWorkIterator(ctx, c.queues[queueName])
+	}
+
+	go func() {
+		timer := time.NewTimer(time.Minute * 10)
+		c.logger.Infof("start job controller, waiting for next job")
+		for {
+			select {
+			case <-ctx.Done():
+				c.logger.Infof("stop find next job")
+				return
+			case expect := <-c.rescan:
+				err := c.findNextRunnableJob(ctx, expect)
+				if err != nil {
+					c.logger.Errorw("find next runnable job failed", "err", err)
+				}
+			case <-timer.C:
+				select {
+				case c.rescan <- defaultWorkQueueSize:
+				default:
+				}
+			}
+		}
+	}()
+
+	// requeue all running/pending jobs
+	c.rescan <- math.MaxInt
+}
+
+func (c *Controller) jobWorkIterator(ctx context.Context, q *queue) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			q.HandleNext(c.handleNextJob)
+		}
+	}
+}
+
+func (c *Controller) handleNextJob(jobID string) {
+	ctx := context.Background()
+	job, err := c.recorder.GetWorkflowJob(ctx, jobID)
+	if err != nil {
+		c.logger.Errorw("handle next job encounter failed: get workflow job error", "job", jobID, "err", err)
+		return
+	}
+
 	c.mux.Lock()
-	c.runners[jID] = r
+	jobCtx := utils.NewWorkflowJobContext(context.Background(), job.Id)
+	r := NewRunner(job, runnerDep{recorder: c.recorder, notify: c.notify})
+	c.runners[job.Id] = r
 	c.mux.Unlock()
 
-	c.logger.Infof("trigger flow %s", jID)
-	go c.startJobRunner(ctx, jID, timeout)
-	return nil
+	if job.TimeoutSeconds == 0 {
+		job.TimeoutSeconds = 60 * 60 * 3 // 3H
+	}
+	c.logger.Infof("trigger flow %s", job.Id)
+	c.startJobRunner(jobCtx, job.Id, time.Duration(job.TimeoutSeconds)*time.Second)
+	c.rescan <- 1
 }
 
 func (c *Controller) startJobRunner(ctx context.Context, jID string, timeout time.Duration) {
@@ -89,6 +167,56 @@ func (c *Controller) startJobRunner(ctx context.Context, jID string, timeout tim
 		_ = c.notify.RecordWarn(context.TODO(), fmt.Sprintf("Workflow %s failed", wf.Name),
 			fmt.Sprintf("trigger job %s failed: %s", jID, err), "JobController")
 	}
+}
+
+func (c *Controller) findNextRunnableJob(ctx context.Context, expect int) error {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+
+	runningJobs, err := c.recorder.ListWorkflowJob(ctx, types.JobFilter{Status: RunningStatus})
+	if err != nil {
+		return err
+	}
+	sort.Slice(runningJobs, func(i, j int) bool {
+		return runningJobs[i].CreatedAt.Before(runningJobs[j].CreatedAt)
+	})
+
+	runningTarget := map[string]struct{}{}
+	for _, j := range runningJobs {
+		runningTarget[targetHash(j.Target)] = struct{}{}
+		_, ok := c.runners[j.Id]
+		if ok {
+			continue
+		}
+		c.logger.Infow("requeue running job", "job", j.Id, "status", c.putJob2Queue(j))
+	}
+
+	pendingJobs, err := c.recorder.ListWorkflowJob(ctx, types.JobFilter{Status: PendingStatus})
+	if err != nil {
+		return err
+	}
+	sort.Slice(pendingJobs, func(i, j int) bool {
+		return pendingJobs[i].CreatedAt.Before(pendingJobs[j].CreatedAt)
+	})
+
+	for _, j := range pendingJobs {
+		if expect == 0 {
+			return nil
+		}
+		_, ok := c.runners[j.Id]
+		if ok {
+			continue
+		}
+		_, ok = runningTarget[targetHash(j.Target)]
+		if ok {
+			continue
+		}
+		if c.putJob2Queue(j) == workQueueStatusAppended {
+			expect -= 1
+		}
+	}
+
+	return nil
 }
 
 func (c *Controller) PauseJob(jID string) error {
@@ -132,11 +260,30 @@ func (c *Controller) Shutdown() error {
 	return nil
 }
 
+func (c *Controller) putJob2Queue(job *types.WorkflowJob) string {
+	if job == nil {
+		return ""
+	}
+
+	queueName := job.QueueName
+	if _, ok := c.queues[queueName]; !ok {
+		queueName = "default"
+	}
+
+	return c.queues[queueName].Put(job.Id)
+}
+
 func NewJobController(recorder metastore.ScheduledTaskRecorder, notify *notify.Notify) *Controller {
-	return &Controller{
+	ctrl := &Controller{
 		runners:  make(map[string]Runner),
 		recorder: recorder,
 		notify:   notify,
-		logger:   logger.NewLogger("flow"),
+		queues: map[string]*queue{
+			"friday":  newQueue(defaultWorkQueueSize, 2),
+			"default": newQueue(defaultWorkQueueSize*2, defaultWorkQueueSize),
+		},
+		rescan: make(chan int, 10),
+		logger: logger.NewLogger("flow"),
 	}
+	return ctrl
 }

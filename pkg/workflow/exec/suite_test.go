@@ -22,6 +22,7 @@ import (
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
+	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
@@ -37,7 +38,7 @@ var (
 	targetID int64
 	entryMgr dentry.Manager
 
-	loCfg = LocalConfig{}
+	loCfg = Config{}
 )
 
 func TestExec(t *testing.T) {
@@ -83,5 +84,5 @@ var _ = BeforeSuite(func() {
 	Expect(f.Close(context.TODO())).Should(BeNil())
 
 	// init plugin
-	Expect(plugin.Init(&config.Plugin{})).Should(BeNil())
+	Expect(plugin.Init(buildin.Services{}, &config.Plugin{})).Should(BeNil())
 })

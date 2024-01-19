@@ -31,9 +31,7 @@ import (
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/bio"
 	"github.com/basenana/nanafs/pkg/controller"
-	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
@@ -87,16 +85,6 @@ var daemonCmd = &cobra.Command{
 		bio.InitPageCache(cfg.FS)
 		storage.InitLocalCache(cfg)
 		rule.InitQuery(meta)
-
-		// init friday
-		err = friday.InitFriday(cfg.Friday)
-		if err != nil {
-			panic(err)
-		}
-
-		if err := plugin.Init(cfg.Plugin); err != nil {
-			panic(err)
-		}
 
 		ctrl, err := controller.New(loader, meta)
 		if err != nil {

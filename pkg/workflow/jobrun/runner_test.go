@@ -31,6 +31,7 @@ var _ = Describe("TestRunnerStart", func() {
 			Id:       "TestRunnerStart-test-runner-1",
 			Workflow: "fake-workflow-1",
 			Target:   types.WorkflowTarget{},
+			Executor: fakeExecName,
 			Steps: []types.WorkflowJobStep{
 				{StepName: "mock-step-1"},
 				{StepName: "mock-step-2"},

@@ -23,17 +23,12 @@ import (
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow/fsm"
+	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"sync"
 	"time"
 )
-
-const (
-	localExecName = "local"
-)
-
-var defaultExecName = localExecName
 
 type Runner interface {
 	Start(ctx context.Context) error
@@ -105,7 +100,7 @@ func (r *runner) Start(ctx context.Context) (err error) {
 		r.logger.Errorw("build dag failed", "err", err)
 		return err
 	}
-	r.executor, err = newExecutor(defaultExecName, r.job)
+	r.executor, err = newExecutor(r.job.Executor, r.job)
 	if err != nil {
 		r.job.Status = FailedStatus
 		r.job.Message = err.Error()
@@ -280,6 +275,12 @@ func (r *runner) jobBatchRun() (finish bool, err error) {
 		return true, nil
 	}
 
+	defer func() {
+		if panicErr := utils.Recover(); panicErr != nil {
+			err = panicErr
+		}
+	}()
+
 	var batch []*types.WorkflowJobStep
 	if batch, err = r.nextBatch(); err != nil {
 		r.logger.Errorf("make next batch plan error: %s, stop job.", err)
@@ -357,7 +358,7 @@ func (r *runner) stepRun(ctx context.Context, step *types.WorkflowJobStep) (need
 
 func (r *runner) initial() (err error) {
 	if r.job.Status == "" {
-		r.job.Status = InitializingStatus
+		r.job.Status = PendingStatus
 		if err = r.recorder.SaveWorkflowJob(r.ctx, r.job); err != nil {
 			r.logger.Errorf("initializing job status failed: %s")
 			return err
@@ -366,7 +367,7 @@ func (r *runner) initial() (err error) {
 	for i := range r.job.Steps {
 		step := r.job.Steps[i]
 		if step.Status == "" {
-			step.Status = InitializingStatus
+			step.Status = PendingStatus
 		}
 	}
 	if err = r.recorder.SaveWorkflowJob(r.ctx, r.job); err != nil {
@@ -401,7 +402,7 @@ func (r *runner) waitingForRunning(ctx context.Context) bool {
 			switch r.job.Status {
 			case SucceedStatus, FailedStatus, CanceledStatus, ErrorStatus:
 				return false
-			case InitializingStatus, RunningStatus:
+			case PendingStatus, RunningStatus:
 				return true
 			default:
 				time.Sleep(time.Second * 15)
@@ -457,7 +458,7 @@ func buildFlowFSM(r *runner) *fsm.FSM {
 		Logger: r.logger.Named("fsm"),
 	})
 
-	m.From([]string{InitializingStatus, RunningStatus}).
+	m.From([]string{PendingStatus, RunningStatus}).
 		To(RunningStatus).
 		When(TriggerEvent).
 		Do(r.handleJobRun)
@@ -467,17 +468,17 @@ func buildFlowFSM(r *runner) *fsm.FSM {
 		When(ExecuteFinishEvent).
 		Do(r.handleJobSucceed)
 
-	m.From([]string{InitializingStatus, RunningStatus}).
+	m.From([]string{PendingStatus, RunningStatus}).
 		To(ErrorStatus).
 		When(ExecuteErrorEvent).
 		Do(r.handleJobFailed)
 
-	m.From([]string{InitializingStatus, RunningStatus}).
+	m.From([]string{PendingStatus, RunningStatus}).
 		To(FailedStatus).
 		When(ExecuteFailedEvent).
 		Do(r.handleJobFailed)
 
-	m.From([]string{InitializingStatus, PausedStatus}).
+	m.From([]string{PendingStatus, PausedStatus}).
 		To(CanceledStatus).
 		When(ExecuteCancelEvent).
 		Do(r.handleJobCancel)

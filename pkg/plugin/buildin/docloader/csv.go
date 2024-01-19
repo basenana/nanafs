@@ -24,6 +24,7 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -73,7 +74,7 @@ func (c CSV) Load(_ context.Context) (result []types.FDocument, err error) {
 		// TODO: using HTML fmt?
 		result = append(result, types.FDocument{
 			Content:  strings.Join(content, "\n"),
-			Metadata: map[string]any{"type": csvLoader, "row": rown},
+			Metadata: map[string]string{"type": csvLoader, "row": strconv.Itoa(rown)},
 		})
 	}
 

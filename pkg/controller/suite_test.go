@@ -20,6 +20,7 @@ import (
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
+	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils/logger"
 	"testing"
@@ -49,7 +50,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 
 	// init plugin
-	err = plugin.Init(&config.Plugin{})
+	err = plugin.Init(buildin.Services{}, &config.Plugin{})
 	Expect(err).Should(BeNil())
 })
 

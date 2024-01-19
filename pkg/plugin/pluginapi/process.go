@@ -25,6 +25,7 @@ type Request struct {
 	EntryURI         string
 	CacheData        *CachedData
 	Parameter        map[string]any
+	ContextResults   Results
 	ParentProperties map[string]string
 }
 
