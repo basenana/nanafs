@@ -23,6 +23,7 @@ import (
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow/fsm"
+	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"sync"
@@ -273,6 +274,12 @@ func (r *runner) jobBatchRun() (finish bool, err error) {
 	if !r.waitingForRunning(r.ctx) {
 		return true, nil
 	}
+
+	defer func() {
+		if panicErr := utils.Recover(); panicErr != nil {
+			err = panicErr
+		}
+	}()
 
 	var batch []*types.WorkflowJobStep
 	if batch, err = r.nextBatch(); err != nil {

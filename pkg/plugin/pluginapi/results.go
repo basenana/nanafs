@@ -33,6 +33,10 @@ type Results interface {
 	Load(key string, val any) error
 }
 
+func init() {
+	gob.Register(map[string]interface{}{})
+}
+
 type baseMap struct {
 	results map[string][]byte
 	mux     sync.Mutex

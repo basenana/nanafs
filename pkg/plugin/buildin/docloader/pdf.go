@@ -21,6 +21,7 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/ledongthuc/pdf"
 	"os"
+	"strconv"
 )
 
 const (
@@ -87,10 +88,10 @@ func (p *PDF) Load(_ context.Context) ([]types.FDocument, error) {
 		// TODO: using HTML fmt?
 		result = append(result, types.FDocument{
 			Content: text,
-			Metadata: map[string]any{
+			Metadata: map[string]string{
 				"type":        "pdf",
-				"page":        i,
-				"total_pages": numPages,
+				"page":        strconv.Itoa(i),
+				"total_pages": strconv.Itoa(numPages),
 			},
 		})
 	}

@@ -47,51 +47,55 @@ func init() {
 }
 
 type queue struct {
-	q              chan string
-	size, parallel int
-	inQueue        map[string]struct{}
-	mux            sync.Mutex
+	q       chan string
+	p       chan struct{}
+	handler func(string)
+	inQueue map[string]struct{}
+	mux     sync.Mutex
 }
 
-func (q *queue) Next() string {
+func (q *queue) HandleNext(handler func(string)) {
+	q.p <- struct{}{}
 	next := <-q.q
-	q.mux.Lock()
-	delete(q.inQueue, next)
-	q.mux.Unlock()
-	return next
+
+	go func(jID string) {
+		handler(jID)
+
+		<-q.p
+		q.mux.Lock()
+		delete(q.inQueue, jID)
+		q.mux.Unlock()
+	}(next)
 }
 
-func (q *queue) Put(jobID string) (isFill bool) {
+const (
+	workQueueStatusAppended = "appended"
+	workQueueStatusQueued   = "queued"
+	workQueueStatusFilled   = "filled"
+)
+
+func (q *queue) Put(jobID string) (status string) {
 	q.mux.Lock()
+	defer q.mux.Unlock()
 	if _, ok := q.inQueue[jobID]; ok {
-		q.mux.Unlock()
-		return
+		return workQueueStatusQueued
 	}
 	select {
 	case q.q <- jobID:
 		q.inQueue[jobID] = struct{}{}
+		return workQueueStatusAppended
 	default:
-		// skip this job
-		isFill = true
+		return workQueueStatusFilled
 	}
-	q.mux.Unlock()
-	return
-}
-
-func (q *queue) Size() int {
-	return q.size
-}
-
-func (q *queue) Parallel() int {
-	return q.parallel
 }
 
 func targetHash(target types.WorkflowTarget) string {
 	return fmt.Sprintf("t-p%d-e%d", target.ParentEntryID, target.EntryID)
 }
 
-func newQueue(parallel, size int) *queue {
+func newQueue(size, parallel int) *queue {
 	return &queue{
-		q:        make(chan string, size),
-		parallel: parallel, size: size, inQueue: make(map[string]struct{})}
+		q:       make(chan string, size),
+		p:       make(chan struct{}, parallel),
+		inQueue: make(map[string]struct{})}
 }

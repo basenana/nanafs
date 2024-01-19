@@ -72,10 +72,7 @@ func (i *KeywordsPlugin) Run(ctx context.Context, request *pluginapi.Request) (*
 	}
 
 	return pluginapi.NewResponseWithResult(map[string]any{
-		pluginapi.ResEntryDocKeyWordsKey: map[string]any{
-			"keywords": keywords,
-			"usage":    usage,
-		},
+		pluginapi.ResEntryDocKeyWordsKey: types.FLlmResult{Keywords: keywords, Usage: usage},
 	}), nil
 }
 

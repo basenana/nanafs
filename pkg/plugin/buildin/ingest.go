@@ -75,9 +75,7 @@ func (i *IngestPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pl
 	}
 
 	return pluginapi.NewResponseWithResult(map[string]any{
-		pluginapi.ResEntryDocIngestKey: map[string]any{
-			"usage": usage,
-		},
+		pluginapi.ResEntryDocIngestKey: types.FLlmResult{Usage: usage},
 	}), nil
 }
 

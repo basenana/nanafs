@@ -155,10 +155,9 @@ func (w workflowExecutor) handleDocEvent(evt *types.EntryEvent) error {
 		return nil
 	}
 
-	job, err := w.manager.TriggerWorkflow(ctx, workflow.BuildInWorkflowSummary, types.WorkflowTarget{
-		EntryID:       entry.ID,
-		ParentEntryID: entry.ParentID,
-	}, workflow.JobAttr{Reason: "event: auto summary"})
+	job, err := w.manager.TriggerWorkflow(ctx, workflow.BuildInWorkflowSummary,
+		types.WorkflowTarget{EntryID: entry.ID, ParentEntryID: entry.ParentID},
+		workflow.JobAttr{Reason: "event: auto summary"})
 	if err != nil {
 		w.logger.Infow("[handleDocEvent] document has enable friday auto summary, but trigger failed", "document", doc.ID, "err", err)
 		return err

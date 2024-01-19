@@ -51,7 +51,7 @@ func (l Text) Load(_ context.Context) ([]types.FDocument, error) {
 	return []types.FDocument{
 		{
 			Content:  buf.String(),
-			Metadata: map[string]any{},
+			Metadata: map[string]string{},
 		},
 	}, nil
 }

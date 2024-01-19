@@ -328,7 +328,7 @@ func (p *pipeExecutor) Setup(ctx context.Context) error {
 		}
 		if doc != nil {
 			err = p.ctxResults.Set(pluginapi.ResEntryDocumentsKey, []types.FDocument{
-				{Content: doc.Content, Metadata: map[string]any{"type": path.Ext(en.Name)}},
+				{Content: doc.Content, Metadata: map[string]string{"type": path.Ext(en.Name)}},
 			})
 			if err != nil {
 				return fmt.Errorf("setup docment content failed %w", err)
@@ -352,6 +352,7 @@ func (p *pipeExecutor) DoOperation(ctx context.Context, step types.WorkflowJobSt
 	req := pluginapi.NewRequest()
 	req.EntryId = p.job.Target.EntryID
 	req.ParentEntryId = p.job.Target.ParentEntryID
+	req.ContextResults = p.ctxResults
 
 	req.Parameter = map[string]any{}
 	req.Parameter[pluginapi.ResEntryIdKey] = p.job.Target.EntryID

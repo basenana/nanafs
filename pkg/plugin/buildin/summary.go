@@ -76,10 +76,7 @@ func (i *SummaryPlugin) Run(ctx context.Context, request *pluginapi.Request) (*p
 	var docType string
 	for _, doc := range docs {
 		if doc.Metadata != nil {
-			rawType, hasType := doc.Metadata["type"]
-			if hasType {
-				docType, _ = rawType.(string)
-			}
+			docType = doc.Metadata["type"]
 		}
 		buf.WriteString(doc.Content)
 		buf.WriteString("\n")
@@ -89,7 +86,7 @@ func (i *SummaryPlugin) Run(ctx context.Context, request *pluginapi.Request) (*p
 	length := files.Length(trimmedContent)
 	if length <= DefaultSummaryToken {
 		i.logger(ctx).Infow("skip summary, length less than default summary token.", "length", length, "default token", DefaultSummaryToken, "entryId", request.EntryId)
-		return pluginapi.NewResponseWithResult(map[string]any{}), nil
+		return pluginapi.NewResponseWithResult(nil), nil
 	}
 	i.logger(ctx).Infow("get docs", "length", length, "entryId", request.EntryId)
 	summary, usage, err := friday.SummaryFile(ctx, fmt.Sprintf("entry_%d", request.EntryId), trimmedContent)
@@ -97,12 +94,7 @@ func (i *SummaryPlugin) Run(ctx context.Context, request *pluginapi.Request) (*p
 		return pluginapi.NewFailedResponse(fmt.Sprintf("summary documents failed: %s", err)), nil
 	}
 
-	return pluginapi.NewResponseWithResult(map[string]any{
-		pluginapi.ResEntryDocSummaryKey: map[string]any{
-			"summary": summary,
-			"usage":   usage,
-		},
-	}), nil
+	return pluginapi.NewResponseWithResult(map[string]any{pluginapi.ResEntryDocSummaryKey: types.FLlmResult{Summary: summary, Usage: usage}}), nil
 }
 func (i *SummaryPlugin) logger(ctx context.Context) *zap.SugaredLogger {
 	return utils.WorkflowJobLogger(ctx, i.log)

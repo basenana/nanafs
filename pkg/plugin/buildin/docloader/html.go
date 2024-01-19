@@ -61,6 +61,6 @@ func (h HTML) Load(ctx context.Context) (result []types.FDocument, err error) {
 
 	return []types.FDocument{{
 		Content:  content,
-		Metadata: map[string]any{"type": docType},
+		Metadata: map[string]string{"type": docType},
 	}}, nil
 }

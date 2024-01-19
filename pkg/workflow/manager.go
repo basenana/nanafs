@@ -129,21 +129,6 @@ func (m *manager) Start(stopCh chan struct{}) {
 		}
 	}
 
-	runnerJobs, err := m.recorder.ListWorkflowJob(bgCtx, types.JobFilter{Status: jobrun.RunningStatus})
-	if err != nil {
-		m.logger.Errorw("re-trigger jobs failed: list runner jobs error", "err", err)
-	}
-
-	for _, job := range runnerJobs {
-		if job.Status != jobrun.RunningStatus {
-			continue
-		}
-		m.logger.Infow("re-trigger job", "job", job.Id, "createdAt", job.CreatedAt.Format(time.RFC3339))
-		if err = m.ctrl.TriggerJob(bgCtx, job.Id); err != nil {
-			m.logger.Errorw("re-trigger jobs failed: trigger job failed", "job", job.Id, "err", err)
-		}
-	}
-
 	<-stopCh
 	canF()
 }
@@ -382,5 +367,6 @@ func (d disabledManager) CancelWorkflowJob(ctx context.Context, jobId string) er
 type JobAttr struct {
 	JobID   string
 	Reason  string
+	Queue   string
 	Timeout time.Duration
 }

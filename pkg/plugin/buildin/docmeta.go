@@ -62,22 +62,22 @@ func (d DocMetaPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pl
 
 	totalUsage := make(map[string]any)
 	if request.ContextResults.IsSet(pluginapi.ResEntryDocSummaryKey) {
-		var summaryVal = map[string]any{}
+		var summaryVal = types.FLlmResult{}
 		err = request.ContextResults.Load(pluginapi.ResEntryDocSummaryKey, &summaryVal)
 		if err != nil {
 			return nil, fmt.Errorf("load document summary error %w", err)
 		}
-		doc.Summary = summaryVal["summary"].(string)
-		totalUsage["summary"] = summaryVal["usage"]
+		doc.Summary = summaryVal.Summary
+		totalUsage["summary"] = summaryVal.Usage
 	}
 	if request.ContextResults.IsSet(pluginapi.ResEntryDocKeyWordsKey) {
-		var keyWordsVal = map[string]any{}
+		var keyWordsVal = types.FLlmResult{}
 		err = request.ContextResults.Load(pluginapi.ResEntryDocKeyWordsKey, &keyWordsVal)
 		if err != nil {
 			return nil, fmt.Errorf("load document keywords error %w", err)
 		}
-		doc.KeyWords = keyWordsVal["keywords"].([]string)
-		totalUsage["keywords"] = keyWordsVal["usage"]
+		doc.KeyWords = keyWordsVal.Keywords
+		totalUsage["keywords"] = keyWordsVal.Usage
 	}
 
 	for k, v := range totalUsage {
