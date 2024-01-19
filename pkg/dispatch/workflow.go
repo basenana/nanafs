@@ -134,6 +134,7 @@ func (w workflowExecutor) handleDocEvent(evt *types.EntryEvent) error {
 	if err != nil {
 		err = fmt.Errorf("get parent entry extend data error: %s", err)
 		w.logger.Errorw("[handleDocEvent] query document parent entry ext data failed", "document", doc.ID, "parent", entry.ParentID, "err", err)
+		return err
 	}
 
 	properties := make(map[string]string)
