@@ -72,12 +72,13 @@ var _ = BeforeSuite(func() {
 	)
 	Expect(err).Should(BeNil())
 	entryMgr = &manager{
-		store:     metaStoreObj,
-		metastore: metaStoreObj,
-		storages:  storages,
-		eventQ:    make(chan *entryEvent, 8),
-		cfg:       config.Config{FS: &config.FS{}},
-		logger:    logger.NewLogger("entryManager"),
+		store:      metaStoreObj,
+		metastore:  metaStoreObj,
+		storages:   storages,
+		extIndexer: NewExtIndexer(),
+		eventQ:     make(chan *entryEvent, 8),
+		cfg:        config.Config{FS: &config.FS{}},
+		logger:     logger.NewLogger("entryManager"),
 	}
 
 	// init root

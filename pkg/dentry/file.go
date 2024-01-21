@@ -24,6 +24,7 @@ import (
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
+	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"go.uber.org/zap"
@@ -240,68 +241,37 @@ func openSymlink(mgr *manager, en *types.Metadata, attr types.OpenAttr) (File, e
 }
 
 type extFile struct {
-	attr       types.OpenAttr
-	entryID    int64
-	modifiedAt time.Time
-	store      metastore.DEntry
-	cfg        *config.FS
-	size       int64
-	stub       plugin.MirrorPlugin
+	pluginapi.File
+	attr    types.OpenAttr
+	entryID int64
 }
 
 func (e *extFile) GetAttr() types.OpenAttr {
 	return e.attr
 }
 
-func (e *extFile) WriteAt(ctx context.Context, data []byte, off int64) (int64, error) {
-	n, err := e.stub.WriteAt(ctx, data, off)
-	if off+n > e.size {
-		e.size = off + n
-	}
-	e.modifiedAt = time.Now()
-	return n, err
-}
-
-func (e *extFile) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error) {
-	return e.stub.ReadAt(ctx, dest, off)
-}
-
-func (e *extFile) Fsync(ctx context.Context) error {
-	err := e.store.Flush(ctx, e.entryID, e.size)
-	if err != nil {
-		return err
-	}
-	return e.stub.Fsync(ctx)
-}
-
 func (e *extFile) Flush(ctx context.Context) error {
-	return e.stub.Fsync(ctx)
+	return e.Fsync(ctx)
 }
 
-func (e *extFile) Close(ctx context.Context) error {
-	err := e.Fsync(ctx)
-	if err != nil {
-		return err
-	}
-	return e.stub.Close(ctx)
-}
-
-func openExternalFile(en *types.Metadata, ps *types.PlugScope, attr types.OpenAttr, store metastore.DEntry, cfg *config.FS) (File, error) {
-	if ps == nil {
+func openExternalFile(ctx context.Context, en *StubEntry, p plugin.MirrorPlugin, attr types.OpenAttr) (File, error) {
+	if p == nil {
 		return nil, fmt.Errorf("extend entry has no plug scop")
 	}
-	stub, err := plugin.NewMirrorPlugin(context.TODO(), *ps)
+	f, err := p.Open(ctx, en.path)
 	if err != nil {
-		return nil, fmt.Errorf("build mirror plugin failed: %s", err)
+		return nil, err
 	}
-	eFile := &extFile{entryID: en.ID, size: en.Size, modifiedAt: en.ModifiedAt, store: store, attr: attr, cfg: cfg, stub: stub}
-	if attr.Trunc || en.Size == 0 {
-		err = stub.Trunc(context.TODO())
+	eFile := &extFile{
+		File:    f,
+		attr:    attr,
+		entryID: en.id,
+	}
+	if attr.Trunc || en.info.Size == 0 {
+		err = f.Trunc(ctx)
 		if err != nil {
 			return nil, err
 		}
-		en.Size = 0
-		eFile.size = 0
 	}
 	return eFile, nil
 }

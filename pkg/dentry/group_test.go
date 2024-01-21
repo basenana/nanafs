@@ -314,7 +314,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			Expect(len(need)).Should(Equal(0))
 		})
 		It("insert sync_file1.yaml to memfs should be succeed", func() {
-			_, err = memFS.CreateEntry(context.TODO(), pluginapi.EntryAttr{
+			_, err = memFS.CreateEntry(context.TODO(), "/", pluginapi.EntryAttr{
 				Name: "sync_file1.yaml",
 				Kind: types.RawKind,
 			})
@@ -335,7 +335,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			Expect(len(need)).Should(Equal(0))
 		})
 		It("insert sync_file2.yaml to memfs should be succeed", func() {
-			_, err = memFS.CreateEntry(context.TODO(), pluginapi.EntryAttr{
+			_, err = memFS.CreateEntry(context.TODO(), "/", pluginapi.EntryAttr{
 				Name: "sync_file2.yaml",
 				Kind: types.RawKind,
 			})
@@ -355,10 +355,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			Expect(len(need)).Should(Equal(0))
 		})
 		It("delete sync_file2.yaml should be succeed", func() {
-			err = memFS.RemoveEntry(context.TODO(), &pluginapi.Entry{
-				Name: "sync_file2.yaml",
-				Kind: types.RawKind,
-			})
+			err = memFS.RemoveEntry(context.TODO(), "/sync_file2.yaml")
 			Expect(err).Should(BeNil())
 
 			extGrp, err = entryManager.OpenGroup(context.TODO(), extGrpEn.ID)
@@ -404,9 +401,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			movedEn, err = grp.FindEntry(context.TODO(), "moved_file1.yaml")
 			Expect(err).Should(BeNil())
 
-			ed, err := entryManager.GetEntryExtendData(context.TODO(), movedEn.ID)
-			Expect(err).Should(BeNil())
-			Expect(ed.PlugScope).ShouldNot(BeNil())
+			Expect(movedEn.ID >> entryIDPrefixMask).Should(Equal(externalIDPrefix))
 
 			file1F, err = entryManager.Open(context.TODO(), movedEn.ID, types.OpenAttr{Write: true})
 			Expect(err).Should(BeNil())

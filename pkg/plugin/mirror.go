@@ -30,18 +30,13 @@ import (
 type MirrorPlugin interface {
 	Plugin
 
-	IsGroup(ctx context.Context) (bool, error)
-	FindEntry(ctx context.Context, name string) (*pluginapi.Entry, error)
-	CreateEntry(ctx context.Context, attr pluginapi.EntryAttr) (*pluginapi.Entry, error)
-	UpdateEntry(ctx context.Context, en *pluginapi.Entry) error
-	RemoveEntry(ctx context.Context, en *pluginapi.Entry) error
-	ListChildren(ctx context.Context) ([]*pluginapi.Entry, error)
+	GetEntry(ctx context.Context, entryPath string) (*pluginapi.Entry, error)
+	CreateEntry(ctx context.Context, parentPath string, attr pluginapi.EntryAttr) (*pluginapi.Entry, error)
+	UpdateEntry(ctx context.Context, entryPath string, en *pluginapi.Entry) error
+	RemoveEntry(ctx context.Context, entryPath string) error
+	ListChildren(ctx context.Context, parentPath string) ([]*pluginapi.Entry, error)
 
-	WriteAt(ctx context.Context, data []byte, off int64) (int64, error)
-	ReadAt(ctx context.Context, dest []byte, off int64) (int64, error)
-	Fsync(ctx context.Context) error
-	Trunc(ctx context.Context) error
-	Close(ctx context.Context) error
+	Open(ctx context.Context, entryPath string) (pluginapi.File, error)
 }
 
 func NewMirrorPlugin(ctx context.Context, ps types.PlugScope) (MirrorPlugin, error) {
@@ -63,8 +58,7 @@ const (
 )
 
 type MemFSPlugin struct {
-	path string
-	fs   *MemFS
+	*MemFS
 }
 
 var _ MirrorPlugin = &MemFSPlugin{}
@@ -80,69 +74,6 @@ func (d *MemFSPlugin) Type() types.PluginType {
 func (d *MemFSPlugin) Version() string {
 	return memFSPluginVersion
 }
-func (d *MemFSPlugin) build(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
-	if scope.Parameters == nil {
-		scope.Parameters = map[string]string{}
-	}
-	enPath := scope.Parameters[types.PlugScopeEntryPath]
-	if enPath == "" {
-		return nil, fmt.Errorf("path is empty")
-	}
-
-	_, err := d.fs.GetEntry(enPath)
-	if err != nil {
-		return nil, err
-	}
-	return &MemFSPlugin{path: enPath, fs: d.fs}, nil
-}
-
-func (d *MemFSPlugin) IsGroup(ctx context.Context) (bool, error) {
-	en, err := d.fs.GetEntry(d.path)
-	if err != nil {
-		return false, err
-	}
-	return en.IsGroup, nil
-}
-
-func (d *MemFSPlugin) FindEntry(ctx context.Context, name string) (*pluginapi.Entry, error) {
-	return d.fs.FindEntry(d.path, name)
-}
-
-func (d *MemFSPlugin) CreateEntry(ctx context.Context, attr pluginapi.EntryAttr) (*pluginapi.Entry, error) {
-	return d.fs.CreateEntry(d.path, attr)
-}
-
-func (d *MemFSPlugin) UpdateEntry(ctx context.Context, en *pluginapi.Entry) error {
-	return d.fs.UpdateEntry(d.path, en)
-}
-
-func (d *MemFSPlugin) RemoveEntry(ctx context.Context, en *pluginapi.Entry) error {
-	return d.fs.RemoveEntry(d.path, en)
-}
-
-func (d *MemFSPlugin) ListChildren(ctx context.Context) ([]*pluginapi.Entry, error) {
-	return d.fs.ListChildren(d.path)
-}
-
-func (d *MemFSPlugin) WriteAt(ctx context.Context, data []byte, off int64) (int64, error) {
-	return d.fs.WriteAt(d.path, data, off)
-}
-
-func (d *MemFSPlugin) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error) {
-	return d.fs.ReadAt(d.path, dest, off)
-}
-
-func (d *MemFSPlugin) Trunc(ctx context.Context) error {
-	return d.fs.Trunc(d.path)
-}
-
-func (d *MemFSPlugin) Fsync(ctx context.Context) error {
-	return nil
-}
-
-func (d *MemFSPlugin) Close(ctx context.Context) error {
-	return nil
-}
 
 type MemFS struct {
 	entries map[string]*pluginapi.Entry
@@ -151,7 +82,7 @@ type MemFS struct {
 	mux     sync.Mutex
 }
 
-func (m *MemFS) GetEntry(enPath string) (*pluginapi.Entry, error) {
+func (m *MemFS) GetEntry(ctx context.Context, enPath string) (*pluginapi.Entry, error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
@@ -162,18 +93,7 @@ func (m *MemFS) GetEntry(enPath string) (*pluginapi.Entry, error) {
 	return en, nil
 }
 
-func (m *MemFS) FindEntry(parentPath string, name string) (*pluginapi.Entry, error) {
-	m.mux.Lock()
-	defer m.mux.Unlock()
-
-	en, ok := m.entries[path.Join(parentPath, name)]
-	if !ok {
-		return nil, types.ErrNotFound
-	}
-	return en, nil
-}
-
-func (m *MemFS) CreateEntry(parentPath string, attr pluginapi.EntryAttr) (*pluginapi.Entry, error) {
+func (m *MemFS) CreateEntry(ctx context.Context, parentPath string, attr pluginapi.EntryAttr) (*pluginapi.Entry, error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
@@ -210,7 +130,7 @@ func (m *MemFS) CreateEntry(parentPath string, attr pluginapi.EntryAttr) (*plugi
 	return en, nil
 }
 
-func (m *MemFS) UpdateEntry(parentPath string, en *pluginapi.Entry) error {
+func (m *MemFS) UpdateEntry(ctx context.Context, parentPath string, en *pluginapi.Entry) error {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
@@ -225,11 +145,10 @@ func (m *MemFS) UpdateEntry(parentPath string, en *pluginapi.Entry) error {
 	return nil
 }
 
-func (m *MemFS) RemoveEntry(parentPath string, en *pluginapi.Entry) error {
+func (m *MemFS) RemoveEntry(ctx context.Context, enPath string) error {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
-	enPath := path.Join(parentPath, en.Name)
 	en, ok := m.entries[enPath]
 	if !ok {
 		return types.ErrNotFound
@@ -248,6 +167,7 @@ func (m *MemFS) RemoveEntry(parentPath string, en *pluginapi.Entry) error {
 		}
 	}
 
+	parentPath := path.Dir(enPath)
 	child := m.groups[parentPath]
 	newChild := make([]string, 0, len(child)-1)
 	for _, chName := range child {
@@ -262,7 +182,7 @@ func (m *MemFS) RemoveEntry(parentPath string, en *pluginapi.Entry) error {
 	return nil
 }
 
-func (m *MemFS) ListChildren(enPath string) ([]*pluginapi.Entry, error) {
+func (m *MemFS) ListChildren(ctx context.Context, enPath string) ([]*pluginapi.Entry, error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
@@ -283,47 +203,21 @@ func (m *MemFS) ListChildren(enPath string) ([]*pluginapi.Entry, error) {
 	return result, nil
 }
 
-func (m *MemFS) WriteAt(filePath string, data []byte, off int64) (int64, error) {
+func (m *MemFS) Open(ctx context.Context, filePath string) (pluginapi.File, error) {
 	m.mux.Lock()
-
 	mf, ok := m.files[filePath]
 	if !ok {
 		m.mux.Unlock()
-		return 0, types.ErrNotFound
+		return nil, types.ErrNotFound
 	}
 	m.mux.Unlock()
-	n, err := mf.WriteAt(data, off)
-	return int64(n), err
-}
-
-func (m *MemFS) ReadAt(filePath string, dest []byte, off int64) (int64, error) {
-	m.mux.Lock()
-
-	mf, ok := m.files[filePath]
-	if !ok {
-		m.mux.Unlock()
-		return 0, types.ErrNotFound
-	}
-	m.mux.Unlock()
-	n, err := mf.ReadAt(dest, off)
-	return int64(n), err
-}
-
-func (m *MemFS) Trunc(filePath string) error {
-	m.mux.Lock()
-	defer m.mux.Unlock()
-	mf, ok := m.files[filePath]
-	if !ok {
-		return types.ErrNotFound
-	}
-	mf.Size = 0
-	return nil
+	return mf, nil
 }
 
 func NewMemFS() *MemFS {
 	fs := &MemFS{
 		entries: map[string]*pluginapi.Entry{"/": {Name: ".", Kind: types.ExternalGroupKind, Size: 0, IsGroup: true}},
-		groups:  map[string][]string{"/": {}},
+		groups:  map[string][]string{"/": make([]string, 0)},
 		files:   map[string]*memFile{},
 	}
 	return fs
@@ -338,14 +232,22 @@ type memFile struct {
 	data []byte
 }
 
-func newMemFile(entry *pluginapi.Entry) *memFile {
-	return &memFile{
-		Entry: entry,
-		data:  utils.NewMemoryBlock(memFileMaxSize / 16), // 1M
-	}
+var _ pluginapi.File = &memFile{}
+
+func (m *memFile) Fsync(ctx context.Context) error {
+	return nil
 }
 
-func (m *memFile) WriteAt(data []byte, off int64) (n int, err error) {
+func (m *memFile) Trunc(ctx context.Context) error {
+	m.Size = 0
+	return nil
+}
+
+func (m *memFile) Close(ctx context.Context) error {
+	return nil
+}
+
+func (m *memFile) WriteAt(ctx context.Context, data []byte, off int64) (n int64, err error) {
 	if m.data == nil {
 		err = types.ErrNotFound
 		return
@@ -359,14 +261,14 @@ func (m *memFile) WriteAt(data []byte, off int64) (n int, err error) {
 		utils.ReleaseMemoryBlock(m.data)
 		m.data = blk
 	}
-	n = copy(m.data[off:], data)
+	n = int64(copy(m.data[off:], data))
 	if off+int64(n) > m.Size {
 		m.Size = off + int64(n)
 	}
 	return
 }
 
-func (m *memFile) ReadAt(dest []byte, off int64) (n int, err error) {
+func (m *memFile) ReadAt(ctx context.Context, dest []byte, off int64) (n int64, err error) {
 	if m.data == nil {
 		err = types.ErrNotFound
 		return
@@ -374,7 +276,7 @@ func (m *memFile) ReadAt(dest []byte, off int64) (n int, err error) {
 	if off >= m.Size {
 		return 0, io.EOF
 	}
-	return copy(dest, m.data[off:m.Size]), nil
+	return int64(copy(dest, m.data[off:m.Size])), nil
 }
 
 func (m *memFile) release() {
@@ -384,14 +286,22 @@ func (m *memFile) release() {
 	}
 }
 
+func newMemFile(entry *pluginapi.Entry) *memFile {
+	return &memFile{
+		Entry: entry,
+		data:  utils.NewMemoryBlock(memFileMaxSize / 16), // 1M
+	}
+}
+
 func NewMemFSPlugin() *MemFSPlugin {
-	plugin := &MemFSPlugin{path: "/", fs: NewMemFS()}
+	plugin := &MemFSPlugin{MemFS: NewMemFS()}
 	return plugin
 }
 
 func registerBuildInMirrorPlugin(r *registry) {
 	plugin := NewMemFSPlugin()
-	plugin.fs.groups["/"] = make([]string, 0)
 	r.Register(memFSPluginName, types.PluginSpec{Name: memFSPluginName, Version: memFSPluginVersion,
-		Type: types.TypeMirror, Parameters: map[string]string{}}, plugin.build)
+		Type: types.TypeMirror, Parameters: map[string]string{}}, func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
+		return plugin, nil
+	})
 }

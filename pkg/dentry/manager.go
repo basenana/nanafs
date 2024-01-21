@@ -18,7 +18,9 @@ package dentry
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"github.com/basenana/nanafs/pkg/plugin"
 	"go.uber.org/zap"
 	"io"
 	"path"
@@ -29,7 +31,6 @@ import (
 	"github.com/basenana/nanafs/pkg/bio"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
@@ -73,12 +74,13 @@ func NewManager(store metastore.Meta, cfg config.Config) (Manager, error) {
 		}
 	}
 	mgr := &manager{
-		store:     store,
-		metastore: store,
-		storages:  storages,
-		eventQ:    make(chan *entryEvent, 8),
-		cfg:       cfg,
-		logger:    logger.NewLogger("entryManager"),
+		store:      store,
+		metastore:  store,
+		extIndexer: NewExtIndexer(),
+		storages:   storages,
+		eventQ:     make(chan *entryEvent, 8),
+		cfg:        cfg,
+		logger:     logger.NewLogger("entryManager"),
 	}
 	go mgr.entryActionEventHandler()
 	fileEntryLogger = mgr.logger.Named("files")
@@ -86,12 +88,13 @@ func NewManager(store metastore.Meta, cfg config.Config) (Manager, error) {
 }
 
 type manager struct {
-	store     metastore.DEntry
-	metastore metastore.Meta
-	storages  map[string]storage.Storage
-	eventQ    chan *entryEvent
-	cfg       config.Config
-	logger    *zap.SugaredLogger
+	store      metastore.DEntry
+	metastore  metastore.Meta
+	extIndexer *ExtIndexer
+	storages   map[string]storage.Storage
+	eventQ     chan *entryEvent
+	cfg        config.Config
+	logger     *zap.SugaredLogger
 }
 
 var _ Manager = &manager{}
@@ -120,7 +123,24 @@ func (m *manager) Root(ctx context.Context) (*types.Metadata, error) {
 
 func (m *manager) GetEntry(ctx context.Context, id int64) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.GetEntryMetadata").End()
-	return m.store.GetEntry(ctx, id)
+	if externalIDPrefix == id>>entryIDPrefixMask {
+		stubEn, err := m.extIndexer.GetStubEntry(id)
+		if err != nil {
+			m.logger.Errorw("query external entry with id failed: stub not register", "entry", id)
+			return nil, err
+		}
+		return stubEn.toEntry(), nil
+	}
+
+	en, err := m.store.GetEntry(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if en.Storage == externalStorage {
+		return en, m.registerStubRoot(ctx, en)
+	}
+	return en, nil
 }
 
 func (m *manager) GetEntryByUri(ctx context.Context, uri string) (*types.Metadata, error) {
@@ -131,7 +151,7 @@ func (m *manager) GetEntryByUri(ctx context.Context, uri string) (*types.Metadat
 	uri = strings.TrimSuffix(uri, "/")
 	entryUri, err := m.store.GetEntryUri(ctx, uri)
 	if err != nil {
-		if err != types.ErrNotFound {
+		if !errors.Is(err, types.ErrNotFound) {
 			return nil, err
 		}
 		parent, base := path.Split(uri)
@@ -150,12 +170,14 @@ func (m *manager) GetEntryByUri(ctx context.Context, uri string) (*types.Metadat
 			return nil, err
 		}
 
-		entryUri = &types.EntryUri{ID: entry.ID, Uri: uri}
-		if err = m.store.SaveEntryUri(ctx, entryUri); err != nil {
-			return nil, err
+		if entry.Storage != externalStorage {
+			entryUri = &types.EntryUri{ID: entry.ID, Uri: uri}
+			if err = m.store.SaveEntryUri(ctx, entryUri); err != nil {
+				return nil, err
+			}
 		}
 	}
-	return m.store.GetEntry(ctx, entryUri.ID)
+	return m.GetEntry(ctx, entryUri.ID)
 }
 
 func (m *manager) GetEntryExtendData(ctx context.Context, id int64) (types.ExtendData, error) {
@@ -165,6 +187,9 @@ func (m *manager) GetEntryExtendData(ctx context.Context, id int64) (types.Exten
 
 func (m *manager) UpdateEntryExtendData(ctx context.Context, id int64, ed types.ExtendData) error {
 	defer trace.StartRegion(ctx, "dentry.manager.UpdateEntryExtendData").End()
+	if externalIDPrefix == id>>entryIDPrefixMask {
+		return types.ErrUnsupported
+	}
 	return m.store.UpdateEntryExtendData(ctx, id, ed)
 }
 
@@ -226,6 +251,9 @@ func (m *manager) GetEntryLabels(ctx context.Context, id int64) (types.Labels, e
 
 func (m *manager) UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error {
 	defer trace.StartRegion(ctx, "dentry.manager.UpdateEntryLabels").End()
+	if externalIDPrefix == id>>entryIDPrefixMask {
+		return types.ErrUnsupported
+	}
 	return m.store.UpdateEntryLabels(ctx, id, labels)
 }
 
@@ -235,7 +263,14 @@ func (m *manager) CreateEntry(ctx context.Context, parentId int64, attr types.En
 	if err != nil {
 		return nil, err
 	}
-	return grp.CreateEntry(ctx, attr)
+	en, err := grp.CreateEntry(ctx, attr)
+	if err != nil {
+		return nil, err
+	}
+	if en.Storage == externalStorage {
+		return en, m.registerStubRoot(ctx, en)
+	}
+	return en, nil
 }
 
 func (m *manager) RemoveEntry(ctx context.Context, parentId, entryId int64) error {
@@ -308,6 +343,10 @@ func (m *manager) MirrorEntry(ctx context.Context, srcId, dstParentId int64, att
 	}
 	if !types.IsGroup(parent.Kind) {
 		return nil, types.ErrNoGroup
+	}
+
+	if src.Storage == externalStorage || parent.Storage == externalStorage {
+		return nil, types.ErrUnsupported
 	}
 
 	if types.IsMirrored(src) {
@@ -460,36 +499,38 @@ func (m *manager) changeEntryParentByFileCopy(ctx context.Context, targetEntry, 
 	return nil
 }
 
-func (m *manager) Open(ctx context.Context, entryId int64, attr types.OpenAttr) (File, error) {
+func (m *manager) Open(ctx context.Context, entryId int64, attr types.OpenAttr) (f File, err error) {
 	defer trace.StartRegion(ctx, "dentry.manager.Open").End()
 	attr.EntryID = entryId
+
+	if externalIDPrefix == entryId>>entryIDPrefixMask {
+		stubEntry, err := m.extIndexer.GetStubEntry(entryId)
+		if err != nil {
+			return nil, err
+		}
+		f, err = openExternalFile(ctx, stubEntry, stubEntry.root.mirror, attr)
+		if err != nil {
+			return nil, err
+		}
+		return f, nil
+	}
+
 	entry, err := m.store.Open(ctx, entryId, attr)
 	if err != nil {
 		return nil, err
 	}
-	if attr.Trunc && entry.Storage != externalStorage {
+	if attr.Trunc {
 		if err := m.CleanEntryData(ctx, entryId); err != nil {
 			m.logger.Errorw("clean entry with trunc error", "entry", entryId, "err", err)
 		}
 		m.publicEntryActionEvent(events.TopicNamespaceFile, events.ActionTypeTrunc, entryId)
 	}
 
-	var f File
-	if entry.Storage == externalStorage {
-		var ed types.ExtendData
-		ed, err = m.GetEntryExtendData(ctx, entryId)
-		if err != nil {
-			m.logger.Errorw("get entry extend data failed", "entry", entryId, "err", err)
-			return nil, err
-		}
-		f, err = openExternalFile(entry, ed.PlugScope, attr, m.store, m.cfg.FS)
-	} else {
-		switch entry.Kind {
-		case types.SymLinkKind:
-			f, err = openSymlink(m, entry, attr)
-		default:
-			f, err = openFile(entry, attr, m.metastore, m.storages[entry.Storage], m.cfg.FS)
-		}
+	switch entry.Kind {
+	case types.SymLinkKind:
+		f, err = openSymlink(m, entry, attr)
+	default:
+		f, err = openFile(entry, attr, m.metastore, m.storages[entry.Storage], m.cfg.FS)
 	}
 	if err != nil {
 		return nil, err
@@ -497,6 +538,7 @@ func (m *manager) Open(ctx context.Context, entryId int64, attr types.OpenAttr) 
 	m.publicEntryActionEvent(events.TopicNamespaceFile, events.ActionTypeOpen, entryId)
 	return instrumentalFile{file: f}, nil
 }
+
 func (m *manager) OpenGroup(ctx context.Context, groupId int64) (Group, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.OpenGroup").End()
 	entry, err := m.GetEntry(ctx, groupId)
@@ -514,19 +556,15 @@ func (m *manager) OpenGroup(ctx context.Context, groupId int64) (Group, error) {
 	case types.SmartGroupKind:
 		grp = &dynamicGroup{stdGroup: stdGrp}
 	case types.ExternalGroupKind:
-		var ed types.ExtendData
-		if ed, err = m.store.GetEntryExtendData(ctx, entry.ID); err != nil {
-			return nil, err
-		}
-		if ed.PlugScope != nil {
-			mirror, err := plugin.NewMirrorPlugin(ctx, *ed.PlugScope)
-			if err != nil {
-				return nil, err
+		stubEntry, _ := m.extIndexer.GetStubEntry(groupId)
+		if stubEntry != nil {
+			grp = &extGroup{
+				entry:  stubEntry,
+				mirror: stubEntry.root.mirror,
+				logger: logger.NewLogger("extLogger").With(zap.Int64("group", groupId)),
 			}
-			grp = &extGroup{mgr: m, stdGroup: stdGrp, mirror: mirror,
-				logger: logger.NewLogger("extLogger").With(zap.Int64("group", groupId))}
 		} else {
-			m.logger.Warnw("external group without plug scope", "entry", entry.ID)
+			m.logger.Warnw("external group not indexed", "entry", entry.ID)
 			grp = emptyGroup{}
 		}
 	}
@@ -583,4 +621,26 @@ func (m *manager) getOrSaveEntryUri(ctx context.Context, entry *types.Metadata) 
 	}
 	uri = entryUri.Uri
 	return
+}
+
+func (m *manager) registerStubRoot(ctx context.Context, en *types.Metadata) error {
+	stubEntry, _ := m.extIndexer.GetStubEntry(en.ID)
+	if stubEntry != nil {
+		return nil
+	}
+
+	ed, err := m.store.GetEntryExtendData(ctx, en.ID)
+	if err != nil {
+		return err
+	}
+	if ed.PlugScope != nil {
+		mirror, err := plugin.NewMirrorPlugin(ctx, *ed.PlugScope)
+		if err != nil {
+			return err
+		}
+		m.extIndexer.AddStubRoot(en, mirror)
+	} else {
+		m.logger.Errorw("external root has no plug scope define")
+	}
+	return nil
 }

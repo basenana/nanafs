@@ -17,6 +17,7 @@
 package pluginapi
 
 import (
+	"context"
 	"github.com/basenana/nanafs/pkg/types"
 )
 
@@ -36,4 +37,12 @@ type EntryAttr struct {
 type CollectManifest struct {
 	BaseEntry int64
 	NewFiles  []Entry
+}
+
+type File interface {
+	WriteAt(ctx context.Context, data []byte, off int64) (int64, error)
+	ReadAt(ctx context.Context, dest []byte, off int64) (int64, error)
+	Fsync(ctx context.Context) error
+	Trunc(ctx context.Context) error
+	Close(ctx context.Context) error
 }

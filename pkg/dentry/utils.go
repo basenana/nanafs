@@ -18,6 +18,11 @@ package dentry
 
 import "github.com/basenana/nanafs/pkg/types"
 
+const (
+	RootEntryID   = 1
+	RootEntryName = "root"
+)
+
 func initRootEntry() *types.Metadata {
 	acc := &types.Access{
 		Permissions: []types.Permission{
@@ -45,21 +50,4 @@ func initMirrorEntry(src, newParent *types.Metadata, attr types.EntryAttr) (*typ
 	result.Namespace = src.Namespace
 	result.RefID = src.ID
 	return result, nil
-}
-
-func patchChangeableMetadata(oldEntry, newEntry *types.Metadata) {
-	oldEntry.Name = newEntry.Name
-	oldEntry.Aliases = newEntry.Aliases
-	oldEntry.ParentID = newEntry.ParentID
-	oldEntry.RefID = newEntry.RefID
-	oldEntry.RefCount = newEntry.RefCount
-	oldEntry.Size = newEntry.Size
-	oldEntry.Dev = newEntry.Dev
-	oldEntry.Storage = newEntry.Storage
-	oldEntry.Namespace = newEntry.Namespace
-	oldEntry.CreatedAt = newEntry.CreatedAt
-	oldEntry.ChangedAt = newEntry.ChangedAt
-	oldEntry.ModifiedAt = newEntry.ModifiedAt
-	oldEntry.AccessAt = newEntry.AccessAt
-	oldEntry.Access = newEntry.Access
 }
