@@ -255,9 +255,6 @@ func (e *extFile) Flush(ctx context.Context) error {
 }
 
 func openExternalFile(ctx context.Context, en *StubEntry, p plugin.MirrorPlugin, attr types.OpenAttr) (File, error) {
-	if p == nil {
-		return nil, fmt.Errorf("extend entry has no plug scop")
-	}
 	f, err := p.Open(ctx, en.path)
 	if err != nil {
 		return nil, err

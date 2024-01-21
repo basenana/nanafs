@@ -126,7 +126,7 @@ func (m *manager) GetEntry(ctx context.Context, id int64) (*types.Metadata, erro
 	if externalIDPrefix == id>>entryIDPrefixMask {
 		stubEn, err := m.extIndexer.GetStubEntry(id)
 		if err != nil {
-			m.logger.Errorw("query external entry with id failed: stub not register", "entry", id)
+			m.logger.Warnw("query external entry with id failed", "entry", id, "err", err)
 			return nil, err
 		}
 		return stubEn.toEntry(), nil

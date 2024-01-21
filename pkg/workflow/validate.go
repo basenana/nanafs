@@ -31,7 +31,7 @@ func isValidID(idStr string) error {
 	if wfIDRegexp.MatchString(idStr) {
 		return nil
 	}
-	return fmt.Errorf("invalid ID, pattern: %s", workflowIDPattern)
+	return fmt.Errorf("invalid ID [%s], pattern: %s", idStr, workflowIDPattern)
 }
 
 func validateWorkflowSpec(spec *types.WorkflowSpec) error {

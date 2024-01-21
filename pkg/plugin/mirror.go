@@ -130,11 +130,10 @@ func (m *MemFS) CreateEntry(ctx context.Context, parentPath string, attr plugina
 	return en, nil
 }
 
-func (m *MemFS) UpdateEntry(ctx context.Context, parentPath string, en *pluginapi.Entry) error {
+func (m *MemFS) UpdateEntry(ctx context.Context, enPath string, en *pluginapi.Entry) error {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
-	enPath := path.Join(parentPath, en.Name)
 	old, ok := m.entries[enPath]
 	if !ok {
 		return types.ErrNotFound

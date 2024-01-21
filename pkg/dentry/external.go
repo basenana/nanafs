@@ -65,9 +65,10 @@ func (e *ExtIndexer) AddStubRoot(rootEn *types.Metadata, mirror plugin.MirrorPlu
 func (e *ExtIndexer) SetStubEntry(entry *StubEntry) {
 	e.mux.Lock()
 	defer e.mux.Unlock()
-	entry.id = nextExtID()
+	if entry.id == 0 {
+		entry.id = nextExtID()
+	}
 	e.entries[entry.id] = entry
-
 	parent, ok := e.entries[entry.parent]
 	if ok {
 		parent.children[entry.id] = entry
@@ -91,6 +92,7 @@ func (e *ExtIndexer) RemoveStubEntry(entryID int64) {
 	if !ok {
 		return
 	}
+	delete(e.entries, entryID)
 
 	parent, ok := e.entries[en.parent]
 	if ok {
@@ -121,12 +123,24 @@ type StubEntry struct {
 }
 
 func (s *StubEntry) updateChild(entry *pluginapi.Entry) error {
-	en := covert2StubEntry(s.root, s, entry)
-	s.root.SetStubEntry(en)
+	exist, err := s.findChild(entry.Name)
+	if err != nil {
+		return err
+	}
+	en, err := s.root.GetStubEntry(exist.ID)
+	if err != nil {
+		return err
+	}
+	en.info = entry
 	return nil
 }
 
 func (s *StubEntry) createChild(entry *pluginapi.Entry) (*types.Metadata, error) {
+	exist, _ := s.findChild(entry.Name)
+	if exist != nil {
+		return exist, nil
+	}
+
 	en := covert2StubEntry(s.root, s, entry)
 	s.root.SetStubEntry(en)
 	return en.toEntry(), nil

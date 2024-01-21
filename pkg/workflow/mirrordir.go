@@ -30,6 +30,7 @@ import (
 	"io"
 	"path"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -66,6 +67,9 @@ virtual directory structure as follows:
 type MirrorPlugin struct {
 	fs  *plugin.MemFS
 	mgr Manager
+
+	openedFile map[string]struct{}
+	mux        sync.Mutex
 }
 
 var _ plugin.MirrorPlugin = &MirrorPlugin{}
@@ -286,6 +290,14 @@ func (m *MirrorPlugin) ListChildren(ctx context.Context, parentPath string) ([]*
 		}
 	}
 
+	m.mux.Lock()
+	for entryPath := range m.openedFile {
+		if path.Dir(entryPath) == parentPath {
+			expectedChildMap[path.Base(entryPath)] = struct{}{}
+		}
+	}
+	m.mux.Unlock()
+
 	for c := range cachedChildMap {
 		if _, ok := expectedChildMap[c]; ok {
 			continue
@@ -305,11 +317,23 @@ func (m *MirrorPlugin) Open(ctx context.Context, entryPath string) (pluginapi.Fi
 		return nil, err
 	}
 
+	en, err := m.fs.GetEntry(ctx, entryPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if en.IsGroup {
+		return nil, types.ErrIsGroup
+	}
+
 	f, err := m.fs.Open(ctx, entryPath)
 	if err != nil {
 		return nil, err
 	}
-	return &yamlFile{File: f, wfID: wfID, jobID: jobID, p: entryPath, mgr: m.mgr}, nil
+	m.mux.Lock()
+	m.openedFile[entryPath] = struct{}{}
+	m.mux.Unlock()
+	return &yamlFile{File: f, wfID: wfID, jobID: jobID, plugin: m, path: entryPath, mgr: m.mgr}, nil
 }
 
 func (m *MirrorPlugin) reloadWorkflowEntry(ctx context.Context, wf *types.WorkflowSpec) (*pluginapi.Entry, error) {
@@ -370,10 +394,11 @@ func (m *MirrorPlugin) reloadWorkflowJobEntry(ctx context.Context, job *types.Wo
 
 type yamlFile struct {
 	pluginapi.File
-	wfID  string
-	jobID string
-	p     string
-	mgr   Manager
+	wfID   string
+	jobID  string
+	path   string
+	plugin *MirrorPlugin
+	mgr    Manager
 }
 
 func (f *yamlFile) Close(ctx context.Context) error {
@@ -382,6 +407,12 @@ func (f *yamlFile) Close(ctx context.Context) error {
 		rawObj interface{}
 		err    error
 	)
+
+	defer func() {
+		f.plugin.mux.Lock()
+		delete(f.plugin.openedFile, f.path)
+		f.plugin.mux.Unlock()
+	}()
 	switch {
 	case f.wfID != "" && f.jobID == "":
 		op = "create or update workflow"
@@ -406,11 +437,17 @@ func (f *yamlFile) createOrUpdateWorkflow(ctx context.Context) (interface{}, err
 		return wf, err
 	}
 
-	decodeErr := yaml.NewDecoder(utils.NewReaderWithContextReaderAt(ctx, f.File)).Decode(wf)
-	if decodeErr != nil {
-		wfLogger.Warnw("decode workflow yaml file failed",
-			"workflow", f.wfID, "job", f.jobID, "err", decodeErr)
-		return wf, decodeErr
+	yamlContent, err := io.ReadAll(utils.NewReaderWithContextReaderAt(ctx, f.File))
+	if err != nil {
+		return wf, err
+	}
+	if len(yamlContent) > 0 {
+		decodeErr := yaml.Unmarshal(yamlContent, wf)
+		if decodeErr != nil {
+			wfLogger.Warnw("decode workflow yaml file failed",
+				"workflow", f.wfID, "job", f.jobID, "err", decodeErr)
+			return wf, decodeErr
+		}
 	}
 
 	wf.Id = f.wfID
@@ -494,7 +531,7 @@ func (f *yamlFile) triggerOrUpdateWorkflowJob(ctx context.Context) (interface{},
 }
 
 func buildWorkflowMirrorPlugin(mgr Manager) plugin.Builder {
-	mp := &MirrorPlugin{fs: plugin.NewMemFS(), mgr: mgr}
+	mp := &MirrorPlugin{fs: plugin.NewMemFS(), mgr: mgr, openedFile: map[string]struct{}{}}
 
 	_, _ = mp.fs.CreateEntry(context.Background(), "/", pluginapi.EntryAttr{
 		Name: MirrorDirJobs,
@@ -595,12 +632,11 @@ func defaultWorkflow(wfID string) *types.WorkflowSpec {
 				},
 			},
 		},
-		Enable:          false,
-		Executor:        "local",
-		QueueName:       "default",
-		CreatedAt:       nowAt,
-		UpdatedAt:       nowAt,
-		LastTriggeredAt: nowAt,
+		Enable:    false,
+		Executor:  "local",
+		QueueName: "default",
+		CreatedAt: nowAt,
+		UpdatedAt: nowAt,
 	}
 }
 
