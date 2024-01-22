@@ -18,11 +18,12 @@ package dentry
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
+	"github.com/basenana/nanafs/pkg/rule"
 	"github.com/basenana/nanafs/pkg/types"
 	"go.uber.org/zap"
 	"path"
@@ -76,6 +77,9 @@ func (g *stdGroup) GetEntry(ctx context.Context, entryID int64) (*types.Metadata
 	if err != nil {
 		return nil, err
 	}
+	if entry.ParentID != g.entryID {
+		return nil, types.ErrNotFound
+	}
 	return entry, nil
 }
 
@@ -84,6 +88,9 @@ func (g *stdGroup) FindEntry(ctx context.Context, name string) (*types.Metadata,
 	entry, err := g.store.FindEntry(ctx, g.entryID, name)
 	if err != nil {
 		return nil, err
+	}
+	if entry.Storage == externalStorage {
+		return entry, g.mgr.registerStubRoot(ctx, entry)
 	}
 	return entry, nil
 }
@@ -108,6 +115,10 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*type
 		return nil, err
 	}
 
+	if entry.Kind == types.ExternalGroupKind {
+		entry.Storage = externalStorage
+	}
+
 	err = g.store.CreateEntry(ctx, g.entryID, entry)
 	if err != nil {
 		return nil, err
@@ -117,7 +128,6 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*type
 	labels := attr.Labels
 	switch entry.Kind {
 	case types.ExternalGroupKind:
-		entry.Storage = externalStorage
 		if attr.PlugScope != nil {
 			if attr.PlugScope.Parameters == nil {
 				attr.PlugScope.Parameters = map[string]string{}
@@ -202,214 +212,186 @@ func (g *stdGroup) ListChildren(ctx context.Context) ([]*types.Metadata, error) 
 }
 
 type dynamicGroup struct {
-	*stdGroup
+	std       *stdGroup
+	rule      types.Rule
+	baseEntry int64
+	logger    *zap.SugaredLogger
+}
+
+func (d *dynamicGroup) FindEntry(ctx context.Context, name string) (*types.Metadata, error) {
+	children, err := d.ListChildren(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i, ch := range children {
+		if ch.Name == name {
+			return children[i], nil
+		}
+	}
+	return nil, types.ErrNotFound
+}
+
+func (d *dynamicGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*types.Metadata, error) {
+	return d.std.CreateEntry(ctx, attr)
+}
+
+func (d *dynamicGroup) UpdateEntry(ctx context.Context, entry *types.Metadata) error {
+	return d.std.UpdateEntry(ctx, entry)
+}
+
+func (d *dynamicGroup) RemoveEntry(ctx context.Context, entryID int64) error {
+	_, err := d.std.GetEntry(ctx, entryID)
+	if err != nil {
+		if errors.Is(err, types.ErrNotFound) {
+			// can not delete auto selected entry
+			return types.ErrNoPerm
+		}
+	}
+	return d.std.RemoveEntry(ctx, entryID)
+}
+
+func (d *dynamicGroup) ListChildren(ctx context.Context) ([]*types.Metadata, error) {
+	children, err := d.std.ListChildren(ctx)
+	if err != nil {
+		d.logger.Errorw("list static children failed", "err", err)
+		return nil, err
+	}
+	childrenMap := map[string]struct{}{}
+	for _, ch := range children {
+		childrenMap[ch.Name] = struct{}{}
+	}
+
+	dynamicChildren, err := rule.Q().Rule(d.rule).Results(ctx)
+	if err != nil {
+		d.logger.Errorw("list children with rule failed", "err", err)
+		return nil, err
+	}
+
+	for i, ch := range dynamicChildren {
+		if _, ok := childrenMap[ch.Name]; ok {
+			continue
+		}
+		children = append(children, dynamicChildren[i])
+	}
+	return children, nil
 }
 
 type extGroup struct {
-	mgr      Manager
-	stdGroup *stdGroup
-	mirror   plugin.MirrorPlugin
-	logger   *zap.SugaredLogger
+	entry  *StubEntry
+	mirror plugin.MirrorPlugin
+	logger *zap.SugaredLogger
 }
 
 func (e *extGroup) FindEntry(ctx context.Context, name string) (*types.Metadata, error) {
-	mirrorEn, err := e.mirror.FindEntry(ctx, name)
-	if err != nil && err != types.ErrNotFound {
+	children, err := e.ListChildren(ctx)
+	if err != nil {
 		return nil, err
 	}
-
-	en, err := e.stdGroup.FindEntry(ctx, name)
-	if err != nil && err != types.ErrNotFound {
-		return nil, err
+	for i, ch := range children {
+		if ch.Name == name {
+			return children[i], nil
+		}
 	}
-	return e.syncEntry(ctx, mirrorEn, en)
+	return nil, types.ErrNotFound
 }
 
 func (e *extGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*types.Metadata, error) {
-	mirrorEn, err := e.mirror.CreateEntry(ctx, pluginapi.EntryAttr{
+	mirrorEn, err := e.mirror.CreateEntry(ctx, e.entry.path, pluginapi.EntryAttr{
 		Name: attr.Name,
 		Kind: attr.Kind,
 	})
 	if err != nil {
 		return nil, err
 	}
-	en, err := e.stdGroup.FindEntry(ctx, attr.Name)
-	if err != nil && err != types.ErrNotFound {
-		return nil, err
-	}
-	return e.syncEntry(ctx, mirrorEn, en)
+	return e.entry.createChild(mirrorEn)
 }
 
 func (e *extGroup) UpdateEntry(ctx context.Context, entry *types.Metadata) error {
-	// query old and write back
-	entry, err := e.stdGroup.GetEntry(ctx, entry.ID)
-	if err != nil {
-		return err
-	}
+	entryPath := path.Join(e.entry.path, entry.Name)
 
-	mirrorEn, err := e.mirror.FindEntry(ctx, entry.Name)
+	// query old and write back
+	mirrorEn, err := e.mirror.GetEntry(ctx, entryPath)
 	if err != nil {
 		e.logger.Warnw("find entry in mirror plugin failed", "name", entry.Name, "err", err)
 		return err
 	}
 
 	mirrorEn.Size = entry.Size
-
-	err = e.mirror.UpdateEntry(ctx, mirrorEn)
+	err = e.mirror.UpdateEntry(ctx, entryPath, mirrorEn)
 	if err != nil {
 		e.logger.Warnw("update entry to mirror plugin failed", "name", entry.Name, "err", err)
 		return err
 	}
-
-	_, err = e.syncEntry(ctx, mirrorEn, entry)
-	return err
-}
-
-func (e *extGroup) RemoveEntry(ctx context.Context, entryId int64) error {
-	entry, err := e.stdGroup.GetEntry(ctx, entryId)
+	err = e.entry.updateChild(mirrorEn)
 	if err != nil {
-		return err
-	}
-
-	mirrorEn, err := e.mirror.FindEntry(ctx, entry.Name)
-	if err != nil {
-		return err
-	}
-
-	err = e.mirror.RemoveEntry(ctx, mirrorEn)
-	if err != nil {
-		return err
-	}
-
-	_, err = e.syncEntry(ctx, nil, entry)
-	if err != nil {
-		if err == types.ErrNotFound {
-			return nil
-		}
+		e.logger.Warnw("update ext entry indexer failed", "name", entry.Name, "err", err)
 		return err
 	}
 	return nil
 }
 
+func (e *extGroup) RemoveEntry(ctx context.Context, entryId int64) error {
+	child, err := e.entry.root.GetStubEntry(entryId)
+	if err != nil {
+		return err
+	}
+	if child.parent != e.entry.id {
+		return types.ErrNotFound
+	}
+
+	err = e.mirror.RemoveEntry(ctx, child.path)
+	if err != nil {
+		return err
+	}
+
+	return e.entry.removeChild(entryId)
+}
+
 func (e *extGroup) ListChildren(ctx context.Context) ([]*types.Metadata, error) {
-	recordChild, err := e.stdGroup.ListChildren(ctx)
+	actualChild, err := e.mirror.ListChildren(ctx, e.entry.path)
 	if err != nil {
 		return nil, err
 	}
-	actualChild, err := e.mirror.ListChildren(ctx)
-	if err != nil {
-		return nil, err
-	}
+	recordChild := e.entry.listChildren()
 
 	recordChildMap := make(map[string]*types.Metadata)
 	actualChildMap := make(map[string]*pluginapi.Entry)
-	for i := range recordChild {
-		recordChildMap[recordChild[i].Name] = recordChild[i]
+	for i, ch := range recordChild {
+		recordChildMap[ch.Name] = recordChild[i]
 	}
-	for i := range actualChild {
-		actualChildMap[actualChild[i].Name] = actualChild[i]
+	for i, ch := range actualChild {
+		actualChildMap[ch.Name] = actualChild[i]
 	}
 
 	result := make([]*types.Metadata, 0, len(actualChild))
 	for k := range actualChildMap {
-		en, err := e.syncEntry(ctx, actualChildMap[k], recordChildMap[k])
-		if err != nil && err != types.ErrNotFound {
-			return nil, err
-		}
-		if en != nil {
+		record := recordChildMap[k]
+		if record == nil {
+			// create
+			en, err := e.entry.createChild(actualChildMap[k])
+			if err != nil {
+				return nil, err
+			}
 			result = append(result, en)
+			continue
 		}
-		delete(actualChildMap, k)
-		delete(recordChildMap, k)
-	}
 
-	for k := range recordChildMap {
-		_, err = e.syncEntry(ctx, nil, recordChildMap[k])
-		if err != nil && err != types.ErrNotFound {
-			return nil, err
-		}
-	}
-	return result, nil
-}
-
-func (e *extGroup) syncEntry(ctx context.Context, mirrored *pluginapi.Entry, crt *types.Metadata) (en *types.Metadata, err error) {
-	grp, err := e.stdGroup.GetEntry(ctx, e.stdGroup.entryID)
-	if err != nil {
-		return nil, err
-	}
-	grpEd, err := e.mgr.GetEntryExtendData(ctx, e.stdGroup.entryID)
-	if err != nil {
-		return
-	}
-	if grpEd.PlugScope == nil {
-		err = fmt.Errorf("not ext group")
-		return
-	}
-
-	if mirrored != nil && crt != nil && mirrored.IsGroup != types.IsGroup(crt.Kind) {
-		// FIXME
-		return nil, fmt.Errorf("entry and mirrored entry incorrect")
-	}
-
-	if mirrored == nil {
-		err = types.ErrNotFound
-		if crt != nil {
-			// clean
-			_ = e.stdGroup.store.RemoveEntry(ctx, grp.ID, crt.ID)
-		}
-		return nil, err
-	}
-
-	if crt == nil {
-		// create mirror record
-		var (
-			newEn   *types.Metadata
-			newEnEd types.ExtendData
-		)
-		newEn, err = types.InitNewEntry(grp, types.EntryAttr{
-			Name: mirrored.Name,
-			Kind: mirrored.Kind,
-		})
+		// update
+		err = e.entry.updateChild(actualChildMap[k])
 		if err != nil {
 			return nil, err
 		}
 
-		newEn.Storage = externalStorage
-
-		newEnEd.PlugScope = &types.PlugScope{
-			PluginName: grpEd.PlugScope.PluginName,
-			Version:    grpEd.PlugScope.Version,
-			PluginType: grpEd.PlugScope.PluginType,
-			Parameters: map[string]string{},
-		}
-		if mirrored.Parameters != nil {
-			for k, v := range mirrored.Parameters {
-				newEnEd.PlugScope.Parameters[k] = v
-			}
-		}
-		for k, v := range grpEd.PlugScope.Parameters {
-			newEnEd.PlugScope.Parameters[k] = v
-		}
-		newEnEd.PlugScope.Parameters[types.PlugScopeEntryName] = mirrored.Name
-		newEnEd.PlugScope.Parameters[types.PlugScopeEntryPath] = path.Join(grpEd.PlugScope.Parameters[types.PlugScopeEntryPath], mirrored.Name)
-
-		if err = e.stdGroup.store.CreateEntry(ctx, grp.ID, newEn); err != nil {
+		en, err := e.entry.findChild(actualChildMap[k].Name)
+		if err != nil {
 			return nil, err
 		}
-
-		if err = e.stdGroup.store.UpdateEntryExtendData(ctx, newEn.ID, newEnEd); err != nil {
-			_ = e.stdGroup.store.RemoveEntry(ctx, grp.ID, newEn.ID)
-			return nil, err
-		}
-		en = newEn
-		return
+		result = append(result, en)
+		delete(recordChildMap, k)
 	}
 
-	// update mirror record
-	crt.Size = mirrored.Size
-	if err = e.stdGroup.store.UpdateEntryMetadata(ctx, crt); err != nil {
-		return nil, err
+	for _, ch := range recordChildMap {
+		e.entry.root.RemoveStubEntry(ch.ID)
 	}
-	en = crt
-	return
+	return result, nil
 }
