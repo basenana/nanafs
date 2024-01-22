@@ -554,14 +554,29 @@ func (m *manager) OpenGroup(ctx context.Context, groupId int64) (Group, error) {
 	)
 	switch entry.Kind {
 	case types.SmartGroupKind:
-		grp = &dynamicGroup{stdGroup: stdGrp}
+		ed, err := m.GetEntryExtendData(ctx, groupId)
+		if err != nil {
+			m.logger.Errorw("query dynamic group extend data failed", "err", err)
+			return nil, err
+		}
+		if ed.GroupFilter != nil {
+			grp = &dynamicGroup{
+				std:       stdGrp,
+				rule:      *ed.GroupFilter,
+				baseEntry: groupId,
+				logger:    logger.NewLogger("dynamicGroup").With(zap.Int64("group", groupId)),
+			}
+		} else {
+			m.logger.Warnw("dynamic group not filter config", "entry", entry.ID)
+			grp = emptyGroup{}
+		}
 	case types.ExternalGroupKind:
 		stubEntry, _ := m.extIndexer.GetStubEntry(groupId)
 		if stubEntry != nil {
 			grp = &extGroup{
 				entry:  stubEntry,
 				mirror: stubEntry.root.mirror,
-				logger: logger.NewLogger("extLogger").With(zap.Int64("group", groupId)),
+				logger: logger.NewLogger("extGroup").With(zap.Int64("group", groupId)),
 			}
 		} else {
 			m.logger.Warnw("external group not indexed", "entry", entry.ID)

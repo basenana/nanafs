@@ -19,6 +19,7 @@ package dentry
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/plugin/buildin"
+	"github.com/basenana/nanafs/pkg/rule"
 	"os"
 	"testing"
 
@@ -71,6 +72,10 @@ var _ = BeforeSuite(func() {
 		config.Storage{ID: storage.MemoryStorage, Type: storage.MemoryStorage},
 	)
 	Expect(err).Should(BeNil())
+
+	// init rule based query
+	rule.InitQuery(memMeta)
+
 	entryMgr = &manager{
 		store:      metaStoreObj,
 		metastore:  metaStoreObj,

@@ -18,10 +18,12 @@ package dentry
 
 import (
 	"context"
+	"errors"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
+	"github.com/basenana/nanafs/pkg/rule"
 	"github.com/basenana/nanafs/pkg/types"
 	"go.uber.org/zap"
 	"path"
@@ -74,6 +76,9 @@ func (g *stdGroup) GetEntry(ctx context.Context, entryID int64) (*types.Metadata
 	entry, err := g.store.GetEntry(ctx, entryID)
 	if err != nil {
 		return nil, err
+	}
+	if entry.ParentID != g.entryID {
+		return nil, types.ErrNotFound
 	}
 	return entry, nil
 }
@@ -207,7 +212,68 @@ func (g *stdGroup) ListChildren(ctx context.Context) ([]*types.Metadata, error) 
 }
 
 type dynamicGroup struct {
-	*stdGroup
+	std       *stdGroup
+	rule      types.Rule
+	baseEntry int64
+	logger    *zap.SugaredLogger
+}
+
+func (d *dynamicGroup) FindEntry(ctx context.Context, name string) (*types.Metadata, error) {
+	children, err := d.ListChildren(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i, ch := range children {
+		if ch.Name == name {
+			return children[i], nil
+		}
+	}
+	return nil, types.ErrNotFound
+}
+
+func (d *dynamicGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*types.Metadata, error) {
+	return d.std.CreateEntry(ctx, attr)
+}
+
+func (d *dynamicGroup) UpdateEntry(ctx context.Context, entry *types.Metadata) error {
+	return d.std.UpdateEntry(ctx, entry)
+}
+
+func (d *dynamicGroup) RemoveEntry(ctx context.Context, entryID int64) error {
+	_, err := d.std.GetEntry(ctx, entryID)
+	if err != nil {
+		if errors.Is(err, types.ErrNotFound) {
+			// can not delete auto selected entry
+			return types.ErrNoPerm
+		}
+	}
+	return d.std.RemoveEntry(ctx, entryID)
+}
+
+func (d *dynamicGroup) ListChildren(ctx context.Context) ([]*types.Metadata, error) {
+	children, err := d.std.ListChildren(ctx)
+	if err != nil {
+		d.logger.Errorw("list static children failed", "err", err)
+		return nil, err
+	}
+	childrenMap := map[string]struct{}{}
+	for _, ch := range children {
+		childrenMap[ch.Name] = struct{}{}
+	}
+
+	dynamicChildren, err := rule.Q().Rule(d.rule).Results(ctx)
+	if err != nil {
+		d.logger.Errorw("list children with rule failed", "err", err)
+		return nil, err
+	}
+
+	for i, ch := range dynamicChildren {
+		if _, ok := childrenMap[ch.Name]; ok {
+			continue
+		}
+		children = append(children, dynamicChildren[i])
+	}
+	return children, nil
 }
 
 type extGroup struct {

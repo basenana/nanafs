@@ -116,6 +116,101 @@ var _ = Describe("TestManageGroupEntry", func() {
 	})
 })
 
+var _ = Describe("TestDynamicGroupEntry", func() {
+	var (
+		ctx      = context.TODO()
+		smtGrp   Group
+		smtGrpEn *types.Metadata
+		err      error
+	)
+	Context("init source group", func() {
+		var srcGrpEn *types.Metadata
+		It("init source group should be succeed", func() {
+			srcGrpEn, err = entryManager.CreateEntry(ctx, root.ID, types.EntryAttr{
+				Name:   "test_dynamic_source_group",
+				Kind:   types.GroupKind,
+				Access: accessPermissions,
+			})
+			Expect(err).Should(BeNil())
+			Expect(srcGrpEn).ShouldNot(BeNil())
+		})
+		It("fill target file to source group should be succeed", func() {
+			_, err = entryManager.CreateEntry(ctx, srcGrpEn.ID, types.EntryAttr{
+				Name:   "filter-target-file-1.txt",
+				Kind:   types.RawKind,
+				Access: accessPermissions,
+				Labels: types.Labels{
+					Labels: []types.Label{
+						{Key: "test.filter.key1", Value: "test.filter.val1"},
+						{Key: "test.filter.key2", Value: "test.filter.val1"},
+					},
+				},
+			})
+			Expect(err).Should(BeNil())
+			_, err = entryManager.CreateEntry(ctx, srcGrpEn.ID, types.EntryAttr{
+				Name:   "filter-target-file-2.txt",
+				Kind:   types.RawKind,
+				Access: accessPermissions,
+				Labels: types.Labels{
+					Labels: []types.Label{
+						{Key: "test.filter.key1", Value: "test.filter.val2"},
+						{Key: "test.filter.key2", Value: "test.filter.val2"},
+					},
+				},
+			})
+			Expect(err).Should(BeNil())
+			_, err = entryManager.CreateEntry(ctx, srcGrpEn.ID, types.EntryAttr{
+				Name:   "filter-target-file-3.txt",
+				Kind:   types.RawKind,
+				Access: accessPermissions,
+				Labels: types.Labels{
+					Labels: []types.Label{
+						{Key: "test.filter.key1", Value: "test.filter.val1"},
+						{Key: "test.filter.key2", Value: "test.filter.val3"},
+					},
+				},
+			})
+			Expect(err).Should(BeNil())
+			_, err = entryManager.CreateEntry(ctx, srcGrpEn.ID, types.EntryAttr{
+				Name:   "filter-target-file-4.txt",
+				Kind:   types.RawKind,
+				Access: accessPermissions,
+				Labels: types.Labels{Labels: []types.Label{}},
+			})
+			Expect(err).Should(BeNil())
+		})
+	})
+	Context("init dynamic group", func() {
+		It("init smart group should be succeed", func() {
+			var err error
+			smtGrpEn, err = entryManager.CreateEntry(ctx, root.ID, types.EntryAttr{
+				Name:   "test_dynamic_group",
+				Kind:   types.SmartGroupKind,
+				Access: accessPermissions,
+				GroupFilter: &types.Rule{
+					Logic: types.RuleLogicAny,
+					Rules: []types.Rule{
+						{Labels: &types.LabelMatch{Include: []types.Label{{Key: "test.filter.key1", Value: "test.filter.val1"}}}},
+						{Labels: &types.LabelMatch{Include: []types.Label{{Key: "test.filter.key2", Value: "test.filter.val2"}}}},
+					},
+				},
+			})
+			Expect(err).Should(BeNil())
+			Expect(smtGrpEn).ShouldNot(BeNil())
+		})
+
+		It("list smart group should be succeed", func() {
+			smtGrp, err = entryManager.OpenGroup(ctx, smtGrpEn.ID)
+			Expect(err).Should(BeNil())
+			Expect(smtGrp).ShouldNot(BeNil())
+
+			children, err := smtGrp.ListChildren(ctx)
+			Expect(err).Should(BeNil())
+			Expect(len(children)).ShouldNot(Equal(3))
+		})
+	})
+})
+
 var _ = Describe("TestExtGroupEntry", func() {
 	var (
 		extGrp       Group
