@@ -1,0 +1,224 @@
+syntax = "proto3";
+
+package api.v1;
+
+option go_package = "github.com/basenana/nanafs/cmd/apps/apis/fsapi/v1";
+
+import "google/protobuf/timestamp.proto";
+
+service Inbox {
+  rpc QuickInbox (QuickInboxRequest) returns (QuickInboxResponse) {}
+}
+
+message QuickInboxRequest {
+  enum SourceType {URL = 0;}
+
+  SourceType sourceType = 1;
+  string url = 2;
+  string fileType = 3;
+
+  // url source
+  bool clutterFree = 10;
+}
+
+message QuickInboxResponse {
+  int64 entryID = 1;
+  string jobID = 2;
+}
+
+service Entries {
+  rpc GetEntryDetail (GetEntryDetailRequest) returns (GetEntryDetailResponse) {}
+  rpc CreateEntry (CreateEntryRequest) returns (CreateEntryResponse) {}
+  rpc UpdateEntry (UpdateEntryRequest) returns (UpdateEntryResponse) {}
+  rpc DeleteEntry (DeleteEntryRequest) returns (DeleteEntryResponse) {}
+  rpc GetGroupTree (GetGroupTreeRequest) returns (GetGroupTreeResponse) {}
+  rpc ListGroupChildren (ListGroupChildrenRequest) returns (ListGroupChildrenResponse) {}
+  rpc WriteFile (WriteFileRequest) returns (WriteFileResponse) {}
+  rpc ReadFile (ReadFileRequest) returns (ReadFileResponse) {}
+}
+
+message GetEntryDetailRequest {
+  int64 EntryID = 1;
+}
+
+message GetEntryDetailResponse {
+  EntryDetail entry = 1;
+}
+
+message CreateEntryRequest {
+  string  name = 1;
+  EntryKind kind = 2;
+}
+
+message CreateEntryResponse {
+  EntryInfo entry = 1;
+}
+
+message UpdateEntryRequest {
+  EntryDetail entry = 1;
+}
+message UpdateEntryResponse {
+  EntryDetail entry = 1;
+}
+
+message DeleteEntryRequest {
+  int64 entryID = 1;
+}
+message DeleteEntryResponse {
+  EntryDetail entry = 1;
+}
+
+message GetGroupTreeRequest {
+  int64 parentID = 1;
+}
+
+message GetGroupTreeResponse {
+  message Group {
+    EntryInfo Entry = 1;
+    repeated Group subGroups = 2;
+  }
+  Group group = 1;
+}
+
+message ListGroupChildrenRequest {
+  int64 parentID = 1;
+}
+message ListGroupChildrenResponse {
+  repeated EntryInfo entries = 1;
+}
+
+message WriteFileRequest {
+  int64 off = 1;
+  int64 len = 2;
+  bytes data = 3;
+}
+
+message WriteFileResponse {
+  int64 len = 1;
+}
+
+message ReadFileRequest {
+  int64 off = 1;
+  int64 len = 2;
+}
+
+message ReadFileResponse {
+  int64 off = 1;
+  int64 len = 2;
+  bytes data = 3;
+}
+
+service Properties {
+  rpc AddProperty (AddPropertyRequest) returns (AddPropertyResponse) {}
+  rpc UpdateProperty (UpdatePropertyRequest) returns (UpdatePropertyResponse) {}
+  rpc DeleteProperty (DeletePropertyRequest) returns (DeletePropertyResponse) {}
+}
+
+message AddPropertyRequest {}
+message AddPropertyResponse {}
+
+message UpdatePropertyRequest {}
+message UpdatePropertyResponse {}
+
+message DeletePropertyRequest {}
+message DeletePropertyResponse {}
+
+service Document {
+  rpc ListDocuments (ListDocumentsRequest) returns (ListDocumentsResponse) {}
+  rpc GetDocumentDetail (GetDocumentDetailRequest) returns (GetDocumentDetailResponse) {}
+}
+
+message ListDocumentsRequest {
+  bool listAll = 1;
+  int64 parentID = 2;
+  bool marked = 3;
+  bool unread = 4;
+}
+
+message ListDocumentsResponse {
+  repeated DocumentInfo documents = 1;
+}
+
+message GetDocumentDetailRequest {
+  int64 documentID = 1;
+}
+
+message GetDocumentDetailResponse {
+  DocumentDescribe document = 1;
+}
+
+message DocumentInfo {
+  int64 id = 1;
+  string name = 2;
+  int64 entryID = 3;
+  int64 parentEntryID = 4;
+  string source = 5;
+  bool marked = 6;
+  bool unread = 7;
+  google.protobuf.Timestamp createdAt = 30;
+  google.protobuf.Timestamp changedAt = 31;
+}
+
+message DocumentDescribe {
+  int64 id = 1;
+  string name = 2;
+  int64 entryID = 3;
+  int64 parentEntryID = 4;
+  string source = 5;
+  bool marked = 6;
+  bool unread = 7;
+
+  string htmlContent = 10;
+  repeated string keyWords = 11;
+  string summary = 12;
+
+  google.protobuf.Timestamp createdAt = 30;
+  google.protobuf.Timestamp changedAt = 31;
+}
+
+enum EntryKind {
+  RawKind = 0;
+  GroupKind = 1;
+  SmartGroupKind = 2;
+  FIFOKind = 10;
+  SocketKind = 11;
+  SymLinkKind = 12;
+  BlkDevKind = 13;
+  CharDevKind = 14;
+  ExternalGroupKind = 20;
+}
+
+message EntryInfo {
+  int64 id = 1;
+  string name = 2;
+  EntryKind kind = 3;
+  google.protobuf.Timestamp createdAt = 30;
+  google.protobuf.Timestamp changedAt = 31;
+  google.protobuf.Timestamp modifiedAt = 32;
+  google.protobuf.Timestamp accessAt = 33;
+}
+
+message EntryDetail {
+
+  message Access  {
+    int64 uid = 1;
+    int64 gid = 2;
+    repeated string permissions = 3;
+  }
+
+  int64 id = 1;
+  string name = 2;
+  string aliases = 3;
+  EntryInfo parent = 4;
+  EntryKind kind = 5;
+  int64 kindMap = 6;
+  int64 size = 10;
+  int64 version = 11;
+  string namespace = 12;
+  string storage = 13;
+  Access access = 14;
+  google.protobuf.Timestamp createdAt = 30;
+  google.protobuf.Timestamp changedAt = 31;
+  google.protobuf.Timestamp modifiedAt = 32;
+  google.protobuf.Timestamp accessAt = 33;
+}
