@@ -94,8 +94,14 @@ func initDefaultConfig() {
 		CacheDir:  cacheDir,
 		CacheSize: 10,
 		Debug:     false,
-		Api: config.Api{
-			Enable: true,
+		FsApi: config.FsApi{
+			Enable:  true,
+			Host:    "127.0.0.1",
+			Port:    7080,
+			Metrics: false,
+		},
+		HttpApi: config.HttpApi{
+			Enable: false,
 			Host:   "127.0.0.1",
 			Port:   7081,
 			Pprof:  false,

@@ -21,9 +21,10 @@ import (
 )
 
 type Config struct {
-	Api    Api     `json:"api"`
-	FUSE   FUSE    `json:"fuse"`
-	Webdav *Webdav `json:"webdav,omitempty"`
+	FsApi   FsApi   `json:"fs_api"`
+	HttpApi HttpApi `json:"http_api"`
+	FUSE    FUSE    `json:"fuse"`
+	Webdav  *Webdav `json:"webdav,omitempty"`
 
 	Meta             Meta       `json:"meta"`
 	Storages         []Storage  `json:"storages"`
@@ -40,11 +41,18 @@ type Config struct {
 	Debug     bool   `json:"debug,omitempty"`
 }
 
-type Api struct {
+type HttpApi struct {
 	Enable  bool   `json:"enable"`
 	Host    string `json:"host"`
 	Port    int    `json:"port"`
 	Pprof   bool   `json:"pprof"`
+	Metrics bool   `json:"metrics"`
+}
+
+type FsApi struct {
+	Enable  bool   `json:"enable"`
+	Host    string `json:"host"`
+	Port    int    `json:"port"`
 	Metrics bool   `json:"metrics"`
 }
 

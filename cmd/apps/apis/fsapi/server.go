@@ -15,3 +15,58 @@
 */
 
 package fsapi
+
+import (
+	"fmt"
+	v1 "github.com/basenana/nanafs/cmd/apps/apis/fsapi/v1"
+	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
+	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/controller"
+	"github.com/basenana/nanafs/utils/logger"
+	"google.golang.org/grpc"
+	"net"
+)
+
+type Server struct {
+	server   *grpc.Server
+	listener net.Listener
+	services v1.Services
+	cfg      config.FsApi
+}
+
+func (s *Server) Run(stopCh chan struct{}) {
+	if !s.cfg.Enable {
+		return
+	}
+
+	go func() {
+		<-stopCh
+		s.server.GracefulStop()
+	}()
+
+	if err := s.server.Serve(s.listener); err != nil {
+		logger.NewLogger("fsapi").Fatalf("start server failed: %s", err)
+	}
+}
+
+func New(ctrl controller.Controller, pathEntryMgr *pathmgr.PathManager, cfg config.FsApi) (*Server, error) {
+	if !cfg.Enable {
+		return nil, fmt.Errorf("fsapi not enabled")
+	}
+
+	var opts []grpc.ServerOption
+	l, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.Host, cfg.Port))
+	if err != nil {
+		return nil, fmt.Errorf("")
+	}
+	s := &Server{
+		listener: l,
+		server:   grpc.NewServer(opts...),
+		cfg:      cfg,
+	}
+	s.services, err = v1.InitServices(s.server, ctrl, pathEntryMgr)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
+}

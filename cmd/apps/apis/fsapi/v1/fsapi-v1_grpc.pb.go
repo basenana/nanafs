@@ -43,21 +43,19 @@ func (c *inboxClient) QuickInbox(ctx context.Context, in *QuickInboxRequest, opt
 }
 
 // InboxServer is the server API for Inbox service.
-// All implementations must embed UnimplementedInboxServer
+// All implementations should embed UnimplementedInboxServer
 // for forward compatibility
 type InboxServer interface {
 	QuickInbox(context.Context, *QuickInboxRequest) (*QuickInboxResponse, error)
-	mustEmbedUnimplementedInboxServer()
 }
 
-// UnimplementedInboxServer must be embedded to have forward compatible implementations.
+// UnimplementedInboxServer should be embedded to have forward compatible implementations.
 type UnimplementedInboxServer struct {
 }
 
 func (UnimplementedInboxServer) QuickInbox(context.Context, *QuickInboxRequest) (*QuickInboxResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QuickInbox not implemented")
 }
-func (UnimplementedInboxServer) mustEmbedUnimplementedInboxServer() {}
 
 // UnsafeInboxServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to InboxServer will
@@ -199,7 +197,7 @@ func (c *entriesClient) ReadFile(ctx context.Context, in *ReadFileRequest, opts 
 }
 
 // EntriesServer is the server API for Entries service.
-// All implementations must embed UnimplementedEntriesServer
+// All implementations should embed UnimplementedEntriesServer
 // for forward compatibility
 type EntriesServer interface {
 	GetEntryDetail(context.Context, *GetEntryDetailRequest) (*GetEntryDetailResponse, error)
@@ -210,10 +208,9 @@ type EntriesServer interface {
 	ListGroupChildren(context.Context, *ListGroupChildrenRequest) (*ListGroupChildrenResponse, error)
 	WriteFile(context.Context, *WriteFileRequest) (*WriteFileResponse, error)
 	ReadFile(context.Context, *ReadFileRequest) (*ReadFileResponse, error)
-	mustEmbedUnimplementedEntriesServer()
 }
 
-// UnimplementedEntriesServer must be embedded to have forward compatible implementations.
+// UnimplementedEntriesServer should be embedded to have forward compatible implementations.
 type UnimplementedEntriesServer struct {
 }
 
@@ -241,7 +238,6 @@ func (UnimplementedEntriesServer) WriteFile(context.Context, *WriteFileRequest) 
 func (UnimplementedEntriesServer) ReadFile(context.Context, *ReadFileRequest) (*ReadFileResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReadFile not implemented")
 }
-func (UnimplementedEntriesServer) mustEmbedUnimplementedEntriesServer() {}
 
 // UnsafeEntriesServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to EntriesServer will
@@ -487,16 +483,15 @@ func (c *propertiesClient) DeleteProperty(ctx context.Context, in *DeletePropert
 }
 
 // PropertiesServer is the server API for Properties service.
-// All implementations must embed UnimplementedPropertiesServer
+// All implementations should embed UnimplementedPropertiesServer
 // for forward compatibility
 type PropertiesServer interface {
 	AddProperty(context.Context, *AddPropertyRequest) (*AddPropertyResponse, error)
 	UpdateProperty(context.Context, *UpdatePropertyRequest) (*UpdatePropertyResponse, error)
 	DeleteProperty(context.Context, *DeletePropertyRequest) (*DeletePropertyResponse, error)
-	mustEmbedUnimplementedPropertiesServer()
 }
 
-// UnimplementedPropertiesServer must be embedded to have forward compatible implementations.
+// UnimplementedPropertiesServer should be embedded to have forward compatible implementations.
 type UnimplementedPropertiesServer struct {
 }
 
@@ -509,7 +504,6 @@ func (UnimplementedPropertiesServer) UpdateProperty(context.Context, *UpdateProp
 func (UnimplementedPropertiesServer) DeleteProperty(context.Context, *DeletePropertyRequest) (*DeletePropertyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteProperty not implemented")
 }
-func (UnimplementedPropertiesServer) mustEmbedUnimplementedPropertiesServer() {}
 
 // UnsafePropertiesServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to PropertiesServer will
@@ -635,15 +629,14 @@ func (c *documentClient) GetDocumentDetail(ctx context.Context, in *GetDocumentD
 }
 
 // DocumentServer is the server API for Document service.
-// All implementations must embed UnimplementedDocumentServer
+// All implementations should embed UnimplementedDocumentServer
 // for forward compatibility
 type DocumentServer interface {
 	ListDocuments(context.Context, *ListDocumentsRequest) (*ListDocumentsResponse, error)
 	GetDocumentDetail(context.Context, *GetDocumentDetailRequest) (*GetDocumentDetailResponse, error)
-	mustEmbedUnimplementedDocumentServer()
 }
 
-// UnimplementedDocumentServer must be embedded to have forward compatible implementations.
+// UnimplementedDocumentServer should be embedded to have forward compatible implementations.
 type UnimplementedDocumentServer struct {
 }
 
@@ -653,7 +646,6 @@ func (UnimplementedDocumentServer) ListDocuments(context.Context, *ListDocuments
 func (UnimplementedDocumentServer) GetDocumentDetail(context.Context, *GetDocumentDetailRequest) (*GetDocumentDetailResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDocumentDetail not implemented")
 }
-func (UnimplementedDocumentServer) mustEmbedUnimplementedDocumentServer() {}
 
 // UnsafeDocumentServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to DocumentServer will

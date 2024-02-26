@@ -19,6 +19,7 @@ package apis
 import (
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/cmd/apps/apis/fsapi"
 	"net/http"
 	"time"
 
@@ -42,7 +43,7 @@ const (
 
 type Server struct {
 	engine    *gin.Engine
-	apiConfig config.Api
+	apiConfig config.HttpApi
 	logger    *zap.SugaredLogger
 }
 
@@ -83,15 +84,7 @@ func NewPathEntryManager(ctrl controller.Controller) (*pathmgr.PathManager, erro
 	return pathmgr.New(ctrl)
 }
 
-func NewApiServer(ctrl controller.Controller, mgr *pathmgr.PathManager, cfg config.Config) (*Server, error) {
-	apiConfig := cfg.Api
-	if apiConfig.Enable && apiConfig.Port == 0 {
-		return nil, fmt.Errorf("http port not set")
-	}
-	if apiConfig.Enable && apiConfig.Host == "" {
-		cfg.Api.Host = "127.0.0.1"
-	}
-
+func NewHttpApiServer(ctrl controller.Controller, mgr *pathmgr.PathManager, apiConfig config.HttpApi) (*Server, error) {
 	docAPIServer := apifeed.NewDocumentAPIServer(ctrl)
 	s := &Server{
 		engine:    gin.New(),
@@ -116,9 +109,31 @@ func NewApiServer(ctrl controller.Controller, mgr *pathmgr.PathManager, cfg conf
 	return s, nil
 }
 
-func NewWebdavServer(mgr *pathmgr.PathManager, cfg config.Config) (*webdav.Webdav, error) {
-	if cfg.Webdav == nil || !cfg.Webdav.Enable {
-		return nil, fmt.Errorf("webdav not enable")
+func Setup(ctrl controller.Controller, pathEntryMgr *pathmgr.PathManager, cfg config.Config, stopCh chan struct{}) error {
+
+	if cfg.FsApi.Enable {
+		s, err := fsapi.New(ctrl, pathEntryMgr, cfg.FsApi)
+		if err != nil {
+			return fmt.Errorf("init fsapi server failed: %w", err)
+		}
+		go s.Run(stopCh)
 	}
-	return webdav.NewWebdavServer(mgr, *cfg.Webdav)
+
+	if cfg.HttpApi.Enable {
+		s, err := NewHttpApiServer(ctrl, pathEntryMgr, cfg.HttpApi)
+		if err != nil {
+			return fmt.Errorf("init http server failed: %w", err)
+		}
+		go s.Run(stopCh)
+	}
+
+	if cfg.Webdav != nil && cfg.Webdav.Enable {
+		w, err := webdav.NewWebdavServer(pathEntryMgr, *cfg.Webdav)
+		if err != nil {
+			return fmt.Errorf("init webdav server failed: %w", err)
+		}
+		go w.Run(stopCh)
+	}
+
+	return nil
 }
