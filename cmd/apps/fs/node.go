@@ -149,7 +149,7 @@ func (n *NanaNode) Getxattr(ctx context.Context, attr string, dest []byte) (uint
 func (n *NanaNode) Setxattr(ctx context.Context, attr string, data []byte, flags uint32) syscall.Errno {
 	defer trace.StartRegion(ctx, "fs.node.Setxattr").End()
 	defer logOperationLatency("entry_set_xattr", time.Now())
-	if err := n.R.SetEntryExtendField(ctx, n.entryID, attr, data); err != nil {
+	if err := n.R.SetEntryEncodedExtendField(ctx, n.entryID, attr, data); err != nil {
 		return Error2FuseSysError("entry_set_xattr", err)
 	}
 	return NoErr

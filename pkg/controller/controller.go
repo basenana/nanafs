@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/friday"
+	"github.com/basenana/nanafs/pkg/inbox"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"runtime/trace"
@@ -52,10 +53,13 @@ type Controller interface {
 	ChangeEntryParent(ctx context.Context, targetId, oldParentId, newParentId int64, newName string, opt types.ChangeParentAttr) error
 
 	GetEntryExtendField(ctx context.Context, id int64, fKey string) ([]byte, error)
-	SetEntryExtendField(ctx context.Context, id int64, fKey string, fVal []byte) error
+	SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string) error
+	SetEntryEncodedExtendField(ctx context.Context, id int64, fKey string, fVal []byte) error
 	RemoveEntryExtendField(ctx context.Context, id int64, fKey string) error
 	ConfigEntrySourcePlugin(ctx context.Context, id int64, scope types.ExtendData) error
 	CleanupEntrySourcePlugin(ctx context.Context, id int64) error
+
+	QuickInbox(ctx context.Context, option inbox.Option) (*types.Metadata, error)
 
 	EnableGroupFeed(ctx context.Context, id int64, feedID string) error
 	DisableGroupFeed(ctx context.Context, id int64) error
@@ -82,6 +86,7 @@ type controller struct {
 	notify   *notify.Notify
 	workflow workflow.Manager
 	document document.Manager
+	inbox    *inbox.Inbox
 
 	logger *zap.SugaredLogger
 }
@@ -303,6 +308,10 @@ func (c *controller) ChangeEntryParent(ctx context.Context, targetId, oldParentI
 		return err
 	}
 	return nil
+}
+
+func (c *controller) QuickInbox(ctx context.Context, option inbox.Option) (*types.Metadata, error) {
+	return c.inbox.QuickInbox(ctx, option)
 }
 
 func New(loader config.Loader, meta metastore.Meta) (Controller, error) {

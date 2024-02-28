@@ -18,11 +18,18 @@ package v1
 
 import (
 	"context"
+	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
 	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
 	"github.com/basenana/nanafs/pkg/controller"
+	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/inbox"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"io"
 )
 
 type Services interface {
@@ -65,23 +72,83 @@ func (s *services) GetDocumentDetail(ctx context.Context, request *GetDocumentDe
 }
 
 func (s *services) GetEntryDetail(ctx context.Context, request *GetEntryDetailRequest) (*GetEntryDetailResponse, error) {
-	//TODO implement me
-	panic("implement me")
+	en, err := s.ctrl.GetEntry(ctx, request.EntryID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "query entry failed")
+	}
+
+	p, err := s.ctrl.GetEntry(ctx, en.ParentID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "query entry parent failed")
+	}
+
+	return &GetEntryDetailResponse{Entry: entryDetail(en, p)}, nil
 }
 
 func (s *services) CreateEntry(ctx context.Context, request *CreateEntryRequest) (*CreateEntryResponse, error) {
-	//TODO implement me
-	panic("implement me")
+	if request.ParentID == 0 {
+		return nil, status.Error(codes.InvalidArgument, "parent id is 0")
+	}
+	if len(request.Name) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "entry name is empty")
+	}
+	if request.Kind == EntryKind_UnknownKind {
+		return nil, status.Error(codes.InvalidArgument, "entry has unknown kind")
+	}
+
+	parent, err := s.ctrl.GetEntry(ctx, request.ParentID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "query entry parent failed")
+	}
+
+	en, err := s.ctrl.CreateEntry(ctx, request.ParentID, types.EntryAttr{
+		Name:   request.Name,
+		Kind:   pdKind2EntryKind(request.Kind),
+		Access: &parent.Access,
+		Dev:    parent.Dev,
+	})
+	return &CreateEntryResponse{Entry: entryInfo(en)}, nil
 }
 
 func (s *services) UpdateEntry(ctx context.Context, request *UpdateEntryRequest) (*UpdateEntryResponse, error) {
-	//TODO implement me
-	panic("implement me")
+	if request.Entry.Id == 0 {
+		return nil, status.Error(codes.InvalidArgument, "entry id is 0")
+	}
+	en, err := s.ctrl.GetEntry(ctx, request.Entry.Id)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "query entry failed")
+	}
+
+	parent, err := s.ctrl.GetEntry(ctx, en.ParentID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "query entry parent failed")
+	}
+
+	// TODO: do update
+
+	err = s.ctrl.UpdateEntry(ctx, en)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "update entry failed")
+	}
+	return &UpdateEntryResponse{Entry: entryDetail(en, parent)}, nil
 }
 
 func (s *services) DeleteEntry(ctx context.Context, request *DeleteEntryRequest) (*DeleteEntryResponse, error) {
-	//TODO implement me
-	panic("implement me")
+	en, err := s.ctrl.GetEntry(ctx, request.EntryID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "query entry failed")
+	}
+
+	parent, err := s.ctrl.GetEntry(ctx, en.ParentID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "query entry parent failed")
+	}
+
+	err = s.ctrl.DestroyEntry(ctx, parent.ParentID, en.ID, types.DestroyObjectAttr{Uid: 0, Gid: 0})
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "delete entry failed")
+	}
+	return &DeleteEntryResponse{Entry: entryDetail(en, parent)}, nil
 }
 
 func (s *services) GetGroupTree(ctx context.Context, request *GetGroupTreeRequest) (*GetGroupTreeResponse, error) {
@@ -90,36 +157,149 @@ func (s *services) GetGroupTree(ctx context.Context, request *GetGroupTreeReques
 }
 
 func (s *services) ListGroupChildren(ctx context.Context, request *ListGroupChildrenRequest) (*ListGroupChildrenResponse, error) {
-	//TODO implement me
-	panic("implement me")
+	children, err := s.ctrl.ListEntryChildren(ctx, request.ParentID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "list children failed")
+	}
+
+	resp := &ListGroupChildrenResponse{}
+	for _, en := range children {
+		resp.Entries = append(resp.Entries, entryInfo(en))
+	}
+	return resp, nil
 }
 
-func (s *services) WriteFile(ctx context.Context, request *WriteFileRequest) (*WriteFileResponse, error) {
-	//TODO implement me
-	panic("implement me")
+func (s *services) WriteFile(reader Entries_WriteFileServer) error {
+	var (
+		ctx       = reader.Context()
+		recvTotal int64
+		file      dentry.File
+	)
+
+	defer func() {
+		if file != nil {
+			_ = file.Close(context.TODO())
+		}
+	}()
+
+	for {
+		writeRequest, err := reader.Recv()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return err
+			}
+		}
+
+		if file == nil {
+			file, err = s.ctrl.OpenFile(ctx, writeRequest.EntryID, types.OpenAttr{Write: true})
+			if err != nil {
+				return status.Error(common.FsApiError(err), "open file failed")
+			}
+		}
+
+		_, err = file.WriteAt(ctx, writeRequest.Data[:writeRequest.Len], writeRequest.Off)
+		if err != nil {
+			return status.Error(common.FsApiError(err), "write file failed")
+		}
+		recvTotal += writeRequest.Len
+	}
+	return reader.SendAndClose(&WriteFileResponse{Len: recvTotal})
 }
 
-func (s *services) ReadFile(ctx context.Context, request *ReadFileRequest) (*ReadFileResponse, error) {
-	//TODO implement me
-	panic("implement me")
+func (s *services) ReadFile(request *ReadFileRequest, writer Entries_ReadFileServer) error {
+	var (
+		ctx           = writer.Context()
+		readOnce, off int64
+	)
+
+	file, err := s.ctrl.OpenFile(ctx, request.EntryID, types.OpenAttr{Read: true})
+	if err != nil {
+		return status.Error(common.FsApiError(err), "open file failed")
+	}
+
+	chunk := make([]byte, 1024)
+	for {
+		readOnce, err = file.ReadAt(ctx, chunk, off)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+
+		err = writer.Send(&ReadFileResponse{
+			Off:  off,
+			Len:  readOnce,
+			Data: chunk[:readOnce],
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *services) QuickInbox(ctx context.Context, request *QuickInboxRequest) (*QuickInboxResponse, error) {
-	//TODO implement me
-	panic("implement me")
+	en, err := s.ctrl.QuickInbox(ctx, inbox.Option{
+		Url:         request.Url,
+		ClutterFree: request.ClutterFree,
+	})
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "quick inbox failed")
+	}
+	return &QuickInboxResponse{EntryID: en.ID}, nil
 }
 
 func (s *services) AddProperty(ctx context.Context, request *AddPropertyRequest) (*AddPropertyResponse, error) {
-	//TODO implement me
-	panic("implement me")
+	en, err := s.ctrl.GetEntry(ctx, request.EntryID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "query entry failed")
+	}
+	err = s.ctrl.SetEntryExtendField(ctx, en.ID, request.Key, request.Value)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "add entry extend field failed")
+	}
+	return &AddPropertyResponse{
+		Entry:      entryInfo(en),
+		Properties: nil, // TODO
+	}, nil
 }
 
 func (s *services) UpdateProperty(ctx context.Context, request *UpdatePropertyRequest) (*UpdatePropertyResponse, error) {
-	//TODO implement me
-	panic("implement me")
+	en, err := s.ctrl.GetEntry(ctx, request.EntryID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "query entry failed")
+	}
+
+	_, err = s.ctrl.GetEntryExtendField(ctx, en.ID, request.Key)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "fetch entry exist extend field failed")
+	}
+
+	err = s.ctrl.SetEntryExtendField(ctx, en.ID, request.Key, request.Value)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "set entry extend field failed")
+	}
+	return &UpdatePropertyResponse{
+		Entry:      entryInfo(en),
+		Properties: nil, // TODO
+	}, nil
 }
 
 func (s *services) DeleteProperty(ctx context.Context, request *DeletePropertyRequest) (*DeletePropertyResponse, error) {
-	//TODO implement me
-	panic("implement me")
+	en, err := s.ctrl.GetEntry(ctx, request.EntryID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "query entry failed")
+	}
+	err = s.ctrl.RemoveEntryExtendField(ctx, en.ID, request.Key)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "set entry extend field failed")
+	}
+	return &DeletePropertyResponse{
+		Entry:      entryInfo(en),
+		Properties: nil, // TODO
+	}, nil
 }

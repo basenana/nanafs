@@ -112,8 +112,8 @@ type EntriesClient interface {
 	DeleteEntry(ctx context.Context, in *DeleteEntryRequest, opts ...grpc.CallOption) (*DeleteEntryResponse, error)
 	GetGroupTree(ctx context.Context, in *GetGroupTreeRequest, opts ...grpc.CallOption) (*GetGroupTreeResponse, error)
 	ListGroupChildren(ctx context.Context, in *ListGroupChildrenRequest, opts ...grpc.CallOption) (*ListGroupChildrenResponse, error)
-	WriteFile(ctx context.Context, in *WriteFileRequest, opts ...grpc.CallOption) (*WriteFileResponse, error)
-	ReadFile(ctx context.Context, in *ReadFileRequest, opts ...grpc.CallOption) (*ReadFileResponse, error)
+	WriteFile(ctx context.Context, opts ...grpc.CallOption) (Entries_WriteFileClient, error)
+	ReadFile(ctx context.Context, in *ReadFileRequest, opts ...grpc.CallOption) (Entries_ReadFileClient, error)
 }
 
 type entriesClient struct {
@@ -178,22 +178,70 @@ func (c *entriesClient) ListGroupChildren(ctx context.Context, in *ListGroupChil
 	return out, nil
 }
 
-func (c *entriesClient) WriteFile(ctx context.Context, in *WriteFileRequest, opts ...grpc.CallOption) (*WriteFileResponse, error) {
-	out := new(WriteFileResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Entries/WriteFile", in, out, opts...)
+func (c *entriesClient) WriteFile(ctx context.Context, opts ...grpc.CallOption) (Entries_WriteFileClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Entries_ServiceDesc.Streams[0], "/api.v1.Entries/WriteFile", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &entriesWriteFileClient{stream}
+	return x, nil
 }
 
-func (c *entriesClient) ReadFile(ctx context.Context, in *ReadFileRequest, opts ...grpc.CallOption) (*ReadFileResponse, error) {
-	out := new(ReadFileResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Entries/ReadFile", in, out, opts...)
+type Entries_WriteFileClient interface {
+	Send(*WriteFileRequest) error
+	CloseAndRecv() (*WriteFileResponse, error)
+	grpc.ClientStream
+}
+
+type entriesWriteFileClient struct {
+	grpc.ClientStream
+}
+
+func (x *entriesWriteFileClient) Send(m *WriteFileRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *entriesWriteFileClient) CloseAndRecv() (*WriteFileResponse, error) {
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	m := new(WriteFileResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *entriesClient) ReadFile(ctx context.Context, in *ReadFileRequest, opts ...grpc.CallOption) (Entries_ReadFileClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Entries_ServiceDesc.Streams[1], "/api.v1.Entries/ReadFile", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &entriesReadFileClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Entries_ReadFileClient interface {
+	Recv() (*ReadFileResponse, error)
+	grpc.ClientStream
+}
+
+type entriesReadFileClient struct {
+	grpc.ClientStream
+}
+
+func (x *entriesReadFileClient) Recv() (*ReadFileResponse, error) {
+	m := new(ReadFileResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // EntriesServer is the server API for Entries service.
@@ -206,8 +254,8 @@ type EntriesServer interface {
 	DeleteEntry(context.Context, *DeleteEntryRequest) (*DeleteEntryResponse, error)
 	GetGroupTree(context.Context, *GetGroupTreeRequest) (*GetGroupTreeResponse, error)
 	ListGroupChildren(context.Context, *ListGroupChildrenRequest) (*ListGroupChildrenResponse, error)
-	WriteFile(context.Context, *WriteFileRequest) (*WriteFileResponse, error)
-	ReadFile(context.Context, *ReadFileRequest) (*ReadFileResponse, error)
+	WriteFile(Entries_WriteFileServer) error
+	ReadFile(*ReadFileRequest, Entries_ReadFileServer) error
 }
 
 // UnimplementedEntriesServer should be embedded to have forward compatible implementations.
@@ -232,11 +280,11 @@ func (UnimplementedEntriesServer) GetGroupTree(context.Context, *GetGroupTreeReq
 func (UnimplementedEntriesServer) ListGroupChildren(context.Context, *ListGroupChildrenRequest) (*ListGroupChildrenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListGroupChildren not implemented")
 }
-func (UnimplementedEntriesServer) WriteFile(context.Context, *WriteFileRequest) (*WriteFileResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method WriteFile not implemented")
+func (UnimplementedEntriesServer) WriteFile(Entries_WriteFileServer) error {
+	return status.Errorf(codes.Unimplemented, "method WriteFile not implemented")
 }
-func (UnimplementedEntriesServer) ReadFile(context.Context, *ReadFileRequest) (*ReadFileResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ReadFile not implemented")
+func (UnimplementedEntriesServer) ReadFile(*ReadFileRequest, Entries_ReadFileServer) error {
+	return status.Errorf(codes.Unimplemented, "method ReadFile not implemented")
 }
 
 // UnsafeEntriesServer may be embedded to opt out of forward compatibility for this service.
@@ -358,40 +406,51 @@ func _Entries_ListGroupChildren_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Entries_WriteFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(WriteFileRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(EntriesServer).WriteFile(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/api.v1.Entries/WriteFile",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(EntriesServer).WriteFile(ctx, req.(*WriteFileRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+func _Entries_WriteFile_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(EntriesServer).WriteFile(&entriesWriteFileServer{stream})
 }
 
-func _Entries_ReadFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ReadFileRequest)
-	if err := dec(in); err != nil {
+type Entries_WriteFileServer interface {
+	SendAndClose(*WriteFileResponse) error
+	Recv() (*WriteFileRequest, error)
+	grpc.ServerStream
+}
+
+type entriesWriteFileServer struct {
+	grpc.ServerStream
+}
+
+func (x *entriesWriteFileServer) SendAndClose(m *WriteFileResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *entriesWriteFileServer) Recv() (*WriteFileRequest, error) {
+	m := new(WriteFileRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
-		return srv.(EntriesServer).ReadFile(ctx, in)
+	return m, nil
+}
+
+func _Entries_ReadFile_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ReadFileRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
 	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/api.v1.Entries/ReadFile",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(EntriesServer).ReadFile(ctx, req.(*ReadFileRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+	return srv.(EntriesServer).ReadFile(m, &entriesReadFileServer{stream})
+}
+
+type Entries_ReadFileServer interface {
+	Send(*ReadFileResponse) error
+	grpc.ServerStream
+}
+
+type entriesReadFileServer struct {
+	grpc.ServerStream
+}
+
+func (x *entriesReadFileServer) Send(m *ReadFileResponse) error {
+	return x.ServerStream.SendMsg(m)
 }
 
 // Entries_ServiceDesc is the grpc.ServiceDesc for Entries service.
@@ -425,16 +484,19 @@ var Entries_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "ListGroupChildren",
 			Handler:    _Entries_ListGroupChildren_Handler,
 		},
+	},
+	Streams: []grpc.StreamDesc{
 		{
-			MethodName: "WriteFile",
-			Handler:    _Entries_WriteFile_Handler,
+			StreamName:    "WriteFile",
+			Handler:       _Entries_WriteFile_Handler,
+			ClientStreams: true,
 		},
 		{
-			MethodName: "ReadFile",
-			Handler:    _Entries_ReadFile_Handler,
+			StreamName:    "ReadFile",
+			Handler:       _Entries_ReadFile_Handler,
+			ServerStreams: true,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
 	Metadata: "cmd/apps/apis/fsapi/v1/fsapi-v1.proto",
 }
 

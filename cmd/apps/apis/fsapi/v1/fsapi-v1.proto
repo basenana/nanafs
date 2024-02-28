@@ -11,11 +11,16 @@ service Inbox {
 }
 
 message QuickInboxRequest {
-  enum SourceType {URL = 0;}
+  enum SourceType {UrlSource = 0;}
+  enum FileType {
+    BookmarkFile = 0;
+    HtmlFile = 1;
+    WebArchiveFile = 2;
+  }
 
   SourceType sourceType = 1;
-  string url = 2;
-  string fileType = 3;
+  FileType fileType = 2;
+  string url = 3;
 
   // url source
   bool clutterFree = 10;
@@ -33,12 +38,12 @@ service Entries {
   rpc DeleteEntry (DeleteEntryRequest) returns (DeleteEntryResponse) {}
   rpc GetGroupTree (GetGroupTreeRequest) returns (GetGroupTreeResponse) {}
   rpc ListGroupChildren (ListGroupChildrenRequest) returns (ListGroupChildrenResponse) {}
-  rpc WriteFile (WriteFileRequest) returns (WriteFileResponse) {}
-  rpc ReadFile (ReadFileRequest) returns (ReadFileResponse) {}
+  rpc WriteFile (stream WriteFileRequest) returns (WriteFileResponse) {}
+  rpc ReadFile (ReadFileRequest) returns (stream ReadFileResponse) {}
 }
 
 message GetEntryDetailRequest {
-  int64 EntryID = 1;
+  int64 entryID = 1;
 }
 
 message GetEntryDetailResponse {
@@ -46,8 +51,9 @@ message GetEntryDetailResponse {
 }
 
 message CreateEntryRequest {
-  string  name = 1;
-  EntryKind kind = 2;
+  int64 parentID = 1;
+  string  name = 2;
+  EntryKind kind = 3;
 }
 
 message CreateEntryResponse {
@@ -70,6 +76,8 @@ message DeleteEntryResponse {
 
 message GetGroupTreeRequest {
   int64 parentID = 1;
+  string path = 2;
+  int64 deep = 3;
 }
 
 message GetGroupTreeResponse {
@@ -83,14 +91,16 @@ message GetGroupTreeResponse {
 message ListGroupChildrenRequest {
   int64 parentID = 1;
 }
+
 message ListGroupChildrenResponse {
   repeated EntryInfo entries = 1;
 }
 
 message WriteFileRequest {
-  int64 off = 1;
-  int64 len = 2;
-  bytes data = 3;
+  int64 entryID = 1;
+  int64 off = 2;
+  int64 len = 3;
+  bytes data = 4;
 }
 
 message WriteFileResponse {
@@ -98,8 +108,9 @@ message WriteFileResponse {
 }
 
 message ReadFileRequest {
-  int64 off = 1;
-  int64 len = 2;
+  int64 entryID = 1;
+  int64 off = 2;
+  int64 len = 3;
 }
 
 message ReadFileResponse {
@@ -114,14 +125,43 @@ service Properties {
   rpc DeleteProperty (DeletePropertyRequest) returns (DeletePropertyResponse) {}
 }
 
-message AddPropertyRequest {}
-message AddPropertyResponse {}
+message Property {
+  string key = 1;
+  string value = 2;
+  bool encoded = 3;
+}
 
-message UpdatePropertyRequest {}
-message UpdatePropertyResponse {}
+message AddPropertyRequest {
+  int64 entryID = 1;
+  string key = 2;
+  string value = 3;
+}
 
-message DeletePropertyRequest {}
-message DeletePropertyResponse {}
+message AddPropertyResponse {
+  EntryInfo entry = 1;
+  repeated Property properties = 2;
+}
+
+message UpdatePropertyRequest {
+  int64 entryID = 1;
+  string key = 2;
+  string value = 3;
+}
+
+message UpdatePropertyResponse {
+  EntryInfo entry = 1;
+  repeated Property properties = 2;
+}
+
+message DeletePropertyRequest {
+  int64 entryID = 1;
+  string key = 2;
+}
+
+message DeletePropertyResponse {
+  EntryInfo entry = 1;
+  repeated Property properties = 2;
+}
 
 service Document {
   rpc ListDocuments (ListDocumentsRequest) returns (ListDocumentsResponse) {}
@@ -177,9 +217,10 @@ message DocumentDescribe {
 }
 
 enum EntryKind {
-  RawKind = 0;
-  GroupKind = 1;
-  SmartGroupKind = 2;
+  UnknownKind = 0;
+  RawKind = 1;
+  GroupKind = 2;
+  SmartGroupKind = 3;
   FIFOKind = 10;
   SocketKind = 11;
   SymLinkKind = 12;

@@ -56,12 +56,12 @@ func (c *controller) GetEntryExtendField(ctx context.Context, id int64, fKey str
 	return result, nil
 }
 
-func (c *controller) SetEntryExtendField(ctx context.Context, id int64, fKey string, fVal []byte) error {
+func (c *controller) SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string) error {
 	defer trace.StartRegion(ctx, "controller.SetEntryExtendField").End()
 	c.logger.Debugw("set entry extend filed", "entry", id, "key", fKey)
 
 	if strings.HasPrefix(fKey, attrSourcePluginPrefix) {
-		scope, err := buildPluginScopeFromAttr(fKey, string(fVal))
+		scope, err := buildPluginScopeFromAttr(fKey, fVal)
 		if err != nil {
 			c.logger.Errorw("build plugin scope from attr failed",
 				"entry", id, "key", fKey, "val", fVal, "err", err)
@@ -71,11 +71,27 @@ func (c *controller) SetEntryExtendField(ctx context.Context, id int64, fKey str
 	}
 
 	if fKey == attrFeedId {
-		if err := c.EnableGroupFeed(ctx, id, strings.TrimSpace(string(fVal))); err != nil {
+		if err := c.EnableGroupFeed(ctx, id, strings.TrimSpace(fVal)); err != nil {
 			c.logger.Errorw("enable group feed failed", "val", fVal, "err", err)
 			return types.ErrUnsupported
 		}
 		return nil
+	}
+
+	err := c.entry.SetEntryExtendField(ctx, id, fKey, fVal, false)
+	if err != nil {
+		c.logger.Errorw("set entry extend filed failed", "entry", id, "key", fKey, "err", err)
+		return err
+	}
+	return nil
+}
+
+func (c *controller) SetEntryEncodedExtendField(ctx context.Context, id int64, fKey string, fVal []byte) error {
+	defer trace.StartRegion(ctx, "controller.SetEntryEncodedExtendField").End()
+	c.logger.Debugw("set entry extend filed", "entry", id, "key", fKey)
+
+	if strings.HasPrefix(fKey, attrSourcePluginPrefix) || fKey == attrFeedId {
+		return c.SetEntryExtendField(ctx, id, fKey, string(fVal))
 	}
 
 	err := c.entry.SetEntryExtendField(ctx, id, fKey, utils.EncodeBase64(fVal), true)
