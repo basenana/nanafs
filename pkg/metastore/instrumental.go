@@ -362,10 +362,10 @@ func (i instrumentalStore) SaveDocument(ctx context.Context, doc *types.Document
 	return err
 }
 
-func (i instrumentalStore) ListDocument(ctx context.Context, parentId int64) ([]*types.Document, error) {
+func (i instrumentalStore) ListDocument(ctx context.Context, filter types.DocFilter) ([]*types.Document, error) {
 	const operation = "list_document"
 	defer logOperationLatency(operation, time.Now())
-	docList, err := i.store.ListDocument(ctx, parentId)
+	docList, err := i.store.ListDocument(ctx, filter)
 	logOperationError(operation, err)
 	return docList, err
 }

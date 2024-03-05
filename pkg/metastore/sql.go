@@ -290,10 +290,10 @@ func (s *sqliteMetaStore) SaveDocument(ctx context.Context, doc *types.Document)
 	return s.dbStore.SaveDocument(ctx, doc)
 }
 
-func (s *sqliteMetaStore) ListDocument(ctx context.Context, parentId int64) ([]*types.Document, error) {
+func (s *sqliteMetaStore) ListDocument(ctx context.Context, filter types.DocFilter) ([]*types.Document, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.ListDocument(ctx, parentId)
+	return s.dbStore.ListDocument(ctx, filter)
 }
 
 func (s *sqliteMetaStore) GetDocument(ctx context.Context, id int64) (*types.Document, error) {
@@ -1545,12 +1545,18 @@ func (s *sqlMetaStore) SaveDocument(ctx context.Context, doc *types.Document) er
 	return nil
 }
 
-func (s *sqlMetaStore) ListDocument(ctx context.Context, parentId int64) ([]*types.Document, error) {
+func (s *sqlMetaStore) ListDocument(ctx context.Context, filter types.DocFilter) ([]*types.Document, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListDocument").End()
 	docList := make([]db.Document, 0)
 	query := s.WithContext(ctx)
-	if parentId > 0 {
-		query = query.Where("parent_entry_id = ?", parentId)
+	if filter.ParentID > 0 {
+		query = query.Where("parent_entry_id = ?", filter.ParentID)
+	}
+	if filter.Marked != nil {
+		query = query.Where("marked = ?", *filter.Marked)
+	}
+	if filter.Unread != nil {
+		query = query.Where("unread = ?", *filter.Unread)
 	}
 	res := query.Order("created_at DESC").Find(&docList)
 	if res.Error != nil {

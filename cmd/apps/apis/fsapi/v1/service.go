@@ -29,6 +29,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
 )
 
@@ -62,13 +63,61 @@ type services struct {
 var _ Services = &services{}
 
 func (s *services) ListDocuments(ctx context.Context, request *ListDocumentsRequest) (*ListDocumentsResponse, error) {
-	//TODO implement me
-	panic("implement me")
+	filter := types.DocFilter{ParentID: request.ParentID}
+	if !request.ListAll && filter.ParentID == 0 {
+		return nil, status.Error(codes.InvalidArgument, "parent id is empty")
+	}
+	if request.Marked {
+		filter.Marked = &request.Marked
+	}
+	if request.Unread {
+		filter.Unread = &request.Unread
+	}
+	docList, err := s.ctrl.ListDocuments(ctx, filter)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "filter document failed")
+	}
+	resp := &ListDocumentsResponse{Documents: make([]*DocumentInfo, 0, len(docList))}
+	for _, doc := range docList {
+		resp.Documents = append(resp.Documents, &DocumentInfo{
+			Id:            doc.ID,
+			Name:          doc.Name,
+			EntryID:       doc.OID,
+			ParentEntryID: doc.ParentEntryID,
+			Source:        doc.Source,
+			Marked:        doc.Marked,
+			Unread:        doc.Unread,
+			CreatedAt:     timestamppb.New(doc.CreatedAt),
+			ChangedAt:     timestamppb.New(doc.ChangedAt),
+		})
+	}
+	return resp, nil
 }
 
 func (s *services) GetDocumentDetail(ctx context.Context, request *GetDocumentDetailRequest) (*GetDocumentDetailResponse, error) {
-	//TODO implement me
-	panic("implement me")
+	if request.EntryID == 0 {
+		return nil, status.Error(codes.InvalidArgument, "entry id is empty")
+	}
+	doc, err := s.ctrl.GetDocumentsByEntryId(ctx, request.EntryID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "query document with entry id failed")
+	}
+	return &GetDocumentDetailResponse{
+		Document: &DocumentDescribe{
+			Id:            doc.ID,
+			Name:          doc.Name,
+			EntryID:       doc.OID,
+			ParentEntryID: doc.ParentEntryID,
+			Source:        doc.Source,
+			Marked:        doc.Marked,
+			Unread:        doc.Unread,
+			HtmlContent:   doc.Content,
+			KeyWords:      doc.KeyWords,
+			Summary:       doc.Summary,
+			CreatedAt:     timestamppb.New(doc.CreatedAt),
+			ChangedAt:     timestamppb.New(doc.ChangedAt),
+		},
+	}, nil
 }
 
 func (s *services) GetEntryDetail(ctx context.Context, request *GetEntryDetailRequest) (*GetEntryDetailResponse, error) {
@@ -92,7 +141,7 @@ func (s *services) CreateEntry(ctx context.Context, request *CreateEntryRequest)
 	if len(request.Name) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "entry name is empty")
 	}
-	if request.Kind == EntryKind_UnknownKind {
+	if request.Kind == "" {
 		return nil, status.Error(codes.InvalidArgument, "entry has unknown kind")
 	}
 
@@ -243,10 +292,19 @@ func (s *services) ReadFile(request *ReadFileRequest, writer Entries_ReadFileSer
 }
 
 func (s *services) QuickInbox(ctx context.Context, request *QuickInboxRequest) (*QuickInboxResponse, error) {
-	en, err := s.ctrl.QuickInbox(ctx, inbox.Option{
+	option := inbox.Option{
 		Url:         request.Url,
 		ClutterFree: request.ClutterFree,
-	})
+	}
+	switch request.FileType {
+	case QuickInboxRequest_BookmarkFile:
+		option.FileType = "url"
+	case QuickInboxRequest_WebArchiveFile:
+		option.FileType = "webarchive"
+	case QuickInboxRequest_HtmlFile:
+		option.FileType = "html"
+	}
+	en, err := s.ctrl.QuickInbox(ctx, option)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "quick inbox failed")
 	}

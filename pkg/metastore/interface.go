@@ -58,7 +58,7 @@ type DEntry interface {
 	UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error
 
 	SaveDocument(ctx context.Context, doc *types.Document) error
-	ListDocument(ctx context.Context, parentId int64) ([]*types.Document, error)
+	ListDocument(ctx context.Context, filter types.DocFilter) ([]*types.Document, error)
 	GetDocument(ctx context.Context, id int64) (*types.Document, error)
 	GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error)
 	GetDocumentByName(ctx context.Context, name string) (*types.Document, error)

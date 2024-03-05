@@ -131,7 +131,7 @@ func (i *Indexer) Query(ctx context.Context, query, dialect string) ([]*types.Do
 func (i *Indexer) rebuild() {
 	i.logger.Infow("rebuild index")
 	ctx := context.Background()
-	allDoc, err := i.recorder.ListDocument(ctx, 0)
+	allDoc, err := i.recorder.ListDocument(ctx)
 	if err != nil {
 		i.logger.Errorw("rebuild index failed: list all document failed", "err", err)
 		return

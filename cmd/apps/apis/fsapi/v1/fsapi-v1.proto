@@ -53,7 +53,7 @@ message GetEntryDetailResponse {
 message CreateEntryRequest {
   int64 parentID = 1;
   string  name = 2;
-  EntryKind kind = 3;
+  string kind = 3;
 }
 
 message CreateEntryResponse {
@@ -181,6 +181,7 @@ message ListDocumentsResponse {
 
 message GetDocumentDetailRequest {
   int64 documentID = 1;
+  int64 entryID = 2;
 }
 
 message GetDocumentDetailResponse {
@@ -216,23 +217,10 @@ message DocumentDescribe {
   google.protobuf.Timestamp changedAt = 31;
 }
 
-enum EntryKind {
-  UnknownKind = 0;
-  RawKind = 1;
-  GroupKind = 2;
-  SmartGroupKind = 3;
-  FIFOKind = 10;
-  SocketKind = 11;
-  SymLinkKind = 12;
-  BlkDevKind = 13;
-  CharDevKind = 14;
-  ExternalGroupKind = 20;
-}
-
 message EntryInfo {
   int64 id = 1;
   string name = 2;
-  EntryKind kind = 3;
+  string kind = 3;
   google.protobuf.Timestamp createdAt = 30;
   google.protobuf.Timestamp changedAt = 31;
   google.protobuf.Timestamp modifiedAt = 32;
@@ -251,7 +239,7 @@ message EntryDetail {
   string name = 2;
   string aliases = 3;
   EntryInfo parent = 4;
-  EntryKind kind = 5;
+  string kind = 5;
   int64 kindMap = 6;
   int64 size = 10;
   int64 version = 11;

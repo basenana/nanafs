@@ -70,3 +70,9 @@ type FridayAccount struct {
 	TotalTokens    int
 	CreatedAt      time.Time
 }
+
+type DocFilter struct {
+	ParentID int64
+	Marked   *bool
+	Unread   *bool
+}

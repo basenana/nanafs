@@ -22,43 +22,32 @@ import (
 )
 
 var (
-	kind2PdMapping = map[types.Kind]EntryKind{
-		types.RawKind:           EntryKind_RawKind,
-		types.GroupKind:         EntryKind_GroupKind,
-		types.SmartGroupKind:    EntryKind_SmartGroupKind,
-		types.FIFOKind:          EntryKind_FIFOKind,
-		types.SocketKind:        EntryKind_SocketKind,
-		types.SymLinkKind:       EntryKind_SymLinkKind,
-		types.BlkDevKind:        EntryKind_BlkDevKind,
-		types.CharDevKind:       EntryKind_CharDevKind,
-		types.ExternalGroupKind: EntryKind_ExternalGroupKind,
-	}
-	pdKind2KindMapping = map[EntryKind]types.Kind{
-		EntryKind_RawKind:           types.RawKind,
-		EntryKind_GroupKind:         types.GroupKind,
-		EntryKind_SmartGroupKind:    types.SmartGroupKind,
-		EntryKind_FIFOKind:          types.FIFOKind,
-		EntryKind_SocketKind:        types.SocketKind,
-		EntryKind_SymLinkKind:       types.SymLinkKind,
-		EntryKind_BlkDevKind:        types.BlkDevKind,
-		EntryKind_CharDevKind:       types.CharDevKind,
-		EntryKind_ExternalGroupKind: types.ExternalGroupKind,
+	kind2PdMapping = map[types.Kind]struct{}{
+		types.RawKind:           {},
+		types.GroupKind:         {},
+		types.SmartGroupKind:    {},
+		types.FIFOKind:          {},
+		types.SocketKind:        {},
+		types.SymLinkKind:       {},
+		types.BlkDevKind:        {},
+		types.CharDevKind:       {},
+		types.ExternalGroupKind: {},
 	}
 )
 
-func entryKind2Pd(k types.Kind) EntryKind {
-	return kind2PdMapping[k]
-}
-
-func pdKind2EntryKind(k EntryKind) types.Kind {
-	return pdKind2KindMapping[k]
+func pdKind2EntryKind(k string) types.Kind {
+	_, ok := kind2PdMapping[types.Kind(k)]
+	if !ok {
+		return types.RawKind
+	}
+	return types.Kind(k)
 }
 
 func entryInfo(en *types.Metadata) *EntryInfo {
 	return &EntryInfo{
 		Id:         en.ID,
 		Name:       en.Name,
-		Kind:       entryKind2Pd(en.Kind),
+		Kind:       string(en.Kind),
 		CreatedAt:  timestamppb.New(en.CreatedAt),
 		ChangedAt:  timestamppb.New(en.ChangedAt),
 		ModifiedAt: timestamppb.New(en.ModifiedAt),
@@ -77,7 +66,7 @@ func entryDetail(en, parent *types.Metadata) *EntryDetail {
 		Name:       en.Name,
 		Aliases:    en.Aliases,
 		Parent:     entryInfo(parent),
-		Kind:       entryKind2Pd(en.Kind),
+		Kind:       string(en.Kind),
 		KindMap:    en.KindMap,
 		Size:       en.Size,
 		Version:    en.Version,
