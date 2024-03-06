@@ -121,9 +121,17 @@ func (s *services) GetDocumentDetail(ctx context.Context, request *GetDocumentDe
 }
 
 func (s *services) GetEntryDetail(ctx context.Context, request *GetEntryDetailRequest) (*GetEntryDetailResponse, error) {
+	caller := common.CallerAuth(ctx)
+	if !caller.Authenticated {
+		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	}
 	en, err := s.ctrl.GetEntry(ctx, request.EntryID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
+	}
+	err = dentry.IsHasPermissions(en.Access, caller.UID, 0, []types.Permission{types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead})
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "has no permission")
 	}
 
 	p, err := s.ctrl.GetEntry(ctx, en.ParentID)
@@ -135,6 +143,11 @@ func (s *services) GetEntryDetail(ctx context.Context, request *GetEntryDetailRe
 }
 
 func (s *services) CreateEntry(ctx context.Context, request *CreateEntryRequest) (*CreateEntryResponse, error) {
+	caller := common.CallerAuth(ctx)
+	if !caller.Authenticated {
+		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+
 	if request.ParentID == 0 {
 		return nil, status.Error(codes.InvalidArgument, "parent id is 0")
 	}
@@ -150,6 +163,11 @@ func (s *services) CreateEntry(ctx context.Context, request *CreateEntryRequest)
 		return nil, status.Error(common.FsApiError(err), "query entry parent failed")
 	}
 
+	err = dentry.IsHasPermissions(parent.Access, caller.UID, 0, []types.Permission{types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite})
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "has no permission")
+	}
+
 	en, err := s.ctrl.CreateEntry(ctx, request.ParentID, types.EntryAttr{
 		Name:   request.Name,
 		Kind:   pdKind2EntryKind(request.Kind),
@@ -160,12 +178,22 @@ func (s *services) CreateEntry(ctx context.Context, request *CreateEntryRequest)
 }
 
 func (s *services) UpdateEntry(ctx context.Context, request *UpdateEntryRequest) (*UpdateEntryResponse, error) {
+	caller := common.CallerAuth(ctx)
+	if !caller.Authenticated {
+		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+
 	if request.Entry.Id == 0 {
 		return nil, status.Error(codes.InvalidArgument, "entry id is 0")
 	}
 	en, err := s.ctrl.GetEntry(ctx, request.Entry.Id)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
+	}
+
+	err = dentry.IsHasPermissions(en.Access, caller.UID, 0, []types.Permission{types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite})
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "has no permission")
 	}
 
 	parent, err := s.ctrl.GetEntry(ctx, en.ParentID)
@@ -183,14 +211,27 @@ func (s *services) UpdateEntry(ctx context.Context, request *UpdateEntryRequest)
 }
 
 func (s *services) DeleteEntry(ctx context.Context, request *DeleteEntryRequest) (*DeleteEntryResponse, error) {
+	caller := common.CallerAuth(ctx)
+	if !caller.Authenticated {
+		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+
 	en, err := s.ctrl.GetEntry(ctx, request.EntryID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
+	}
+	err = dentry.IsHasPermissions(en.Access, caller.UID, 0, []types.Permission{types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite})
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "has no permission")
 	}
 
 	parent, err := s.ctrl.GetEntry(ctx, en.ParentID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry parent failed")
+	}
+	err = dentry.IsHasPermissions(parent.Access, caller.UID, 0, []types.Permission{types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite})
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "has no permission")
 	}
 
 	err = s.ctrl.DestroyEntry(ctx, parent.ParentID, en.ID, types.DestroyObjectAttr{Uid: 0, Gid: 0})
@@ -222,8 +263,14 @@ func (s *services) WriteFile(reader Entries_WriteFileServer) error {
 	var (
 		ctx       = reader.Context()
 		recvTotal int64
+		accessEn  int64
 		file      dentry.File
 	)
+
+	caller := common.CallerAuth(ctx)
+	if !caller.Authenticated {
+		return status.Error(codes.Unauthenticated, "unauthenticated")
+	}
 
 	defer func() {
 		if file != nil {
@@ -240,6 +287,19 @@ func (s *services) WriteFile(reader Entries_WriteFileServer) error {
 			if err != nil {
 				return err
 			}
+		}
+
+		if writeRequest.EntryID != accessEn {
+			en, err := s.ctrl.GetEntry(ctx, writeRequest.EntryID)
+			if err != nil {
+				return status.Error(common.FsApiError(err), "query entry failed")
+			}
+
+			err = dentry.IsHasPermissions(en.Access, caller.UID, 0, []types.Permission{types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite})
+			if err != nil {
+				return status.Error(common.FsApiError(err), "has no permission")
+			}
+			accessEn = writeRequest.EntryID
 		}
 
 		if file == nil {
@@ -263,6 +323,21 @@ func (s *services) ReadFile(request *ReadFileRequest, writer Entries_ReadFileSer
 		ctx           = writer.Context()
 		readOnce, off int64
 	)
+
+	caller := common.CallerAuth(ctx)
+	if !caller.Authenticated {
+		return status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+
+	en, err := s.ctrl.GetEntry(ctx, request.EntryID)
+	if err != nil {
+		return status.Error(common.FsApiError(err), "query entry failed")
+	}
+
+	err = dentry.IsHasPermissions(en.Access, caller.UID, 0, []types.Permission{types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead})
+	if err != nil {
+		return status.Error(common.FsApiError(err), "has no permission")
+	}
 
 	file, err := s.ctrl.OpenFile(ctx, request.EntryID, types.OpenAttr{Read: true})
 	if err != nil {

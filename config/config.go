@@ -50,10 +50,14 @@ type HttpApi struct {
 }
 
 type FsApi struct {
-	Enable  bool   `json:"enable"`
-	Host    string `json:"host"`
-	Port    int    `json:"port"`
-	Metrics bool   `json:"metrics"`
+	Enable     bool   `json:"enable"`
+	Host       string `json:"host"`
+	Port       int    `json:"port"`
+	Metrics    bool   `json:"metrics"`
+	ServerName string `json:"server_name"`
+	CertFile   string `json:"cert_file"`
+	KeyFile    string `json:"key_file"`
+	CaFile     string `json:"ca_file"`
 }
 
 type Webdav struct {
