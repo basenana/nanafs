@@ -28,11 +28,11 @@ type LLM interface {
 	/*
 		Chat: chat with llm with history.
 		 history example: [
-			  {"user": "Hello robot!"}
-			  {"assistant": "Hello"}
-			  {"user": "When is today?"}
-			  {"assistant": "Today is Monday"}
+			  {"role": "user", "content": "Hello robot!"}
+			  {"role": "assistant", "content": "Hello"}
+			  {"role": "user", "content": "When is today?"}
+			  {"role": "assistant", "content": "Today is Monday"}
 		 ]
 	*/
-	Chat(ctx context.Context, history []map[string]string, prompt prompts.PromptTemplate, parameters map[string]string) (answers []string, tokens map[string]int, err error)
+	Chat(ctx context.Context, stream bool, history []map[string]string, answers chan<- map[string]string) (tokens map[string]int, err error)
 }

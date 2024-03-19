@@ -46,13 +46,16 @@ func (o *OpenAIV1) completion(ctx context.Context, prompt prompts.PromptTemplate
 		"n":                 1,
 	}
 
-	respBody, err := o.request(ctx, path, "POST", data)
+	buf := make(chan []byte)
+	defer close(buf)
+	err = o.request(ctx, false, path, "POST", data, buf)
 	if err != nil {
 		return nil, nil, err
 	}
 
+	line := <-buf
 	var res ChatResult
-	err = json.Unmarshal(respBody, &res)
+	err = json.Unmarshal(line, &res)
 	if err != nil {
 		return nil, nil, err
 	}

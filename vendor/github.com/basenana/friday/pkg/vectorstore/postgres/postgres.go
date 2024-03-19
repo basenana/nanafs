@@ -120,7 +120,7 @@ func (p *PostgresClient) Store(ctx context.Context, element *models.Element, ext
 	})
 }
 
-func (p *PostgresClient) Search(ctx context.Context, parentId int64, vectors []float32, k int) ([]*models.Doc, error) {
+func (p *PostgresClient) Search(ctx context.Context, query models.DocQuery, vectors []float32, k int) ([]*models.Doc, error) {
 	vectors64 := make([]float64, 0)
 	for _, v := range vectors {
 		vectors64 = append(vectors64, float64(v))
@@ -128,11 +128,15 @@ func (p *PostgresClient) Search(ctx context.Context, parentId int64, vectors []f
 	// query from db
 	existIndexes := make([]Index, 0)
 	var res *gorm.DB
-	if parentId == 0 {
-		res = p.dEntity.WithContext(ctx).Find(&existIndexes)
-	} else {
-		res = p.dEntity.WithContext(ctx).Where("parent_entry_id = ?", parentId).Find(&existIndexes)
+
+	res = p.dEntity.WithContext(ctx)
+	if query.ParentId != 0 {
+		res = res.Where("parent_entry_id = ?", query.ParentId)
 	}
+	if query.Oid != 0 {
+		res = res.Where("oid = ?", query.Oid)
+	}
+	res = res.Find(&existIndexes)
 	if res.Error != nil {
 		return nil, res.Error
 	}

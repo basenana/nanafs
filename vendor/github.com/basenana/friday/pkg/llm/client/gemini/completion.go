@@ -63,12 +63,14 @@ func (g *Gemini) Completion(ctx context.Context, prompt prompts.PromptTemplate, 
 		}},
 	}
 
-	respBody, err := g.request(ctx, path, "POST", data)
+	buf := make(chan []byte)
+	err = g.request(ctx, false, path, "POST", data, buf)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	var res ChatResult
+	respBody := <-buf
 	err = json.Unmarshal(respBody, &res)
 	if err != nil {
 		return nil, nil, err

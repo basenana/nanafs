@@ -128,7 +128,7 @@ github.com/aws/smithy-go/waiter
 ## explicit
 github.com/aymerick/douceur/css
 github.com/aymerick/douceur/parser
-# github.com/basenana/friday v0.0.0-20231219152848-7dd1f5bcfab3
+# github.com/basenana/friday v0.0.0-20240319101022-a34e28c6e7b0
 ## explicit; go 1.20
 github.com/basenana/friday/config
 github.com/basenana/friday/pkg/build/withvector

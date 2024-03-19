@@ -17,6 +17,7 @@
 package gemini
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -29,6 +30,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/basenana/friday/config"
+	"github.com/basenana/friday/pkg/llm"
 	"github.com/basenana/friday/pkg/utils/logger"
 )
 
@@ -41,12 +43,17 @@ const (
 type Gemini struct {
 	log     logger.Logger
 	baseUri string
+	key     string
 	conf    config.GeminiConfig
 	limiter *rate.Limiter
 }
 
-func NewGemini(log logger.Logger, conf config.GeminiConfig) *Gemini {
-	baseUrl := "https://generativelanguage.googleapis.com"
+var _ llm.LLM = &Gemini{}
+
+func NewGemini(log logger.Logger, baseUrl, key string, conf config.GeminiConfig) *Gemini {
+	if baseUrl == "" {
+		baseUrl = "https://generativelanguage.googleapis.com"
+	}
 	defaultMl := defaultModel
 	if conf.Model == nil {
 		conf.Model = &defaultMl
@@ -61,12 +68,13 @@ func NewGemini(log logger.Logger, conf config.GeminiConfig) *Gemini {
 	return &Gemini{
 		log:     log,
 		baseUri: baseUrl,
+		key:     key,
 		conf:    conf,
 		limiter: limiter,
 	}
 }
 
-func (g *Gemini) request(ctx context.Context, path string, method string, data map[string]any) ([]byte, error) {
+func (g *Gemini) request(ctx context.Context, stream bool, path string, method string, data map[string]any, res chan<- []byte) error {
 	jsonData, _ := json.Marshal(data)
 
 	maxRetry := 100
@@ -74,18 +82,18 @@ func (g *Gemini) request(ctx context.Context, path string, method string, data m
 		body := bytes.NewBuffer(jsonData)
 		select {
 		case <-ctx.Done():
-			return nil, fmt.Errorf("gemini request context cancelled")
+			return fmt.Errorf("gemini request context cancelled")
 		default:
 			err := g.limiter.WaitN(ctx, 60)
 			if err != nil {
-				return nil, err
+				return err
 			}
 
 			uri, err := url.JoinPath(g.baseUri, path)
 			if err != nil {
-				return nil, err
+				return err
 			}
-			url := fmt.Sprintf("%s?key=%s", uri, g.conf.Key)
+			url := fmt.Sprintf("%s?key=%s", uri, g.key)
 			req, err := http.NewRequest(method, url, body)
 			req.Header.Set("Content-Type", "application/json; charset=utf-8")
 
@@ -97,18 +105,45 @@ func (g *Gemini) request(ctx context.Context, path string, method string, data m
 				continue
 			}
 
-			// Read Response Body
-			respBody, _ := io.ReadAll(resp.Body)
-			_ = resp.Body.Close()
-
 			if resp.StatusCode != 200 {
+				// Read Response Body
+				respBody, _ := io.ReadAll(resp.Body)
+				_ = resp.Body.Close()
 				g.log.Debugf("fail to call gemini, sleep 1s and retry. status code error: %d, resp body: %s", resp.StatusCode, string(respBody))
 				time.Sleep(time.Second)
 				continue
 			}
-			g.log.Debugf("gemini response: %s", respBody)
-			return respBody, nil
+
+			reader := bufio.NewReader(resp.Body)
+			if stream {
+				for {
+					line, err := reader.ReadBytes('\n')
+					if err != nil && err != io.EOF {
+						g.log.Error(err)
+						return nil
+					}
+					if err == io.EOF {
+						break
+					}
+					select {
+					case <-ctx.Done():
+						return fmt.Errorf("context timeout in gemini stream client")
+					case res <- line:
+						continue
+					}
+				}
+				return nil
+			}
+
+			respBody, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("context timeout in gemini client")
+			case res <- respBody:
+				return nil
+			}
 		}
 	}
-	return nil, fmt.Errorf("fail to call gemini after retry 100 times")
+	return fmt.Errorf("fail to call gemini after retry 100 times")
 }

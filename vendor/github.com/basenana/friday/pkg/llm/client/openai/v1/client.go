@@ -17,6 +17,7 @@
 package v1
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -95,8 +96,7 @@ func NewOpenAIV1(log logger.Logger, baseUrl, key string, conf config.OpenAIConfi
 
 var _ llm.LLM = &OpenAIV1{}
 
-func (o *OpenAIV1) request(ctx context.Context, path string, method string, data map[string]any) ([]byte, error) {
-
+func (o *OpenAIV1) request(ctx context.Context, stream bool, path string, method string, data map[string]any, res chan<- []byte) error {
 	jsonData, _ := json.Marshal(data)
 
 	maxRetry := 100
@@ -104,16 +104,16 @@ func (o *OpenAIV1) request(ctx context.Context, path string, method string, data
 		body := bytes.NewBuffer(jsonData)
 		select {
 		case <-ctx.Done():
-			return nil, fmt.Errorf("openai request context cancelled")
+			return fmt.Errorf("openai request context cancelled")
 		default:
 			err := o.limiter.WaitN(ctx, 60)
 			if err != nil {
-				return nil, err
+				return err
 			}
 
 			uri, err := url.JoinPath(o.baseUri, path)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			req, err := http.NewRequest(method, uri, body)
 			req.Header.Set("Content-Type", "application/json; charset=utf-8")
@@ -127,18 +127,45 @@ func (o *OpenAIV1) request(ctx context.Context, path string, method string, data
 				continue
 			}
 
-			// Read Response Body
-			respBody, _ := io.ReadAll(resp.Body)
-			_ = resp.Body.Close()
-
 			if resp.StatusCode != 200 {
+				respBody, _ := io.ReadAll(resp.Body)
+				_ = resp.Body.Close()
+
 				o.log.Debugf("fail to call openai, sleep 30s and retry. status code error: %d, resp body: %s", resp.StatusCode, string(respBody))
 				time.Sleep(time.Second * 30)
 				continue
 			}
-			o.log.Debugf("openai response: %s", respBody)
-			return respBody, nil
+
+			reader := bufio.NewReader(resp.Body)
+			if stream {
+				for {
+					line, err := reader.ReadBytes('\n')
+					if err != nil && err != io.EOF {
+						o.log.Error(err)
+						return err
+					}
+					if err == io.EOF {
+						break
+					}
+					select {
+					case <-ctx.Done():
+						return fmt.Errorf("context timeout in openai stream client")
+					case res <- line:
+						continue
+					}
+				}
+				return nil
+			}
+
+			respBody, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("context timeout in openai client")
+			case res <- respBody:
+				return nil
+			}
 		}
 	}
-	return nil, fmt.Errorf("fail to call openai after retry 100 times")
+	return fmt.Errorf("fail to call openai after retry 100 times")
 }

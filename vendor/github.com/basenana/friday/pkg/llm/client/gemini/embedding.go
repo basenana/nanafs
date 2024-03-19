@@ -41,12 +41,20 @@ func (g *Gemini) Embedding(ctx context.Context, doc string) (*EmbeddingResult, e
 		},
 	}
 
-	respBody, err := g.request(ctx, path, "POST", data)
+	var (
+		buf = make(chan []byte)
+		err error
+	)
+	go func() {
+		defer close(buf)
+		err = g.request(ctx, false, path, "POST", data, buf)
+	}()
 	if err != nil {
 		return nil, err
 	}
 
 	var res EmbeddingResult
+	respBody := <-buf
 	err = json.Unmarshal(respBody, &res)
 	return &res, err
 }

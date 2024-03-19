@@ -29,9 +29,9 @@ type GeminiEmbedding struct {
 	*gemini.Gemini
 }
 
-func NewGeminiEmbedding(log logger.Logger, conf config.GeminiConfig) embedding.Embedding {
+func NewGeminiEmbedding(log logger.Logger, baseUrl, key string, conf config.GeminiConfig) embedding.Embedding {
 	return &GeminiEmbedding{
-		Gemini: gemini.NewGemini(log, conf),
+		Gemini: gemini.NewGemini(log, baseUrl, key, conf),
 	}
 }
 
