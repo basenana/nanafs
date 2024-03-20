@@ -20,53 +20,80 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-
-	"github.com/basenana/friday/pkg/llm/prompts"
+	"strings"
 )
 
-func (g *Gemini) Chat(ctx context.Context, history []map[string]string, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, map[string]int, error) {
-	path := fmt.Sprintf("v1beta/models/%s:generateContent", *g.conf.Model)
+func (g *Gemini) GetUserModel() string {
+	return "user"
+}
 
-	p, err := prompt.String(parameters)
-	if err != nil {
-		return nil, nil, err
+func (g *Gemini) GetSystemModel() string {
+	return "user"
+}
+
+func (g *Gemini) GetAssistantModel() string {
+	return "model"
+}
+
+func (g *Gemini) Chat(ctx context.Context, stream bool, history []map[string]string, answers chan<- map[string]string) (tokens map[string]int, err error) {
+	var path string
+	path = fmt.Sprintf("v1beta/models/%s:generateContent", *g.conf.Model)
+	if stream {
+		path = fmt.Sprintf("v1beta/models/%s:streamGenerateContent", *g.conf.Model)
 	}
 
 	contents := make([]map[string]any, 0)
 	for _, hs := range history {
-		for user, content := range hs {
-			contents = append(contents, map[string]any{
-				"role": user,
-				"parts": []map[string]string{{
-					"text": content,
-				}},
-			})
-		}
-	}
-	contents = append(contents, map[string]any{
-		"role":  "user",
-		"parts": map[string]string{"text": p},
-	})
-
-	respBody, err := g.request(ctx, path, "POST", map[string]any{"contents": contents})
-	if err != nil {
-		return nil, nil, err
+		contents = append(contents, map[string]any{
+			"role": hs["role"],
+			"parts": []map[string]string{{
+				"text": hs["content"],
+			}},
+		})
 	}
 
-	var res ChatResult
-	err = json.Unmarshal(respBody, &res)
-	if err != nil {
-		return nil, nil, err
-	}
-	if len(res.Candidates) == 0 && res.PromptFeedback.BlockReason != "" {
-		g.log.Errorf("gemini response: %s ", string(respBody))
-		return nil, nil, fmt.Errorf("gemini api block because of %s", res.PromptFeedback.BlockReason)
-	}
-	ans := make([]string, 0)
-	for _, c := range res.Candidates {
-		for _, t := range c.Content.Parts {
-			ans = append(ans, t.Text)
+	buf := make(chan []byte)
+	go func() {
+		defer close(buf)
+		err = g.request(ctx, stream, path, "POST", map[string]any{"contents": contents}, buf)
+		if err != nil {
+			return
+		}
+	}()
+
+	for line := range buf {
+		ans := make(map[string]string)
+		l := strings.TrimSpace(string(line))
+		if stream {
+			if !strings.HasPrefix(l, "\"text\"") {
+				continue
+			}
+			// it should be: "text": "xxx"
+			ans["content"] = l[9 : len(l)-2]
+		} else {
+			var res ChatResult
+			err = json.Unmarshal(line, &res)
+			if err != nil {
+				return nil, err
+			}
+			if len(res.Candidates) == 0 && res.PromptFeedback.BlockReason != "" {
+				g.log.Errorf("gemini response: %s ", string(line))
+				return nil, fmt.Errorf("gemini api block because of %s", res.PromptFeedback.BlockReason)
+			}
+			for _, c := range res.Candidates {
+				for _, t := range c.Content.Parts {
+					ans["role"] = c.Content.Role
+					ans["content"] = t.Text
+				}
+			}
+		}
+		select {
+		case <-ctx.Done():
+			err = fmt.Errorf("context timeout in gemini chat")
+			return
+		case answers <- ans:
+			continue
 		}
 	}
-	return ans, nil, err
+	return nil, err
 }

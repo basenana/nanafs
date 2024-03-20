@@ -25,11 +25,15 @@ type Config struct {
 	Logger logger.Logger
 
 	// llm limit token
-	LimitToken int `json:"limit_token,omitempty"`
+	LimitToken int `json:"limit_token,omitempty"` // used by summary, split input into mutil sub-docs summaried by llm separately.
 
 	// openai key
 	OpenAIBaseUrl string `json:"open_ai_base_url,omitempty"` // if openai is used for embedding or llm, it is needed, default is "https://api.openai.com"
 	OpenAIKey     string `json:"open_ai_key,omitempty"`      // if openai is used for embedding or llm, it is needed
+
+	// gemini key
+	GeminiBaseUri string `json:"gemini_base_uri,omitempty"` // if gemini is used for embedding or llm, it is needed, default is "https://generativelanguage.googleapis.com"
+	GeminiKey     string `json:"gemini_key,omitempty"`      // if gemini is used for embedding or llm, it is needed
 
 	// embedding config
 	EmbeddingConfig EmbeddingConfig `json:"embedding_config,omitempty"`
@@ -60,7 +64,7 @@ type OpenAIConfig struct {
 	QueryPerMinute   int      `json:"query_per_minute,omitempty"` // qpm, default is 3
 	Burst            int      `json:"burst,omitempty"`            // burst, default is 5
 	Model            *string  `json:"model,omitempty"`            // model of openai, default for llm is "gpt-3.5-turbo"; default for embedding is "text-embedding-ada-002"
-	MaxReturnToken   *int     `json:"max_return_token,omitempty"`
+	MaxReturnToken   *int     `json:"max_return_token,omitempty"` // maxReturnToken + VectorStoreConfig.TopK * TextSpliterConfig.SpliterChunkSize <= token limit of llm model
 	FrequencyPenalty *uint    `json:"frequency_penalty,omitempty"`
 	PresencePenalty  *uint    `json:"presence_penalty,omitempty"`
 	Temperature      *float32 `json:"temperature,omitempty"`
@@ -70,7 +74,6 @@ type GeminiConfig struct {
 	QueryPerMinute int     `json:"query_per_minute,omitempty"` // qpm, default is 3
 	Burst          int     `json:"burst,omitempty"`            // burst, default is 5
 	Model          *string `json:"model,omitempty"`            // model of gemini, default for llm is "gemini-pro"; default for embedding is "embedding-001"
-	Key            string  `json:"key"`                        // key of Gemini api
 }
 
 type EmbeddingConfig struct {

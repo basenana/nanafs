@@ -17,8 +17,8 @@
 package friday
 
 import (
-	"context"
 	"encoding/json"
+	"errors"
 	"os"
 
 	"github.com/google/uuid"
@@ -27,42 +27,107 @@ import (
 	"github.com/basenana/friday/pkg/utils/files"
 )
 
-// IngestFromFile ingest a whole file providing models.File
-func (f *Friday) IngestFromFile(ctx context.Context, file models.File) (map[string]int, error) {
-	elements := []models.Element{}
-	// split doc
-	subDocs := f.Spliter.Split(file.Content)
-	for i, subDoc := range subDocs {
-		e := models.Element{
-			Name:     file.Name,
-			Group:    i,
-			OID:      file.OID,
-			ParentId: file.ParentId,
-			Content:  subDoc,
-		}
-		elements = append(elements, e)
-	}
-	// ingest
-	return f.Ingest(ctx, elements)
+func (f *Friday) ElementFile(ps *string) *Friday {
+	f.statement.elementFile = ps
+	return f
 }
 
-// Ingest ingest elements of a file
-func (f *Friday) Ingest(ctx context.Context, elements []models.Element) (map[string]int, error) {
-	totalToken := make(map[string]int)
-	f.Log.Debugf("Ingesting %d ...", len(elements))
-	for i, element := range elements {
-		exist, err := f.Vector.Get(ctx, element.OID, element.Name, element.Group)
+func (f *Friday) Element(elements []models.Element) *Friday {
+	f.statement.elements = elements
+	return f
+}
+
+func (f *Friday) OriginFile(ps *string) *Friday {
+	f.statement.originFile = ps
+	return f
+}
+
+func (f *Friday) File(file *models.File) *Friday {
+	f.statement.file = file
+	return f
+}
+
+func (f *Friday) Ingest(res *IngestState) *Friday {
+	elements := []models.Element{}
+
+	if f.statement.file != nil {
+		// split doc
+		subDocs := f.Spliter.Split(f.statement.file.Content)
+		for i, subDoc := range subDocs {
+			e := models.Element{
+				Name:     f.statement.file.Name,
+				Group:    i,
+				OID:      f.statement.file.OID,
+				ParentId: f.statement.file.ParentId,
+				Content:  subDoc,
+			}
+			elements = append(elements, e)
+		}
+		f.statement.elements = elements
+	}
+
+	if f.statement.elementFile != nil {
+		doc, err := os.ReadFile(*f.statement.elementFile)
 		if err != nil {
-			return nil, err
+			f.Error = err
+			return f
+		}
+
+		if err := json.Unmarshal(doc, &elements); err != nil {
+			f.Error = err
+			return f
+		}
+		elements = f.Spliter.Merge(elements)
+		f.statement.elements = elements
+	}
+
+	if f.statement.originFile != nil {
+		fs, err := files.ReadFiles(*f.statement.originFile)
+		if err != nil {
+			f.Error = err
+			return f
+		}
+
+		for n, file := range fs {
+			subDocs := f.Spliter.Split(file)
+			for i, subDoc := range subDocs {
+				e := models.Element{
+					Content: subDoc,
+					Name:    n,
+					Group:   i,
+				}
+				elements = append(elements, e)
+			}
+		}
+		f.statement.elements = elements
+	}
+
+	// ingest
+	return f.ingest(res)
+}
+
+func (f *Friday) ingest(res *IngestState) *Friday {
+	if res == nil {
+		f.Error = errors.New("result can not be nil")
+		return f
+	}
+	totalToken := make(map[string]int)
+	f.Log.Debugf("Ingesting %d ...", len(f.statement.elements))
+	for i, element := range f.statement.elements {
+		exist, err := f.Vector.Get(f.statement.context, element.OID, element.Name, element.Group)
+		if err != nil {
+			f.Error = err
+			return f
 		}
 		if exist != nil && exist.Content == element.Content {
 			f.Log.Debugf("vector %d(th) name(%s) group(%d) exist, skip ...", i, element.Name, element.Group)
 			continue
 		}
 
-		vectors, m, err := f.Embedding.VectorQuery(ctx, element.Content)
+		vectors, m, err := f.Embedding.VectorQuery(f.statement.context, element.Content)
 		if err != nil {
-			return nil, err
+			f.Error = err
+			return f
 		}
 		for k, v := range m {
 			totalToken[k] = v.(int)
@@ -78,47 +143,11 @@ func (f *Friday) Ingest(ctx context.Context, elements []models.Element) (map[str
 		element.Vector = vectors
 
 		f.Log.Debugf("store %d(th) vector name(%s) group(%d)  ...", i, element.Name, element.Group)
-		if err := f.Vector.Store(ctx, &element, m); err != nil {
-			return nil, err
+		if err := f.Vector.Store(f.statement.context, &element, m); err != nil {
+			f.Error = err
+			return f
 		}
 	}
-	return totalToken, nil
-}
-
-// IngestFromElementFile ingest a whole file given an element-style origin file
-func (f *Friday) IngestFromElementFile(ctx context.Context, ps string) (map[string]int, error) {
-	doc, err := os.ReadFile(ps)
-	if err != nil {
-		return nil, err
-	}
-	elements := []models.Element{}
-
-	if err := json.Unmarshal(doc, &elements); err != nil {
-		return nil, err
-	}
-	merged := f.Spliter.Merge(elements)
-	return f.Ingest(ctx, merged)
-}
-
-// IngestFromOriginFile ingest a whole file given an origin file
-func (f *Friday) IngestFromOriginFile(ctx context.Context, ps string) (map[string]int, error) {
-	fs, err := files.ReadFiles(ps)
-	if err != nil {
-		return nil, err
-	}
-
-	elements := []models.Element{}
-	for n, file := range fs {
-		subDocs := f.Spliter.Split(file)
-		for i, subDoc := range subDocs {
-			e := models.Element{
-				Content: subDoc,
-				Name:    n,
-				Group:   i,
-			}
-			elements = append(elements, e)
-		}
-	}
-
-	return f.Ingest(ctx, elements)
+	res.Tokens = totalToken
+	return f
 }

@@ -57,7 +57,7 @@ func NewFridayWithVector(conf *config.Config, vectorClient vectorstore.VectorSto
 		llmClient = glm_6b.NewGLM(log, conf.LLMConfig.GLM6B.Url)
 	}
 	if conf.LLMConfig.LLMType == config.LLMGemini {
-		llmClient = gemini.NewGemini(log, conf.LLMConfig.Gemini)
+		llmClient = gemini.NewGemini(log, conf.GeminiBaseUri, conf.GeminiKey, conf.LLMConfig.Gemini)
 	}
 
 	if conf.LLMConfig.Prompts != nil {
@@ -80,7 +80,7 @@ func NewFridayWithVector(conf *config.Config, vectorClient vectorstore.VectorSto
 		conf.VectorStoreConfig.EmbeddingDim = len(testEmbed)
 	}
 	if conf.EmbeddingConfig.EmbeddingType == config.EmbeddingGemini {
-		embeddingModel = geminiembedding.NewGeminiEmbedding(log, conf.EmbeddingConfig.Gemini)
+		embeddingModel = geminiembedding.NewGeminiEmbedding(log, conf.GeminiBaseUri, conf.GeminiKey, conf.EmbeddingConfig.Gemini)
 	}
 
 	defaultVectorTopK := friday.DefaultTopK

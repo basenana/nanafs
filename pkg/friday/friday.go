@@ -64,14 +64,18 @@ func IngestFile(ctx context.Context, entryId, parentId int64, fileName, content 
 		ParentId: parentId,
 		Content:  content,
 	}
-	return fridayClient.IngestFromFile(ctx, file)
+	result := friday.IngestState{}
+	f := fridayClient.WithContext(ctx).File(&file).Ingest(&result)
+	return result.Tokens, f.Error
 }
 
 func Question(ctx context.Context, q string) (answer string, usage map[string]int, err error) {
 	if fridayClient == nil {
 		return "", nil, fmt.Errorf("fridayClient is nil, can not use it")
 	}
-	return fridayClient.Question(ctx, 0, q)
+	result := friday.ChatState{}
+	f := fridayClient.WithContext(ctx).Question(q).Complete(&result)
+	return result.Answer, result.Tokens, f.Error
 }
 
 func SummaryFile(ctx context.Context, fileName, content string) (string, map[string]int, error) {
@@ -82,19 +86,40 @@ func SummaryFile(ctx context.Context, fileName, content string) (string, map[str
 		Name:    fileName,
 		Content: content,
 	}
-	result, usage, err := fridayClient.SummaryFromFile(ctx, file, summary.MapReduce)
-	if err != nil {
-		return "", nil, err
+	result := friday.SummaryState{}
+	f := fridayClient.WithContext(ctx).File(&file).OfType(summary.MapReduce).Summary(&result)
+	if f.Error != nil {
+		return "", nil, f.Error
 	}
-	if result == nil || result[fileName] == "" {
+	if result.Summary == nil || result.Summary[fileName] == "" {
 		return "", nil, fmt.Errorf("fail to summary file %s", fileName)
 	}
-	return result[fileName], usage, nil
+	return result.Summary[fileName], result.Tokens, nil
 }
 
 func Keywords(ctx context.Context, content string) ([]string, map[string]int, error) {
 	if fridayClient == nil {
 		return nil, nil, fmt.Errorf("fridayClient is nil, can not use it")
 	}
-	return fridayClient.Keywords(ctx, content)
+	result := friday.KeywordsState{}
+	f := fridayClient.WithContext(ctx).Content(content).Keywords(&result)
+	return result.Keywords, result.Tokens, f.Error
+}
+
+func ChatInDir(ctx context.Context, dirId int64, history []map[string]string, response chan map[string]string) error {
+	if fridayClient == nil {
+		return fmt.Errorf("fridayClient is nil, can not use it")
+	}
+	result := friday.ChatState{Response: response}
+	f := fridayClient.WithContext(ctx).History(history).SearchIn(&models.DocQuery{ParentId: dirId}).Chat(&result)
+	return f.Error
+}
+
+func ChatInEntry(ctx context.Context, entryId int64, history []map[string]string, response chan map[string]string) error {
+	if fridayClient == nil {
+		return fmt.Errorf("fridayClient is nil, can not use it")
+	}
+	result := friday.ChatState{Response: response}
+	f := fridayClient.WithContext(ctx).History(history).SearchIn(&models.DocQuery{Oid: entryId}).Chat(&result)
+	return f.Error
 }

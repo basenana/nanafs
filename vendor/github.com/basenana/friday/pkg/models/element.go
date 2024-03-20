@@ -32,3 +32,8 @@ type Element struct {
 	Content  string    `json:"content"`
 	Vector   []float32 `json:"vector"`
 }
+
+type DocQuery struct {
+	ParentId int64
+	Oid      int64
+}

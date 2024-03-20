@@ -76,6 +76,18 @@ type CompletionResult struct {
 	Time     string     `json:"time"`
 }
 
+func (o *GLM) GetUserModel() string {
+	return "user"
+}
+
+func (o *GLM) GetSystemModel() string {
+	return "system"
+}
+
+func (o *GLM) GetAssistantModel() string {
+	return "assistant"
+}
+
 func (o *GLM) Completion(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, map[string]int, error) {
 	path := ""
 
@@ -106,15 +118,11 @@ func (o *GLM) Completion(ctx context.Context, prompt prompts.PromptTemplate, par
 }
 
 // todo: not supported
-func (o *GLM) Chat(ctx context.Context, history []map[string]string, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, map[string]int, error) {
+func (o *GLM) Chat(ctx context.Context, stream bool, history []map[string]string, answers chan<- map[string]string) (map[string]int, error) {
 	path := ""
 
-	p, err := prompt.String(parameters)
-	if err != nil {
-		return nil, nil, err
-	}
 	data := map[string]interface{}{
-		"prompt":      p,
+		"prompt":      history,
 		"max_length":  10240,
 		"temperature": 0.7,
 		"top_p":       1,
@@ -123,14 +131,13 @@ func (o *GLM) Chat(ctx context.Context, history []map[string]string, prompt prom
 
 	respBody, err := o.request(path, "POST", bytes.NewBuffer(postBody))
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	var res CompletionResult
 	err = json.Unmarshal(respBody, &res)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	ans := []string{res.Response}
-	return ans, nil, err
+	return nil, err
 }

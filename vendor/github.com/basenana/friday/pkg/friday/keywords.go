@@ -17,18 +17,22 @@
 package friday
 
 import (
-	"context"
 	"strings"
 
 	"github.com/basenana/friday/pkg/llm/prompts"
 )
 
-func (f *Friday) Keywords(ctx context.Context, content string) ([]string, map[string]int, error) {
+func (f *Friday) Content(content string) *Friday {
+	f.statement.content = content
+	return f
+}
+
+func (f *Friday) Keywords(res *KeywordsState) *Friday {
 	prompt := prompts.NewKeywordsPrompt(f.Prompts[keywordsPromptKey])
 
-	answers, usage, err := f.LLM.Completion(ctx, prompt, map[string]string{"context": content})
+	answers, usage, err := f.LLM.Completion(f.statement.context, prompt, map[string]string{"context": f.statement.content})
 	if err != nil {
-		return []string{}, nil, err
+		return f
 	}
 	answer := answers[0]
 	keywords := strings.Split(answer, ",")
@@ -39,5 +43,7 @@ func (f *Friday) Keywords(ctx context.Context, content string) ([]string, map[st
 		}
 	}
 	f.Log.Debugf("Keywords result: %v", result)
-	return result, usage, nil
+	res.Keywords = result
+	res.Tokens = usage
+	return f
 }

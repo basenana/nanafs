@@ -19,8 +19,8 @@ package v1
 import (
 	"context"
 	"encoding/json"
-
-	"github.com/basenana/friday/pkg/llm/prompts"
+	"fmt"
+	"strings"
 )
 
 type ChatResult struct {
@@ -29,7 +29,7 @@ type ChatResult struct {
 	Created int            `json:"created"`
 	Model   string         `json:"model"`
 	Choices []ChatChoice   `json:"choices"`
-	Usage   map[string]int `json:"usage"`
+	Usage   map[string]int `json:"usage,omitempty"`
 }
 
 type ChatChoice struct {
@@ -38,58 +38,88 @@ type ChatChoice struct {
 	FinishReason string            `json:"finish_reason"`
 }
 
-func (o *OpenAIV1) Chat(ctx context.Context, history []map[string]string, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, map[string]int, error) {
-	return o.chat(ctx, history, prompt, parameters)
+type ChatStreamResult struct {
+	Id      string             `json:"id"`
+	Object  string             `json:"object"`
+	Created int                `json:"created"`
+	Model   string             `json:"model"`
+	Choices []ChatStreamChoice `json:"choices"`
 }
 
-func (o *OpenAIV1) chat(ctx context.Context, history []map[string]string, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, map[string]int, error) {
+type ChatStreamChoice struct {
+	Index        int               `json:"index"`
+	Delta        map[string]string `json:"delta"`
+	FinishReason string            `json:"finish_reason,omitempty"`
+}
+
+func (o *OpenAIV1) GetUserModel() string {
+	return "user"
+}
+
+func (o *OpenAIV1) GetSystemModel() string {
+	return "system"
+}
+
+func (o *OpenAIV1) GetAssistantModel() string {
+	return "assistant"
+}
+
+func (o *OpenAIV1) Chat(ctx context.Context, stream bool, history []map[string]string, resp chan<- map[string]string) (tokens map[string]int, err error) {
 	path := "v1/chat/completions"
-
-	p, err := prompt.String(parameters)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	histories := make([]map[string]string, 0)
-	for _, hs := range history {
-		for user, content := range hs {
-			histories = append(histories, map[string]string{
-				"role":    user,
-				"content": content,
-			})
-		}
-	}
-	histories = append(histories,
-		map[string]string{
-			"role":    "user",
-			"content": p,
-		},
-	)
 
 	data := map[string]interface{}{
 		"model":             *o.conf.Model,
-		"messages":          []interface{}{histories},
+		"messages":          history,
 		"max_tokens":        *o.conf.MaxReturnToken,
 		"temperature":       *o.conf.Temperature,
 		"top_p":             1,
 		"frequency_penalty": *o.conf.FrequencyPenalty,
 		"presence_penalty":  *o.conf.PresencePenalty,
 		"n":                 1,
+		"stream":            stream,
 	}
 
-	respBody, err := o.request(ctx, path, "POST", data)
-	if err != nil {
-		return nil, nil, err
-	}
+	buf := make(chan []byte)
+	go func() {
+		defer close(buf)
+		err = o.request(ctx, stream, path, "POST", data, buf)
+		if err != nil {
+			return
+		}
+	}()
 
-	var res ChatResult
-	err = json.Unmarshal(respBody, &res)
-	if err != nil {
-		return nil, nil, err
+	for line := range buf {
+		var delta map[string]string
+		if stream {
+			var res ChatStreamResult
+			if !strings.HasPrefix(string(line), "data:") || strings.Contains(string(line), "data: [DONE]") {
+				continue
+			}
+			// it should be: data: xxx
+			l := string(line)[6:]
+			err = json.Unmarshal([]byte(l), &res)
+			if err != nil {
+				err = fmt.Errorf("cannot marshal msg: %s, err: %v", line, err)
+				return
+			}
+			delta = res.Choices[0].Delta
+		} else {
+			var res ChatResult
+			err = json.Unmarshal(line, &res)
+			if err != nil {
+				err = fmt.Errorf("cannot marshal msg: %s, err: %v", line, err)
+				return
+			}
+			delta = res.Choices[0].Message
+		}
+
+		select {
+		case <-ctx.Done():
+			err = fmt.Errorf("context timeout in openai chat")
+			return
+		case resp <- delta:
+			continue
+		}
 	}
-	ans := make([]string, len(res.Choices))
-	for i, c := range res.Choices {
-		ans[i] = c.Message["content"]
-	}
-	return ans, res.Usage, err
+	return
 }

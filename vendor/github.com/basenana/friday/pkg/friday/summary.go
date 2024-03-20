@@ -17,73 +17,79 @@
 package friday
 
 import (
-	"context"
-
 	"github.com/basenana/friday/pkg/friday/summary"
-	"github.com/basenana/friday/pkg/models"
 	"github.com/basenana/friday/pkg/utils/files"
 )
 
-func (f *Friday) Summary(ctx context.Context, elements []models.Element, summaryType summary.SummaryType) (map[string]string, map[string]int, error) {
-	result := make(map[string]string)
-	s := summary.NewSummary(f.Log, f.LLM, f.LimitToken, f.Prompts)
-
-	docs := make(map[string][]string)
-	for _, element := range elements {
-		if _, ok := docs[element.Name]; !ok {
-			docs[element.Name] = []string{element.Content}
-		} else {
-			docs[element.Name] = append(docs[element.Name], element.Content)
-		}
-	}
-	totalUsage := make(map[string]int)
-	for source, doc := range docs {
-		summaryOfFile, usage, err := s.Summary(ctx, doc, summaryType)
-		if err != nil {
-			return nil, nil, err
-		}
-		result[source] = summaryOfFile
-		for k, v := range usage {
-			totalUsage[k] = totalUsage[k] + v
-		}
-	}
-	f.Log.Debugf("Summary result: %s", result)
-	return result, totalUsage, nil
+func (f *Friday) OfType(summaryType summary.SummaryType) *Friday {
+	f.statement.summaryType = summaryType
+	return f
 }
 
-func (f *Friday) SummaryFromFile(ctx context.Context, file models.File, summaryType summary.SummaryType) (map[string]string, map[string]int, error) {
-	s := summary.NewSummary(f.Log, f.LLM, f.LimitToken, f.Prompts)
-	// split doc
-	docs := f.Spliter.Split(file.Content)
-	// summary
-	summaryOfFile, usage, err := s.Summary(ctx, docs, summaryType)
-	if err != nil {
-		return nil, nil, err
+func (f *Friday) Summary(res *SummaryState) *Friday {
+	if f.statement.summaryType == "" {
+		f.statement.summaryType = summary.Stuff
 	}
-	return map[string]string{file.Name: summaryOfFile}, usage, err
-}
-
-func (f *Friday) SummaryFromOriginFile(ctx context.Context, ps string, summaryType summary.SummaryType) (map[string]string, map[string]int, error) {
+	res.Summary = map[string]string{}
+	res.Tokens = map[string]int{}
+	// init
 	s := summary.NewSummary(f.Log, f.LLM, f.LimitToken, f.Prompts)
-	fs, err := files.ReadFiles(ps)
-	if err != nil {
-		return nil, nil, err
-	}
 
-	result := make(map[string]string)
-	totalUsage := make(map[string]int)
-	for name, file := range fs {
+	if f.statement.file != nil {
 		// split doc
-		subDocs := f.Spliter.Split(file)
-		summaryOfFile, usage, err := s.Summary(ctx, subDocs, summaryType)
+		docs := f.Spliter.Split(f.statement.file.Content)
+		// summary
+		summaryOfFile, usage, err := s.Summary(f.statement.context, docs, f.statement.summaryType)
 		if err != nil {
-			return nil, nil, err
+			f.Error = err
+			return f
 		}
-		result[name] = summaryOfFile
-		for k, v := range usage {
-			totalUsage[k] = totalUsage[k] + v
-		}
+		res.Summary = map[string]string{f.statement.file.Name: summaryOfFile}
+		res.Tokens = usage
+		return f
 	}
 
-	return result, totalUsage, nil
+	if f.statement.originFile != nil {
+		fs, err := files.ReadFiles(*f.statement.originFile)
+		if err != nil {
+			f.Error = err
+			return f
+		}
+
+		for name, file := range fs {
+			// split doc
+			subDocs := f.Spliter.Split(file)
+			summaryOfFile, usage, err := s.Summary(f.statement.context, subDocs, f.statement.summaryType)
+			if err != nil {
+				f.Error = err
+				return f
+			}
+			res.Summary[name] = summaryOfFile
+			res.Tokens = mergeTokens(usage, res.Tokens)
+		}
+		return f
+	}
+
+	if len(f.statement.elements) != 0 {
+		docs := make(map[string][]string)
+		for _, element := range f.statement.elements {
+			if _, ok := docs[element.Name]; !ok {
+				docs[element.Name] = []string{element.Content}
+			} else {
+				docs[element.Name] = append(docs[element.Name], element.Content)
+			}
+		}
+		for source, doc := range docs {
+			summaryOfFile, usage, err := s.Summary(f.statement.context, doc, f.statement.summaryType)
+			if err != nil {
+				f.Error = err
+				return f
+			}
+			res.Summary[source] = summaryOfFile
+			res.Tokens = mergeTokens(usage, res.Tokens)
+		}
+		return f
+	}
+
+	return f
 }

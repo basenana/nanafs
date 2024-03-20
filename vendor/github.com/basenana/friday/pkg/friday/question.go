@@ -17,48 +17,225 @@
 package friday
 
 import (
-	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/basenana/friday/pkg/llm/prompts"
+	"github.com/basenana/friday/pkg/models"
 )
 
-func (f *Friday) Question(ctx context.Context, parentId int64, q string) (string, map[string]int, error) {
-	prompt := prompts.NewQuestionPrompt(f.Prompts[questionPromptKey])
-	c, err := f.searchDocs(ctx, parentId, q)
-	if err != nil {
-		return "", nil, err
-	}
-	if f.LLM != nil {
-		ans, usage, err := f.LLM.Completion(ctx, prompt, map[string]string{
-			"context":  c,
-			"question": q,
-		})
-		if err != nil {
-			return "", nil, fmt.Errorf("llm completion error: %w", err)
-		}
-		f.Log.Debugf("Question result: %s", c)
-		return ans[0], usage, nil
-	}
-	return c, nil, nil
+const remainHistoryNum = 3 // must be odd
+
+func (f *Friday) History(history []map[string]string) *Friday {
+	f.statement.history = history
+	return f
 }
 
-func (f *Friday) searchDocs(ctx context.Context, parentId int64, q string) (string, error) {
-	f.Log.Debugf("vector query for %s ...", q)
-	qv, _, err := f.Embedding.VectorQuery(ctx, q)
-	if err != nil {
-		return "", fmt.Errorf("vector embedding error: %w", err)
+func (f *Friday) SearchIn(query *models.DocQuery) *Friday {
+	f.statement.query = query
+	return f
+}
+
+func (f *Friday) Question(q string) *Friday {
+	f.statement.question = q
+	return f
+}
+
+func (f *Friday) Chat(res *ChatState) *Friday {
+	if len(f.statement.history) == 0 {
+		f.Error = errors.New("history can not be nil")
+		return f
 	}
-	docs, err := f.Vector.Search(ctx, parentId, qv, *f.VectorTopK)
+	if f.LLM == nil {
+		f.Error = errors.New("llm client of friday is not set")
+		return f
+	}
+
+	if f.statement.query != nil {
+		// search for docs
+		questions := ""
+		for _, d := range f.statement.history {
+			if d["role"] == f.LLM.GetUserModel() {
+				questions = fmt.Sprintf("%s\n%s", questions, d["content"])
+			}
+		}
+		f.searchDocs(questions)
+		if f.Error != nil {
+			return f
+		}
+	}
+	if (f.statement.history)[0]["role"] == "system" {
+		f.statement.history = f.statement.history[1:]
+	}
+	f.statement.history = append([]map[string]string{
+		{
+			"role":    f.LLM.GetSystemModel(),
+			"content": fmt.Sprintf("基于以下已知信息，简洁和专业的来回答用户的问题。答案请使用中文。 \n\n已知内容: %s\n", f.statement.info),
+		},
+		{
+			"role":    f.LLM.GetAssistantModel(),
+			"content": "",
+		},
+	}, f.statement.history...)
+
+	return f.chat(res)
+}
+
+func (f *Friday) chat(res *ChatState) *Friday {
+	if res == nil {
+		f.Error = errors.New("result can not be nil")
+		return f
+	}
+	var (
+		dialogues = []map[string]string{}
+	)
+
+	// If the number of dialogue rounds exceeds 2 rounds, should conclude it.
+	if len(f.statement.history) >= remainHistoryNum {
+		sumDialogue := make([]map[string]string, len(f.statement.history))
+		copy(sumDialogue, f.statement.history)
+		sumDialogue[len(sumDialogue)-1] = map[string]string{
+			"role":    f.LLM.GetSystemModel(),
+			"content": "简要总结一下对话内容，用作后续的上下文提示 prompt，控制在 200 字以内",
+		}
+		var (
+			sumBuf = make(chan map[string]string)
+			sum    = make(map[string]string)
+			err    error
+		)
+		go func() {
+			defer close(sumBuf)
+			_, err = f.LLM.Chat(f.statement.context, false, sumDialogue, sumBuf)
+			if err != nil {
+				f.Error = err
+				return
+			}
+		}()
+		select {
+		case <-f.statement.context.Done():
+			return f
+		case sum = <-sumBuf:
+			// add context prompt for dialogue
+			if f.statement.query != nil {
+				// there has been ingest info, combine them.
+				dialogues = []map[string]string{
+					{
+						"role": f.LLM.GetSystemModel(),
+						"content": fmt.Sprintf(
+							"%s\n%s",
+							f.statement.history[0]["content"],
+							fmt.Sprintf("这是历史聊天总结作为前情提要：%s\n", sum["content"]),
+						),
+					},
+					{
+						"role":    f.LLM.GetAssistantModel(),
+						"content": "",
+					},
+				}
+			} else {
+				dialogues = []map[string]string{
+					{
+						"role":    f.LLM.GetSystemModel(),
+						"content": fmt.Sprintf("这是历史聊天总结作为前情提要：%s", sum["content"]),
+					},
+					{
+						"role":    f.LLM.GetAssistantModel(),
+						"content": "",
+					},
+				}
+			}
+			dialogues = append(dialogues, f.statement.history[len(f.statement.history)-remainHistoryNum:len(f.statement.history)]...)
+		}
+		if f.Error != nil {
+			return f
+		}
+	} else {
+		dialogues = make([]map[string]string, len(f.statement.history))
+		copy(dialogues, f.statement.history)
+	}
+
+	// go for llm
+	_, err := f.LLM.Chat(f.statement.context, true, dialogues, res.Response)
 	if err != nil {
-		return "", fmt.Errorf("vector search error: %w", err)
+		f.Error = err
+		return f
+	}
+	return f
+}
+
+func (f *Friday) Complete(res *ChatState) *Friday {
+	if res == nil {
+		f.Error = errors.New("result can not be nil")
+		return f
+	}
+	if len(f.statement.question) == 0 {
+		f.Error = errors.New("question can not be nil")
+		return f
+	}
+	if f.LLM == nil {
+		f.Error = errors.New("llm client of friday is not set")
+		return f
+	}
+
+	prompt := prompts.NewQuestionPrompt(f.Prompts[questionPromptKey])
+	if f.statement.query != nil {
+		f.searchDocs(f.statement.question)
+		if f.Error != nil {
+			return f
+		}
+	}
+	ans, usage, err := f.LLM.Completion(f.statement.context, prompt, map[string]string{
+		"context":  f.statement.info,
+		"question": f.statement.question,
+	})
+	if err != nil {
+		f.Error = fmt.Errorf("llm completion error: %w", err)
+		return f
+	}
+	f.Log.Debugf("Question result: %s", ans[0])
+	res.Answer = ans[0]
+	res.Tokens = usage
+	return f
+}
+
+func (f *Friday) searchDocs(q string) {
+	f.Log.Debugf("vector query for %s ...", q)
+	qv, _, err := f.Embedding.VectorQuery(f.statement.context, q)
+	if err != nil {
+		f.Error = fmt.Errorf("vector embedding error: %w", err)
+		return
+	}
+	var dq models.DocQuery
+	if f.statement.query != nil {
+		dq = *f.statement.query
+	}
+	docs, err := f.Vector.Search(f.statement.context, dq, qv, *f.VectorTopK)
+	if err != nil {
+		f.Error = fmt.Errorf("vector search error: %w", err)
+		return
 	}
 
 	cs := []string{}
 	for _, c := range docs {
-		f.Log.Debugf("searched from [%s] for %s", c.Name, c.Content)
+		//f.Log.Debugf("searched from [%s] for %s", c.Name, c.Content)
 		cs = append(cs, c.Content)
 	}
-	return strings.Join(cs, "\n"), nil
+	f.statement.info = strings.Join(cs, "\n")
+	return
+}
+
+func mergeTokens(tokens, merged map[string]int) map[string]int {
+	result := make(map[string]int)
+	for k, v := range tokens {
+		result[k] = v
+	}
+	for k, v := range merged {
+		if _, ok := result[k]; !ok {
+			result[k] = v
+		} else {
+			result[k] += v
+		}
+	}
+	return result
 }
