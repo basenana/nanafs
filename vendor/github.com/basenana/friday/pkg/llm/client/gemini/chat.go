@@ -20,10 +20,27 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
+func (g *Gemini) GetUserModel() string {
+	return "user"
+}
+
+func (g *Gemini) GetSystemModel() string {
+	return "user"
+}
+
+func (g *Gemini) GetAssistantModel() string {
+	return "model"
+}
+
 func (g *Gemini) Chat(ctx context.Context, stream bool, history []map[string]string, answers chan<- map[string]string) (tokens map[string]int, err error) {
-	path := fmt.Sprintf("v1beta/models/%s:streamGenerateContent", *g.conf.Model)
+	var path string
+	path = fmt.Sprintf("v1beta/models/%s:generateContent", *g.conf.Model)
+	if stream {
+		path = fmt.Sprintf("v1beta/models/%s:streamGenerateContent", *g.conf.Model)
+	}
 
 	contents := make([]map[string]any, 0)
 	for _, hs := range history {
@@ -39,25 +56,35 @@ func (g *Gemini) Chat(ctx context.Context, stream bool, history []map[string]str
 	go func() {
 		defer close(buf)
 		err = g.request(ctx, stream, path, "POST", map[string]any{"contents": contents}, buf)
+		if err != nil {
+			return
+		}
 	}()
-	if err != nil {
-		return
-	}
 
 	for line := range buf {
-		var res ChatResult
-		err = json.Unmarshal(line, &res)
-		if err != nil {
-			return nil, err
-		}
-		if len(res.Candidates) == 0 && res.PromptFeedback.BlockReason != "" {
-			g.log.Errorf("gemini response: %s ", string(line))
-			return nil, fmt.Errorf("gemini api block because of %s", res.PromptFeedback.BlockReason)
-		}
 		ans := make(map[string]string)
-		for _, c := range res.Candidates {
-			for _, t := range c.Content.Parts {
-				ans[c.Content.Role] = t.Text
+		l := strings.TrimSpace(string(line))
+		if stream {
+			if !strings.HasPrefix(l, "\"text\"") {
+				continue
+			}
+			// it should be: "text": "xxx"
+			ans["content"] = l[9 : len(l)-2]
+		} else {
+			var res ChatResult
+			err = json.Unmarshal(line, &res)
+			if err != nil {
+				return nil, err
+			}
+			if len(res.Candidates) == 0 && res.PromptFeedback.BlockReason != "" {
+				g.log.Errorf("gemini response: %s ", string(line))
+				return nil, fmt.Errorf("gemini api block because of %s", res.PromptFeedback.BlockReason)
+			}
+			for _, c := range res.Candidates {
+				for _, t := range c.Content.Parts {
+					ans["role"] = c.Content.Role
+					ans["content"] = t.Text
+				}
 			}
 		}
 		select {

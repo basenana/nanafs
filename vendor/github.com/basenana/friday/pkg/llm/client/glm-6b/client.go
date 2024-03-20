@@ -76,6 +76,18 @@ type CompletionResult struct {
 	Time     string     `json:"time"`
 }
 
+func (o *GLM) GetUserModel() string {
+	return "user"
+}
+
+func (o *GLM) GetSystemModel() string {
+	return "system"
+}
+
+func (o *GLM) GetAssistantModel() string {
+	return "assistant"
+}
+
 func (o *GLM) Completion(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) ([]string, map[string]int, error) {
 	path := ""
 

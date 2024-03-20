@@ -52,11 +52,19 @@ type ChatStreamChoice struct {
 	FinishReason string            `json:"finish_reason,omitempty"`
 }
 
-func (o *OpenAIV1) Chat(ctx context.Context, stream bool, history []map[string]string, answers chan<- map[string]string) (map[string]int, error) {
-	return o.chat(ctx, stream, history, answers)
+func (o *OpenAIV1) GetUserModel() string {
+	return "user"
 }
 
-func (o *OpenAIV1) chat(ctx context.Context, stream bool, history []map[string]string, resp chan<- map[string]string) (tokens map[string]int, err error) {
+func (o *OpenAIV1) GetSystemModel() string {
+	return "system"
+}
+
+func (o *OpenAIV1) GetAssistantModel() string {
+	return "assistant"
+}
+
+func (o *OpenAIV1) Chat(ctx context.Context, stream bool, history []map[string]string, resp chan<- map[string]string) (tokens map[string]int, err error) {
 	path := "v1/chat/completions"
 
 	data := map[string]interface{}{
@@ -73,30 +81,43 @@ func (o *OpenAIV1) chat(ctx context.Context, stream bool, history []map[string]s
 
 	buf := make(chan []byte)
 	go func() {
+		defer close(buf)
 		err = o.request(ctx, stream, path, "POST", data, buf)
-		close(buf)
+		if err != nil {
+			return
+		}
 	}()
 
-	if err != nil {
-		return
-	}
 	for line := range buf {
-		var res ChatStreamResult
-		if !strings.HasPrefix(string(line), "data:") || strings.Contains(string(line), "data: [DONE]") {
-			continue
-		}
-		l := string(line)[6:]
-		err = json.Unmarshal([]byte(l), &res)
-		if err != nil {
-			err = fmt.Errorf("cannot marshal msg: %s, err: %v", line, err)
-			return
+		var delta map[string]string
+		if stream {
+			var res ChatStreamResult
+			if !strings.HasPrefix(string(line), "data:") || strings.Contains(string(line), "data: [DONE]") {
+				continue
+			}
+			// it should be: data: xxx
+			l := string(line)[6:]
+			err = json.Unmarshal([]byte(l), &res)
+			if err != nil {
+				err = fmt.Errorf("cannot marshal msg: %s, err: %v", line, err)
+				return
+			}
+			delta = res.Choices[0].Delta
+		} else {
+			var res ChatResult
+			err = json.Unmarshal(line, &res)
+			if err != nil {
+				err = fmt.Errorf("cannot marshal msg: %s, err: %v", line, err)
+				return
+			}
+			delta = res.Choices[0].Message
 		}
 
 		select {
 		case <-ctx.Done():
 			err = fmt.Errorf("context timeout in openai chat")
 			return
-		case resp <- res.Choices[0].Delta:
+		case resp <- delta:
 			continue
 		}
 	}

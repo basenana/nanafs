@@ -23,6 +23,10 @@ import (
 )
 
 type LLM interface {
+	GetUserModel() string
+	GetSystemModel() string
+	GetAssistantModel() string
+
 	// Completion chat with llm just once
 	Completion(ctx context.Context, prompt prompts.PromptTemplate, parameters map[string]string) (answers []string, tokens map[string]int, err error)
 	/*

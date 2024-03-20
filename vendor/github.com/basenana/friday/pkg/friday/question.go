@@ -25,6 +25,8 @@ import (
 	"github.com/basenana/friday/pkg/models"
 )
 
+const remainHistoryNum = 3 // must be odd
+
 func (f *Friday) History(history []map[string]string) *Friday {
 	f.statement.history = history
 	return f
@@ -54,7 +56,7 @@ func (f *Friday) Chat(res *ChatState) *Friday {
 		// search for docs
 		questions := ""
 		for _, d := range f.statement.history {
-			if d["role"] == "user" {
+			if d["role"] == f.LLM.GetUserModel() {
 				questions = fmt.Sprintf("%s\n%s", questions, d["content"])
 			}
 		}
@@ -68,8 +70,12 @@ func (f *Friday) Chat(res *ChatState) *Friday {
 	}
 	f.statement.history = append([]map[string]string{
 		{
-			"role":    "system",
-			"content": fmt.Sprintf("基于以下已知信息，简洁和专业的来回答用户的问题。答案请使用中文。 \n\n已知内容: %s", f.statement.info),
+			"role":    f.LLM.GetSystemModel(),
+			"content": fmt.Sprintf("基于以下已知信息，简洁和专业的来回答用户的问题。答案请使用中文。 \n\n已知内容: %s\n", f.statement.info),
+		},
+		{
+			"role":    f.LLM.GetAssistantModel(),
+			"content": "",
 		},
 	}, f.statement.history...)
 
@@ -82,46 +88,67 @@ func (f *Friday) chat(res *ChatState) *Friday {
 		return f
 	}
 	var (
-		tokens    = map[string]int{}
 		dialogues = []map[string]string{}
 	)
 
 	// If the number of dialogue rounds exceeds 2 rounds, should conclude it.
-	if len(f.statement.history) >= 5 {
-		sumDialogue := make([]map[string]string, 0, len(f.statement.history))
+	if len(f.statement.history) >= remainHistoryNum {
+		sumDialogue := make([]map[string]string, len(f.statement.history))
 		copy(sumDialogue, f.statement.history)
-		sumDialogue = append(sumDialogue, map[string]string{
-			"role":    "system",
+		sumDialogue[len(sumDialogue)-1] = map[string]string{
+			"role":    f.LLM.GetSystemModel(),
 			"content": "简要总结一下对话内容，用作后续的上下文提示 prompt，控制在 200 字以内",
-		})
+		}
 		var (
 			sumBuf = make(chan map[string]string)
 			sum    = make(map[string]string)
-			usage  = make(map[string]int)
 			err    error
 		)
-		defer close(sumBuf)
 		go func() {
-			usage, err = f.LLM.Chat(f.statement.context, false, sumDialogue, sumBuf)
+			defer close(sumBuf)
+			_, err = f.LLM.Chat(f.statement.context, false, sumDialogue, sumBuf)
+			if err != nil {
+				f.Error = err
+				return
+			}
 		}()
-		if err != nil {
-			f.Error = err
-			return f
-		}
-		tokens = mergeTokens(usage, tokens)
 		select {
 		case <-f.statement.context.Done():
 			return f
 		case sum = <-sumBuf:
 			// add context prompt for dialogue
-			dialogues = append(dialogues, []map[string]string{
-				f.statement.history[0],
-				{
-					"role":    "system",
-					"content": fmt.Sprintf("这是历史聊天总结作为前情提要：%s", sum["content"]),
-				},
-			}...)
-			dialogues = append(dialogues, f.statement.history[len(f.statement.history)-5:len(f.statement.history)]...)
+			if f.statement.query != nil {
+				// there has been ingest info, combine them.
+				dialogues = []map[string]string{
+					{
+						"role": f.LLM.GetSystemModel(),
+						"content": fmt.Sprintf(
+							"%s\n%s",
+							f.statement.history[0]["content"],
+							fmt.Sprintf("这是历史聊天总结作为前情提要：%s\n", sum["content"]),
+						),
+					},
+					{
+						"role":    f.LLM.GetAssistantModel(),
+						"content": "",
+					},
+				}
+			} else {
+				dialogues = []map[string]string{
+					{
+						"role":    f.LLM.GetSystemModel(),
+						"content": fmt.Sprintf("这是历史聊天总结作为前情提要：%s", sum["content"]),
+					},
+					{
+						"role":    f.LLM.GetAssistantModel(),
+						"content": "",
+					},
+				}
+			}
+			dialogues = append(dialogues, f.statement.history[len(f.statement.history)-remainHistoryNum:len(f.statement.history)]...)
+		}
+		if f.Error != nil {
+			return f
 		}
 	} else {
 		dialogues = make([]map[string]string, len(f.statement.history))
@@ -129,14 +156,11 @@ func (f *Friday) chat(res *ChatState) *Friday {
 	}
 
 	// go for llm
-	usage, err := f.LLM.Chat(f.statement.context, true, dialogues, res.Response)
+	_, err := f.LLM.Chat(f.statement.context, true, dialogues, res.Response)
 	if err != nil {
 		f.Error = err
 		return f
 	}
-	tokens = mergeTokens(tokens, usage)
-
-	res.Tokens = tokens
 	return f
 }
 
