@@ -70,7 +70,7 @@ func init() {
 	)
 }
 
-func getWaitingTask(ctx context.Context, recorder metastore.ScheduledTaskRecorder, taskID string, evt *types.EntryEvent) (*types.ScheduledTask, error) {
+func getWaitingTask(ctx context.Context, recorder metastore.ScheduledTaskRecorder, taskID string, evt *types.Event) (*types.ScheduledTask, error) {
 	tasks, err := recorder.ListTask(ctx, taskID,
 		types.ScheduledTaskFilter{RefType: evt.RefType, RefID: evt.RefID, Status: []string{types.ScheduledTaskInitial, types.ScheduledTaskWait}})
 	if err != nil {

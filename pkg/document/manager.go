@@ -322,7 +322,7 @@ func (m *manager) CreateFridayAccount(ctx context.Context, account *types.Friday
 	return nil
 }
 
-func (m *manager) handleEntryEvent(evt *types.EntryEvent) error {
+func (m *manager) handleEntryEvent(evt *types.Event) error {
 	ctx, cancel := context.WithTimeout(context.TODO(), time.Hour)
 	defer cancel()
 
@@ -401,7 +401,7 @@ func registerDocExecutor(docMgr *manager) error {
 	eventMappings := []struct {
 		topic   string
 		action  string
-		handler func(*types.EntryEvent) error
+		handler func(*types.Event) error
 	}{
 		{events.TopicNamespaceEntry, events.ActionTypeDestroy, docMgr.handleEntryEvent},
 		{events.TopicNamespaceEntry, events.ActionTypeUpdate, docMgr.handleEntryEvent},

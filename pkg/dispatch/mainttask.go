@@ -44,7 +44,7 @@ type compactExecutor struct {
 	*maintainExecutor
 }
 
-func (c *compactExecutor) handleEvent(evt *types.EntryEvent) error {
+func (c *compactExecutor) handleEvent(evt *types.Event) error {
 	if evt.Type != events.ActionTypeCompact {
 		return nil
 	}
@@ -101,7 +101,7 @@ type entryCleanExecutor struct {
 	*maintainExecutor
 }
 
-func (c *entryCleanExecutor) handleEvent(evt *types.EntryEvent) error {
+func (c *entryCleanExecutor) handleEvent(evt *types.Event) error {
 	if evt.Type != events.ActionTypeDestroy {
 		return nil
 	}

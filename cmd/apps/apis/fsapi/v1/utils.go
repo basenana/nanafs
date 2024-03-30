@@ -79,3 +79,24 @@ func entryDetail(en, parent *types.Metadata) *EntryDetail {
 		AccessAt:   timestamppb.New(en.AccessAt),
 	}
 }
+
+func eventInfo(evt *types.Event) *Event {
+	return &Event{
+		Id:              evt.Id,
+		Type:            evt.Type,
+		Source:          evt.Source,
+		SpecVersion:     evt.SpecVersion,
+		DataContentType: evt.DataContentType,
+		Data: &Event_EventData{
+			Id:        evt.Data.ID,
+			ParentID:  evt.Data.ParentID,
+			Kind:      string(evt.Data.Kind),
+			KindMap:   evt.Data.KindMap,
+			Namespace: evt.Data.Namespace,
+		},
+		Time:     timestamppb.New(evt.Time),
+		RefID:    evt.RefID,
+		RefType:  evt.RefType,
+		Sequence: evt.Sequence,
+	}
+}

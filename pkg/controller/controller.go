@@ -61,6 +61,11 @@ type Controller interface {
 
 	QuickInbox(ctx context.Context, option inbox.Option) (*types.Metadata, error)
 
+	GetLatestSequence(ctx context.Context) (int64, error)
+	ListUnSyncedEvent(ctx context.Context, sequence int64) ([]types.Event, error)
+	CommitSyncedEvent(ctx context.Context, deviceID string, sequence int64) error
+	ListNotifications(ctx context.Context) ([]types.Notification, error)
+
 	EnableGroupFeed(ctx context.Context, id int64, feedID string) error
 	DisableGroupFeed(ctx context.Context, id int64) error
 	GetDocumentsByFeed(ctx context.Context, feedId string, count int) (*types.FeedResult, error)
@@ -79,6 +84,8 @@ type Controller interface {
 }
 
 type controller struct {
+	*notify.Notify
+
 	meta      metastore.Meta
 	cfg       config.Config
 	cfgLoader config.Loader
@@ -335,7 +342,7 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 		return nil, err
 	}
 
-	ctl.notify = notify.NewNotify(meta)
+	ctl.Notify = notify.NewNotify(meta)
 
 	// init friday
 	err = friday.InitFriday(cfg.Friday)
@@ -346,7 +353,7 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 	if err := plugin.Init(buildin.Services{DocumentManager: ctl.document}, cfg.Plugin); err != nil {
 		return nil, err
 	}
-	ctl.workflow, err = workflow.NewManager(ctl.entry, ctl.document, ctl.notify, meta, cfg.Workflow, cfg.FUSE)
+	ctl.workflow, err = workflow.NewManager(ctl.entry, ctl.document, ctl.Notify, meta, cfg.Workflow, cfg.FUSE)
 	if err != nil {
 		return nil, err
 	}

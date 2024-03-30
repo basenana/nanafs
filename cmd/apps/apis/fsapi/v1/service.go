@@ -38,6 +38,7 @@ type Services interface {
 	EntriesServer
 	InboxServer
 	PropertiesServer
+	NotifyServer
 }
 
 func InitServices(server *grpc.Server, ctrl controller.Controller, pathEntryMgr *pathmgr.PathManager) (Services, error) {
@@ -435,4 +436,40 @@ func (s *services) DeleteProperty(ctx context.Context, request *DeletePropertyRe
 		Entry:      entryInfo(en),
 		Properties: nil, // TODO
 	}, nil
+}
+
+func (s *services) GetLatestSequence(ctx context.Context, request *GetLatestSequenceRequest) (*GetLatestSequenceResponse, error) {
+	seq, err := s.ctrl.GetLatestSequence(ctx)
+	if err != nil {
+		s.logger.Errorw("query latest sequence failed", "err", err)
+		return nil, status.Error(common.FsApiError(err), "query latest sequence failed")
+	}
+	return &GetLatestSequenceResponse{
+		Sequence:   seq,
+		NeedRelist: request.StartSequence <= 0,
+	}, nil
+}
+
+func (s *services) ListUnSyncedEvent(ctx context.Context, request *ListUnSyncedEventRequest) (*ListUnSyncedEventResponse, error) {
+	eventList, err := s.ctrl.ListUnSyncedEvent(ctx, request.StartSequence)
+	if err != nil {
+		s.logger.Errorw("list unsynced event failed", "err", err)
+		return nil, status.Error(common.FsApiError(err), "list unsynced event failed")
+	}
+
+	resp := &ListUnSyncedEventResponse{}
+	for _, evt := range eventList {
+		resp.Events = append(resp.Events, eventInfo(&evt))
+	}
+	return resp, nil
+}
+
+func (s *services) CommitSyncedEvent(ctx context.Context, request *CommitSyncedEventRequest) (*CommitSyncedEventResponse, error) {
+	s.logger.Infow("device commit sequence", "device", request.DeviceID, "sequence", request.Sequence)
+	err := s.ctrl.CommitSyncedEvent(ctx, request.DeviceID, request.Sequence)
+	if err != nil {
+		s.logger.Errorw("device commit sequence failed", "device", request.DeviceID, "err", err)
+		return nil, status.Error(common.FsApiError(err), "device commit sequence failed")
+	}
+	return &CommitSyncedEventResponse{}, nil
 }

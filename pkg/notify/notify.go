@@ -29,7 +29,7 @@ type Notify struct {
 	store metastore.NotificationRecorder
 }
 
-func (n *Notify) List(ctx context.Context) ([]types.Notification, error) {
+func (n *Notify) ListNotifications(ctx context.Context) ([]types.Notification, error) {
 	return n.store.ListNotifications(ctx)
 }
 
@@ -66,5 +66,7 @@ func (n *Notify) MarkRead(ctx context.Context, nid string) error {
 }
 
 func NewNotify(s metastore.NotificationRecorder) *Notify {
-	return &Notify{store: s}
+	n := &Notify{store: s}
+	registerEventHandle(n)
+	return n
 }

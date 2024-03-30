@@ -18,7 +18,6 @@ package document
 
 import (
 	"context"
-	"fmt"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/google/uuid"
@@ -29,7 +28,7 @@ func (m *manager) publicDocActionEvent(actionType string, doc *types.Document) {
 	events.Publish(events.NamespacedTopic(events.TopicNamespaceDocument, actionType), buildDocumentEvent(actionType, doc))
 }
 
-func (m *manager) handleDocumentEvent(event *types.EntryEvent) error {
+func (m *manager) handleDocumentEvent(event *types.Event) error {
 	if event.RefType != "document" {
 		return nil
 	}
@@ -65,11 +64,11 @@ func (m *manager) handleDocumentEvent(event *types.EntryEvent) error {
 	return nil
 }
 
-func buildDocumentEvent(actionType string, doc *types.Document) *types.EntryEvent {
-	return &types.EntryEvent{
+func buildDocumentEvent(actionType string, doc *types.Document) *types.Event {
+	return &types.Event{
 		Id:              uuid.New().String(),
 		Type:            actionType,
-		Source:          fmt.Sprintf("/document/%d", doc.ID),
+		Source:          "documentManager",
 		SpecVersion:     "1.0",
 		Time:            time.Now(),
 		RefType:         "document",

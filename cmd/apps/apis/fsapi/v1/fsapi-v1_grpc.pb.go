@@ -775,3 +775,159 @@ var Document_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "cmd/apps/apis/fsapi/v1/fsapi-v1.proto",
 }
+
+// NotifyClient is the client API for Notify service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type NotifyClient interface {
+	GetLatestSequence(ctx context.Context, in *GetLatestSequenceRequest, opts ...grpc.CallOption) (*GetLatestSequenceResponse, error)
+	ListUnSyncedEvent(ctx context.Context, in *ListUnSyncedEventRequest, opts ...grpc.CallOption) (*ListUnSyncedEventResponse, error)
+	CommitSyncedEvent(ctx context.Context, in *CommitSyncedEventRequest, opts ...grpc.CallOption) (*CommitSyncedEventResponse, error)
+}
+
+type notifyClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewNotifyClient(cc grpc.ClientConnInterface) NotifyClient {
+	return &notifyClient{cc}
+}
+
+func (c *notifyClient) GetLatestSequence(ctx context.Context, in *GetLatestSequenceRequest, opts ...grpc.CallOption) (*GetLatestSequenceResponse, error) {
+	out := new(GetLatestSequenceResponse)
+	err := c.cc.Invoke(ctx, "/api.v1.Notify/GetLatestSequence", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *notifyClient) ListUnSyncedEvent(ctx context.Context, in *ListUnSyncedEventRequest, opts ...grpc.CallOption) (*ListUnSyncedEventResponse, error) {
+	out := new(ListUnSyncedEventResponse)
+	err := c.cc.Invoke(ctx, "/api.v1.Notify/ListUnSyncedEvent", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *notifyClient) CommitSyncedEvent(ctx context.Context, in *CommitSyncedEventRequest, opts ...grpc.CallOption) (*CommitSyncedEventResponse, error) {
+	out := new(CommitSyncedEventResponse)
+	err := c.cc.Invoke(ctx, "/api.v1.Notify/CommitSyncedEvent", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// NotifyServer is the server API for Notify service.
+// All implementations should embed UnimplementedNotifyServer
+// for forward compatibility
+type NotifyServer interface {
+	GetLatestSequence(context.Context, *GetLatestSequenceRequest) (*GetLatestSequenceResponse, error)
+	ListUnSyncedEvent(context.Context, *ListUnSyncedEventRequest) (*ListUnSyncedEventResponse, error)
+	CommitSyncedEvent(context.Context, *CommitSyncedEventRequest) (*CommitSyncedEventResponse, error)
+}
+
+// UnimplementedNotifyServer should be embedded to have forward compatible implementations.
+type UnimplementedNotifyServer struct {
+}
+
+func (UnimplementedNotifyServer) GetLatestSequence(context.Context, *GetLatestSequenceRequest) (*GetLatestSequenceResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetLatestSequence not implemented")
+}
+func (UnimplementedNotifyServer) ListUnSyncedEvent(context.Context, *ListUnSyncedEventRequest) (*ListUnSyncedEventResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListUnSyncedEvent not implemented")
+}
+func (UnimplementedNotifyServer) CommitSyncedEvent(context.Context, *CommitSyncedEventRequest) (*CommitSyncedEventResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CommitSyncedEvent not implemented")
+}
+
+// UnsafeNotifyServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to NotifyServer will
+// result in compilation errors.
+type UnsafeNotifyServer interface {
+	mustEmbedUnimplementedNotifyServer()
+}
+
+func RegisterNotifyServer(s grpc.ServiceRegistrar, srv NotifyServer) {
+	s.RegisterService(&Notify_ServiceDesc, srv)
+}
+
+func _Notify_GetLatestSequence_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetLatestSequenceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotifyServer).GetLatestSequence(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.v1.Notify/GetLatestSequence",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotifyServer).GetLatestSequence(ctx, req.(*GetLatestSequenceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Notify_ListUnSyncedEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListUnSyncedEventRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotifyServer).ListUnSyncedEvent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.v1.Notify/ListUnSyncedEvent",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotifyServer).ListUnSyncedEvent(ctx, req.(*ListUnSyncedEventRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Notify_CommitSyncedEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CommitSyncedEventRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NotifyServer).CommitSyncedEvent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.v1.Notify/CommitSyncedEvent",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NotifyServer).CommitSyncedEvent(ctx, req.(*CommitSyncedEventRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// Notify_ServiceDesc is the grpc.ServiceDesc for Notify service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var Notify_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "api.v1.Notify",
+	HandlerType: (*NotifyServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetLatestSequence",
+			Handler:    _Notify_GetLatestSequence_Handler,
+		},
+		{
+			MethodName: "ListUnSyncedEvent",
+			Handler:    _Notify_ListUnSyncedEvent_Handler,
+		},
+		{
+			MethodName: "CommitSyncedEvent",
+			Handler:    _Notify_CommitSyncedEvent_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "cmd/apps/apis/fsapi/v1/fsapi-v1.proto",
+}

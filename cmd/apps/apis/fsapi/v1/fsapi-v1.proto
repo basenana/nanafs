@@ -188,6 +188,36 @@ message GetDocumentDetailResponse {
   DocumentDescribe document = 1;
 }
 
+service Notify {
+  rpc GetLatestSequence (GetLatestSequenceRequest) returns (GetLatestSequenceResponse) {}
+  rpc ListUnSyncedEvent (ListUnSyncedEventRequest) returns (ListUnSyncedEventResponse) {}
+  rpc CommitSyncedEvent (CommitSyncedEventRequest) returns (CommitSyncedEventResponse) {}
+}
+
+message GetLatestSequenceRequest {
+  int64 startSequence = 1;
+}
+
+message GetLatestSequenceResponse {
+  int64 sequence = 1;
+  bool needRelist = 2;
+}
+
+message ListUnSyncedEventRequest {
+  int64 startSequence = 1;
+}
+
+message ListUnSyncedEventResponse {
+  repeated Event events = 1;
+}
+
+message CommitSyncedEventRequest {
+  string deviceID = 1;
+  int64 sequence = 2;
+}
+
+message CommitSyncedEventResponse {}
+
 message DocumentInfo {
   int64 id = 1;
   string name = 2;
@@ -250,4 +280,27 @@ message EntryDetail {
   google.protobuf.Timestamp changedAt = 31;
   google.protobuf.Timestamp modifiedAt = 32;
   google.protobuf.Timestamp accessAt = 33;
+}
+
+message Event {
+
+  message EventData {
+    int64 id = 1;
+    int64 parentID = 2;
+    string kind = 3;
+    int64 kindMap = 4;
+    string namespace = 5;
+  }
+
+  string id = 1;
+  string type = 2;
+  string source = 3;
+  string specVersion = 4;
+  string dataContentType = 5;
+  EventData data = 6;
+  google.protobuf.Timestamp time = 7;
+
+  int64 refID = 10;
+  string refType = 11;
+  int64 sequence = 12;
 }

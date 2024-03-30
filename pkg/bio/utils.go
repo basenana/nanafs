@@ -17,7 +17,6 @@
 package bio
 
 import (
-	"fmt"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/google/uuid"
@@ -38,11 +37,11 @@ func minOff(off1, off2 int64) int64 {
 	return off2
 }
 
-func buildCompactEvent(entry *types.Metadata) *types.EntryEvent {
-	return &types.EntryEvent{
+func buildCompactEvent(entry *types.Metadata) *types.Event {
+	return &types.Event{
 		Id:              uuid.New().String(),
 		Type:            events.ActionTypeCompact,
-		Source:          fmt.Sprintf("/entry/%d", entry.ID),
+		Source:          "bio",
 		SpecVersion:     "1.0",
 		Time:            time.Now(),
 		RefType:         "entry",
