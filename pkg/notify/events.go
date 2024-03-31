@@ -20,11 +20,6 @@ import (
 	"context"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/types"
-	"sync/atomic"
-)
-
-var (
-	globalSequence uint64
 )
 
 func registerEventHandle(n *Notify) {
@@ -59,6 +54,6 @@ func (n *Notify) handleEvent(evt *types.Event) error {
 	if evt == nil {
 		return nil
 	}
-	evt.Sequence = evt.Time.UnixNano()*10 + int64(atomic.AddUint64(&globalSequence, 1)%10)
+	evt.Sequence = evt.Time.UnixNano()
 	return n.store.RecordEvents(context.Background(), []types.Event{*evt})
 }

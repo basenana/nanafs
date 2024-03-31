@@ -85,6 +85,7 @@ type Controller interface {
 
 type controller struct {
 	*notify.Notify
+	*inbox.Inbox
 
 	meta      metastore.Meta
 	cfg       config.Config
@@ -94,7 +95,6 @@ type controller struct {
 	notify   *notify.Notify
 	workflow workflow.Manager
 	document document.Manager
-	inbox    *inbox.Inbox
 
 	logger *zap.SugaredLogger
 }
@@ -318,10 +318,6 @@ func (c *controller) ChangeEntryParent(ctx context.Context, targetId, oldParentI
 	return nil
 }
 
-func (c *controller) QuickInbox(ctx context.Context, option inbox.Option) (*types.Metadata, error) {
-	return c.inbox.QuickInbox(ctx, option)
-}
-
 func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 	cfg, _ := loader.GetConfig()
 
@@ -342,8 +338,6 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 		return nil, err
 	}
 
-	ctl.Notify = notify.NewNotify(meta)
-
 	// init friday
 	err = friday.InitFriday(cfg.Friday)
 	if err != nil {
@@ -357,6 +351,9 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	ctl.Notify = notify.NewNotify(meta)
+	ctl.Inbox = inbox.New(ctl.entry, ctl.workflow)
 
 	return ctl, nil
 }

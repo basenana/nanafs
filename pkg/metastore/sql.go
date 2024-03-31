@@ -287,19 +287,19 @@ func (s *sqliteMetaStore) UpdateNotificationStatus(ctx context.Context, nid, sta
 func (s *sqliteMetaStore) RecordEvents(ctx context.Context, events []types.Event) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.RecordEvents(ctx, events)
+	return s.dbStore.RecordEvents(ctx, events)
 }
 
 func (s *sqliteMetaStore) ListEvents(ctx context.Context, filter types.EventFilter) ([]types.Event, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.ListEvents(ctx, filter)
+	return s.dbStore.ListEvents(ctx, filter)
 }
 
 func (s *sqliteMetaStore) DeviceSync(ctx context.Context, deviceID string, syncedSequence int64) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.DeviceSync(ctx, deviceID, syncedSequence)
+	return s.dbStore.DeviceSync(ctx, deviceID, syncedSequence)
 }
 
 func (s *sqliteMetaStore) SaveDocument(ctx context.Context, doc *types.Document) error {

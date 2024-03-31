@@ -52,6 +52,7 @@ func InitServices(server *grpc.Server, ctrl controller.Controller, pathEntryMgr 
 	RegisterEntriesServer(server, s)
 	RegisterInboxServer(server, s)
 	RegisterPropertiesServer(server, s)
+	RegisterNotifyServer(server, s)
 	return s, nil
 }
 
