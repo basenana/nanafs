@@ -35,6 +35,7 @@ import (
 
 var (
 	ctrl          controller.Controller
+	testMeta      metastore.Meta
 	testServer    *grpc.Server
 	serviceClient *Client
 	mockListen    *bufconn.Listener
@@ -50,6 +51,7 @@ func TestV1API(t *testing.T) {
 var _ = BeforeSuite(func() {
 	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())
+	testMeta = memMeta
 
 	ctrl, err = controller.New(mockConfig{}, memMeta)
 	Expect(err).Should(BeNil())

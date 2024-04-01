@@ -122,26 +122,50 @@ var _ = Describe("testEntryPropertiesService", func() {
 })
 
 var _ = Describe("testDocumentsService-ReadView", func() {
+	var (
+		ctx = context.TODO()
+	)
+
 	Context("test get document details", func() {
 		It("init documents should be succeed", func() {
-			Expect(nil).Should(BeNil())
-		})
-		It("get should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			var err error
+			err = testMeta.SaveDocument(ctx, &types.Document{
+				ID: 100, OID: 1, Name: "test document 1", ParentEntryID: 1, Source: "unittest",
+				KeyWords: make([]string, 0), Content: "test document", Marked: false, Unread: false,
+				CreatedAt: time.Now(), ChangedAt: time.Now()})
+			Expect(err).Should(BeNil())
+			err = testMeta.SaveDocument(ctx, &types.Document{
+				ID: 101, OID: 1, Name: "test document unread 1", ParentEntryID: 1, Source: "unittest",
+				KeyWords: make([]string, 0), Content: "test document", Marked: false, Unread: true,
+				CreatedAt: time.Now(), ChangedAt: time.Now()})
+			Expect(err).Should(BeNil())
+			err = testMeta.SaveDocument(ctx, &types.Document{
+				ID: 102, OID: 1, Name: "test document unread 1", ParentEntryID: 2, Source: "unittest",
+				KeyWords: make([]string, 0), Content: "test document", Marked: true, Unread: false,
+				CreatedAt: time.Now(), ChangedAt: time.Now()})
+			Expect(err).Should(BeNil())
 		})
 	})
 	Context("list document", func() {
 		It("list all should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			resp, err := serviceClient.ListDocuments(ctx, &ListDocumentsRequest{ListAll: true})
+			Expect(err).Should(BeNil())
+			Expect(len(resp.Documents)).Should(Equal(3))
 		})
 		It("list marked should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			resp, err := serviceClient.ListDocuments(ctx, &ListDocumentsRequest{Marked: true})
+			Expect(err).Should(BeNil())
+			Expect(len(resp.Documents)).Should(Equal(1))
 		})
 		It("list unread should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			resp, err := serviceClient.ListDocuments(ctx, &ListDocumentsRequest{Unread: true})
+			Expect(err).Should(BeNil())
+			Expect(len(resp.Documents)).Should(Equal(1))
 		})
 		It("list by parent id should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			resp, err := serviceClient.ListDocuments(ctx, &ListDocumentsRequest{ParentID: 2})
+			Expect(err).Should(BeNil())
+			Expect(len(resp.Documents)).Should(Equal(1))
 		})
 	})
 })

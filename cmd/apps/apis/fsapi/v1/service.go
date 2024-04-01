@@ -66,9 +66,6 @@ var _ Services = &services{}
 
 func (s *services) ListDocuments(ctx context.Context, request *ListDocumentsRequest) (*ListDocumentsResponse, error) {
 	filter := types.DocFilter{ParentID: request.ParentID}
-	if !request.ListAll && filter.ParentID == 0 {
-		return nil, status.Error(codes.InvalidArgument, "parent id is empty")
-	}
 	if request.Marked {
 		filter.Marked = &request.Marked
 	}
