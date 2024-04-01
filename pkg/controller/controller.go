@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/friday"
+	"github.com/basenana/nanafs/pkg/inbox"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"runtime/trace"
@@ -52,14 +53,23 @@ type Controller interface {
 	ChangeEntryParent(ctx context.Context, targetId, oldParentId, newParentId int64, newName string, opt types.ChangeParentAttr) error
 
 	GetEntryExtendField(ctx context.Context, id int64, fKey string) ([]byte, error)
-	SetEntryExtendField(ctx context.Context, id int64, fKey string, fVal []byte) error
+	SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string) error
+	SetEntryEncodedExtendField(ctx context.Context, id int64, fKey string, fVal []byte) error
 	RemoveEntryExtendField(ctx context.Context, id int64, fKey string) error
 	ConfigEntrySourcePlugin(ctx context.Context, id int64, scope types.ExtendData) error
 	CleanupEntrySourcePlugin(ctx context.Context, id int64) error
 
+	QuickInbox(ctx context.Context, option inbox.Option) (*types.Metadata, error)
+
+	GetLatestSequence(ctx context.Context) (int64, error)
+	ListUnSyncedEvent(ctx context.Context, sequence int64) ([]types.Event, error)
+	CommitSyncedEvent(ctx context.Context, deviceID string, sequence int64) error
+	ListNotifications(ctx context.Context) ([]types.Notification, error)
+
 	EnableGroupFeed(ctx context.Context, id int64, feedID string) error
 	DisableGroupFeed(ctx context.Context, id int64) error
 	GetDocumentsByFeed(ctx context.Context, feedId string, count int) (*types.FeedResult, error)
+	ListDocuments(ctx context.Context, filter types.DocFilter) ([]*types.Document, error)
 	GetDocumentsByEntryId(ctx context.Context, entryId int64) (*types.Document, error)
 	QueryDocuments(ctx context.Context, query string) ([]*types.Document, error)
 
@@ -74,6 +84,9 @@ type Controller interface {
 }
 
 type controller struct {
+	*notify.Notify
+	*inbox.Inbox
+
 	meta      metastore.Meta
 	cfg       config.Config
 	cfgLoader config.Loader
@@ -325,8 +338,6 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 		return nil, err
 	}
 
-	ctl.notify = notify.NewNotify(meta)
-
 	// init friday
 	err = friday.InitFriday(cfg.Friday)
 	if err != nil {
@@ -336,10 +347,13 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 	if err := plugin.Init(buildin.Services{DocumentManager: ctl.document}, cfg.Plugin); err != nil {
 		return nil, err
 	}
-	ctl.workflow, err = workflow.NewManager(ctl.entry, ctl.document, ctl.notify, meta, cfg.Workflow, cfg.FUSE)
+	ctl.workflow, err = workflow.NewManager(ctl.entry, ctl.document, ctl.Notify, meta, cfg.Workflow, cfg.FUSE)
 	if err != nil {
 		return nil, err
 	}
+
+	ctl.Notify = notify.NewNotify(meta)
+	ctl.Inbox = inbox.New(ctl.entry, ctl.workflow)
 
 	return ctl, nil
 }

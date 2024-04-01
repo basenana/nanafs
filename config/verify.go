@@ -31,7 +31,8 @@ type verifier func(config *Config) error
 
 var verifiers = []verifier{
 	setDefaultValue,
-	checkApiConfig,
+	checkFsApiConfig,
+	checkHttpApiConfig,
 	checkFuseConfig,
 	checkWebdavConfig,
 	checkMetaConfig,
@@ -47,13 +48,24 @@ func setDefaultValue(config *Config) error {
 	return nil
 }
 
-func checkApiConfig(config *Config) error {
-	aCfg := config.Api
+func checkFsApiConfig(config *Config) error {
+	fCfg := config.FsApi
+	if !fCfg.Enable {
+		return nil
+	}
+	if fCfg.Host == "" || fCfg.Port == 0 {
+		return fmt.Errorf("fs_api.host or fs_api.port not config")
+	}
+	return nil
+}
+
+func checkHttpApiConfig(config *Config) error {
+	aCfg := config.HttpApi
 	if !aCfg.Enable {
 		return nil
 	}
 	if aCfg.Host == "" || aCfg.Port == 0 {
-		return fmt.Errorf("api.host or api.port not config")
+		return fmt.Errorf("http_api.host or http_api.port not config")
 	}
 	return nil
 }

@@ -40,6 +40,17 @@ var (
 	}
 )
 
+func IsHasPermissions(access types.Access, callerUid, callerGid int64, permissions []types.Permission) error {
+	var mask uint32
+	for _, p := range permissions {
+		mask |= perm2Mode[p]
+	}
+	if mask == 0 {
+		return nil
+	}
+	return IsAccess(access, callerUid, callerGid, mask)
+}
+
 func IsAccess(access types.Access, callerUid, callerGid int64, mask uint32) error {
 	if callerUid == 0 {
 		// root can do anything.

@@ -43,6 +43,7 @@ type Object struct {
 	RefCount   *int    `gorm:"column:ref_count"`
 	Kind       string  `gorm:"column:kind"`
 	KindMap    *int64  `gorm:"column:kind_map"`
+	IsGroup    bool    `gorm:"column:is_group;index:obj_isgrp"`
 	Size       *int64  `gorm:"column:size"`
 	Version    int64   `gorm:"column:version;index:obj_version"`
 	Dev        int64   `gorm:"column:dev"`
@@ -70,6 +71,7 @@ func (o *Object) FromEntry(en *types.Metadata) *Object {
 	o.RefCount = &en.RefCount
 	o.Kind = string(en.Kind)
 	o.KindMap = &en.KindMap
+	o.IsGroup = en.IsGroup
 	o.Size = &en.Size
 	o.Version = en.Version
 	o.Dev = en.Dev
@@ -90,6 +92,7 @@ func (o *Object) ToEntry() *types.Metadata {
 		ID:         o.ID,
 		Name:       o.Name,
 		Kind:       types.Kind(o.Kind),
+		IsGroup:    o.IsGroup,
 		Version:    o.Version,
 		Dev:        o.Dev,
 		Storage:    o.Storage,
@@ -125,6 +128,7 @@ type Label struct {
 	ID        int64  `gorm:"column:id;autoIncrement"`
 	RefID     int64  `gorm:"column:ref_id;index:label_refid"`
 	RefType   string `gorm:"column:ref_type;index:label_reftype"`
+	Namespace string `gorm:"column:namespace;index:label_ns"`
 	Key       string `gorm:"column:key"`
 	Value     string `gorm:"column:value"`
 	SearchKey string `gorm:"column:search_key;index:label_search_key"`
@@ -238,33 +242,80 @@ func (d ScheduledTask) TableName() string {
 	return "scheduled_task"
 }
 
-type PluginData struct {
-	ID         int64            `gorm:"column:id;autoIncrement"`
-	PluginName string           `gorm:"column:plugin_name;index:plugin_name"`
-	Version    string           `gorm:"column:version"`
-	Type       types.PluginType `gorm:"column:type"`
-	GroupId    string           `gorm:"column:group_id;index:group_id"`
-	RecordId   string           `gorm:"column:record_id;index:record_id"`
-	Content    string           `gorm:"column:content"`
-}
-
-func (d PluginData) TableName() string {
-	return "plugin_data"
-}
-
 type Notification struct {
-	ID      string    `gorm:"column:id;primaryKey"`
-	Title   string    `gorm:"column:title"`
-	Message string    `gorm:"column:message"`
-	Type    string    `gorm:"column:type"`
-	Source  string    `gorm:"column:source"`
-	Action  string    `gorm:"column:action"`
-	Status  string    `gorm:"column:status"`
-	Time    time.Time `gorm:"column:time;index:notif_time"`
+	ID        string    `gorm:"column:id;primaryKey"`
+	Title     string    `gorm:"column:title"`
+	Message   string    `gorm:"column:message"`
+	Namespace string    `gorm:"column:namespace;index:notif_ns"`
+	Type      string    `gorm:"column:type"`
+	Source    string    `gorm:"column:source"`
+	Action    string    `gorm:"column:action"`
+	Status    string    `gorm:"column:status"`
+	Time      time.Time `gorm:"column:time;index:notif_time"`
 }
 
 func (o *Notification) TableName() string {
 	return "notification"
+}
+
+type Event struct {
+	ID              string    `gorm:"column:id;primaryKey"`
+	Type            string    `gorm:"column:type;index:evt_type"`
+	Source          string    `gorm:"column:source"`
+	SpecVersion     string    `gorm:"column:specversion"`
+	RefID           int64     `gorm:"column:ref_id;index:evt_refid"`
+	RefType         string    `gorm:"column:ref_id;index:evt_reftype"`
+	DataContentType string    `gorm:"column:datacontenttype"`
+	Data            string    `gorm:"column:data"`
+	Sequence        int64     `gorm:"column:sequence;index:evt_seq"`
+	Namespace       string    `gorm:"column:namespace;index:evt_ns"`
+	Time            time.Time `gorm:"column:time;index:evt_time"`
+}
+
+func (o *Event) TableName() string {
+	return "event"
+}
+
+func (o *Event) From(event types.Event) {
+	o.ID = event.Id
+	o.Type = event.Type
+	o.Source = event.Source
+	o.SpecVersion = event.SpecVersion
+	o.RefID = event.RefID
+	o.RefType = event.RefType
+	o.DataContentType = event.DataContentType
+	o.Data = event.Data.String()
+	o.Sequence = event.Sequence
+	o.Namespace = event.Data.Namespace
+	o.Time = event.Time
+}
+
+func (o *Event) To() (event types.Event, err error) {
+	event = types.Event{
+		Id:              o.ID,
+		Type:            o.Type,
+		Source:          o.Source,
+		SpecVersion:     o.SpecVersion,
+		Time:            o.Time,
+		Sequence:        o.Sequence,
+		RefID:           o.RefID,
+		RefType:         o.RefType,
+		DataContentType: o.DataContentType,
+		Data:            types.EventData{},
+	}
+	err = json.Unmarshal([]byte(o.Data), &(event.Data))
+	return
+}
+
+type RegisteredDevice struct {
+	ID             string    `gorm:"column:id;primaryKey"`
+	SyncedSequence int64     `gorm:"column:synced_sequence"`
+	LastSeenAt     time.Time `gorm:"column:last_seen_at"`
+	Namespace      string    `gorm:"column:namespace;index:device_ns"`
+}
+
+func (o *RegisteredDevice) TableName() string {
+	return "registered_device"
 }
 
 type Workflow struct {
@@ -276,6 +327,7 @@ type Workflow struct {
 	Enable          bool      `gorm:"column:enable;index:wf_enable"`
 	QueueName       string    `gorm:"column:queue_name"`
 	Executor        string    `gorm:"column:executor"`
+	Namespace       string    `gorm:"column:namespace;index:wf_ns"`
 	CreatedAt       time.Time `gorm:"column:created_at;index:wf_creat"`
 	UpdatedAt       time.Time `gorm:"column:updated_at"`
 	LastTriggeredAt time.Time `gorm:"column:last_triggered_at"`
@@ -344,6 +396,7 @@ type WorkflowJob struct {
 	Message       string    `gorm:"column:message"`
 	QueueName     string    `gorm:"column:queue_name;index:job_queue"`
 	Executor      string    `gorm:"column:executor;index:job_executor"`
+	Namespace     string    `gorm:"column:namespace;index:job_ns"`
 	StartAt       time.Time `gorm:"column:start_at"`
 	FinishAt      time.Time `gorm:"column:finish_at"`
 	CreatedAt     time.Time `gorm:"column:created_at;index:job_created_at"`
@@ -416,6 +469,7 @@ type Document struct {
 	ID            int64     `gorm:"column:id;primaryKey"`
 	OID           int64     `gorm:"column:oid;index:doc_oid"`
 	Name          string    `gorm:"column:name;index:doc_name"`
+	Namespace     string    `gorm:"column:namespace;index:doc_ns"`
 	Source        string    `gorm:"column:source;index:doc_source"`
 	ParentEntryID *int64    `gorm:"column:parent_entry_id;index:doc_parent_entry_id"`
 	Keywords      string    `gorm:"column:keywords"`

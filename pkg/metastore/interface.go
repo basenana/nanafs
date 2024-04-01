@@ -58,7 +58,7 @@ type DEntry interface {
 	UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error
 
 	SaveDocument(ctx context.Context, doc *types.Document) error
-	ListDocument(ctx context.Context, parentId int64) ([]*types.Document, error)
+	ListDocument(ctx context.Context, filter types.DocFilter) ([]*types.Document, error)
 	GetDocument(ctx context.Context, id int64) (*types.Document, error)
 	GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error)
 	GetDocumentByName(ctx context.Context, name string) (*types.Document, error)
@@ -97,4 +97,8 @@ type NotificationRecorder interface {
 	ListNotifications(ctx context.Context) ([]types.Notification, error)
 	RecordNotification(ctx context.Context, nid string, no types.Notification) error
 	UpdateNotificationStatus(ctx context.Context, nid, status string) error
+
+	RecordEvents(ctx context.Context, events []types.Event) error
+	ListEvents(ctx context.Context, filter types.EventFilter) ([]types.Event, error)
+	DeviceSync(ctx context.Context, deviceID string, syncedSequence int64) error
 }

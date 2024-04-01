@@ -46,7 +46,7 @@ type workflowExecutor struct {
 	logger   *zap.SugaredLogger
 }
 
-func (w workflowExecutor) handleEntryEvent(evt *types.EntryEvent) error {
+func (w workflowExecutor) handleEntryEvent(evt *types.Event) error {
 	if evt.Type != events.ActionTypeCreate {
 		return nil
 	}
@@ -107,7 +107,7 @@ func (w workflowExecutor) handleEntryEvent(evt *types.EntryEvent) error {
 
 	return nil
 }
-func (w workflowExecutor) handleDocEvent(evt *types.EntryEvent) error {
+func (w workflowExecutor) handleDocEvent(evt *types.Event) error {
 	if evt.Type != events.ActionTypeCreate {
 		return nil
 	}

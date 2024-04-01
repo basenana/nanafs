@@ -266,6 +266,30 @@ func (i instrumentalStore) UpdateNotificationStatus(ctx context.Context, nid, st
 	return err
 }
 
+func (i instrumentalStore) RecordEvents(ctx context.Context, events []types.Event) error {
+	const operation = "record_events"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.RecordEvents(ctx, events)
+	logOperationError(operation, err)
+	return err
+}
+
+func (i instrumentalStore) ListEvents(ctx context.Context, filter types.EventFilter) ([]types.Event, error) {
+	const operation = "list_events"
+	defer logOperationLatency(operation, time.Now())
+	result, err := i.store.ListEvents(ctx, filter)
+	logOperationError(operation, err)
+	return result, err
+}
+
+func (i instrumentalStore) DeviceSync(ctx context.Context, deviceID string, syncedSequence int64) error {
+	const operation = "device_sync"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.DeviceSync(ctx, deviceID, syncedSequence)
+	logOperationError(operation, err)
+	return err
+}
+
 func (i instrumentalStore) ListTask(ctx context.Context, taskID string, filter types.ScheduledTaskFilter) ([]*types.ScheduledTask, error) {
 	const operation = "list_task"
 	defer logOperationLatency(operation, time.Now())
@@ -362,10 +386,10 @@ func (i instrumentalStore) SaveDocument(ctx context.Context, doc *types.Document
 	return err
 }
 
-func (i instrumentalStore) ListDocument(ctx context.Context, parentId int64) ([]*types.Document, error) {
+func (i instrumentalStore) ListDocument(ctx context.Context, filter types.DocFilter) ([]*types.Document, error) {
 	const operation = "list_document"
 	defer logOperationLatency(operation, time.Now())
-	docList, err := i.store.ListDocument(ctx, parentId)
+	docList, err := i.store.ListDocument(ctx, filter)
 	logOperationError(operation, err)
 	return docList, err
 }

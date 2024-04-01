@@ -47,6 +47,7 @@ type Metadata struct {
 	RefCount   int       `json:"ref_count,omitempty"`
 	Kind       Kind      `json:"kind"`
 	KindMap    int64     `json:"kind_map"`
+	IsGroup    bool      `json:"is_group"`
 	Size       int64     `json:"size"`
 	Version    int64     `json:"version"`
 	Dev        int64     `json:"dev"`
@@ -66,6 +67,7 @@ func NewMetadata(name string, kind Kind) Metadata {
 		Namespace:  entryDefaultNamespace,
 		Kind:       kind,
 		KindMap:    KindMap(kind),
+		IsGroup:    IsGroup(kind),
 		Version:    1,
 		RefCount:   1,
 		CreatedAt:  time.Now(),
@@ -73,7 +75,7 @@ func NewMetadata(name string, kind Kind) Metadata {
 		ChangedAt:  time.Now(),
 		ModifiedAt: time.Now(),
 	}
-	if IsGroup(kind) {
+	if result.IsGroup {
 		// as dir, default has self and '..' two links
 		result.RefCount = 2
 	}

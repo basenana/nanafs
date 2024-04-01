@@ -32,7 +32,6 @@ func buildMigrations() []*gormigrate.Migration {
 					&ObjectProperty{},
 					&ObjectExtend{},
 					&ObjectChunk{},
-					&PluginData{},
 					&Label{},
 				)
 			},
@@ -126,6 +125,37 @@ func buildMigrations() []*gormigrate.Migration {
 				_ = db.Exec("UPDATE workflow SET executor='local' WHERE 1=1;")
 				_ = db.Exec("UPDATE workflow_job SET queue_name='default' WHERE 1=1;")
 				_ = db.Exec("UPDATE workflow_job SET executor='local' WHERE 1=1;")
+				return nil
+			},
+			Rollback: func(db *gorm.DB) error {
+				return nil
+			},
+		},
+		{
+			ID: "2024033000",
+			Migrate: func(db *gorm.DB) error {
+				err := db.AutoMigrate(
+					&Object{},
+					&Label{},
+					&Notification{},
+					&Document{},
+					&Workflow{},
+					&WorkflowJob{},
+					&Event{},
+					&RegisteredDevice{},
+				)
+				if err != nil {
+					return err
+				}
+				_ = db.Exec(`UPDATE object SET is_group=true WHERE kind IN ('group', 'smtgroup', 'extgroup');`)
+				_ = db.Exec(`UPDATE object SET is_group=false WHERE kind NOT IN ('group', 'smtgroup', 'extgroup');`)
+
+				// init namespace
+				_ = db.Exec(`UPDATE label SET namespace='personal' WHERE 1=1;`)
+				_ = db.Exec(`UPDATE notification SET namespace='personal' WHERE 1=1;`)
+				_ = db.Exec(`UPDATE document SET namespace='personal' WHERE 1=1;`)
+				_ = db.Exec(`UPDATE workflow SET namespace='personal' WHERE 1=1;`)
+				_ = db.Exec(`UPDATE workflow_job SET namespace='personal' WHERE 1=1;`)
 				return nil
 			},
 			Rollback: func(db *gorm.DB) error {

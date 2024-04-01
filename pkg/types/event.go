@@ -17,40 +17,46 @@
 package types
 
 import (
+	"encoding/json"
 	"time"
 )
 
-type EntryEvent struct {
+type Event struct {
 	Id              string    `json:"id"`
 	Type            string    `json:"type"`
 	Source          string    `json:"source"`
 	SpecVersion     string    `json:"specversion"`
-	Time            time.Time `json:"time"`
 	RefID           int64     `json:"nanafsrefid"`
 	RefType         string    `json:"nanafsreftype"`
+	Sequence        int64     `json:"nanafssequence"`
 	DataContentType string    `json:"datacontenttype"`
 	Data            EventData `json:"data"`
+	Time            time.Time `json:"time"`
 }
 
 type EventData struct {
 	ID        int64  `json:"id"`
 	ParentID  int64  `json:"parent_id,omitempty"`
-	RefID     int64  `json:"ref_id,omitempty"`
 	Kind      Kind   `json:"kind,omitempty"`
 	KindMap   int64  `json:"kind_map,omitempty"`
 	Namespace string `json:"namespace,omitempty"`
-	Storage   string `json:"storage,omitempty"`
+}
+
+func (e EventData) String() string {
+	raw, err := json.Marshal(e)
+	if err == nil {
+		return string(raw)
+	}
+	return "{}"
 }
 
 func NewEventDataFromEntry(entry *Metadata) EventData {
 	return EventData{
 		ID:        entry.ID,
 		ParentID:  entry.ParentID,
-		RefID:     entry.RefID,
 		Kind:      entry.Kind,
 		KindMap:   entry.KindMap,
 		Namespace: entry.Namespace,
-		Storage:   entry.Storage,
 	}
 }
 
@@ -78,7 +84,7 @@ type ScheduledTask struct {
 	CreatedTime    time.Time
 	ExecutionTime  time.Time
 	ExpirationTime time.Time
-	Event          EntryEvent
+	Event          Event
 }
 
 type ScheduledTaskFilter struct {

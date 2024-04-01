@@ -106,22 +106,10 @@ func run(ctrl controller.Controller, cfg config.Config, stopCh chan struct{}) {
 	if err != nil {
 		log.Panicf("init api path entry manager error: %s", err)
 	}
-	if cfg.Api.Enable {
-		s, err := apis.NewApiServer(ctrl, pathEntryMgr, cfg)
-		if err != nil {
-			log.Panicw("init http server failed", "err", err.Error())
-		}
-		go s.Run(stopCh)
+	err = apis.Setup(ctrl, pathEntryMgr, cfg, stopCh)
+	if err != nil {
+		log.Panicw("setup api servers failed", "err", err.Error())
 	}
-
-	if cfg.Webdav != nil && cfg.Webdav.Enable {
-		w, err := apis.NewWebdavServer(pathEntryMgr, cfg)
-		if err != nil {
-			log.Panicw("init http server failed", "err", err.Error())
-		}
-		go w.Run(stopCh)
-	}
-
 	if cfg.FUSE.Enable {
 		fsServer, err := fs.NewNanaFsRoot(cfg.FUSE, ctrl)
 		if err != nil {

@@ -46,7 +46,7 @@ const (
 )
 
 type Manager interface {
-	ListDocuments(ctx context.Context, parentId int64) ([]*types.Document, error)
+	ListDocuments(ctx context.Context, filter types.DocFilter) ([]*types.Document, error)
 	QueryDocuments(ctx context.Context, query string) ([]*types.Document, error)
 	SaveDocument(ctx context.Context, doc *types.Document) error
 	GetDocument(ctx context.Context, id int64) (*types.Document, error)
@@ -91,8 +91,8 @@ func NewManager(recorder metastore.DEntry, entryMgr dentry.Manager, indexerCfg *
 	return docMgr, nil
 }
 
-func (m *manager) ListDocuments(ctx context.Context, parentId int64) ([]*types.Document, error) {
-	result, err := m.recorder.ListDocument(ctx, parentId)
+func (m *manager) ListDocuments(ctx context.Context, filter types.DocFilter) ([]*types.Document, error) {
+	result, err := m.recorder.ListDocument(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +222,7 @@ func (m *manager) GetDocsByFeedId(ctx context.Context, feedID string, count int)
 
 			}
 		}
-		documents, err = m.recorder.ListDocument(ctx, feed.ParentID)
+		documents, err = m.recorder.ListDocument(ctx, types.DocFilter{ParentID: feed.ParentID})
 		if err != nil {
 			return nil, err
 		}
@@ -322,7 +322,7 @@ func (m *manager) CreateFridayAccount(ctx context.Context, account *types.Friday
 	return nil
 }
 
-func (m *manager) handleEntryEvent(evt *types.EntryEvent) error {
+func (m *manager) handleEntryEvent(evt *types.Event) error {
 	ctx, cancel := context.WithTimeout(context.TODO(), time.Hour)
 	defer cancel()
 
@@ -401,7 +401,7 @@ func registerDocExecutor(docMgr *manager) error {
 	eventMappings := []struct {
 		topic   string
 		action  string
-		handler func(*types.EntryEvent) error
+		handler func(*types.Event) error
 	}{
 		{events.TopicNamespaceEntry, events.ActionTypeDestroy, docMgr.handleEntryEvent},
 		{events.TopicNamespaceEntry, events.ActionTypeUpdate, docMgr.handleEntryEvent},

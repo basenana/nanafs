@@ -284,16 +284,34 @@ func (s *sqliteMetaStore) UpdateNotificationStatus(ctx context.Context, nid, sta
 	return s.dbStore.UpdateNotificationStatus(ctx, nid, status)
 }
 
+func (s *sqliteMetaStore) RecordEvents(ctx context.Context, events []types.Event) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.RecordEvents(ctx, events)
+}
+
+func (s *sqliteMetaStore) ListEvents(ctx context.Context, filter types.EventFilter) ([]types.Event, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.ListEvents(ctx, filter)
+}
+
+func (s *sqliteMetaStore) DeviceSync(ctx context.Context, deviceID string, syncedSequence int64) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.DeviceSync(ctx, deviceID, syncedSequence)
+}
+
 func (s *sqliteMetaStore) SaveDocument(ctx context.Context, doc *types.Document) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	return s.dbStore.SaveDocument(ctx, doc)
 }
 
-func (s *sqliteMetaStore) ListDocument(ctx context.Context, parentId int64) ([]*types.Document, error) {
+func (s *sqliteMetaStore) ListDocument(ctx context.Context, filter types.DocFilter) ([]*types.Document, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.ListDocument(ctx, parentId)
+	return s.dbStore.ListDocument(ctx, filter)
 }
 
 func (s *sqliteMetaStore) GetDocument(ctx context.Context, id int64) (*types.Document, error) {
@@ -1232,7 +1250,7 @@ func (s *sqlMetaStore) ListTask(ctx context.Context, taskID string, filter types
 
 	result := make([]*types.ScheduledTask, len(tasks))
 	for i, t := range tasks {
-		evt := types.EntryEvent{}
+		evt := types.Event{}
 		_ = json.Unmarshal([]byte(t.Event), &evt)
 		result[i] = &types.ScheduledTask{
 			ID:             t.ID,
@@ -1522,13 +1540,93 @@ func (s *sqlMetaStore) UpdateNotificationStatus(ctx context.Context, nid, status
 	return nil
 }
 
+func (s *sqlMetaStore) RecordEvents(ctx context.Context, events []types.Event) error {
+	defer trace.StartRegion(ctx, "metastore.sql.RecordEvents").End()
+
+	if len(events) == 0 {
+		return nil
+	}
+
+	eventModels := make([]db.Event, len(events))
+	for i, evt := range events {
+		eventModels[i].From(evt)
+	}
+
+	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, evt := range eventModels {
+			if res := tx.Create(evt); res.Error != nil {
+				s.logger.Errorw("insert event error", "event", evt.ID, "err", res.Error)
+				return res.Error
+			}
+		}
+		return nil
+	})
+	return err
+}
+
+func (s *sqlMetaStore) ListEvents(ctx context.Context, filter types.EventFilter) ([]types.Event, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.ListEvents").End()
+	query := s.WithContext(ctx)
+	if filter.StartSequence > 0 {
+		query = query.Where("sequence > ?", filter.StartSequence)
+	}
+	if filter.Limit > 0 {
+		query = query.Limit(filter.Limit)
+	}
+
+	modelList := make([]db.Event, 0)
+	res := query.Order("sequence DESC").Find(&modelList)
+	if res.Error != nil {
+		s.logger.Errorw("list event from db failed", "err", res.Error)
+		return nil, res.Error
+	}
+
+	var (
+		result = make([]types.Event, len(modelList))
+		err    error
+	)
+	for i, m := range modelList {
+		result[i], err = m.To()
+		if err != nil {
+			s.logger.Errorw("trans event data from db model error", "event", m.ID, "data", m.Data)
+		}
+	}
+	return result, nil
+}
+
+func (s *sqlMetaStore) DeviceSync(ctx context.Context, deviceID string, syncedSequence int64) error {
+	defer trace.StartRegion(ctx, "metastore.sql.DeviceSync").End()
+
+	return s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		model := db.RegisteredDevice{}
+		res := tx.Where("id = ?", deviceID).First(&model)
+		if res.Error != nil {
+			if errors.Is(res.Error, gorm.ErrRecordNotFound) {
+				model.ID = deviceID
+				model.SyncedSequence = syncedSequence
+				model.Namespace = "personal" // FIXME
+				model.LastSeenAt = time.Now()
+				res = tx.Create(model)
+				return res.Error
+			}
+			s.logger.Errorw("query device error", "deviceID", deviceID, "err", res.Error)
+			return res.Error
+		}
+
+		model.SyncedSequence = syncedSequence
+		model.LastSeenAt = time.Now()
+		res = tx.Save(model)
+		return res.Error
+	})
+}
+
 func (s *sqlMetaStore) SaveDocument(ctx context.Context, doc *types.Document) error {
 	defer trace.StartRegion(ctx, "metastore.sql.SaveDocument").End()
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		docMod := &db.Document{}
 		res := tx.Where("id = ?", doc.ID).First(docMod)
 		if res.Error != nil {
-			if res.Error == gorm.ErrRecordNotFound {
+			if errors.Is(res.Error, gorm.ErrRecordNotFound) {
 				docMod = docMod.From(doc)
 				res = tx.Create(docMod)
 				return res.Error
@@ -1545,12 +1643,18 @@ func (s *sqlMetaStore) SaveDocument(ctx context.Context, doc *types.Document) er
 	return nil
 }
 
-func (s *sqlMetaStore) ListDocument(ctx context.Context, parentId int64) ([]*types.Document, error) {
+func (s *sqlMetaStore) ListDocument(ctx context.Context, filter types.DocFilter) ([]*types.Document, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListDocument").End()
 	docList := make([]db.Document, 0)
 	query := s.WithContext(ctx)
-	if parentId > 0 {
-		query = query.Where("parent_entry_id = ?", parentId)
+	if filter.ParentID > 0 {
+		query = query.Where("parent_entry_id = ?", filter.ParentID)
+	}
+	if filter.Marked != nil {
+		query = query.Where("marked = ?", *filter.Marked)
+	}
+	if filter.Unread != nil {
+		query = query.Where("unread = ?", *filter.Unread)
 	}
 	res := query.Order("created_at DESC").Find(&docList)
 	if res.Error != nil {

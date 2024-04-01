@@ -39,3 +39,8 @@ type LabelMatch struct {
 	Include []Label  `json:"include"`
 	Exclude []string `json:"exclude"`
 }
+
+type EventFilter struct {
+	StartSequence int64
+	Limit         int
+}

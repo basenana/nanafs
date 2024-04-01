@@ -28,6 +28,15 @@ func (c *controller) QueryDocuments(ctx context.Context, query string) ([]*types
 	return c.document.QueryDocuments(ctx, query)
 }
 
+func (c *controller) ListDocuments(ctx context.Context, filter types.DocFilter) ([]*types.Document, error) {
+	result, err := c.document.ListDocuments(ctx, filter)
+	if err != nil {
+		c.logger.Errorw("list documents failed", "err", err)
+		return nil, err
+	}
+	return result, nil
+}
+
 func (c *controller) GetDocumentsByFeed(ctx context.Context, feedId string, count int) (*types.FeedResult, error) {
 	result, err := c.document.GetDocsByFeedId(ctx, feedId, count)
 	if err != nil {

@@ -18,7 +18,6 @@ package dentry
 
 import (
 	"context"
-	"fmt"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/google/uuid"
@@ -51,11 +50,11 @@ func (m *manager) entryActionEventHandler() {
 	}
 }
 
-func BuildEntryEvent(actionType string, entry *types.Metadata) *types.EntryEvent {
-	return &types.EntryEvent{
+func BuildEntryEvent(actionType string, entry *types.Metadata) *types.Event {
+	return &types.Event{
 		Id:              uuid.New().String(),
 		Type:            actionType,
-		Source:          fmt.Sprintf("/entry/%d", entry.ID),
+		Source:          "entryManager",
 		SpecVersion:     "1.0",
 		Time:            time.Now(),
 		RefType:         "entry",

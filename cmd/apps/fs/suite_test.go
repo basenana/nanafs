@@ -71,8 +71,8 @@ func TestFs(t *testing.T) {
 	defer logger.Sync()
 
 	cfg = config.Config{
-		FS:  &config.FS{Owner: config.FSOwner{Uid: 0, Gid: 0}},
-		Api: config.Api{Enable: true},
+		FS:      &config.FS{Owner: config.FSOwner{Uid: 0, Gid: 0}},
+		HttpApi: config.HttpApi{Enable: true},
 		Storages: []config.Storage{{
 			ID:   storage.MemoryStorage,
 			Type: storage.MemoryStorage,
