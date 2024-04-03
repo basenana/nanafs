@@ -52,6 +52,7 @@ type Controller interface {
 	ListEntryChildren(ctx context.Context, entryId int64) ([]*types.Metadata, error)
 	ChangeEntryParent(ctx context.Context, targetId, oldParentId, newParentId int64, newName string, opt types.ChangeParentAttr) error
 
+	ListEntryExtendField(ctx context.Context, id int64) (map[string]types.PropertyItem, error)
 	GetEntryExtendField(ctx context.Context, id int64, fKey string) ([]byte, error)
 	SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string) error
 	SetEntryEncodedExtendField(ctx context.Context, id int64, fKey string, fVal []byte) error

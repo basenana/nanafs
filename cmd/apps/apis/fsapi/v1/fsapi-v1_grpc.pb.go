@@ -110,8 +110,8 @@ type EntriesClient interface {
 	CreateEntry(ctx context.Context, in *CreateEntryRequest, opts ...grpc.CallOption) (*CreateEntryResponse, error)
 	UpdateEntry(ctx context.Context, in *UpdateEntryRequest, opts ...grpc.CallOption) (*UpdateEntryResponse, error)
 	DeleteEntry(ctx context.Context, in *DeleteEntryRequest, opts ...grpc.CallOption) (*DeleteEntryResponse, error)
-	GetGroupTree(ctx context.Context, in *GetGroupTreeRequest, opts ...grpc.CallOption) (*GetGroupTreeResponse, error)
 	ListGroupChildren(ctx context.Context, in *ListGroupChildrenRequest, opts ...grpc.CallOption) (*ListGroupChildrenResponse, error)
+	ChangeParent(ctx context.Context, in *ChangeParentRequest, opts ...grpc.CallOption) (*ChangeParentResponse, error)
 	WriteFile(ctx context.Context, opts ...grpc.CallOption) (Entries_WriteFileClient, error)
 	ReadFile(ctx context.Context, in *ReadFileRequest, opts ...grpc.CallOption) (Entries_ReadFileClient, error)
 }
@@ -160,18 +160,18 @@ func (c *entriesClient) DeleteEntry(ctx context.Context, in *DeleteEntryRequest,
 	return out, nil
 }
 
-func (c *entriesClient) GetGroupTree(ctx context.Context, in *GetGroupTreeRequest, opts ...grpc.CallOption) (*GetGroupTreeResponse, error) {
-	out := new(GetGroupTreeResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Entries/GetGroupTree", in, out, opts...)
+func (c *entriesClient) ListGroupChildren(ctx context.Context, in *ListGroupChildrenRequest, opts ...grpc.CallOption) (*ListGroupChildrenResponse, error) {
+	out := new(ListGroupChildrenResponse)
+	err := c.cc.Invoke(ctx, "/api.v1.Entries/ListGroupChildren", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *entriesClient) ListGroupChildren(ctx context.Context, in *ListGroupChildrenRequest, opts ...grpc.CallOption) (*ListGroupChildrenResponse, error) {
-	out := new(ListGroupChildrenResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Entries/ListGroupChildren", in, out, opts...)
+func (c *entriesClient) ChangeParent(ctx context.Context, in *ChangeParentRequest, opts ...grpc.CallOption) (*ChangeParentResponse, error) {
+	out := new(ChangeParentResponse)
+	err := c.cc.Invoke(ctx, "/api.v1.Entries/ChangeParent", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -252,8 +252,8 @@ type EntriesServer interface {
 	CreateEntry(context.Context, *CreateEntryRequest) (*CreateEntryResponse, error)
 	UpdateEntry(context.Context, *UpdateEntryRequest) (*UpdateEntryResponse, error)
 	DeleteEntry(context.Context, *DeleteEntryRequest) (*DeleteEntryResponse, error)
-	GetGroupTree(context.Context, *GetGroupTreeRequest) (*GetGroupTreeResponse, error)
 	ListGroupChildren(context.Context, *ListGroupChildrenRequest) (*ListGroupChildrenResponse, error)
+	ChangeParent(context.Context, *ChangeParentRequest) (*ChangeParentResponse, error)
 	WriteFile(Entries_WriteFileServer) error
 	ReadFile(*ReadFileRequest, Entries_ReadFileServer) error
 }
@@ -274,11 +274,11 @@ func (UnimplementedEntriesServer) UpdateEntry(context.Context, *UpdateEntryReque
 func (UnimplementedEntriesServer) DeleteEntry(context.Context, *DeleteEntryRequest) (*DeleteEntryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteEntry not implemented")
 }
-func (UnimplementedEntriesServer) GetGroupTree(context.Context, *GetGroupTreeRequest) (*GetGroupTreeResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetGroupTree not implemented")
-}
 func (UnimplementedEntriesServer) ListGroupChildren(context.Context, *ListGroupChildrenRequest) (*ListGroupChildrenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListGroupChildren not implemented")
+}
+func (UnimplementedEntriesServer) ChangeParent(context.Context, *ChangeParentRequest) (*ChangeParentResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ChangeParent not implemented")
 }
 func (UnimplementedEntriesServer) WriteFile(Entries_WriteFileServer) error {
 	return status.Errorf(codes.Unimplemented, "method WriteFile not implemented")
@@ -370,24 +370,6 @@ func _Entries_DeleteEntry_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Entries_GetGroupTree_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetGroupTreeRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(EntriesServer).GetGroupTree(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/api.v1.Entries/GetGroupTree",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(EntriesServer).GetGroupTree(ctx, req.(*GetGroupTreeRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _Entries_ListGroupChildren_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListGroupChildrenRequest)
 	if err := dec(in); err != nil {
@@ -402,6 +384,24 @@ func _Entries_ListGroupChildren_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(EntriesServer).ListGroupChildren(ctx, req.(*ListGroupChildrenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Entries_ChangeParent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChangeParentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EntriesServer).ChangeParent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.v1.Entries/ChangeParent",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EntriesServer).ChangeParent(ctx, req.(*ChangeParentRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -477,12 +477,12 @@ var Entries_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Entries_DeleteEntry_Handler,
 		},
 		{
-			MethodName: "GetGroupTree",
-			Handler:    _Entries_GetGroupTree_Handler,
-		},
-		{
 			MethodName: "ListGroupChildren",
 			Handler:    _Entries_ListGroupChildren_Handler,
+		},
+		{
+			MethodName: "ChangeParent",
+			Handler:    _Entries_ChangeParent_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

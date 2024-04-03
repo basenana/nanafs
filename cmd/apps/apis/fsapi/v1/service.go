@@ -45,6 +45,7 @@ func InitServices(server *grpc.Server, ctrl controller.Controller, pathEntryMgr 
 	s := &services{
 		ctrl:         ctrl,
 		pathEntryMgr: pathEntryMgr,
+		callerAuthFn: callerAuthGetter,
 		logger:       logger.NewLogger("fsapi"),
 	}
 
@@ -59,6 +60,7 @@ func InitServices(server *grpc.Server, ctrl controller.Controller, pathEntryMgr 
 type services struct {
 	ctrl         controller.Controller
 	pathEntryMgr *pathmgr.PathManager
+	callerAuthFn common.CallerAuthGetter
 	logger       *zap.SugaredLogger
 }
 
@@ -120,7 +122,7 @@ func (s *services) GetDocumentDetail(ctx context.Context, request *GetDocumentDe
 }
 
 func (s *services) GetEntryDetail(ctx context.Context, request *GetEntryDetailRequest) (*GetEntryDetailResponse, error) {
-	caller := common.CallerAuth(ctx)
+	caller := s.callerAuthFn(ctx)
 	if !caller.Authenticated {
 		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
 	}
@@ -138,11 +140,15 @@ func (s *services) GetEntryDetail(ctx context.Context, request *GetEntryDetailRe
 		return nil, status.Error(common.FsApiError(err), "query entry parent failed")
 	}
 
-	return &GetEntryDetailResponse{Entry: entryDetail(en, p)}, nil
+	properties, err := s.queryEntryProperties(ctx, request.EntryID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "query entry properties failed")
+	}
+	return &GetEntryDetailResponse{Entry: entryDetail(en, p), Properties: properties}, nil
 }
 
 func (s *services) CreateEntry(ctx context.Context, request *CreateEntryRequest) (*CreateEntryResponse, error) {
-	caller := common.CallerAuth(ctx)
+	caller := s.callerAuthFn(ctx)
 	if !caller.Authenticated {
 		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
 	}
@@ -177,7 +183,7 @@ func (s *services) CreateEntry(ctx context.Context, request *CreateEntryRequest)
 }
 
 func (s *services) UpdateEntry(ctx context.Context, request *UpdateEntryRequest) (*UpdateEntryResponse, error) {
-	caller := common.CallerAuth(ctx)
+	caller := s.callerAuthFn(ctx)
 	if !caller.Authenticated {
 		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
 	}
@@ -185,6 +191,8 @@ func (s *services) UpdateEntry(ctx context.Context, request *UpdateEntryRequest)
 	if request.Entry.Id == 0 {
 		return nil, status.Error(codes.InvalidArgument, "entry id is 0")
 	}
+	newEn := request.Entry
+
 	en, err := s.ctrl.GetEntry(ctx, request.Entry.Id)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
@@ -201,6 +209,7 @@ func (s *services) UpdateEntry(ctx context.Context, request *UpdateEntryRequest)
 	}
 
 	// TODO: do update
+	en.Aliases = newEn.Aliases
 
 	err = s.ctrl.UpdateEntry(ctx, en)
 	if err != nil {
@@ -210,7 +219,7 @@ func (s *services) UpdateEntry(ctx context.Context, request *UpdateEntryRequest)
 }
 
 func (s *services) DeleteEntry(ctx context.Context, request *DeleteEntryRequest) (*DeleteEntryResponse, error) {
-	caller := common.CallerAuth(ctx)
+	caller := s.callerAuthFn(ctx)
 	if !caller.Authenticated {
 		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
 	}
@@ -233,16 +242,11 @@ func (s *services) DeleteEntry(ctx context.Context, request *DeleteEntryRequest)
 		return nil, status.Error(common.FsApiError(err), "has no permission")
 	}
 
-	err = s.ctrl.DestroyEntry(ctx, parent.ParentID, en.ID, types.DestroyObjectAttr{Uid: 0, Gid: 0})
+	err = s.ctrl.DestroyEntry(ctx, parent.ID, en.ID, types.DestroyObjectAttr{Uid: 0, Gid: 0})
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "delete entry failed")
 	}
 	return &DeleteEntryResponse{Entry: entryDetail(en, parent)}, nil
-}
-
-func (s *services) GetGroupTree(ctx context.Context, request *GetGroupTreeRequest) (*GetGroupTreeResponse, error) {
-	//TODO implement me
-	panic("implement me")
 }
 
 func (s *services) ListGroupChildren(ctx context.Context, request *ListGroupChildrenRequest) (*ListGroupChildrenResponse, error) {
@@ -258,6 +262,50 @@ func (s *services) ListGroupChildren(ctx context.Context, request *ListGroupChil
 	return resp, nil
 }
 
+func (s *services) ChangeParent(ctx context.Context, request *ChangeParentRequest) (*ChangeParentResponse, error) {
+	caller := s.callerAuthFn(ctx)
+	if !caller.Authenticated {
+		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+
+	en, err := s.ctrl.GetEntry(ctx, request.EntryID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "query entry failed")
+	}
+	err = dentry.IsHasPermissions(en.Access, caller.UID, 0, []types.Permission{types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite})
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "has no permission")
+	}
+
+	newParent, err := s.ctrl.GetEntry(ctx, request.NewParentID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "query entry failed")
+	}
+	err = dentry.IsHasPermissions(newParent.Access, caller.UID, 0, []types.Permission{types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite})
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "has no permission")
+	}
+
+	if request.Option == nil {
+		request.Option = &ChangeParentRequest_Option{}
+	}
+	err = s.ctrl.ChangeEntryParent(ctx, request.EntryID, en.ParentID, request.NewParentID, request.NewName, types.ChangeParentAttr{
+		Uid:      caller.UID,
+		Gid:      caller.GID,
+		Replace:  request.Option.Replace,
+		Exchange: request.Option.Exchange,
+	})
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "change entry parent failed")
+	}
+
+	en, err = s.ctrl.GetEntry(ctx, request.EntryID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "query entry failed")
+	}
+	return &ChangeParentResponse{Entry: entryInfo(en)}, nil
+}
+
 func (s *services) WriteFile(reader Entries_WriteFileServer) error {
 	var (
 		ctx       = reader.Context()
@@ -266,7 +314,7 @@ func (s *services) WriteFile(reader Entries_WriteFileServer) error {
 		file      dentry.File
 	)
 
-	caller := common.CallerAuth(ctx)
+	caller := s.callerAuthFn(ctx)
 	if !caller.Authenticated {
 		return status.Error(codes.Unauthenticated, "unauthenticated")
 	}
@@ -323,7 +371,7 @@ func (s *services) ReadFile(request *ReadFileRequest, writer Entries_ReadFileSer
 		readOnce, off int64
 	)
 
-	caller := common.CallerAuth(ctx)
+	caller := s.callerAuthFn(ctx)
 	if !caller.Authenticated {
 		return status.Error(codes.Unauthenticated, "unauthenticated")
 	}
@@ -394,9 +442,13 @@ func (s *services) AddProperty(ctx context.Context, request *AddPropertyRequest)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "add entry extend field failed")
 	}
+	properties, err := s.queryEntryProperties(ctx, request.EntryID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "query entry properties failed")
+	}
 	return &AddPropertyResponse{
 		Entry:      entryInfo(en),
-		Properties: nil, // TODO
+		Properties: properties,
 	}, nil
 }
 
@@ -415,9 +467,13 @@ func (s *services) UpdateProperty(ctx context.Context, request *UpdatePropertyRe
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "set entry extend field failed")
 	}
+	properties, err := s.queryEntryProperties(ctx, request.EntryID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "query entry properties failed")
+	}
 	return &UpdatePropertyResponse{
 		Entry:      entryInfo(en),
-		Properties: nil, // TODO
+		Properties: properties,
 	}, nil
 }
 
@@ -430,9 +486,13 @@ func (s *services) DeleteProperty(ctx context.Context, request *DeletePropertyRe
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "set entry extend field failed")
 	}
+	properties, err := s.queryEntryProperties(ctx, request.EntryID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "query entry properties failed")
+	}
 	return &DeletePropertyResponse{
 		Entry:      entryInfo(en),
-		Properties: nil, // TODO
+		Properties: properties,
 	}, nil
 }
 
@@ -471,3 +531,24 @@ func (s *services) CommitSyncedEvent(ctx context.Context, request *CommitSyncedE
 	}
 	return &CommitSyncedEventResponse{}, nil
 }
+
+func (s *services) queryEntryProperties(ctx context.Context, entryID int64) ([]*Property, error) {
+	properties, err := s.ctrl.ListEntryExtendField(ctx, entryID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*Property, 0, len(properties))
+	for key, p := range properties {
+		result = append(result, &Property{
+			Key:     key,
+			Value:   p.Value,
+			Encoded: p.Encoded,
+		})
+	}
+
+	return result, nil
+}
+
+var (
+	callerAuthGetter = common.CallerAuth
+)

@@ -18,6 +18,7 @@ package v1
 
 import (
 	"context"
+	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
 	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
@@ -41,6 +42,16 @@ var (
 	mockListen    *bufconn.Listener
 )
 
+func init() {
+	callerAuthGetter = func(ctx context.Context) common.AuthInfo {
+		return common.AuthInfo{
+			Authenticated: true,
+			UID:           0,
+			Namespace:     []string{"personal"},
+		}
+	}
+}
+
 func TestV1API(t *testing.T) {
 	logger.InitLogger()
 	defer logger.Sync()
@@ -54,6 +65,9 @@ var _ = BeforeSuite(func() {
 	testMeta = memMeta
 
 	ctrl, err = controller.New(mockConfig{}, memMeta)
+	Expect(err).Should(BeNil())
+
+	_, err = ctrl.LoadRootEntry(context.TODO())
 	Expect(err).Should(BeNil())
 
 	pm, err := pathmgr.New(ctrl)
