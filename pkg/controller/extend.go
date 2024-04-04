@@ -19,17 +19,38 @@ package controller
 import (
 	"context"
 	"fmt"
-	"runtime/trace"
-	"strings"
-
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
+	"runtime/trace"
+	"strings"
 )
 
 const (
 	attrSourcePluginPrefix = "org.basenana.plugin.source/"
 	attrFeedId             = "org.basenana.document/feed"
 )
+
+func (c *controller) ListEntryExtendField(ctx context.Context, id int64) (map[string]types.PropertyItem, error) {
+	defer trace.StartRegion(ctx, "controller.ListEntryExtendField").End()
+	ed, err := c.entry.GetEntryExtendData(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]types.PropertyItem)
+	if ed.Properties.Fields != nil {
+		for key, p := range ed.Properties.Fields {
+			if p.Encoded {
+				// ignore encoded field
+				continue
+			}
+			result[key] = types.PropertyItem{
+				Value:   p.Value,
+				Encoded: p.Encoded,
+			}
+		}
+	}
+	return result, nil
+}
 
 func (c *controller) GetEntryExtendField(ctx context.Context, id int64, fKey string) ([]byte, error) {
 	defer trace.StartRegion(ctx, "controller.GetEntryExtendField").End()

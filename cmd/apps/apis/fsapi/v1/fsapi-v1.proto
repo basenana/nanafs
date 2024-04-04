@@ -20,7 +20,8 @@ message QuickInboxRequest {
 
   SourceType sourceType = 1;
   FileType fileType = 2;
-  string url = 3;
+  string filename = 3;
+  string url = 4;
 
   // url source
   bool clutterFree = 10;
@@ -36,8 +37,9 @@ service Entries {
   rpc CreateEntry (CreateEntryRequest) returns (CreateEntryResponse) {}
   rpc UpdateEntry (UpdateEntryRequest) returns (UpdateEntryResponse) {}
   rpc DeleteEntry (DeleteEntryRequest) returns (DeleteEntryResponse) {}
-  rpc GetGroupTree (GetGroupTreeRequest) returns (GetGroupTreeResponse) {}
   rpc ListGroupChildren (ListGroupChildrenRequest) returns (ListGroupChildrenResponse) {}
+  rpc ChangeParent (ChangeParentRequest) returns (ChangeParentResponse) {}
+
   rpc WriteFile (stream WriteFileRequest) returns (WriteFileResponse) {}
   rpc ReadFile (ReadFileRequest) returns (stream ReadFileResponse) {}
 }
@@ -48,6 +50,7 @@ message GetEntryDetailRequest {
 
 message GetEntryDetailResponse {
   EntryDetail entry = 1;
+  repeated Property properties = 2;
 }
 
 message CreateEntryRequest {
@@ -74,26 +77,27 @@ message DeleteEntryResponse {
   EntryDetail entry = 1;
 }
 
-message GetGroupTreeRequest {
-  int64 parentID = 1;
-  string path = 2;
-  int64 deep = 3;
-}
-
-message GetGroupTreeResponse {
-  message Group {
-    EntryInfo Entry = 1;
-    repeated Group subGroups = 2;
-  }
-  Group group = 1;
-}
-
 message ListGroupChildrenRequest {
   int64 parentID = 1;
 }
 
 message ListGroupChildrenResponse {
   repeated EntryInfo entries = 1;
+}
+
+message ChangeParentRequest {
+  message Option {
+    bool Replace = 1;
+    bool Exchange = 2;
+  }
+  int64 entryID = 1;
+  int64 newParentID = 2;
+  string newName = 3;
+  Option option = 4;
+}
+
+message ChangeParentResponse {
+  EntryInfo entry = 1;
 }
 
 message WriteFileRequest {

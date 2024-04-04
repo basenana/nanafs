@@ -18,6 +18,7 @@ package v1
 
 import (
 	"context"
+	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
 	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
@@ -30,6 +31,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 	"net"
+	"os"
 	"testing"
 )
 
@@ -40,6 +42,16 @@ var (
 	serviceClient *Client
 	mockListen    *bufconn.Listener
 )
+
+func init() {
+	callerAuthGetter = func(ctx context.Context) common.AuthInfo {
+		return common.AuthInfo{
+			Authenticated: true,
+			UID:           0,
+			Namespace:     []string{"personal"},
+		}
+	}
+}
 
 func TestV1API(t *testing.T) {
 	logger.InitLogger()
@@ -53,7 +65,15 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 	testMeta = memMeta
 
+	workdir, err := os.MkdirTemp(os.TempDir(), "ut-nanafs-fsapi-")
+	Expect(err).Should(BeNil())
+
+	storage.InitLocalCache(config.Config{CacheDir: workdir, CacheSize: 0})
+
 	ctrl, err = controller.New(mockConfig{}, memMeta)
+	Expect(err).Should(BeNil())
+
+	_, err = ctrl.LoadRootEntry(context.TODO())
 	Expect(err).Should(BeNil())
 
 	pm, err := pathmgr.New(ctrl)
@@ -90,9 +110,13 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	err := mockListen.Close()
-	Expect(err).Should(BeNil())
-	testServer.Stop()
+	if mockListen != nil {
+		err := mockListen.Close()
+		Expect(err).Should(BeNil())
+	}
+	if testServer != nil {
+		testServer.Stop()
+	}
 })
 
 type Client struct {

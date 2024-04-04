@@ -26,14 +26,20 @@ import (
 type AuthInfo struct {
 	Authenticated bool
 	UID           int64
+	GID           int64
 	Namespace     []string
 }
+
+type CallerAuthGetter func(ctx context.Context) AuthInfo
 
 func CallerAuth(ctx context.Context) AuthInfo {
 	ai := AuthInfo{Authenticated: false, UID: -1}
 	p, ok := peer.FromContext(ctx)
-	if ok {
-		tlsInfo := p.AuthInfo.(credentials.TLSInfo)
+	if ok && p.AuthInfo != nil {
+		tlsInfo, ok := p.AuthInfo.(credentials.TLSInfo)
+		if !ok {
+			return ai
+		}
 		if len(tlsInfo.State.VerifiedChains) > 0 &&
 			len(tlsInfo.State.VerifiedChains[0]) > 0 {
 			subject := tlsInfo.State.VerifiedChains[0][0].Subject

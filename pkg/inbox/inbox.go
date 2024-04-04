@@ -18,29 +18,64 @@ package inbox
 
 import (
 	"context"
+	"fmt"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
+	"strings"
 )
 
 type Inbox struct {
-	entry    dentry.Manager
-	workflow workflow.Manager
-	logger   *zap.SugaredLogger
+	inboxGroup int64
+	entry      dentry.Manager
+	workflow   workflow.Manager
+	logger     *zap.SugaredLogger
 }
 
-func (i *Inbox) QuickInbox(ctx context.Context, option Option) (*types.Metadata, error) {
-	return nil, nil
-}
-
-func New(entry dentry.Manager, workflow workflow.Manager) *Inbox {
-	return &Inbox{
-		entry:    entry,
-		workflow: workflow,
-		logger:   logger.NewLogger("inbox"),
+func (b *Inbox) QuickInbox(ctx context.Context, fileName string, option Option) (*types.Metadata, error) {
+	if fileName == "" || option.FileType == "" {
+		return nil, fmt.Errorf("filename or file type not set")
 	}
+	if !strings.HasSuffix(fileName, option.FileType) {
+		fileName = fmt.Sprintf("%s.%s", fileName, option.FileType)
+	}
+
+	fileEn, err := b.entry.CreateEntry(ctx, b.inboxGroup,
+		types.EntryAttr{Name: fileName, Kind: types.RawKind})
+	if err != nil {
+		return nil, err
+	}
+
+	file, err := b.entry.Open(ctx, fileEn.ID, types.OpenAttr{Write: true, Create: true})
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close(ctx)
+
+	err = UrlFile{
+		Url:         option.Url,
+		FileType:    option.FileType,
+		ClutterFree: option.ClutterFree,
+	}.Write(ctx, file)
+	if err != nil {
+		return nil, err
+	}
+	return fileEn, nil
+}
+
+func New(entry dentry.Manager, workflow workflow.Manager) (*Inbox, error) {
+	inboxEn, err := initInboxInternalGroup(entry)
+	if err != nil {
+		return nil, fmt.Errorf("init inbox internal group group failed %w", err)
+	}
+	return &Inbox{
+		inboxGroup: inboxEn.ID,
+		entry:      entry,
+		workflow:   workflow,
+		logger:     logger.NewLogger("inbox"),
+	}, nil
 }
 
 type Option struct {

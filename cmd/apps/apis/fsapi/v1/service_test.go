@@ -22,90 +22,288 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"io"
 	"time"
 )
 
 var _ = Describe("testInboxService", func() {
+	var (
+		ctx        = context.TODO()
+		inboxGroup int64
+	)
+
 	Context("test quick inbox", func() {
+		var newEntry int64
+		It("find inbox should be succeed", func() {
+			en, err := ctrl.FindEntry(ctx, dentry.RootEntryID, ".inbox")
+			Expect(err).Should(BeNil())
+			inboxGroup = en.ID
+		})
 		It("inbox should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			resp, err := serviceClient.QuickInbox(ctx, &QuickInboxRequest{
+				SourceType:  QuickInboxRequest_UrlSource,
+				FileType:    QuickInboxRequest_WebArchiveFile,
+				Filename:    "test",
+				Url:         "https://blog.ihypo.net",
+				ClutterFree: true,
+			})
+			Expect(err).Should(BeNil())
+
+			newEntry = resp.EntryID
+			Expect(newEntry > 0).Should(BeTrue())
 		})
 		It("file in inbox should be found", func() {
-			Expect(nil).Should(BeNil())
+			en, err := ctrl.GetEntry(ctx, newEntry)
+			Expect(err).Should(BeNil())
+			Expect(en.ParentID).Should(Equal(inboxGroup))
 		})
 	})
 })
 
 var _ = Describe("testEntriesService-CRUD", func() {
+	var (
+		ctx     = context.TODO()
+		groupID int64
+		fileID  int64
+
+		groupID2 int64
+		fileID2  int64
+	)
+
 	Context("test create entry", func() {
 		It("create group should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			resp, err := serviceClient.CreateEntry(ctx, &CreateEntryRequest{
+				ParentID: dentry.RootEntryID,
+				Name:     "test-group-1",
+				Kind:     types.GroupKind,
+			})
+			Expect(err).Should(BeNil())
+			Expect(resp.Entry.Name).Should(Equal("test-group-1"))
+			groupID = resp.Entry.Id
+
+			resp, err = serviceClient.CreateEntry(ctx, &CreateEntryRequest{
+				ParentID: dentry.RootEntryID,
+				Name:     "test-group-2",
+				Kind:     types.GroupKind,
+			})
+			Expect(err).Should(BeNil())
+			groupID2 = resp.Entry.Id
 		})
 		It("create child file should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			resp, err := serviceClient.CreateEntry(ctx, &CreateEntryRequest{
+				ParentID: groupID,
+				Name:     "test-file-1",
+				Kind:     types.RawKind,
+			})
+			Expect(err).Should(BeNil())
+			fileID = resp.Entry.Id
+
+			resp, err = serviceClient.CreateEntry(ctx, &CreateEntryRequest{
+				ParentID: groupID,
+				Name:     "test-file-2",
+				Kind:     types.RawKind,
+			})
+			Expect(err).Should(BeNil())
+			fileID2 = resp.Entry.Id
 		})
 		It("list child should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			resp, err := serviceClient.ListGroupChildren(ctx, &ListGroupChildrenRequest{ParentID: groupID})
+			Expect(err).Should(BeNil())
+			Expect(len(resp.Entries) > 0).Should(BeTrue())
 		})
 		It("get detail should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			resp, err := serviceClient.GetEntryDetail(ctx, &GetEntryDetailRequest{EntryID: fileID})
+			Expect(err).Should(BeNil())
+			Expect(resp.Entry.Name).Should(Equal("test-file-1"))
+		})
+	})
+	Context("test move entry", func() {
+		It("move should be succeed", func() {
+			_, err := serviceClient.ChangeParent(ctx, &ChangeParentRequest{EntryID: fileID2, NewParentID: groupID2})
+			Expect(err).Should(BeNil())
+		})
+		It("list child should be succeed", func() {
+			resp, err := serviceClient.ListGroupChildren(ctx, &ListGroupChildrenRequest{ParentID: groupID2})
+			Expect(err).Should(BeNil())
+			Expect(len(resp.Entries) > 0).Should(BeTrue())
 		})
 	})
 	Context("test update entry", func() {
 		It("update should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			_, err := serviceClient.UpdateEntry(ctx, &UpdateEntryRequest{
+				Entry: &EntryDetail{Id: fileID, Aliases: "test aliases"},
+			})
+			Expect(err).Should(BeNil())
 		})
 		It("get detail should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			resp, err := serviceClient.GetEntryDetail(ctx, &GetEntryDetailRequest{EntryID: fileID})
+			Expect(err).Should(BeNil())
+			Expect(resp.Entry.Aliases).Should(Equal("test aliases"))
 		})
 	})
 	Context("test delete entry", func() {
 		It("delete should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			_, err := serviceClient.DeleteEntry(ctx, &DeleteEntryRequest{EntryID: fileID})
+			Expect(err).Should(BeNil())
 		})
 		It("get detail should be notfound", func() {
-			Expect(nil).Should(BeNil())
+			_, err := serviceClient.GetEntryDetail(ctx, &GetEntryDetailRequest{EntryID: fileID})
+			s, _ := status.FromError(err)
+			Expect(s.Code()).Should(Equal(codes.NotFound))
 		})
 		It("list children should be empty", func() {
-			Expect(nil).Should(BeNil())
+			resp, err := serviceClient.ListGroupChildren(ctx, &ListGroupChildrenRequest{ParentID: groupID})
+			Expect(err).Should(BeNil())
+			Expect(len(resp.Entries)).Should(Equal(0))
 		})
 	})
 })
 
 var _ = Describe("testEntriesService-FileIO", func() {
+	var (
+		ctx    = context.TODO()
+		data   = []byte("hello world!\n")
+		fileID int64
+	)
+
 	Context("write new file", func() {
+		It("create new file should be succeed", func() {
+			resp, err := serviceClient.CreateEntry(ctx, &CreateEntryRequest{
+				ParentID: dentry.RootEntryID,
+				Name:     "test-bio-file-1",
+				Kind:     types.RawKind,
+			})
+			Expect(err).Should(BeNil())
+			fileID = resp.Entry.Id
+		})
 		It("write should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			var off int64 = 0
+			writer, err := serviceClient.WriteFile(ctx)
+			Expect(err).Should(BeNil())
+			for i := 0; i < 3; i++ {
+				err = writer.Send(&WriteFileRequest{
+					EntryID: fileID,
+					Off:     off,
+					Len:     int64(len(data)),
+					Data:    data,
+				})
+				Expect(err).Should(BeNil())
+				off += int64(len(data))
+			}
+			resp, err := writer.CloseAndRecv()
+			Expect(err).Should(BeNil())
+			Expect(resp.Len).Should(Equal(int64(len(data) * 3)))
 		})
 		It("re-read should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			var (
+				off     int64
+				buf     = make([]byte, 5)
+				content []byte
+			)
+			reader, err := serviceClient.ReadFile(ctx, &ReadFileRequest{
+				EntryID: fileID,
+				Off:     off,
+				Len:     int64(len(buf)),
+			})
+			Expect(err).Should(BeNil())
+
+			for {
+				resp, err := reader.Recv()
+				if err != nil && err == io.EOF {
+					break
+				}
+				Expect(err).Should(BeNil())
+				content = append(content, resp.Data[:resp.Len]...)
+			}
+
+			Expect(string(data) + string(data) + string(data)).Should(Equal(string(content)))
 		})
 	})
 	Context("write existed file", func() {
+		newData := []byte("hello test1!\n")
 		It("write should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			writer, err := serviceClient.WriteFile(ctx)
+			Expect(err).Should(BeNil())
+			err = writer.Send(&WriteFileRequest{
+				EntryID: fileID,
+				Off:     int64(len(data)),
+				Len:     int64(len(newData)),
+				Data:    newData,
+			})
+			Expect(err).Should(BeNil())
+			resp, err := writer.CloseAndRecv()
+			Expect(err).Should(BeNil())
+			Expect(resp.Len).Should(Equal(int64(len(newData))))
 		})
 		It("re-read should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			var (
+				off     int64
+				buf     = make([]byte, len(data))
+				content []byte
+			)
+			reader, err := serviceClient.ReadFile(ctx, &ReadFileRequest{
+				EntryID: fileID,
+				Off:     off,
+				Len:     int64(len(buf)),
+			})
+			Expect(err).Should(BeNil())
+
+			for {
+				resp, err := reader.Recv()
+				if err != nil && err == io.EOF {
+					break
+				}
+				Expect(err).Should(BeNil())
+				content = append(content, resp.Data[:resp.Len]...)
+			}
+
+			Expect(string(data) + string(newData) + string(data)).Should(Equal(string(content)))
 		})
 	})
 })
 
 var _ = Describe("testEntryPropertiesService", func() {
+	var (
+		ctx     = context.TODO()
+		entryID int64
+	)
+
 	Context("test add property", func() {
 		It("init entry should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			resp, err := serviceClient.CreateEntry(ctx, &CreateEntryRequest{
+				ParentID: dentry.RootEntryID,
+				Name:     "test-file-property-1",
+				Kind:     types.RawKind,
+			})
+			Expect(err).Should(BeNil())
+			entryID = resp.Entry.Id
 		})
 		It("add should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			resp, err := serviceClient.AddProperty(ctx, &AddPropertyRequest{
+				EntryID: entryID,
+				Key:     "test.key",
+				Value:   "value1",
+			})
+			Expect(err).Should(BeNil())
+			Expect(len(resp.Properties) > 0).Should(BeTrue())
 		})
 		It("get entry details should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			resp, err := serviceClient.GetEntryDetail(ctx, &GetEntryDetailRequest{EntryID: entryID})
+			Expect(err).Should(BeNil())
+			Expect(len(resp.Properties) > 0).Should(BeTrue())
 		})
 	})
 	Context("test update property", func() {
 		It("update should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			resp, err := serviceClient.UpdateProperty(ctx, &UpdatePropertyRequest{
+				EntryID: entryID,
+				Key:     "test.key",
+				Value:   "value2",
+			})
+			Expect(err).Should(BeNil())
+			Expect(len(resp.Properties) > 0).Should(BeTrue())
 		})
 		It("get entry details should be succeed", func() {
 			Expect(nil).Should(BeNil())
@@ -113,10 +311,17 @@ var _ = Describe("testEntryPropertiesService", func() {
 	})
 	Context("test delete property", func() {
 		It("delete should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			resp, err := serviceClient.DeleteProperty(ctx, &DeletePropertyRequest{
+				EntryID: entryID,
+				Key:     "test.key",
+			})
+			Expect(err).Should(BeNil())
+			Expect(len(resp.Properties)).Should(Equal(0))
 		})
 		It("get entry details should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			resp, err := serviceClient.GetEntryDetail(ctx, &GetEntryDetailRequest{EntryID: entryID})
+			Expect(err).Should(BeNil())
+			Expect(len(resp.Properties)).Should(Equal(0))
 		})
 	})
 })
