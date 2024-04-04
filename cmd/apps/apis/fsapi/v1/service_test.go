@@ -29,12 +29,35 @@ import (
 )
 
 var _ = Describe("testInboxService", func() {
+	var (
+		ctx        = context.TODO()
+		inboxGroup int64
+	)
+
 	Context("test quick inbox", func() {
+		var newEntry int64
+		It("find inbox should be succeed", func() {
+			en, err := ctrl.FindEntry(ctx, dentry.RootEntryID, ".inbox")
+			Expect(err).Should(BeNil())
+			inboxGroup = en.ID
+		})
 		It("inbox should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			resp, err := serviceClient.QuickInbox(ctx, &QuickInboxRequest{
+				SourceType:  QuickInboxRequest_UrlSource,
+				FileType:    QuickInboxRequest_WebArchiveFile,
+				Filename:    "test",
+				Url:         "https://blog.ihypo.net",
+				ClutterFree: true,
+			})
+			Expect(err).Should(BeNil())
+
+			newEntry = resp.EntryID
+			Expect(newEntry > 0).Should(BeTrue())
 		})
 		It("file in inbox should be found", func() {
-			Expect(nil).Should(BeNil())
+			en, err := ctrl.GetEntry(ctx, newEntry)
+			Expect(err).Should(BeNil())
+			Expect(en.ParentID).Should(Equal(inboxGroup))
 		})
 	})
 })

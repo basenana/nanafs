@@ -20,7 +20,8 @@ message QuickInboxRequest {
 
   SourceType sourceType = 1;
   FileType fileType = 2;
-  string url = 3;
+  string filename = 3;
+  string url = 4;
 
   // url source
   bool clutterFree = 10;

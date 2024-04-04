@@ -435,7 +435,7 @@ func (s *services) QuickInbox(ctx context.Context, request *QuickInboxRequest) (
 	case QuickInboxRequest_HtmlFile:
 		option.FileType = "html"
 	}
-	en, err := s.ctrl.QuickInbox(ctx, option)
+	en, err := s.ctrl.QuickInbox(ctx, request.Filename, option)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "quick inbox failed")
 	}

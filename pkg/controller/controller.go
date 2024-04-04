@@ -60,7 +60,7 @@ type Controller interface {
 	ConfigEntrySourcePlugin(ctx context.Context, id int64, scope types.ExtendData) error
 	CleanupEntrySourcePlugin(ctx context.Context, id int64) error
 
-	QuickInbox(ctx context.Context, option inbox.Option) (*types.Metadata, error)
+	QuickInbox(ctx context.Context, filename string, option inbox.Option) (*types.Metadata, error)
 
 	GetLatestSequence(ctx context.Context) (int64, error)
 	ListUnSyncedEvent(ctx context.Context, sequence int64) ([]types.Event, error)
@@ -345,7 +345,7 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 		return nil, err
 	}
 
-	if err := plugin.Init(buildin.Services{DocumentManager: ctl.document}, cfg.Plugin); err != nil {
+	if err = plugin.Init(buildin.Services{DocumentManager: ctl.document}, cfg.Plugin); err != nil {
 		return nil, err
 	}
 	ctl.workflow, err = workflow.NewManager(ctl.entry, ctl.document, ctl.Notify, meta, cfg.Workflow, cfg.FUSE)
@@ -354,7 +354,10 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 	}
 
 	ctl.Notify = notify.NewNotify(meta)
-	ctl.Inbox = inbox.New(ctl.entry, ctl.workflow)
+	ctl.Inbox, err = inbox.New(ctl.entry, ctl.workflow)
+	if err != nil {
+		return nil, err
+	}
 
 	return ctl, nil
 }
