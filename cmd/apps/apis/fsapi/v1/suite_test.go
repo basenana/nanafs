@@ -64,6 +64,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 	testMeta = memMeta
 
+	storage.InitLocalCache(config.Config{CacheDir: "/tmp", CacheSize: 0})
+
 	ctrl, err = controller.New(mockConfig{}, memMeta)
 	Expect(err).Should(BeNil())
 

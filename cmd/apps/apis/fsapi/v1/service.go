@@ -321,7 +321,7 @@ func (s *services) WriteFile(reader Entries_WriteFileServer) error {
 
 	defer func() {
 		if file != nil {
-			_ = file.Close(context.TODO())
+			_ = file.Close(context.Background())
 		}
 	}()
 
@@ -362,13 +362,20 @@ func (s *services) WriteFile(reader Entries_WriteFileServer) error {
 		}
 		recvTotal += writeRequest.Len
 	}
+
+	if file != nil {
+		if err := file.Flush(ctx); err != nil {
+			return err
+		}
+	}
 	return reader.SendAndClose(&WriteFileResponse{Len: recvTotal})
 }
 
 func (s *services) ReadFile(request *ReadFileRequest, writer Entries_ReadFileServer) error {
 	var (
-		ctx           = writer.Context()
-		readOnce, off int64
+		ctx      = writer.Context()
+		off      = request.Off
+		readOnce int64
 	)
 
 	caller := s.callerAuthFn(ctx)
@@ -390,10 +397,11 @@ func (s *services) ReadFile(request *ReadFileRequest, writer Entries_ReadFileSer
 	if err != nil {
 		return status.Error(common.FsApiError(err), "open file failed")
 	}
+	defer file.Close(context.Background())
 
-	chunk := make([]byte, 1024)
+	buffer := make([]byte, request.Len)
 	for {
-		readOnce, err = file.ReadAt(ctx, chunk, off)
+		readOnce, err = file.ReadAt(ctx, buffer, off)
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -404,11 +412,12 @@ func (s *services) ReadFile(request *ReadFileRequest, writer Entries_ReadFileSer
 		err = writer.Send(&ReadFileResponse{
 			Off:  off,
 			Len:  readOnce,
-			Data: chunk[:readOnce],
+			Data: buffer[:readOnce],
 		})
 		if err != nil {
 			return err
 		}
+		off += readOnce
 	}
 	return nil
 }

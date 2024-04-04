@@ -24,6 +24,7 @@ import (
 	. "github.com/onsi/gomega"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"io"
 	"time"
 )
 
@@ -138,20 +139,104 @@ var _ = Describe("testEntriesService-CRUD", func() {
 })
 
 var _ = Describe("testEntriesService-FileIO", func() {
+	var (
+		ctx    = context.TODO()
+		data   = []byte("hello world!\n")
+		fileID int64
+	)
+
 	Context("write new file", func() {
+		It("create new file should be succeed", func() {
+			resp, err := serviceClient.CreateEntry(ctx, &CreateEntryRequest{
+				ParentID: dentry.RootEntryID,
+				Name:     "test-bio-file-1",
+				Kind:     types.RawKind,
+			})
+			Expect(err).Should(BeNil())
+			fileID = resp.Entry.Id
+		})
 		It("write should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			var off int64 = 0
+			writer, err := serviceClient.WriteFile(ctx)
+			Expect(err).Should(BeNil())
+			for i := 0; i < 3; i++ {
+				err = writer.Send(&WriteFileRequest{
+					EntryID: fileID,
+					Off:     off,
+					Len:     int64(len(data)),
+					Data:    data,
+				})
+				Expect(err).Should(BeNil())
+				off += int64(len(data))
+			}
+			resp, err := writer.CloseAndRecv()
+			Expect(err).Should(BeNil())
+			Expect(resp.Len).Should(Equal(int64(len(data) * 3)))
 		})
 		It("re-read should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			var (
+				off     int64
+				buf     = make([]byte, 5)
+				content []byte
+			)
+			reader, err := serviceClient.ReadFile(ctx, &ReadFileRequest{
+				EntryID: fileID,
+				Off:     off,
+				Len:     int64(len(buf)),
+			})
+			Expect(err).Should(BeNil())
+
+			for {
+				resp, err := reader.Recv()
+				if err != nil && err == io.EOF {
+					break
+				}
+				Expect(err).Should(BeNil())
+				content = append(content, resp.Data[:resp.Len]...)
+			}
+
+			Expect(string(data) + string(data) + string(data)).Should(Equal(string(content)))
 		})
 	})
 	Context("write existed file", func() {
+		newData := []byte("hello test1!\n")
 		It("write should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			writer, err := serviceClient.WriteFile(ctx)
+			Expect(err).Should(BeNil())
+			err = writer.Send(&WriteFileRequest{
+				EntryID: fileID,
+				Off:     int64(len(data)),
+				Len:     int64(len(newData)),
+				Data:    newData,
+			})
+			Expect(err).Should(BeNil())
+			resp, err := writer.CloseAndRecv()
+			Expect(err).Should(BeNil())
+			Expect(resp.Len).Should(Equal(int64(len(newData))))
 		})
 		It("re-read should be succeed", func() {
-			Expect(nil).Should(BeNil())
+			var (
+				off     int64
+				buf     = make([]byte, len(data))
+				content []byte
+			)
+			reader, err := serviceClient.ReadFile(ctx, &ReadFileRequest{
+				EntryID: fileID,
+				Off:     off,
+				Len:     int64(len(buf)),
+			})
+			Expect(err).Should(BeNil())
+
+			for {
+				resp, err := reader.Recv()
+				if err != nil && err == io.EOF {
+					break
+				}
+				Expect(err).Should(BeNil())
+				content = append(content, resp.Data[:resp.Len]...)
+			}
+
+			Expect(string(data) + string(newData) + string(data)).Should(Equal(string(content)))
 		})
 	})
 })
