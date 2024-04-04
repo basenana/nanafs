@@ -31,6 +31,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 	"net"
+	"os"
 	"testing"
 )
 
@@ -64,7 +65,10 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 	testMeta = memMeta
 
-	storage.InitLocalCache(config.Config{CacheDir: "/tmp", CacheSize: 0})
+	workdir, err := os.MkdirTemp(os.TempDir(), "ut-nanafs-fsapi-")
+	Expect(err).Should(BeNil())
+
+	storage.InitLocalCache(config.Config{CacheDir: workdir, CacheSize: 0})
 
 	ctrl, err = controller.New(mockConfig{}, memMeta)
 	Expect(err).Should(BeNil())
@@ -106,9 +110,13 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	err := mockListen.Close()
-	Expect(err).Should(BeNil())
-	testServer.Stop()
+	if mockListen != nil {
+		err := mockListen.Close()
+		Expect(err).Should(BeNil())
+	}
+	if testServer != nil {
+		testServer.Stop()
+	}
 })
 
 type Client struct {

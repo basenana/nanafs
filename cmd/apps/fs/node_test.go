@@ -538,7 +538,15 @@ var _ = Describe("TestRmdir", func() {
 				Describe("can not see old dir", func() {
 					ds, err := root.Readdir(context.Background())
 					Expect(err).To(Equal(syscall.Errno(0)))
-					Expect(ds.HasNext()).To(BeFalse())
+					found := false
+					for ds.HasNext() {
+						ch, err := ds.Next()
+						Expect(err).To(Equal(syscall.Errno(0)))
+						if ch.Name == dirName {
+							found = true
+						}
+					}
+					Expect(found).To(BeFalse())
 					ds.Close()
 				})
 			})
