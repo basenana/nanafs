@@ -474,6 +474,62 @@ func (i instrumentalStore) CreateFridayAccount(ctx context.Context, account *typ
 	return err
 }
 
+func (i instrumentalStore) SaveRoom(ctx context.Context, room *types.Room) error {
+	const operation = "create_room"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.SaveRoom(ctx, room)
+	logOperationError(operation, err)
+	return err
+}
+
+func (i instrumentalStore) GetRoom(ctx context.Context, id int64) (*types.Room, error) {
+	const operation = "get_room"
+	defer logOperationLatency(operation, time.Now())
+	room, err := i.store.GetRoom(ctx, id)
+	logOperationError(operation, err)
+	return room, err
+}
+
+func (i instrumentalStore) DeleteRoom(ctx context.Context, id int64) error {
+	const operation = "delete_room"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.DeleteRoom(ctx, id)
+	logOperationError(operation, err)
+	return err
+}
+
+func (i instrumentalStore) ListRooms(ctx context.Context, entryId int64) ([]*types.Room, error) {
+	const operation = "list_room"
+	defer logOperationLatency(operation, time.Now())
+	room, err := i.store.ListRooms(ctx, entryId)
+	logOperationError(operation, err)
+	return room, err
+}
+
+func (i instrumentalStore) ListRoomMessage(ctx context.Context, roomId int64) ([]*types.RoomMessage, error) {
+	const operation = "list_room_message"
+	defer logOperationLatency(operation, time.Now())
+	room, err := i.store.ListRoomMessage(ctx, roomId)
+	logOperationError(operation, err)
+	return room, err
+}
+
+func (i instrumentalStore) CreateRoomMessage(ctx context.Context, msg *types.RoomMessage) error {
+	const operation = "create_room_message"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.CreateRoomMessage(ctx, msg)
+	logOperationError(operation, err)
+	return err
+}
+
+func (i instrumentalStore) DeleteRoomMessages(ctx context.Context, roomId int64) error {
+	const operation = "delete_room_message"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.DeleteRoomMessages(ctx, roomId)
+	logOperationError(operation, err)
+	return err
+}
+
 func DisableMetrics() {
 	disableMetrics = true
 }

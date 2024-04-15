@@ -69,6 +69,14 @@ type DEntry interface {
 
 	ListFridayAccount(ctx context.Context, refId int64) ([]*types.FridayAccount, error)
 	CreateFridayAccount(ctx context.Context, account *types.FridayAccount) error
+
+	SaveRoom(ctx context.Context, room *types.Room) error
+	GetRoom(ctx context.Context, id int64) (*types.Room, error)
+	DeleteRoom(ctx context.Context, id int64) error
+	ListRooms(ctx context.Context, entryId int64) ([]*types.Room, error)
+	ListRoomMessage(ctx context.Context, roomId int64) ([]*types.RoomMessage, error)
+	CreateRoomMessage(ctx context.Context, msg *types.RoomMessage) error
+	DeleteRoomMessages(ctx context.Context, roomId int64) error
 }
 
 type ChunkStore interface {
