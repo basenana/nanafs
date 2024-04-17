@@ -20,6 +20,7 @@ import "time"
 
 type Room struct {
 	ID        int64               `json:"id"`
+	Namespace string              `json:"namespace"`
 	Title     string              `json:"title"`
 	EntryId   int64               `json:"entry_id"`
 	Prompt    string              `json:"prompt"`
@@ -30,6 +31,7 @@ type Room struct {
 
 type RoomMessage struct {
 	ID        int64     `json:"id"`
+	Namespace string    `json:"namespace"`
 	RoomID    int64     `json:"room_id"`
 	UserMsg   string    `json:"user_msg"`
 	ModelMsg  string    `json:"model_msg"`

@@ -18,6 +18,16 @@ package v1
 
 import (
 	"context"
+	"net"
+	"os"
+	"testing"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/test/bufconn"
+
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
 	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
 	"github.com/basenana/nanafs/config"
@@ -25,14 +35,6 @@ import (
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils/logger"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/test/bufconn"
-	"net"
-	"os"
-	"testing"
 )
 
 var (
@@ -102,6 +104,7 @@ var _ = BeforeSuite(func() {
 
 	serviceClient = &Client{
 		DocumentClient:   NewDocumentClient(conn),
+		RoomClient:       NewRoomClient(conn),
 		EntriesClient:    NewEntriesClient(conn),
 		InboxClient:      NewInboxClient(conn),
 		PropertiesClient: NewPropertiesClient(conn),
@@ -121,6 +124,7 @@ var _ = AfterSuite(func() {
 
 type Client struct {
 	DocumentClient
+	RoomClient
 	EntriesClient
 	InboxClient
 	PropertiesClient

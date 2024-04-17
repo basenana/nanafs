@@ -581,6 +581,7 @@ func (a *FridayAccount) From(account *types.FridayAccount) *FridayAccount {
 
 type Room struct {
 	ID        int64     `gorm:"column:id;primaryKey"`
+	Namespace string    `gorm:"column:namespace;index:room_namespace"`
 	Title     string    `gorm:"column:title"`
 	EntryId   int64     `gorm:"column:entry_id;index:room_entry_id"`
 	Prompt    string    `gorm:"column:prompt"`
@@ -593,6 +594,7 @@ func (r *Room) TableName() string { return "room" }
 func (r *Room) From(room *types.Room) *Room {
 	return &Room{
 		ID:        room.ID,
+		Namespace: room.Namespace,
 		Title:     room.Title,
 		EntryId:   room.EntryId,
 		Prompt:    room.Prompt,
@@ -603,6 +605,7 @@ func (r *Room) From(room *types.Room) *Room {
 func (r *Room) To() (room *types.Room, err error) {
 	room = &types.Room{
 		ID:        r.ID,
+		Namespace: r.Namespace,
 		Title:     r.Title,
 		EntryId:   r.EntryId,
 		Prompt:    r.Prompt,
@@ -617,6 +620,7 @@ func (r *Room) To() (room *types.Room, err error) {
 
 type RoomMessage struct {
 	ID        int64     `gorm:"column:id;primaryKey"`
+	Namespace string    `gorm:"column:namespace;index:message_namespace"`
 	RoomID    int64     `gorm:"column:room_id;index:message_room_id"`
 	UserMsg   string    `gorm:"column:user_msg"`
 	ModelMsg  string    `gorm:"column:model_msg"`
@@ -628,6 +632,7 @@ func (r *RoomMessage) TableName() string { return "room_message" }
 func (r *RoomMessage) From(roomMessage *types.RoomMessage) *RoomMessage {
 	return &RoomMessage{
 		ID:        roomMessage.ID,
+		Namespace: roomMessage.Namespace,
 		RoomID:    roomMessage.RoomID,
 		UserMsg:   roomMessage.UserMsg,
 		ModelMsg:  roomMessage.ModelMsg,
@@ -638,6 +643,7 @@ func (r *RoomMessage) From(roomMessage *types.RoomMessage) *RoomMessage {
 func (r *RoomMessage) To() (roomMessage *types.RoomMessage) {
 	roomMessage = &types.RoomMessage{
 		ID:        r.ID,
+		Namespace: r.Namespace,
 		RoomID:    r.RoomID,
 		UserMsg:   r.UserMsg,
 		ModelMsg:  r.ModelMsg,

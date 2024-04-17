@@ -6,6 +6,78 @@ option go_package = "github.com/basenana/nanafs/cmd/apps/apis/fsapi/v1";
 
 import "google/protobuf/timestamp.proto";
 
+service Room {
+  rpc ListRooms (ListRoomsRequest) returns (ListRoomsResponse) {}
+  rpc OpenRoom (OpenRoomRequest) returns (OpenRoomResponse) {}
+  rpc UpdateRoom (UpdateRoomRequest) returns (UpdateRoomResponse) {}
+  rpc DeleteRoom (DeleteRoomRequest) returns (DeleteRoomResponse) {}
+  rpc ChatInRoom (ChatRequest) returns (stream ChatResponse) {}
+}
+
+message RoomInfo {
+  int64 id = 1;
+  int64 entryID = 2;
+  string title = 3;
+  string prompt = 4;
+  repeated RoomMessage messages = 10;
+  google.protobuf.Timestamp createdAt = 11;
+}
+
+message RoomMessage {
+  int64 id = 1;
+  int64 roomID = 2;
+  string userMsg = 3;
+  string modelMsg = 4;
+  google.protobuf.Timestamp createdAt = 10;
+}
+
+message ListRoomsRequest {
+  int64 entryID = 1;
+}
+
+message ListRoomsResponse {
+  repeated RoomInfo rooms = 1;
+}
+
+message OpenRoomRequest {
+  message Option {
+    string prompt = 1;
+  }
+  int64 entryID = 1;
+  int64 roomID = 2;
+  Option option = 3;
+}
+
+message OpenRoomResponse {
+  RoomInfo room = 1;
+}
+
+message UpdateRoomRequest {
+  int64 roomID = 1;
+  string prompt = 2;
+}
+
+message UpdateRoomResponse {
+  int64 roomID = 1;
+}
+
+message DeleteRoomRequest {
+  int64 roomID = 1;
+}
+
+message DeleteRoomResponse {
+  int64 roomID = 1;
+}
+
+message ChatRequest {
+  int64 roomID = 1;
+  string newMessage = 2;
+}
+
+message ChatResponse {
+  string replyMessage = 1;
+}
+
 service Inbox {
   rpc QuickInbox (QuickInboxRequest) returns (QuickInboxResponse) {}
 }

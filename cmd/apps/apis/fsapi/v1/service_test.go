@@ -18,15 +18,119 @@ package v1
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/types"
+	"io"
+	"time"
+
+	. "github.com/agiledragon/gomonkey/v2"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"io"
-	"time"
+
+	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/friday"
+	"github.com/basenana/nanafs/pkg/types"
 )
+
+var _ = Describe("testRoomService", func() {
+	var (
+		ctx    = context.TODO()
+		roomId int64
+	)
+
+	Context("test room", func() {
+		It("create should be succeed", func() {
+			resp, err := serviceClient.OpenRoom(ctx, &OpenRoomRequest{
+				EntryID: 1,
+				Option: &OpenRoomRequest_Option{
+					Prompt: "test prompt",
+				},
+			})
+			Expect(err).Should(BeNil())
+			roomId = resp.Room.Id
+		})
+		It("open should be succeed", func() {
+			resp, err := serviceClient.OpenRoom(ctx, &OpenRoomRequest{
+				EntryID: 1,
+				RoomID:  roomId,
+			})
+			Expect(err).Should(BeNil())
+			Expect(resp.Room.Prompt).Should(Equal("test prompt"))
+		})
+		It("update should be succeed", func() {
+			_, err := serviceClient.UpdateRoom(ctx, &UpdateRoomRequest{
+				RoomID: roomId,
+				Prompt: "update prompt",
+			})
+			Expect(err).Should(BeNil())
+			res, err := serviceClient.OpenRoom(ctx, &OpenRoomRequest{
+				EntryID: 1,
+				RoomID:  roomId,
+			})
+			Expect(err).Should(BeNil())
+			Expect(res.Room.Prompt).Should(Equal("update prompt"))
+		})
+		It("list should be succeed", func() {
+			resp, err := serviceClient.ListRooms(ctx, &ListRoomsRequest{EntryID: 1})
+			Expect(err).Should(BeNil())
+			Expect(len(resp.Rooms)).Should(Equal(1))
+		})
+
+		It("chat should be succeed", func() {
+			patch1 := ApplyFunc(friday.ChatInDir, func(ctx context.Context, dirId int64, history []map[string]string, response chan map[string]string) error {
+				response <- map[string]string{"content": "hello, I am response"}
+				return nil
+			})
+			defer patch1.Reset()
+			patch2 := ApplyFunc(friday.ChatInEntry, func(ctx context.Context, dirId int64, history []map[string]string, response chan map[string]string) error {
+				response <- map[string]string{"content": "hello, I am response"}
+				return nil
+			})
+			defer patch2.Reset()
+
+			var (
+				content string
+			)
+			chater, err := serviceClient.ChatInRoom(ctx, &ChatRequest{
+				RoomID:     roomId,
+				NewMessage: "hello",
+			})
+			Expect(err).Should(BeNil())
+
+			for {
+				resp, err := chater.Recv()
+				if err != nil && err == io.EOF {
+					break
+				}
+				Expect(err).Should(BeNil())
+				content += resp.ReplyMessage
+			}
+
+			Expect(content).Should(Equal("hello, I am response"))
+
+			// message should be saved
+			res, err := serviceClient.OpenRoom(ctx, &OpenRoomRequest{
+				EntryID: 1,
+				RoomID:  roomId,
+			})
+			Expect(err).Should(BeNil())
+			Expect(len(res.Room.Messages)).Should(Equal(1))
+			Expect(res.Room.Messages[0].UserMsg).Should(Equal("hello"))
+			Expect(res.Room.Messages[0].ModelMsg).Should(Equal("hello, I am response"))
+		})
+
+		It("delete should be succeed", func() {
+			_, err := serviceClient.DeleteRoom(ctx, &DeleteRoomRequest{RoomID: roomId})
+			Expect(err).Should(BeNil())
+			res, err := serviceClient.OpenRoom(ctx, &OpenRoomRequest{
+				EntryID: 1,
+				RoomID:  roomId,
+			})
+			Expect(err).ShouldNot(BeNil())
+			Expect(res).Should(BeNil())
+		})
+	})
+})
 
 var _ = Describe("testInboxService", func() {
 	var (

@@ -5,6 +5,10 @@ github.com/PuerkitoBio/goquery
 ## explicit; go 1.14
 github.com/RoaringBitmap/roaring
 github.com/RoaringBitmap/roaring/internal
+# github.com/agiledragon/gomonkey/v2 v2.11.0
+## explicit; go 1.14
+github.com/agiledragon/gomonkey/v2
+github.com/agiledragon/gomonkey/v2/creflect
 # github.com/aliyun/aliyun-oss-go-sdk v2.2.7+incompatible
 ## explicit
 github.com/aliyun/aliyun-oss-go-sdk/oss
