@@ -368,6 +368,48 @@ func (s *sqliteMetaStore) CreateFridayAccount(ctx context.Context, account *type
 	return s.dbStore.CreateFridayAccount(ctx, account)
 }
 
+func (s *sqliteMetaStore) SaveRoom(ctx context.Context, room *types.Room) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.SaveRoom(ctx, room)
+}
+
+func (s *sqliteMetaStore) GetRoom(ctx context.Context, id int64) (*types.Room, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.GetRoom(ctx, id)
+}
+
+func (s *sqliteMetaStore) DeleteRoom(ctx context.Context, id int64) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.DeleteRoom(ctx, id)
+}
+
+func (s *sqliteMetaStore) ListRooms(ctx context.Context, entryId int64) ([]*types.Room, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.ListRooms(ctx, entryId)
+}
+
+func (s *sqliteMetaStore) ListRoomMessage(ctx context.Context, roomId int64) ([]*types.RoomMessage, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.ListRoomMessage(ctx, roomId)
+}
+
+func (s *sqliteMetaStore) CreateRoomMessage(ctx context.Context, msg *types.RoomMessage) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.CreateRoomMessage(ctx, msg)
+}
+
+func (s *sqliteMetaStore) DeleteRoomMessages(ctx context.Context, roomId int64) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.DeleteRoomMessages(ctx, roomId)
+}
+
 func newSqliteMetaStore(meta config.Meta) (*sqliteMetaStore, error) {
 	dbEntity, err := gorm.Open(sqlite.Open(meta.Path), &gorm.Config{Logger: db.NewDbLogger()})
 	if err != nil {
@@ -1798,6 +1840,109 @@ func (s *sqlMetaStore) CreateFridayAccount(ctx context.Context, account *types.F
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		accountMod = accountMod.From(account)
 		res := tx.Create(accountMod)
+		return res.Error
+	})
+	return db.SqlError2Error(err)
+}
+
+func (s *sqlMetaStore) SaveRoom(ctx context.Context, room *types.Room) error {
+	defer trace.StartRegion(ctx, "metastore.sql.CreateRoom").End()
+	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		roomMod := &db.Room{}
+		res := tx.Where("id = ?", room.ID).First(roomMod)
+		if res.Error != nil {
+			if errors.Is(res.Error, gorm.ErrRecordNotFound) {
+				roomMod = roomMod.From(room)
+				res := tx.Create(roomMod)
+				return res.Error
+			}
+			return res.Error
+		}
+		roomMod = roomMod.From(room)
+		res = tx.Save(roomMod)
+		return res.Error
+	})
+	if err != nil {
+		return db.SqlError2Error(err)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) GetRoom(ctx context.Context, id int64) (*types.Room, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.GetRoom").End()
+	room := &db.Room{}
+	res := s.WithContext(ctx).Where("id = ?", id).First(room)
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
+	}
+	return room.To()
+}
+
+func (s *sqlMetaStore) DeleteRoom(ctx context.Context, id int64) error {
+	defer trace.StartRegion(ctx, "metastore.sql.DeleteRoom").End()
+	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Where("id = ?", id).Delete(&db.Room{})
+		return res.Error
+	})
+	return db.SqlError2Error(err)
+}
+
+func (s *sqlMetaStore) ListRooms(ctx context.Context, entryId int64) ([]*types.Room, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.ListRoom").End()
+	roomList := make([]db.Room, 0)
+	query := s.WithContext(ctx)
+	query = query.Where("entry_id = ?", entryId)
+	res := query.Order("created_at DESC").Find(&roomList)
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
+	}
+
+	result := make([]*types.Room, len(roomList))
+	for i, room := range roomList {
+		r, err := room.To()
+		if err != nil {
+			return nil, err
+		}
+		result[i] = r
+	}
+	return result, nil
+}
+
+func (s *sqlMetaStore) ListRoomMessage(ctx context.Context, roomId int64) ([]*types.RoomMessage, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.ListRoomMessage").End()
+	roomMsgList := make([]db.RoomMessage, 0)
+	query := s.WithContext(ctx)
+	query = query.Where("room_id = ?", roomId)
+	res := query.Order("created_at DESC").Find(&roomMsgList)
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
+	}
+
+	result := make([]*types.RoomMessage, len(roomMsgList))
+	for i, msg := range roomMsgList {
+		result[i] = msg.To()
+	}
+	return result, nil
+}
+
+func (s *sqlMetaStore) CreateRoomMessage(ctx context.Context, msg *types.RoomMessage) error {
+	defer trace.StartRegion(ctx, "metastore.sql.CreateRoomMessage").End()
+	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		roomMsgMod := &db.RoomMessage{}
+		roomMsgMod = roomMsgMod.From(msg)
+		res := tx.Create(roomMsgMod)
+		return res.Error
+	})
+	if err != nil {
+		return db.SqlError2Error(err)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) DeleteRoomMessages(ctx context.Context, roomId int64) error {
+	defer trace.StartRegion(ctx, "metastore.sql.DeleteRoomMessage").End()
+	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Where("room_id = ?", roomId).Delete(&db.RoomMessage{})
 		return res.Error
 	})
 	return db.SqlError2Error(err)

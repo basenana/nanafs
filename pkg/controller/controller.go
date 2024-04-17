@@ -18,11 +18,13 @@ package controller
 
 import (
 	"context"
+	"runtime/trace"
+
+	"github.com/basenana/nanafs/pkg/dialogue"
 	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/inbox"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/plugin/buildin"
-	"runtime/trace"
 
 	"go.uber.org/zap"
 
@@ -74,6 +76,13 @@ type Controller interface {
 	GetDocumentsByEntryId(ctx context.Context, entryId int64) (*types.Document, error)
 	QueryDocuments(ctx context.Context, query string) ([]*types.Document, error)
 
+	ListRooms(ctx context.Context, entryId int64) ([]*types.Room, error)
+	CreateRoom(ctx context.Context, entryId int64, prompt string) (*types.Room, error)
+	GetRoom(ctx context.Context, id int64) (*types.Room, error)
+	UpdateRoom(ctx context.Context, roomId int64, prompt string) error
+	DeleteRoom(ctx context.Context, id int64) error
+	ChatInRoom(ctx context.Context, roomId int64, newMsg string, reply chan string) (err error)
+
 	OpenFile(ctx context.Context, entryId int64, attr types.OpenAttr) (dentry.File, error)
 	ReadFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error)
 	WriteFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error)
@@ -96,6 +105,7 @@ type controller struct {
 	notify   *notify.Notify
 	workflow workflow.Manager
 	document document.Manager
+	dialogue dialogue.Manager
 
 	logger *zap.SugaredLogger
 }
@@ -335,6 +345,11 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 	}
 
 	ctl.document, err = document.NewManager(meta, ctl.entry, cfg.Indexer)
+	if err != nil {
+		return nil, err
+	}
+
+	ctl.dialogue, err = dialogue.NewManager(meta, ctl.entry)
 	if err != nil {
 		return nil, err
 	}

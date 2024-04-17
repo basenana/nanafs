@@ -18,6 +18,14 @@ package v1
 
 import (
 	"context"
+	"io"
+
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
 	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
 	"github.com/basenana/nanafs/pkg/controller"
@@ -25,12 +33,6 @@ import (
 	"github.com/basenana/nanafs/pkg/inbox"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
-	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/timestamppb"
-	"io"
 )
 
 type Services interface {
@@ -52,6 +54,7 @@ func InitServices(server *grpc.Server, ctrl controller.Controller, pathEntryMgr 
 	RegisterDocumentServer(server, s)
 	RegisterEntriesServer(server, s)
 	RegisterInboxServer(server, s)
+	RegisterRoomServer(server, s)
 	RegisterPropertiesServer(server, s)
 	RegisterNotifyServer(server, s)
 	return s, nil
@@ -62,6 +65,111 @@ type services struct {
 	pathEntryMgr *pathmgr.PathManager
 	callerAuthFn common.CallerAuthGetter
 	logger       *zap.SugaredLogger
+}
+
+func (s *services) ListRooms(ctx context.Context, request *ListRoomsRequest) (*ListRoomsResponse, error) {
+	if request.EntryID == 0 {
+		return nil, status.Error(codes.InvalidArgument, "entry id is empty")
+	}
+	rooms, err := s.ctrl.ListRooms(ctx, request.EntryID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "list rooms failed")
+	}
+	resp := &ListRoomsResponse{Rooms: make([]*RoomInfo, 0, len(rooms))}
+	for _, room := range rooms {
+		resp.Rooms = append(resp.Rooms, &RoomInfo{
+			Id:        room.ID,
+			EntryID:   room.EntryId,
+			Title:     room.Title,
+			Prompt:    room.Prompt,
+			CreatedAt: timestamppb.New(room.CreatedAt),
+		})
+	}
+	return resp, nil
+}
+
+func (s *services) OpenRoom(ctx context.Context, request *OpenRoomRequest) (*OpenRoomResponse, error) {
+	if request.EntryID == 0 {
+		return nil, status.Error(codes.InvalidArgument, "entry id is empty")
+	}
+	if request.RoomID == 0 {
+		// need create a new one
+		room, err := s.ctrl.CreateRoom(ctx, request.EntryID, request.Option.Prompt)
+		if err != nil {
+			return nil, status.Error(common.FsApiError(err), "create room failed")
+		}
+		return &OpenRoomResponse{
+			Room: &RoomInfo{Id: room.ID, EntryID: room.EntryId, Title: room.Title, Prompt: room.Prompt, CreatedAt: timestamppb.New(room.CreatedAt)},
+		}, nil
+	}
+
+	room, err := s.ctrl.GetRoom(ctx, request.RoomID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "get room failed")
+	}
+	msg := make([]*RoomMessage, 0, len(room.Messages))
+	for _, m := range room.Messages {
+		msg = append(msg, &RoomMessage{
+			Id:        m.ID,
+			RoomID:    m.RoomID,
+			UserMsg:   m.UserMsg,
+			ModelMsg:  m.ModelMsg,
+			CreatedAt: timestamppb.New(m.CreatedAt),
+		})
+	}
+	return &OpenRoomResponse{
+		Room: &RoomInfo{Id: room.ID, EntryID: room.EntryId, Title: room.Title, Prompt: room.Prompt, CreatedAt: timestamppb.New(room.CreatedAt), Messages: msg},
+	}, nil
+}
+
+func (s *services) UpdateRoom(ctx context.Context, request *UpdateRoomRequest) (*UpdateRoomResponse, error) {
+	if request.RoomID == 0 {
+		return nil, status.Error(codes.InvalidArgument, "entry id is empty")
+	}
+	err := s.ctrl.UpdateRoom(ctx, request.RoomID, request.Prompt)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "update room failed")
+	}
+	return &UpdateRoomResponse{RoomID: request.RoomID}, nil
+}
+func (s *services) ChatInRoom(request *ChatRequest, server Room_ChatInRoomServer) error {
+	if request.RoomID == 0 {
+		return status.Error(codes.InvalidArgument, "room id is empty")
+	}
+	if request.NewMessage == "" {
+		return status.Error(codes.InvalidArgument, "message is empty")
+	}
+	var (
+		ctx    = server.Context()
+		chatCh = make(chan string)
+		err    error
+	)
+	for {
+		go func() {
+			err = s.ctrl.ChatInRoom(ctx, request.RoomID, request.NewMessage, chatCh)
+			close(chatCh)
+		}()
+		if err != nil {
+			return status.Error(common.FsApiError(err), "chat in room failed")
+		}
+		for line := range chatCh {
+			if err := server.Send(&ChatResponse{ReplyMessage: line}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}
+
+func (s *services) DeleteRoom(ctx context.Context, request *DeleteRoomRequest) (*DeleteRoomResponse, error) {
+	if request.RoomID == 0 {
+		return nil, status.Error(codes.InvalidArgument, "entry id is empty")
+	}
+	err := s.ctrl.DeleteRoom(ctx, request.RoomID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "delete room failed")
+	}
+	return &DeleteRoomResponse{RoomID: request.RoomID}, nil
 }
 
 var _ Services = &services{}

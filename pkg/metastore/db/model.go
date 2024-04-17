@@ -578,3 +578,76 @@ func (a *FridayAccount) From(account *types.FridayAccount) *FridayAccount {
 	a.CreatedAt = account.CreatedAt
 	return a
 }
+
+type Room struct {
+	ID        int64     `gorm:"column:id;primaryKey"`
+	Namespace string    `gorm:"column:namespace;index:room_namespace"`
+	Title     string    `gorm:"column:title"`
+	EntryId   int64     `gorm:"column:entry_id;index:room_entry_id"`
+	Prompt    string    `gorm:"column:prompt"`
+	History   string    `gorm:"column:history"`
+	CreatedAt time.Time `gorm:"column:created_at"`
+}
+
+func (r *Room) TableName() string { return "room" }
+
+func (r *Room) From(room *types.Room) *Room {
+	return &Room{
+		ID:        room.ID,
+		Namespace: room.Namespace,
+		Title:     room.Title,
+		EntryId:   room.EntryId,
+		Prompt:    room.Prompt,
+		CreatedAt: room.CreatedAt,
+	}
+}
+
+func (r *Room) To() (room *types.Room, err error) {
+	room = &types.Room{
+		ID:        r.ID,
+		Namespace: r.Namespace,
+		Title:     r.Title,
+		EntryId:   r.EntryId,
+		Prompt:    r.Prompt,
+		History:   []map[string]string{},
+		CreatedAt: r.CreatedAt,
+	}
+	if r.History != "" {
+		err = json.Unmarshal([]byte(r.History), &(room.History))
+	}
+	return
+}
+
+type RoomMessage struct {
+	ID        int64     `gorm:"column:id;primaryKey"`
+	Namespace string    `gorm:"column:namespace;index:message_namespace"`
+	RoomID    int64     `gorm:"column:room_id;index:message_room_id"`
+	UserMsg   string    `gorm:"column:user_msg"`
+	ModelMsg  string    `gorm:"column:model_msg"`
+	CreatedAt time.Time `gorm:"column:created_at"`
+}
+
+func (r *RoomMessage) TableName() string { return "room_message" }
+
+func (r *RoomMessage) From(roomMessage *types.RoomMessage) *RoomMessage {
+	return &RoomMessage{
+		ID:        roomMessage.ID,
+		Namespace: roomMessage.Namespace,
+		RoomID:    roomMessage.RoomID,
+		UserMsg:   roomMessage.UserMsg,
+		ModelMsg:  roomMessage.ModelMsg,
+		CreatedAt: roomMessage.CreatedAt,
+	}
+}
+
+func (r *RoomMessage) To() (roomMessage *types.RoomMessage) {
+	roomMessage = &types.RoomMessage{
+		ID:        r.ID,
+		Namespace: r.Namespace,
+		RoomID:    r.RoomID,
+		UserMsg:   r.UserMsg,
+		ModelMsg:  r.ModelMsg,
+		CreatedAt: r.CreatedAt,
+	}
+	return
+}
