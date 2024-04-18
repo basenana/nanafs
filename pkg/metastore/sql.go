@@ -56,6 +56,24 @@ type sqliteMetaStore struct {
 
 var _ Meta = &sqliteMetaStore{}
 
+func (s *sqliteMetaStore) GetAccessToken(ctx context.Context, tokenKey string, secretKey string) (*types.AccessToken, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.GetAccessToken(ctx, tokenKey, secretKey)
+}
+
+func (s *sqliteMetaStore) CreateAccessToken(ctx context.Context, token *types.AccessToken) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.CreateAccessToken(ctx, token)
+}
+
+func (s *sqliteMetaStore) RevokeAccessToken(ctx context.Context, tokenKey string) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.RevokeAccessToken(ctx, tokenKey)
+}
+
 func (s *sqliteMetaStore) SystemInfo(ctx context.Context) (*types.SystemInfo, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
@@ -492,6 +510,73 @@ func buildSqlMetaStore(dbEntity *gorm.DB) (*sqlMetaStore, error) {
 		s.logger.Warnf("init db metrics failed: %s", err)
 	})
 	return s, nil
+}
+
+func (s *sqlMetaStore) GetAccessToken(ctx context.Context, tokenKey string, secretKey string) (*types.AccessToken, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.GetAccessToken").End()
+	token := db.AccessToken{}
+	res := s.WithContext(ctx).Where("token_key = ? AND secret_token = ?", tokenKey, secretKey).First(&token)
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
+	}
+	token.LastSeenAt = time.Now()
+	if res = s.WithContext(ctx).Save(token); res.Error != nil {
+		s.logger.Errorw("update access token lastSeenAt failed", "err", res.Error)
+	}
+	return &types.AccessToken{
+		TokenKey:       token.TokenKey,
+		SecretToken:    token.SecretToken,
+		UID:            token.UID,
+		GID:            token.GID,
+		ClientCrt:      token.ClientCrt,
+		ClientKey:      token.ClientKey,
+		CertExpiration: token.CertExpiration,
+		LastSeenAt:     token.LastSeenAt,
+		Namespace:      token.Namespace,
+	}, nil
+}
+
+func (s *sqlMetaStore) CreateAccessToken(ctx context.Context, token *types.AccessToken) error {
+	defer trace.StartRegion(ctx, "metastore.sql.CreateAccessToken").End()
+	tokenModel := db.AccessToken{}
+	res := s.WithContext(ctx).Where("token_key = ?", token.TokenKey).First(&tokenModel)
+	if res.Error == nil {
+		return types.ErrIsExist
+	} else if !errors.Is(res.Error, gorm.ErrRecordNotFound) {
+		return db.SqlError2Error(res.Error)
+	}
+
+	token.LastSeenAt = time.Now()
+	tokenModel = db.AccessToken{
+		TokenKey:       token.TokenKey,
+		SecretToken:    token.SecretToken,
+		UID:            token.UID,
+		GID:            token.GID,
+		ClientCrt:      token.ClientCrt,
+		ClientKey:      token.ClientKey,
+		CertExpiration: token.CertExpiration,
+		LastSeenAt:     token.LastSeenAt,
+		Namespace:      token.Namespace,
+	}
+	if res = s.WithContext(ctx).Create(token); res.Error != nil {
+		s.logger.Errorw("create access token failed", "err", res.Error)
+		return db.SqlError2Error(res.Error)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) RevokeAccessToken(ctx context.Context, tokenKey string) error {
+	defer trace.StartRegion(ctx, "metastore.sql.RevokeAccessToken").End()
+	tokenModel := db.AccessToken{}
+	res := s.WithContext(ctx).Where("token_key = ?", tokenKey).First(&tokenModel)
+	if res.Error != nil {
+		return db.SqlError2Error(res.Error)
+	}
+	res = s.WithContext(ctx).Delete(tokenModel)
+	if res.Error != nil {
+		return db.SqlError2Error(res.Error)
+	}
+	return nil
 }
 
 func (s *sqlMetaStore) SystemInfo(ctx context.Context) (*types.SystemInfo, error) {

@@ -58,6 +58,30 @@ type instrumentalStore struct {
 
 var _ Meta = &instrumentalStore{}
 
+func (i instrumentalStore) GetAccessToken(ctx context.Context, tokenKey string, secretKey string) (*types.AccessToken, error) {
+	const operation = "get_access_token"
+	defer logOperationLatency(operation, time.Now())
+	token, err := i.store.GetAccessToken(ctx, tokenKey, secretKey)
+	logOperationError(operation, err)
+	return token, err
+}
+
+func (i instrumentalStore) CreateAccessToken(ctx context.Context, token *types.AccessToken) error {
+	const operation = "create_access_token"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.CreateAccessToken(ctx, token)
+	logOperationError(operation, err)
+	return err
+}
+
+func (i instrumentalStore) RevokeAccessToken(ctx context.Context, tokenKey string) error {
+	const operation = "revoke_access_token"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.RevokeAccessToken(ctx, tokenKey)
+	logOperationError(operation, err)
+	return err
+}
+
 func (i instrumentalStore) SystemInfo(ctx context.Context) (*types.SystemInfo, error) {
 	const operation = "system_info"
 	defer logOperationLatency(operation, time.Now())

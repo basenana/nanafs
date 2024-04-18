@@ -18,16 +18,19 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 	"strconv"
+	"strings"
 )
 
 type AuthInfo struct {
 	Authenticated bool
+	AccessToken   string
 	UID           int64
 	GID           int64
-	Namespace     []string
+	Namespace     string
 }
 
 type CallerAuthGetter func(ctx context.Context) AuthInfo
@@ -44,18 +47,40 @@ func CallerAuth(ctx context.Context) AuthInfo {
 			len(tlsInfo.State.VerifiedChains[0]) > 0 {
 			subject := tlsInfo.State.VerifiedChains[0][0].Subject
 
-			var (
-				tmpNum int64
-				err    error
-			)
-			tmpNum, err = strconv.ParseInt(subject.CommonName, 10, 64)
+			if len(subject.Organization) == 0 {
+				return ai
+			}
+			ai.Namespace = subject.Organization[0]
+
+			if len(subject.OrganizationalUnit) == 0 {
+				return ai
+			}
+			ai.AccessToken = subject.OrganizationalUnit[0]
+
+			var err error
+			ai.UID, ai.GID, err = parseUidAndGid(subject.CommonName)
 			if err != nil {
 				return ai
 			}
-			ai.UID = tmpNum
-			ai.Namespace = subject.Organization
 			ai.Authenticated = true
 		}
 	}
 	return ai
+}
+
+func parseUidAndGid(cn string) (uid, gid int64, err error) {
+	cnParts := strings.Split(cn, ",")
+	if len(cnParts) < 2 {
+		err = fmt.Errorf("unexpect common name")
+		return
+	}
+	uid, err = strconv.ParseInt(cnParts[0], 10, 64)
+	if err != nil {
+		return
+	}
+	gid, err = strconv.ParseInt(cnParts[1], 10, 64)
+	if err != nil {
+		return
+	}
+	return
 }

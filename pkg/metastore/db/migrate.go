@@ -135,7 +135,6 @@ func buildMigrations() []*gormigrate.Migration {
 			ID: "2024033000",
 			Migrate: func(db *gorm.DB) error {
 				err := db.AutoMigrate(
-					&SystemConfig{},
 					&Object{},
 					&Label{},
 					&Notification{},
@@ -167,6 +166,18 @@ func buildMigrations() []*gormigrate.Migration {
 			ID: "2024041500",
 			Migrate: func(db *gorm.DB) error {
 				return db.AutoMigrate(&Room{}, &RoomMessage{})
+			},
+			Rollback: func(db *gorm.DB) error {
+				return nil
+			},
+		},
+		{
+			ID: "2024041800",
+			Migrate: func(db *gorm.DB) error {
+				return db.AutoMigrate(
+					&SystemConfig{},
+					&AccessToken{},
+				)
 			},
 			Rollback: func(db *gorm.DB) error {
 				return nil

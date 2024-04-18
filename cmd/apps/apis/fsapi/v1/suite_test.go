@@ -50,7 +50,7 @@ func init() {
 		return common.AuthInfo{
 			Authenticated: true,
 			UID:           0,
-			Namespace:     []string{"personal"},
+			Namespace:     "personal",
 		}
 	}
 }

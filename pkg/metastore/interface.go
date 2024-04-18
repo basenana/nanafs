@@ -24,11 +24,17 @@ import (
 )
 
 type Meta interface {
+	AccessToken
 	SysConfig
 	DEntry
 	ChunkStore
 	NotificationRecorder
 	ScheduledTaskRecorder
+}
+type AccessToken interface {
+	GetAccessToken(ctx context.Context, tokenKey string, secretKey string) (*types.AccessToken, error)
+	CreateAccessToken(ctx context.Context, token *types.AccessToken) error
+	RevokeAccessToken(ctx context.Context, tokenKey string) error
 }
 
 type SysConfig interface {

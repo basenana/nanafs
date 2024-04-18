@@ -47,6 +47,22 @@ func (i SystemConfig) TableName() string {
 	return "system_config"
 }
 
+type AccessToken struct {
+	TokenKey       string    `gorm:"column:token_key;primaryKey"`
+	SecretToken    string    `gorm:"column:secret_token"`
+	UID            int64     `gorm:"column:uid;index:tk_uid"`
+	GID            int64     `gorm:"column:gid"`
+	ClientCrt      string    `gorm:"column:client_crt"`
+	ClientKey      string    `gorm:"column:client_key"`
+	CertExpiration time.Time `gorm:"column:cert_expiration"`
+	LastSeenAt     time.Time `gorm:"column:last_seen_at"`
+	Namespace      string    `gorm:"column:namespace;index:tk_ns"`
+}
+
+func (o *AccessToken) TableName() string {
+	return "access_token"
+}
+
 type Object struct {
 	ID         int64   `gorm:"column:id;primaryKey"`
 	Name       string  `gorm:"column:name;index:obj_name"`

@@ -25,6 +25,7 @@ import (
 	"github.com/basenana/nanafs/pkg/inbox"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/plugin/buildin"
+	"github.com/basenana/nanafs/pkg/token"
 
 	"go.uber.org/zap"
 
@@ -43,6 +44,8 @@ const (
 )
 
 type Controller interface {
+	AccessToken(ctx context.Context, ak, sk string) (*types.AccessToken, error)
+
 	LoadRootEntry(ctx context.Context) (*types.Metadata, error)
 	FindEntry(ctx context.Context, parentId int64, name string) (*types.Metadata, error)
 	GetEntry(ctx context.Context, id int64) (*types.Metadata, error)
@@ -106,6 +109,7 @@ type controller struct {
 	workflow workflow.Manager
 	document document.Manager
 	dialogue dialogue.Manager
+	token    *token.Manager
 
 	logger *zap.SugaredLogger
 }
@@ -339,6 +343,8 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 		logger:    logger.NewLogger("controller"),
 	}
 	var err error
+	ctl.token = token.NewTokenManager(meta)
+
 	ctl.entry, err = dentry.NewManager(meta, cfg)
 	if err != nil {
 		return nil, err

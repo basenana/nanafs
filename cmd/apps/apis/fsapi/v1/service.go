@@ -36,6 +36,7 @@ import (
 )
 
 type Services interface {
+	AuthServer
 	DocumentServer
 	EntriesServer
 	InboxServer
@@ -173,6 +174,21 @@ func (s *services) DeleteRoom(ctx context.Context, request *DeleteRoomRequest) (
 }
 
 var _ Services = &services{}
+
+func (s *services) AccessToken(ctx context.Context, request *AccessTokenRequest) (*AccessTokenResponse, error) {
+	token, err := s.ctrl.AccessToken(ctx, request.AccessTokenKey, request.SecretToken)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "access token error")
+	}
+	return &AccessTokenResponse{
+		Namespace:      token.Namespace,
+		UID:            token.UID,
+		GID:            token.GID,
+		ClientCrt:      token.ClientCrt,
+		ClientKey:      token.ClientKey,
+		CertExpiration: timestamppb.New(token.CertExpiration),
+	}, nil
+}
 
 func (s *services) ListDocuments(ctx context.Context, request *ListDocumentsRequest) (*ListDocumentsResponse, error) {
 	filter := types.DocFilter{ParentID: request.ParentID}
