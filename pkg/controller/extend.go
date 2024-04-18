@@ -147,7 +147,7 @@ func (c *controller) EnableGroupFeed(ctx context.Context, id int64, feedID strin
 		c.logger.Errorw("enable group feed failed", "entry", id, "err", err)
 		return err
 	}
-	if !types.IsGroup(en.Kind) {
+	if !en.IsGroup {
 		c.logger.Errorw("enable group feed failed", "entry", id, "err", types.ErrNoGroup)
 		return types.ErrNoGroup
 	}
@@ -166,7 +166,7 @@ func (c *controller) DisableGroupFeed(ctx context.Context, id int64) error {
 		c.logger.Errorw("disable group feed failed", "entry", id, "err", err)
 		return err
 	}
-	if !types.IsGroup(en.Kind) {
+	if !en.IsGroup {
 		c.logger.Errorw("disable group feed failed", "entry", id, "err", types.ErrNoGroup)
 		return err
 	}

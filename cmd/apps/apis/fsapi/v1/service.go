@@ -545,6 +545,7 @@ func (s *services) QuickInbox(ctx context.Context, request *QuickInboxRequest) (
 	}
 	en, err := s.ctrl.QuickInbox(ctx, request.Filename, option)
 	if err != nil {
+		s.logger.Errorw("quick inbox failed", "err", err)
 		return nil, status.Error(common.FsApiError(err), "quick inbox failed")
 	}
 	return &QuickInboxResponse{EntryID: en.ID}, nil

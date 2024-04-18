@@ -65,8 +65,8 @@ func NewMetadata(name string, kind Kind) Metadata {
 		ID:         utils.GenerateNewID(),
 		Name:       name,
 		Namespace:  entryDefaultNamespace,
-		Kind:       kind,
-		KindMap:    KindMap(kind),
+		Kind:       FileKind(name, kind),
+		KindMap:    0,
 		IsGroup:    IsGroup(kind),
 		Version:    1,
 		RefCount:   1,
@@ -78,6 +78,7 @@ func NewMetadata(name string, kind Kind) Metadata {
 	if result.IsGroup {
 		// as dir, default has self and '..' two links
 		result.RefCount = 2
+		result.Kind = kind
 	}
 	return result
 }
@@ -171,5 +172,5 @@ type ChunkSeg struct {
 }
 
 func IsMirrored(entry *Metadata) bool {
-	return !IsGroup(entry.Kind) && entry.RefID != 0 && entry.RefID != entry.ID
+	return !entry.IsGroup && entry.RefID != 0 && entry.RefID != entry.ID
 }

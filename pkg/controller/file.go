@@ -31,7 +31,7 @@ func (c *controller) OpenFile(ctx context.Context, entryID int64, attr types.Ope
 		return nil, err
 	}
 	c.logger.Debugw("open file", "file", entry.ID, "name", entry.Name, "attr", attr)
-	if types.IsGroup(entry.Kind) {
+	if entry.IsGroup {
 		return nil, types.ErrIsGroup
 	}
 

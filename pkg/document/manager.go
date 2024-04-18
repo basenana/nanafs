@@ -279,7 +279,7 @@ func (m *manager) EnableGroupFeed(ctx context.Context, id int64, feedID string) 
 		return err
 	}
 
-	if !types.IsGroup(entry.Kind) {
+	if !entry.IsGroup {
 		return types.ErrNoGroup
 	}
 

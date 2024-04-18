@@ -94,3 +94,12 @@ type OverwriteUser struct {
 type Indexer struct {
 	LocalIndexerDir string `json:"local_indexer_dir"`
 }
+
+type Workflow struct {
+	Enable     bool   `json:"enable"`
+	JobWorkdir string `json:"job_workdir"`
+}
+
+type Plugin struct {
+	BasePath string `json:"base_path"`
+}

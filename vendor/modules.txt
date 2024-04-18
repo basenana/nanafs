@@ -1,5 +1,8 @@
-# github.com/PuerkitoBio/goquery v1.8.1
-## explicit; go 1.13
+# code.dny.dev/ssrf v0.2.0
+## explicit; go 1.19
+code.dny.dev/ssrf
+# github.com/PuerkitoBio/goquery v1.9.1
+## explicit; go 1.18
 github.com/PuerkitoBio/goquery
 # github.com/RoaringBitmap/roaring v1.2.3
 ## explicit; go 1.14
@@ -344,7 +347,7 @@ github.com/go-playground/validator/v10
 # github.com/go-shiori/dom v0.0.0-20230515143342-73569d674e1c
 ## explicit; go 1.20
 github.com/go-shiori/dom
-# github.com/go-shiori/go-readability v0.0.0-20231029095239-6b97d5aba789
+# github.com/go-shiori/go-readability v0.0.0-20240204090920-819593fddc6b
 ## explicit; go 1.20
 github.com/go-shiori/go-readability
 # github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572
@@ -408,10 +411,10 @@ github.com/hanwen/go-fuse/v2/fuse
 github.com/hanwen/go-fuse/v2/internal
 github.com/hanwen/go-fuse/v2/internal/utimens
 github.com/hanwen/go-fuse/v2/splice
-# github.com/hyponet/eventbus v1.0.0
-## explicit; go 1.18
+# github.com/hyponet/eventbus v1.0.1
+## explicit; go 1.20
 github.com/hyponet/eventbus/bus
-# github.com/hyponet/webpage-packer v1.0.2
+# github.com/hyponet/webpage-packer v1.0.3
 ## explicit; go 1.18
 github.com/hyponet/webpage-packer/packer
 # github.com/inconshreveable/mousetrap v1.1.0
@@ -661,13 +664,17 @@ go.uber.org/zap/zapcore
 # golang.org/x/arch v0.3.0
 ## explicit; go 1.17
 golang.org/x/arch/x86/x86asm
-# golang.org/x/crypto v0.21.0
+# golang.org/x/crypto v0.22.0
 ## explicit; go 1.18
 golang.org/x/crypto/argon2
 golang.org/x/crypto/blake2b
 golang.org/x/crypto/pbkdf2
 golang.org/x/crypto/sha3
-# golang.org/x/net v0.21.0
+# golang.org/x/exp v0.0.0-20240409090435-93d18d7e34b8
+## explicit; go 1.20
+golang.org/x/exp/constraints
+golang.org/x/exp/slices
+# golang.org/x/net v0.24.0
 ## explicit; go 1.18
 golang.org/x/net/html
 golang.org/x/net/html/atom
@@ -682,10 +689,10 @@ golang.org/x/net/publicsuffix
 golang.org/x/net/trace
 golang.org/x/net/webdav
 golang.org/x/net/webdav/internal/xml
-# golang.org/x/sync v0.6.0
+# golang.org/x/sync v0.7.0
 ## explicit; go 1.18
 golang.org/x/sync/semaphore
-# golang.org/x/sys v0.18.0
+# golang.org/x/sys v0.19.0
 ## explicit; go 1.18
 golang.org/x/sys/cpu
 golang.org/x/sys/execabs

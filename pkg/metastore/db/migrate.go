@@ -135,6 +135,7 @@ func buildMigrations() []*gormigrate.Migration {
 			ID: "2024033000",
 			Migrate: func(db *gorm.DB) error {
 				err := db.AutoMigrate(
+					&SystemConfig{},
 					&Object{},
 					&Label{},
 					&Notification{},

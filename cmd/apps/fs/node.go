@@ -171,7 +171,7 @@ func (n *NanaNode) Open(ctx context.Context, flags uint32) (fh fs.FileHandle, fu
 	if err != nil {
 		return nil, 0, Error2FuseSysError("entry_open", err)
 	}
-	if types.IsGroup(entry.Kind) {
+	if entry.IsGroup {
 		return nil, 0, Error2FuseSysError("entry_open", types.ErrIsGroup)
 	}
 	f, err := n.R.Controller.OpenFile(ctx, n.entryID, openFileAttr(flags))
@@ -245,7 +245,7 @@ func (n *NanaNode) Opendir(ctx context.Context) syscall.Errno {
 	if err != nil {
 		return Error2FuseSysError("entry_open_dir", err)
 	}
-	if types.IsGroup(entry.Kind) {
+	if entry.IsGroup {
 		return NoErr
 	}
 	return syscall.EISDIR
@@ -462,7 +462,7 @@ func (n *NanaNode) Rmdir(ctx context.Context, name string) syscall.Errno {
 	if err != nil {
 		return Error2FuseSysError("entry_rmdir", err)
 	}
-	if !types.IsGroup(ch.Kind) {
+	if !ch.IsGroup {
 		return Error2FuseSysError("entry_rmdir", types.ErrNoGroup)
 	}
 

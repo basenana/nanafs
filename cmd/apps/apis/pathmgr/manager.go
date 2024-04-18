@@ -68,7 +68,7 @@ func (m *PathManager) ListEntry(ctx context.Context, dirPath string) ([]*types.M
 	if err != nil {
 		return nil, err
 	}
-	if !types.IsGroup(en.Kind) {
+	if !en.IsGroup {
 		return nil, types.ErrNoGroup
 	}
 	return m.ctrl.ListEntryChildren(ctx, en.ID)
@@ -103,7 +103,7 @@ func (m *PathManager) CreateFile(ctx context.Context, parentDir string, attr typ
 	}
 	result, err = m.getPathEntry(ctx, entryPath)
 	if err == nil {
-		if types.IsGroup(result.Kind) {
+		if result.IsGroup {
 			return nil, types.ErrIsGroup
 		}
 		return result, nil
@@ -116,7 +116,7 @@ func (m *PathManager) CreateFile(ctx context.Context, parentDir string, attr typ
 	if err != nil {
 		return nil, err
 	}
-	if !types.IsGroup(parent.Kind) {
+	if !parent.IsGroup {
 		return nil, types.ErrNoGroup
 	}
 
@@ -194,7 +194,7 @@ func (m *PathManager) RemoveAll(ctx context.Context, entryPath string, recursion
 		if err != nil {
 			return err
 		}
-		if !types.IsGroup(en.Kind) {
+		if !en.IsGroup {
 			return nil
 		}
 		children, err := m.ctrl.ListEntryChildren(ctx, en.ID)

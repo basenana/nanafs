@@ -338,10 +338,10 @@ func (m *manager) MirrorEntry(ctx context.Context, srcId, dstParentId int64, att
 	if err != nil {
 		return nil, err
 	}
-	if types.IsGroup(src.Kind) {
+	if src.IsGroup {
 		return nil, types.ErrIsGroup
 	}
-	if !types.IsGroup(parent.Kind) {
+	if !parent.IsGroup {
 		return nil, types.ErrNoGroup
 	}
 
@@ -390,7 +390,7 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntryId int64, ov
 		if err != nil {
 			return err
 		}
-		if types.IsGroup(overwriteEntry.Kind) {
+		if overwriteEntry.IsGroup {
 			overwriteGrp, err := m.OpenGroup(ctx, *overwriteEntryId)
 			if err != nil {
 				return err
@@ -446,7 +446,7 @@ func (m *manager) changeEntryParentByFileCopy(ctx context.Context, targetEntry, 
 		return err
 	}
 
-	if types.IsGroup(targetEntry.Kind) {
+	if targetEntry.IsGroup {
 		if oldParent.ID == newParent.ID {
 			// only rename
 			targetEntry.Name = newName
@@ -545,7 +545,7 @@ func (m *manager) OpenGroup(ctx context.Context, groupId int64) (Group, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !types.IsGroup(entry.Kind) {
+	if !entry.IsGroup {
 		return nil, types.ErrNoGroup
 	}
 	var (

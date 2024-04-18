@@ -30,7 +30,7 @@ func Stat(entry *types.Metadata) Info {
 		size:  entry.Size,
 		mode:  modeFromFileKind(entry.Kind) | dentry.Access2Mode(entry.Access),
 		mTime: entry.ModifiedAt,
-		isDir: types.IsGroup(entry.Kind),
+		isDir: entry.IsGroup,
 	}
 }
 
