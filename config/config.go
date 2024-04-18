@@ -58,6 +58,7 @@ type FsApi struct {
 	CertFile   string `json:"cert_file"`
 	KeyFile    string `json:"key_file"`
 	CaFile     string `json:"ca_file"`
+	CaKeyFile  string `json:"ca_key_file"`
 }
 
 type Webdav struct {

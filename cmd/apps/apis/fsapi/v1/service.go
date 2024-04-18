@@ -615,6 +615,10 @@ func (s *services) DeleteProperty(ctx context.Context, request *DeletePropertyRe
 }
 
 func (s *services) GetLatestSequence(ctx context.Context, request *GetLatestSequenceRequest) (*GetLatestSequenceResponse, error) {
+	caller := common.CallerAuth(ctx)
+	if !caller.Authenticated {
+		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	}
 	seq, err := s.ctrl.GetLatestSequence(ctx)
 	if err != nil {
 		s.logger.Errorw("query latest sequence failed", "err", err)
