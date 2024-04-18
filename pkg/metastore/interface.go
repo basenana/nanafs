@@ -34,6 +34,7 @@ type Meta interface {
 type AccessToken interface {
 	GetAccessToken(ctx context.Context, tokenKey string, secretKey string) (*types.AccessToken, error)
 	CreateAccessToken(ctx context.Context, token *types.AccessToken) error
+	UpdateAccessTokenCerts(ctx context.Context, token *types.AccessToken) error
 	RevokeAccessToken(ctx context.Context, tokenKey string) error
 }
 

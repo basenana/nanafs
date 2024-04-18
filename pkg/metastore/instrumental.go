@@ -74,6 +74,14 @@ func (i instrumentalStore) CreateAccessToken(ctx context.Context, token *types.A
 	return err
 }
 
+func (i instrumentalStore) UpdateAccessTokenCerts(ctx context.Context, token *types.AccessToken) error {
+	const operation = "update_access_token_certs"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.UpdateAccessTokenCerts(ctx, token)
+	logOperationError(operation, err)
+	return err
+}
+
 func (i instrumentalStore) RevokeAccessToken(ctx context.Context, tokenKey string) error {
 	const operation = "revoke_access_token"
 	defer logOperationLatency(operation, time.Now())

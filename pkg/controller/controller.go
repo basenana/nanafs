@@ -343,7 +343,7 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 		logger:    logger.NewLogger("controller"),
 	}
 	var err error
-	ctl.token = token.NewTokenManager(meta)
+	ctl.token = token.NewTokenManager(meta, cfg)
 
 	ctl.entry, err = dentry.NewManager(meta, cfg)
 	if err != nil {

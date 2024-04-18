@@ -52,6 +52,7 @@ func InitServices(server *grpc.Server, ctrl controller.Controller, pathEntryMgr 
 		logger:       logger.NewLogger("fsapi"),
 	}
 
+	RegisterAuthServer(server, s)
 	RegisterDocumentServer(server, s)
 	RegisterEntriesServer(server, s)
 	RegisterInboxServer(server, s)

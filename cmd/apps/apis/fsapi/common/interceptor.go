@@ -64,7 +64,9 @@ func serverAuthInterceptor(ctx context.Context, req any, info *grpc.UnaryServerI
 }
 
 var (
-	insecureMethods = map[string]bool{}
+	insecureMethods = map[string]bool{
+		"/api.v1.Auth/AccessToken": true,
+	}
 )
 
 func checkCallerAuthentication(ctx context.Context, fullMethod string) error {

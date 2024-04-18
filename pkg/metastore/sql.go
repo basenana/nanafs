@@ -68,6 +68,12 @@ func (s *sqliteMetaStore) CreateAccessToken(ctx context.Context, token *types.Ac
 	return s.dbStore.CreateAccessToken(ctx, token)
 }
 
+func (s *sqliteMetaStore) UpdateAccessTokenCerts(ctx context.Context, token *types.AccessToken) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.UpdateAccessTokenCerts(ctx, token)
+}
+
 func (s *sqliteMetaStore) RevokeAccessToken(ctx context.Context, tokenKey string) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
@@ -520,7 +526,7 @@ func (s *sqlMetaStore) GetAccessToken(ctx context.Context, tokenKey string, secr
 		return nil, db.SqlError2Error(res.Error)
 	}
 	token.LastSeenAt = time.Now()
-	if res = s.WithContext(ctx).Save(token); res.Error != nil {
+	if res = s.WithContext(ctx).Save(&token); res.Error != nil {
 		s.logger.Errorw("update access token lastSeenAt failed", "err", res.Error)
 	}
 	return &types.AccessToken{
@@ -558,9 +564,28 @@ func (s *sqlMetaStore) CreateAccessToken(ctx context.Context, token *types.Acces
 		LastSeenAt:     token.LastSeenAt,
 		Namespace:      token.Namespace,
 	}
-	if res = s.WithContext(ctx).Create(token); res.Error != nil {
+	if res = s.WithContext(ctx).Create(&tokenModel); res.Error != nil {
 		s.logger.Errorw("create access token failed", "err", res.Error)
 		return db.SqlError2Error(res.Error)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) UpdateAccessTokenCerts(ctx context.Context, token *types.AccessToken) error {
+	defer trace.StartRegion(ctx, "metastore.sql.UpdateAccessTokenCerts").End()
+	tokenModel := db.AccessToken{}
+	res := s.WithContext(ctx).Where("token_key = ? AND secret_token = ?", token.TokenKey, token.SecretToken).First(&tokenModel)
+	if res.Error != nil {
+		return db.SqlError2Error(res.Error)
+	}
+
+	token.LastSeenAt = time.Now()
+	tokenModel.ClientCrt = token.ClientCrt
+	tokenModel.ClientKey = token.ClientKey
+	tokenModel.CertExpiration = token.CertExpiration
+	tokenModel.LastSeenAt = token.LastSeenAt
+	if res = s.WithContext(ctx).Save(&tokenModel); res.Error != nil {
+		s.logger.Errorw("update access token certs failed", "err", res.Error)
 	}
 	return nil
 }

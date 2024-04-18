@@ -63,7 +63,7 @@ func New(ctrl controller.Controller, pathEntryMgr *pathmgr.PathManager, cfg conf
 	certPool := x509.NewCertPool()
 	ca, err := os.ReadFile(cfg.CaFile)
 	if err != nil {
-		return nil, fmt.Errorf("open ca file error: %s", err)
+		return nil, fmt.Errorf("open ca file %s error: %s", cfg.CaFile, err)
 	}
 	if ok := certPool.AppendCertsFromPEM(ca); !ok {
 		log.Fatal("failed to append ca certs")
