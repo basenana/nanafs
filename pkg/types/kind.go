@@ -16,6 +16,8 @@
 
 package types
 
+import "path/filepath"
+
 // Kind of Entry
 type Kind string
 
@@ -23,57 +25,49 @@ const (
 	/*
 		system-wide kind
 	*/
-	GroupKind            = "group"
-	SmartGroupKind       = "smtgroup"
-	ExternalGroupKind    = "extgroup"
-	GroupKindMap         = 0x02000
-	SmartGroupKindMap    = 0x02001
-	ExternalGroupKindMap = 0x02002
+	GroupKind         = "group"
+	SmartGroupKind    = "smtgroup"
+	ExternalGroupKind = "extgroup"
 
 	/*
 		text based file kind
 	*/
-	TextKind    = "text"
-	TextKindMap = 0x01001
+	TextKind = "text"
 
 	/*
 		format doc kind
 	*/
-	FmtDocKind    = "fmtdoc"
-	FmtDocKindMap = 0x01002
+	FmtDocKind = "fmtdoc"
+	PdfDocKind = "pdf"
+
+	WordDocKind  = "worddoc"
+	ExcelDocKind = "exceldoc"
+	PptDocKind   = "pptdoc"
 
 	/*
 		media file kind
 	*/
-	ImageKind    = "image"
-	VideoKind    = "video"
-	AudioKind    = "audio"
-	ImageKindMap = 0x01003
-	VideoKindMap = 0x01004
-	AudioKindMap = 0x01005
+	ImageKind = "image"
+	VideoKind = "video"
+	AudioKind = "audio"
 
 	/*
 		web based file kind
 	*/
-	WebArchiveKind    = "web"
-	WebArchiveKindMap = 0x01006
+	WebArchiveKind  = "webarchive"
+	WebBookmarkKind = "webbbookmark"
+	HtmlKind        = "html"
 
 	/*
 		ungrouped files
 	*/
-	RawKind    = "raw"
-	RawKindMap = 0x01000
+	RawKind = "raw"
 
-	FIFOKind       = "fifo"
-	SocketKind     = "socket"
-	SymLinkKind    = "symlink"
-	BlkDevKind     = "blk"
-	CharDevKind    = "chr"
-	FIFOKindMap    = 0x03001
-	SocketKindMap  = 0x03002
-	SymLinkKindMap = 0x03003
-	BlkDevKindMap  = 0x03004
-	CharDevKindMap = 0x03005
+	FIFOKind    = "fifo"
+	SocketKind  = "socket"
+	SymLinkKind = "symlink"
+	BlkDevKind  = "blk"
+	CharDevKind = "chr"
 )
 
 func IsGroup(k Kind) bool {
@@ -84,18 +78,46 @@ func IsGroup(k Kind) bool {
 	return false
 }
 
-var kindMap = map[Kind]int64{
-	RawKind:           RawKindMap,
-	GroupKind:         GroupKindMap,
-	SmartGroupKind:    SmartGroupKindMap,
-	ExternalGroupKind: ExternalGroupKindMap,
-	FIFOKind:          FIFOKindMap,
-	SocketKind:        SocketKindMap,
-	SymLinkKind:       SymLinkKindMap,
-	BlkDevKind:        BlkDevKindMap,
-	CharDevKind:       CharDevKindMap,
-}
+func FileKind(filename string, defaultKind Kind) Kind {
+	ext := filepath.Ext(filename)
+	switch ext {
+	case "txt":
+		return TextKind
 
-func KindMap(k Kind) int64 {
-	return kindMap[k]
+	case "md", "markdown":
+		return FmtDocKind
+
+	case "pdf":
+		return PdfDocKind
+
+	case "webarchive":
+		return WebArchiveKind
+
+	case "url":
+		return WebBookmarkKind
+
+	case "html", "htm":
+		return HtmlKind
+
+	case "doc", "docx", "pages":
+		return WordDocKind
+
+	case "xls", "xlsx", "numbers":
+		return ExcelDocKind
+
+	case "ppt", "pptx", "key":
+		return PptDocKind
+
+	case "jpg", "jpeg", "png", "bmp", "tif", "tiff", "gif", "heic", "heif":
+		return ImageKind
+
+	case "mp4", "avi", "mov", "wmv", "flv", "mkv", "mpeg", "mpg", "rm":
+		return VideoKind
+
+	case "mp3", "wav", "aac", "flac", "wma", "alac":
+		return AudioKind
+
+	default:
+		return defaultKind
+	}
 }

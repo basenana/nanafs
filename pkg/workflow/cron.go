@@ -120,7 +120,7 @@ func (c *CronHandler) filterAndTrigger(ctx context.Context, wf *types.WorkflowSp
 
 	for _, en := range entries {
 		tgt := types.WorkflowTarget{}
-		if types.IsGroup(en.Kind) {
+		if en.IsGroup {
 			tgt.ParentEntryID = en.ID
 		} else {
 			tgt.EntryID = en.ID

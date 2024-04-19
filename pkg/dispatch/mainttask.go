@@ -146,7 +146,7 @@ func (c *entryCleanExecutor) execute(ctx context.Context, task *types.ScheduledT
 		return err
 	}
 
-	if !types.IsGroup(en.Kind) {
+	if !en.IsGroup {
 		err = c.entry.CleanEntryData(ctx, en.ID)
 		if err != nil {
 			c.logger.Errorw("[entryCleanExecutor] get entry failed", "entry", entry.ID, "task", task.ID, "err", err)

@@ -118,9 +118,6 @@ type Dir struct {
 }
 
 func (d *Dir) Readdir(count int) ([]fs.FileInfo, error) {
-	if !types.IsGroup(d.kind) {
-		return nil, types.ErrNoGroup
-	}
 	children, err := d.mgr.ListEntry(context.TODO(), d.path)
 	if err != nil {
 		return nil, err
@@ -164,7 +161,7 @@ func (d *Dir) Close() error {
 }
 
 func openFile(enPath string, entry *types.Metadata, mgr *pathmgr.PathManager, attr types.OpenAttr) (webdav.File, error) {
-	if types.IsGroup(entry.Kind) {
+	if entry.IsGroup {
 		return &Dir{path: enPath, mgr: mgr, entryID: entry.ID, kind: entry.Kind}, nil
 	}
 	return &File{

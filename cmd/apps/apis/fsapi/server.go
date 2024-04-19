@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
 	v1 "github.com/basenana/nanafs/cmd/apps/apis/fsapi/v1"
 	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
 	"github.com/basenana/nanafs/config"
@@ -62,7 +63,7 @@ func New(ctrl controller.Controller, pathEntryMgr *pathmgr.PathManager, cfg conf
 	certPool := x509.NewCertPool()
 	ca, err := os.ReadFile(cfg.CaFile)
 	if err != nil {
-		return nil, fmt.Errorf("open ca file error: %s", err)
+		return nil, fmt.Errorf("open ca file %s error: %s", cfg.CaFile, err)
 	}
 	if ok := certPool.AppendCertsFromPEM(ca); !ok {
 		log.Fatal("failed to append ca certs")
@@ -74,12 +75,16 @@ func New(ctrl controller.Controller, pathEntryMgr *pathmgr.PathManager, cfg conf
 	}
 	creds := credentials.NewTLS(&tls.Config{
 		Certificates: []tls.Certificate{certificate},
-		ServerName:   cfg.ServerName, // NOTE: this is required!
+		ServerName:   cfg.ServerName,
 		RootCAs:      certPool,
+		ClientCAs:    certPool,
+		ClientAuth:   tls.VerifyClientCertIfGiven,
 	})
 
 	var opts = []grpc.ServerOption{
 		grpc.Creds(creds),
+		common.WithCommonInterceptors(),
+		common.WithStreamInterceptors(),
 	}
 	l, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.Host, cfg.Port))
 	if err != nil {

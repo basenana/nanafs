@@ -18,4 +18,6 @@ type Option struct {
 	Timeout     int
 	ClutterFree bool
 	Headers     map[string]string
+
+	EnablePrivateNet bool
 }

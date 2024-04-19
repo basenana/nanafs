@@ -34,6 +34,35 @@ func (i SystemInfo) TableName() string {
 	return "system_info"
 }
 
+type SystemConfig struct {
+	ID        int64     `gorm:"column:id;primaryKey"`
+	Group     string    `gorm:"column:group;index:cfg_group"`
+	Name      string    `gorm:"column:name;index:cfg_name"`
+	Value     string    `gorm:"column:value"`
+	Namespace string    `gorm:"column:namespace;index:cfg_namespace"`
+	ChangedAt time.Time `gorm:"column:changed_at"`
+}
+
+func (i SystemConfig) TableName() string {
+	return "system_config"
+}
+
+type AccessToken struct {
+	TokenKey       string    `gorm:"column:token_key;primaryKey"`
+	SecretToken    string    `gorm:"column:secret_token"`
+	UID            int64     `gorm:"column:uid;index:tk_uid"`
+	GID            int64     `gorm:"column:gid"`
+	ClientCrt      string    `gorm:"column:client_crt"`
+	ClientKey      string    `gorm:"column:client_key"`
+	CertExpiration time.Time `gorm:"column:cert_expiration"`
+	LastSeenAt     time.Time `gorm:"column:last_seen_at"`
+	Namespace      string    `gorm:"column:namespace;index:tk_ns"`
+}
+
+func (o *AccessToken) TableName() string {
+	return "access_token"
+}
+
 type Object struct {
 	ID         int64   `gorm:"column:id;primaryKey"`
 	Name       string  `gorm:"column:name;index:obj_name"`
@@ -264,7 +293,7 @@ type Event struct {
 	Source          string    `gorm:"column:source"`
 	SpecVersion     string    `gorm:"column:specversion"`
 	RefID           int64     `gorm:"column:ref_id;index:evt_refid"`
-	RefType         string    `gorm:"column:ref_id;index:evt_reftype"`
+	RefType         string    `gorm:"column:ref_type;index:evt_reftype"`
 	DataContentType string    `gorm:"column:datacontenttype"`
 	Data            string    `gorm:"column:data"`
 	Sequence        int64     `gorm:"column:sequence;index:evt_seq"`

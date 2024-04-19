@@ -56,10 +56,46 @@ type sqliteMetaStore struct {
 
 var _ Meta = &sqliteMetaStore{}
 
+func (s *sqliteMetaStore) GetAccessToken(ctx context.Context, tokenKey string, secretKey string) (*types.AccessToken, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.GetAccessToken(ctx, tokenKey, secretKey)
+}
+
+func (s *sqliteMetaStore) CreateAccessToken(ctx context.Context, token *types.AccessToken) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.CreateAccessToken(ctx, token)
+}
+
+func (s *sqliteMetaStore) UpdateAccessTokenCerts(ctx context.Context, token *types.AccessToken) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.UpdateAccessTokenCerts(ctx, token)
+}
+
+func (s *sqliteMetaStore) RevokeAccessToken(ctx context.Context, tokenKey string) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.RevokeAccessToken(ctx, tokenKey)
+}
+
 func (s *sqliteMetaStore) SystemInfo(ctx context.Context) (*types.SystemInfo, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	return s.dbStore.SystemInfo(ctx)
+}
+
+func (s *sqliteMetaStore) GetConfigValue(ctx context.Context, group string, name string) (string, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.GetConfigValue(ctx, group, name)
+}
+
+func (s *sqliteMetaStore) SetConfigValue(ctx context.Context, group, name, value string) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.SetConfigValue(ctx, group, name, value)
 }
 
 func (s *sqliteMetaStore) GetEntry(ctx context.Context, id int64) (*types.Metadata, error) {
@@ -482,6 +518,92 @@ func buildSqlMetaStore(dbEntity *gorm.DB) (*sqlMetaStore, error) {
 	return s, nil
 }
 
+func (s *sqlMetaStore) GetAccessToken(ctx context.Context, tokenKey string, secretKey string) (*types.AccessToken, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.GetAccessToken").End()
+	token := db.AccessToken{}
+	res := s.WithContext(ctx).Where("token_key = ? AND secret_token = ?", tokenKey, secretKey).First(&token)
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
+	}
+	token.LastSeenAt = time.Now()
+	if res = s.WithContext(ctx).Save(&token); res.Error != nil {
+		s.logger.Errorw("update access token lastSeenAt failed", "err", res.Error)
+	}
+	return &types.AccessToken{
+		TokenKey:       token.TokenKey,
+		SecretToken:    token.SecretToken,
+		UID:            token.UID,
+		GID:            token.GID,
+		ClientCrt:      token.ClientCrt,
+		ClientKey:      token.ClientKey,
+		CertExpiration: token.CertExpiration,
+		LastSeenAt:     token.LastSeenAt,
+		Namespace:      token.Namespace,
+	}, nil
+}
+
+func (s *sqlMetaStore) CreateAccessToken(ctx context.Context, token *types.AccessToken) error {
+	defer trace.StartRegion(ctx, "metastore.sql.CreateAccessToken").End()
+	tokenModel := db.AccessToken{}
+	res := s.WithContext(ctx).Where("token_key = ?", token.TokenKey).First(&tokenModel)
+	if res.Error == nil {
+		return types.ErrIsExist
+	} else if !errors.Is(res.Error, gorm.ErrRecordNotFound) {
+		return db.SqlError2Error(res.Error)
+	}
+
+	token.LastSeenAt = time.Now()
+	tokenModel = db.AccessToken{
+		TokenKey:       token.TokenKey,
+		SecretToken:    token.SecretToken,
+		UID:            token.UID,
+		GID:            token.GID,
+		ClientCrt:      token.ClientCrt,
+		ClientKey:      token.ClientKey,
+		CertExpiration: token.CertExpiration,
+		LastSeenAt:     token.LastSeenAt,
+		Namespace:      token.Namespace,
+	}
+	if res = s.WithContext(ctx).Create(&tokenModel); res.Error != nil {
+		s.logger.Errorw("create access token failed", "err", res.Error)
+		return db.SqlError2Error(res.Error)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) UpdateAccessTokenCerts(ctx context.Context, token *types.AccessToken) error {
+	defer trace.StartRegion(ctx, "metastore.sql.UpdateAccessTokenCerts").End()
+	tokenModel := db.AccessToken{}
+	res := s.WithContext(ctx).Where("token_key = ? AND secret_token = ?", token.TokenKey, token.SecretToken).First(&tokenModel)
+	if res.Error != nil {
+		return db.SqlError2Error(res.Error)
+	}
+
+	token.LastSeenAt = time.Now()
+	tokenModel.ClientCrt = token.ClientCrt
+	tokenModel.ClientKey = token.ClientKey
+	tokenModel.CertExpiration = token.CertExpiration
+	tokenModel.LastSeenAt = token.LastSeenAt
+	if res = s.WithContext(ctx).Save(&tokenModel); res.Error != nil {
+		s.logger.Errorw("update access token certs failed", "err", res.Error)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) RevokeAccessToken(ctx context.Context, tokenKey string) error {
+	defer trace.StartRegion(ctx, "metastore.sql.RevokeAccessToken").End()
+	tokenModel := db.AccessToken{}
+	res := s.WithContext(ctx).Where("token_key = ?", tokenKey).First(&tokenModel)
+	if res.Error != nil {
+		return db.SqlError2Error(res.Error)
+	}
+	res = s.WithContext(ctx).Delete(tokenModel)
+	if res.Error != nil {
+		return db.SqlError2Error(res.Error)
+	}
+	return nil
+}
+
 func (s *sqlMetaStore) SystemInfo(ctx context.Context) (*types.SystemInfo, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.SystemInfo").End()
 	info := &db.SystemInfo{}
@@ -522,6 +644,33 @@ func (s *sqlMetaStore) SystemInfo(ctx context.Context) (*types.SystemInfo, error
 	return result, nil
 }
 
+func (s *sqlMetaStore) GetConfigValue(ctx context.Context, group string, name string) (string, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.GetConfigValue").End()
+	var sysCfg = db.SystemConfig{}
+	res := s.WithContext(ctx).Where("group = ? AND name = ?", group, name).First(&sysCfg)
+	if res.Error != nil {
+		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			return "", nil
+		}
+		return "", res.Error
+	}
+	return sysCfg.Value, nil
+}
+
+func (s *sqlMetaStore) SetConfigValue(ctx context.Context, group, name, value string) error {
+	defer trace.StartRegion(ctx, "metastore.sql.SetConfigValue").End()
+	var sysCfg = db.SystemConfig{}
+	res := s.WithContext(ctx).Where("group = ? AND name = ?", group, name).First(&sysCfg)
+	if res.Error != nil && !errors.Is(res.Error, gorm.ErrRecordNotFound) {
+		return res.Error
+	}
+	sysCfg.Name = name
+	sysCfg.Value = value
+	sysCfg.ChangedAt = time.Now()
+	res = s.WithContext(ctx).Save(&sysCfg)
+	return res.Error
+}
+
 func (s *sqlMetaStore) GetEntry(ctx context.Context, id int64) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.GetEntry").End()
 	var objMod = &db.Object{ID: id}
@@ -537,7 +686,7 @@ func (s *sqlMetaStore) FindEntry(ctx context.Context, parentID int64, name strin
 	var objMod = &db.Object{ParentID: &parentID, Name: name}
 	res := s.WithContext(ctx).Where("parent_id = ? AND name = ?", parentID, name).First(objMod)
 	if err := res.Error; err != nil {
-		if err != gorm.ErrRecordNotFound {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			s.logger.Errorw("find entry by name failed", "parent", parentID, "name", name, "err", err)
 		}
 		return nil, db.SqlError2Error(err)
@@ -572,7 +721,7 @@ func (s *sqlMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry
 
 		parentMod.ModifiedAt = nowTime
 		parentMod.ChangedAt = nowTime
-		if types.IsGroup(newEntry.Kind) {
+		if newEntry.IsGroup {
 			refCount := (*parentMod.RefCount) + 1
 			parentMod.RefCount = &refCount
 		}
@@ -672,7 +821,7 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64)
 
 		parentMod.ModifiedAt = nowTime
 		parentMod.ChangedAt = nowTime
-		if types.IsGroup(types.Kind(entryMod.Kind)) {
+		if entryMod.IsGroup {
 
 			var entryChildCount int64
 			res = tx.Model(&db.Object{}).Where("parent_id = ?", entryID).Count(&entryChildCount)
@@ -727,7 +876,7 @@ func (s *sqlMetaStore) DeleteRemovedEntry(ctx context.Context, entryID int64) er
 			return res.Error
 		}
 
-		if entryMod.RefCount != nil && *entryMod.RefCount > 0 && types.IsGroup(types.Kind(entryMod.Kind)) {
+		if entryMod.RefCount != nil && *entryMod.RefCount > 0 && entryMod.IsGroup {
 			s.logger.Warnf("entry %d ref_count is %d, more than 0", entryMod.ID, *entryMod.RefCount)
 		}
 
@@ -1048,7 +1197,7 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, targetEntryId int6
 		if res.Error != nil {
 			return res.Error
 		}
-		if types.IsGroup(types.Kind(enModel.Kind)) && newParentId != srcParentEntryID {
+		if enModel.IsGroup && newParentId != srcParentEntryID {
 			dstParentEnModel.ChangedAt = nowTime
 			dstParentEnModel.ModifiedAt = nowTime
 			dstParentRef := *dstParentEnModel.RefCount + 1
@@ -1983,7 +2132,7 @@ func updateEntryAndCleanURICache(tx *gorm.DB, entryMod *db.Object) error {
 		if res.Error != nil {
 			return res.Error
 		}
-		if types.IsGroup(types.Kind(entryMod.Kind)) {
+		if entryMod.IsGroup {
 			res = tx.Where("uri LIKE ?", uri.Uri+"%").Delete(&db.ObjectURI{})
 			if res.Error != nil {
 				return res.Error

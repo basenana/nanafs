@@ -14,13 +14,21 @@
  limitations under the License.
 */
 
-package config
+package utils
 
-type Workflow struct {
-	Enable     bool   `json:"enable"`
-	JobWorkdir string `json:"job_workdir"`
-}
+import (
+	"testing"
+)
 
-type Plugin struct {
-	BasePath string `json:"base_path"`
+func TestCertTool_GenerateCertPair(t *testing.T) {
+	c := &CertTool{}
+	_, _, err := c.GenerateCAPair()
+	if err != nil {
+		t.Errorf("GenerateCAPair error: %s", err)
+	}
+
+	_, _, err = c.GenerateCertPair("mock org", "mock org unit", "mock common name")
+	if err != nil {
+		t.Errorf("GenerateCertPair error: %s", err)
+	}
 }

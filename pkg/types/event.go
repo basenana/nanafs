@@ -39,6 +39,7 @@ type EventData struct {
 	ParentID  int64  `json:"parent_id,omitempty"`
 	Kind      Kind   `json:"kind,omitempty"`
 	KindMap   int64  `json:"kind_map,omitempty"`
+	IsGroup   bool   `json:"is_group,omitempty"`
 	Namespace string `json:"namespace,omitempty"`
 }
 
@@ -55,7 +56,7 @@ func NewEventDataFromEntry(entry *Metadata) EventData {
 		ID:        entry.ID,
 		ParentID:  entry.ParentID,
 		Kind:      entry.Kind,
-		KindMap:   entry.KindMap,
+		IsGroup:   entry.IsGroup,
 		Namespace: entry.Namespace,
 	}
 }

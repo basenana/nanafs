@@ -56,23 +56,39 @@ type instrumentalStore struct {
 	store Meta
 }
 
-func (i instrumentalStore) SaveEntryUri(ctx context.Context, entryUri *types.EntryUri) error {
-	const operation = "save_entry_uri"
+var _ Meta = &instrumentalStore{}
+
+func (i instrumentalStore) GetAccessToken(ctx context.Context, tokenKey string, secretKey string) (*types.AccessToken, error) {
+	const operation = "get_access_token"
 	defer logOperationLatency(operation, time.Now())
-	err := i.store.SaveEntryUri(ctx, entryUri)
+	token, err := i.store.GetAccessToken(ctx, tokenKey, secretKey)
+	logOperationError(operation, err)
+	return token, err
+}
+
+func (i instrumentalStore) CreateAccessToken(ctx context.Context, token *types.AccessToken) error {
+	const operation = "create_access_token"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.CreateAccessToken(ctx, token)
 	logOperationError(operation, err)
 	return err
 }
 
-func (i instrumentalStore) GetEntryUri(ctx context.Context, uri string) (*types.EntryUri, error) {
-	const operation = "get_entry_uri"
+func (i instrumentalStore) UpdateAccessTokenCerts(ctx context.Context, token *types.AccessToken) error {
+	const operation = "update_access_token_certs"
 	defer logOperationLatency(operation, time.Now())
-	en, err := i.store.GetEntryUri(ctx, uri)
+	err := i.store.UpdateAccessTokenCerts(ctx, token)
 	logOperationError(operation, err)
-	return en, err
+	return err
 }
 
-var _ Meta = &instrumentalStore{}
+func (i instrumentalStore) RevokeAccessToken(ctx context.Context, tokenKey string) error {
+	const operation = "revoke_access_token"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.RevokeAccessToken(ctx, tokenKey)
+	logOperationError(operation, err)
+	return err
+}
 
 func (i instrumentalStore) SystemInfo(ctx context.Context) (*types.SystemInfo, error) {
 	const operation = "system_info"
@@ -80,6 +96,22 @@ func (i instrumentalStore) SystemInfo(ctx context.Context) (*types.SystemInfo, e
 	info, err := i.store.SystemInfo(ctx)
 	logOperationError(operation, err)
 	return info, err
+}
+
+func (i instrumentalStore) GetConfigValue(ctx context.Context, group, name string) (string, error) {
+	const operation = "get_config_value"
+	defer logOperationLatency(operation, time.Now())
+	val, err := i.store.GetConfigValue(ctx, group, name)
+	logOperationError(operation, err)
+	return val, err
+}
+
+func (i instrumentalStore) SetConfigValue(ctx context.Context, group, name, value string) error {
+	const operation = "set_config_value"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.SetConfigValue(ctx, group, name, value)
+	logOperationError(operation, err)
+	return err
 }
 
 func (i instrumentalStore) GetEntry(ctx context.Context, id int64) (*types.Metadata, error) {
@@ -192,6 +224,22 @@ func (i instrumentalStore) UpdateEntryExtendData(ctx context.Context, id int64, 
 	err := i.store.UpdateEntryExtendData(ctx, id, ed)
 	logOperationError(operation, err)
 	return err
+}
+
+func (i instrumentalStore) SaveEntryUri(ctx context.Context, entryUri *types.EntryUri) error {
+	const operation = "save_entry_uri"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.SaveEntryUri(ctx, entryUri)
+	logOperationError(operation, err)
+	return err
+}
+
+func (i instrumentalStore) GetEntryUri(ctx context.Context, uri string) (*types.EntryUri, error) {
+	const operation = "get_entry_uri"
+	defer logOperationLatency(operation, time.Now())
+	en, err := i.store.GetEntryUri(ctx, uri)
+	logOperationError(operation, err)
+	return en, err
 }
 
 func (i instrumentalStore) GetEntryLabels(ctx context.Context, id int64) (types.Labels, error) {

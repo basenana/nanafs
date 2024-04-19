@@ -5,12 +5,14 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
 	"golang.org/x/net/html/charset"
 	"howett.net/plist"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -49,9 +51,15 @@ func (w *webArchiver) Pack(ctx context.Context, opt Option) error {
 	}
 
 	w.workerQ <- opt.URL
+	ctx, canF := context.WithCancel(ctx)
+	defer canF()
 
-	wg := sync.WaitGroup{}
-	errCh := make(chan error, 1)
+	var (
+		workerDone = make(chan struct{})
+		errCh      = make(chan error, 1)
+		wg         = sync.WaitGroup{}
+	)
+
 	for i := 0; i < w.parallel; i++ {
 		wg.Add(1)
 		go func() {
@@ -60,13 +68,17 @@ func (w *webArchiver) Pack(ctx context.Context, opt Option) error {
 		}()
 	}
 
-	wg.Wait()
+	go func() {
+		wg.Wait()
+		close(workerDone)
+	}()
+
 	select {
 	case err := <-errCh:
 		return err
 	case <-ctx.Done():
 		return ctx.Err()
-	default:
+	case <-workerDone:
 		if len(w.resource.WebSubresources) == 0 {
 			return fmt.Errorf("no resource packed")
 		}
@@ -178,6 +190,12 @@ func (w *webArchiver) loadWebPageFromUrl(ctx context.Context, cli *http.Client, 
 		if err == nil {
 			break
 		}
+		var netErr *net.OpError
+		if errors.As(err, &netErr) {
+			if netErr.Op == "dial" {
+				return fmt.Errorf("do request with url %s error: %s", urlStr, err)
+			}
+		}
 		time.Sleep(time.Second * 5)
 	}
 	if err != nil {
@@ -276,6 +294,8 @@ func (w *webArchiver) loadWebPageFromUrl(ctx context.Context, cli *http.Client, 
 				selection.SetAttr("src", srcVal)
 				nextUrl(w.workerQ, urlStr, srcVal)
 			}
+			// remove srcset for display issues
+			selection.RemoveAttr("srcset")
 		})
 
 		query.Find("script").Each(func(i int, selection *goquery.Selection) {

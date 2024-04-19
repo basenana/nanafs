@@ -58,6 +58,7 @@ type FsApi struct {
 	CertFile   string `json:"cert_file"`
 	KeyFile    string `json:"key_file"`
 	CaFile     string `json:"ca_file"`
+	CaKeyFile  string `json:"ca_key_file"`
 }
 
 type Webdav struct {
@@ -93,4 +94,13 @@ type OverwriteUser struct {
 
 type Indexer struct {
 	LocalIndexerDir string `json:"local_indexer_dir"`
+}
+
+type Workflow struct {
+	Enable     bool   `json:"enable"`
+	JobWorkdir string `json:"job_workdir"`
+}
+
+type Plugin struct {
+	BasePath string `json:"base_path"`
 }

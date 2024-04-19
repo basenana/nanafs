@@ -225,7 +225,7 @@ func (w workflowExecutor) execute(ctx context.Context, task *types.ScheduledTask
 
 		// trigger workflow
 		tgt := types.WorkflowTarget{}
-		if types.IsGroup(en.Kind) {
+		if en.IsGroup {
 			tgt.ParentEntryID = en.ID
 		} else {
 			tgt.EntryID = en.ID

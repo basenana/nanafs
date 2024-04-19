@@ -24,15 +24,27 @@ import (
 )
 
 type Meta interface {
+	AccessToken
+	SysConfig
 	DEntry
 	ChunkStore
 	NotificationRecorder
 	ScheduledTaskRecorder
 }
+type AccessToken interface {
+	GetAccessToken(ctx context.Context, tokenKey string, secretKey string) (*types.AccessToken, error)
+	CreateAccessToken(ctx context.Context, token *types.AccessToken) error
+	UpdateAccessTokenCerts(ctx context.Context, token *types.AccessToken) error
+	RevokeAccessToken(ctx context.Context, tokenKey string) error
+}
+
+type SysConfig interface {
+	SystemInfo(ctx context.Context) (*types.SystemInfo, error)
+	GetConfigValue(ctx context.Context, group, name string) (string, error)
+	SetConfigValue(ctx context.Context, group, name, value string) error
+}
 
 type DEntry interface {
-	SystemInfo(ctx context.Context) (*types.SystemInfo, error)
-
 	GetEntry(ctx context.Context, id int64) (*types.Metadata, error)
 	FindEntry(ctx context.Context, parentID int64, name string) (*types.Metadata, error)
 	CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata) error

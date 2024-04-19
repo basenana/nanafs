@@ -177,7 +177,7 @@ func lookupRadixTree(root *radixNode, topic string) (values []string) {
 		for crt != nil {
 			prefix := strings.Split(crt.prefix, sectionDelimiter)
 			subSections := sections[idx:]
-			m, isWildcard := getSameSectionsWithWildcard(prefix, sections[idx:])
+			m, _ := getSameSectionsWithWildcard(prefix, sections[idx:])
 			if m == 0 {
 				crt = crt.next
 				continue
@@ -189,19 +189,12 @@ func lookupRadixTree(root *radixNode, topic string) (values []string) {
 
 			if m < len(subSections) {
 				queue = append(queue, pos{idx: idx + m, next: crt.children})
-				if isWildcard {
-					crt = crt.next
-					continue
-				}
-				break
-			}
-
-			values = append(values, crt.values...)
-			if isWildcard {
 				crt = crt.next
 				continue
 			}
-			break
+
+			values = append(values, crt.values...)
+			crt = crt.next
 		}
 	}
 

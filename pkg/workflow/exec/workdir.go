@@ -132,7 +132,7 @@ func entryWorkdirInit(ctx context.Context, entryID int64, entryMgr dentry.Manage
 	if err != nil {
 		return "", fmt.Errorf("load entry failed: %s", err)
 	}
-	if types.IsGroup(entry.Kind) {
+	if entry.IsGroup {
 		return "", fmt.Errorf("entry is a group")
 	}
 

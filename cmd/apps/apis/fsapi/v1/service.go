@@ -36,6 +36,7 @@ import (
 )
 
 type Services interface {
+	AuthServer
 	DocumentServer
 	EntriesServer
 	InboxServer
@@ -51,6 +52,7 @@ func InitServices(server *grpc.Server, ctrl controller.Controller, pathEntryMgr 
 		logger:       logger.NewLogger("fsapi"),
 	}
 
+	RegisterAuthServer(server, s)
 	RegisterDocumentServer(server, s)
 	RegisterEntriesServer(server, s)
 	RegisterInboxServer(server, s)
@@ -173,6 +175,21 @@ func (s *services) DeleteRoom(ctx context.Context, request *DeleteRoomRequest) (
 }
 
 var _ Services = &services{}
+
+func (s *services) AccessToken(ctx context.Context, request *AccessTokenRequest) (*AccessTokenResponse, error) {
+	token, err := s.ctrl.AccessToken(ctx, request.AccessTokenKey, request.SecretToken)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "access token error")
+	}
+	return &AccessTokenResponse{
+		Namespace:      token.Namespace,
+		UID:            token.UID,
+		GID:            token.GID,
+		ClientCrt:      token.ClientCrt,
+		ClientKey:      token.ClientKey,
+		CertExpiration: timestamppb.New(token.CertExpiration),
+	}, nil
+}
 
 func (s *services) ListDocuments(ctx context.Context, request *ListDocumentsRequest) (*ListDocumentsResponse, error) {
 	filter := types.DocFilter{ParentID: request.ParentID}
@@ -545,6 +562,7 @@ func (s *services) QuickInbox(ctx context.Context, request *QuickInboxRequest) (
 	}
 	en, err := s.ctrl.QuickInbox(ctx, request.Filename, option)
 	if err != nil {
+		s.logger.Errorw("quick inbox failed", "err", err)
 		return nil, status.Error(common.FsApiError(err), "quick inbox failed")
 	}
 	return &QuickInboxResponse{EntryID: en.ID}, nil
@@ -614,6 +632,10 @@ func (s *services) DeleteProperty(ctx context.Context, request *DeletePropertyRe
 }
 
 func (s *services) GetLatestSequence(ctx context.Context, request *GetLatestSequenceRequest) (*GetLatestSequenceResponse, error) {
+	caller := s.callerAuthFn(ctx)
+	if !caller.Authenticated {
+		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	}
 	seq, err := s.ctrl.GetLatestSequence(ctx)
 	if err != nil {
 		s.logger.Errorw("query latest sequence failed", "err", err)

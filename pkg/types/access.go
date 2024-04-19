@@ -16,6 +16,8 @@
 
 package types
 
+import "time"
+
 type Permission string
 
 const (
@@ -64,4 +66,16 @@ func (a *Access) RemovePerm(p Permission) {
 		}
 		a.Permissions = append(a.Permissions[0:i], a.Permissions[i+1:]...)
 	}
+}
+
+type AccessToken struct {
+	TokenKey       string
+	SecretToken    string
+	UID            int64
+	GID            int64
+	ClientCrt      string
+	ClientKey      string
+	CertExpiration time.Time
+	LastSeenAt     time.Time
+	Namespace      string
 }
