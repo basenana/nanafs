@@ -632,7 +632,7 @@ func (s *services) DeleteProperty(ctx context.Context, request *DeletePropertyRe
 }
 
 func (s *services) GetLatestSequence(ctx context.Context, request *GetLatestSequenceRequest) (*GetLatestSequenceResponse, error) {
-	caller := common.CallerAuth(ctx)
+	caller := s.callerAuthFn(ctx)
 	if !caller.Authenticated {
 		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
 	}

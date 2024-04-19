@@ -189,6 +189,7 @@ func (s *StubEntry) toEntry() *types.Metadata {
 		Name:       s.name,
 		ParentID:   s.parent,
 		Kind:       s.info.Kind,
+		IsGroup:    s.info.IsGroup,
 		Size:       s.info.Size,
 		Storage:    externalStorage,
 		CreatedAt:  s.registerAt,
