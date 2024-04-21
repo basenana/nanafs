@@ -76,6 +76,7 @@ func NewManager(store metastore.Meta, cfg config.Bootstrap) (Manager, error) {
 			return nil, err
 		}
 	}
+	defaultStorage = storages[cfg.Storages[0].ID]
 
 	mgr := &manager{
 		store:          store,

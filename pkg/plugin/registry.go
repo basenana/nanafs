@@ -59,15 +59,11 @@ func BuildPlugin(ctx context.Context, ps types.PlugScope) (Plugin, error) {
 	return pluginRegistry.BuildPlugin(ctx, ps)
 }
 
-func Init(svc buildin.Services, cfg *config.Plugin) error {
-	if cfg == nil {
-		return nil
-	}
-
+func Init(svc buildin.Services, cfg config.Loader) error {
 	r := &registry{
-		basePath: cfg.BasePath,
-		plugins:  map[string]*pluginInfo{},
-		logger:   logger.NewLogger("registry"),
+		cfg:     cfg,
+		plugins: map[string]*pluginInfo{},
+		logger:  logger.NewLogger("registry"),
 	}
 
 	// register build-in plugins
@@ -76,7 +72,7 @@ func Init(svc buildin.Services, cfg *config.Plugin) error {
 	registerBuildInSourcePlugin(r)
 
 	pluginRegistry = r
-	return r.load()
+	return r.load(context.TODO())
 }
 
 func MustShutdown() {
@@ -84,10 +80,10 @@ func MustShutdown() {
 }
 
 type registry struct {
-	basePath string
-	plugins  map[string]*pluginInfo
-	mux      sync.RWMutex
-	logger   *zap.SugaredLogger
+	plugins map[string]*pluginInfo
+	cfg     config.Loader
+	mux     sync.RWMutex
+	logger  *zap.SugaredLogger
 }
 
 func (r *registry) BuildPlugin(ctx context.Context, ps types.PlugScope) (Plugin, error) {
@@ -111,12 +107,16 @@ func (r *registry) Register(pluginName string, spec types.PluginSpec, builder Bu
 	r.mux.Unlock()
 }
 
-func (r *registry) load() error {
-	if r.basePath == "" {
+func (r *registry) load(ctx context.Context) error {
+	definePath, err := r.cfg.GetSystemConfig(ctx, config.PluginConfigGroup, "definePath").String()
+	if err != nil && !errors.Is(err, config.ErrNotConfigured) {
+		return err
+	}
+	if definePath == "" {
 		return nil
 	}
 
-	d, err := ioutil.ReadDir(r.basePath)
+	d, err := ioutil.ReadDir(definePath)
 	if err != nil {
 		return err
 	}
@@ -130,7 +130,7 @@ func (r *registry) load() error {
 			continue
 		}
 		if strings.HasSuffix(fi.Name(), ".json") {
-			pluginSpec, builder, err := readPluginSpec(r.basePath, fi.Name())
+			pluginSpec, builder, err := readPluginSpec(definePath, fi.Name())
 			if err != nil {
 				r.logger.Warnf("plugin spec %s can't be parse: %s", fi.Name(), err)
 				continue

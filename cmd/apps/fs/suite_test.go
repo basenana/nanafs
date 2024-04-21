@@ -32,18 +32,18 @@ import (
 )
 
 var (
-	cfg config.Bootstrap
+	cfg = config.Bootstrap{
+		FS:      &config.FS{Owner: config.FSOwner{Uid: 0, Gid: 0}},
+		HttpApi: config.HttpApi{Enable: true},
+		Storages: []config.Storage{
+			{ID: storage.MemoryStorage, Type: storage.MemoryStorage},
+		},
+	}
 )
-
-type mockConfig struct{}
-
-func (m mockConfig) GetBootstrapConfig() (config.Bootstrap, error) {
-	return cfg, nil
-}
 
 func NewMockController() controller.Controller {
 	m, _ := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
-	ctrl, _ := controller.New(mockConfig{}, m)
+	ctrl, _ := controller.New(config.NewFakeConfigLoader(cfg), m)
 	return ctrl
 }
 
@@ -69,15 +69,6 @@ func mustGetNanaEntry(node *NanaNode, ctrl controller.Controller) *types.Metadat
 func TestFs(t *testing.T) {
 	logger.InitLogger()
 	defer logger.Sync()
-
-	cfg = config.Bootstrap{
-		FS:      &config.FS{Owner: config.FSOwner{Uid: 0, Gid: 0}},
-		HttpApi: config.HttpApi{Enable: true},
-		Storages: []config.Storage{{
-			ID:   storage.MemoryStorage,
-			Type: storage.MemoryStorage,
-		}}}
-
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Fs Suite")
 }

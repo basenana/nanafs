@@ -43,6 +43,12 @@ var (
 	testServer    *grpc.Server
 	serviceClient *Client
 	mockListen    *bufconn.Listener
+
+	mockConfig = config.Bootstrap{
+		FS:       &config.FS{Owner: config.FSOwner{Uid: 0, Gid: 0}, Writeback: false},
+		Meta:     config.Meta{Type: metastore.MemoryMeta},
+		Storages: []config.Storage{{ID: "test-memory-0", Type: storage.MemoryStorage}},
+	}
 )
 
 func init() {
@@ -72,7 +78,7 @@ var _ = BeforeSuite(func() {
 
 	storage.InitLocalCache(config.Bootstrap{CacheDir: workdir, CacheSize: 0})
 
-	ctrl, err = controller.New(mockConfig{}, memMeta)
+	ctrl, err = controller.New(config.NewFakeConfigLoader(mockConfig), memMeta)
 	Expect(err).Should(BeNil())
 
 	_, err = ctrl.LoadRootEntry(context.TODO())
@@ -129,19 +135,6 @@ type Client struct {
 	InboxClient
 	PropertiesClient
 	NotifyClient
-}
-
-type mockConfig struct{}
-
-var _ config.Loader = mockConfig{}
-
-func (m mockConfig) GetBootstrapConfig() (config.Bootstrap, error) {
-	var cfg = config.Bootstrap{
-		FS:       &config.FS{Owner: config.FSOwner{Uid: 0, Gid: 0}, Writeback: false},
-		Meta:     config.Meta{Type: metastore.MemoryMeta},
-		Storages: []config.Storage{{ID: "test-memory-0", Type: storage.MemoryStorage}},
-	}
-	return cfg, nil
 }
 
 func dialer(context.Context, string) (net.Conn, error) {

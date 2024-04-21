@@ -41,7 +41,7 @@ func (m mockConfig) GetBootstrapConfig() (config.Bootstrap, error) {
 
 func NewMockController() controller.Controller {
 	m, _ := metastore.NewMetaStorage(metastore.MemoryMeta, cfg.Meta)
-	ctrl, _ := controller.New(mockConfig{}, m)
+	ctrl, _ := controller.New(config.NewFakeConfigLoader(cfg), m)
 	return ctrl
 }
 

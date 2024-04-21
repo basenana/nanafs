@@ -28,12 +28,11 @@ import (
 	"time"
 )
 
-type CMDB interface {
-	GetConfigValue(ctx context.Context, group, name string) (string, error)
-	SetConfigValue(ctx context.Context, group, name, value string) error
-}
-
 var FilePath string
+
+var (
+	ErrNotConfigured = fmt.Errorf("no configured")
+)
 
 type Loader interface {
 	GetBootstrapConfig() (Bootstrap, error)
@@ -116,11 +115,17 @@ func (l *loader) GetSystemConfig(ctx context.Context, group, name string) Value 
 		return record
 	}
 	record.Value, record.Error = l.cmdb.GetConfigValue(ctx, group, name)
+	if record.Error != nil && isConfigNotFound(record.Error) {
+		record.Error = ErrNotConfigured
+	}
 	return record
 }
 
 func NewConfigLoader() Loader {
-	return &cacheLoader{loader: &loader{}}
+	return &cacheLoader{
+		loader: &loader{},
+		cached: make(map[string]*Value),
+	}
 }
 
 type cacheLoader struct {
@@ -180,6 +185,21 @@ func (c *cacheLoader) initExpiration() *time.Time {
 	return &expiration
 }
 
+type fakeLoader struct {
+	*loader
+	b Bootstrap
+}
+
+func (f *fakeLoader) GetBootstrapConfig() (Bootstrap, error) {
+	return f.b, nil
+}
+
+func NewFakeConfigLoader(b Bootstrap) Loader {
+	l := &fakeLoader{loader: &loader{}, b: b}
+	_ = l.InitCMDB(NewFakeCmdb())
+	return l
+}
+
 type Value struct {
 	Group string
 	Name  string
@@ -189,21 +209,21 @@ type Value struct {
 	Expiration *time.Time
 }
 
-func (v *Value) Int() (int, error) {
+func (v Value) Int() (int, error) {
 	if v.Error != nil {
 		return 0, v.Error
 	}
 	return strconv.Atoi(v.Value)
 }
 
-func (v *Value) Int64() (int64, error) {
+func (v Value) Int64() (int64, error) {
 	if v.Error != nil {
 		return 0, v.Error
 	}
 	return strconv.ParseInt(v.Value, 10, 64)
 }
 
-func (v *Value) Bool() (bool, error) {
+func (v Value) Bool() (bool, error) {
 	if v.Error != nil {
 		return false, v.Error
 	}
@@ -217,11 +237,11 @@ func (v *Value) Bool() (bool, error) {
 	}
 }
 
-func (v *Value) String() (string, error) {
+func (v Value) String() (string, error) {
 	return v.Value, v.Error
 }
 
-func (v *Value) Unmarshal(data any) error {
+func (v Value) Unmarshal(data any) error {
 	if v.Error != nil {
 		return v.Error
 	}

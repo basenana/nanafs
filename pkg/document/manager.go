@@ -64,28 +64,33 @@ type manager struct {
 	recorder metastore.DEntry
 	entryMgr dentry.Manager
 	indexer  *Indexer
+	cfg      config.Loader
 	logger   *zap.SugaredLogger
 }
 
 var _ Manager = &manager{}
 
-func NewManager(recorder metastore.DEntry, entryMgr dentry.Manager, indexerCfg *config.Indexer) (Manager, error) {
+func NewManager(recorder metastore.DEntry, entryMgr dentry.Manager, cfg config.Loader) (Manager, error) {
 	docLogger := logger.NewLogger("document")
 	docMgr := &manager{
-		logger:   docLogger,
 		recorder: recorder,
 		entryMgr: entryMgr,
+		cfg:      cfg,
+		logger:   docLogger,
 	}
 	err := registerDocExecutor(docMgr)
 	if err != nil {
 		return nil, err
 	}
 
-	if indexerCfg != nil {
-		docMgr.indexer, err = NewDocumentIndexer(recorder, *indexerCfg)
+	indexerCfg, err := cfg.GetSystemConfig(context.Background(), config.DocConfigGroup, "index.localIndexerDir").String()
+	if err == nil {
+		docMgr.indexer, err = NewDocumentIndexer(recorder, indexerCfg)
 		if err != nil {
 			return nil, err
 		}
+	} else {
+		docMgr.logger.Warnw("skip open document indexer", "err", err)
 	}
 
 	return docMgr, nil

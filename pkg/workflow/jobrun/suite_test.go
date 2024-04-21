@@ -66,7 +66,8 @@ var _ = BeforeSuite(func() {
 	notifyImpl = notify.NewNotify(memMeta)
 
 	// init plugin
-	Expect(plugin.Init(buildin.Services{}, &config.Plugin{})).Should(BeNil())
+	cfgLoader := config.NewFakeConfigLoader(config.Bootstrap{})
+	Expect(plugin.Init(buildin.Services{}, cfgLoader)).Should(BeNil())
 
 	// init fake workflow to test wf job
 	fakeWf := &types.WorkflowSpec{

@@ -35,5 +35,6 @@ func TestPlugin(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	// init plugin registry
-	Expect(Init(buildin.Services{}, &config.Plugin{})).Should(BeNil())
+	cfgLoader := config.NewFakeConfigLoader(config.Bootstrap{})
+	Expect(Init(buildin.Services{}, cfgLoader)).Should(BeNil())
 })

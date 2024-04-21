@@ -18,6 +18,7 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -55,7 +56,7 @@ func setDefaultConfigs(l Loader) error {
 			continue
 		}
 
-		if !isConfigNotFound(configVal.Error) {
+		if !errors.Is(configVal.Error, ErrNotConfigured) {
 			return fmt.Errorf("get default config %s.%s failed %w", defaultVal.Group, defaultVal.Name, configVal.Error)
 		}
 

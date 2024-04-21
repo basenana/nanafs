@@ -26,13 +26,12 @@ import (
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
-	"os"
 	"time"
 )
 
 type Manager struct {
 	store  metastore.AccessToken
-	cfg    config.Bootstrap
+	cfg    config.Loader
 	logger *zap.SugaredLogger
 }
 
@@ -53,26 +52,22 @@ func (m *Manager) AccessToken(ctx context.Context, ak, sk string) (*types.Access
 }
 
 func (m *Manager) resignCerts(ctx context.Context, token *types.AccessToken) (err error) {
-	caCertFile := m.cfg.FsApi.CaFile
-	caKeyFile := m.cfg.FsApi.CaKeyFile
-
-	_, err = os.Stat(caCertFile)
+	caCertEncodedContent, err := m.cfg.GetSystemConfig(ctx, config.AuthConfigGroup, "ca_cert_0").String()
 	if err != nil {
-		return fmt.Errorf("stat ca cert file error: %w", err)
+		return fmt.Errorf("get ca cert content failed: %w", err)
+	}
+	caKeyEncodedContent, err := m.cfg.GetSystemConfig(ctx, config.AuthConfigGroup, "ca_key_0").String()
+	if err != nil {
+		return fmt.Errorf("get ca key content failed: %w", err)
 	}
 
-	_, err = os.Stat(caKeyFile)
+	caCertContent, err := base64.StdEncoding.DecodeString(caCertEncodedContent)
 	if err != nil {
-		return fmt.Errorf("stat ca cert file error: %w", err)
+		return fmt.Errorf("decoded ca cert content failed: %w", err)
 	}
-
-	caCertContent, err := os.ReadFile(caCertFile)
+	caKeyContent, err := base64.StdEncoding.DecodeString(caKeyEncodedContent)
 	if err != nil {
-		return fmt.Errorf("load ca cert file error: %w", err)
-	}
-	caKeyContent, err := os.ReadFile(caKeyFile)
-	if err != nil {
-		return fmt.Errorf("load ca cert file error: %w", err)
+		return fmt.Errorf("decoded ca key content failed: %w", err)
 	}
 
 	rawCert, rawKey, err := (&utils.CertTool{
@@ -101,7 +96,7 @@ func (m *Manager) resignCerts(ctx context.Context, token *types.AccessToken) (er
 	return nil
 }
 
-func NewTokenManager(store metastore.AccessToken, cfg config.Bootstrap) *Manager {
+func NewTokenManager(store metastore.AccessToken, cfg config.Loader) *Manager {
 	return &Manager{
 		store:  store,
 		cfg:    cfg,

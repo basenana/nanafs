@@ -84,5 +84,6 @@ var _ = BeforeSuite(func() {
 	Expect(f.Close(context.TODO())).Should(BeNil())
 
 	// init plugin
-	Expect(plugin.Init(buildin.Services{}, &config.Plugin{})).Should(BeNil())
+	cfgLoader := config.NewFakeConfigLoader(config.Bootstrap{})
+	Expect(plugin.Init(buildin.Services{}, cfgLoader)).Should(BeNil())
 })

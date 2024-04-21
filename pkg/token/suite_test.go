@@ -17,22 +17,20 @@
 package token
 
 import (
+	"context"
+	"encoding/base64"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"os"
-	"path"
 	"testing"
 )
 
 var (
-	testMeta   metastore.Meta
-	tmpWorkdir string
-	manager    *Manager
+	testMeta metastore.Meta
+	manager  *Manager
 )
 
 func TestToken(t *testing.T) {
@@ -47,24 +45,16 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 	testMeta = memMeta
 
-	workdir, err := os.MkdirTemp(os.TempDir(), "ut-nanafs-tk-")
-	Expect(err).Should(BeNil())
-	tmpWorkdir = workdir
-
 	ct := &utils.CertTool{}
 	caCert, caKey, err := ct.GenerateCAPair()
 	Expect(err).Should(BeNil())
 
-	err = os.WriteFile(path.Join(tmpWorkdir, "ca.crt"), caCert, 0600)
+	cfgLoader := config.NewFakeConfigLoader(config.Bootstrap{})
+
+	err = cfgLoader.SetSystemConfig(context.Background(), config.AuthConfigGroup, "ca_cert_0", base64.StdEncoding.EncodeToString(caCert))
+	Expect(err).Should(BeNil())
+	err = cfgLoader.SetSystemConfig(context.Background(), config.AuthConfigGroup, "ca_key_0", base64.StdEncoding.EncodeToString(caKey))
 	Expect(err).Should(BeNil())
 
-	err = os.WriteFile(path.Join(tmpWorkdir, "ca.key"), caKey, 0600)
-	Expect(err).Should(BeNil())
-
-	cfg := config.Bootstrap{
-		FsApi:    config.FsApi{CaFile: path.Join(tmpWorkdir, "ca.crt"), CaKeyFile: path.Join(tmpWorkdir, "ca.key")},
-		Meta:     config.Meta{Type: metastore.MemoryMeta},
-		Storages: []config.Storage{{ID: "test-memory-0", Type: storage.MemoryStorage}},
-	}
-	manager = NewTokenManager(memMeta, cfg)
+	manager = NewTokenManager(memMeta, cfgLoader)
 })

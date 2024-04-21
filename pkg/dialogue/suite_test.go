@@ -74,8 +74,8 @@ var _ = BeforeSuite(func() {
 		entryMgr: entryMgr,
 	}
 
-	// init plugin
-	err = plugin.Init(buildin.Services{}, &config.Plugin{})
+	cfgLoader := config.NewFakeConfigLoader(config.Bootstrap{})
+	err = plugin.Init(buildin.Services{}, cfgLoader)
 	Expect(err).Should(BeNil())
 
 	// init root
