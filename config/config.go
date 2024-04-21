@@ -20,7 +20,7 @@ import (
 	fridayconf "github.com/basenana/friday/config"
 )
 
-type Config struct {
+type Bootstrap struct {
 	FsApi   FsApi   `json:"fs_api"`
 	HttpApi HttpApi `json:"http_api"`
 	FUSE    FUSE    `json:"fuse"`

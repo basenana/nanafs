@@ -61,7 +61,7 @@ var _ = BeforeSuite(func() {
 	err = os.WriteFile(path.Join(tmpWorkdir, "ca.key"), caKey, 0600)
 	Expect(err).Should(BeNil())
 
-	cfg := config.Config{
+	cfg := config.Bootstrap{
 		FsApi:    config.FsApi{CaFile: path.Join(tmpWorkdir, "ca.crt"), CaKeyFile: path.Join(tmpWorkdir, "ca.key")},
 		Meta:     config.Meta{Type: metastore.MemoryMeta},
 		Storages: []config.Storage{{ID: "test-memory-0", Type: storage.MemoryStorage}},

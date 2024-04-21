@@ -58,8 +58,8 @@ type mockConfig struct{}
 
 var _ config.Loader = mockConfig{}
 
-func (m mockConfig) GetConfig() (config.Config, error) {
-	var cfg = config.Config{
+func (m mockConfig) GetBootstrapConfig() (config.Bootstrap, error) {
+	var cfg = config.Bootstrap{
 		FS:       &config.FS{Owner: config.FSOwner{Uid: 0, Gid: 0}, Writeback: false},
 		Meta:     config.Meta{Type: metastore.MemoryMeta},
 		Storages: []config.Storage{{ID: "test-memory-0", Type: storage.MemoryStorage}},

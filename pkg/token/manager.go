@@ -32,7 +32,7 @@ import (
 
 type Manager struct {
 	store  metastore.AccessToken
-	cfg    config.Config
+	cfg    config.Bootstrap
 	logger *zap.SugaredLogger
 }
 
@@ -101,7 +101,7 @@ func (m *Manager) resignCerts(ctx context.Context, token *types.AccessToken) (er
 	return nil
 }
 
-func NewTokenManager(store metastore.AccessToken, cfg config.Config) *Manager {
+func NewTokenManager(store metastore.AccessToken, cfg config.Bootstrap) *Manager {
 	return &Manager{
 		store:  store,
 		cfg:    cfg,

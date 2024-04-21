@@ -32,12 +32,12 @@ import (
 )
 
 var (
-	cfg config.Config
+	cfg config.Bootstrap
 )
 
 type mockConfig struct{}
 
-func (m mockConfig) GetConfig() (config.Config, error) {
+func (m mockConfig) GetBootstrapConfig() (config.Bootstrap, error) {
 	return cfg, nil
 }
 
@@ -70,7 +70,7 @@ func TestFs(t *testing.T) {
 	logger.InitLogger()
 	defer logger.Sync()
 
-	cfg = config.Config{
+	cfg = config.Bootstrap{
 		FS:      &config.FS{Owner: config.FSOwner{Uid: 0, Gid: 0}},
 		HttpApi: config.HttpApi{Enable: true},
 		Storages: []config.Storage{{

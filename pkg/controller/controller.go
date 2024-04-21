@@ -104,7 +104,7 @@ type controller struct {
 	*inbox.Inbox
 
 	meta      metastore.Meta
-	cfg       config.Config
+	cfg       config.Bootstrap
 	cfgLoader config.Loader
 
 	entry    dentry.Manager
@@ -337,7 +337,7 @@ func (c *controller) ChangeEntryParent(ctx context.Context, targetId, oldParentI
 }
 
 func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
-	cfg, _ := loader.GetConfig()
+	cfg, _ := loader.GetBootstrapConfig()
 
 	ctl := &controller{
 		meta:      meta,

@@ -124,7 +124,7 @@ func (f *file) Close(ctx context.Context) (err error) {
 	defer f.reader.Close()
 	if f.attr.Write {
 		defer f.writer.Close()
-		if f.cfg.Writeback {
+		if f.attr.FsWriteback {
 			return f.writer.Flush(ctx)
 		}
 		return f.writer.Fsync(ctx)
@@ -132,8 +132,8 @@ func (f *file) Close(ctx context.Context) (err error) {
 	return nil
 }
 
-func openFile(en *types.Metadata, attr types.OpenAttr, chunkStore metastore.ChunkStore, fileStorage storage.Storage, cfg *config.FS) (File, error) {
-	f := &file{entryID: en.ID, size: en.Size, attr: attr, cfg: cfg}
+func openFile(en *types.Metadata, attr types.OpenAttr, chunkStore metastore.ChunkStore, fileStorage storage.Storage) (File, error) {
+	f := &file{entryID: en.ID, size: en.Size, attr: attr}
 	if fileStorage == nil {
 		return nil, logOperationError(fileOperationErrorCounter, "init", fmt.Errorf("storage %s not found", en.Storage))
 	}

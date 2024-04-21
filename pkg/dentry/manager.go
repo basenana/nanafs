@@ -64,37 +64,49 @@ type Manager interface {
 	MustCloseAll()
 }
 
-func NewManager(store metastore.Meta, cfg config.Config) (Manager, error) {
-	storages := make(map[string]storage.Storage)
-	var err error
+func NewManager(store metastore.Meta, cfg config.Bootstrap) (Manager, error) {
+	var (
+		defaultStorage storage.Storage
+		storages       = make(map[string]storage.Storage)
+		err            error
+	)
 	for i := range cfg.Storages {
 		storages[cfg.Storages[i].ID], err = storage.NewStorage(cfg.Storages[i].ID, cfg.Storages[i].Type, cfg.Storages[i])
 		if err != nil {
 			return nil, err
 		}
 	}
+
 	mgr := &manager{
-		store:      store,
-		metastore:  store,
-		extIndexer: NewExtIndexer(),
-		storages:   storages,
-		eventQ:     make(chan *entryEvent, 8),
-		cfg:        cfg,
-		logger:     logger.NewLogger("entryManager"),
+		store:          store,
+		metastore:      store,
+		extIndexer:     NewExtIndexer(),
+		defaultStorage: defaultStorage,
+		storages:       storages,
+		eventQ:         make(chan *entryEvent, 8),
+		fsOwnerUid:     cfg.FS.Owner.Uid,
+		fsOwnerGid:     cfg.FS.Owner.Gid,
+		fsWriteback:    cfg.FS.Writeback,
+		logger:         logger.NewLogger("entryManager"),
 	}
+
 	go mgr.entryActionEventHandler()
 	fileEntryLogger = mgr.logger.Named("files")
 	return mgr, err
 }
 
 type manager struct {
-	store      metastore.DEntry
-	metastore  metastore.Meta
-	extIndexer *ExtIndexer
-	storages   map[string]storage.Storage
-	eventQ     chan *entryEvent
-	cfg        config.Config
-	logger     *zap.SugaredLogger
+	store          metastore.DEntry
+	metastore      metastore.Meta
+	extIndexer     *ExtIndexer
+	defaultStorage storage.Storage
+	storages       map[string]storage.Storage
+	eventQ         chan *entryEvent
+	cfgLoader      config.Loader
+	fsOwnerUid     int64
+	fsOwnerGid     int64
+	fsWriteback    bool
+	logger         *zap.SugaredLogger
 }
 
 var _ Manager = &manager{}
@@ -105,14 +117,15 @@ func (m *manager) Root(ctx context.Context) (*types.Metadata, error) {
 	if err == nil {
 		return root, nil
 	}
-	if err != types.ErrNotFound {
+	if !errors.Is(err, types.ErrNotFound) {
 		m.logger.Errorw("load root object error", "err", err.Error())
 		return nil, err
 	}
 	root = initRootEntry()
-	root.Access.UID = m.cfg.FS.Owner.Uid
-	root.Access.GID = m.cfg.FS.Owner.Gid
-	root.Storage = m.cfg.Storages[0].ID
+	root.Access.UID = m.fsOwnerUid
+	root.Access.GID = m.fsOwnerGid
+	root.Storage = m.defaultStorage.ID()
+
 	err = m.store.CreateEntry(ctx, 0, root)
 	if err != nil {
 		m.logger.Errorw("create root entry failed", "err", err)
@@ -530,7 +543,8 @@ func (m *manager) Open(ctx context.Context, entryId int64, attr types.OpenAttr) 
 	case types.SymLinkKind:
 		f, err = openSymlink(m, entry, attr)
 	default:
-		f, err = openFile(entry, attr, m.metastore, m.storages[entry.Storage], m.cfg.FS)
+		attr.FsWriteback = m.fsWriteback
+		f, err = openFile(entry, attr, m.metastore, m.storages[entry.Storage])
 	}
 	if err != nil {
 		return nil, err

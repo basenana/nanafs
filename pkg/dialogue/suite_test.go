@@ -52,7 +52,7 @@ func TestDocument(t *testing.T) {
 	workdir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-room-")
 	Expect(err).Should(BeNil())
 	t.Logf("unit test workdir on: %s", workdir)
-	storage.InitLocalCache(config.Config{CacheDir: workdir, CacheSize: 1})
+	storage.InitLocalCache(config.Bootstrap{CacheDir: workdir, CacheSize: 1})
 
 	RunSpecs(t, "Room Suite")
 }
@@ -60,7 +60,7 @@ func TestDocument(t *testing.T) {
 var _ = BeforeSuite(func() {
 	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())
-	entryMgr, err = dentry.NewManager(memMeta, config.Config{
+	entryMgr, err = dentry.NewManager(memMeta, config.Bootstrap{
 		FS: &config.FS{},
 		Storages: []config.Storage{{
 			ID:   storage.MemoryStorage,

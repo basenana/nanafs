@@ -35,7 +35,7 @@ var _ = Describe("TestTemporaryNode", func() {
 	sk, err := utils.RandString(32)
 	Expect(err).Should(BeNil())
 
-	cfg := config.Config{
+	cfg := config.Bootstrap{
 		Storages: []config.Storage{
 			{
 				ID:       "test-local-1",
@@ -155,7 +155,7 @@ var _ = Describe("TestCacheNode", func() {
 	sk, err := utils.RandString(32)
 	Expect(err).Should(BeNil())
 
-	cfg := config.Config{
+	cfg := config.Bootstrap{
 		Storages: []config.Storage{
 			{
 				ID:   "test-local-1",

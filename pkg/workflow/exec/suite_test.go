@@ -59,8 +59,8 @@ var _ = BeforeSuite(func() {
 	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())
 
-	storage.InitLocalCache(config.Config{CacheDir: tempDir, CacheSize: 1})
-	entryMgr, err = dentry.NewManager(memMeta, config.Config{
+	storage.InitLocalCache(config.Bootstrap{CacheDir: tempDir, CacheSize: 1})
+	entryMgr, err = dentry.NewManager(memMeta, config.Bootstrap{
 		FS: &config.FS{},
 		Storages: []config.Storage{{
 			ID:   storage.MemoryStorage,

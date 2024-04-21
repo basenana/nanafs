@@ -109,7 +109,7 @@ func NewHttpApiServer(ctrl controller.Controller, mgr *pathmgr.PathManager, apiC
 	return s, nil
 }
 
-func Setup(ctrl controller.Controller, pathEntryMgr *pathmgr.PathManager, cfg config.Config, stopCh chan struct{}) error {
+func Setup(ctrl controller.Controller, pathEntryMgr *pathmgr.PathManager, cfg config.Bootstrap, stopCh chan struct{}) error {
 
 	if cfg.FsApi.Enable {
 		s, err := fsapi.New(ctrl, pathEntryMgr, cfg.FsApi)

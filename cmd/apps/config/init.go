@@ -74,7 +74,7 @@ func initDefaultConfig() {
 		return
 	}
 
-	conf := config.Config{
+	conf := config.Bootstrap{
 		Meta: config.Meta{
 			Type: metastore.SqliteMeta,
 			Path: dbFile,

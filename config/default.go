@@ -17,8 +17,11 @@
 package config
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"path"
+	"strings"
 )
 
 const (
@@ -33,4 +36,42 @@ func LocalUserPath() string {
 		return defaultSysLocalPath
 	}
 	return path.Join(homeDir, defaultWorkDir)
+}
+
+var (
+	defaultConfigValues []Value = []Value{
+		{Group: FsConfigGroup, Name: "writeback", Value: "false"},
+	}
+)
+
+func setDefaultConfigs(l Loader) error {
+	var (
+		ctx       context.Context
+		configVal Value
+	)
+	for _, defaultVal := range defaultConfigValues {
+		configVal = l.GetSystemConfig(ctx, defaultVal.Group, defaultVal.Name)
+		if configVal.Error == nil {
+			continue
+		}
+
+		if !isConfigNotFound(configVal.Error) {
+			return fmt.Errorf("get default config %s.%s failed %w", defaultVal.Group, defaultVal.Name, configVal.Error)
+		}
+
+		if err := l.SetSystemConfig(ctx, defaultVal.Group, defaultVal.Name, defaultVal.Value); err != nil {
+			return fmt.Errorf("set default config %s.%s failed %w", defaultVal.Group, defaultVal.Name, err)
+		}
+	}
+	return nil
+}
+
+func isConfigNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	if strings.Contains(err.Error(), "no record") {
+		return true
+	}
+	return false
 }

@@ -27,7 +27,7 @@ var (
 	storageIDRegexp  = regexp.MustCompile(storageIDPattern)
 )
 
-type verifier func(config *Config) error
+type verifier func(config *Bootstrap) error
 
 var verifiers = []verifier{
 	setDefaultValue,
@@ -41,14 +41,14 @@ var verifiers = []verifier{
 	checkLocalCache,
 }
 
-func setDefaultValue(config *Config) error {
+func setDefaultValue(config *Bootstrap) error {
 	if config.FS == nil {
 		config.FS = defaultFsConfig()
 	}
 	return nil
 }
 
-func checkFsApiConfig(config *Config) error {
+func checkFsApiConfig(config *Bootstrap) error {
 	fCfg := config.FsApi
 	if !fCfg.Enable {
 		return nil
@@ -59,7 +59,7 @@ func checkFsApiConfig(config *Config) error {
 	return nil
 }
 
-func checkHttpApiConfig(config *Config) error {
+func checkHttpApiConfig(config *Bootstrap) error {
 	aCfg := config.HttpApi
 	if !aCfg.Enable {
 		return nil
@@ -70,7 +70,7 @@ func checkHttpApiConfig(config *Config) error {
 	return nil
 }
 
-func checkFuseConfig(config *Config) error {
+func checkFuseConfig(config *Bootstrap) error {
 	fCfg := config.FUSE
 	if !fCfg.Enable {
 		return nil
@@ -82,7 +82,7 @@ func checkFuseConfig(config *Config) error {
 	return nil
 }
 
-func checkWebdavConfig(config *Config) error {
+func checkWebdavConfig(config *Bootstrap) error {
 	wCfg := config.Webdav
 	if wCfg == nil || !wCfg.Enable {
 		return nil
@@ -97,7 +97,7 @@ func checkWebdavConfig(config *Config) error {
 	return nil
 }
 
-func checkMetaConfig(config *Config) error {
+func checkMetaConfig(config *Bootstrap) error {
 	m := config.Meta
 	switch m.Type {
 	case MemoryMeta:
@@ -117,7 +117,7 @@ func checkMetaConfig(config *Config) error {
 	}
 }
 
-func checkStorageConfigs(config *Config) error {
+func checkStorageConfigs(config *Bootstrap) error {
 	if len(config.Storages) == 0 {
 		return fmt.Errorf("stroage not config")
 	}
@@ -134,7 +134,7 @@ func checkStorageConfigs(config *Config) error {
 	return nil
 }
 
-func checkGlobalEncryptionConfig(config *Config) error {
+func checkGlobalEncryptionConfig(config *Bootstrap) error {
 	if !config.GlobalEncryption.Enable {
 		return nil
 	}
@@ -242,7 +242,7 @@ func checkStorageConfig(sConfig Storage) error {
 	return nil
 }
 
-func checkLocalCache(config *Config) error {
+func checkLocalCache(config *Bootstrap) error {
 	if config.CacheDir == "" {
 		return fmt.Errorf("cache dir is empty")
 	}
@@ -252,7 +252,7 @@ func checkLocalCache(config *Config) error {
 	return nil
 }
 
-func Verify(cfg *Config) error {
+func Verify(cfg *Bootstrap) error {
 	for _, f := range verifiers {
 		if err := f(cfg); err != nil {
 			return err

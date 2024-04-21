@@ -64,7 +64,7 @@ var daemonCmd = &cobra.Command{
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		loader := config.NewConfigLoader()
-		cfg, err := loader.GetConfig()
+		cfg, err := loader.GetBootstrapConfig()
 		if err != nil {
 			panic(err)
 		}
@@ -74,6 +74,11 @@ var daemonCmd = &cobra.Command{
 		}
 
 		meta, err := metastore.NewMetaStorage(cfg.Meta.Type, cfg.Meta)
+		if err != nil {
+			panic(err)
+		}
+
+		err = loader.InitCMDB(meta)
 		if err != nil {
 			panic(err)
 		}
@@ -96,7 +101,7 @@ var daemonCmd = &cobra.Command{
 	},
 }
 
-func run(ctrl controller.Controller, cfg config.Config, stopCh chan struct{}) {
+func run(ctrl controller.Controller, cfg config.Bootstrap, stopCh chan struct{}) {
 	log := logger.NewLogger("nanafs")
 	log.Infow("starting", "version", config.VersionInfo().Version())
 	ctrl.StartBackendTask(stopCh)

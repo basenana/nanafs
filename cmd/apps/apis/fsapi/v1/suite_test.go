@@ -70,7 +70,7 @@ var _ = BeforeSuite(func() {
 	workdir, err := os.MkdirTemp(os.TempDir(), "ut-nanafs-fsapi-")
 	Expect(err).Should(BeNil())
 
-	storage.InitLocalCache(config.Config{CacheDir: workdir, CacheSize: 0})
+	storage.InitLocalCache(config.Bootstrap{CacheDir: workdir, CacheSize: 0})
 
 	ctrl, err = controller.New(mockConfig{}, memMeta)
 	Expect(err).Should(BeNil())
@@ -135,8 +135,8 @@ type mockConfig struct{}
 
 var _ config.Loader = mockConfig{}
 
-func (m mockConfig) GetConfig() (config.Config, error) {
-	var cfg = config.Config{
+func (m mockConfig) GetBootstrapConfig() (config.Bootstrap, error) {
+	var cfg = config.Bootstrap{
 		FS:       &config.FS{Owner: config.FSOwner{Uid: 0, Gid: 0}, Writeback: false},
 		Meta:     config.Meta{Type: metastore.MemoryMeta},
 		Storages: []config.Storage{{ID: "test-memory-0", Type: storage.MemoryStorage}},
