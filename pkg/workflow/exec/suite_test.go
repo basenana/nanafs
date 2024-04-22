@@ -53,8 +53,8 @@ var _ = BeforeSuite(func() {
 	tempDir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-exec-")
 	Expect(err).Should(BeNil())
 
-	loCfg.Workflow.Enable = true
-	loCfg.Workflow.JobWorkdir = tempDir
+	loCfg.Enable = true
+	loCfg.JobWorkdir = tempDir
 
 	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())

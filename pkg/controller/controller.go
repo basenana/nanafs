@@ -371,7 +371,7 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 	if err = plugin.Init(buildin.Services{DocumentManager: ctl.document}, loader); err != nil {
 		return nil, err
 	}
-	ctl.workflow, err = workflow.NewManager(ctl.entry, ctl.document, ctl.Notify, meta, bCfg.Workflow, bCfg.FUSE)
+	ctl.workflow, err = workflow.NewManager(ctl.entry, ctl.document, ctl.Notify, meta, loader)
 	if err != nil {
 		return nil, err
 	}

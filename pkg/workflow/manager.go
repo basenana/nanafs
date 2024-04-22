@@ -18,6 +18,7 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -60,30 +61,41 @@ type manager struct {
 	notify   *notify.Notify
 	cron     *CronHandler
 	recorder metastore.ScheduledTaskRecorder
-	config   config.Workflow
-	fuse     config.FUSE
+	config   config.Loader
 	logger   *zap.SugaredLogger
 }
 
 var _ Manager = &manager{}
 
-func NewManager(entryMgr dentry.Manager, docMgr document.Manager, notify *notify.Notify, recorder metastore.ScheduledTaskRecorder, config config.Workflow, fuse config.FUSE) (Manager, error) {
+func NewManager(entryMgr dentry.Manager, docMgr document.Manager, notify *notify.Notify, recorder metastore.ScheduledTaskRecorder, cfg config.Loader) (Manager, error) {
 	wfLogger = logger.NewLogger("workflow")
 
-	if !config.Enable {
+	workflowEnabled, err := cfg.GetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "enable").Bool()
+	if err != nil || !workflowEnabled {
+		if err != nil && errors.Is(err, config.ErrNotConfigured) {
+			wfLogger.Warnw("get workflow enable config failed, set disable", "err", err)
+		}
 		return disabledManager{}, nil
 	}
+	jobWorkdir, err := cfg.GetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "jobWorkdir").String()
+	if err != nil && !errors.Is(err, config.ErrNotConfigured) {
+		return nil, fmt.Errorf("get workflow job workdir failed: %w", err)
+	}
+	if jobWorkdir == "" {
+		jobWorkdir = genDefaultJobRootWorkdir()
+		wfLogger.Warnw("using default job root workdir", "jobWorkdir", jobWorkdir)
+	}
 
-	if err := initWorkflowJobRootWorkdir(&config); err != nil {
+	if err = initWorkflowJobRootWorkdir(jobWorkdir); err != nil {
 		return nil, fmt.Errorf("init workflow job root workdir error: %s", err)
 	}
 
-	if err := exec.RegisterOperators(entryMgr, docMgr, exec.Config{Workflow: config}); err != nil {
+	if err := exec.RegisterOperators(entryMgr, docMgr, exec.Config{Enable: true, JobWorkdir: jobWorkdir}); err != nil {
 		return nil, fmt.Errorf("register operators failed: %s", err)
 	}
 
 	flowCtrl := jobrun.NewJobController(recorder, notify)
-	mgr := &manager{ctrl: flowCtrl, entryMgr: entryMgr, docMgr: docMgr, recorder: recorder, config: config, fuse: fuse, logger: wfLogger}
+	mgr := &manager{ctrl: flowCtrl, entryMgr: entryMgr, docMgr: docMgr, recorder: recorder, config: cfg, logger: wfLogger}
 	root, err := entryMgr.Root(context.Background())
 	if err != nil {
 		mgr.logger.Errorw("query root failed", "err", err)

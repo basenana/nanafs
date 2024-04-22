@@ -17,8 +17,9 @@
 package config
 
 const (
-	FsConfigGroup     = "org.basenana.nanafs.fs"
-	AuthConfigGroup   = "org.basenana.nanafs.authentication"
-	DocConfigGroup    = "org.basenana.nanafs.document"
-	PluginConfigGroup = "org.basenana.nanafs.plugin"
+	FsConfigGroup       = "org.basenana.nanafs.fs"
+	AuthConfigGroup     = "org.basenana.nanafs.authentication"
+	DocConfigGroup      = "org.basenana.nanafs.document"
+	PluginConfigGroup   = "org.basenana.nanafs.plugin"
+	WorkflowConfigGroup = "org.basenana.nanafs.workflow"
 )

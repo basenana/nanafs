@@ -17,6 +17,7 @@
 package workflow
 
 import (
+	"context"
 	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"os"
 	"testing"
@@ -76,6 +77,10 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 
 	cfg := config.NewFakeConfigLoader(config.Bootstrap{})
+	err = cfg.SetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "enable", true)
+	Expect(err).Should(BeNil())
+	err = cfg.SetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "jobWorkdir", tempDir)
+	Expect(err).Should(BeNil())
 
 	docMgr, err = document.NewManager(memMeta, entryMgr, cfg)
 	Expect(err).Should(BeNil())
@@ -83,7 +88,7 @@ var _ = BeforeSuite(func() {
 	// init plugin
 	Expect(plugin.Init(buildin.Services{}, cfg)).Should(BeNil())
 
-	mgr, err = NewManager(entryMgr, docMgr, notify.NewNotify(memMeta), memMeta, config.Workflow{Enable: true, JobWorkdir: tempDir}, config.FUSE{})
+	mgr, err = NewManager(entryMgr, docMgr, notify.NewNotify(memMeta), memMeta, cfg)
 	Expect(err).Should(BeNil())
 
 	go mgr.Start(stopCh)

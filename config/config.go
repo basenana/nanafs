@@ -30,11 +30,8 @@ type Bootstrap struct {
 	Storages         []Storage  `json:"storages"`
 	GlobalEncryption Encryption `json:"global_encryption"`
 
-	Workflow Workflow           `json:"workflow"`
-	Plugin   *Plugin            `json:"plugin,omitempty"`
-	FS       *FS                `json:"fs,omitempty"`
-	Indexer  *Indexer           `json:"indexer,omitempty"`
-	Friday   *fridayconf.Config `json:"friday,omitempty"`
+	FS     *FS                `json:"fs,omitempty"`
+	Friday *fridayconf.Config `json:"friday,omitempty"`
 
 	CacheDir  string `json:"cache_dir,omitempty"`
 	CacheSize int    `json:"cache_size,omitempty"`
@@ -90,17 +87,4 @@ type OverwriteUser struct {
 	GID      int64  `json:"gid"`
 	Username string `json:"username"`
 	Password string `json:"password"`
-}
-
-type Indexer struct {
-	LocalIndexerDir string `json:"local_indexer_dir"`
-}
-
-type Workflow struct {
-	Enable     bool   `json:"enable"`
-	JobWorkdir string `json:"job_workdir"`
-}
-
-type Plugin struct {
-	BasePath string `json:"base_path"`
 }

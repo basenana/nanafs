@@ -28,7 +28,6 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/plugin"
@@ -82,7 +81,7 @@ type localExecutor struct {
 var _ jobrun.Executor = &localExecutor{}
 
 func (b *localExecutor) Setup(ctx context.Context) (err error) {
-	if !b.config.Workflow.Enable {
+	if !b.config.Enable {
 		return fmt.Errorf("workflow disabled")
 	}
 
@@ -90,7 +89,7 @@ func (b *localExecutor) Setup(ctx context.Context) (err error) {
 	defer logOperationLatency(LocalExecName, "setup", startAt)
 
 	// init workdir and copy entry file
-	b.workdir, err = initWorkdir(ctx, b.config.Workflow.JobWorkdir, b.job)
+	b.workdir, err = initWorkdir(ctx, b.config.JobWorkdir, b.job)
 	if err != nil {
 		b.logger.Errorw("init job workdir failed", "err", err)
 		return logOperationError(LocalExecName, "setup", err)
@@ -295,7 +294,8 @@ func (b *localExecutor) Teardown(ctx context.Context) {
 }
 
 type Config struct {
-	Workflow config.Workflow
+	Enable     bool
+	JobWorkdir string
 }
 
 type pipeExecutor struct {

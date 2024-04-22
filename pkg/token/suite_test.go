@@ -18,10 +18,8 @@ package token
 
 import (
 	"context"
-	"encoding/base64"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -45,16 +43,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 	testMeta = memMeta
 
-	ct := &utils.CertTool{}
-	caCert, caKey, err := ct.GenerateCAPair()
-	Expect(err).Should(BeNil())
-
 	cfgLoader := config.NewFakeConfigLoader(config.Bootstrap{})
-
-	err = cfgLoader.SetSystemConfig(context.Background(), config.AuthConfigGroup, "ca_cert_0", base64.StdEncoding.EncodeToString(caCert))
-	Expect(err).Should(BeNil())
-	err = cfgLoader.SetSystemConfig(context.Background(), config.AuthConfigGroup, "ca_key_0", base64.StdEncoding.EncodeToString(caKey))
-	Expect(err).Should(BeNil())
-
 	manager = NewTokenManager(memMeta, cfgLoader)
+	err = manager.InitBuildinCA(context.TODO())
+	Expect(err).Should(BeNil())
 })
