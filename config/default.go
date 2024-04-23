@@ -41,7 +41,9 @@ func LocalUserPath() string {
 
 var (
 	defaultConfigValues []Value = []Value{
-		{Group: FsConfigGroup, Name: "writeback", Value: "false"},
+		{Group: FsAPIConfigGroup, Name: "enable", Value: "true"},
+		{Group: FsAPIConfigGroup, Name: "host", Value: "127.0.0.1"},
+		{Group: FsAPIConfigGroup, Name: "port", Value: "7080"},
 	}
 )
 

@@ -31,7 +31,6 @@ type verifier func(config *Bootstrap) error
 
 var verifiers = []verifier{
 	setDefaultValue,
-	checkFsApiConfig,
 	checkHttpApiConfig,
 	checkFuseConfig,
 	checkWebdavConfig,
@@ -44,17 +43,6 @@ var verifiers = []verifier{
 func setDefaultValue(config *Bootstrap) error {
 	if config.FS == nil {
 		config.FS = defaultFsConfig()
-	}
-	return nil
-}
-
-func checkFsApiConfig(config *Bootstrap) error {
-	fCfg := config.FsApi
-	if !fCfg.Enable {
-		return nil
-	}
-	if fCfg.Host == "" || fCfg.Port == 0 {
-		return fmt.Errorf("fs_api.host or fs_api.port not config")
 	}
 	return nil
 }

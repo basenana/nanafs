@@ -18,8 +18,11 @@ package config
 
 const (
 	FsConfigGroup       = "org.basenana.nanafs.fs"
+	FsAPIConfigGroup    = "org.basenana.nanafs.fs.api"
 	AuthConfigGroup     = "org.basenana.nanafs.authentication"
 	DocConfigGroup      = "org.basenana.nanafs.document"
 	PluginConfigGroup   = "org.basenana.nanafs.plugin"
 	WorkflowConfigGroup = "org.basenana.nanafs.workflow"
+	WebdavConfigGroup   = "org.basenana.nanafs.webdav"
+	AdminApiConfigGroup = "org.basenana.nanafs.admin.api"
 )

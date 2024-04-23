@@ -17,8 +17,8 @@
 package fsapi
 
 import (
+	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
 	v1 "github.com/basenana/nanafs/cmd/apps/apis/fsapi/v1"
@@ -28,23 +28,16 @@ import (
 	"github.com/basenana/nanafs/utils/logger"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"log"
 	"net"
-	"os"
 )
 
 type Server struct {
 	server   *grpc.Server
 	listener net.Listener
 	services v1.Services
-	cfg      config.FsApi
 }
 
 func (s *Server) Run(stopCh chan struct{}) {
-	if !s.cfg.Enable {
-		return
-	}
-
 	go func() {
 		<-stopCh
 		s.server.GracefulStop()
@@ -55,45 +48,54 @@ func (s *Server) Run(stopCh chan struct{}) {
 	}
 }
 
-func New(ctrl controller.Controller, pathEntryMgr *pathmgr.PathManager, cfg config.FsApi) (*Server, error) {
-	if !cfg.Enable {
-		return nil, fmt.Errorf("fsapi not enabled")
+func New(ctrl controller.Controller, pathEntryMgr *pathmgr.PathManager, cfg config.Loader) (*Server, error) {
+	rootCaPool, err := common.ReadRootCAs(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("load root ca error: %w", err)
+	}
+	clientCaPool, err := common.ReadClientCAs(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("load client ca error: %w", err)
+	}
+	certificate, err := common.EnsureServerX509KeyPair(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("load cert/key file error: %w", err)
 	}
 
-	certPool := x509.NewCertPool()
-	ca, err := os.ReadFile(cfg.CaFile)
+	serviceName, err := common.ServiceName(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("open ca file %s error: %s", cfg.CaFile, err)
-	}
-	if ok := certPool.AppendCertsFromPEM(ca); !ok {
-		log.Fatal("failed to append ca certs")
+		return nil, fmt.Errorf("load service name error: %w", err)
 	}
 
-	certificate, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
-	if err != nil {
-		return nil, fmt.Errorf("open cert/key file error: %s", err)
-	}
 	creds := credentials.NewTLS(&tls.Config{
-		Certificates: []tls.Certificate{certificate},
-		ServerName:   cfg.ServerName,
-		RootCAs:      certPool,
-		ClientCAs:    certPool,
+		Certificates: []tls.Certificate{*certificate},
+		ServerName:   serviceName,
+		RootCAs:      rootCaPool,
+		ClientCAs:    clientCaPool,
 		ClientAuth:   tls.VerifyClientCertIfGiven,
 	})
+
+	serverHost, err := cfg.GetSystemConfig(context.TODO(), config.FsAPIConfigGroup, "host").String()
+	if err != nil {
+		return nil, fmt.Errorf("load server host error: %w", err)
+	}
+	serverPort, err := cfg.GetSystemConfig(context.TODO(), config.FsAPIConfigGroup, "port").Int()
+	if err != nil {
+		return nil, fmt.Errorf("load server port error: %w", err)
+	}
 
 	var opts = []grpc.ServerOption{
 		grpc.Creds(creds),
 		common.WithCommonInterceptors(),
 		common.WithStreamInterceptors(),
 	}
-	l, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.Host, cfg.Port))
+	l, err := net.Listen("tcp", fmt.Sprintf("%s:%d", serverHost, serverPort))
 	if err != nil {
 		return nil, fmt.Errorf("")
 	}
 	s := &Server{
 		listener: l,
 		server:   grpc.NewServer(opts...),
-		cfg:      cfg,
 	}
 	s.services, err = v1.InitServices(s.server, ctrl, pathEntryMgr)
 	if err != nil {

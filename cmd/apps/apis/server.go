@@ -18,6 +18,7 @@ package apis
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi"
 	"net/http"
@@ -109,26 +110,39 @@ func NewHttpApiServer(ctrl controller.Controller, mgr *pathmgr.PathManager, apiC
 	return s, nil
 }
 
-func Setup(ctrl controller.Controller, pathEntryMgr *pathmgr.PathManager, cfg config.Bootstrap, stopCh chan struct{}) error {
+func Setup(ctrl controller.Controller, pathEntryMgr *pathmgr.PathManager, cfg config.Loader, stopCh chan struct{}) error {
+	var ctx = context.Background()
 
-	if cfg.FsApi.Enable {
-		s, err := fsapi.New(ctrl, pathEntryMgr, cfg.FsApi)
+	fsAPIEnable, err := cfg.GetSystemConfig(ctx, config.FsAPIConfigGroup, "enable").Bool()
+	if err != nil && !errors.Is(err, config.ErrNotConfigured) {
+		return fmt.Errorf("get fs api enable config failed: %w", err)
+	}
+	if fsAPIEnable {
+		s, err := fsapi.New(ctrl, pathEntryMgr, cfg)
 		if err != nil {
 			return fmt.Errorf("init fsapi server failed: %w", err)
 		}
 		go s.Run(stopCh)
 	}
 
-	if cfg.HttpApi.Enable {
-		s, err := NewHttpApiServer(ctrl, pathEntryMgr, cfg.HttpApi)
+	adminAPIEnable, err := cfg.GetSystemConfig(ctx, config.AdminApiConfigGroup, "enable").Bool()
+	if err != nil && !errors.Is(err, config.ErrNotConfigured) {
+		return fmt.Errorf("get admin api enable config failed: %w", err)
+	}
+	if adminAPIEnable {
+		s, err := NewHttpApiServer(ctrl, pathEntryMgr, cfg)
 		if err != nil {
 			return fmt.Errorf("init http server failed: %w", err)
 		}
 		go s.Run(stopCh)
 	}
 
-	if cfg.Webdav != nil && cfg.Webdav.Enable {
-		w, err := webdav.NewWebdavServer(pathEntryMgr, *cfg.Webdav)
+	webdavEnable, err := cfg.GetSystemConfig(ctx, config.WebdavConfigGroup, "enable").Bool()
+	if err != nil && !errors.Is(err, config.ErrNotConfigured) {
+		return fmt.Errorf("get webdav api enable config failed: %w", err)
+	}
+	if webdavEnable {
+		w, err := webdav.NewWebdavServer(pathEntryMgr, cfg)
 		if err != nil {
 			return fmt.Errorf("init webdav server failed: %w", err)
 		}
