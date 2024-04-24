@@ -32,7 +32,6 @@ type verifier func(config *Bootstrap) error
 var verifiers = []verifier{
 	setDefaultValue,
 	checkFuseConfig,
-	checkWebdavConfig,
 	checkMetaConfig,
 	checkStorageConfigs,
 	checkGlobalEncryptionConfig,
@@ -54,21 +53,6 @@ func checkFuseConfig(config *Bootstrap) error {
 	_, err := os.Stat(fCfg.RootPath)
 	if err != nil {
 		return fmt.Errorf("check fuse.root_pata error: %s", err)
-	}
-	return nil
-}
-
-func checkWebdavConfig(config *Bootstrap) error {
-	wCfg := config.Webdav
-	if wCfg == nil || !wCfg.Enable {
-		return nil
-	}
-	if wCfg.Host == "" || wCfg.Port == 0 {
-		return fmt.Errorf("webdav.host or webdav.port not config")
-	}
-
-	if len(wCfg.OverwriteUsers) == 0 {
-		return fmt.Errorf("webdav.overwrite_users not config")
 	}
 	return nil
 }

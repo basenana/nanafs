@@ -14,11 +14,12 @@
  limitations under the License.
 */
 
-package common
+package apitool
 
 import (
 	"context"
-	"github.com/basenana/nanafs/config"
+	"fmt"
+	"github.com/basenana/nanafs/pkg/types"
 	"net/http"
 )
 
@@ -38,23 +39,31 @@ func GetUserInfo(ctx context.Context) *UserInfo {
 	return rawUi.(*UserInfo)
 }
 
-func BasicAuthHandler(h http.Handler, users []config.OverwriteUser) http.Handler {
-	userPassMapper := map[string]*config.OverwriteUser{}
-	for i := range users {
-		u := users[i]
-		userPassMapper[u.Username] = &u
-	}
+type TokenValidator interface {
+	AccessToken(ctx context.Context, ak, sk string) (*types.AccessToken, error)
+}
+
+func BasicAuthHandler(h http.Handler, validator TokenValidator) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		username, password, ok := r.BasicAuth()
-		if !ok || userPassMapper[username] == nil || userPassMapper[username].Password != password {
+		if !ok {
 			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = w.Write([]byte("Unauthorised.\n"))
 			return
 		}
+
+		tokenInfo, err := validator.AccessToken(r.Context(), username, password)
+		if err != nil {
+			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(fmt.Sprintf("%s\n", err)))
+			return
+		}
+
 		h.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userInfoContextKey, &UserInfo{
-			UID: userPassMapper[username].UID,
-			GID: userPassMapper[username].GID,
+			UID: tokenInfo.UID,
+			GID: tokenInfo.GID,
 		})))
 	})
 }

@@ -21,8 +21,7 @@ import (
 )
 
 type Bootstrap struct {
-	FUSE   FUSE    `json:"fuse"`
-	Webdav *Webdav `json:"webdav,omitempty"`
+	FUSE FUSE `json:"fuse"`
 
 	Meta             Meta       `json:"meta"`
 	Storages         []Storage  `json:"storages"`
@@ -34,14 +33,6 @@ type Bootstrap struct {
 	CacheDir  string `json:"cache_dir,omitempty"`
 	CacheSize int    `json:"cache_size,omitempty"`
 	Debug     bool   `json:"debug,omitempty"`
-}
-
-type HttpApi struct {
-	Enable  bool   `json:"enable"`
-	Host    string `json:"host"`
-	Port    int    `json:"port"`
-	Pprof   bool   `json:"pprof"`
-	Metrics bool   `json:"metrics"`
 }
 
 type FsApi struct {

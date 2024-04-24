@@ -36,6 +36,10 @@ type PathManager struct {
 	logger  *zap.SugaredLogger
 }
 
+func (m *PathManager) Controller() controller.Controller {
+	return m.ctrl
+}
+
 func (m *PathManager) Access(ctx context.Context, entryPath string, callerUid, callGid int64, perm os.FileMode) error {
 	var err error
 	entry, err := m.FindEntry(ctx, entryPath)

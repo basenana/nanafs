@@ -69,6 +69,9 @@ func (m *Manager) InitBuildinCA(ctx context.Context) error {
 func (m *Manager) AccessToken(ctx context.Context, ak, sk string) (*types.AccessToken, error) {
 	token, err := m.store.GetAccessToken(ctx, ak, sk)
 	if err != nil {
+		if errors.Is(err, types.ErrNotFound) {
+			return nil, types.ErrNoAccess
+		}
 		return nil, err
 	}
 

@@ -49,6 +49,9 @@ var (
 		{Group: FsAPIConfigGroup, Name: "enable", Value: "true"},
 		{Group: FsAPIConfigGroup, Name: "host", Value: "127.0.0.1"},
 		{Group: FsAPIConfigGroup, Name: "port", Value: "7081"},
+		{Group: WebdavConfigGroup, Name: "enable", Value: "false"},
+		{Group: WebdavConfigGroup, Name: "host", Value: "127.0.0.1"},
+		{Group: WebdavConfigGroup, Name: "port", Value: "7082"},
 	}
 )
 
