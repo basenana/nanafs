@@ -41,9 +41,14 @@ func LocalUserPath() string {
 
 var (
 	defaultConfigValues []Value = []Value{
+		{Group: AdminApiConfigGroup, Name: "enable", Value: "false"},
+		{Group: AdminApiConfigGroup, Name: "host", Value: "127.0.0.1"},
+		{Group: AdminApiConfigGroup, Name: "port", Value: "7080"},
+		{Group: AdminApiConfigGroup, Name: "enable_metric", Value: "true"},
+		{Group: AdminApiConfigGroup, Name: "enable_pprof", Value: "true"},
 		{Group: FsAPIConfigGroup, Name: "enable", Value: "true"},
 		{Group: FsAPIConfigGroup, Name: "host", Value: "127.0.0.1"},
-		{Group: FsAPIConfigGroup, Name: "port", Value: "7080"},
+		{Group: FsAPIConfigGroup, Name: "port", Value: "7081"},
 	}
 )
 

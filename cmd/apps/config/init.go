@@ -94,12 +94,6 @@ func initDefaultConfig() {
 		CacheDir:  cacheDir,
 		CacheSize: 10,
 		Debug:     false,
-		HttpApi: config.HttpApi{
-			Enable: false,
-			Host:   "127.0.0.1",
-			Port:   7081,
-			Pprof:  false,
-		},
 		Webdav: &config.Webdav{
 			Enable:         false,
 			Host:           "127.0.0.1",

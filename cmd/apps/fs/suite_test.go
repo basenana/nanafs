@@ -33,8 +33,7 @@ import (
 
 var (
 	cfg = config.Bootstrap{
-		FS:      &config.FS{Owner: config.FSOwner{Uid: 0, Gid: 0}},
-		HttpApi: config.HttpApi{Enable: true},
+		FS: &config.FS{Owner: config.FSOwner{Uid: 0, Gid: 0}},
 		Storages: []config.Storage{
 			{ID: storage.MemoryStorage, Type: storage.MemoryStorage},
 		},

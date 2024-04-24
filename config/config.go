@@ -21,9 +21,8 @@ import (
 )
 
 type Bootstrap struct {
-	HttpApi HttpApi `json:"http_api"`
-	FUSE    FUSE    `json:"fuse"`
-	Webdav  *Webdav `json:"webdav,omitempty"`
+	FUSE   FUSE    `json:"fuse"`
+	Webdav *Webdav `json:"webdav,omitempty"`
 
 	Meta             Meta       `json:"meta"`
 	Storages         []Storage  `json:"storages"`
