@@ -17,8 +17,9 @@
 package v1
 
 import (
-	"github.com/basenana/nanafs/pkg/types"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 var (

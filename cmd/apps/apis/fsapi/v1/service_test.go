@@ -26,6 +26,7 @@ import (
 	. "github.com/onsi/gomega"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/friday"
@@ -77,23 +78,22 @@ var _ = Describe("testRoomService", func() {
 		})
 
 		It("chat should be succeed", func() {
-			patch1 := ApplyFunc(friday.ChatInDir, func(ctx context.Context, dirId int64, history []map[string]string, response chan map[string]string) error {
-				response <- map[string]string{"content": "hello, I am response"}
-				return nil
+			patch1 := ApplyFunc(friday.ChatWithEntry, func(ctx context.Context, dirId int64, isGroup bool, history []map[string]string, response chan map[string]string) ([]map[string]string, error) {
+				response <- map[string]string{"content": "hello, I am response\n"}
+				response <- map[string]string{"content": "abc"}
+				close(response)
+				return []map[string]string{}, nil
 			})
 			defer patch1.Reset()
-			patch2 := ApplyFunc(friday.ChatInEntry, func(ctx context.Context, dirId int64, history []map[string]string, response chan map[string]string) error {
-				response <- map[string]string{"content": "hello, I am response"}
-				return nil
-			})
-			defer patch2.Reset()
 
 			var (
-				content string
+				content   string
+				requestId int64
 			)
 			chater, err := serviceClient.ChatInRoom(ctx, &ChatRequest{
 				RoomID:     roomId,
-				NewMessage: "hello",
+				NewRequest: "hello",
+				SendAt:     timestamppb.New(time.Now()),
 			})
 			Expect(err).Should(BeNil())
 
@@ -103,10 +103,13 @@ var _ = Describe("testRoomService", func() {
 					break
 				}
 				Expect(err).Should(BeNil())
-				content += resp.ReplyMessage
+				if resp.RequestID != 0 {
+					requestId = resp.RequestID
+				}
+				content += resp.ResponseMessage
 			}
 
-			Expect(content).Should(Equal("hello, I am response"))
+			Expect(content).Should(Equal("hello, I am response\nabc"))
 
 			// message should be saved
 			res, err := serviceClient.OpenRoom(ctx, &OpenRoomRequest{
@@ -114,9 +117,10 @@ var _ = Describe("testRoomService", func() {
 				RoomID:  roomId,
 			})
 			Expect(err).Should(BeNil())
-			Expect(len(res.Room.Messages)).Should(Equal(1))
-			Expect(res.Room.Messages[0].UserMsg).Should(Equal("hello"))
-			Expect(res.Room.Messages[0].ModelMsg).Should(Equal("hello, I am response"))
+			Expect(len(res.Room.Messages)).Should(Equal(2))
+			Expect(res.Room.Messages[0].Message).Should(Equal("hello"))
+			Expect(res.Room.Messages[0].Id).Should(Equal(requestId))
+			Expect(res.Room.Messages[1].Message).Should(Equal("hello, I am response\nabc"))
 		})
 
 		It("delete should be succeed", func() {

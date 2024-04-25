@@ -35,8 +35,7 @@ type Manager interface {
 	UpdateRoom(ctx context.Context, room *types.Room) error
 	GetRoom(ctx context.Context, id int64) (*types.Room, error)
 	DeleteRoom(ctx context.Context, id int64) error
-	Chat(ctx context.Context, roomId int64, newMsg string, response chan map[string]string) (err error)
-	CreateMessage(ctx context.Context, roomId int64, newMsg, response string) error
+	SaveMessage(ctx context.Context, roomMessage *types.RoomMessage) (*types.RoomMessage, error)
 }
 
 type manager struct {
@@ -115,17 +114,20 @@ func (m *manager) DeleteRoom(ctx context.Context, id int64) error {
 	return m.recorder.DeleteRoom(ctx, id)
 }
 
-func (m *manager) CreateMessage(ctx context.Context, roomId int64, newMsg, response string) error {
-	return m.recorder.CreateRoomMessage(ctx, &types.RoomMessage{
-		ID:        utils.GenerateNewID(),
-		RoomID:    roomId,
-		UserMsg:   newMsg,
-		ModelMsg:  response,
-		CreatedAt: time.Now(),
-	})
-}
+func (m *manager) SaveMessage(ctx context.Context, roomMessage *types.RoomMessage) (*types.RoomMessage, error) {
+	if roomMessage.ID == 0 {
+		roomMessage.ID = utils.GenerateNewID()
+		roomMessage.CreatedAt = time.Now()
+		return roomMessage, m.recorder.SaveRoomMessage(ctx, roomMessage)
+	}
+	crtMsg, err := m.recorder.GetRoomMessage(ctx, roomMessage.ID)
+	if err != nil {
+		return nil, err
+	}
 
-func (m *manager) Chat(ctx context.Context, roomId int64, newMsg string, response chan map[string]string) (err error) {
-	// todo
-	return nil
+	if roomMessage.Message != "" {
+		crtMsg.Message = roomMessage.Message
+	}
+
+	return crtMsg, m.recorder.SaveRoomMessage(ctx, crtMsg)
 }

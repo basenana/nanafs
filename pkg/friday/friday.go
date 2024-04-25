@@ -106,20 +106,17 @@ func Keywords(ctx context.Context, content string) ([]string, map[string]int, er
 	return result.Keywords, result.Tokens, f.Error
 }
 
-func ChatInDir(ctx context.Context, dirId int64, history []map[string]string, response chan map[string]string) error {
+func ChatWithEntry(ctx context.Context, entryId int64, isGroup bool, history []map[string]string, response chan map[string]string) ([]map[string]string, error) {
 	if fridayClient == nil {
-		return fmt.Errorf("fridayClient is nil, can not use it")
+		return nil, fmt.Errorf("fridayClient is nil, can not use it")
 	}
 	result := friday.ChatState{Response: response}
-	f := fridayClient.WithContext(ctx).History(history).SearchIn(&models.DocQuery{ParentId: dirId}).Chat(&result)
-	return f.Error
-}
-
-func ChatInEntry(ctx context.Context, entryId int64, history []map[string]string, response chan map[string]string) error {
-	if fridayClient == nil {
-		return fmt.Errorf("fridayClient is nil, can not use it")
+	f := fridayClient.WithContext(ctx).History(history)
+	if isGroup {
+		f = f.SearchIn(&models.DocQuery{ParentId: entryId})
+	} else {
+		f = f.SearchIn(&models.DocQuery{Oid: entryId})
 	}
-	result := friday.ChatState{Response: response}
-	f := fridayClient.WithContext(ctx).History(history).SearchIn(&models.DocQuery{Oid: entryId}).Chat(&result)
-	return f.Error
+	f = f.Chat(&result)
+	return f.GetRealHistory(), f.Error
 }

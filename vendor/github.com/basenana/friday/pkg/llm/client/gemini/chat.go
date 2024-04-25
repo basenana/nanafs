@@ -36,6 +36,7 @@ func (g *Gemini) GetAssistantModel() string {
 }
 
 func (g *Gemini) Chat(ctx context.Context, stream bool, history []map[string]string, answers chan<- map[string]string) (tokens map[string]int, err error) {
+	defer close(answers)
 	var path string
 	path = fmt.Sprintf("v1beta/models/%s:generateContent", *g.conf.Model)
 	if stream {
@@ -65,11 +66,15 @@ func (g *Gemini) Chat(ctx context.Context, stream bool, history []map[string]str
 		ans := make(map[string]string)
 		l := strings.TrimSpace(string(line))
 		if stream {
-			if !strings.HasPrefix(l, "\"text\"") {
-				continue
+			if l == "EOF" {
+				ans["content"] = "EOF"
+			} else {
+				if !strings.HasPrefix(l, "\"text\"") {
+					continue
+				}
+				// it should be: "text": "xxx"
+				ans["content"] = l[9 : len(l)-2]
 			}
-			// it should be: "text": "xxx"
-			ans["content"] = l[9 : len(l)-2]
 		} else {
 			var res ChatResult
 			err = json.Unmarshal(line, &res)

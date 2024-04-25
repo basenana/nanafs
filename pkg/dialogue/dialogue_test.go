@@ -18,6 +18,7 @@ package dialogue
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -66,7 +67,13 @@ var _ = Describe("testRoomManage", func() {
 			Expect(room.Prompt).Should(Equal("test prompt"))
 		})
 		It("create msg should be succeed", func() {
-			err := roomManager.CreateMessage(context.TODO(), roomId, "hello", "It is a response")
+			_, err := roomManager.SaveMessage(context.TODO(), &types.RoomMessage{
+				RoomID:    roomId,
+				Sender:    "user",
+				Message:   "hello",
+				SendAt:    time.Now(),
+				CreatedAt: time.Now(),
+			})
 			Expect(err).Should(BeNil())
 		})
 		It("list room msg should be succeed", func() {
