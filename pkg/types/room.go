@@ -33,7 +33,16 @@ type RoomMessage struct {
 	ID        int64     `json:"id"`
 	Namespace string    `json:"namespace"`
 	RoomID    int64     `json:"room_id"`
-	UserMsg   string    `json:"user_msg"`
-	ModelMsg  string    `json:"model_msg"`
+	Sender    string    `json:"sender"`
+	Message   string    `json:"message"`
+	SendAt    time.Time `json:"send_at"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type ReplyChannel struct {
+	Line       string
+	ResponseId int64
+	Sender     string
+	SendAt     time.Time
+	CreatedAt  time.Time
 }

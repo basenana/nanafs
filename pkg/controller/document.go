@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+
 	"github.com/mmcdole/gofeed"
 
 	"github.com/basenana/nanafs/pkg/types"
@@ -35,6 +36,10 @@ func (c *controller) ListDocuments(ctx context.Context, filter types.DocFilter) 
 		return nil, err
 	}
 	return result, nil
+}
+
+func (c *controller) GetDocument(ctx context.Context, id int64) (*types.Document, error) {
+	return c.document.GetDocument(ctx, id)
 }
 
 func (c *controller) GetDocumentsByFeed(ctx context.Context, feedId string, count int) (*types.FeedResult, error) {

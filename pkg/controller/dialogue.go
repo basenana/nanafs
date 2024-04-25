@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	friday2 "github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/types"
@@ -69,7 +70,23 @@ func (c *controller) DeleteRoom(ctx context.Context, id int64) error {
 	return err
 }
 
-func (c *controller) ChatInRoom(ctx context.Context, roomId int64, newMsg string, reply chan string) error {
+func (c *controller) CreateRoomMessage(ctx context.Context, roomID int64, sender, msg string, sendAt time.Time) (*types.RoomMessage, error) {
+	result, err := c.dialogue.SaveMessage(ctx, &types.RoomMessage{
+		RoomID:    roomID,
+		Sender:    sender,
+		Message:   msg,
+		SendAt:    sendAt,
+		CreatedAt: time.Now(),
+	})
+	if err != nil {
+		c.logger.Errorw("save message failed", "err", err)
+		return nil, err
+	}
+	return result, nil
+}
+
+func (c *controller) ChatInRoom(ctx context.Context, roomId int64, newMsg string, reply chan types.ReplyChannel) error {
+	defer close(reply)
 	room, err := c.dialogue.GetRoom(ctx, roomId)
 	if err != nil {
 		c.logger.Errorw("get room failed", "err", err)
@@ -81,45 +98,84 @@ func (c *controller) ChatInRoom(ctx context.Context, roomId int64, newMsg string
 		return err
 	}
 	var (
-		isDir      = false
-		responseCh = make(chan map[string]string)
-		model      string
-		respMsg    string
+		isDir         = false
+		responseCh    = make(chan map[string]string)
+		model         string
+		respMsg       string
+		realHistory   = room.History
+		errCh         = make(chan error, 1)
+		responseMsgId int64
 	)
 	if entry.Kind == types.GroupKind {
 		isDir = true
 	}
 
-	go func() {
-		if isDir {
-			err = friday2.ChatInDir(ctx, room.EntryId, []map[string]string{{"role": "user", "content": newMsg}}, responseCh)
-		} else {
-			err = friday2.ChatInEntry(ctx, room.EntryId, []map[string]string{{"role": "user", "content": newMsg}}, responseCh)
-		}
-		close(responseCh)
-	}()
-	if err != nil {
-		return err
-	}
-
-	for line := range responseCh {
-		reply <- line["content"]
-		model = line["role"]
-		respMsg += line["content"]
-	}
+	realHistory = append(realHistory, map[string]string{"role": "user", "content": newMsg})
 
 	// update roomMessage
-	realMsg := room.History
-	realMsg = append(realMsg, map[string]string{"role": "user", "content": newMsg}, map[string]string{"role": model, "content": respMsg})
+	room.History = realHistory
 	err = c.dialogue.UpdateRoom(ctx, room)
 	if err != nil {
 		c.logger.Errorw("update room failed", "err", err)
 		return err
 	}
-	err = c.dialogue.CreateMessage(ctx, roomId, newMsg, respMsg)
 	if err != nil {
 		c.logger.Errorw("create message failed", "err", err)
 		return err
 	}
-	return nil
+
+	go func() {
+		defer close(errCh)
+		realHistory, err = friday2.ChatWithEntry(ctx, room.EntryId, isDir, realHistory, responseCh)
+		if err != nil {
+			errCh <- err
+		}
+	}()
+
+	for {
+		select {
+		case err = <-errCh:
+			return err
+		case line, ok := <-responseCh:
+
+			if !ok {
+				// update roomMessage
+				realHistory = append(realHistory, map[string]string{"role": model, "content": respMsg})
+				room.History = realHistory
+				err = c.dialogue.UpdateRoom(ctx, room)
+				if err != nil {
+					c.logger.Errorw("update room failed", "err", err)
+					return err
+				}
+			}
+
+			if model == "" {
+				model = line["role"]
+			}
+			respMsg += line["content"]
+
+			// save model message
+			response, err := c.dialogue.SaveMessage(ctx, &types.RoomMessage{
+				ID:      responseMsgId,
+				RoomID:  roomId,
+				Sender:  model,
+				Message: respMsg,
+				SendAt:  time.Now(),
+			})
+			if err != nil {
+				c.logger.Errorw("save message failed", "err", err)
+				return err
+			}
+			if responseMsgId == 0 {
+				responseMsgId = response.ID
+			}
+			reply <- types.ReplyChannel{
+				Line:       line["content"],
+				ResponseId: responseMsgId,
+				Sender:     model,
+				SendAt:     response.SendAt,
+				CreatedAt:  response.CreatedAt,
+			}
+		}
+	}
 }

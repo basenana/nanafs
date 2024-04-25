@@ -65,6 +65,7 @@ func (o *OpenAIV1) GetAssistantModel() string {
 }
 
 func (o *OpenAIV1) Chat(ctx context.Context, stream bool, history []map[string]string, resp chan<- map[string]string) (tokens map[string]int, err error) {
+	defer close(resp)
 	path := "v1/chat/completions"
 
 	data := map[string]interface{}{
@@ -92,17 +93,21 @@ func (o *OpenAIV1) Chat(ctx context.Context, stream bool, history []map[string]s
 		var delta map[string]string
 		if stream {
 			var res ChatStreamResult
-			if !strings.HasPrefix(string(line), "data:") || strings.Contains(string(line), "data: [DONE]") {
-				continue
+			if string(line) == "EOF" {
+				delta = map[string]string{"content": "EOF"}
+			} else {
+				if !strings.HasPrefix(string(line), "data:") || strings.Contains(string(line), "data: [DONE]") {
+					continue
+				}
+				// it should be: data: xxx
+				l := string(line)[6:]
+				err = json.Unmarshal([]byte(l), &res)
+				if err != nil {
+					err = fmt.Errorf("cannot marshal msg: %s, err: %v", line, err)
+					return
+				}
+				delta = res.Choices[0].Delta
 			}
-			// it should be: data: xxx
-			l := string(line)[6:]
-			err = json.Unmarshal([]byte(l), &res)
-			if err != nil {
-				err = fmt.Errorf("cannot marshal msg: %s, err: %v", line, err)
-				return
-			}
-			delta = res.Choices[0].Delta
 		} else {
 			var res ChatResult
 			err = json.Unmarshal(line, &res)

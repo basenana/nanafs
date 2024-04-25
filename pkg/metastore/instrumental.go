@@ -562,12 +562,20 @@ func (i instrumentalStore) ListRoomMessage(ctx context.Context, roomId int64) ([
 	return room, err
 }
 
-func (i instrumentalStore) CreateRoomMessage(ctx context.Context, msg *types.RoomMessage) error {
-	const operation = "create_room_message"
+func (i instrumentalStore) SaveRoomMessage(ctx context.Context, msg *types.RoomMessage) error {
+	const operation = "save_room_message"
 	defer logOperationLatency(operation, time.Now())
-	err := i.store.CreateRoomMessage(ctx, msg)
+	err := i.store.SaveRoomMessage(ctx, msg)
 	logOperationError(operation, err)
 	return err
+}
+
+func (i instrumentalStore) GetRoomMessage(ctx context.Context, msgId int64) (*types.RoomMessage, error) {
+	const operation = "get_room_message"
+	defer logOperationLatency(operation, time.Now())
+	msg, err := i.store.GetRoomMessage(ctx, msgId)
+	logOperationError(operation, err)
+	return msg, err
 }
 
 func (i instrumentalStore) DeleteRoomMessages(ctx context.Context, roomId int64) error {

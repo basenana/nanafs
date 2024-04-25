@@ -87,7 +87,8 @@ type DEntry interface {
 	DeleteRoom(ctx context.Context, id int64) error
 	ListRooms(ctx context.Context, entryId int64) ([]*types.Room, error)
 	ListRoomMessage(ctx context.Context, roomId int64) ([]*types.RoomMessage, error)
-	CreateRoomMessage(ctx context.Context, msg *types.RoomMessage) error
+	SaveRoomMessage(ctx context.Context, msg *types.RoomMessage) error
+	GetRoomMessage(ctx context.Context, msgId int64) (*types.RoomMessage, error)
 	DeleteRoomMessages(ctx context.Context, roomId int64) error
 }
 

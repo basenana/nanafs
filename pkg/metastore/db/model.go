@@ -620,8 +620,8 @@ type Room struct {
 
 func (r *Room) TableName() string { return "room" }
 
-func (r *Room) From(room *types.Room) *Room {
-	return &Room{
+func (r *Room) From(room *types.Room) (*Room, error) {
+	res := &Room{
 		ID:        room.ID,
 		Namespace: room.Namespace,
 		Title:     room.Title,
@@ -629,6 +629,13 @@ func (r *Room) From(room *types.Room) *Room {
 		Prompt:    room.Prompt,
 		CreatedAt: room.CreatedAt,
 	}
+
+	history, err := json.Marshal(room.History)
+	if err != nil {
+		return nil, err
+	}
+	res.History = string(history)
+	return res, nil
 }
 
 func (r *Room) To() (room *types.Room, err error) {
@@ -651,8 +658,9 @@ type RoomMessage struct {
 	ID        int64     `gorm:"column:id;primaryKey"`
 	Namespace string    `gorm:"column:namespace;index:message_namespace"`
 	RoomID    int64     `gorm:"column:room_id;index:message_room_id"`
-	UserMsg   string    `gorm:"column:user_msg"`
-	ModelMsg  string    `gorm:"column:model_msg"`
+	Sender    string    `gorm:"column:sender"`
+	Message   string    `gorm:"column:message"`
+	SendAt    time.Time `gorm:"column:send_at"`
 	CreatedAt time.Time `gorm:"column:created_at"`
 }
 
@@ -663,8 +671,9 @@ func (r *RoomMessage) From(roomMessage *types.RoomMessage) *RoomMessage {
 		ID:        roomMessage.ID,
 		Namespace: roomMessage.Namespace,
 		RoomID:    roomMessage.RoomID,
-		UserMsg:   roomMessage.UserMsg,
-		ModelMsg:  roomMessage.ModelMsg,
+		Sender:    roomMessage.Sender,
+		Message:   roomMessage.Message,
+		SendAt:    roomMessage.SendAt,
 		CreatedAt: roomMessage.CreatedAt,
 	}
 }
@@ -674,8 +683,9 @@ func (r *RoomMessage) To() (roomMessage *types.RoomMessage) {
 		ID:        r.ID,
 		Namespace: r.Namespace,
 		RoomID:    r.RoomID,
-		UserMsg:   r.UserMsg,
-		ModelMsg:  r.ModelMsg,
+		Sender:    r.Sender,
+		Message:   r.Message,
+		SendAt:    r.SendAt,
 		CreatedAt: r.CreatedAt,
 	}
 	return

@@ -18,7 +18,9 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"io"
+	"time"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -96,7 +98,11 @@ func (s *services) OpenRoom(ctx context.Context, request *OpenRoomRequest) (*Ope
 	}
 	if request.RoomID == 0 {
 		// need create a new one
-		room, err := s.ctrl.CreateRoom(ctx, request.EntryID, request.Option.Prompt)
+		prompt := ""
+		if request.Option != nil {
+			prompt = request.Option.Prompt
+		}
+		room, err := s.ctrl.CreateRoom(ctx, request.EntryID, prompt)
 		if err != nil {
 			return nil, status.Error(common.FsApiError(err), "create room failed")
 		}
@@ -114,8 +120,9 @@ func (s *services) OpenRoom(ctx context.Context, request *OpenRoomRequest) (*Ope
 		msg = append(msg, &RoomMessage{
 			Id:        m.ID,
 			RoomID:    m.RoomID,
-			UserMsg:   m.UserMsg,
-			ModelMsg:  m.ModelMsg,
+			Sender:    m.Sender,
+			Message:   m.Message,
+			SendAt:    timestamppb.New(m.SendAt),
 			CreatedAt: timestamppb.New(m.CreatedAt),
 		})
 	}
@@ -134,32 +141,65 @@ func (s *services) UpdateRoom(ctx context.Context, request *UpdateRoomRequest) (
 	}
 	return &UpdateRoomResponse{RoomID: request.RoomID}, nil
 }
+
 func (s *services) ChatInRoom(request *ChatRequest, server Room_ChatInRoomServer) error {
 	if request.RoomID == 0 {
 		return status.Error(codes.InvalidArgument, "room id is empty")
 	}
-	if request.NewMessage == "" {
+	if request.NewRequest == "" {
 		return status.Error(codes.InvalidArgument, "message is empty")
 	}
+
+	// save user message
+	msg, err := s.ctrl.CreateRoomMessage(server.Context(), request.RoomID, "user", request.NewRequest, request.SendAt.AsTime())
+	if err != nil {
+		return status.Error(common.FsApiError(err), "create message failed")
+	}
+
+	if err := server.Send(&ChatResponse{
+		RequestID:       msg.ID,
+		ResponseID:      0,
+		ResponseMessage: "",
+		SendAt:          nil,
+		CreatedAt:       nil,
+	}); err != nil {
+		return status.Error(common.FsApiError(err), "send message error")
+	}
+
 	var (
-		ctx    = server.Context()
-		chatCh = make(chan string)
-		err    error
+		timeout       = time.Minute * 10
+		ctx, timeoutF = context.WithTimeout(server.Context(), timeout)
+		chatCh        = make(chan types.ReplyChannel)
+		errCh         = make(chan error, 1)
 	)
+	defer timeoutF()
+	go func() {
+		defer close(errCh)
+		errCh <- s.ctrl.ChatInRoom(ctx, request.RoomID, request.NewRequest, chatCh)
+	}()
 	for {
-		go func() {
-			err = s.ctrl.ChatInRoom(ctx, request.RoomID, request.NewMessage, chatCh)
-			close(chatCh)
-		}()
-		if err != nil {
-			return status.Error(common.FsApiError(err), "chat in room failed")
-		}
-		for line := range chatCh {
-			if err := server.Send(&ChatResponse{ReplyMessage: line}); err != nil {
-				return err
+		select {
+		case <-ctx.Done():
+			err := errors.New("chat in room timeout")
+			return status.Error(common.FsApiError(err), "context timeout")
+		case err := <-errCh:
+			if err != nil {
+				return status.Error(common.FsApiError(err), "chat in room failed")
+			}
+		case reply, ok := <-chatCh:
+			if !ok {
+				return nil
+			}
+			if err := server.Send(&ChatResponse{
+				ResponseID:      reply.ResponseId,
+				ResponseMessage: reply.Line,
+				Sender:          reply.Sender,
+				SendAt:          timestamppb.New(reply.SendAt),
+				CreatedAt:       timestamppb.New(reply.CreatedAt),
+			}); err != nil {
+				return status.Error(common.FsApiError(err), "send message error")
 			}
 		}
-		return nil
 	}
 }
 
@@ -221,12 +261,24 @@ func (s *services) ListDocuments(ctx context.Context, request *ListDocumentsRequ
 }
 
 func (s *services) GetDocumentDetail(ctx context.Context, request *GetDocumentDetailRequest) (*GetDocumentDetailResponse, error) {
-	if request.EntryID == 0 {
-		return nil, status.Error(codes.InvalidArgument, "entry id is empty")
+	if request.DocumentID == 0 && request.EntryID == 0 {
+		return nil, status.Error(codes.InvalidArgument, "entry id and document are all empty")
 	}
-	doc, err := s.ctrl.GetDocumentsByEntryId(ctx, request.EntryID)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query document with entry id failed")
+	var (
+		doc *types.Document
+		err error
+	)
+	if request.DocumentID != 0 {
+		doc, err = s.ctrl.GetDocument(ctx, request.DocumentID)
+		if err != nil {
+			return nil, status.Error(common.FsApiError(err), "query document with document id failed")
+		}
+	}
+	if request.EntryID != 0 {
+		doc, err = s.ctrl.GetDocumentsByEntryId(ctx, request.EntryID)
+		if err != nil {
+			return nil, status.Error(common.FsApiError(err), "query document with entry id failed")
+		}
 	}
 	return &GetDocumentDetailResponse{
 		Document: &DocumentDescribe{

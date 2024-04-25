@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"runtime/trace"
+	"time"
 
 	"github.com/basenana/nanafs/pkg/dialogue"
 	"github.com/basenana/nanafs/pkg/friday"
@@ -77,6 +78,7 @@ type Controller interface {
 	GetDocumentsByFeed(ctx context.Context, feedId string, count int) (*types.FeedResult, error)
 	ListDocuments(ctx context.Context, filter types.DocFilter) ([]*types.Document, error)
 	GetDocumentsByEntryId(ctx context.Context, entryId int64) (*types.Document, error)
+	GetDocument(ctx context.Context, documentId int64) (*types.Document, error)
 	QueryDocuments(ctx context.Context, query string) ([]*types.Document, error)
 
 	ListRooms(ctx context.Context, entryId int64) ([]*types.Room, error)
@@ -84,7 +86,8 @@ type Controller interface {
 	GetRoom(ctx context.Context, id int64) (*types.Room, error)
 	UpdateRoom(ctx context.Context, roomId int64, prompt string) error
 	DeleteRoom(ctx context.Context, id int64) error
-	ChatInRoom(ctx context.Context, roomId int64, newMsg string, reply chan string) (err error)
+	ChatInRoom(ctx context.Context, roomId int64, newMsg string, reply chan types.ReplyChannel) (err error)
+	CreateRoomMessage(ctx context.Context, roomID int64, sender, msg string, sendAt time.Time) (*types.RoomMessage, error)
 
 	OpenFile(ctx context.Context, entryId int64, attr types.OpenAttr) (dentry.File, error)
 	ReadFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error)
