@@ -48,7 +48,7 @@ func (c *CertTool) GenerateCAPair() (certContent []byte, keyContent []byte, err 
 			Locality:     []string{"HZ"},
 		},
 		NotBefore:             time.Now(),
-		NotAfter:              time.Now().AddDate(10, 0, 0),
+		NotAfter:              time.Now().AddDate(50, 0, 0),
 		IsCA:                  true,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,

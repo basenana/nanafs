@@ -38,11 +38,14 @@ type Server struct {
 }
 
 func (s *Server) Run(stopCh chan struct{}) {
+	log := logger.NewLogger("fsAPI")
 	go func() {
 		<-stopCh
 		s.server.GracefulStop()
+		log.Infow("shutdown")
 	}()
 
+	log.Infof("listen on %s", s.listener.Addr().String())
 	if err := s.server.Serve(s.listener); err != nil {
 		logger.NewLogger("fsapi").Fatalf("start server failed: %s", err)
 	}

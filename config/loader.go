@@ -231,7 +231,7 @@ func (v Value) Bool() (bool, error) {
 	case "yes", "y", "true", "t":
 		return true, nil
 	case "no", "n", "false", "f":
-		return true, nil
+		return false, nil
 	default:
 		return false, fmt.Errorf("unknown bool config value %s", v.Value)
 	}
