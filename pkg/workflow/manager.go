@@ -77,7 +77,7 @@ func NewManager(entryMgr dentry.Manager, docMgr document.Manager, notify *notify
 		}
 		return disabledManager{}, nil
 	}
-	jobWorkdir, err := cfg.GetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "jobWorkdir").String()
+	jobWorkdir, err := cfg.GetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "job_workdir").String()
 	if err != nil && !errors.Is(err, config.ErrNotConfigured) {
 		return nil, fmt.Errorf("get workflow job workdir failed: %w", err)
 	}

@@ -653,12 +653,9 @@ func (s *sqlMetaStore) SystemInfo(ctx context.Context) (*types.SystemInfo, error
 func (s *sqlMetaStore) GetConfigValue(ctx context.Context, group string, name string) (string, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.GetConfigValue").End()
 	var sysCfg = db.SystemConfig{}
-	res := s.WithContext(ctx).Where("group = ? AND name = ?", group, name).First(&sysCfg)
+	res := s.WithContext(ctx).Where("cfg_group = ? AND cfg_name = ?", group, name).First(&sysCfg)
 	if res.Error != nil {
-		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-			return "", nil
-		}
-		return "", res.Error
+		return "", db.SqlError2Error(res.Error)
 	}
 	return sysCfg.Value, nil
 }
@@ -666,10 +663,11 @@ func (s *sqlMetaStore) GetConfigValue(ctx context.Context, group string, name st
 func (s *sqlMetaStore) SetConfigValue(ctx context.Context, group, name, value string) error {
 	defer trace.StartRegion(ctx, "metastore.sql.SetConfigValue").End()
 	var sysCfg = db.SystemConfig{}
-	res := s.WithContext(ctx).Where("group = ? AND name = ?", group, name).First(&sysCfg)
+	res := s.WithContext(ctx).Where("cfg_group = ? AND cfg_name = ?", group, name).First(&sysCfg)
 	if res.Error != nil && !errors.Is(res.Error, gorm.ErrRecordNotFound) {
 		return res.Error
 	}
+	sysCfg.Group = group
 	sysCfg.Name = name
 	sysCfg.Value = value
 	sysCfg.ChangedAt = time.Now()

@@ -108,7 +108,7 @@ func (r *registry) Register(pluginName string, spec types.PluginSpec, builder Bu
 }
 
 func (r *registry) load(ctx context.Context) error {
-	definePath, err := r.cfg.GetSystemConfig(ctx, config.PluginConfigGroup, "definePath").String()
+	definePath, err := r.cfg.GetSystemConfig(ctx, config.PluginConfigGroup, "define_path").String()
 	if err != nil && !errors.Is(err, config.ErrNotConfigured) {
 		return err
 	}

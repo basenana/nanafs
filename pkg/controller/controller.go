@@ -346,6 +346,9 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 		return nil, err
 	}
 	ctl.token = token.NewTokenManager(meta, loader)
+	if tokenErr := ctl.token.InitBuildinCA(context.Background()); tokenErr != nil {
+		ctl.logger.Warnw("init build-in ca failed", "err", tokenErr)
+	}
 
 	ctl.entry, err = dentry.NewManager(meta, bCfg)
 	if err != nil {

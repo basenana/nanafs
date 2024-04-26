@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/basenana/nanafs/utils/logger"
 	"os"
 	"path"
 	"strings"
@@ -59,6 +60,7 @@ func setDefaultConfigs(l Loader) error {
 	var (
 		ctx       context.Context
 		configVal Value
+		cfgLogger = logger.NewLogger("defaultConfig")
 	)
 	for _, defaultVal := range defaultConfigValues {
 		configVal = l.GetSystemConfig(ctx, defaultVal.Group, defaultVal.Name)
@@ -73,6 +75,7 @@ func setDefaultConfigs(l Loader) error {
 		if err := l.SetSystemConfig(ctx, defaultVal.Group, defaultVal.Name, defaultVal.Value); err != nil {
 			return fmt.Errorf("set default config %s.%s failed %w", defaultVal.Group, defaultVal.Name, err)
 		}
+		cfgLogger.Infof("set %s.%s=%s", defaultVal.Group, defaultVal.Name, defaultVal.Value)
 	}
 	return nil
 }

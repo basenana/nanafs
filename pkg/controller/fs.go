@@ -87,11 +87,6 @@ func (c *controller) StartBackendTask(stopCh chan struct{}) {
 	if err != nil {
 		c.logger.Panicf("start backend task failed: %s", err)
 	}
-	go func() {
-		if tokenErr := c.token.InitBuildinCA(context.Background()); tokenErr != nil {
-			c.logger.Warnw("init build-in ca failed", "err", tokenErr)
-		}
-	}()
 	go st.Run(stopCh)
 	go c.workflow.Start(stopCh)
 }
