@@ -715,6 +715,9 @@ func (s *services) ListUnSyncedEvent(ctx context.Context, request *ListUnSyncedE
 
 func (s *services) CommitSyncedEvent(ctx context.Context, request *CommitSyncedEventRequest) (*CommitSyncedEventResponse, error) {
 	s.logger.Infow("device commit sequence", "device", request.DeviceID, "sequence", request.Sequence)
+	if request.DeviceID == "" {
+		return nil, status.Error(codes.InvalidArgument, "device id is empty")
+	}
 	err := s.ctrl.CommitSyncedEvent(ctx, request.DeviceID, request.Sequence)
 	if err != nil {
 		s.logger.Errorw("device commit sequence failed", "device", request.DeviceID, "err", err)

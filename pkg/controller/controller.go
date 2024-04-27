@@ -104,7 +104,6 @@ type controller struct {
 	*inbox.Inbox
 
 	meta      metastore.Meta
-	cfg       config.Config
 	cfgLoader config.Loader
 
 	entry    dentry.Manager
@@ -337,23 +336,26 @@ func (c *controller) ChangeEntryParent(ctx context.Context, targetId, oldParentI
 }
 
 func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
-	cfg, _ := loader.GetConfig()
-
 	ctl := &controller{
 		meta:      meta,
-		cfg:       cfg,
 		cfgLoader: loader,
 		logger:    logger.NewLogger("controller"),
 	}
-	var err error
-	ctl.token = token.NewTokenManager(meta, cfg)
+	bCfg, err := loader.GetBootstrapConfig()
+	if err != nil {
+		return nil, err
+	}
+	ctl.token = token.NewTokenManager(meta, loader)
+	if tokenErr := ctl.token.InitBuildinCA(context.Background()); tokenErr != nil {
+		ctl.logger.Warnw("init build-in ca failed", "err", tokenErr)
+	}
 
-	ctl.entry, err = dentry.NewManager(meta, cfg)
+	ctl.entry, err = dentry.NewManager(meta, bCfg)
 	if err != nil {
 		return nil, err
 	}
 
-	ctl.document, err = document.NewManager(meta, ctl.entry, cfg.Indexer)
+	ctl.document, err = document.NewManager(meta, ctl.entry, loader)
 	if err != nil {
 		return nil, err
 	}
@@ -364,15 +366,15 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 	}
 
 	// init friday
-	err = friday.InitFriday(cfg.Friday)
+	err = friday.InitFriday(bCfg.Friday)
 	if err != nil {
 		return nil, err
 	}
 
-	if err = plugin.Init(buildin.Services{DocumentManager: ctl.document}, cfg.Plugin); err != nil {
+	if err = plugin.Init(buildin.Services{DocumentManager: ctl.document}, loader); err != nil {
 		return nil, err
 	}
-	ctl.workflow, err = workflow.NewManager(ctl.entry, ctl.document, ctl.Notify, meta, cfg.Workflow, cfg.FUSE)
+	ctl.workflow, err = workflow.NewManager(ctl.entry, ctl.document, ctl.Notify, meta, loader)
 	if err != nil {
 		return nil, err
 	}

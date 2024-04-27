@@ -19,6 +19,7 @@ package token
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/metastore"
@@ -26,19 +27,51 @@ import (
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
-	"os"
 	"time"
 )
 
 type Manager struct {
 	store  metastore.AccessToken
-	cfg    config.Config
+	cfg    config.Loader
 	logger *zap.SugaredLogger
+}
+
+func (m *Manager) InitBuildinCA(ctx context.Context) error {
+	_, err1 := m.cfg.GetSystemConfig(ctx, config.AuthConfigGroup, "ca_cert_0").String()
+	_, err2 := m.cfg.GetSystemConfig(ctx, config.AuthConfigGroup, "ca_key_0").String()
+	if err1 == nil && err2 == nil {
+		return nil
+	}
+
+	if !errors.Is(err1, config.ErrNotConfigured) || !errors.Is(err2, config.ErrNotConfigured) {
+		return fmt.Errorf("get ca cert/key content failed: %s %s", err1, err2)
+	}
+
+	m.logger.Infow("init build-in ca")
+	ct := &utils.CertTool{}
+	caCert, caKey, err := ct.GenerateCAPair()
+	if err != nil {
+		return fmt.Errorf("generate new ca pair error: %w", err)
+	}
+
+	err = m.cfg.SetSystemConfig(context.Background(), config.AuthConfigGroup, "ca_cert_0", base64.StdEncoding.EncodeToString(caCert))
+	if err != nil {
+		return fmt.Errorf("writeback ca cert failed: %w", err)
+	}
+	err = m.cfg.SetSystemConfig(context.Background(), config.AuthConfigGroup, "ca_key_0", base64.StdEncoding.EncodeToString(caKey))
+	if err != nil {
+		return fmt.Errorf("writeback ca key failed: %w", err)
+	}
+
+	return nil
 }
 
 func (m *Manager) AccessToken(ctx context.Context, ak, sk string) (*types.AccessToken, error) {
 	token, err := m.store.GetAccessToken(ctx, ak, sk)
 	if err != nil {
+		if errors.Is(err, types.ErrNotFound) {
+			return nil, types.ErrNoAccess
+		}
 		return nil, err
 	}
 
@@ -53,26 +86,22 @@ func (m *Manager) AccessToken(ctx context.Context, ak, sk string) (*types.Access
 }
 
 func (m *Manager) resignCerts(ctx context.Context, token *types.AccessToken) (err error) {
-	caCertFile := m.cfg.FsApi.CaFile
-	caKeyFile := m.cfg.FsApi.CaKeyFile
-
-	_, err = os.Stat(caCertFile)
+	caCertEncodedContent, err := m.cfg.GetSystemConfig(ctx, config.AuthConfigGroup, "ca_cert_0").String()
 	if err != nil {
-		return fmt.Errorf("stat ca cert file error: %w", err)
+		return fmt.Errorf("get ca cert content failed: %w", err)
+	}
+	caKeyEncodedContent, err := m.cfg.GetSystemConfig(ctx, config.AuthConfigGroup, "ca_key_0").String()
+	if err != nil {
+		return fmt.Errorf("get ca key content failed: %w", err)
 	}
 
-	_, err = os.Stat(caKeyFile)
+	caCertContent, err := base64.StdEncoding.DecodeString(caCertEncodedContent)
 	if err != nil {
-		return fmt.Errorf("stat ca cert file error: %w", err)
+		return fmt.Errorf("decoded ca cert content failed: %w", err)
 	}
-
-	caCertContent, err := os.ReadFile(caCertFile)
+	caKeyContent, err := base64.StdEncoding.DecodeString(caKeyEncodedContent)
 	if err != nil {
-		return fmt.Errorf("load ca cert file error: %w", err)
-	}
-	caKeyContent, err := os.ReadFile(caKeyFile)
-	if err != nil {
-		return fmt.Errorf("load ca cert file error: %w", err)
+		return fmt.Errorf("decoded ca key content failed: %w", err)
 	}
 
 	rawCert, rawKey, err := (&utils.CertTool{
@@ -101,7 +130,7 @@ func (m *Manager) resignCerts(ctx context.Context, token *types.AccessToken) (er
 	return nil
 }
 
-func NewTokenManager(store metastore.AccessToken, cfg config.Config) *Manager {
+func NewTokenManager(store metastore.AccessToken, cfg config.Loader) *Manager {
 	return &Manager{
 		store:  store,
 		cfg:    cfg,

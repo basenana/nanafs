@@ -14,7 +14,7 @@
  limitations under the License.
 */
 
-package common
+package apitool
 
 import "github.com/gin-gonic/gin"
 

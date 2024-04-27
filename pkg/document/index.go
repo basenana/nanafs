@@ -33,7 +33,6 @@ import (
 	"github.com/blevesearch/bleve/v2/registry"
 	"go.uber.org/zap"
 
-	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
@@ -46,19 +45,17 @@ const (
 type Indexer struct {
 	b        bleve.Index
 	recorder metastore.DEntry
-	cfg      config.Indexer
 	logger   *zap.SugaredLogger
 }
 
-func NewDocumentIndexer(recorder metastore.DEntry, cfg config.Indexer) (*Indexer, error) {
-	b, rebuild, err := openBleveLocalIndexer(cfg)
+func NewDocumentIndexer(recorder metastore.DEntry, localIndexerDir string) (*Indexer, error) {
+	b, rebuild, err := openBleveLocalIndexer(localIndexerDir)
 	if err != nil {
 		return nil, err
 	}
 	index := &Indexer{
 		b:        b,
 		recorder: recorder,
-		cfg:      cfg,
 		logger:   logger.NewLogger("indexer"),
 	}
 	if rebuild {
@@ -177,8 +174,8 @@ func (d *BleveDocument) BleveType() string {
 	return "document"
 }
 
-func openBleveLocalIndexer(cfg config.Indexer) (bleve.Index, bool, error) {
-	index, err := bleve.Open(cfg.LocalIndexerDir)
+func openBleveLocalIndexer(localIndexerDir string) (bleve.Index, bool, error) {
+	index, err := bleve.Open(localIndexerDir)
 	if err != nil && err != bleve.ErrorIndexPathDoesNotExist {
 		return nil, false, err
 	}
@@ -228,7 +225,7 @@ func openBleveLocalIndexer(cfg config.Indexer) (bleve.Index, bool, error) {
 
 	mapping.AddDocumentMapping("document", documentMapping)
 
-	index, err = bleve.NewUsing(cfg.LocalIndexerDir, mapping, upsidedown.Name, boltdb.Name, map[string]interface{}{})
+	index, err = bleve.NewUsing(localIndexerDir, mapping, upsidedown.Name, boltdb.Name, map[string]interface{}{})
 	if err != nil {
 		return nil, false, err
 	}

@@ -52,7 +52,7 @@ func TestDEntry(t *testing.T) {
 	workdir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-dentry-")
 	Expect(err).Should(BeNil())
 	t.Logf("unit test workdir on: %s", workdir)
-	storage.InitLocalCache(config.Config{CacheDir: workdir, CacheSize: 1})
+	storage.InitLocalCache(config.Bootstrap{CacheDir: workdir, CacheSize: 1})
 
 	RunSpecs(t, "DEntry Suite")
 }
@@ -61,7 +61,7 @@ var _ = BeforeSuite(func() {
 	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())
 	metaStoreObj = memMeta
-	entryManager, _ = NewManager(metaStoreObj, config.Config{FS: &config.FS{}, Storages: []config.Storage{{
+	entryManager, _ = NewManager(metaStoreObj, config.Bootstrap{FS: &config.FS{}, Storages: []config.Storage{{
 		ID:   storage.MemoryStorage,
 		Type: storage.MemoryStorage,
 	}}})
@@ -82,7 +82,6 @@ var _ = BeforeSuite(func() {
 		storages:   storages,
 		extIndexer: NewExtIndexer(),
 		eventQ:     make(chan *entryEvent, 8),
-		cfg:        config.Config{FS: &config.FS{}},
 		logger:     logger.NewLogger("entryManager"),
 	}
 
@@ -90,7 +89,9 @@ var _ = BeforeSuite(func() {
 	root, err = entryManager.Root(context.TODO())
 	Expect(err).Should(BeNil())
 
+	cfgLoader := config.NewFakeConfigLoader(config.Bootstrap{})
+
 	// init plugin
-	err = plugin.Init(buildin.Services{}, &config.Plugin{})
+	err = plugin.Init(buildin.Services{}, cfgLoader)
 	Expect(err).Should(BeNil())
 })

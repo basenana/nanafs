@@ -1,5 +1,5 @@
 /*
- Copyright 2023 NanaFS Authors.
+ Copyright 2024 NanaFS Authors.
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -14,38 +14,15 @@
  limitations under the License.
 */
 
-package types
+package config
 
-type EntryAttr struct {
-	Name        string
-	Kind        Kind
-	Access      *Access
-	Dev         int64
-	ExtendData  ExtendData
-	Labels      Labels
-	PlugScope   *PlugScope
-	GroupFilter *Rule
-}
-
-type OpenAttr struct {
-	EntryID int64
-	Read    bool
-	Write   bool
-	Create  bool
-	Trunc   bool
-	Direct  bool
-
-	FsWriteback bool
-}
-
-type DestroyObjectAttr struct {
-	Uid int64
-	Gid int64
-}
-
-type ChangeParentAttr struct {
-	Uid      int64
-	Gid      int64
-	Replace  bool
-	Exchange bool
-}
+const (
+	FsConfigGroup       = "org.basenana.nanafs.fs"
+	FsAPIConfigGroup    = "org.basenana.nanafs.fs.api"
+	AuthConfigGroup     = "org.basenana.nanafs.authentication"
+	DocConfigGroup      = "org.basenana.nanafs.document"
+	PluginConfigGroup   = "org.basenana.nanafs.plugin"
+	WorkflowConfigGroup = "org.basenana.nanafs.workflow"
+	WebdavConfigGroup   = "org.basenana.nanafs.webdav"
+	AdminApiConfigGroup = "org.basenana.nanafs.admin.api"
+)

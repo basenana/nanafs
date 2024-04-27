@@ -18,6 +18,7 @@ package apis
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi"
 	"net/http"
@@ -43,12 +44,23 @@ const (
 
 type Server struct {
 	engine    *gin.Engine
-	apiConfig config.HttpApi
+	apiConfig config.Loader
 	logger    *zap.SugaredLogger
 }
 
 func (s *Server) Run(stopCh chan struct{}) {
-	addr := fmt.Sprintf("%s:%d", s.apiConfig.Host, s.apiConfig.Port)
+	apiHost, err := s.apiConfig.GetSystemConfig(context.TODO(), config.AdminApiConfigGroup, "host").String()
+	if err != nil {
+		s.logger.Errorw("query admin api host config failed, skip", "err", err)
+		return
+	}
+	apiPort, err := s.apiConfig.GetSystemConfig(context.TODO(), config.AdminApiConfigGroup, "port").Int()
+	if err != nil {
+		s.logger.Errorw("query admin api port config failed, skip", "err", err)
+		return
+	}
+
+	addr := fmt.Sprintf("%s:%d", apiHost, apiPort)
 	s.logger.Infof("http server on %s", addr)
 
 	httpServer := &http.Server{
@@ -61,7 +73,7 @@ func (s *Server) Run(stopCh chan struct{}) {
 	go func() {
 		if err := httpServer.ListenAndServe(); err != nil {
 			if err != http.ErrServerClosed {
-				s.logger.Panicw("api server down", "err", err.Error())
+				s.logger.Panicw("api server down", "err", err)
 			}
 			s.logger.Infof("api server stopped")
 		}
@@ -84,7 +96,7 @@ func NewPathEntryManager(ctrl controller.Controller) (*pathmgr.PathManager, erro
 	return pathmgr.New(ctrl)
 }
 
-func NewHttpApiServer(ctrl controller.Controller, mgr *pathmgr.PathManager, apiConfig config.HttpApi) (*Server, error) {
+func NewHttpApiServer(ctrl controller.Controller, mgr *pathmgr.PathManager, apiConfig config.Loader) (*Server, error) {
 	docAPIServer := apifeed.NewDocumentAPIServer(ctrl)
 	s := &Server{
 		engine:    gin.New(),
@@ -98,37 +110,59 @@ func NewHttpApiServer(ctrl controller.Controller, mgr *pathmgr.PathManager, apiC
 	s.engine.GET("/document/query", docAPIServer.Query)
 	s.engine.GET("/feed/:feedId/atom.xml", docAPIServer.Atom)
 
-	if apiConfig.Metrics {
+	enableMetric, err := apiConfig.GetSystemConfig(context.TODO(), config.AdminApiConfigGroup, "enable_metric").Bool()
+	if err != nil {
+		s.logger.Warnw("query enable metric config failed, skip", "err", err)
+	}
+	enablePprof, err := apiConfig.GetSystemConfig(context.TODO(), config.AdminApiConfigGroup, "enable_pprof").Bool()
+	if err != nil {
+		s.logger.Warnw("query enable pprof config failed, skip", "err", err)
+	}
+
+	if enableMetric {
 		s.engine.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	}
 
-	if apiConfig.Pprof {
+	if enablePprof {
 		pprof.Register(s.engine)
 	}
 
 	return s, nil
 }
 
-func Setup(ctrl controller.Controller, pathEntryMgr *pathmgr.PathManager, cfg config.Config, stopCh chan struct{}) error {
+func Setup(ctrl controller.Controller, pathEntryMgr *pathmgr.PathManager, cfg config.Loader, stopCh chan struct{}) error {
+	var ctx = context.Background()
 
-	if cfg.FsApi.Enable {
-		s, err := fsapi.New(ctrl, pathEntryMgr, cfg.FsApi)
+	fsAPIEnable, err := cfg.GetSystemConfig(ctx, config.FsAPIConfigGroup, "enable").Bool()
+	if err != nil && !errors.Is(err, config.ErrNotConfigured) {
+		return fmt.Errorf("get fs api enable config failed: %w", err)
+	}
+	if fsAPIEnable {
+		s, err := fsapi.New(ctrl, pathEntryMgr, cfg)
 		if err != nil {
 			return fmt.Errorf("init fsapi server failed: %w", err)
 		}
 		go s.Run(stopCh)
 	}
 
-	if cfg.HttpApi.Enable {
-		s, err := NewHttpApiServer(ctrl, pathEntryMgr, cfg.HttpApi)
+	adminAPIEnable, err := cfg.GetSystemConfig(ctx, config.AdminApiConfigGroup, "enable").Bool()
+	if err != nil && !errors.Is(err, config.ErrNotConfigured) {
+		return fmt.Errorf("get admin api enable config failed: %w", err)
+	}
+	if adminAPIEnable {
+		s, err := NewHttpApiServer(ctrl, pathEntryMgr, cfg)
 		if err != nil {
 			return fmt.Errorf("init http server failed: %w", err)
 		}
 		go s.Run(stopCh)
 	}
 
-	if cfg.Webdav != nil && cfg.Webdav.Enable {
-		w, err := webdav.NewWebdavServer(pathEntryMgr, *cfg.Webdav)
+	webdavEnable, err := cfg.GetSystemConfig(ctx, config.WebdavConfigGroup, "enable").Bool()
+	if err != nil && !errors.Is(err, config.ErrNotConfigured) {
+		return fmt.Errorf("get webdav api enable config failed: %w", err)
+	}
+	if webdavEnable {
+		w, err := webdav.NewWebdavServer(pathEntryMgr, cfg)
 		if err != nil {
 			return fmt.Errorf("init webdav server failed: %w", err)
 		}

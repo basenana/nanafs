@@ -17,7 +17,6 @@
 package workflow
 
 import (
-	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	"github.com/google/uuid"
@@ -67,17 +66,22 @@ func assembleWorkflowJob(spec *types.WorkflowSpec, tgt types.WorkflowTarget) (*t
 	return j, nil
 }
 
-func initWorkflowJobRootWorkdir(wfCfg *config.Workflow) error {
-	if wfCfg.JobWorkdir == "" {
-		switch runtime.GOOS {
-		case "linux":
-			wfCfg.JobWorkdir = defaultLinuxWorkdir
-		default:
-			wfCfg.JobWorkdir = os.TempDir()
-		}
+func initWorkflowJobRootWorkdir(jobWorkdir string) error {
+	if jobWorkdir == "" {
+		jobWorkdir = genDefaultJobRootWorkdir()
 	}
-	wfLogger.Infof("job root workdir: %s", wfCfg.JobWorkdir)
-	return os.MkdirAll(wfCfg.JobWorkdir, 0755)
+	wfLogger.Infof("job root workdir: %s", jobWorkdir)
+	return os.MkdirAll(jobWorkdir, 0755)
+}
+
+func genDefaultJobRootWorkdir() (jobWorkdir string) {
+	switch runtime.GOOS {
+	case "linux":
+		jobWorkdir = defaultLinuxWorkdir
+	default:
+		jobWorkdir = os.TempDir()
+	}
+	return
 }
 
 func initWorkflow(wf *types.WorkflowSpec) *types.WorkflowSpec {

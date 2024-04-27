@@ -46,7 +46,7 @@ var RunCmd = &cobra.Command{
 			return
 		}
 
-		cfg := config.Config{}
+		cfg := config.Bootstrap{}
 		if err := json.Unmarshal(raw, &cfg); err != nil {
 			fmt.Printf("load config failed: %s\n", err.Error())
 			return

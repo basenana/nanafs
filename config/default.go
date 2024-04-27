@@ -17,8 +17,13 @@
 package config
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"github.com/basenana/nanafs/utils/logger"
 	"os"
 	"path"
+	"strings"
 )
 
 const (
@@ -33,4 +38,54 @@ func LocalUserPath() string {
 		return defaultSysLocalPath
 	}
 	return path.Join(homeDir, defaultWorkDir)
+}
+
+var (
+	defaultConfigValues []Value = []Value{
+		{Group: AdminApiConfigGroup, Name: "enable", Value: "false"},
+		{Group: AdminApiConfigGroup, Name: "host", Value: "127.0.0.1"},
+		{Group: AdminApiConfigGroup, Name: "port", Value: "7080"},
+		{Group: AdminApiConfigGroup, Name: "enable_metric", Value: "true"},
+		{Group: AdminApiConfigGroup, Name: "enable_pprof", Value: "true"},
+		{Group: FsAPIConfigGroup, Name: "enable", Value: "true"},
+		{Group: FsAPIConfigGroup, Name: "host", Value: "127.0.0.1"},
+		{Group: FsAPIConfigGroup, Name: "port", Value: "7081"},
+		{Group: WebdavConfigGroup, Name: "enable", Value: "false"},
+		{Group: WebdavConfigGroup, Name: "host", Value: "127.0.0.1"},
+		{Group: WebdavConfigGroup, Name: "port", Value: "7082"},
+	}
+)
+
+func setDefaultConfigs(l Loader) error {
+	var (
+		ctx       context.Context
+		configVal Value
+		cfgLogger = logger.NewLogger("defaultConfig")
+	)
+	for _, defaultVal := range defaultConfigValues {
+		configVal = l.GetSystemConfig(ctx, defaultVal.Group, defaultVal.Name)
+		if configVal.Error == nil {
+			continue
+		}
+
+		if !errors.Is(configVal.Error, ErrNotConfigured) {
+			return fmt.Errorf("get default config %s.%s failed %w", defaultVal.Group, defaultVal.Name, configVal.Error)
+		}
+
+		if err := l.SetSystemConfig(ctx, defaultVal.Group, defaultVal.Name, defaultVal.Value); err != nil {
+			return fmt.Errorf("set default config %s.%s failed %w", defaultVal.Group, defaultVal.Name, err)
+		}
+		cfgLogger.Infof("set %s.%s=%s", defaultVal.Group, defaultVal.Name, defaultVal.Value)
+	}
+	return nil
+}
+
+func isConfigNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	if strings.Contains(err.Error(), "no record") {
+		return true
+	}
+	return false
 }

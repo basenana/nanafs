@@ -53,14 +53,14 @@ var _ = BeforeSuite(func() {
 	tempDir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-exec-")
 	Expect(err).Should(BeNil())
 
-	loCfg.Workflow.Enable = true
-	loCfg.Workflow.JobWorkdir = tempDir
+	loCfg.Enable = true
+	loCfg.JobWorkdir = tempDir
 
 	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())
 
-	storage.InitLocalCache(config.Config{CacheDir: tempDir, CacheSize: 1})
-	entryMgr, err = dentry.NewManager(memMeta, config.Config{
+	storage.InitLocalCache(config.Bootstrap{CacheDir: tempDir, CacheSize: 1})
+	entryMgr, err = dentry.NewManager(memMeta, config.Bootstrap{
 		FS: &config.FS{},
 		Storages: []config.Storage{{
 			ID:   storage.MemoryStorage,
@@ -84,5 +84,6 @@ var _ = BeforeSuite(func() {
 	Expect(f.Close(context.TODO())).Should(BeNil())
 
 	// init plugin
-	Expect(plugin.Init(buildin.Services{}, &config.Plugin{})).Should(BeNil())
+	cfgLoader := config.NewFakeConfigLoader(config.Bootstrap{})
+	Expect(plugin.Init(buildin.Services{}, cfgLoader)).Should(BeNil())
 })

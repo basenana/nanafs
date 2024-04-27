@@ -18,6 +18,7 @@ package notify
 
 import (
 	"context"
+	"fmt"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/types"
 )
@@ -47,6 +48,9 @@ func (n *Notify) ListUnSyncedEvent(ctx context.Context, sequence int64) ([]types
 }
 
 func (n *Notify) CommitSyncedEvent(ctx context.Context, deviceID string, sequence int64) error {
+	if deviceID == "" {
+		return fmt.Errorf("device id is empty")
+	}
 	return n.store.DeviceSync(ctx, deviceID, sequence)
 }
 

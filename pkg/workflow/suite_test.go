@@ -17,6 +17,7 @@
 package workflow
 
 import (
+	"context"
 	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"os"
 	"testing"
@@ -65,8 +66,8 @@ var _ = BeforeSuite(func() {
 
 	rule.InitQuery(memMeta)
 
-	storage.InitLocalCache(config.Config{CacheDir: tempDir, CacheSize: 1})
-	entryMgr, err = dentry.NewManager(memMeta, config.Config{
+	storage.InitLocalCache(config.Bootstrap{CacheDir: tempDir, CacheSize: 1})
+	entryMgr, err = dentry.NewManager(memMeta, config.Bootstrap{
 		FS: &config.FS{},
 		Storages: []config.Storage{{
 			ID:   storage.MemoryStorage,
@@ -75,13 +76,19 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).Should(BeNil())
 
-	docMgr, err = document.NewManager(memMeta, entryMgr, nil)
+	cfg := config.NewFakeConfigLoader(config.Bootstrap{})
+	err = cfg.SetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "enable", true)
+	Expect(err).Should(BeNil())
+	err = cfg.SetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "job_workdir", tempDir)
+	Expect(err).Should(BeNil())
+
+	docMgr, err = document.NewManager(memMeta, entryMgr, cfg)
 	Expect(err).Should(BeNil())
 
 	// init plugin
-	Expect(plugin.Init(buildin.Services{}, &config.Plugin{})).Should(BeNil())
+	Expect(plugin.Init(buildin.Services{}, cfg)).Should(BeNil())
 
-	mgr, err = NewManager(entryMgr, docMgr, notify.NewNotify(memMeta), memMeta, config.Workflow{Enable: true, JobWorkdir: tempDir}, config.FUSE{})
+	mgr, err = NewManager(entryMgr, docMgr, notify.NewNotify(memMeta), memMeta, cfg)
 	Expect(err).Should(BeNil())
 
 	go mgr.Start(stopCh)

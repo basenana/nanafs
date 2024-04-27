@@ -36,9 +36,9 @@ func (i SystemInfo) TableName() string {
 
 type SystemConfig struct {
 	ID        int64     `gorm:"column:id;primaryKey"`
-	Group     string    `gorm:"column:group;index:cfg_group"`
-	Name      string    `gorm:"column:name;index:cfg_name"`
-	Value     string    `gorm:"column:value"`
+	Group     string    `gorm:"column:cfg_group;index:cfg_group"`
+	Name      string    `gorm:"column:cfg_name;index:cfg_name"`
+	Value     string    `gorm:"column:cfg_value"`
 	Namespace string    `gorm:"column:namespace;index:cfg_namespace"`
 	ChangedAt time.Time `gorm:"column:changed_at"`
 }

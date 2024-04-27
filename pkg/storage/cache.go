@@ -66,7 +66,7 @@ func init() {
 	heap.Init(cachedFile.unusedNodeQ)
 }
 
-func InitLocalCache(config config.Config) {
+func InitLocalCache(config config.Bootstrap) {
 	cacheLog = logger.NewLogger("localCache")
 	localCacheDir = config.CacheDir
 	if localCacheDir == "" {

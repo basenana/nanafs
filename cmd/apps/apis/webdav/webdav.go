@@ -18,8 +18,9 @@ package webdav
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/basenana/nanafs/cmd/apps/apis/common"
+	"github.com/basenana/nanafs/cmd/apps/apis/apitool"
 	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/types"
@@ -36,18 +37,27 @@ import (
 var log *zap.SugaredLogger
 
 type Webdav struct {
-	cfg     config.Webdav
 	handler http.Handler
+	cfg     config.Loader
 	logger  *zap.SugaredLogger
 }
 
 func (w *Webdav) Run(stopCh chan struct{}) {
-	addr := fmt.Sprintf("%s:%d", w.cfg.Host, w.cfg.Port)
+	webdavHost, err := w.cfg.GetSystemConfig(context.TODO(), config.WebdavConfigGroup, "host").String()
+	if err != nil {
+		w.logger.Errorw("query webdav host config failed, skip", "err", err)
+		return
+	}
+	webdavPort, err := w.cfg.GetSystemConfig(context.TODO(), config.WebdavConfigGroup, "port").Int()
+	if err != nil {
+		w.logger.Errorw("query webdav port config failed, skip", "err", err)
+		return
+	}
+
+	addr := fmt.Sprintf("%s:%d", webdavHost, webdavPort)
 	w.logger.Infof("webdav server on %s", addr)
 
-	handler := common.BasicAuthHandler(w.handler, w.cfg.OverwriteUsers)
-	handler = common.MetricMiddleware("webdav", handler)
-
+	handler := apitool.MetricMiddleware("webdav", w.handler)
 	httpServer := &http.Server{
 		Addr:         addr,
 		Handler:      handler,
@@ -56,8 +66,8 @@ func (w *Webdav) Run(stopCh chan struct{}) {
 	}
 
 	go func() {
-		if err := httpServer.ListenAndServe(); err != nil {
-			if err != http.ErrServerClosed {
+		if err = httpServer.ListenAndServe(); err != nil {
+			if !errors.Is(http.ErrServerClosed, err) {
 				w.logger.Panicw("webdav server down", "err", err.Error())
 			}
 			w.logger.Infof("webdav server stopped")
@@ -72,7 +82,7 @@ func (w *Webdav) Run(stopCh chan struct{}) {
 
 type FsOperator struct {
 	mgr    *pathmgr.PathManager
-	cfg    config.Webdav
+	cfg    config.Loader
 	logger *zap.SugaredLogger
 }
 
@@ -84,7 +94,7 @@ func (o FsOperator) Mkdir(ctx context.Context, name string, perm os.FileMode) er
 
 func (o FsOperator) OpenFile(ctx context.Context, name string, flag int, perm os.FileMode) (webdav.File, error) {
 	defer trace.StartRegion(ctx, "apis.webdav.OpenFile").End()
-	userInfo := common.GetUserInfo(ctx)
+	userInfo := apitool.GetUserInfo(ctx)
 	if userInfo == nil {
 		return nil, error2FsError(types.ErrNoAccess)
 	}
@@ -149,14 +159,7 @@ func (o FsOperator) Stat(ctx context.Context, name string) (os.FileInfo, error) 
 	return Stat(en), nil
 }
 
-func NewWebdavServer(mgr *pathmgr.PathManager, cfg config.Webdav) (*Webdav, error) {
-	if cfg.Port == 0 {
-		return nil, fmt.Errorf("http port not set")
-	}
-	if cfg.Host == "" {
-		cfg.Host = "127.0.0.1"
-	}
-
+func NewWebdavServer(mgr *pathmgr.PathManager, cfg config.Loader) (*Webdav, error) {
 	log = logger.NewLogger("webdav")
 	w := FsOperator{mgr: mgr, cfg: cfg, logger: log}
 	handler := &webdav.Handler{
@@ -164,5 +167,8 @@ func NewWebdavServer(mgr *pathmgr.PathManager, cfg config.Webdav) (*Webdav, erro
 		LockSystem: webdav.NewMemLS(), // TODO:need flock
 		Logger:     logger.InitWebdavLogger().Handle,
 	}
-	return &Webdav{cfg: cfg, handler: handler, logger: log}, nil
+	return &Webdav{
+		handler: apitool.BasicAuthHandler(handler, mgr.Controller()),
+		cfg:     cfg, logger: log,
+	}, nil
 }

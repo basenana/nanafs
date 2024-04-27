@@ -36,7 +36,7 @@ var _ = Describe("TestRootEntryInit", func() {
 	Context("query root entry first time", func() {
 		var mgr Manager
 		It("init manager should be succeed", func() {
-			mgr, _ = NewManager(emptyObjectStore, config.Config{FS: &config.FS{}, Storages: []config.Storage{{
+			mgr, _ = NewManager(emptyObjectStore, config.Bootstrap{FS: &config.FS{}, Storages: []config.Storage{{
 				ID:   storage.MemoryStorage,
 				Type: storage.MemoryStorage,
 			}}})
@@ -54,7 +54,7 @@ var _ = Describe("TestRootEntryInit", func() {
 
 		var mgr Manager
 		It("init manager should be succeed", func() {
-			mgr, _ = NewManager(emptyObjectStore, config.Config{FS: &config.FS{}, Storages: []config.Storage{{
+			mgr, _ = NewManager(emptyObjectStore, config.Bootstrap{FS: &config.FS{}, Storages: []config.Storage{{
 				ID:   storage.MemoryStorage,
 				Type: storage.MemoryStorage,
 			}}})

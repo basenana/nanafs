@@ -51,7 +51,7 @@ func TestDocument(t *testing.T) {
 	workdir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-doc-")
 	Expect(err).Should(BeNil())
 	t.Logf("unit test workdir on: %s", workdir)
-	storage.InitLocalCache(config.Config{CacheDir: workdir, CacheSize: 1})
+	storage.InitLocalCache(config.Bootstrap{CacheDir: workdir, CacheSize: 1})
 
 	RunSpecs(t, "Document Suite")
 }
@@ -59,7 +59,7 @@ func TestDocument(t *testing.T) {
 var _ = BeforeSuite(func() {
 	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())
-	entryMgr, err = dentry.NewManager(memMeta, config.Config{
+	entryMgr, err = dentry.NewManager(memMeta, config.Bootstrap{
 		FS: &config.FS{},
 		Storages: []config.Storage{{
 			ID:   storage.MemoryStorage,
@@ -74,7 +74,8 @@ var _ = BeforeSuite(func() {
 	}
 
 	// init plugin
-	err = plugin.Init(buildin.Services{}, &config.Plugin{})
+	cfgLoader := config.NewFakeConfigLoader(config.Bootstrap{})
+	err = plugin.Init(buildin.Services{}, cfgLoader)
 	Expect(err).Should(BeNil())
 
 	// init root

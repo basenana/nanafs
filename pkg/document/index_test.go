@@ -24,20 +24,19 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/types"
 )
 
 var _ = Describe("testDocumentManage", func() {
 	var (
-		ctx     = context.TODO()
-		indexer *Indexer
-		cfg     = config.Indexer{LocalIndexerDir: path.Join(workdir, "index")}
+		ctx             = context.TODO()
+		indexer         *Indexer
+		localIndexerDir = path.Join(workdir, "index")
 	)
 	Context("init document indexer", func() {
 		It("init should be succeed", func() {
 			var err error
-			indexer, err = NewDocumentIndexer(docManager.recorder, cfg)
+			indexer, err = NewDocumentIndexer(docManager.recorder, localIndexerDir)
 			Expect(err).Should(BeNil())
 		})
 		It("insert one document should be succeed", func() {

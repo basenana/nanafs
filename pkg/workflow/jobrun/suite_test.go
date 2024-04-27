@@ -61,12 +61,13 @@ var _ = BeforeSuite(func() {
 	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())
 	recorder = memMeta
-	storage.InitLocalCache(config.Config{CacheDir: tempDir, CacheSize: 1})
+	storage.InitLocalCache(config.Bootstrap{CacheDir: tempDir, CacheSize: 1})
 
 	notifyImpl = notify.NewNotify(memMeta)
 
 	// init plugin
-	Expect(plugin.Init(buildin.Services{}, &config.Plugin{})).Should(BeNil())
+	cfgLoader := config.NewFakeConfigLoader(config.Bootstrap{})
+	Expect(plugin.Init(buildin.Services{}, cfgLoader)).Should(BeNil())
 
 	// init fake workflow to test wf job
 	fakeWf := &types.WorkflowSpec{

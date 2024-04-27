@@ -20,33 +20,19 @@ import (
 	fridayconf "github.com/basenana/friday/config"
 )
 
-type Config struct {
-	FsApi   FsApi   `json:"fs_api"`
-	HttpApi HttpApi `json:"http_api"`
-	FUSE    FUSE    `json:"fuse"`
-	Webdav  *Webdav `json:"webdav,omitempty"`
+type Bootstrap struct {
+	FUSE FUSE `json:"fuse"`
 
 	Meta             Meta       `json:"meta"`
 	Storages         []Storage  `json:"storages"`
 	GlobalEncryption Encryption `json:"global_encryption"`
 
-	Workflow Workflow           `json:"workflow"`
-	Plugin   *Plugin            `json:"plugin,omitempty"`
-	FS       *FS                `json:"fs,omitempty"`
-	Indexer  *Indexer           `json:"indexer,omitempty"`
-	Friday   *fridayconf.Config `json:"friday,omitempty"`
+	FS     *FS                `json:"fs,omitempty"`
+	Friday *fridayconf.Config `json:"friday,omitempty"`
 
 	CacheDir  string `json:"cache_dir,omitempty"`
 	CacheSize int    `json:"cache_size,omitempty"`
 	Debug     bool   `json:"debug,omitempty"`
-}
-
-type HttpApi struct {
-	Enable  bool   `json:"enable"`
-	Host    string `json:"host"`
-	Port    int    `json:"port"`
-	Pprof   bool   `json:"pprof"`
-	Metrics bool   `json:"metrics"`
 }
 
 type FsApi struct {
@@ -90,17 +76,4 @@ type OverwriteUser struct {
 	GID      int64  `json:"gid"`
 	Username string `json:"username"`
 	Password string `json:"password"`
-}
-
-type Indexer struct {
-	LocalIndexerDir string `json:"local_indexer_dir"`
-}
-
-type Workflow struct {
-	Enable     bool   `json:"enable"`
-	JobWorkdir string `json:"job_workdir"`
-}
-
-type Plugin struct {
-	BasePath string `json:"base_path"`
 }

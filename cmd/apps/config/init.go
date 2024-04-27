@@ -74,7 +74,7 @@ func initDefaultConfig() {
 		return
 	}
 
-	conf := config.Config{
+	conf := config.Bootstrap{
 		Meta: config.Meta{
 			Type: metastore.SqliteMeta,
 			Path: dbFile,
@@ -94,24 +94,6 @@ func initDefaultConfig() {
 		CacheDir:  cacheDir,
 		CacheSize: 10,
 		Debug:     false,
-		FsApi: config.FsApi{
-			Enable:  true,
-			Host:    "127.0.0.1",
-			Port:    7080,
-			Metrics: false,
-		},
-		HttpApi: config.HttpApi{
-			Enable: false,
-			Host:   "127.0.0.1",
-			Port:   7081,
-			Pprof:  false,
-		},
-		Webdav: &config.Webdav{
-			Enable:         false,
-			Host:           "127.0.0.1",
-			Port:           7082,
-			OverwriteUsers: []config.OverwriteUser{{Username: "admin", Password: "changeme"}},
-		},
 		FUSE: config.FUSE{
 			Enable:      false,
 			RootPath:    "/your/path/to/mount",

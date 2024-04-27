@@ -27,7 +27,7 @@ import (
 	"testing"
 )
 
-var cfg = config.Config{
+var cfg = config.Bootstrap{
 	FS:       &config.FS{Owner: config.FSOwner{Uid: 0, Gid: 0}, Writeback: false},
 	Meta:     config.Meta{Type: metastore.MemoryMeta},
 	Storages: []config.Storage{{ID: "test-memory-0", Type: storage.MemoryStorage}},
@@ -35,13 +35,13 @@ var cfg = config.Config{
 
 type mockConfig struct{}
 
-func (m mockConfig) GetConfig() (config.Config, error) {
+func (m mockConfig) GetBootstrapConfig() (config.Bootstrap, error) {
 	return cfg, nil
 }
 
 func NewMockController() controller.Controller {
 	m, _ := metastore.NewMetaStorage(metastore.MemoryMeta, cfg.Meta)
-	ctrl, _ := controller.New(mockConfig{}, m)
+	ctrl, _ := controller.New(config.NewFakeConfigLoader(cfg), m)
 	return ctrl
 }
 
