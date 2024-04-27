@@ -106,19 +106,19 @@ func (f *Friday) chat(res *ChatState) *Friday {
 		var (
 			sumBuf = make(chan map[string]string)
 			sum    = make(map[string]string)
-			err    error
+			errCh  = make(chan error)
 		)
 		go func() {
-			_, err = f.LLM.Chat(f.statement.context, false, sumDialogue, sumBuf)
-			if err != nil {
-				f.Error = err
-				return
-			}
+			defer close(errCh)
+			_, err := f.LLM.Chat(f.statement.context, false, sumDialogue, sumBuf)
+			errCh <- err
 		}()
 		select {
-		case <-f.statement.context.Done():
-			f.Error = errors.New("context canceled")
-			return f
+		case err := <-errCh:
+			if err != nil {
+				f.Error = err
+				return f
+			}
 		case sum = <-sumBuf:
 			// add context prompt for dialogue
 			if f.statement.query != nil {
@@ -150,9 +150,6 @@ func (f *Friday) chat(res *ChatState) *Friday {
 				}
 			}
 			dialogues = append(dialogues, f.statement.history[len(f.statement.history)-remainHistoryNum:len(f.statement.history)]...)
-		}
-		if f.Error != nil {
-			return f
 		}
 	} else {
 		dialogues = make([]map[string]string, len(f.statement.history))

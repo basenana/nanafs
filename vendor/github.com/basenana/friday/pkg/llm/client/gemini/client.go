@@ -75,6 +75,7 @@ func NewGemini(log logger.Logger, baseUrl, key string, conf config.GeminiConfig)
 }
 
 func (g *Gemini) request(ctx context.Context, stream bool, path string, method string, data map[string]any, res chan<- []byte) error {
+	defer close(res)
 	jsonData, _ := json.Marshal(data)
 
 	maxRetry := 100

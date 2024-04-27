@@ -80,22 +80,28 @@ func (o *OpenAIV1) Chat(ctx context.Context, stream bool, history []map[string]s
 		"stream":            stream,
 	}
 
-	buf := make(chan []byte)
+	var (
+		buf   = make(chan []byte)
+		errCh = make(chan error)
+	)
 	go func() {
-		defer close(buf)
-		err = o.request(ctx, stream, path, "POST", data, buf)
-		if err != nil {
-			return
-		}
+		defer close(errCh)
+		errCh <- o.request(ctx, stream, path, "POST", data, buf)
 	}()
 
-	for line := range buf {
-		var delta map[string]string
-		if stream {
-			var res ChatStreamResult
-			if string(line) == "EOF" {
-				delta = map[string]string{"content": "EOF"}
-			} else {
+	for {
+		select {
+		case err = <-errCh:
+			if err != nil {
+				return nil, err
+			}
+		case line, ok := <-buf:
+			if !ok {
+				return nil, nil
+			}
+			var delta map[string]string
+			if stream {
+				var res ChatStreamResult
 				if !strings.HasPrefix(string(line), "data:") || strings.Contains(string(line), "data: [DONE]") {
 					continue
 				}
@@ -107,24 +113,16 @@ func (o *OpenAIV1) Chat(ctx context.Context, stream bool, history []map[string]s
 					return
 				}
 				delta = res.Choices[0].Delta
+			} else {
+				var res ChatResult
+				err = json.Unmarshal(line, &res)
+				if err != nil {
+					err = fmt.Errorf("cannot marshal msg: %s, err: %v", line, err)
+					return
+				}
+				delta = res.Choices[0].Message
 			}
-		} else {
-			var res ChatResult
-			err = json.Unmarshal(line, &res)
-			if err != nil {
-				err = fmt.Errorf("cannot marshal msg: %s, err: %v", line, err)
-				return
-			}
-			delta = res.Choices[0].Message
-		}
-
-		select {
-		case <-ctx.Done():
-			err = fmt.Errorf("context timeout in openai chat")
-			return
-		case resp <- delta:
-			continue
+			resp <- delta
 		}
 	}
-	return
 }

@@ -173,6 +173,7 @@ func (s *services) ChatInRoom(request *ChatRequest, server Room_ChatInRoomServer
 		errCh         = make(chan error, 1)
 	)
 	defer timeoutF()
+
 	go func() {
 		defer close(errCh)
 		errCh <- s.ctrl.ChatInRoom(ctx, request.RoomID, request.NewRequest, chatCh)
@@ -180,9 +181,9 @@ func (s *services) ChatInRoom(request *ChatRequest, server Room_ChatInRoomServer
 	for {
 		select {
 		case <-ctx.Done():
-			err := errors.New("chat in room timeout")
+			err = errors.New("chat in room timeout")
 			return status.Error(common.FsApiError(err), "context timeout")
-		case err := <-errCh:
+		case err = <-errCh:
 			if err != nil {
 				return status.Error(common.FsApiError(err), "chat in room failed")
 			}
@@ -190,7 +191,7 @@ func (s *services) ChatInRoom(request *ChatRequest, server Room_ChatInRoomServer
 			if !ok {
 				return nil
 			}
-			if err := server.Send(&ChatResponse{
+			if err = server.Send(&ChatResponse{
 				ResponseID:      reply.ResponseId,
 				ResponseMessage: reply.Line,
 				Sender:          reply.Sender,
