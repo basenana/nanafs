@@ -109,7 +109,7 @@ var _ = Describe("testRoomService", func() {
 				content += resp.ResponseMessage
 			}
 
-			Expect(content).Should(Equal("hello, I am response\nabc"))
+			Expect(content).Should(Equal("🤔hello, I am response\nabc"))
 
 			// message should be saved
 			res, err := serviceClient.OpenRoom(ctx, &OpenRoomRequest{
