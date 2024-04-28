@@ -53,52 +53,49 @@ func (g *Gemini) Chat(ctx context.Context, stream bool, history []map[string]str
 		})
 	}
 
-	buf := make(chan []byte)
+	var (
+		buf   = make(chan []byte)
+		errCh = make(chan error)
+	)
 	go func() {
-		defer close(buf)
-		err = g.request(ctx, stream, path, "POST", map[string]any{"contents": contents}, buf)
-		if err != nil {
-			return
-		}
+		defer close(errCh)
+		errCh <- g.request(ctx, stream, path, "POST", map[string]any{"contents": contents}, buf)
 	}()
 
-	for line := range buf {
-		ans := make(map[string]string)
-		l := strings.TrimSpace(string(line))
-		if stream {
-			if l == "EOF" {
-				ans["content"] = "EOF"
-			} else {
+	for {
+		select {
+		case err = <-errCh:
+			return nil, err
+		case line, ok := <-buf:
+			if !ok {
+				return nil, nil
+			}
+			ans := make(map[string]string)
+			l := strings.TrimSpace(string(line))
+			if stream {
 				if !strings.HasPrefix(l, "\"text\"") {
 					continue
 				}
 				// it should be: "text": "xxx"
 				ans["content"] = l[9 : len(l)-2]
-			}
-		} else {
-			var res ChatResult
-			err = json.Unmarshal(line, &res)
-			if err != nil {
-				return nil, err
-			}
-			if len(res.Candidates) == 0 && res.PromptFeedback.BlockReason != "" {
-				g.log.Errorf("gemini response: %s ", string(line))
-				return nil, fmt.Errorf("gemini api block because of %s", res.PromptFeedback.BlockReason)
-			}
-			for _, c := range res.Candidates {
-				for _, t := range c.Content.Parts {
-					ans["role"] = c.Content.Role
-					ans["content"] = t.Text
+			} else {
+				var res ChatResult
+				err = json.Unmarshal(line, &res)
+				if err != nil {
+					return nil, err
+				}
+				if len(res.Candidates) == 0 && res.PromptFeedback.BlockReason != "" {
+					g.log.Errorf("gemini response: %s ", string(line))
+					return nil, fmt.Errorf("gemini api block because of %s", res.PromptFeedback.BlockReason)
+				}
+				for _, c := range res.Candidates {
+					for _, t := range c.Content.Parts {
+						ans["role"] = c.Content.Role
+						ans["content"] = t.Text
+					}
 				}
 			}
-		}
-		select {
-		case <-ctx.Done():
-			err = fmt.Errorf("context timeout in gemini chat")
-			return
-		case answers <- ans:
-			continue
+			answers <- ans
 		}
 	}
-	return nil, err
 }

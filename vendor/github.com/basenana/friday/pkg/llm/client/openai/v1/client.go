@@ -97,6 +97,7 @@ func NewOpenAIV1(log logger.Logger, baseUrl, key string, conf config.OpenAIConfi
 var _ llm.LLM = &OpenAIV1{}
 
 func (o *OpenAIV1) request(ctx context.Context, stream bool, path string, method string, data map[string]any, res chan<- []byte) error {
+	defer close(res)
 	jsonData, _ := json.Marshal(data)
 
 	maxRetry := 100

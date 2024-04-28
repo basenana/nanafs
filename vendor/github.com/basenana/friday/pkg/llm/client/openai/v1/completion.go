@@ -46,22 +46,31 @@ func (o *OpenAIV1) completion(ctx context.Context, prompt prompts.PromptTemplate
 		"n":                 1,
 	}
 
-	buf := make(chan []byte)
-	defer close(buf)
-	err = o.request(ctx, false, path, "POST", data, buf)
-	if err != nil {
-		return nil, nil, err
-	}
+	var (
+		buf   = make(chan []byte)
+		errCh = make(chan error)
+	)
+	go func() {
+		defer close(errCh)
+		err = o.request(ctx, false, path, "POST", data, buf)
+		if err != nil {
+			errCh <- err
+		}
+	}()
 
-	line := <-buf
-	var res ChatResult
-	err = json.Unmarshal(line, &res)
-	if err != nil {
+	select {
+	case err = <-errCh:
 		return nil, nil, err
+	case line := <-buf:
+		var res ChatResult
+		err = json.Unmarshal(line, &res)
+		if err != nil {
+			return nil, nil, err
+		}
+		ans := make([]string, len(res.Choices))
+		for i, c := range res.Choices {
+			ans[i] = c.Message["content"]
+		}
+		return ans, res.Usage, err
 	}
-	ans := make([]string, len(res.Choices))
-	for i, c := range res.Choices {
-		ans[i] = c.Message["content"]
-	}
-	return ans, res.Usage, err
 }

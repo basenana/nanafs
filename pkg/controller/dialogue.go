@@ -22,6 +22,7 @@ import (
 
 	friday2 "github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 )
 
 func (c *controller) ListRooms(ctx context.Context, entryId int64) ([]*types.Room, error) {
@@ -104,7 +105,7 @@ func (c *controller) ChatInRoom(ctx context.Context, roomId int64, newMsg string
 		respMsg       string
 		realHistory   = room.History
 		errCh         = make(chan error, 1)
-		responseMsgId int64
+		responseMsgId = utils.GenerateNewID()
 	)
 	if entry.Kind == types.GroupKind {
 		isDir = true
@@ -122,6 +123,14 @@ func (c *controller) ChatInRoom(ctx context.Context, roomId int64, newMsg string
 	if err != nil {
 		c.logger.Errorw("create message failed", "err", err)
 		return err
+	}
+
+	reply <- types.ReplyChannel{
+		Line:       "🤔",
+		ResponseId: responseMsgId,
+		Sender:     "thinking",
+		SendAt:     time.Now(),
+		CreatedAt:  time.Now(),
 	}
 
 	go func() {
@@ -165,9 +174,6 @@ func (c *controller) ChatInRoom(ctx context.Context, roomId int64, newMsg string
 			if err != nil {
 				c.logger.Errorw("save message failed", "err", err)
 				return err
-			}
-			if responseMsgId == 0 {
-				responseMsgId = response.ID
 			}
 			reply <- types.ReplyChannel{
 				Line:       line["content"],

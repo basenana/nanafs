@@ -42,19 +42,23 @@ func (g *Gemini) Embedding(ctx context.Context, doc string) (*EmbeddingResult, e
 	}
 
 	var (
-		buf = make(chan []byte)
-		err error
+		buf   = make(chan []byte)
+		errCh = make(chan error)
 	)
 	go func() {
-		defer close(buf)
-		err = g.request(ctx, false, path, "POST", data, buf)
+		defer close(errCh)
+		err := g.request(ctx, false, path, "POST", data, buf)
+		if err != nil {
+			errCh <- err
+		}
 	}()
-	if err != nil {
-		return nil, err
-	}
 
 	var res EmbeddingResult
-	respBody := <-buf
-	err = json.Unmarshal(respBody, &res)
-	return &res, err
+	select {
+	case err := <-errCh:
+		return nil, err
+	case respBody := <-buf:
+		err := json.Unmarshal(respBody, &res)
+		return &res, err
+	}
 }

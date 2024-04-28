@@ -18,6 +18,7 @@ package dialogue
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"go.uber.org/zap"
@@ -117,12 +118,15 @@ func (m *manager) DeleteRoom(ctx context.Context, id int64) error {
 func (m *manager) SaveMessage(ctx context.Context, roomMessage *types.RoomMessage) (*types.RoomMessage, error) {
 	if roomMessage.ID == 0 {
 		roomMessage.ID = utils.GenerateNewID()
-		roomMessage.CreatedAt = time.Now()
-		return roomMessage, m.recorder.SaveRoomMessage(ctx, roomMessage)
 	}
 	crtMsg, err := m.recorder.GetRoomMessage(ctx, roomMessage.ID)
-	if err != nil {
+	if err != nil && !errors.Is(err, types.ErrNotFound) {
 		return nil, err
+	}
+
+	if crtMsg == nil {
+		roomMessage.CreatedAt = time.Now()
+		return roomMessage, m.recorder.SaveRoomMessage(ctx, roomMessage)
 	}
 
 	if roomMessage.Message != "" {

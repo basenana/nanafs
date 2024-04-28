@@ -56,14 +56,25 @@ func (o *OpenAIV1) embedding(ctx context.Context, doc string) (*EmbeddingResult,
 		"input": doc,
 	}
 
-	buf := make(chan []byte)
-	err := o.request(ctx, false, path, "POST", data, buf)
-	if err != nil {
-		return nil, err
-	}
+	var (
+		buf   = make(chan []byte)
+		errCh = make(chan error)
+	)
+
+	go func() {
+		defer close(errCh)
+		err := o.request(ctx, false, path, "POST", data, buf)
+		if err != nil {
+			errCh <- err
+		}
+	}()
 
 	var res EmbeddingResult
-	respBody := <-buf
-	err = json.Unmarshal(respBody, &res)
-	return &res, err
+	select {
+	case err := <-errCh:
+		return nil, err
+	case respBody := <-buf:
+		err := json.Unmarshal(respBody, &res)
+		return &res, err
+	}
 }

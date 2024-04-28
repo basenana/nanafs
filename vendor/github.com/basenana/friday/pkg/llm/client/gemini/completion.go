@@ -63,27 +63,37 @@ func (g *Gemini) Completion(ctx context.Context, prompt prompts.PromptTemplate, 
 		}},
 	}
 
-	buf := make(chan []byte)
-	err = g.request(ctx, false, path, "POST", data, buf)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	var res ChatResult
-	respBody := <-buf
-	err = json.Unmarshal(respBody, &res)
-	if err != nil {
-		return nil, nil, err
-	}
-	if len(res.Candidates) == 0 && res.PromptFeedback.BlockReason != "" {
-		g.log.Errorf("gemini response: %s ", string(respBody))
-		return nil, nil, fmt.Errorf("gemini api block because of %s", res.PromptFeedback.BlockReason)
-	}
-	ans := make([]string, 0)
-	for _, c := range res.Candidates {
-		for _, t := range c.Content.Parts {
-			ans = append(ans, t.Text)
+	var (
+		buf   = make(chan []byte)
+		errCh = make(chan error)
+	)
+	go func() {
+		defer close(errCh)
+		err = g.request(ctx, false, path, "POST", data, buf)
+		if err != nil {
+			errCh <- err
 		}
+	}()
+
+	select {
+	case err = <-errCh:
+		return nil, nil, err
+	case respBody := <-buf:
+		var res ChatResult
+		err = json.Unmarshal(respBody, &res)
+		if err != nil {
+			return nil, nil, err
+		}
+		if len(res.Candidates) == 0 && res.PromptFeedback.BlockReason != "" {
+			g.log.Errorf("gemini response: %s ", string(respBody))
+			return nil, nil, fmt.Errorf("gemini api block because of %s", res.PromptFeedback.BlockReason)
+		}
+		ans := make([]string, 0)
+		for _, c := range res.Candidates {
+			for _, t := range c.Content.Parts {
+				ans = append(ans, t.Text)
+			}
+		}
+		return ans, nil, err
 	}
-	return ans, nil, err
 }

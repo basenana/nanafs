@@ -158,7 +158,10 @@ func (p *PostgresClient) Search(ctx context.Context, query models.DocQuery, vect
 
 	sort.Sort(dists)
 
-	minKIndexes := dists[0:k]
+	minKIndexes := dists
+	if k < len(dists) {
+		minKIndexes = dists[0:k]
+	}
 	results := make([]*models.Doc, 0)
 	for _, index := range minKIndexes {
 		results = append(results, index.ToDoc())
