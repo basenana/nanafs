@@ -63,11 +63,10 @@ func entryDetail(en, parent *types.Metadata) *EntryDetail {
 		access.Permissions = append(access.Permissions, string(perm))
 	}
 
-	return &EntryDetail{
+	ed := &EntryDetail{
 		Id:         en.ID,
 		Name:       en.Name,
 		Aliases:    en.Aliases,
-		Parent:     entryInfo(parent),
 		Kind:       string(en.Kind),
 		IsGroup:    en.IsGroup,
 		Size:       en.Size,
@@ -80,6 +79,10 @@ func entryDetail(en, parent *types.Metadata) *EntryDetail {
 		ModifiedAt: timestamppb.New(en.ModifiedAt),
 		AccessAt:   timestamppb.New(en.AccessAt),
 	}
+	if parent != nil {
+		ed.Parent = entryInfo(parent)
+	}
+	return ed
 }
 
 func eventInfo(evt *types.Event) *Event {

@@ -298,6 +298,36 @@ func (s *services) GetDocumentDetail(ctx context.Context, request *GetDocumentDe
 	}, nil
 }
 
+func (s *services) FindEntryDetail(ctx context.Context, request *FindEntryDetailRequest) (*GetEntryDetailResponse, error) {
+	var (
+		en, par *types.Metadata
+		err     error
+	)
+
+	if request.Root {
+		en, err = s.ctrl.LoadRootEntry(ctx)
+		if err != nil {
+			return nil, status.Error(common.FsApiError(err), "query root entry failed")
+		}
+	} else {
+		par, err = s.ctrl.GetEntry(ctx, request.ParentID)
+		if err != nil {
+			return nil, status.Error(common.FsApiError(err), "query parent entry failed")
+		}
+
+		en, err = s.ctrl.FindEntry(ctx, request.ParentID, request.Name)
+		if err != nil {
+			return nil, status.Error(common.FsApiError(err), "find child entry failed")
+		}
+	}
+
+	properties, err := s.queryEntryProperties(ctx, en.ID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "query entry properties failed")
+	}
+	return &GetEntryDetailResponse{Entry: entryDetail(en, par), Properties: properties}, nil
+}
+
 func (s *services) GetEntryDetail(ctx context.Context, request *GetEntryDetailRequest) (*GetEntryDetailResponse, error) {
 	caller := s.callerAuthFn(ctx)
 	if !caller.Authenticated {

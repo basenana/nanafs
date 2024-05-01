@@ -51,6 +51,7 @@ message QuickInboxResponse {
 }
 
 service Entries {
+  rpc FindEntryDetail (FindEntryDetailRequest) returns (GetEntryDetailResponse) {}
   rpc GetEntryDetail (GetEntryDetailRequest) returns (GetEntryDetailResponse) {}
   rpc CreateEntry (CreateEntryRequest) returns (CreateEntryResponse) {}
   rpc UpdateEntry (UpdateEntryRequest) returns (UpdateEntryResponse) {}
@@ -60,6 +61,11 @@ service Entries {
 
   rpc WriteFile (stream WriteFileRequest) returns (WriteFileResponse) {}
   rpc ReadFile (ReadFileRequest) returns (stream ReadFileResponse) {}
+}
+message FindEntryDetailRequest {
+  bool root = 1;
+  int64 parentID = 2;
+  string name = 3;
 }
 
 message GetEntryDetailRequest {
