@@ -36,6 +36,7 @@ type Manager interface {
 	UpdateRoom(ctx context.Context, room *types.Room) error
 	GetRoom(ctx context.Context, id int64) (*types.Room, error)
 	DeleteRoom(ctx context.Context, id int64) error
+	DeleteRoomMessages(ctx context.Context, roomId int64) error
 	SaveMessage(ctx context.Context, roomMessage *types.RoomMessage) (*types.RoomMessage, error)
 }
 
@@ -72,7 +73,7 @@ func (m *manager) CreateRoom(ctx context.Context, entryId int64, prompt string) 
 		EntryId: entryId,
 		Prompt:  prompt,
 		//History:   []map[string]string{},
-		CreatedAt: time.Time{},
+		CreatedAt: time.Now(),
 	}
 	return room, m.recorder.SaveRoom(ctx, room)
 }
@@ -88,7 +89,7 @@ func (m *manager) UpdateRoom(ctx context.Context, room *types.Room) error {
 	if room.Prompt != "" {
 		crt.Prompt = room.Prompt
 	}
-	if len(room.History) != 0 {
+	if room.History != nil {
 		crt.History = room.History
 	}
 	return m.recorder.SaveRoom(ctx, crt)
@@ -113,6 +114,10 @@ func (m *manager) DeleteRoom(ctx context.Context, id int64) error {
 		return err
 	}
 	return m.recorder.DeleteRoom(ctx, id)
+}
+
+func (m *manager) DeleteRoomMessages(ctx context.Context, roomId int64) error {
+	return m.recorder.DeleteRoomMessages(ctx, roomId)
 }
 
 func (m *manager) SaveMessage(ctx context.Context, roomMessage *types.RoomMessage) (*types.RoomMessage, error) {

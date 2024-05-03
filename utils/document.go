@@ -25,7 +25,7 @@ var htmlCharFilterRegexp = regexp.MustCompile(`</?[!\w]+((\s+[\w-]+(\s*=\s*(?:\\
 
 func ContentTrim(contentType, content string) string {
 	switch contentType {
-	case "html", "htm", "webarchive":
+	case "html", "htm", "webarchive", ".webarchive":
 		content = strings.ReplaceAll(content, "</p>", "</p>\n")
 		content = strings.ReplaceAll(content, "</P>", "</P>\n")
 		content = strings.ReplaceAll(content, "</div>", "</div>\n")

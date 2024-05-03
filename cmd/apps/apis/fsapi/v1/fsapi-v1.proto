@@ -223,6 +223,7 @@ service Room {
   rpc OpenRoom (OpenRoomRequest) returns (OpenRoomResponse) {}
   rpc UpdateRoom (UpdateRoomRequest) returns (UpdateRoomResponse) {}
   rpc DeleteRoom (DeleteRoomRequest) returns (DeleteRoomResponse) {}
+  rpc ClearRoom (ClearRoomRequest) returns (ClearRoomResponse) {}
   rpc ChatInRoom (ChatRequest) returns (stream ChatResponse) {}
 }
 
@@ -280,7 +281,15 @@ message DeleteRoomRequest {
   int64 roomID = 1;
 }
 
+message ClearRoomRequest {
+  int64 roomID = 1;
+}
+
 message DeleteRoomResponse {
+  int64 roomID = 1;
+}
+
+message ClearRoomResponse {
   int64 roomID = 1;
 }
 

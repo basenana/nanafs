@@ -71,6 +71,22 @@ func (c *controller) DeleteRoom(ctx context.Context, id int64) error {
 	return err
 }
 
+func (c *controller) ClearRoom(ctx context.Context, id int64) error {
+	if err := c.dialogue.UpdateRoom(ctx, &types.Room{
+		ID:      id,
+		History: make([]map[string]string, 0),
+	}); err != nil {
+		c.logger.Errorw("update room failed", "err", err)
+		return err
+	}
+
+	err := c.dialogue.DeleteRoomMessages(ctx, id)
+	if err != nil {
+		c.logger.Errorw("delete room failed", "err", err)
+	}
+	return err
+}
+
 func (c *controller) CreateRoomMessage(ctx context.Context, roomID int64, sender, msg string, sendAt time.Time) (*types.RoomMessage, error) {
 	result, err := c.dialogue.SaveMessage(ctx, &types.RoomMessage{
 		RoomID:    roomID,
@@ -106,6 +122,7 @@ func (c *controller) ChatInRoom(ctx context.Context, roomId int64, newMsg string
 		realHistory   = room.History
 		errCh         = make(chan error, 1)
 		responseMsgId = utils.GenerateNewID()
+		historyCh     = make(chan []map[string]string)
 	)
 	if entry.Kind == types.GroupKind {
 		isDir = true
@@ -135,7 +152,7 @@ func (c *controller) ChatInRoom(ctx context.Context, roomId int64, newMsg string
 
 	go func() {
 		defer close(errCh)
-		realHistory, err = friday2.ChatWithEntry(ctx, room.EntryId, isDir, realHistory, responseCh)
+		err = friday2.ChatWithEntry(ctx, room.EntryId, isDir, realHistory, responseCh, historyCh)
 		if err != nil {
 			errCh <- err
 		}
@@ -145,11 +162,11 @@ func (c *controller) ChatInRoom(ctx context.Context, roomId int64, newMsg string
 		select {
 		case err = <-errCh:
 			return err
-		case line, ok := <-responseCh:
-
-			if !ok {
-				// update roomMessage
-				realHistory = append(realHistory, map[string]string{"role": model, "content": respMsg})
+		case h := <-historyCh:
+			// update roomMessage
+			if h != nil {
+				c.logger.Infow("update room", "history", h)
+				realHistory = append(h, map[string]string{"role": model, "content": respMsg})
 				room.History = realHistory
 				err = c.dialogue.UpdateRoom(ctx, room)
 				if err != nil {
@@ -158,6 +175,7 @@ func (c *controller) ChatInRoom(ctx context.Context, roomId int64, newMsg string
 				}
 			}
 
+		case line := <-responseCh:
 			if model == "" {
 				model = line["role"]
 			}

@@ -63,13 +63,20 @@ func (i *IngestPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pl
 	}
 
 	buf := bytes.Buffer{}
+	var docType string
 	for _, doc := range docs {
+		if doc.Metadata != nil {
+			docType = doc.Metadata["type"]
+		}
 		buf.WriteString(doc.Content)
 		buf.WriteString("\n")
 	}
 
+	content := buf.String()
+	trimmedContent := utils.ContentTrim(docType, content)
+
 	i.logger(ctx).Infow("get docs", "length", buf.Len(), "entryId", request.EntryId)
-	usage, err := friday.IngestFile(ctx, request.EntryId, request.ParentEntryId, fmt.Sprintf("entry_%d", request.EntryId), buf.String())
+	usage, err := friday.IngestFile(ctx, request.EntryId, request.ParentEntryId, fmt.Sprintf("entry_%d", request.EntryId), trimmedContent)
 	if err != nil {
 		return pluginapi.NewFailedResponse(fmt.Sprintf("ingest documents failed: %s", err)), nil
 	}
