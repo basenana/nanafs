@@ -18,11 +18,13 @@ package buildin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
+	"strings"
 	"time"
 )
 
@@ -32,10 +34,10 @@ const (
 )
 
 type DocMetaPlugin struct {
-	spec   types.PluginSpec
-	scope  types.PlugScope
-	docMgr DocumentManager
-	log    *zap.SugaredLogger
+	spec  types.PluginSpec
+	scope types.PlugScope
+	svc   Services
+	log   *zap.SugaredLogger
 }
 
 func (d DocMetaPlugin) Name() string {
@@ -55,11 +57,32 @@ func (d DocMetaPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pl
 		return nil, fmt.Errorf("entry id is empty")
 	}
 
-	doc, err := d.docMgr.GetDocumentByEntryId(ctx, request.EntryId)
+	for k, v := range request.Parameter {
+		if strings.HasPrefix(k, pluginapi.ResWorkflowKeyPrefix) {
+			continue
+		}
+
+		valStr, ok := v.(string)
+		if !ok {
+			continue
+		}
+
+		if err := d.svc.SetEntryExtendField(ctx, request.EntryId, k, valStr, false); err != nil {
+			return pluginapi.NewFailedResponse(fmt.Sprintf("update entry %d extend field %s error: %s", request.EntryId, k, err)), nil
+		}
+
+		d.log.Infof("set entey %d extend field %s=%s", request.EntryId, k, valStr)
+	}
+
+	doc, err := d.svc.GetDocumentByEntryId(ctx, request.EntryId)
 	if err != nil {
+		if errors.Is(err, types.ErrNotFound) {
+			return pluginapi.NewResponseWithResult(nil), nil
+		}
 		return pluginapi.NewFailedResponse(fmt.Sprintf("get document with entry id %d error: %s", request.EntryId, err)), nil
 	}
 
+	// TODO: move to summary plugin
 	totalUsage := make(map[string]any)
 	if request.ContextResults.IsSet(pluginapi.ResEntryDocSummaryKey) {
 		var summaryVal = types.FLlmResult{}
@@ -85,7 +108,7 @@ func (d DocMetaPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pl
 		if !ok {
 			continue
 		}
-		err = d.docMgr.CreateFridayAccount(ctx, &types.FridayAccount{
+		err = d.svc.CreateFridayAccount(ctx, &types.FridayAccount{
 			RefID:          doc.ID,
 			RefType:        "document",
 			Type:           k,
@@ -99,7 +122,7 @@ func (d DocMetaPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pl
 	}
 
 	doc.ChangedAt = time.Now()
-	err = d.docMgr.SaveDocument(ctx, doc)
+	err = d.svc.SaveDocument(ctx, doc)
 	if err != nil {
 		return pluginapi.NewFailedResponse(fmt.Sprintf("update document %d meta failed: %s", doc.ID, err)), nil
 	}
@@ -108,9 +131,9 @@ func (d DocMetaPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pl
 
 func NewDocMetaPlugin(spec types.PluginSpec, scope types.PlugScope, svc Services) (*DocMetaPlugin, error) {
 	return &DocMetaPlugin{
-		spec:   spec,
-		scope:  scope,
-		docMgr: svc.DocumentManager,
-		log:    logger.NewLogger("docMetaPlugin"),
+		spec:  spec,
+		scope: scope,
+		svc:   svc,
+		log:   logger.NewLogger("docMetaPlugin"),
 	}, nil
 }

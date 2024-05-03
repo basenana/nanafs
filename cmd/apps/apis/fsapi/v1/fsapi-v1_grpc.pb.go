@@ -1307,3 +1307,87 @@ var Notify_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "cmd/apps/apis/fsapi/v1/fsapi-v1.proto",
 }
+
+// WorkflowClient is the client API for Workflow service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type WorkflowClient interface {
+	TriggerWorkflow(ctx context.Context, in *TriggerWorkflowRequest, opts ...grpc.CallOption) (*TriggerWorkflowResponse, error)
+}
+
+type workflowClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewWorkflowClient(cc grpc.ClientConnInterface) WorkflowClient {
+	return &workflowClient{cc}
+}
+
+func (c *workflowClient) TriggerWorkflow(ctx context.Context, in *TriggerWorkflowRequest, opts ...grpc.CallOption) (*TriggerWorkflowResponse, error) {
+	out := new(TriggerWorkflowResponse)
+	err := c.cc.Invoke(ctx, "/api.v1.Workflow/TriggerWorkflow", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// WorkflowServer is the server API for Workflow service.
+// All implementations should embed UnimplementedWorkflowServer
+// for forward compatibility
+type WorkflowServer interface {
+	TriggerWorkflow(context.Context, *TriggerWorkflowRequest) (*TriggerWorkflowResponse, error)
+}
+
+// UnimplementedWorkflowServer should be embedded to have forward compatible implementations.
+type UnimplementedWorkflowServer struct {
+}
+
+func (UnimplementedWorkflowServer) TriggerWorkflow(context.Context, *TriggerWorkflowRequest) (*TriggerWorkflowResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TriggerWorkflow not implemented")
+}
+
+// UnsafeWorkflowServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to WorkflowServer will
+// result in compilation errors.
+type UnsafeWorkflowServer interface {
+	mustEmbedUnimplementedWorkflowServer()
+}
+
+func RegisterWorkflowServer(s grpc.ServiceRegistrar, srv WorkflowServer) {
+	s.RegisterService(&Workflow_ServiceDesc, srv)
+}
+
+func _Workflow_TriggerWorkflow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TriggerWorkflowRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkflowServer).TriggerWorkflow(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.v1.Workflow/TriggerWorkflow",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkflowServer).TriggerWorkflow(ctx, req.(*TriggerWorkflowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// Workflow_ServiceDesc is the grpc.ServiceDesc for Workflow service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var Workflow_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "api.v1.Workflow",
+	HandlerType: (*WorkflowServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "TriggerWorkflow",
+			Handler:    _Workflow_TriggerWorkflow_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "cmd/apps/apis/fsapi/v1/fsapi-v1.proto",
+}

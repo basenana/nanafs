@@ -19,6 +19,7 @@ package v1
 import (
 	"context"
 	"errors"
+	"github.com/basenana/nanafs/pkg/workflow"
 	"io"
 	"time"
 
@@ -44,6 +45,7 @@ type Services interface {
 	InboxServer
 	PropertiesServer
 	NotifyServer
+	WorkflowServer
 }
 
 func InitServices(server *grpc.Server, ctrl controller.Controller, pathEntryMgr *pathmgr.PathManager) (Services, error) {
@@ -61,6 +63,7 @@ func InitServices(server *grpc.Server, ctrl controller.Controller, pathEntryMgr 
 	RegisterRoomServer(server, s)
 	RegisterPropertiesServer(server, s)
 	RegisterNotifyServer(server, s)
+	RegisterWorkflowServer(server, s)
 	return s, nil
 }
 
@@ -632,6 +635,7 @@ func (s *services) ReadFile(request *ReadFileRequest, writer Entries_ReadFileSer
 func (s *services) QuickInbox(ctx context.Context, request *QuickInboxRequest) (*QuickInboxResponse, error) {
 	option := inbox.Option{
 		Url:         request.Url,
+		Data:        request.Data,
 		ClutterFree: request.ClutterFree,
 	}
 	switch request.FileType {
@@ -754,6 +758,37 @@ func (s *services) CommitSyncedEvent(ctx context.Context, request *CommitSyncedE
 		return nil, status.Error(common.FsApiError(err), "device commit sequence failed")
 	}
 	return &CommitSyncedEventResponse{}, nil
+}
+
+func (s *services) TriggerWorkflow(ctx context.Context, request *TriggerWorkflowRequest) (*TriggerWorkflowResponse, error) {
+	s.logger.Infow("trigger workflow", "workflow", request.WorkflowID)
+
+	if request.WorkflowID == "" {
+		return nil, status.Error(codes.InvalidArgument, "workflow id is empty")
+	}
+	if request.Target == nil {
+		return nil, status.Error(codes.InvalidArgument, "workflow target is empty")
+	}
+
+	if _, err := s.ctrl.GetWorkflow(ctx, request.WorkflowID); err != nil {
+		return nil, status.Error(common.FsApiError(err), "fetch workflow failed")
+	}
+
+	if request.Attr == nil {
+		request.Attr = &TriggerWorkflowRequest_WorkflowJobAttr{
+			Reason:  "fsapi trigger",
+			Timeout: 60 * 10, // default 10min
+		}
+	}
+
+	job, err := s.ctrl.TriggerWorkflow(ctx, request.WorkflowID,
+		types.WorkflowTarget{EntryID: request.Target.EntryID, ParentEntryID: request.Target.ParentEntryID},
+		workflow.JobAttr{Reason: request.Attr.Reason, Timeout: time.Second * time.Duration(request.Attr.Timeout)},
+	)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "trigger workflow failed")
+	}
+	return &TriggerWorkflowResponse{JobID: job.Id}, nil
 }
 
 func (s *services) queryEntryProperties(ctx context.Context, entryID int64) ([]*Property, error) {
