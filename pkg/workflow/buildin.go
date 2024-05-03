@@ -26,6 +26,7 @@ import (
 
 const (
 	BuildInWorkflowSummary = "buildin.summary"
+	BuildInWorkflowIngest  = "buildin.ingest"
 )
 
 func registerBuildInWorkflow(ctx context.Context, mgr Manager) error {
@@ -121,6 +122,17 @@ var (
 			Name: "Document Summary",
 			Steps: []types.WorkflowStepSpec{
 				{
+					Name: "docmeta",
+					Plugin: &types.PlugScope{
+						PluginName: "docmeta",
+						Version:    "1.0",
+						PluginType: types.TypeProcess,
+						Parameters: map[string]string{
+							"org.basenana.friday/summary": "processing",
+						},
+					},
+				},
+				{
 					Name: "summary",
 					Plugin: &types.PlugScope{
 						PluginName: "summary",
@@ -135,7 +147,49 @@ var (
 						PluginName: "docmeta",
 						Version:    "1.0",
 						PluginType: types.TypeProcess,
+						Parameters: map[string]string{
+							"org.basenana.friday/summary": "finish",
+						},
+					},
+				},
+			},
+			QueueName: "friday",
+			Executor:  "pipe",
+			Enable:    true,
+		},
+		{
+			Id:   BuildInWorkflowIngest,
+			Name: "Document Ingest",
+			Steps: []types.WorkflowStepSpec{
+				{
+					Name: "docmeta",
+					Plugin: &types.PlugScope{
+						PluginName: "docmeta",
+						Version:    "1.0",
+						PluginType: types.TypeProcess,
+						Parameters: map[string]string{
+							"org.basenana.friday/ingest": "processing",
+						},
+					},
+				},
+				{
+					Name: "ingest",
+					Plugin: &types.PlugScope{
+						PluginName: "ingest",
+						Version:    "1.0",
+						PluginType: types.TypeProcess,
 						Parameters: map[string]string{},
+					},
+				},
+				{
+					Name: "docmeta",
+					Plugin: &types.PlugScope{
+						PluginName: "docmeta",
+						Version:    "1.0",
+						PluginType: types.TypeProcess,
+						Parameters: map[string]string{
+							"org.basenana.friday/ingest": "finish",
+						},
 					},
 				},
 			},

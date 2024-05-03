@@ -144,8 +144,11 @@ func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobS
 	req.EntryPath = b.entryPath
 	req.EntryURI = b.entryURI
 
-	req.Parameter = map[string]any{}
 	req.ContextResults = b.ctxResults
+	req.Parameter = map[string]any{}
+	for k, v := range step.Plugin.Parameters {
+		req.Parameter[k] = v
+	}
 	req.Parameter[pluginapi.ResEntryIdKey] = b.job.Target.EntryID
 	req.Parameter[pluginapi.ResEntryPathKey] = b.entryPath
 	req.Parameter[pluginapi.ResPluginName] = step.Plugin.PluginName
@@ -355,6 +358,9 @@ func (p *pipeExecutor) DoOperation(ctx context.Context, step types.WorkflowJobSt
 	req.ContextResults = p.ctxResults
 
 	req.Parameter = map[string]any{}
+	for k, v := range step.Plugin.Parameters {
+		req.Parameter[k] = v
+	}
 	req.Parameter[pluginapi.ResEntryIdKey] = p.job.Target.EntryID
 	req.Parameter[pluginapi.ResPluginName] = step.Plugin.PluginName
 	req.Parameter[pluginapi.ResPluginVersion] = step.Plugin.Version

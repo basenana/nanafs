@@ -94,6 +94,19 @@ type Controller interface {
 	WriteFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error)
 	CloseFile(ctx context.Context, file dentry.File) error
 
+	ListWorkflows(ctx context.Context) ([]*types.WorkflowSpec, error)
+	GetWorkflow(ctx context.Context, wfId string) (*types.WorkflowSpec, error)
+	CreateWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error)
+	UpdateWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error)
+	DeleteWorkflow(ctx context.Context, wfId string) error
+	ListJobs(ctx context.Context, wfId string) ([]*types.WorkflowJob, error)
+	GetJob(ctx context.Context, wfId string, jobID string) (*types.WorkflowJob, error)
+
+	TriggerWorkflow(ctx context.Context, wfId string, tgt types.WorkflowTarget, attr workflow.JobAttr) (*types.WorkflowJob, error)
+	PauseWorkflowJob(ctx context.Context, jobId string) error
+	ResumeWorkflowJob(ctx context.Context, jobId string) error
+	CancelWorkflowJob(ctx context.Context, jobId string) error
+
 	FsInfo(ctx context.Context) Info
 	StartBackendTask(stopCh chan struct{})
 	SetupShutdownHandler(stopCh chan struct{}) chan struct{}
@@ -371,7 +384,7 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 		return nil, err
 	}
 
-	if err = plugin.Init(buildin.Services{DocumentManager: ctl.document}, loader); err != nil {
+	if err = plugin.Init(buildin.Services{DocumentManager: ctl.document, ExtendFieldManager: ctl.entry}, loader); err != nil {
 		return nil, err
 	}
 	ctl.workflow, err = workflow.NewManager(ctl.entry, ctl.document, ctl.Notify, meta, loader)

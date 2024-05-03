@@ -407,12 +407,16 @@ func (f *yamlFile) Close(ctx context.Context) error {
 		rawObj interface{}
 		err    error
 	)
-
 	defer func() {
 		f.plugin.mux.Lock()
 		delete(f.plugin.openedFile, f.path)
 		f.plugin.mux.Unlock()
 	}()
+
+	if !strings.HasSuffix(f.path, MirrorFileType) {
+		return nil
+	}
+
 	switch {
 	case f.wfID != "" && f.jobID == "":
 		op = "create or update workflow"
@@ -425,7 +429,7 @@ func (f *yamlFile) Close(ctx context.Context) error {
 	_ = f.Trunc(ctx)
 	writer := utils.NewWriterWithContextWriter(ctx, f)
 	if err != nil {
-		wfLogger.Errorf("%s failed: %s", op, err)
+		wfLogger.Errorf("%s [%s] failed: %s", op, f.path, err)
 		_, _ = f.WriteAt(ctx, []byte(fmt.Sprintf("# error: %s\n", err)), 0)
 	}
 	return yaml.NewEncoder(writer).Encode(rawObj)

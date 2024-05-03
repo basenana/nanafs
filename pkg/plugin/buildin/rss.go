@@ -223,7 +223,7 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 			buf.WriteString("\n")
 			buf.WriteString(fmt.Sprintf("URL=%s", item.Link))
 
-			err = os.WriteFile(safetyFilePathJoin(workdir, fileName), buf.Bytes(), 0655)
+			err = os.WriteFile(utils.SafetyFilePathJoin(workdir, fileName), buf.Bytes(), 0655)
 			if err != nil {
 				return nil, fmt.Errorf("pack to url file failed: %s", err)
 			}
@@ -231,7 +231,7 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 		case archiveFileTypeHtml:
 			fileName += ".html"
 			htmlContent := readableHtmlContent(item.Link, item.Title, item.Content)
-			err = os.WriteFile(safetyFilePathJoin(workdir, fileName), []byte(htmlContent), 0655)
+			err = os.WriteFile(utils.SafetyFilePathJoin(workdir, fileName), []byte(htmlContent), 0655)
 			if err != nil {
 				return nil, fmt.Errorf("pack to html file failed: %s", err)
 			}
@@ -241,7 +241,7 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 			p := packer.NewHtmlPacker()
 			err = p.Pack(ctx, packer.Option{
 				URL:         item.Link,
-				FilePath:    safetyFilePathJoin(workdir, fileName),
+				FilePath:    utils.SafetyFilePathJoin(workdir, fileName),
 				Timeout:     source.Timeout,
 				ClutterFree: source.ClutterFree,
 				Headers:     headers,
@@ -256,7 +256,7 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 			p := packer.NewWebArchivePacker()
 			err = p.Pack(ctx, packer.Option{
 				URL:         item.Link,
-				FilePath:    safetyFilePathJoin(workdir, fileName),
+				FilePath:    utils.SafetyFilePathJoin(workdir, fileName),
 				Timeout:     source.Timeout,
 				ClutterFree: source.ClutterFree,
 				Headers:     headers,
@@ -270,7 +270,7 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 			return nil, fmt.Errorf("unknown rss archive file type %s", source.FileType)
 		}
 
-		filePath := safetyFilePathJoin(workdir, fileName)
+		filePath := utils.SafetyFilePathJoin(workdir, fileName)
 		fInfo, err := os.Stat(filePath)
 		if err != nil {
 			return nil, fmt.Errorf("stat archive file error: %s", err)

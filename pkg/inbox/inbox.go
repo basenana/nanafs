@@ -22,6 +22,7 @@ import (
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow"
+	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"strings"
@@ -35,6 +36,8 @@ type Inbox struct {
 }
 
 func (b *Inbox) QuickInbox(ctx context.Context, fileName string, option Option) (*types.Metadata, error) {
+	fileName = utils.SafetyFilePathJoin("", fileName)
+
 	if fileName == "" || option.FileType == "" {
 		return nil, fmt.Errorf("filename or file type not set")
 	}
@@ -53,6 +56,14 @@ func (b *Inbox) QuickInbox(ctx context.Context, fileName string, option Option) 
 		return nil, err
 	}
 	defer file.Close(ctx)
+
+	if option.Data != nil {
+		b.logger.Infow("write data direct", "entry", fileEn.ID, "filename", fileName)
+		if _, err = file.WriteAt(ctx, option.Data, 0); err != nil {
+			return nil, err
+		}
+		return fileEn, nil
+	}
 
 	err = UrlFile{
 		Url:         option.Url,
@@ -82,4 +93,5 @@ type Option struct {
 	Url         string
 	FileType    string
 	ClutterFree bool
+	Data        []byte
 }

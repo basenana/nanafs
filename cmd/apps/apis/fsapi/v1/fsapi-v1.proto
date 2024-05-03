@@ -40,6 +40,7 @@ message QuickInboxRequest {
   FileType fileType = 2;
   string filename = 3;
   string url = 4;
+  bytes data = 5;
 
   // url source
   bool clutterFree = 10;
@@ -51,6 +52,7 @@ message QuickInboxResponse {
 }
 
 service Entries {
+  rpc FindEntryDetail (FindEntryDetailRequest) returns (GetEntryDetailResponse) {}
   rpc GetEntryDetail (GetEntryDetailRequest) returns (GetEntryDetailResponse) {}
   rpc CreateEntry (CreateEntryRequest) returns (CreateEntryResponse) {}
   rpc UpdateEntry (UpdateEntryRequest) returns (UpdateEntryResponse) {}
@@ -60,6 +62,12 @@ service Entries {
 
   rpc WriteFile (stream WriteFileRequest) returns (WriteFileResponse) {}
   rpc ReadFile (ReadFileRequest) returns (stream ReadFileResponse) {}
+}
+
+message FindEntryDetailRequest {
+  bool root = 1;
+  int64 parentID = 2;
+  string name = 3;
 }
 
 message GetEntryDetailRequest {
@@ -320,6 +328,28 @@ message CommitSyncedEventRequest {
 }
 
 message CommitSyncedEventResponse {}
+
+service Workflow {
+  rpc TriggerWorkflow (TriggerWorkflowRequest) returns (TriggerWorkflowResponse) {}
+}
+
+message TriggerWorkflowRequest {
+  message WorkflowTarget {
+    int64 entryID = 1;
+    int64 parentEntryID = 2;
+  }
+  message WorkflowJobAttr {
+    string reason = 1;
+    int64 timeout = 2;
+  }
+  string workflowID = 1;
+  WorkflowTarget target = 2;
+  WorkflowJobAttr attr = 3;
+}
+
+message TriggerWorkflowResponse {
+  string jobID = 1;
+}
 
 message DocumentInfo {
   int64 id = 1;

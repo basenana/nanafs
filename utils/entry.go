@@ -18,8 +18,19 @@ package utils
 
 import (
 	"os"
+	"path"
+	"regexp"
 )
 
 const (
 	PathSeparator = string(os.PathSeparator)
 )
+
+var (
+	fileNameSafety = regexp.MustCompile(`[\\/:*?"<>|]`)
+)
+
+func SafetyFilePathJoin(parent, filename string) string {
+	safeFilename := fileNameSafety.ReplaceAllString(filename, " ")
+	return path.Clean(path.Join(parent, safeFilename))
+}

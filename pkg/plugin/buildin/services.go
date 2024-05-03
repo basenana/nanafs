@@ -23,6 +23,12 @@ import (
 
 type Services struct {
 	DocumentManager
+	ExtendFieldManager
+}
+
+type ExtendFieldManager interface {
+	GetEntryExtendField(ctx context.Context, id int64, fKey string) (*string, bool, error)
+	SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string, encoded bool) error
 }
 
 type DocumentManager interface {
