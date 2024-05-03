@@ -106,9 +106,10 @@ func Keywords(ctx context.Context, content string) ([]string, map[string]int, er
 	return result.Keywords, result.Tokens, f.Error
 }
 
-func ChatWithEntry(ctx context.Context, entryId int64, isGroup bool, history []map[string]string, response chan map[string]string) ([]map[string]string, error) {
+func ChatWithEntry(ctx context.Context, entryId int64, isGroup bool, history []map[string]string, response chan map[string]string, realHistory chan []map[string]string) error {
+	defer close(realHistory)
 	if fridayClient == nil {
-		return nil, fmt.Errorf("fridayClient is nil, can not use it")
+		return fmt.Errorf("fridayClient is nil, can not use it")
 	}
 	result := friday.ChatState{Response: response}
 	f := fridayClient.WithContext(ctx).History(history)
@@ -118,5 +119,7 @@ func ChatWithEntry(ctx context.Context, entryId int64, isGroup bool, history []m
 		f = f.SearchIn(&models.DocQuery{Oid: entryId})
 	}
 	f = f.Chat(&result)
-	return f.GetRealHistory(), f.Error
+	h := f.GetRealHistory()
+	realHistory <- h
+	return f.Error
 }

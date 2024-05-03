@@ -86,6 +86,7 @@ type Controller interface {
 	GetRoom(ctx context.Context, id int64) (*types.Room, error)
 	UpdateRoom(ctx context.Context, roomId int64, prompt string) error
 	DeleteRoom(ctx context.Context, id int64) error
+	ClearRoom(ctx context.Context, id int64) error
 	ChatInRoom(ctx context.Context, roomId int64, newMsg string, reply chan types.ReplyChannel) (err error)
 	CreateRoomMessage(ctx context.Context, roomID int64, sender, msg string, sendAt time.Time) (*types.RoomMessage, error)
 
@@ -363,6 +364,8 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 		ctl.logger.Warnw("init build-in ca failed", "err", tokenErr)
 	}
 
+	ctl.Notify = notify.NewNotify(meta)
+
 	ctl.entry, err = dentry.NewManager(meta, bCfg)
 	if err != nil {
 		return nil, err
@@ -392,7 +395,6 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 		return nil, err
 	}
 
-	ctl.Notify = notify.NewNotify(meta)
 	ctl.Inbox, err = inbox.New(ctl.entry, ctl.workflow)
 	if err != nil {
 		return nil, err

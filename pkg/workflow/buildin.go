@@ -20,8 +20,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/types"
 	"reflect"
+
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 const (
@@ -122,7 +123,7 @@ var (
 			Name: "Document Summary",
 			Steps: []types.WorkflowStepSpec{
 				{
-					Name: "docmeta",
+					Name: "set processing",
 					Plugin: &types.PlugScope{
 						PluginName: "docmeta",
 						Version:    "1.0",
@@ -142,7 +143,7 @@ var (
 					},
 				},
 				{
-					Name: "docmeta",
+					Name: "set finish",
 					Plugin: &types.PlugScope{
 						PluginName: "docmeta",
 						Version:    "1.0",
@@ -162,7 +163,7 @@ var (
 			Name: "Document Ingest",
 			Steps: []types.WorkflowStepSpec{
 				{
-					Name: "docmeta",
+					Name: "set processing",
 					Plugin: &types.PlugScope{
 						PluginName: "docmeta",
 						Version:    "1.0",
@@ -182,7 +183,7 @@ var (
 					},
 				},
 				{
-					Name: "docmeta",
+					Name: "set finish",
 					Plugin: &types.PlugScope{
 						PluginName: "docmeta",
 						Version:    "1.0",

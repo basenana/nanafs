@@ -19,9 +19,10 @@ package v1
 import (
 	"context"
 	"errors"
-	"github.com/basenana/nanafs/pkg/workflow"
 	"io"
 	"time"
+
+	"github.com/basenana/nanafs/pkg/workflow"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -216,6 +217,17 @@ func (s *services) DeleteRoom(ctx context.Context, request *DeleteRoomRequest) (
 		return nil, status.Error(common.FsApiError(err), "delete room failed")
 	}
 	return &DeleteRoomResponse{RoomID: request.RoomID}, nil
+}
+
+func (s *services) ClearRoom(ctx context.Context, request *ClearRoomRequest) (*ClearRoomResponse, error) {
+	if request.RoomID == 0 {
+		return nil, status.Error(codes.InvalidArgument, "entry id is empty")
+	}
+	err := s.ctrl.ClearRoom(ctx, request.RoomID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "clear room failed")
+	}
+	return &ClearRoomResponse{RoomID: request.RoomID}, nil
 }
 
 var _ Services = &services{}

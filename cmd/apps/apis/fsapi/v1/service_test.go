@@ -78,11 +78,11 @@ var _ = Describe("testRoomService", func() {
 		})
 
 		It("chat should be succeed", func() {
-			patch1 := ApplyFunc(friday.ChatWithEntry, func(ctx context.Context, dirId int64, isGroup bool, history []map[string]string, response chan map[string]string) ([]map[string]string, error) {
+			patch1 := ApplyFunc(friday.ChatWithEntry, func(ctx context.Context, dirId int64, isGroup bool, history []map[string]string, response chan map[string]string, historyCh chan []map[string]string) error {
 				response <- map[string]string{"content": "hello, I am response\n"}
 				response <- map[string]string{"content": "abc"}
 				close(response)
-				return []map[string]string{}, nil
+				return nil
 			})
 			defer patch1.Reset()
 
