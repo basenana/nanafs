@@ -39,6 +39,7 @@ const (
 type IngestPlugin struct {
 	spec  types.PluginSpec
 	scope types.PlugScope
+	svc   Services
 	log   *zap.SugaredLogger
 }
 
@@ -81,6 +82,17 @@ func (i *IngestPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pl
 		return pluginapi.NewFailedResponse(fmt.Sprintf("ingest documents failed: %s", err)), nil
 	}
 
+	err = i.svc.CreateFridayAccount(ctx, &types.FridayAccount{
+		RefID:          request.EntryId,
+		RefType:        "entry",
+		Type:           "ingest",
+		CompleteTokens: usage["completion_tokens"],
+		PromptTokens:   usage["prompt_tokens"],
+		TotalTokens:    usage["total_tokens"],
+	})
+	if err != nil {
+		return pluginapi.NewFailedResponse(fmt.Sprintf("create account of ingest failed: %s", err)), nil
+	}
 	return pluginapi.NewResponseWithResult(map[string]any{
 		pluginapi.ResEntryDocIngestKey: types.FLlmResult{Usage: usage},
 	}), nil
@@ -90,10 +102,11 @@ func (i *IngestPlugin) logger(ctx context.Context) *zap.SugaredLogger {
 	return utils.WorkflowJobLogger(ctx, i.log)
 }
 
-func NewIngestPlugin(spec types.PluginSpec, scope types.PlugScope) (*IngestPlugin, error) {
+func NewIngestPlugin(spec types.PluginSpec, scope types.PlugScope, svc Services) (*IngestPlugin, error) {
 	return &IngestPlugin{
 		spec:  spec,
 		scope: scope,
+		svc:   svc,
 		log:   logger.NewLogger("ingestPlugin"),
 	}, nil
 }

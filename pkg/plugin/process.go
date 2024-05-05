@@ -144,7 +144,7 @@ func registerBuildInProcessPlugin(svc buildin.Services, r *registry) {
 		buildin.IngestPluginName,
 		types.PluginSpec{Name: buildin.IngestPluginName, Version: buildin.IngestPluginVersion, Type: types.TypeProcess, Parameters: map[string]string{}},
 		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
-			return buildin.NewIngestPlugin(spec, scope)
+			return buildin.NewIngestPlugin(spec, scope, svc)
 		},
 	)
 
@@ -152,7 +152,7 @@ func registerBuildInProcessPlugin(svc buildin.Services, r *registry) {
 		buildin.SummaryPluginName,
 		types.PluginSpec{Name: buildin.SummaryPluginName, Version: buildin.SummaryPluginVersion, Type: types.TypeProcess, Parameters: map[string]string{}},
 		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
-			return buildin.NewSummaryPlugin(spec, scope)
+			return buildin.NewSummaryPlugin(spec, scope, svc)
 		},
 	)
 
@@ -160,7 +160,7 @@ func registerBuildInProcessPlugin(svc buildin.Services, r *registry) {
 		buildin.KeywordsPluginName,
 		types.PluginSpec{Name: buildin.KeywordsPluginName, Version: buildin.KeywordsPluginVersion, Type: types.TypeProcess, Parameters: map[string]string{}},
 		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
-			return buildin.NewKeyWordsPlugin(spec, scope)
+			return buildin.NewKeyWordsPlugin(spec, scope, svc)
 		},
 	)
 

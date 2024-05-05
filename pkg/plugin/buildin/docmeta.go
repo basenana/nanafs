@@ -20,12 +20,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
+
+	"go.uber.org/zap"
+
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
-	"go.uber.org/zap"
-	"strings"
-	"time"
 )
 
 const (
@@ -80,45 +82,6 @@ func (d DocMetaPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pl
 			return pluginapi.NewResponseWithResult(nil), nil
 		}
 		return pluginapi.NewFailedResponse(fmt.Sprintf("get document with entry id %d error: %s", request.EntryId, err)), nil
-	}
-
-	// TODO: move to summary plugin
-	totalUsage := make(map[string]any)
-	if request.ContextResults.IsSet(pluginapi.ResEntryDocSummaryKey) {
-		var summaryVal = types.FLlmResult{}
-		err = request.ContextResults.Load(pluginapi.ResEntryDocSummaryKey, &summaryVal)
-		if err != nil {
-			return nil, fmt.Errorf("load document summary error %w", err)
-		}
-		doc.Summary = summaryVal.Summary
-		totalUsage["summary"] = summaryVal.Usage
-	}
-	if request.ContextResults.IsSet(pluginapi.ResEntryDocKeyWordsKey) {
-		var keyWordsVal = types.FLlmResult{}
-		err = request.ContextResults.Load(pluginapi.ResEntryDocKeyWordsKey, &keyWordsVal)
-		if err != nil {
-			return nil, fmt.Errorf("load document keywords error %w", err)
-		}
-		doc.KeyWords = keyWordsVal.Keywords
-		totalUsage["keywords"] = keyWordsVal.Usage
-	}
-
-	for k, v := range totalUsage {
-		u, ok := v.(map[string]int)
-		if !ok {
-			continue
-		}
-		err = d.svc.CreateFridayAccount(ctx, &types.FridayAccount{
-			RefID:          doc.ID,
-			RefType:        "document",
-			Type:           k,
-			CompleteTokens: u["completion_tokens"],
-			PromptTokens:   u["prompt_tokens"],
-			TotalTokens:    u["total_tokens"],
-		})
-		if err != nil {
-			return pluginapi.NewFailedResponse(fmt.Sprintf("create account of %s failed: %s", k, err)), nil
-		}
 	}
 
 	doc.ChangedAt = time.Now()

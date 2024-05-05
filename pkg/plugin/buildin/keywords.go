@@ -38,6 +38,7 @@ const (
 type KeywordsPlugin struct {
 	spec  types.PluginSpec
 	scope types.PlugScope
+	svc   Services
 	log   *zap.SugaredLogger
 }
 
@@ -71,6 +72,17 @@ func (i *KeywordsPlugin) Run(ctx context.Context, request *pluginapi.Request) (*
 		return pluginapi.NewFailedResponse(fmt.Sprintf("get documents keywords failed: %s", err)), nil
 	}
 
+	err = i.svc.CreateFridayAccount(ctx, &types.FridayAccount{
+		RefID:          request.EntryId,
+		RefType:        "entry",
+		Type:           "keywords",
+		CompleteTokens: usage["completion_tokens"],
+		PromptTokens:   usage["prompt_tokens"],
+		TotalTokens:    usage["total_tokens"],
+	})
+	if err != nil {
+		return pluginapi.NewFailedResponse(fmt.Sprintf("create account of keywords failed: %s", err)), nil
+	}
 	return pluginapi.NewResponseWithResult(map[string]any{
 		pluginapi.ResEntryDocKeyWordsKey: types.FLlmResult{Keywords: keywords, Usage: usage},
 	}), nil
@@ -80,10 +92,11 @@ func (i *KeywordsPlugin) logger(ctx context.Context) *zap.SugaredLogger {
 	return utils.WorkflowJobLogger(ctx, i.log)
 }
 
-func NewKeyWordsPlugin(spec types.PluginSpec, scope types.PlugScope) (*KeywordsPlugin, error) {
+func NewKeyWordsPlugin(spec types.PluginSpec, scope types.PlugScope, svc Services) (*KeywordsPlugin, error) {
 	return &KeywordsPlugin{
 		spec:  spec,
 		scope: scope,
+		svc:   svc,
 		log:   logger.NewLogger("keywordsPlugin"),
 	}, nil
 }
