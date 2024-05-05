@@ -40,6 +40,7 @@ const (
 type SummaryPlugin struct {
 	spec  types.PluginSpec
 	scope types.PlugScope
+	svc   Services
 	log   *zap.SugaredLogger
 }
 
@@ -94,16 +95,28 @@ func (i *SummaryPlugin) Run(ctx context.Context, request *pluginapi.Request) (*p
 		return pluginapi.NewFailedResponse(fmt.Sprintf("summary documents failed: %s", err)), nil
 	}
 
+	err = i.svc.CreateFridayAccount(ctx, &types.FridayAccount{
+		RefID:          request.EntryId,
+		RefType:        "entry",
+		Type:           "summary",
+		CompleteTokens: usage["completion_tokens"],
+		PromptTokens:   usage["prompt_tokens"],
+		TotalTokens:    usage["total_tokens"],
+	})
+	if err != nil {
+		return pluginapi.NewFailedResponse(fmt.Sprintf("create account of summary failed: %s", err)), nil
+	}
 	return pluginapi.NewResponseWithResult(map[string]any{pluginapi.ResEntryDocSummaryKey: types.FLlmResult{Summary: summary, Usage: usage}}), nil
 }
 func (i *SummaryPlugin) logger(ctx context.Context) *zap.SugaredLogger {
 	return utils.WorkflowJobLogger(ctx, i.log)
 }
 
-func NewSummaryPlugin(spec types.PluginSpec, scope types.PlugScope) (*SummaryPlugin, error) {
+func NewSummaryPlugin(spec types.PluginSpec, scope types.PlugScope, svc Services) (*SummaryPlugin, error) {
 	return &SummaryPlugin{
 		spec:  spec,
 		scope: scope,
+		svc:   svc,
 		log:   logger.NewLogger("summaryPlugin"),
 	}, nil
 }
