@@ -27,6 +27,7 @@ type Services struct {
 }
 
 type ExtendFieldManager interface {
+	RemoveEntry(ctx context.Context, parentId, entryId int64) error
 	GetEntryExtendField(ctx context.Context, id int64, fKey string) (*string, bool, error)
 	SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string, encoded bool) error
 }

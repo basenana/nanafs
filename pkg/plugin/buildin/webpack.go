@@ -75,7 +75,7 @@ func (w *WebpackPlugin) Run(ctx context.Context, request *pluginapi.Request) (*p
 
 	fileExt := filepath.Ext(entryPath)
 	switch fileExt {
-	case "url":
+	case ".url":
 		return w.packFromURL(ctx, request)
 	default:
 		return pluginapi.NewResponseWithResult(nil), nil
@@ -110,7 +110,7 @@ func (w *WebpackPlugin) packFromURL(ctx context.Context, request *pluginapi.Requ
 		p := packer.NewWebArchivePacker()
 		err = p.Pack(ctx, packer.Option{
 			URL:         urlInfo,
-			FilePath:    utils.SafetyFilePathJoin(request.WorkPath, filename),
+			FilePath:    filePath,
 			Timeout:     60,
 			ClutterFree: clutterFree == "true",
 			Headers:     make(map[string]string),
@@ -123,7 +123,7 @@ func (w *WebpackPlugin) packFromURL(ctx context.Context, request *pluginapi.Requ
 		p := packer.NewHtmlPacker()
 		err = p.Pack(ctx, packer.Option{
 			URL:         urlInfo,
-			FilePath:    utils.SafetyFilePathJoin(request.WorkPath, filename),
+			FilePath:    filePath,
 			Timeout:     60,
 			ClutterFree: clutterFree == "true",
 			Headers:     make(map[string]string),
@@ -138,15 +138,8 @@ func (w *WebpackPlugin) packFromURL(ctx context.Context, request *pluginapi.Requ
 	if err != nil {
 		return nil, fmt.Errorf("stat archive file error: %s", err)
 	}
-	newEntries := []pluginapi.Entry{
-		{
-			Name:       path.Base(filePath),
-			Kind:       types.RawKind,
-			Size:       fInfo.Size(),
-			Parameters: map[string]string{},
-			IsGroup:    false,
-		},
-	}
+	newEntries := []pluginapi.CollectManifest{{BaseEntry: request.ParentEntryId, NewFiles: []pluginapi.Entry{
+		{Name: path.Base(filePath), Kind: types.FileKind(path.Base(filePath), types.RawKind), Size: fInfo.Size()}}}}
 	result := map[string]any{pluginapi.ResCollectManifests: newEntries}
 	if cleanup == "true" {
 		result[pluginapi.ResEntryActionKey] = "cleanup"

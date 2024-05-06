@@ -61,8 +61,8 @@ func (d DocLoader) Run(ctx context.Context, request *pluginapi.Request) (*plugin
 		return resp, nil
 	}
 
-	fileExt := filepath.Ext(entryPath)
 	var (
+		fileExt     = filepath.Ext(entryPath)
 		p           Parser
 		parseOption = map[string]string{}
 	)
