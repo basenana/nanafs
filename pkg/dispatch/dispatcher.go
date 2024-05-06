@@ -75,6 +75,8 @@ func (d *Dispatcher) Run(stopCh chan struct{}) {
 			return
 		case <-ticker.C:
 			d.logger.Debugw("find next runnable tasks")
+		case <-idleWakeup:
+			d.logger.Debugw("wakeup")
 		}
 
 		func() {

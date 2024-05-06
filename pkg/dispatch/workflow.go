@@ -101,6 +101,7 @@ func (w workflowExecutor) handleEntryEvent(evt *types.Event) error {
 			w.logger.Errorw("[workflowAutoTrigger] save task to waiting error", "entry", evt.RefID, "err", err.Error())
 			return err
 		}
+		quickIdleWakeup()
 		w.logger.Infow("[workflowAutoTrigger] workflow rule matched, job pre-created", "entry", evt.RefID, "workflow", wf.Id)
 		return nil
 	}
