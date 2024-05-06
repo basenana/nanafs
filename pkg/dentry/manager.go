@@ -20,12 +20,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/plugin"
-	"go.uber.org/zap"
 	"io"
 	"path"
 	"runtime/trace"
 	"strings"
+
+	"go.uber.org/zap"
+
+	"github.com/basenana/nanafs/pkg/plugin"
 
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/bio"
@@ -235,7 +237,12 @@ func (m *manager) SetEntryExtendField(ctx context.Context, id int64, fKey, fVal 
 	}
 	ed.Properties.Fields[fKey] = types.PropertyItem{Value: fVal, Encoded: encoded}
 
-	return m.UpdateEntryExtendData(ctx, id, ed)
+	err = m.UpdateEntryExtendData(ctx, id, ed)
+	if err != nil {
+		return err
+	}
+	m.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeUpdate, id)
+	return nil
 }
 
 func (m *manager) RemoveEntryExtendField(ctx context.Context, id int64, fKey string) error {
