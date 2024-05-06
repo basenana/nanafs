@@ -26,6 +26,7 @@ import (
 )
 
 var (
+	idleWakeup     = make(chan struct{})
 	ErrNeedRetry   = fmt.Errorf("need retry")
 	defaultTimeout = time.Hour * 6
 )
@@ -84,4 +85,11 @@ func getWaitingTask(ctx context.Context, recorder metastore.ScheduledTaskRecorde
 
 func logTaskExecutionLatency(id string, startAt time.Time) {
 	taskExecutionLatency.WithLabelValues(id).Observe(time.Since(startAt).Seconds())
+}
+
+func quickIdleWakeup() {
+	select {
+	case idleWakeup <- struct{}{}:
+	default:
+	}
 }
