@@ -21,7 +21,7 @@ import (
 	"strings"
 )
 
-var htmlCharFilterRegexp = regexp.MustCompile(`</?[!\w]+((\s+[\w-]+(\s*=\s*(?:\\*".*?"|'.*?'|[^'">\s]+))?)+\s*|\s*)/?>`)
+var htmlCharFilterRegexp = regexp.MustCompile(`</?[!\w:]+((\s+[\w-]+(\s*=\s*(?:\\*".*?"|'.*?'|[^'">\s]+))?)+\s*|\s*)/?>`)
 
 func ContentTrim(contentType, content string) string {
 	switch contentType {
