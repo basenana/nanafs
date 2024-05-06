@@ -171,4 +171,12 @@ func registerBuildInProcessPlugin(svc buildin.Services, r *registry) {
 			return buildin.NewDocMetaPlugin(spec, scope, svc)
 		},
 	)
+
+	r.Register(
+		buildin.WebpackPluginName,
+		types.PluginSpec{Name: buildin.WebpackPluginName, Version: buildin.WebpackPluginVersion, Type: types.TypeProcess, Parameters: map[string]string{}},
+		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
+			return buildin.NewWebpackPlugin(spec, scope, svc)
+		},
+	)
 }

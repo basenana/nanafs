@@ -154,7 +154,10 @@ func (m *manager) GetEntry(ctx context.Context, id int64) (*types.Metadata, erro
 	}
 
 	if en.Storage == externalStorage {
-		return en, m.registerStubRoot(ctx, en)
+		if err = m.registerStubRoot(ctx, en); err != nil {
+			m.logger.Errorw("fetching ext entry but register stub root failed", "entry", en.ID, "err", err)
+		}
+		return en, nil
 	}
 	return en, nil
 }

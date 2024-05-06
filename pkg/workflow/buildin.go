@@ -28,6 +28,7 @@ import (
 const (
 	BuildInWorkflowSummary = "buildin.summary"
 	BuildInWorkflowIngest  = "buildin.ingest"
+	BuildInWorkflowWebpack = "buildin.webpack"
 )
 
 func registerBuildInWorkflow(ctx context.Context, mgr Manager) error {
@@ -87,6 +88,44 @@ var (
 						PluginName: "rss",
 						Version:    "1.0",
 						PluginType: types.TypeSource,
+						Parameters: map[string]string{},
+					},
+				},
+			},
+			QueueName: "default",
+			Executor:  "local",
+			Enable:    true,
+		},
+		{
+			Id:   BuildInWorkflowWebpack,
+			Name: "Webpack",
+			Steps: []types.WorkflowStepSpec{
+				{
+					Name: "set processing",
+					Plugin: &types.PlugScope{
+						PluginName: "docmeta",
+						Version:    "1.0",
+						PluginType: types.TypeProcess,
+						Parameters: map[string]string{
+							"org.basenana.webpack": "processing",
+						},
+					},
+				},
+				{
+					Name: "pack archive file",
+					Plugin: &types.PlugScope{
+						PluginName: "webpack",
+						Version:    "1.0",
+						PluginType: types.TypeProcess,
+						Parameters: map[string]string{},
+					},
+				},
+				{
+					Name: "cleanup",
+					Plugin: &types.PlugScope{
+						PluginName: "docmeta",
+						Version:    "1.0",
+						PluginType: types.TypeProcess,
 						Parameters: map[string]string{},
 					},
 				},

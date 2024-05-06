@@ -25,6 +25,7 @@ const (
 	ResEntryDocSummaryKey  = "org.basenana.workflow/entry_summary"
 	ResEntryDocKeyWordsKey = "org.basenana.workflow/entry_keywords"
 	ResEntryDocIngestKey   = "org.basenana.workflow/entry_ingest"
+	ResEntryActionKey      = "org.basenana.workflow/entry_action"
 	ResCollectManifests    = "org.basenana.workflow/collect_manifests"
 	ResPluginName          = "org.basenana.workflow/plugin_name"
 	ResPluginVersion       = "org.basenana.workflow/plugin_version"

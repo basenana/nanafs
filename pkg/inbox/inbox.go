@@ -42,7 +42,11 @@ func (b *Inbox) QuickInbox(ctx context.Context, fileName string, option Option) 
 		return nil, fmt.Errorf("filename or file type not set")
 	}
 	if !strings.HasSuffix(fileName, option.FileType) {
-		fileName = fmt.Sprintf("%s.%s", fileName, option.FileType)
+		if option.Data == nil {
+			fileName = fmt.Sprintf("%s.url", fileName)
+		} else {
+			fileName = fmt.Sprintf("%s.%s", fileName, option.FileType)
+		}
 	}
 
 	fileEn, err := b.entry.CreateEntry(ctx, b.inboxGroup,

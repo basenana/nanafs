@@ -91,6 +91,7 @@ func (r *registry) BuildPlugin(ctx context.Context, ps types.PlugScope) (Plugin,
 	p, ok := r.plugins[ps.PluginName]
 	if !ok {
 		r.mux.RUnlock()
+		r.logger.Warnw("build plugin failed", "plugin", ps.PluginName)
 		return nil, ErrNotFound
 	}
 	r.mux.RUnlock()
