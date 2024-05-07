@@ -109,11 +109,12 @@ func (w *WebpackPlugin) packFromURL(ctx context.Context, request *pluginapi.Requ
 	case "webarchive":
 		p := packer.NewWebArchivePacker()
 		err = p.Pack(ctx, packer.Option{
-			URL:         urlInfo,
-			FilePath:    filePath,
-			Timeout:     60,
-			ClutterFree: clutterFree == "true",
-			Headers:     make(map[string]string),
+			URL:              urlInfo,
+			FilePath:         filePath,
+			Timeout:          60,
+			ClutterFree:      clutterFree == "true",
+			Headers:          make(map[string]string),
+			EnablePrivateNet: enablePrivateNet,
 		})
 		if err != nil {
 			w.logger(ctx).Warnw("pack to webarchive failed", "link", urlInfo, "err", err)
@@ -122,11 +123,12 @@ func (w *WebpackPlugin) packFromURL(ctx context.Context, request *pluginapi.Requ
 	case "html":
 		p := packer.NewHtmlPacker()
 		err = p.Pack(ctx, packer.Option{
-			URL:         urlInfo,
-			FilePath:    filePath,
-			Timeout:     60,
-			ClutterFree: clutterFree == "true",
-			Headers:     make(map[string]string),
+			URL:              urlInfo,
+			FilePath:         filePath,
+			Timeout:          60,
+			ClutterFree:      clutterFree == "true",
+			Headers:          make(map[string]string),
+			EnablePrivateNet: enablePrivateNet,
 		})
 		if err != nil {
 			w.logger(ctx).Warnw("pack to raw html file failed", "link", urlInfo, "err", err)

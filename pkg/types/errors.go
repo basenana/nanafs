@@ -29,4 +29,5 @@ var (
 	ErrNoPerm      = errors.New("no permission")
 	ErrConflict    = errors.New("operation conflict")
 	ErrUnsupported = errors.New("unsupported operation")
+	ErrNotEnable   = errors.New("not enable")
 )

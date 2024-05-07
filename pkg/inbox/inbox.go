@@ -18,6 +18,7 @@ package inbox
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
@@ -64,6 +65,9 @@ func (b *Inbox) QuickInbox(ctx context.Context, fileName string, option Option) 
 	if option.Data == nil {
 		job, err := b.workflow.TriggerWorkflow(ctx, workflow.BuildInWorkflowWebpack, types.WorkflowTarget{EntryID: newFile.ID, ParentEntryID: newFile.ParentID}, workflow.JobAttr{Reason: "quick inbox"})
 		if err != nil {
+			if errors.Is(err, types.ErrNotEnable) {
+				return newFile, nil
+			}
 			b.logger.Errorw("trigger pack job error", "entry", fileEn.ID, "err", err)
 			return nil, err
 		}

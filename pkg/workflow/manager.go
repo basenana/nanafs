@@ -337,43 +337,43 @@ func (d disabledManager) ListWorkflows(ctx context.Context) ([]*types.WorkflowSp
 }
 
 func (d disabledManager) GetWorkflow(ctx context.Context, wfId string) (*types.WorkflowSpec, error) {
-	return nil, types.ErrNotFound
+	return nil, types.ErrNotEnable
 }
 
 func (d disabledManager) CreateWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error) {
-	return nil, fmt.Errorf("workflow is disabled")
+	return nil, types.ErrNotEnable
 }
 
 func (d disabledManager) UpdateWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error) {
-	return nil, types.ErrNotFound
+	return nil, types.ErrNotEnable
 }
 
 func (d disabledManager) DeleteWorkflow(ctx context.Context, wfId string) error {
-	return types.ErrNotFound
+	return types.ErrNotEnable
 }
 
 func (d disabledManager) GetJob(ctx context.Context, wfId string, jobID string) (*types.WorkflowJob, error) {
-	return nil, types.ErrNotFound
+	return nil, types.ErrNotEnable
 }
 
 func (d disabledManager) ListJobs(ctx context.Context, wfId string) ([]*types.WorkflowJob, error) {
-	return nil, types.ErrNotFound
+	return nil, types.ErrNotEnable
 }
 
 func (d disabledManager) TriggerWorkflow(ctx context.Context, wfId string, tgt types.WorkflowTarget, attr JobAttr) (*types.WorkflowJob, error) {
-	return nil, types.ErrNotFound
+	return nil, types.ErrNotEnable
 }
 
 func (d disabledManager) PauseWorkflowJob(ctx context.Context, jobId string) error {
-	return types.ErrNotFound
+	return types.ErrNotEnable
 }
 
 func (d disabledManager) ResumeWorkflowJob(ctx context.Context, jobId string) error {
-	return types.ErrNotFound
+	return types.ErrNotEnable
 }
 
 func (d disabledManager) CancelWorkflowJob(ctx context.Context, jobId string) error {
-	return types.ErrNotFound
+	return types.ErrNotEnable
 }
 
 type JobAttr struct {
