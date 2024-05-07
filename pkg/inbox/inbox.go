@@ -18,6 +18,7 @@ package inbox
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
@@ -42,7 +43,11 @@ func (b *Inbox) QuickInbox(ctx context.Context, fileName string, option Option) 
 		return nil, fmt.Errorf("filename or file type not set")
 	}
 	if !strings.HasSuffix(fileName, option.FileType) {
-		fileName = fmt.Sprintf("%s.%s", fileName, option.FileType)
+		if option.Data == nil {
+			fileName = fmt.Sprintf("%s.url", fileName)
+		} else {
+			fileName = fmt.Sprintf("%s.%s", fileName, option.FileType)
+		}
 	}
 
 	fileEn, err := b.entry.CreateEntry(ctx, b.inboxGroup,
@@ -51,6 +56,28 @@ func (b *Inbox) QuickInbox(ctx context.Context, fileName string, option Option) 
 		return nil, err
 	}
 
+	newFile, err := b.writeInboxFile(ctx, fileEn, option)
+	if err != nil {
+		b.logger.Errorw("write inbox file error", "entry", fileEn.ID, "err", err)
+		return nil, err
+	}
+
+	if option.Data == nil {
+		job, err := b.workflow.TriggerWorkflow(ctx, workflow.BuildInWorkflowWebpack, types.WorkflowTarget{EntryID: newFile.ID, ParentEntryID: newFile.ParentID}, workflow.JobAttr{Reason: "quick inbox"})
+		if err != nil {
+			if errors.Is(err, types.ErrNotEnable) {
+				return newFile, nil
+			}
+			b.logger.Errorw("trigger pack job error", "entry", fileEn.ID, "err", err)
+			return nil, err
+		}
+		b.logger.Infow("trigger pack job succeed", "entry", fileEn.ID, "job", job.Id)
+	}
+	return newFile, nil
+}
+
+func (b *Inbox) writeInboxFile(ctx context.Context, fileEn *types.Metadata, option Option) (*types.Metadata, error) {
+
 	file, err := b.entry.Open(ctx, fileEn.ID, types.OpenAttr{Write: true, Create: true})
 	if err != nil {
 		return nil, err
@@ -58,7 +85,7 @@ func (b *Inbox) QuickInbox(ctx context.Context, fileName string, option Option) 
 	defer file.Close(ctx)
 
 	if option.Data != nil {
-		b.logger.Infow("write data direct", "entry", fileEn.ID, "filename", fileName)
+		b.logger.Infow("write data direct", "entry", fileEn.ID)
 		if _, err = file.WriteAt(ctx, option.Data, 0); err != nil {
 			return nil, err
 		}

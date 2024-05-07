@@ -240,11 +240,12 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 			fileName += ".html"
 			p := packer.NewHtmlPacker()
 			err = p.Pack(ctx, packer.Option{
-				URL:         item.Link,
-				FilePath:    utils.SafetyFilePathJoin(workdir, fileName),
-				Timeout:     source.Timeout,
-				ClutterFree: source.ClutterFree,
-				Headers:     headers,
+				URL:              item.Link,
+				FilePath:         utils.SafetyFilePathJoin(workdir, fileName),
+				Timeout:          source.Timeout,
+				ClutterFree:      source.ClutterFree,
+				Headers:          headers,
+				EnablePrivateNet: enablePrivateNet,
 			})
 			if err != nil {
 				r.logger(ctx).Warnw("pack to raw html file failed", "link", item.Link, "err", err)
@@ -255,11 +256,12 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 			fileName += ".webarchive"
 			p := packer.NewWebArchivePacker()
 			err = p.Pack(ctx, packer.Option{
-				URL:         item.Link,
-				FilePath:    utils.SafetyFilePathJoin(workdir, fileName),
-				Timeout:     source.Timeout,
-				ClutterFree: source.ClutterFree,
-				Headers:     headers,
+				URL:              item.Link,
+				FilePath:         utils.SafetyFilePathJoin(workdir, fileName),
+				Timeout:          source.Timeout,
+				ClutterFree:      source.ClutterFree,
+				Headers:          headers,
+				EnablePrivateNet: enablePrivateNet,
 			})
 			if err != nil {
 				r.logger(ctx).Warnw("pack to webarchive failed", "link", item.Link, "err", err)

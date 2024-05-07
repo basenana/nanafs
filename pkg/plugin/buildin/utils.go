@@ -18,6 +18,7 @@ package buildin
 
 import (
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/basenana/nanafs/utils"
@@ -25,6 +26,7 @@ import (
 
 var (
 	maxAITaskParallel = utils.NewParallelLimiter(3)
+	enablePrivateNet  = os.Getenv("WebPackerEnablePrivateNet") == "true"
 )
 
 func readableHtmlContent(urlStr, title, content string) string {

@@ -16,7 +16,10 @@
 
 package types
 
-import "path/filepath"
+import (
+	"path/filepath"
+	"strings"
+)
 
 // Kind of Entry
 type Kind string
@@ -79,7 +82,7 @@ func IsGroup(k Kind) bool {
 }
 
 func FileKind(filename string, defaultKind Kind) Kind {
-	ext := filepath.Ext(filename)
+	ext := strings.TrimPrefix(filepath.Ext(filename), ".")
 	switch ext {
 	case "txt":
 		return TextKind

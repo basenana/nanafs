@@ -55,8 +55,20 @@ func (d DocMetaPlugin) Version() string {
 }
 
 func (d DocMetaPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
-	if request.EntryId == 0 {
-		return nil, fmt.Errorf("entry id is empty")
+	if request.EntryId == 0 || request.ParentEntryId == 0 {
+		return nil, fmt.Errorf("entry id or parent entry id is empty")
+	}
+
+	var action string
+	if err := request.ContextResults.Load(pluginapi.ResEntryActionKey, &action); err == nil {
+		d.log.Infof("do action %s", action)
+		switch action {
+		case "cleanup":
+			if err := d.svc.RemoveEntry(ctx, request.ParentEntryId, request.EntryId); err != nil {
+				return pluginapi.NewFailedResponse(fmt.Sprintf("cleanup entry %d error: %s", request.EntryId, err)), nil
+			}
+			return pluginapi.NewResponseWithResult(nil), nil
+		}
 	}
 
 	for k, v := range request.Parameter {

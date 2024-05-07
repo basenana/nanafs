@@ -37,15 +37,17 @@ func (f UrlFile) Write(ctx context.Context, file dentry.File) error {
 
 func genUrlFileContent(uf UrlFile) string {
 	buf := &bytes.Buffer{}
-	buf.WriteString("[InternetShortcut]")
-	buf.WriteString(fmt.Sprintf("URL=%s", uf.Url))
+	buf.WriteString("[InternetShortcut]\n")
+	buf.WriteString(fmt.Sprintf("URL=%s\n", uf.Url))
 
-	buf.WriteString("[NanaFSSection]")
-	buf.WriteString(fmt.Sprintf("ArchiveType=%s", uf.FileType))
+	buf.WriteString("[NanaFSSection]\n")
+	buf.WriteString(fmt.Sprintf("ArchiveType=%s\n", uf.FileType))
 
 	if uf.ClutterFree {
-		buf.WriteString("ClusterFree=true")
+		buf.WriteString("ClutterFree=true\n")
 	}
+
+	buf.WriteString("Cleanup=true\n")
 
 	return buf.String()
 }
