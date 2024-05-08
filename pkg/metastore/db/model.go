@@ -516,6 +516,7 @@ func (d *Document) TableName() string {
 }
 
 func (d *Document) From(document *types.Document) *Document {
+
 	d.ID = document.ID
 	d.OID = document.OID
 	d.Name = document.Name
@@ -524,11 +525,17 @@ func (d *Document) From(document *types.Document) *Document {
 	d.Source = document.Source
 	d.Content = document.Content
 	d.Summary = document.Summary
-	d.Marked = document.Marked
-	d.Unread = document.Unread
-	d.Desync = document.Desync
 	d.CreatedAt = document.CreatedAt
 	d.ChangedAt = document.ChangedAt
+	if document.Marked != nil {
+		d.Marked = *document.Marked
+	}
+	if document.Unread != nil {
+		d.Unread = *document.Unread
+	}
+	if document.Desync != nil {
+		d.Desync = *document.Desync
+	}
 	return d
 }
 
@@ -546,9 +553,9 @@ func (d *Document) To() *types.Document {
 		KeyWords:      keyWords,
 		Content:       d.Content,
 		Summary:       d.Summary,
-		Marked:        d.Marked,
-		Unread:        d.Unread,
-		Desync:        d.Desync,
+		Marked:        &d.Marked,
+		Unread:        &d.Unread,
+		Desync:        &d.Desync,
 		CreatedAt:     d.CreatedAt,
 		ChangedAt:     d.ChangedAt,
 	}

@@ -284,7 +284,7 @@ var _ = Describe("TestHandleEvent", func() {
 			Expect(err).Should(BeNil())
 			Expect(doc.ParentEntryID).Should(Equal(grp1.ID))
 			Expect(doc.Name).Should(Equal(grp1File4.Name))
-			Expect(doc.Desync).Should(BeTrue())
+			Expect(*doc.Desync).Should(BeTrue())
 		})
 	})
 })
