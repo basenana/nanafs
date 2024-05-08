@@ -55,6 +55,10 @@ func (c *controller) GetDocumentsByEntryId(ctx context.Context, entryId int64) (
 	return c.document.GetDocumentByEntryId(ctx, entryId)
 }
 
+func (c *controller) UpdateDocument(ctx context.Context, doc *types.Document) error {
+	return c.document.SaveDocument(ctx, doc)
+}
+
 func BuildRssPluginScopeFromURL(url string) (types.ExtendData, error) {
 	siteName, siteURL, err := parseRssUrl(url)
 	if err != nil {

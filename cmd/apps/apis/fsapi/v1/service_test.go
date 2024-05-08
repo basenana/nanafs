@@ -441,20 +441,24 @@ var _ = Describe("testDocumentsService-ReadView", func() {
 
 	Context("test get document details", func() {
 		It("init documents should be succeed", func() {
-			var err error
+			var (
+				err error
+				t   = true
+				f   = false
+			)
 			err = testMeta.SaveDocument(ctx, &types.Document{
 				ID: 100, OID: 1, Name: "test document 1", ParentEntryID: 1, Source: "unittest",
-				KeyWords: make([]string, 0), Content: "test document", Marked: false, Unread: false,
+				KeyWords: make([]string, 0), Content: "test document", Marked: &f, Unread: &f,
 				CreatedAt: time.Now(), ChangedAt: time.Now()})
 			Expect(err).Should(BeNil())
 			err = testMeta.SaveDocument(ctx, &types.Document{
 				ID: 101, OID: 1, Name: "test document unread 1", ParentEntryID: 1, Source: "unittest",
-				KeyWords: make([]string, 0), Content: "test document", Marked: false, Unread: true,
+				KeyWords: make([]string, 0), Content: "test document", Marked: &f, Unread: &t,
 				CreatedAt: time.Now(), ChangedAt: time.Now()})
 			Expect(err).Should(BeNil())
 			err = testMeta.SaveDocument(ctx, &types.Document{
 				ID: 102, OID: 1, Name: "test document unread 1", ParentEntryID: 2, Source: "unittest",
-				KeyWords: make([]string, 0), Content: "test document", Marked: true, Unread: false,
+				KeyWords: make([]string, 0), Content: "test document", Marked: &t, Unread: &f,
 				CreatedAt: time.Now(), ChangedAt: time.Now()})
 			Expect(err).Should(BeNil())
 		})

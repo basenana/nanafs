@@ -805,6 +805,7 @@ var Properties_ServiceDesc = grpc.ServiceDesc{
 const (
 	Document_ListDocuments_FullMethodName     = "/api.v1.Document/ListDocuments"
 	Document_GetDocumentDetail_FullMethodName = "/api.v1.Document/GetDocumentDetail"
+	Document_UpdateDocument_FullMethodName    = "/api.v1.Document/UpdateDocument"
 )
 
 // DocumentClient is the client API for Document service.
@@ -813,6 +814,7 @@ const (
 type DocumentClient interface {
 	ListDocuments(ctx context.Context, in *ListDocumentsRequest, opts ...grpc.CallOption) (*ListDocumentsResponse, error)
 	GetDocumentDetail(ctx context.Context, in *GetDocumentDetailRequest, opts ...grpc.CallOption) (*GetDocumentDetailResponse, error)
+	UpdateDocument(ctx context.Context, in *UpdateDocumentRequest, opts ...grpc.CallOption) (*UpdateDocumentResponse, error)
 }
 
 type documentClient struct {
@@ -841,12 +843,22 @@ func (c *documentClient) GetDocumentDetail(ctx context.Context, in *GetDocumentD
 	return out, nil
 }
 
+func (c *documentClient) UpdateDocument(ctx context.Context, in *UpdateDocumentRequest, opts ...grpc.CallOption) (*UpdateDocumentResponse, error) {
+	out := new(UpdateDocumentResponse)
+	err := c.cc.Invoke(ctx, Document_UpdateDocument_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DocumentServer is the server API for Document service.
 // All implementations should embed UnimplementedDocumentServer
 // for forward compatibility
 type DocumentServer interface {
 	ListDocuments(context.Context, *ListDocumentsRequest) (*ListDocumentsResponse, error)
 	GetDocumentDetail(context.Context, *GetDocumentDetailRequest) (*GetDocumentDetailResponse, error)
+	UpdateDocument(context.Context, *UpdateDocumentRequest) (*UpdateDocumentResponse, error)
 }
 
 // UnimplementedDocumentServer should be embedded to have forward compatible implementations.
@@ -858,6 +870,9 @@ func (UnimplementedDocumentServer) ListDocuments(context.Context, *ListDocuments
 }
 func (UnimplementedDocumentServer) GetDocumentDetail(context.Context, *GetDocumentDetailRequest) (*GetDocumentDetailResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDocumentDetail not implemented")
+}
+func (UnimplementedDocumentServer) UpdateDocument(context.Context, *UpdateDocumentRequest) (*UpdateDocumentResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateDocument not implemented")
 }
 
 // UnsafeDocumentServer may be embedded to opt out of forward compatibility for this service.
@@ -907,6 +922,24 @@ func _Document_GetDocumentDetail_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Document_UpdateDocument_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateDocumentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentServer).UpdateDocument(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Document_UpdateDocument_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentServer).UpdateDocument(ctx, req.(*UpdateDocumentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Document_ServiceDesc is the grpc.ServiceDesc for Document service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -921,6 +954,10 @@ var Document_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetDocumentDetail",
 			Handler:    _Document_GetDocumentDetail_Handler,
+		},
+		{
+			MethodName: "UpdateDocument",
+			Handler:    _Document_UpdateDocument_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

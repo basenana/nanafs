@@ -267,8 +267,8 @@ func (s *services) ListDocuments(ctx context.Context, request *ListDocumentsRequ
 			EntryID:       doc.OID,
 			ParentEntryID: doc.ParentEntryID,
 			Source:        doc.Source,
-			Marked:        doc.Marked,
-			Unread:        doc.Unread,
+			Marked:        *doc.Marked,
+			Unread:        *doc.Unread,
 			CreatedAt:     timestamppb.New(doc.CreatedAt),
 			ChangedAt:     timestamppb.New(doc.ChangedAt),
 		})
@@ -303,8 +303,8 @@ func (s *services) GetDocumentDetail(ctx context.Context, request *GetDocumentDe
 			EntryID:       doc.OID,
 			ParentEntryID: doc.ParentEntryID,
 			Source:        doc.Source,
-			Marked:        doc.Marked,
-			Unread:        doc.Unread,
+			Marked:        *doc.Marked,
+			Unread:        *doc.Unread,
 			HtmlContent:   doc.Content,
 			KeyWords:      doc.KeyWords,
 			Summary:       doc.Summary,
@@ -312,6 +312,41 @@ func (s *services) GetDocumentDetail(ctx context.Context, request *GetDocumentDe
 			ChangedAt:     timestamppb.New(doc.ChangedAt),
 		},
 	}, nil
+}
+
+func (s *services) UpdateDocument(ctx context.Context, request *UpdateDocumentRequest) (*UpdateDocumentResponse, error) {
+	if request.Document == nil {
+		return nil, status.Error(codes.InvalidArgument, "document is empty")
+	}
+	doc := request.Document
+	if doc.Id == 0 {
+		return nil, status.Error(codes.InvalidArgument, "document id is empty")
+	}
+	newDoc := &types.Document{
+		ID:            doc.Id,
+		Name:          doc.Name,
+		OID:           doc.EntryID,
+		ParentEntryID: doc.ParentEntryID,
+		Source:        doc.Source,
+		Content:       doc.HtmlContent,
+		KeyWords:      doc.KeyWords,
+		Summary:       doc.Summary,
+	}
+	switch request.SetMark {
+	case UpdateDocumentRequest_Marked:
+		doc.Marked = true
+	case UpdateDocumentRequest_Unmarked:
+		doc.Marked = false
+	case UpdateDocumentRequest_Read:
+		doc.Unread = false
+	case UpdateDocumentRequest_Unread:
+		doc.Unread = true
+	}
+	err := s.ctrl.UpdateDocument(ctx, newDoc)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "update document failed")
+	}
+	return &UpdateDocumentResponse{Document: doc}, nil
 }
 
 func (s *services) FindEntryDetail(ctx context.Context, request *FindEntryDetailRequest) (*GetEntryDetailResponse, error) {

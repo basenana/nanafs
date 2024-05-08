@@ -112,8 +112,16 @@ func (m *manager) QueryDocuments(ctx context.Context, query string) ([]*types.Do
 }
 
 func (m *manager) SaveDocument(ctx context.Context, doc *types.Document) error {
-	if doc.ID == 0 {
-		crtDoc, err := m.recorder.GetDocumentByEntryId(ctx, doc.OID)
+	var (
+		crtDoc *types.Document
+		err    error
+	)
+	crtDoc, err = m.recorder.GetDocument(ctx, doc.ID)
+	if err != nil && !errors.Is(err, types.ErrNotFound) {
+		return err
+	}
+	if crtDoc == nil {
+		crtDoc, err = m.recorder.GetDocumentByEntryId(ctx, doc.OID)
 		if err != nil {
 			if errors.Is(err, types.ErrNotFound) {
 				// create new one
@@ -130,35 +138,36 @@ func (m *manager) SaveDocument(ctx context.Context, doc *types.Document) error {
 			m.logger.Errorw("create document failed", "err", err)
 			return err
 		}
-
-		// update
-		crtDoc.ChangedAt = time.Now()
-		crtDoc.Summary = doc.Summary
-		crtDoc.KeyWords = doc.KeyWords
-		crtDoc.Content = doc.Content
-		crtDoc.Desync = doc.Desync
-		if err = m.recorder.SaveDocument(ctx, crtDoc); err != nil {
-			m.logger.Errorw("update document failed", "document", crtDoc.ID, "err", err)
-			return err
-		}
-		m.publicDocActionEvent(events.ActionTypeUpdate, crtDoc)
-		return nil
 	}
 	// update
-	crtDoc, err := m.recorder.GetDocument(ctx, doc.ID)
-	if err != nil {
-		return err
-	}
 	if doc.OID != 0 && crtDoc.OID != doc.OID {
 		return errors.New("can't update oid of doc")
 	}
-	crtDoc.Name = doc.Name
-	crtDoc.ParentEntryID = doc.ParentEntryID
+	if doc.Name != "" {
+		crtDoc.Name = doc.Name
+	}
+	if doc.ParentEntryID != 0 {
+		crtDoc.ParentEntryID = doc.ParentEntryID
+	}
+	if doc.Summary != "" {
+		crtDoc.Summary = doc.Summary
+	}
+	if len(doc.KeyWords) != 0 {
+		crtDoc.KeyWords = doc.KeyWords
+	}
+	if doc.Content != "" {
+		crtDoc.Content = doc.Content
+	}
+	if doc.Desync != nil {
+		crtDoc.Desync = doc.Desync
+	}
+	if doc.Marked != nil {
+		crtDoc.Marked = doc.Marked
+	}
+	if doc.Unread != nil {
+		crtDoc.Unread = doc.Unread
+	}
 	crtDoc.ChangedAt = time.Now()
-	crtDoc.Summary = doc.Summary
-	crtDoc.KeyWords = doc.KeyWords
-	crtDoc.Content = doc.Content
-	crtDoc.Desync = doc.Desync
 	if err = m.recorder.SaveDocument(ctx, crtDoc); err != nil {
 		m.logger.Errorw("update document failed", "document", doc.ID, "err", err)
 		return err
@@ -387,10 +396,11 @@ func (m *manager) handleEntryEvent(evt *types.Event) error {
 			m.logger.Errorw("[docDesyncExecutor] get entry failed", "entry", entry.ID, "err", err)
 			return err
 		}
-		if doc.Desync {
+		if *doc.Desync {
 			return nil
 		}
-		doc.Desync = true
+		dsync := true
+		doc.Desync = &dsync
 		err = m.SaveDocument(ctx, doc)
 		if err != nil {
 			m.logger.Errorw("[docDesyncExecutor] update doc failed", "entry", entry.ID, "document", doc.ID, "err", err)

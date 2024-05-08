@@ -196,6 +196,7 @@ message DeletePropertyResponse {
 service Document {
   rpc ListDocuments (ListDocumentsRequest) returns (ListDocumentsResponse) {}
   rpc GetDocumentDetail (GetDocumentDetailRequest) returns (GetDocumentDetailResponse) {}
+  rpc UpdateDocument (UpdateDocumentRequest) returns (UpdateDocumentResponse) {}
 }
 
 message ListDocumentsRequest {
@@ -215,6 +216,22 @@ message GetDocumentDetailRequest {
 }
 
 message GetDocumentDetailResponse {
+  DocumentDescribe document = 1;
+}
+
+message UpdateDocumentRequest {
+  enum DocumentMark {
+    Unchanged = 0;
+    Marked = 1;
+    Unmarked = 2;
+    Read = 3;
+    Unread = 4;
+  }
+  DocumentDescribe document = 1;
+  DocumentMark setMark = 2;
+}
+
+message UpdateDocumentResponse {
   DocumentDescribe document = 1;
 }
 

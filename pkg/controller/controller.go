@@ -80,6 +80,7 @@ type Controller interface {
 	GetDocumentsByEntryId(ctx context.Context, entryId int64) (*types.Document, error)
 	GetDocument(ctx context.Context, documentId int64) (*types.Document, error)
 	QueryDocuments(ctx context.Context, query string) ([]*types.Document, error)
+	UpdateDocument(ctx context.Context, doc *types.Document) error
 
 	ListRooms(ctx context.Context, entryId int64) ([]*types.Room, error)
 	CreateRoom(ctx context.Context, entryId int64, prompt string) (*types.Room, error)
