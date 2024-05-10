@@ -239,12 +239,14 @@ func collectFile2Document(ctx context.Context, docMgr document.Manager, entryMgr
 	if err != nil {
 		return fmt.Errorf("query entry failed: %s", err)
 	}
+	unread := true
 	doc := &types.Document{
 		OID:           baseEn.ID,
 		Name:          trimFileExtension(baseEn.Name),
 		ParentEntryID: baseEn.ParentID,
 		Source:        "collect",
 		Content:       content.String(),
+		Unread:        &unread,
 	}
 	err = docMgr.SaveDocument(ctx, doc)
 	if err != nil {
