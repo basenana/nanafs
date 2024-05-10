@@ -332,15 +332,17 @@ func (s *services) UpdateDocument(ctx context.Context, request *UpdateDocumentRe
 		KeyWords:      doc.KeyWords,
 		Summary:       doc.Summary,
 	}
+	t := true
+	f := false
 	switch request.SetMark {
 	case UpdateDocumentRequest_Marked:
-		doc.Marked = true
+		newDoc.Marked = &t
 	case UpdateDocumentRequest_Unmarked:
-		doc.Marked = false
+		newDoc.Marked = &f
 	case UpdateDocumentRequest_Read:
-		doc.Unread = false
+		newDoc.Unread = &f
 	case UpdateDocumentRequest_Unread:
-		doc.Unread = true
+		newDoc.Unread = &t
 	}
 	err := s.ctrl.UpdateDocument(ctx, newDoc)
 	if err != nil {

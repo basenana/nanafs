@@ -73,10 +73,12 @@ var _ = Describe("testDocumentManage", func() {
 			keywords := []string{"a", "b"}
 			content := "this is content"
 			summary := "this is summary"
+			t := true
 			newDoc := &types.Document{
 				Name:     "test_create_doc",
 				OID:      entry.ID,
 				Source:   "",
+				Unread:   &t,
 				KeyWords: keywords,
 				Content:  content,
 				Summary:  summary,
@@ -89,6 +91,7 @@ var _ = Describe("testDocumentManage", func() {
 			Expect(doc.Content).Should(Equal(content))
 			Expect(doc.KeyWords).Should(Equal(keywords))
 			Expect(doc.Summary).Should(Equal(summary))
+			Expect(*doc.Unread).Should(BeTrue())
 		})
 	})
 	Context("delete document", func() {
