@@ -38,7 +38,7 @@ func (f *Friday) Summary(res *SummaryState) *Friday {
 	if f.statement.file != nil {
 		// split doc
 		docs := f.Spliter.Split(f.statement.file.Content)
-		// summary
+		// Summary
 		summaryOfFile, usage, err := s.Summary(f.statement.context, docs, f.statement.summaryType)
 		if err != nil {
 			f.Error = err

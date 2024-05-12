@@ -62,12 +62,14 @@ type Statement struct {
 	context context.Context
 
 	// for chat
-	history  []map[string]string
-	question string
-	query    *models.DocQuery
-	info     string
+	Summary        string              // Summary of doc
+	HistorySummary string              // Summary of chat history
+	Info           string              // Info of embedding
+	history        []map[string]string // real chat history
+	question       string              // question for chat
+	query          *models.DocQuery    // search in doc or dir
 
-	// for ingest or summary
+	// for ingest or Summary
 	file        *models.File // a whole file providing models.File
 	elementFile *string      // a whole file given an element-style origin file
 	originFile  *string      // a whole file given an origin file
@@ -76,7 +78,7 @@ type Statement struct {
 	// for keywords
 	content string
 
-	// for summary
+	// for Summary
 	summaryType summary.SummaryType
 }
 
