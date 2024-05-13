@@ -28,7 +28,8 @@ const (
 )
 
 type UserInfo struct {
-	UID, GID int64
+	AccessKey string
+	UID, GID  int64
 }
 
 func GetUserInfo(ctx context.Context) *UserInfo {
@@ -62,8 +63,9 @@ func BasicAuthHandler(h http.Handler, validator TokenValidator) http.Handler {
 		}
 
 		h.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userInfoContextKey, &UserInfo{
-			UID: tokenInfo.UID,
-			GID: tokenInfo.GID,
+			AccessKey: username,
+			UID:       tokenInfo.UID,
+			GID:       tokenInfo.GID,
 		})))
 	})
 }
