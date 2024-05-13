@@ -47,7 +47,6 @@ var (
 
 func (c *controller) AccessToken(ctx context.Context, ak, sk string) (*types.AccessToken, error) {
 	defer trace.StartRegion(ctx, "controller.AccessToken").End()
-	c.logger.Infow("access token", "tokenKey", ak)
 	token, err := c.token.AccessToken(ctx, ak, sk)
 	if err != nil {
 		c.logger.Warnw("wrong access token", "tokenKey", ak, "err", err)

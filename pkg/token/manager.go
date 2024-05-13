@@ -32,6 +32,7 @@ import (
 
 type Manager struct {
 	store  metastore.AccessToken
+	cache  *cache
 	cfg    config.Loader
 	logger *zap.SugaredLogger
 }
@@ -67,21 +68,33 @@ func (m *Manager) InitBuildinCA(ctx context.Context) error {
 }
 
 func (m *Manager) AccessToken(ctx context.Context, ak, sk string) (*types.AccessToken, error) {
-	token, err := m.store.GetAccessToken(ctx, ak, sk)
+	token, err := m.cache.GetToken(ak, sk)
+	if err == nil {
+		return token, nil
+	}
+
+	if errors.Is(err, types.ErrNoAccess) {
+		return nil, err
+	}
+
+	token, err = m.store.GetAccessToken(ctx, ak, sk)
 	if err != nil {
 		if errors.Is(err, types.ErrNotFound) {
+			m.cache.SetToken(ak, nil)
 			return nil, types.ErrNoAccess
 		}
 		return nil, err
 	}
 
 	nowTime := time.Now()
-	if token.CertExpiration.IsZero() || nowTime.Add(-24*time.Hour).Before(token.CertExpiration) {
+	if token.CertExpiration.IsZero() || token.CertExpiration.Before(nowTime.Add(24*time.Hour)) {
 		if err = m.resignCerts(ctx, token); err != nil {
 			m.logger.Errorw("resign client certs failed", "err", err)
 			return nil, err
 		}
 	}
+	m.logger.Infow("access token", "tokenKey", ak)
+	m.cache.SetToken(ak, token)
 	return token, nil
 }
 
@@ -133,6 +146,7 @@ func (m *Manager) resignCerts(ctx context.Context, token *types.AccessToken) (er
 func NewTokenManager(store metastore.AccessToken, cfg config.Loader) *Manager {
 	return &Manager{
 		store:  store,
+		cache:  newTokenCache(),
 		cfg:    cfg,
 		logger: logger.NewLogger("tokenManager"),
 	}
