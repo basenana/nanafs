@@ -29,7 +29,7 @@ func registerEventHandle(n *Notify) {
 }
 
 func (n *Notify) GetLatestSequence(ctx context.Context) (int64, error) {
-	evtList, err := n.store.ListEvents(ctx, types.EventFilter{Limit: 1})
+	evtList, err := n.store.ListEvents(ctx, types.EventFilter{Limit: 1, DESC: true})
 	if err != nil {
 		return 0, err
 	}

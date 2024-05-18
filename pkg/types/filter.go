@@ -43,4 +43,5 @@ type LabelMatch struct {
 type EventFilter struct {
 	StartSequence int64
 	Limit         int
+	DESC          bool
 }
