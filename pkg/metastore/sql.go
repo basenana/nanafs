@@ -1770,7 +1770,7 @@ func (s *sqlMetaStore) ListEvents(ctx context.Context, filter types.EventFilter)
 	}
 
 	modelList := make([]db.Event, 0)
-	res := query.Order("sequence DESC").Find(&modelList)
+	res := query.Order("sequence ASC").Find(&modelList)
 	if res.Error != nil {
 		s.logger.Errorw("list event from db failed", "err", res.Error)
 		return nil, res.Error
