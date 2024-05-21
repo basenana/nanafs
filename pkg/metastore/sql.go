@@ -1197,6 +1197,11 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, targetEntryId int6
 			return updateErr
 		}
 
+		res = tx.Model(&db.Document{}).Where("oid = ?", targetEntryId).Update("parent_entry_id", newParentId)
+		if res.Error != nil {
+			return res.Error
+		}
+
 		res = tx.Where("id = ?", srcParentEntryID).First(srcParentEnModel)
 		if res.Error != nil {
 			return res.Error
