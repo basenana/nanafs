@@ -29,6 +29,7 @@ type Event struct {
 	RefID           int64     `json:"nanafsrefid"`
 	RefType         string    `json:"nanafsreftype"`
 	Sequence        int64     `json:"nanafssequence"`
+	Namespace       string    `json:"namespace"`
 	DataContentType string    `json:"datacontenttype"`
 	Data            EventData `json:"data"`
 	Time            time.Time `json:"time"`
@@ -62,7 +63,11 @@ func NewEventDataFromEntry(entry *Metadata) EventData {
 }
 
 func NewEventDataFromDocument(doc *Document) EventData {
-	return EventData{ID: doc.ID}
+	return EventData{
+		ID:        doc.ID,
+		ParentID:  doc.ParentEntryID,
+		Namespace: doc.Namespace,
+	}
 }
 
 const (
@@ -75,12 +80,13 @@ const (
 )
 
 type ScheduledTask struct {
-	ID      int64
-	TaskID  string
-	Status  string
-	RefType string
-	RefID   int64
-	Result  string
+	ID        int64
+	Namespace string
+	TaskID    string
+	Status    string
+	RefType   string
+	RefID     int64
+	Result    string
 
 	CreatedTime    time.Time
 	ExecutionTime  time.Time
@@ -102,12 +108,13 @@ const (
 )
 
 type Notification struct {
-	ID      string
-	Title   string
-	Message string
-	Type    string
-	Source  string
-	Action  string
-	Status  string
-	Time    time.Time
+	ID        string
+	Namespace string
+	Title     string
+	Message   string
+	Type      string
+	Source    string
+	Action    string
+	Status    string
+	Time      time.Time
 }

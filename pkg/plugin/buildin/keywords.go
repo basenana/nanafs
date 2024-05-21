@@ -76,6 +76,7 @@ func (i *KeywordsPlugin) Run(ctx context.Context, request *pluginapi.Request) (*
 		RefID:          request.EntryId,
 		RefType:        "entry",
 		Type:           "keywords",
+		Namespace:      request.Namespace,
 		CompleteTokens: usage["completion_tokens"],
 		PromptTokens:   usage["prompt_tokens"],
 		TotalTokens:    usage["total_tokens"],

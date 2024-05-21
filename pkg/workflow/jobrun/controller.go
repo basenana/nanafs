@@ -19,17 +19,19 @@ package jobrun
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/pkg/notify"
-	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
-	"github.com/basenana/nanafs/utils/logger"
-	"go.uber.org/zap"
 	"math"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
+
+	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/notify"
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
+	"github.com/basenana/nanafs/utils/logger"
 )
 
 const (
@@ -155,16 +157,21 @@ func (c *Controller) startJobRunner(ctx context.Context, jID string, timeout tim
 		return
 	}
 
+	c.logger.Infow("ns in job", "ns", job.Namespace)
+
 	wf, err := c.recorder.GetWorkflow(ctx, job.Workflow)
 	if err != nil {
 		c.logger.Errorw("start runner failed: query workflow error", "job", jID, "workflow", job.Workflow, "err", err)
 		return
 	}
 
-	err = r.Start(ctx)
+	ctxWithNS := types.WithNamespace(ctx, types.NewNamespace(job.Namespace))
+	c.logger.Infow("ns in ctx before start", "ns", types.GetNamespace(ctxWithNS).String())
+
+	err = r.Start(ctxWithNS)
 	if err != nil {
 		c.logger.Errorw("start runner failed: job failed", "job", jID, "err", err)
-		_ = c.notify.RecordWarn(context.TODO(), fmt.Sprintf("Workflow %s failed", wf.Name),
+		_ = c.notify.RecordWarn(ctxWithNS, fmt.Sprintf("Workflow %s failed", wf.Name),
 			fmt.Sprintf("trigger job %s failed: %s", jID, err), "JobController")
 	}
 }

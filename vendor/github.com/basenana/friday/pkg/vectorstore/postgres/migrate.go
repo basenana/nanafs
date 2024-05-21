@@ -34,6 +34,22 @@ func buildMigrations() []*gormigrate.Migration {
 				return nil
 			},
 		},
+		{
+			ID: "2024051400",
+			Migrate: func(db *gorm.DB) error {
+				err := db.AutoMigrate(
+					&Index{},
+				)
+
+				if err != nil {
+					return err
+				}
+				// init namespace
+				_ = db.Exec(`UPDATE friday_idx SET namespace='global' WHERE 1=1;`)
+				return nil
+			},
+			Rollback: func(db *gorm.DB) error { return nil },
+		},
 	}
 }
 

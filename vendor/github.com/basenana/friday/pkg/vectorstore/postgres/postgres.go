@@ -33,6 +33,8 @@ import (
 	"github.com/basenana/friday/pkg/vectorstore/db"
 )
 
+const defaultNamespace = "global"
+
 type PostgresClient struct {
 	log     logger.Logger
 	dEntity *db.Entity
@@ -72,6 +74,10 @@ func NewPostgresClient(log logger.Logger, postgresUrl string) (*PostgresClient, 
 }
 
 func (p *PostgresClient) Store(ctx context.Context, element *models.Element, extra map[string]any) error {
+	namespace := ctx.Value("namespace")
+	if namespace == nil {
+		namespace = defaultNamespace
+	}
 	return p.dEntity.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if extra == nil {
 			extra = make(map[string]interface{})
@@ -91,9 +97,10 @@ func (p *PostgresClient) Store(ctx context.Context, element *models.Element, ext
 		}
 
 		v.Extra = string(b)
+		v.Namespace = namespace.(string)
 
 		vModel := &Index{}
-		res := tx.Where("name = ? AND idx_group = ?", element.Name, element.Group).First(vModel)
+		res := tx.Where("namespace = ? AND name = ? AND idx_group = ?", namespace, element.Name, element.Group).First(vModel)
 		if res.Error != nil && res.Error != gorm.ErrRecordNotFound {
 			return res.Error
 		}
@@ -109,7 +116,7 @@ func (p *PostgresClient) Store(ctx context.Context, element *models.Element, ext
 		}
 
 		vModel.Update(v)
-		res = tx.Where("name = ? AND idx_group = ?", element.Name, element.Group).Updates(vModel)
+		res = tx.Where("namespace = ? AND name = ? AND idx_group = ?", namespace, element.Name, element.Group).Updates(vModel)
 		if res.Error != nil || res.RowsAffected == 0 {
 			if res.RowsAffected == 0 {
 				return errors.New("operation conflict")
@@ -121,6 +128,10 @@ func (p *PostgresClient) Store(ctx context.Context, element *models.Element, ext
 }
 
 func (p *PostgresClient) Search(ctx context.Context, query models.DocQuery, vectors []float32, k int) ([]*models.Doc, error) {
+	namespace := ctx.Value("namespace")
+	if namespace == nil {
+		namespace = defaultNamespace
+	}
 	vectors64 := make([]float64, 0)
 	for _, v := range vectors {
 		vectors64 = append(vectors64, float64(v))
@@ -130,6 +141,7 @@ func (p *PostgresClient) Search(ctx context.Context, query models.DocQuery, vect
 	var res *gorm.DB
 
 	res = p.dEntity.WithContext(ctx)
+	res = res.Where("namespace = ?", namespace)
 	if query.ParentId != 0 {
 		res = res.Where("parent_entry_id = ?", query.ParentId)
 	}
@@ -171,12 +183,16 @@ func (p *PostgresClient) Search(ctx context.Context, query models.DocQuery, vect
 }
 
 func (p *PostgresClient) Get(ctx context.Context, oid int64, name string, group int) (*models.Element, error) {
+	namespace := ctx.Value("namespace")
+	if namespace == nil {
+		namespace = defaultNamespace
+	}
 	vModel := &Index{}
 	var res *gorm.DB
 	if oid == 0 {
-		res = p.dEntity.WithContext(ctx).Where("name = ? AND idx_group = ?", name, group).First(vModel)
+		res = p.dEntity.WithContext(ctx).Where("namespace = ? AND name = ? AND idx_group = ?", namespace, name, group).First(vModel)
 	} else {
-		res = p.dEntity.WithContext(ctx).Where("name = ? AND oid = ? AND idx_group = ?", name, oid, group).First(vModel)
+		res = p.dEntity.WithContext(ctx).Where("namespace = ? AND name = ? AND oid = ? AND idx_group = ?", namespace, name, oid, group).First(vModel)
 	}
 	if res.Error != nil {
 		if res.Error == gorm.ErrRecordNotFound {

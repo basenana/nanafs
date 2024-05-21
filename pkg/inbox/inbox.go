@@ -20,20 +20,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+
+	"go.uber.org/zap"
+
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
-	"go.uber.org/zap"
-	"strings"
 )
 
 type Inbox struct {
-	inboxGroup int64
-	entry      dentry.Manager
-	workflow   workflow.Manager
-	logger     *zap.SugaredLogger
+	entry    dentry.Manager
+	workflow workflow.Manager
+	logger   *zap.SugaredLogger
 }
 
 func (b *Inbox) QuickInbox(ctx context.Context, fileName string, option Option) (*types.Metadata, error) {
@@ -50,7 +51,12 @@ func (b *Inbox) QuickInbox(ctx context.Context, fileName string, option Option) 
 		}
 	}
 
-	fileEn, err := b.entry.CreateEntry(ctx, b.inboxGroup,
+	group, err := FindInboxInternalGroup(ctx, b.entry)
+	if err != nil && !errors.Is(err, types.ErrNotFound) {
+		return nil, err
+	}
+
+	fileEn, err := b.entry.CreateEntry(ctx, group.ID,
 		types.EntryAttr{Name: fileName, Kind: types.RawKind})
 	if err != nil {
 		return nil, err
@@ -104,15 +110,14 @@ func (b *Inbox) writeInboxFile(ctx context.Context, fileEn *types.Metadata, opti
 }
 
 func New(entry dentry.Manager, workflow workflow.Manager) (*Inbox, error) {
-	inboxEn, err := initInboxInternalGroup(entry)
+	err := InitInboxInternalGroup(context.Background(), entry)
 	if err != nil {
 		return nil, fmt.Errorf("init inbox internal group group failed %w", err)
 	}
 	return &Inbox{
-		inboxGroup: inboxEn.ID,
-		entry:      entry,
-		workflow:   workflow,
-		logger:     logger.NewLogger("inbox"),
+		entry:    entry,
+		workflow: workflow,
+		logger:   logger.NewLogger("inbox"),
 	}, nil
 }
 

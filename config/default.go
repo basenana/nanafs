@@ -20,10 +20,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/basenana/nanafs/utils/logger"
 	"os"
 	"path"
 	"strings"
+
+	"github.com/basenana/nanafs/utils/logger"
 )
 
 const (
@@ -61,7 +62,7 @@ var (
 
 func setDefaultConfigs(l Loader) error {
 	var (
-		ctx       context.Context
+		ctx       context.Context = context.Background()
 		configVal Value
 		cfgLogger = logger.NewLogger("defaultConfig")
 	)

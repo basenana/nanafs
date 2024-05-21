@@ -19,10 +19,11 @@ package notify
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
-	"time"
 )
 
 type Notify struct {
@@ -35,28 +36,32 @@ func (n *Notify) ListNotifications(ctx context.Context) ([]types.Notification, e
 
 func (n *Notify) RecordInfo(ctx context.Context, title, message, source string) error {
 	nid := fmt.Sprintf("%d-info-%s", time.Now().UnixNano(), utils.MustRandString(8))
+	ns := types.GetNamespace(ctx).String()
 	no := types.Notification{
-		ID:      nid,
-		Title:   title,
-		Message: message,
-		Type:    types.NotificationInfo,
-		Source:  source,
-		Status:  types.NotificationUnread,
-		Time:    time.Now(),
+		ID:        nid,
+		Namespace: ns,
+		Title:     title,
+		Message:   message,
+		Type:      types.NotificationInfo,
+		Source:    source,
+		Status:    types.NotificationUnread,
+		Time:      time.Now(),
 	}
 	return n.store.RecordNotification(ctx, nid, no)
 }
 
 func (n *Notify) RecordWarn(ctx context.Context, title, message, source string) error {
 	nid := fmt.Sprintf("%d-warn-%s", time.Now().UnixNano(), utils.MustRandString(8))
+	ns := types.GetNamespace(ctx).String()
 	no := types.Notification{
-		ID:      nid,
-		Title:   title,
-		Message: message,
-		Type:    types.NotificationWarn,
-		Source:  source,
-		Status:  types.NotificationUnread,
-		Time:    time.Now(),
+		ID:        nid,
+		Namespace: ns,
+		Title:     title,
+		Message:   message,
+		Type:      types.NotificationWarn,
+		Source:    source,
+		Status:    types.NotificationUnread,
+		Time:      time.Now(),
 	}
 	return n.store.RecordNotification(ctx, nid, no)
 }

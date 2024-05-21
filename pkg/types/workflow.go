@@ -23,6 +23,7 @@ import (
 type WorkflowSpec struct {
 	Id              string             `json:"id"`
 	Name            string             `json:"name"`
+	Namespace       string             `json:"namespace"`
 	Rule            Rule               `json:"rule,omitempty"`
 	Cron            string             `json:"cron,omitempty"`
 	Steps           []WorkflowStepSpec `json:"steps,omitempty"`
@@ -41,6 +42,7 @@ type WorkflowStepSpec struct {
 
 type WorkflowJob struct {
 	Id             string            `json:"id"`
+	Namespace      string            `json:"namespace"`
 	Workflow       string            `json:"workflow"`
 	TriggerReason  string            `json:"trigger_reason,omitempty"`
 	Target         WorkflowTarget    `json:"target"`

@@ -41,6 +41,7 @@ import (
 
 type Manager interface {
 	Root(ctx context.Context) (*types.Metadata, error)
+	CreateNamespace(ctx context.Context, namespace *types.Namespace) error
 
 	GetEntry(ctx context.Context, id int64) (*types.Metadata, error)
 	GetEntryByUri(ctx context.Context, uri string) (*types.Metadata, error)
@@ -116,7 +117,26 @@ var _ Manager = &manager{}
 
 func (m *manager) Root(ctx context.Context) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.Root").End()
-	root, err := m.GetEntry(ctx, RootEntryID)
+	var (
+		root   *types.Metadata
+		nsRoot *types.Metadata
+		err    error
+	)
+	ns := types.GetNamespace(ctx)
+	if ns.String() != types.DefaultNamespaceValue {
+		nsRoot, err = m.store.FindEntry(ctx, RootEntryID, ns.String())
+		if err != nil {
+			m.logger.Errorw("load ns root object error", "err", err.Error())
+			return nsRoot, err
+		}
+		if nsRoot.Namespace != ns.String() {
+			m.logger.Errorw("find ns root object error", "err", "namespace not match")
+			return nil, types.ErrNotFound
+		}
+		return nsRoot, nil
+	}
+
+	root, err = m.GetEntry(ctx, RootEntryID)
 	if err == nil {
 		return root, nil
 	}
@@ -135,6 +155,27 @@ func (m *manager) Root(ctx context.Context) (*types.Metadata, error) {
 		return nil, err
 	}
 	return root, nil
+}
+
+func (m *manager) CreateNamespace(ctx context.Context, namespace *types.Namespace) error {
+	defer trace.StartRegion(ctx, "dentry.manager.CreateNamespace").End()
+	root, err := m.Root(ctx)
+	if err != nil {
+		m.logger.Errorw("load root object error", "err", err.Error())
+		return err
+	}
+	// init root entry of namespace
+	nsRoot := initNamespaceRootEntry(root, namespace)
+	nsRoot.Access.UID = m.fsOwnerUid
+	nsRoot.Access.GID = m.fsOwnerGid
+	nsRoot.Storage = m.defaultStorage.ID()
+
+	err = m.store.CreateEntry(ctx, RootEntryID, nsRoot)
+	if err != nil {
+		m.logger.Errorw("create root entry failed", "err", err)
+		return err
+	}
+	return nil
 }
 
 func (m *manager) GetEntry(ctx context.Context, id int64) (*types.Metadata, error) {

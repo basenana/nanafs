@@ -18,12 +18,15 @@ package common
 
 import (
 	"context"
-	"github.com/basenana/nanafs/utils/logger"
+	"time"
+
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"time"
+
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils/logger"
 )
 
 func WithCommonInterceptors() grpc.ServerOption {
@@ -56,11 +59,12 @@ func serverStreamLogInterceptor(srv any, ss grpc.ServerStream, info *grpc.Stream
 }
 
 func serverAuthInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
-	err = checkCallerAuthentication(ctx, info.FullMethod)
+	var valueCtx context.Context
+	valueCtx, err = withCallerAuthentication(ctx, info.FullMethod)
 	if err != nil {
 		return nil, err
 	}
-	return handler(ctx, req)
+	return handler(valueCtx, req)
 }
 
 var (
@@ -69,12 +73,14 @@ var (
 	}
 )
 
-func checkCallerAuthentication(ctx context.Context, fullMethod string) error {
+func withCallerAuthentication(ctx context.Context, fullMethod string) (context.Context, error) {
 	if !insecureMethods[fullMethod] {
 		caller := CallerAuth(ctx)
 		if !caller.Authenticated {
-			return status.Error(codes.Unauthenticated, "unauthenticated")
+			return nil, status.Error(codes.Unauthenticated, "unauthenticated")
 		}
+		valueCtx := context.WithValue(ctx, types.NamespaceKey, caller.Namespace)
+		return valueCtx, nil
 	}
-	return nil
+	return ctx, nil
 }

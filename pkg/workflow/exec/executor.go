@@ -107,6 +107,7 @@ func (b *localExecutor) Setup(ctx context.Context) (err error) {
 			return logOperationError(LocalExecName, "setup", err)
 		}
 
+		b.logger.Infow("ns before get entry uri", "ns", types.GetNamespace(ctx).String())
 		b.entryURI, err = entryURIByEntryID(ctx, b.job.Target.EntryID, b.entryMgr)
 		if err != nil {
 			b.logger.Errorw("query entry dir failed", "err", err)
@@ -143,6 +144,7 @@ func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobS
 	req.CacheData = b.cachedData
 	req.EntryPath = b.entryPath
 	req.EntryURI = b.entryURI
+	req.Namespace = b.job.Namespace
 
 	req.ContextResults = b.ctxResults
 	req.Parameter = map[string]any{}
@@ -356,6 +358,7 @@ func (p *pipeExecutor) DoOperation(ctx context.Context, step types.WorkflowJobSt
 	req.EntryId = p.job.Target.EntryID
 	req.ParentEntryId = p.job.Target.ParentEntryID
 	req.ContextResults = p.ctxResults
+	req.Namespace = p.job.Namespace
 
 	req.Parameter = map[string]any{}
 	for k, v := range step.Plugin.Parameters {

@@ -26,6 +26,7 @@ import (
 type Index struct {
 	ID        string `gorm:"column:id;type:varchar(256);primaryKey"`
 	Name      string `gorm:"column:name;index:index_name"`
+	Namespace string `gorm:"column:namespace;index:index_namespace"`
 	OID       int64  `gorm:"column:oid;index:index_oid"`
 	Group     int    `gorm:"column:idx_group;index:index_group"`
 	ParentID  int64  `gorm:"column:parent_entry_id;index:index_parent_id"`

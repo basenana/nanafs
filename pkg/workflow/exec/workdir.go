@@ -97,9 +97,15 @@ func entryURIByEntryID(ctx context.Context, entryID int64, entryMgr dentry.Manag
 		uriPart, reversedURI []string
 	)
 
-	if entryID == dentry.RootEntryID {
-		return utils.PathSeparator, nil
+	root, err := entryMgr.Root(ctx)
+	if err != nil {
+		return "", err
 	}
+
+	if entryID == root.ID {
+		return utils.SafetyFilePathJoin(utils.PathSeparator, root.Name), nil
+	}
+	reversedURI = append(uriPart, root.Name)
 
 	en, err := entryMgr.GetEntry(ctx, entryID)
 	if err != nil {
@@ -107,13 +113,13 @@ func entryURIByEntryID(ctx context.Context, entryID int64, entryMgr dentry.Manag
 	}
 	reversedURI = append(uriPart, en.Name)
 
-	for en.ID != dentry.RootEntryID {
+	for en.ID != root.ID {
 		en, err = entryMgr.GetEntry(ctx, en.ParentID)
 		if err != nil {
 			return "", err
 		}
 
-		if en.ID == dentry.RootEntryID {
+		if en.ID == root.ID {
 			break
 		}
 
@@ -243,6 +249,7 @@ func collectFile2Document(ctx context.Context, docMgr document.Manager, entryMgr
 	doc := &types.Document{
 		OID:           baseEn.ID,
 		Name:          trimFileExtension(baseEn.Name),
+		Namespace:     baseEn.Namespace,
 		ParentEntryID: baseEn.ParentID,
 		Source:        "collect",
 		Content:       content.String(),

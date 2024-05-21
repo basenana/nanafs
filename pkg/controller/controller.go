@@ -46,6 +46,7 @@ const (
 
 type Controller interface {
 	AccessToken(ctx context.Context, ak, sk string) (*types.AccessToken, error)
+	CreateNamespace(ctx context.Context, namespace string) (*types.Namespace, error)
 
 	LoadRootEntry(ctx context.Context) (*types.Metadata, error)
 	FindEntry(ctx context.Context, parentId int64, name string) (*types.Metadata, error)
@@ -132,6 +133,27 @@ type controller struct {
 }
 
 var _ Controller = &controller{}
+
+func (c *controller) CreateNamespace(ctx context.Context, namespace string) (*types.Namespace, error) {
+	defer trace.StartRegion(ctx, "controller.CreateNamespace").End()
+	c.logger.Infow("init entry of namespace", "namespace", namespace)
+	ns := types.NewNamespace(namespace)
+	nsCtx := types.WithNamespace(ctx, ns)
+
+	// init namespace entry
+	err := c.entry.CreateNamespace(ctx, ns)
+	if err != nil {
+		c.logger.Errorw("init namespace root object error", "namespace", namespace, "err", err.Error())
+		return nil, err
+	}
+	// init inbox group
+	err = inbox.InitInboxInternalGroup(nsCtx, c.entry)
+	if err != nil {
+		c.logger.Errorw("init internal inbox group failed", "err", err)
+		return nil, err
+	}
+	return ns, nil
+}
 
 func (c *controller) LoadRootEntry(ctx context.Context) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "controller.LoadRootEntry").End()

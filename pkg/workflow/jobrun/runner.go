@@ -19,15 +19,17 @@ package jobrun
 import (
 	"context"
 	"fmt"
+	"sync"
+	"time"
+
+	"go.uber.org/zap"
+
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow/fsm"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
-	"go.uber.org/zap"
-	"sync"
-	"time"
 )
 
 type Runner interface {
@@ -74,7 +76,9 @@ func (r *runner) Start(ctx context.Context) (err error) {
 
 	startAt := time.Now()
 	r.logger.Infow("start runner")
+	r.logger.Infow("ns in ctx start", "ns", types.GetNamespace(ctx).String())
 	r.ctx, r.canF = context.WithCancel(ctx)
+	r.logger.Infow("ns in ctx start", "r.ctx", types.GetNamespace(r.ctx).String())
 	if err = r.initial(); err != nil {
 		r.logger.Errorf("job initial failed: %s", err)
 		return err
@@ -86,7 +90,7 @@ func (r *runner) Start(ctx context.Context) (err error) {
 	runnerStartedCounter.Add(1)
 	defer func() {
 		runnerStartedCounter.Add(-1)
-		if deferErr := r.recorder.SaveWorkflowJob(context.TODO(), r.job); deferErr != nil {
+		if deferErr := r.recorder.SaveWorkflowJob(ctx, r.job); deferErr != nil {
 			r.logger.Errorw("save job to metabase failed", "err", deferErr)
 		}
 		execDu := time.Since(startAt)
@@ -131,13 +135,13 @@ func (r *runner) Start(ctx context.Context) (err error) {
 	// waiting all step down
 	<-r.stopCh
 
-	err = r.executor.Collect(context.TODO())
+	err = r.executor.Collect(ctx)
 	if err != nil {
 		r.logger.Errorw("collect file error", "err", err)
 		return err
 	}
 
-	r.executor.Teardown(context.TODO())
+	r.executor.Teardown(ctx)
 	return nil
 }
 
@@ -254,7 +258,7 @@ func (r *runner) handleJobFailed(event fsm.Event) error {
 		return err
 	}
 	r.close(event.Message)
-	_ = r.notify.RecordWarn(context.TODO(), fmt.Sprintf("Workflow %s failed", r.job.Workflow),
+	_ = r.notify.RecordWarn(r.ctx, fmt.Sprintf("Workflow %s failed", r.job.Workflow),
 		fmt.Sprintf("run job %s failed: %s", r.job.Id, event.Message), "JobRunner")
 	return nil
 }
@@ -357,6 +361,7 @@ func (r *runner) stepRun(ctx context.Context, step *types.WorkflowJobStep) (need
 }
 
 func (r *runner) initial() (err error) {
+	r.logger.Infow("ns in ctx initial", "ns", types.GetNamespace(r.ctx).String())
 	if r.job.Status == "" {
 		r.job.Status = PendingStatus
 		if err = r.recorder.SaveWorkflowJob(r.ctx, r.job); err != nil {

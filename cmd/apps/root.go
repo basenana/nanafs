@@ -17,6 +17,7 @@
 package apps
 
 import (
+	"context"
 	"fmt"
 	"path"
 	"time"
@@ -40,6 +41,7 @@ import (
 func init() {
 	RootCmd.AddCommand(daemonCmd)
 	RootCmd.AddCommand(versionCmd)
+	RootCmd.AddCommand(NamespaceCmd)
 	RootCmd.AddCommand(configapp.RunCmd)
 }
 
@@ -54,6 +56,7 @@ var RootCmd = &cobra.Command{
 
 func init() {
 	daemonCmd.Flags().StringVar(&config.FilePath, "config", path.Join(config.LocalUserPath(), config.DefaultConfigBase), "nanafs config file")
+	NamespaceCmd.Flags().StringVar(&config.FilePath, "config", path.Join(config.LocalUserPath(), config.DefaultConfigBase), "nanafs config file")
 }
 
 var daemonCmd = &cobra.Command{
@@ -140,5 +143,49 @@ var versionCmd = &cobra.Command{
 		vInfo := config.VersionInfo()
 		fmt.Printf("Version: %s\n", vInfo.Version())
 		fmt.Printf("GitCommit: %s\n", vInfo.Git)
+	},
+}
+
+var NamespaceCmd = &cobra.Command{
+	Use:   "namespace",
+	Short: "create namespace",
+	Run: func(cmd *cobra.Command, args []string) {
+		loader := config.NewConfigLoader()
+		cfg, err := loader.GetBootstrapConfig()
+		if err != nil {
+			panic(err)
+		}
+
+		if cfg.Debug {
+			logger.SetDebug(cfg.Debug)
+		}
+
+		meta, err := metastore.NewMetaStorage(cfg.Meta.Type, cfg.Meta)
+		if err != nil {
+			panic(err)
+		}
+
+		err = loader.InitCMDB(meta)
+		if err != nil {
+			panic(err)
+		}
+
+		if len(cfg.Storages) == 0 {
+			panic("storage must config")
+		}
+
+		bio.InitPageCache(cfg.FS)
+		storage.InitLocalCache(cfg)
+		rule.InitQuery(meta)
+
+		ctrl, err := controller.New(loader, meta)
+		if err != nil {
+			panic(err)
+		}
+
+		_, err = ctrl.CreateNamespace(context.Background(), args[0])
+		if err != nil {
+			panic(err)
+		}
 	},
 }

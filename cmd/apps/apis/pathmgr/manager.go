@@ -19,15 +19,17 @@ package pathmgr
 import (
 	"context"
 	"fmt"
+	"os"
+	"path"
+	"strings"
+
+	"go.uber.org/zap"
+
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
-	"go.uber.org/zap"
-	"os"
-	"path"
-	"strings"
 )
 
 type PathManager struct {
@@ -55,7 +57,7 @@ func (m *PathManager) GetEntry(ctx context.Context, entryID int64) (*types.Metad
 
 func (m *PathManager) FindEntry(ctx context.Context, entryPath string) (*types.Metadata, error) {
 	var err error
-	entryPath, err = m.getPath(entryPath)
+	entryPath, err = m.getPath(ctx, entryPath)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +66,7 @@ func (m *PathManager) FindEntry(ctx context.Context, entryPath string) (*types.M
 
 func (m *PathManager) ListEntry(ctx context.Context, dirPath string) ([]*types.Metadata, error) {
 	var err error
-	dirPath, err = m.getPath(dirPath)
+	dirPath, err = m.getPath(ctx, dirPath)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +82,7 @@ func (m *PathManager) ListEntry(ctx context.Context, dirPath string) ([]*types.M
 
 func (m *PathManager) FindParentEntry(ctx context.Context, entryPath string) (*types.Metadata, error) {
 	var err error
-	entryPath, err = m.getPath(entryPath)
+	entryPath, err = m.getPath(ctx, entryPath)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +103,7 @@ func (m *PathManager) CreateFile(ctx context.Context, parentDir string, attr typ
 		return nil, fmt.Errorf("file name is empty")
 	}
 
-	entryPath, err = m.getPath(entryPath)
+	entryPath, err = m.getPath(ctx, entryPath)
 	if err != nil {
 		return nil, err
 	}
@@ -224,11 +226,11 @@ func (m *PathManager) RemoveAll(ctx context.Context, entryPath string, recursion
 
 func (m *PathManager) Rename(ctx context.Context, oldPath, entryPath string) error {
 	var err error
-	oldPath, err = m.getPath(oldPath)
+	oldPath, err = m.getPath(ctx, oldPath)
 	if err != nil {
 		return err
 	}
-	entryPath, err = m.getPath(entryPath)
+	entryPath, err = m.getPath(ctx, entryPath)
 	if err != nil {
 		return err
 	}
@@ -255,7 +257,7 @@ func (m *PathManager) getPathEntry(ctx context.Context, entryPath string) (*type
 	return m.ctrl.GetEntryByURI(ctx, entryPath)
 }
 
-func (m *PathManager) getPath(entryPath string) (string, error) {
+func (m *PathManager) getPath(ctx context.Context, entryPath string) (string, error) {
 	pathParts := strings.Split(entryPath, "/")
 	pathEntries := make([]string, 0, len(pathParts))
 	for _, p := range pathParts {
@@ -267,7 +269,12 @@ func (m *PathManager) getPath(entryPath string) (string, error) {
 		}
 		pathEntries = append(pathEntries, p)
 	}
-	return "/" + strings.Join(pathEntries, "/"), nil
+	entryPath = "/" + strings.Join(pathEntries, "/")
+	ns := types.GetNamespace(ctx).String()
+	if ns != types.DefaultNamespaceValue {
+		entryPath = path.Join("/", ns, entryPath)
+	}
+	return entryPath, nil
 }
 
 func (m *PathManager) splitPath(entryPath string) []string {
