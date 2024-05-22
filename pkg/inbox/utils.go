@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
 )
@@ -28,17 +29,38 @@ const (
 	inboxInternalGroupName = ".inbox"
 )
 
-func initInboxInternalGroup(entryMgr dentry.Manager) (*types.Metadata, error) {
-	ctx := context.Background()
+func InitInboxInternalGroup(ctx context.Context, entryMgr dentry.Manager) error {
+	root, err := entryMgr.Root(ctx)
+	if err != nil {
+		return err
+	}
+	rootGrp, err := entryMgr.OpenGroup(ctx, root.ID)
+	if err != nil {
+		return fmt.Errorf("open root group failed: %w", err)
+	}
+	group, err := rootGrp.FindEntry(ctx, inboxInternalGroupName)
+	if err != nil && !errors.Is(err, types.ErrNotFound) {
+		return err
+	}
+	if group != nil {
+		return nil
+	}
+
+	group, err = entryMgr.CreateEntry(ctx, root.ID,
+		types.EntryAttr{Name: inboxInternalGroupName, Kind: types.GroupKind})
+	return nil
+}
+
+func FindInboxInternalGroup(ctx context.Context, entryMgr dentry.Manager) (*types.Metadata, error) {
 	root, err := entryMgr.Root(ctx)
 	if err != nil {
 		return nil, err
 	}
-	rootGrp, err := entryMgr.OpenGroup(context.TODO(), root.ID)
+	rootGrp, err := entryMgr.OpenGroup(ctx, root.ID)
 	if err != nil {
 		return nil, fmt.Errorf("open root group failed: %w", err)
 	}
-	group, err := rootGrp.FindEntry(context.Background(), inboxInternalGroupName)
+	group, err := rootGrp.FindEntry(ctx, inboxInternalGroupName)
 	if err != nil && !errors.Is(err, types.ErrNotFound) {
 		return nil, err
 	}
@@ -46,7 +68,5 @@ func initInboxInternalGroup(entryMgr dentry.Manager) (*types.Metadata, error) {
 		return group, nil
 	}
 
-	group, err = entryMgr.CreateEntry(context.Background(), root.ID,
-		types.EntryAttr{Name: inboxInternalGroupName, Kind: types.GroupKind})
 	return group, nil
 }

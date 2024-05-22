@@ -63,6 +63,7 @@ func (c *compactExecutor) handleEvent(evt *types.Event) error {
 	}
 
 	task = &types.ScheduledTask{
+		Namespace:      evt.Namespace,
 		TaskID:         maintainTaskIDChunkCompact,
 		Status:         types.ScheduledTaskWait,
 		RefType:        evt.RefType,
@@ -123,6 +124,7 @@ func (c *entryCleanExecutor) handleEvent(evt *types.Event) error {
 	}
 
 	task = &types.ScheduledTask{
+		Namespace:      evt.Namespace,
 		TaskID:         maintainTaskIDEntryCleanup,
 		Status:         types.ScheduledTaskWait,
 		RefType:        evt.RefType,

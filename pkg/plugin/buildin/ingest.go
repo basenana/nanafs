@@ -86,6 +86,7 @@ func (i *IngestPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pl
 		RefID:          request.EntryId,
 		RefType:        "entry",
 		Type:           "ingest",
+		Namespace:      request.Namespace,
 		CompleteTokens: usage["completion_tokens"],
 		PromptTokens:   usage["prompt_tokens"],
 		TotalTokens:    usage["total_tokens"],

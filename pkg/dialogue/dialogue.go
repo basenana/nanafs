@@ -73,6 +73,7 @@ func (m *manager) CreateRoom(ctx context.Context, entryId int64, prompt string) 
 		EntryId: entryId,
 		Prompt:  prompt,
 		//History:   []map[string]string{},
+		Namespace: types.GetNamespace(ctx).String(),
 		CreatedAt: time.Now(),
 	}
 	return room, m.recorder.SaveRoom(ctx, room)
@@ -131,6 +132,7 @@ func (m *manager) SaveMessage(ctx context.Context, roomMessage *types.RoomMessag
 
 	if crtMsg == nil {
 		roomMessage.CreatedAt = time.Now()
+		roomMessage.Namespace = types.GetNamespace(ctx).String()
 		return roomMessage, m.recorder.SaveRoomMessage(ctx, roomMessage)
 	}
 

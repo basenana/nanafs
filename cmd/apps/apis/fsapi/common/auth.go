@@ -19,10 +19,11 @@ package common
 import (
 	"context"
 	"fmt"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/peer"
 	"strconv"
 	"strings"
+
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
 )
 
 type AuthInfo struct {

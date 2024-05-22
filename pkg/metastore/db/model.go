@@ -168,11 +168,12 @@ func (o Label) TableName() string {
 }
 
 type ObjectProperty struct {
-	ID      int64  `gorm:"column:id;autoIncrement"`
-	OID     int64  `gorm:"column:oid;index:prop_oid"`
-	Name    string `gorm:"column:key;index:prop_name"`
-	Value   string `gorm:"column:value"`
-	Encoded bool   `gorm:"column:encoded"`
+	ID        int64  `gorm:"column:id;autoIncrement"`
+	OID       int64  `gorm:"column:oid;index:prop_oid"`
+	Name      string `gorm:"column:key;index:prop_name"`
+	Namespace string `gorm:"column:namespace;index:prop_ns"`
+	Value     string `gorm:"column:value"`
+	Encoded   bool   `gorm:"column:encoded"`
 }
 
 func (o ObjectProperty) TableName() string {
@@ -257,6 +258,7 @@ func (o ObjectChunk) TableName() string {
 type ScheduledTask struct {
 	ID             int64     `gorm:"column:id;autoIncrement"`
 	TaskID         string    `gorm:"column:task_id;index:st_task_id"`
+	Namespace      string    `gorm:"column:namespace;index:st_task_ns"`
 	RefType        string    `gorm:"column:ref_type;index:sche_task_reftype"`
 	RefID          int64     `gorm:"column:ref_id;index:sche_task_refid"`
 	Status         string    `gorm:"column:status;index:st_task_status"`
@@ -327,6 +329,7 @@ func (o *Event) To() (event types.Event, err error) {
 		SpecVersion:     o.SpecVersion,
 		Time:            o.Time,
 		Sequence:        o.Sequence,
+		Namespace:       o.Namespace,
 		RefID:           o.RefID,
 		RefType:         o.RefType,
 		DataContentType: o.DataContentType,
@@ -369,6 +372,7 @@ func (o *Workflow) TableName() string {
 func (o *Workflow) From(wf *types.WorkflowSpec) (*Workflow, error) {
 	o.ID = wf.Id
 	o.Name = wf.Name
+	o.Namespace = wf.Namespace
 	o.Enable = wf.Enable
 	o.Cron = wf.Cron
 	o.QueueName = wf.QueueName
@@ -395,6 +399,7 @@ func (o *Workflow) To() (*types.WorkflowSpec, error) {
 	result := &types.WorkflowSpec{
 		Id:              o.ID,
 		Name:            o.Name,
+		Namespace:       o.Namespace,
 		Enable:          o.Enable,
 		Cron:            o.Cron,
 		Steps:           []types.WorkflowStepSpec{},
@@ -448,6 +453,7 @@ func (o *WorkflowJob) From(job *types.WorkflowJob) (*WorkflowJob, error) {
 	o.FinishAt = job.FinishAt
 	o.CreatedAt = job.CreatedAt
 	o.UpdatedAt = job.UpdatedAt
+	o.Namespace = job.Namespace
 
 	rawTarget, err := json.Marshal(job.Target)
 	if err != nil {
@@ -479,6 +485,7 @@ func (o *WorkflowJob) To() (*types.WorkflowJob, error) {
 		FinishAt:      o.FinishAt,
 		CreatedAt:     o.CreatedAt,
 		UpdatedAt:     o.UpdatedAt,
+		Namespace:     o.Namespace,
 	}
 
 	err := json.Unmarshal([]byte(o.Target), &result.Target)
@@ -520,6 +527,7 @@ func (d *Document) From(document *types.Document) *Document {
 	d.ID = document.ID
 	d.OID = document.OID
 	d.Name = document.Name
+	d.Namespace = document.Namespace
 	d.ParentEntryID = &document.ParentEntryID
 	d.Keywords = strings.Join(document.KeyWords, ",")
 	d.Source = document.Source
@@ -548,6 +556,7 @@ func (d *Document) To() *types.Document {
 		ID:            d.ID,
 		OID:           d.OID,
 		Name:          d.Name,
+		Namespace:     d.Namespace,
 		ParentEntryID: *d.ParentEntryID,
 		Source:        d.Source,
 		KeyWords:      keyWords,
@@ -577,6 +586,7 @@ func (d *DocumentFeed) TableName() string {
 
 type FridayAccount struct {
 	ID             int64     `gorm:"column:id;primaryKey"`
+	Namespace      string    `gorm:"column:namespace;index:fridayaccount_namespace"`
 	RefId          int64     `gorm:"column:ref_id;index:fridayaccount_ref_id"`
 	RefType        string    `gorm:"column:ref_type;index:fridayaccount_ref_type"`
 	Type           string    `gorm:"column:type;index:fridayaccount_type"`
@@ -593,6 +603,7 @@ func (a *FridayAccount) TableName() string {
 func (a *FridayAccount) To() *types.FridayAccount {
 	return &types.FridayAccount{
 		ID:             a.ID,
+		Namespace:      a.Namespace,
 		RefID:          a.RefId,
 		RefType:        a.RefType,
 		Type:           a.Type,
@@ -605,6 +616,7 @@ func (a *FridayAccount) To() *types.FridayAccount {
 
 func (a *FridayAccount) From(account *types.FridayAccount) *FridayAccount {
 	a.ID = account.ID
+	a.Namespace = account.Namespace
 	a.RefId = account.RefID
 	a.RefType = account.RefType
 	a.Type = account.Type

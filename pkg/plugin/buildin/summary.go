@@ -99,6 +99,7 @@ func (i *SummaryPlugin) Run(ctx context.Context, request *pluginapi.Request) (*p
 		RefID:          request.EntryId,
 		RefType:        "entry",
 		Type:           "summary",
+		Namespace:      request.Namespace,
 		CompleteTokens: usage["completion_tokens"],
 		PromptTokens:   usage["prompt_tokens"],
 		TotalTokens:    usage["total_tokens"],

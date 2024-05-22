@@ -40,6 +40,23 @@ func initRootEntry() *types.Metadata {
 	return root
 }
 
+func initNamespaceRootEntry(root *types.Metadata, ns *types.Namespace) *types.Metadata {
+	acc := &types.Access{
+		Permissions: []types.Permission{
+			types.PermOwnerRead,
+			types.PermOwnerWrite,
+			types.PermOwnerExec,
+			types.PermGroupRead,
+			types.PermGroupWrite,
+			types.PermOthersRead,
+		},
+	}
+	nsRoot, _ := types.InitNewEntry(root, types.EntryAttr{Name: ns.String(), Kind: types.GroupKind, Access: acc})
+	nsRoot.Namespace = ns.String()
+	nsRoot.ParentID = root.ID
+	return nsRoot
+}
+
 func initMirrorEntry(src, newParent *types.Metadata, attr types.EntryAttr) (*types.Metadata, error) {
 	result, err := types.InitNewEntry(newParent, attr)
 	if err != nil {

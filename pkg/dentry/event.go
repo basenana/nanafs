@@ -18,10 +18,12 @@ package dentry
 
 import (
 	"context"
+	"time"
+
+	"github.com/google/uuid"
+
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/google/uuid"
-	"time"
 )
 
 type entryEvent struct {
@@ -57,6 +59,7 @@ func (m *manager) entryActionEventHandler() {
 func BuildEntryEvent(actionType string, entry *types.Metadata) *types.Event {
 	return &types.Event{
 		Id:              uuid.New().String(),
+		Namespace:       entry.Namespace,
 		Type:            actionType,
 		Source:          "entryManager",
 		SpecVersion:     "1.0",

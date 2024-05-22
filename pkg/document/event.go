@@ -18,10 +18,12 @@ package document
 
 import (
 	"context"
+	"time"
+
+	"github.com/google/uuid"
+
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/google/uuid"
-	"time"
 )
 
 func (m *manager) publicDocActionEvent(actionType string, doc *types.Document) {
@@ -40,20 +42,21 @@ func (m *manager) handleDocumentEvent(event *types.Event) error {
 	ctx, canF := context.WithTimeout(context.Background(), time.Minute*10)
 	defer canF()
 
+	nsCtx := types.WithNamespace(ctx, types.NewNamespace(event.Namespace))
 	switch event.Type {
 	case events.ActionTypeCreate, events.ActionTypeUpdate:
-		doc, err := m.GetDocument(ctx, event.RefID)
+		doc, err := m.GetDocument(nsCtx, event.RefID)
 		if err != nil {
 			m.logger.Errorw("handle document event and query document failed", "document", event.RefID, "err", err)
 			return err
 		}
 
-		if err = m.indexer.Index(ctx, doc); err != nil {
+		if err = m.indexer.Index(nsCtx, doc); err != nil {
 			m.logger.Errorw("handle update event and try index document failed", "document", event.RefID, "err", err)
 			return err
 		}
 	case events.ActionTypeDestroy:
-		if err := m.indexer.Delete(ctx, event.RefID); err != nil {
+		if err := m.indexer.Delete(nsCtx, event.RefID); err != nil {
 			m.logger.Errorw("handle destroy event and try cleanup index failed", "document", event.RefID, "err", err)
 			return err
 		}
@@ -67,6 +70,7 @@ func (m *manager) handleDocumentEvent(event *types.Event) error {
 func buildDocumentEvent(actionType string, doc *types.Document) *types.Event {
 	return &types.Event{
 		Id:              uuid.New().String(),
+		Namespace:       doc.Namespace,
 		Type:            actionType,
 		Source:          "documentManager",
 		SpecVersion:     "1.0",

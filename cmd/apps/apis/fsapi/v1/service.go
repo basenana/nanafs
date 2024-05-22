@@ -19,6 +19,7 @@ package v1
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"time"
 
@@ -90,6 +91,7 @@ func (s *services) ListRooms(ctx context.Context, request *ListRoomsRequest) (*L
 			EntryID:   room.EntryId,
 			Title:     room.Title,
 			Prompt:    room.Prompt,
+			Namespace: room.Namespace,
 			CreatedAt: timestamppb.New(room.CreatedAt),
 		})
 	}
@@ -111,7 +113,7 @@ func (s *services) OpenRoom(ctx context.Context, request *OpenRoomRequest) (*Ope
 			return nil, status.Error(common.FsApiError(err), "create room failed")
 		}
 		return &OpenRoomResponse{
-			Room: &RoomInfo{Id: room.ID, EntryID: room.EntryId, Title: room.Title, Prompt: room.Prompt, CreatedAt: timestamppb.New(room.CreatedAt)},
+			Room: &RoomInfo{Id: room.ID, EntryID: room.EntryId, Namespace: room.Namespace, Title: room.Title, Prompt: room.Prompt, CreatedAt: timestamppb.New(room.CreatedAt)},
 		}, nil
 	}
 
@@ -123,6 +125,7 @@ func (s *services) OpenRoom(ctx context.Context, request *OpenRoomRequest) (*Ope
 	for _, m := range room.Messages {
 		msg = append(msg, &RoomMessage{
 			Id:        m.ID,
+			Namespace: m.Namespace,
 			RoomID:    m.RoomID,
 			Sender:    m.Sender,
 			Message:   m.Message,
@@ -131,7 +134,7 @@ func (s *services) OpenRoom(ctx context.Context, request *OpenRoomRequest) (*Ope
 		})
 	}
 	return &OpenRoomResponse{
-		Room: &RoomInfo{Id: room.ID, EntryID: room.EntryId, Title: room.Title, Prompt: room.Prompt, CreatedAt: timestamppb.New(room.CreatedAt), Messages: msg},
+		Room: &RoomInfo{Id: room.ID, EntryID: room.EntryId, Namespace: room.Namespace, Title: room.Title, Prompt: room.Prompt, CreatedAt: timestamppb.New(room.CreatedAt), Messages: msg},
 	}, nil
 }
 
@@ -262,6 +265,8 @@ func (s *services) ListDocuments(ctx context.Context, request *ListDocumentsRequ
 	resp := &ListDocumentsResponse{Documents: make([]*DocumentInfo, 0, len(docList))}
 	for _, doc := range docList {
 		resp.Documents = append(resp.Documents, &DocumentInfo{
+			sizeCache:     0,
+			unknownFields: nil,
 			Id:            doc.ID,
 			Name:          doc.Name,
 			EntryID:       doc.OID,
@@ -269,6 +274,7 @@ func (s *services) ListDocuments(ctx context.Context, request *ListDocumentsRequ
 			Source:        doc.Source,
 			Marked:        *doc.Marked,
 			Unread:        *doc.Unread,
+			Namespace:     doc.Namespace,
 			CreatedAt:     timestamppb.New(doc.CreatedAt),
 			ChangedAt:     timestamppb.New(doc.ChangedAt),
 		})
@@ -365,12 +371,12 @@ func (s *services) FindEntryDetail(ctx context.Context, request *FindEntryDetail
 	} else {
 		par, err = s.ctrl.GetEntry(ctx, request.ParentID)
 		if err != nil {
-			return nil, status.Error(common.FsApiError(err), "query parent entry failed")
+			return nil, status.Error(common.FsApiError(err), fmt.Sprintf("query parent entry %d failed", request.ParentID))
 		}
 
 		en, err = s.ctrl.FindEntry(ctx, request.ParentID, request.Name)
 		if err != nil {
-			return nil, status.Error(common.FsApiError(err), "find child entry failed")
+			return nil, status.Error(common.FsApiError(err), fmt.Sprintf("find child entry %s failed", request.Name))
 		}
 	}
 

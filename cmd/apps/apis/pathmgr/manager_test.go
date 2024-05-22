@@ -18,46 +18,49 @@ package pathmgr
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/types"
+	"strings"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"strings"
+
+	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 var _ = Describe("TestPathSplit", func() {
 	mgr, _ := New(NewMockController())
+	ctx := context.TODO()
 	Context("test get path", func() {
 		It("get path should be succeed", func() {
 			var (
 				path string
 				err  error
 			)
-			path, err = mgr.getPath("/")
+			path, err = mgr.getPath(ctx, "/")
 			Expect(err).Should(BeNil())
 			Expect(path).Should(Equal("/"))
 
-			path, err = mgr.getPath("/a/b/c")
+			path, err = mgr.getPath(ctx, "/a/b/c")
 			Expect(err).Should(BeNil())
 			Expect(path).Should(Equal("/a/b/c"))
 
-			path, err = mgr.getPath("/a//b/c")
+			path, err = mgr.getPath(ctx, "/a//b/c")
 			Expect(err).Should(BeNil())
 			Expect(path).Should(Equal("/a/b/c"))
 
-			path, err = mgr.getPath("/a//b/c/")
+			path, err = mgr.getPath(ctx, "/a//b/c/")
 			Expect(err).Should(BeNil())
 			Expect(path).Should(Equal("/a/b/c"))
 		})
 		It("get path should be succeed", func() {
 			var err error
-			_, err = mgr.getPath("/../sys")
+			_, err = mgr.getPath(ctx, "/../sys")
 			Expect(err).ShouldNot(BeNil())
 
-			_, err = mgr.getPath("/./sys")
+			_, err = mgr.getPath(ctx, "/./sys")
 			Expect(err).ShouldNot(BeNil())
 
-			_, err = mgr.getPath("/./../sys")
+			_, err = mgr.getPath(ctx, "/./../sys")
 			Expect(err).ShouldNot(BeNil())
 		})
 	})

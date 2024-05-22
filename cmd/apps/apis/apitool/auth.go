@@ -19,8 +19,9 @@ package apitool
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/types"
 	"net/http"
+
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 const (
@@ -62,10 +63,13 @@ func BasicAuthHandler(h http.Handler, validator TokenValidator) http.Handler {
 			return
 		}
 
-		h.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userInfoContextKey, &UserInfo{
+		ctx := context.WithValue(r.Context(), userInfoContextKey, &UserInfo{
 			AccessKey: username,
 			UID:       tokenInfo.UID,
 			GID:       tokenInfo.GID,
-		})))
+		})
+		ctx = types.WithNamespace(ctx, types.NewNamespace(tokenInfo.Namespace))
+
+		h.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

@@ -116,3 +116,8 @@ func (f *Friday) WithContext(ctx context.Context) *Friday {
 	}
 	return t
 }
+
+func (f *Friday) Namespace(namespace string) *Friday {
+	f.statement.context = context.WithValue(f.statement.context, "namespace", namespace)
+	return f
+}

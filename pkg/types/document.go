@@ -22,6 +22,7 @@ type Document struct {
 	ID            int64     `json:"id"`
 	OID           int64     `json:"oid"`
 	Name          string    `json:"name"`
+	Namespace     string    `json:"namespace"`
 	ParentEntryID int64     `json:"parent_entry_id"`
 	Source        string    `json:"source"`
 	KeyWords      []string  `json:"keywords,omitempty"`
@@ -61,14 +62,15 @@ type FeedResultItem struct {
 }
 
 type FridayAccount struct {
-	ID             int64
-	RefID          int64
-	RefType        string
-	Type           string
-	CompleteTokens int
-	PromptTokens   int
-	TotalTokens    int
-	CreatedAt      time.Time
+	ID             int64     `json:"id"`
+	Namespace      string    `json:"namespace"`
+	RefID          int64     `json:"ref_id"`
+	RefType        string    `json:"ref_type"`
+	Type           string    `json:"type"`
+	CompleteTokens int       `json:"complete_tokens"`
+	PromptTokens   int       `json:"prompt_tokens"`
+	TotalTokens    int       `json:"total_tokens"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 type DocFilter struct {

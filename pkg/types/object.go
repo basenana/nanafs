@@ -23,8 +23,7 @@ import (
 )
 
 const (
-	entryNameMaxLength    = 255
-	entryDefaultNamespace = "personal"
+	entryNameMaxLength = 255
 
 	LabelKeyPluginPrefix = "org.basenana.internal.plugin/"
 	LabelKeyPluginKind   = LabelKeyPluginPrefix + "kind"
@@ -64,7 +63,6 @@ func NewMetadata(name string, kind Kind) Metadata {
 	result := Metadata{
 		ID:         utils.GenerateNewID(),
 		Name:       name,
-		Namespace:  entryDefaultNamespace,
 		Kind:       FileKind(name, kind),
 		KindMap:    0,
 		IsGroup:    IsGroup(kind),
@@ -150,6 +148,7 @@ func InitNewEntry(parent *Metadata, attr EntryAttr) (*Metadata, error) {
 		md.ParentID = parent.ID
 		md.Storage = parent.Storage
 		md.Access = parent.Access
+		md.Namespace = parent.Namespace
 	}
 
 	if attr.Access != nil {

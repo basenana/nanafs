@@ -18,7 +18,6 @@ package controller
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/types"
 	"math"
 	"runtime/trace"
 	"sync"
@@ -26,6 +25,7 @@ import (
 
 	"github.com/basenana/nanafs/pkg/dispatch"
 	"github.com/basenana/nanafs/pkg/plugin"
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 const (

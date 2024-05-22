@@ -151,11 +151,11 @@ func buildMigrations() []*gormigrate.Migration {
 				_ = db.Exec(`UPDATE object SET is_group=false WHERE kind NOT IN ('group', 'smtgroup', 'extgroup');`)
 
 				// init namespace
-				_ = db.Exec(`UPDATE label SET namespace='personal' WHERE 1=1;`)
-				_ = db.Exec(`UPDATE notification SET namespace='personal' WHERE 1=1;`)
-				_ = db.Exec(`UPDATE document SET namespace='personal' WHERE 1=1;`)
-				_ = db.Exec(`UPDATE workflow SET namespace='personal' WHERE 1=1;`)
-				_ = db.Exec(`UPDATE workflow_job SET namespace='personal' WHERE 1=1;`)
+				_ = db.Exec(`UPDATE label SET namespace='global' WHERE 1=1;`)
+				_ = db.Exec(`UPDATE notification SET namespace='global' WHERE 1=1;`)
+				_ = db.Exec(`UPDATE document SET namespace='global' WHERE 1=1;`)
+				_ = db.Exec(`UPDATE workflow SET namespace='global' WHERE 1=1;`)
+				_ = db.Exec(`UPDATE workflow_job SET namespace='global' WHERE 1=1;`)
 				return nil
 			},
 			Rollback: func(db *gorm.DB) error {
@@ -178,6 +178,28 @@ func buildMigrations() []*gormigrate.Migration {
 					&SystemConfig{},
 					&AccessToken{},
 				)
+			},
+			Rollback: func(db *gorm.DB) error {
+				return nil
+			},
+		},
+		{
+			ID: "2024051400",
+			Migrate: func(db *gorm.DB) error {
+				err := db.AutoMigrate(
+					&FridayAccount{},
+					&ScheduledTask{},
+					&ObjectProperty{},
+				)
+				if err != nil {
+					return err
+				}
+
+				// init namespace
+				_ = db.Exec(`UPDATE scheduled_task SET namespace='global' WHERE 1=1;`)
+				_ = db.Exec(`UPDATE friday_account SET namespace='global' WHERE 1=1;`)
+				_ = db.Exec(`UPDATE object_property SET namespace='global' WHERE 1=1;`)
+				return nil
 			},
 			Rollback: func(db *gorm.DB) error {
 				return nil

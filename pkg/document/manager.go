@@ -340,11 +340,12 @@ func (m *manager) handleEntryEvent(evt *types.Event) error {
 	ctx, cancel := context.WithTimeout(context.TODO(), time.Hour)
 	defer cancel()
 
+	nsCtx := types.WithNamespace(ctx, types.NewNamespace(evt.Namespace))
 	entry := evt.Data
 
 	switch evt.Type {
 	case events.ActionTypeDestroy:
-		doc, err := m.GetDocumentByEntryId(ctx, entry.ID)
+		doc, err := m.GetDocumentByEntryId(nsCtx, entry.ID)
 		if err != nil {
 			if err == types.ErrNotFound {
 				return nil
@@ -353,7 +354,7 @@ func (m *manager) handleEntryEvent(evt *types.Event) error {
 			return err
 		}
 
-		err = m.DeleteDocument(ctx, doc.ID)
+		err = m.DeleteDocument(nsCtx, doc.ID)
 		if err != nil {
 			m.logger.Errorw("[docCleanExecutor] delete doc failed", "entry", entry.ID, "document", doc.ID, "err", err)
 			return err
@@ -362,13 +363,13 @@ func (m *manager) handleEntryEvent(evt *types.Event) error {
 	case events.ActionTypeChangeParent:
 		fallthrough
 	case events.ActionTypeUpdate:
-		en, err := m.entryMgr.GetEntry(ctx, entry.ID)
+		en, err := m.entryMgr.GetEntry(nsCtx, entry.ID)
 		if err != nil {
 			m.logger.Errorw("[docUpdateExecutor] get entry failed", "entry", entry.ID, "err", err)
 			return err
 		}
 
-		doc, err := m.GetDocumentByEntryId(ctx, en.ID)
+		doc, err := m.GetDocumentByEntryId(nsCtx, en.ID)
 		if err != nil {
 			if err == types.ErrNotFound {
 				return nil
@@ -380,7 +381,7 @@ func (m *manager) handleEntryEvent(evt *types.Event) error {
 		if doc.Name != en.Name || doc.ParentEntryID != en.ParentID {
 			doc.Name = en.Name
 			doc.ParentEntryID = en.ParentID
-			err = m.SaveDocument(ctx, doc)
+			err = m.SaveDocument(nsCtx, doc)
 			if err != nil {
 				m.logger.Errorw("[docUpdateExecutor] update doc failed", "entry", entry.ID, "document", doc.ID, "err", err)
 				return err
@@ -388,7 +389,7 @@ func (m *manager) handleEntryEvent(evt *types.Event) error {
 		}
 		return nil
 	case events.ActionTypeCompact:
-		doc, err := m.GetDocumentByEntryId(ctx, entry.ID)
+		doc, err := m.GetDocumentByEntryId(nsCtx, entry.ID)
 		if err != nil {
 			if err == types.ErrNotFound {
 				return nil
@@ -401,7 +402,7 @@ func (m *manager) handleEntryEvent(evt *types.Event) error {
 		}
 		dsync := true
 		doc.Desync = &dsync
-		err = m.SaveDocument(ctx, doc)
+		err = m.SaveDocument(nsCtx, doc)
 		if err != nil {
 			m.logger.Errorw("[docDesyncExecutor] update doc failed", "entry", entry.ID, "document", doc.ID, "err", err)
 			return err
