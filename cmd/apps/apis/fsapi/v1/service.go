@@ -380,7 +380,7 @@ func (s *services) FindEntryDetail(ctx context.Context, request *FindEntryDetail
 		}
 	}
 
-	properties, err := s.queryEntryProperties(ctx, en.ID)
+	properties, err := s.queryEntryProperties(ctx, en.ID, en.ParentID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry properties failed")
 	}
@@ -406,7 +406,7 @@ func (s *services) GetEntryDetail(ctx context.Context, request *GetEntryDetailRe
 		return nil, status.Error(common.FsApiError(err), "query entry parent failed")
 	}
 
-	properties, err := s.queryEntryProperties(ctx, request.EntryID)
+	properties, err := s.queryEntryProperties(ctx, en.ID, en.ParentID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry properties failed")
 	}
@@ -719,7 +719,7 @@ func (s *services) AddProperty(ctx context.Context, request *AddPropertyRequest)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "add entry extend field failed")
 	}
-	properties, err := s.queryEntryProperties(ctx, request.EntryID)
+	properties, err := s.queryEntryProperties(ctx, en.ID, en.ParentID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry properties failed")
 	}
@@ -744,7 +744,7 @@ func (s *services) UpdateProperty(ctx context.Context, request *UpdatePropertyRe
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "set entry extend field failed")
 	}
-	properties, err := s.queryEntryProperties(ctx, request.EntryID)
+	properties, err := s.queryEntryProperties(ctx, en.ID, en.ParentID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry properties failed")
 	}
@@ -763,7 +763,7 @@ func (s *services) DeleteProperty(ctx context.Context, request *DeletePropertyRe
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "set entry extend field failed")
 	}
-	properties, err := s.queryEntryProperties(ctx, request.EntryID)
+	properties, err := s.queryEntryProperties(ctx, en.ID, en.ParentID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry properties failed")
 	}
@@ -847,10 +847,17 @@ func (s *services) TriggerWorkflow(ctx context.Context, request *TriggerWorkflow
 	return &TriggerWorkflowResponse{JobID: job.Id}, nil
 }
 
-func (s *services) queryEntryProperties(ctx context.Context, entryID int64) ([]*Property, error) {
-	properties, err := s.ctrl.ListEntryExtendField(ctx, entryID)
+func (s *services) queryEntryProperties(ctx context.Context, entryID, parentID int64) ([]*Property, error) {
+	properties, err := s.ctrl.ListEntryExtendField(ctx, parentID)
 	if err != nil {
 		return nil, err
+	}
+	entryProperties, err := s.ctrl.ListEntryExtendField(ctx, entryID)
+	if err != nil {
+		return nil, err
+	}
+	for k, p := range entryProperties {
+		properties[k] = p
 	}
 	result := make([]*Property, 0, len(properties))
 	for key, p := range properties {
