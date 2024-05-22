@@ -35,6 +35,9 @@ import (
 const (
 	WebpackPluginName    = "webpack"
 	WebpackPluginVersion = "1.0"
+
+	packerPostMetaURL   = "org.basenana.plugin.source/url"
+	packerPostMetaTitle = "org.basenana.plugin.source/title"
 )
 
 type WebpackPlugin struct {
@@ -90,17 +93,22 @@ func (w *WebpackPlugin) packFromURL(ctx context.Context, request *pluginapi.Requ
 	}
 
 	var (
-		filename    = path.Base(request.EntryPath)
-		urlInfo     = urlFile.Section("InternetShortcut").Key("URL").String()
-		tgtFileType = urlFile.Section("NanaFSSection").Key("ArchiveType").In("", []string{"webarchive", "html"})
-		clutterFree = urlFile.Section("NanaFSSection").Key("ClutterFree").In("true", []string{"true", "false"})
-		cleanup     = urlFile.Section("NanaFSSection").Key("Cleanup").In("true", []string{"true", "false"})
+		filename       = path.Base(request.EntryPath)
+		urlInfo        = urlFile.Section("InternetShortcut").Key("URL").String()
+		tgtFileType    = urlFile.Section("NanaFSSection").Key("ArchiveType").In("", []string{"webarchive", "html"})
+		clutterFree    = urlFile.Section("NanaFSSection").Key("ClutterFree").In("true", []string{"true", "false"})
+		cleanup        = urlFile.Section("NanaFSSection").Key("Cleanup").In("true", []string{"true", "false"})
+		fileParameters = make(map[string]string)
 	)
 
 	if urlInfo == "" {
 		return pluginapi.NewFailedResponse("target url is empty"), nil
 	}
-	filename = strings.TrimSuffix(filename, filepath.Ext(filename)) + "." + tgtFileType
+	filename = strings.TrimSuffix(filename, filepath.Ext(filename))
+	fileParameters[packerPostMetaTitle] = filename
+	fileParameters[packerPostMetaURL] = urlInfo
+
+	filename += "." + tgtFileType
 	w.logger(ctx).Infof("packing url %s to %s", urlInfo, filename)
 
 	filePath := utils.SafetyFilePathJoin(request.WorkPath, filename)
@@ -141,7 +149,13 @@ func (w *WebpackPlugin) packFromURL(ctx context.Context, request *pluginapi.Requ
 		return nil, fmt.Errorf("stat archive file error: %s", err)
 	}
 	newEntries := []pluginapi.CollectManifest{{BaseEntry: request.ParentEntryId, NewFiles: []pluginapi.Entry{
-		{Name: path.Base(filePath), Kind: types.FileKind(path.Base(filePath), types.RawKind), Size: fInfo.Size()}}}}
+		{
+			Name:       path.Base(filePath),
+			Kind:       types.FileKind(path.Base(filePath), types.RawKind),
+			Size:       fInfo.Size(),
+			Parameters: fileParameters,
+		},
+	}}}
 	result := map[string]any{pluginapi.ResCollectManifests: newEntries}
 	if cleanup == "true" {
 		result[pluginapi.ResEntryActionKey] = "cleanup"
