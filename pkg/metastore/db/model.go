@@ -218,9 +218,10 @@ func (o *ObjectExtend) ToExtData() types.ExtendData {
 }
 
 type ObjectURI struct {
-	OID     int64  `gorm:"column:oid;primaryKey"`
-	Uri     string `gorm:"column:uri;index:obj_uri"`
-	Invalid bool   `gorm:"column:invalid"`
+	OID       int64  `gorm:"column:oid;primaryKey"`
+	Uri       string `gorm:"column:uri;index:obj_uri"`
+	Namespace string `gorm:"column:namespace;index:obj_uri_ns"`
+	Invalid   bool   `gorm:"column:invalid"`
 }
 
 func (o *ObjectURI) TableName() string {
@@ -229,15 +230,18 @@ func (o *ObjectURI) TableName() string {
 
 func (o *ObjectURI) ToEntryUri() *types.EntryUri {
 	return &types.EntryUri{
-		ID:      o.OID,
-		Uri:     o.Uri,
-		Invalid: o.Invalid,
+		ID:        o.OID,
+		Uri:       o.Uri,
+		Namespace: o.Namespace,
+		Invalid:   o.Invalid,
 	}
 }
 
 func (o *ObjectURI) FromEntryUri(entryUri *types.EntryUri) *ObjectURI {
 	o.OID = entryUri.ID
 	o.Uri = entryUri.Uri
+	o.Namespace = entryUri.Namespace
+	o.Invalid = entryUri.Invalid
 	return o
 }
 

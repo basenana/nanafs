@@ -206,7 +206,7 @@ func (m *manager) GetEntry(ctx context.Context, id int64) (*types.Metadata, erro
 func (m *manager) GetEntryByUri(ctx context.Context, uri string) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.GetEntryUri").End()
 	if uri == "/" {
-		return m.store.GetEntry(ctx, RootEntryID)
+		return m.Root(ctx)
 	}
 	uri = strings.TrimSuffix(uri, "/")
 	entryUri, err := m.store.GetEntryUri(ctx, uri)
@@ -231,7 +231,7 @@ func (m *manager) GetEntryByUri(ctx context.Context, uri string) (*types.Metadat
 		}
 
 		if entry.Storage != externalStorage {
-			entryUri = &types.EntryUri{ID: entry.ID, Uri: uri}
+			entryUri = &types.EntryUri{ID: entry.ID, Namespace: entry.Namespace, Uri: uri}
 			if err = m.store.SaveEntryUri(ctx, entryUri); err != nil {
 				return nil, err
 			}
@@ -671,37 +671,6 @@ func (m *manager) ChunkCompact(ctx context.Context, entryId int64) error {
 
 func (m *manager) MustCloseAll() {
 	bio.CloseAll()
-}
-
-func (m *manager) getOrSaveEntryUri(ctx context.Context, entry *types.Metadata) (uri string, err error) {
-	if entry.ID == RootEntryID {
-		return "/", nil
-	}
-	var (
-		entryUri    = &types.EntryUri{}
-		parentEntry = &types.Metadata{}
-		parentUri   = ""
-	)
-	entryUri, err = m.store.GetEntryUriById(ctx, entry.ID)
-	if err != nil {
-		if err == types.ErrNotFound {
-			parentEntry, err = m.store.GetEntry(ctx, entry.ParentID)
-			if err != nil {
-				return
-			}
-			parentUri, err = m.getOrSaveEntryUri(ctx, parentEntry)
-			if err != nil {
-				return
-			}
-
-			uri = path.Join(parentUri, entry.Name)
-			err = m.store.SaveEntryUri(ctx, &types.EntryUri{ID: entry.ID, Uri: uri})
-			return
-		}
-		return
-	}
-	uri = entryUri.Uri
-	return
 }
 
 func (m *manager) registerStubRoot(ctx context.Context, en *types.Metadata) error {

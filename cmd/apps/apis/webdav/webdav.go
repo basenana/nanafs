@@ -106,7 +106,7 @@ func (o FsOperator) OpenFile(ctx context.Context, name string, flag int, perm os
 		if err != nil {
 			return nil, error2FsError(err)
 		}
-		f, err := openFile(name, en, o.mgr, openAttr)
+		f, err := openFile(ctx, name, en, o.mgr, openAttr)
 		if err != nil {
 			return nil, error2FsError(err)
 		}
@@ -133,7 +133,7 @@ func (o FsOperator) OpenFile(ctx context.Context, name string, flag int, perm os
 	if err != nil {
 		return nil, error2FsError(err)
 	}
-	f, err := openFile(name, en, o.mgr, openAttr)
+	f, err := openFile(ctx, name, en, o.mgr, openAttr)
 	if err != nil {
 		return nil, error2FsError(err)
 	}

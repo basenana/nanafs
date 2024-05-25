@@ -20,7 +20,8 @@ import "context"
 
 const (
 	NamespaceKey          = "namespace"
-	DefaultNamespaceValue = "global"
+	DefaultNamespaceValue = "global" // TODO: using 'public'
+	GlobalNamespaceValue  = "global"
 )
 
 type Namespace struct {

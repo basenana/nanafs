@@ -139,7 +139,7 @@ func (m *PathManager) CreateAll(ctx context.Context, entryPath string, attr type
 		en, parent *types.Metadata
 		err        error
 	)
-	parent, err = m.ctrl.GetEntry(ctx, dentry.RootEntryID)
+	parent, err = m.ctrl.LoadRootEntry(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -270,10 +270,6 @@ func (m *PathManager) getPath(ctx context.Context, entryPath string) (string, er
 		pathEntries = append(pathEntries, p)
 	}
 	entryPath = "/" + strings.Join(pathEntries, "/")
-	ns := types.GetNamespace(ctx).String()
-	if ns != types.DefaultNamespaceValue {
-		entryPath = path.Join("/", ns, entryPath)
-	}
 	return entryPath, nil
 }
 

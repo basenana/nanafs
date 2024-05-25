@@ -205,6 +205,24 @@ func buildMigrations() []*gormigrate.Migration {
 				return nil
 			},
 		},
+		{
+			ID: "2024052500",
+			Migrate: func(db *gorm.DB) error {
+				err := db.AutoMigrate(
+					&ObjectURI{},
+				)
+				if err != nil {
+					return err
+				}
+
+				// rebuild uri cache
+				_ = db.Exec(`DELETE FROM object_uri WHERE 1=1;`)
+				return nil
+			},
+			Rollback: func(db *gorm.DB) error {
+				return nil
+			},
+		},
 	}
 }
 
