@@ -28,6 +28,7 @@ import (
 )
 
 type File struct {
+	ctx     context.Context
 	entryID int64
 	name    string
 	file    dentry.File
@@ -42,7 +43,7 @@ func (f *File) Read(p []byte) (n int, err error) {
 		return 0, err
 	}
 	var cnt int64
-	cnt, err = f.file.ReadAt(context.TODO(), p, f.off)
+	cnt, err = f.file.ReadAt(f.ctx, p, f.off)
 	f.off += cnt
 	return int(cnt), err
 }
@@ -52,7 +53,7 @@ func (f *File) Write(p []byte) (n int, err error) {
 		return 0, err
 	}
 	var cnt int64
-	cnt, err = f.file.WriteAt(context.TODO(), p, f.off)
+	cnt, err = f.file.WriteAt(f.ctx, p, f.off)
 	f.off += cnt
 	if f.off > f.size {
 		f.size = f.off
@@ -67,7 +68,7 @@ func (f *File) Seek(offset int64, whence int) (int64, error) {
 	case io.SeekCurrent:
 		f.off += offset
 	case io.SeekEnd:
-		en, err := f.mgr.GetEntry(context.TODO(), f.entryID)
+		en, err := f.mgr.GetEntry(f.ctx, f.entryID)
 		if err != nil {
 			return 0, err
 		}
@@ -77,7 +78,7 @@ func (f *File) Seek(offset int64, whence int) (int64, error) {
 }
 
 func (f *File) Stat() (fs.FileInfo, error) {
-	en, err := f.mgr.GetEntry(context.TODO(), f.entryID)
+	en, err := f.mgr.GetEntry(f.ctx, f.entryID)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +101,7 @@ func (f *File) Readdir(count int) ([]fs.FileInfo, error) {
 
 func (f *File) open() (err error) {
 	if f.file == nil {
-		f.file, err = f.mgr.Open(context.TODO(), f.entryID, f.attr)
+		f.file, err = f.mgr.Open(f.ctx, f.entryID, f.attr)
 		if err != nil {
 			log.Errorw("open file error", "entry", f.entryID, "err", err)
 			return err
@@ -111,6 +112,7 @@ func (f *File) open() (err error) {
 }
 
 type Dir struct {
+	ctx     context.Context
 	path    string
 	entryID int64
 	kind    types.Kind
@@ -118,7 +120,7 @@ type Dir struct {
 }
 
 func (d *Dir) Readdir(count int) ([]fs.FileInfo, error) {
-	children, err := d.mgr.ListEntry(context.TODO(), d.path)
+	children, err := d.mgr.ListEntry(d.ctx, d.path)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +139,7 @@ func (d *Dir) Readdir(count int) ([]fs.FileInfo, error) {
 }
 
 func (d *Dir) Stat() (fs.FileInfo, error) {
-	en, err := d.mgr.GetEntry(context.TODO(), d.entryID)
+	en, err := d.mgr.GetEntry(d.ctx, d.entryID)
 	if err != nil {
 		return nil, err
 	}
@@ -160,11 +162,12 @@ func (d *Dir) Close() error {
 	return nil
 }
 
-func openFile(enPath string, entry *types.Metadata, mgr *pathmgr.PathManager, attr types.OpenAttr) (webdav.File, error) {
+func openFile(ctx context.Context, enPath string, entry *types.Metadata, mgr *pathmgr.PathManager, attr types.OpenAttr) (webdav.File, error) {
 	if entry.IsGroup {
-		return &Dir{path: enPath, mgr: mgr, entryID: entry.ID, kind: entry.Kind}, nil
+		return &Dir{ctx: ctx, path: enPath, mgr: mgr, entryID: entry.ID, kind: entry.Kind}, nil
 	}
 	return &File{
+		ctx:     ctx,
 		entryID: entry.ID,
 		name:    entry.Name,
 		mgr:     mgr,

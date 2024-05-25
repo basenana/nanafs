@@ -82,9 +82,10 @@ func NewMetadata(name string, kind Kind) Metadata {
 }
 
 type EntryUri struct {
-	ID      int64  `json:"id"`
-	Uri     string `json:"uri"`
-	Invalid bool   `json:"invalid"`
+	ID        int64  `json:"id"`
+	Uri       string `json:"uri"`
+	Namespace string `json:"namespace"`
+	Invalid   bool   `json:"invalid"`
 }
 
 type ExtendData struct {

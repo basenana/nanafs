@@ -54,7 +54,6 @@ type DEntry interface {
 
 	SaveEntryUri(ctx context.Context, entryUri *types.EntryUri) error
 	GetEntryUri(ctx context.Context, uri string) (*types.EntryUri, error)
-	GetEntryUriById(ctx context.Context, id int64) (*types.EntryUri, error)
 
 	ListEntryChildren(ctx context.Context, parentId int64) (EntryIterator, error)
 	FilterEntries(ctx context.Context, filter types.Filter) (EntryIterator, error)

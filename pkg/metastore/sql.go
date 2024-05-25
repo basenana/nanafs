@@ -134,12 +134,6 @@ func (s *sqliteMetaStore) GetEntryUri(ctx context.Context, uri string) (*types.E
 	return s.dbStore.GetEntryUri(ctx, uri)
 }
 
-func (s *sqliteMetaStore) GetEntryUriById(ctx context.Context, id int64) (*types.EntryUri, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.GetEntryUriById(ctx, id)
-}
-
 func (s *sqliteMetaStore) DeleteRemovedEntry(ctx context.Context, entryID int64) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
@@ -766,7 +760,7 @@ func (s *sqlMetaStore) SaveEntryUri(ctx context.Context, entryUri *types.EntryUr
 func (s *sqlMetaStore) GetEntryUri(ctx context.Context, uri string) (*types.EntryUri, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.GetEntryUri").End()
 	var entryUri = &db.ObjectURI{Uri: uri}
-	res := s.WithContext(ctx).Where("uri = ?", uri).First(entryUri)
+	res := s.WithNamespace(ctx).Where("uri = ?", uri).First(entryUri)
 	if err := res.Error; err != nil {
 		if err != gorm.ErrRecordNotFound {
 			s.logger.Errorw("get entryUri by uri failed", "uri", uri, "err", err)
@@ -774,13 +768,6 @@ func (s *sqlMetaStore) GetEntryUri(ctx context.Context, uri string) (*types.Entr
 		return nil, db.SqlError2Error(err)
 	}
 	return entryUri.ToEntryUri(), nil
-}
-
-func (s *sqlMetaStore) GetEntryUriById(ctx context.Context, id int64) (*types.EntryUri, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.GetEntryUriById").End()
-	var entryUri = &db.ObjectURI{OID: id}
-	res := s.WithContext(ctx).Where("oid = ?", id).First(entryUri)
-	return entryUri.ToEntryUri(), db.SqlError2Error(res.Error)
 }
 
 func (s *sqlMetaStore) UpdateEntryMetadata(ctx context.Context, entry *types.Metadata) error {

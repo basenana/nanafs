@@ -498,14 +498,6 @@ func (i instrumentalStore) DisableDocumentFeed(ctx context.Context, feed types.D
 	return err
 }
 
-func (i instrumentalStore) GetEntryUriById(ctx context.Context, id int64) (*types.EntryUri, error) {
-	const operation = "get_entry_uri_by_id"
-	defer logOperationLatency(operation, time.Now())
-	doc, err := i.store.GetEntryUriById(ctx, id)
-	logOperationError(operation, err)
-	return doc, err
-}
-
 func (i instrumentalStore) ListFridayAccount(ctx context.Context, refId int64) ([]*types.FridayAccount, error) {
 	const operation = "list_friday_account"
 	defer logOperationLatency(operation, time.Now())
