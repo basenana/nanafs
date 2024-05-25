@@ -57,6 +57,9 @@ var (
 		{Group: WebdavConfigGroup, Name: "enable", Value: "false"},
 		{Group: WebdavConfigGroup, Name: "host", Value: "127.0.0.1"},
 		{Group: WebdavConfigGroup, Name: "port", Value: "7082"},
+		{Group: DocConfigGroup, Name: "index.enable", Value: "false"},
+		{Group: DocConfigGroup, Name: "index.local_indexer_dir", Value: ""},
+		{Group: DocConfigGroup, Name: "index.jieba_dict_file", Value: ""},
 	}
 )
 
