@@ -357,6 +357,33 @@ func (s *services) UpdateDocument(ctx context.Context, request *UpdateDocumentRe
 	return &UpdateDocumentResponse{Document: doc}, nil
 }
 
+func (s *services) SearchDocuments(ctx context.Context, request *SearchDocumentsRequest) (*SearchDocumentsResponse, error) {
+	if len(request.Query) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "query is empty")
+	}
+	docList, err := s.ctrl.QueryDocuments(ctx, request.Query)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "search document failed")
+	}
+
+	resp := &SearchDocumentsResponse{}
+	for _, doc := range docList {
+		resp.Documents = append(resp.Documents, &DocumentInfo{
+			Id:            doc.ID,
+			Name:          doc.Name,
+			EntryID:       doc.OID,
+			ParentEntryID: doc.ParentEntryID,
+			Source:        doc.Source,
+			Marked:        *doc.Marked,
+			Unread:        *doc.Unread,
+			Namespace:     doc.Namespace,
+			CreatedAt:     timestamppb.New(doc.CreatedAt),
+			ChangedAt:     timestamppb.New(doc.ChangedAt),
+		})
+	}
+	return resp, nil
+}
+
 func (s *services) FindEntryDetail(ctx context.Context, request *FindEntryDetailRequest) (*GetEntryDetailResponse, error) {
 	var (
 		en, par *types.Metadata

@@ -20,12 +20,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/analysis"
+	_ "github.com/blevesearch/bleve/v2/analysis/analyzer/custom"
 	"github.com/blevesearch/bleve/v2/analysis/char/html"
 	"github.com/blevesearch/bleve/v2/analysis/lang/en"
 	"github.com/blevesearch/bleve/v2/analysis/token/lowercase"
@@ -73,7 +73,7 @@ func (b Bleve) Delete(ctx context.Context, docID int64) error {
 }
 
 func (b Bleve) Query(ctx context.Context, query, dialect string) ([]*types.Document, error) {
-	if dialect != document.QueryDialectBleve {
+	if dialect != QueryDialectBleve {
 		return nil, types.ErrUnsupported
 	}
 
@@ -100,8 +100,7 @@ func (b Bleve) Query(ctx context.Context, query, dialect string) ([]*types.Docum
 		return nil, err
 	}
 
-	b.logger.Infof("%d matches, showing %d through %d, took %s",
-		result.Total, result.Request.From+1, result.Request.From+len(result.Hits), result.Took)
+	b.logger.Infof("%d matches took %s", result.Total, result.Took)
 
 	var (
 		docList []*types.Document
@@ -171,29 +170,32 @@ func openBleveLocalIndexer(localIndexerDir, dictFile string) (bleve.Index, bool,
 	}
 
 	mapping := bleve.NewIndexMapping()
-	err = mapping.AddCustomTokenizer("jieba", map[string]interface{}{
-		"file": dictFile,
-		"hmm":  true,
-		"type": jiebatk.Name,
-	})
-	if err != nil {
-		return nil, false, err
-	}
 
-	err = mapping.AddCustomAnalyzer("jieba",
-		map[string]interface{}{
-			"type":      "custom",
-			"tokenizer": "jieba",
-			"token_filters": []string{
-				"possessive_en",
-				"to_lower",
-				"stop_en",
-			},
+	if dictFile != "" {
+		err = mapping.AddCustomTokenizer("jieba", map[string]interface{}{
+			"file": dictFile,
+			"hmm":  true,
+			"type": jiebatk.Name,
 		})
-	if err != nil {
-		return nil, false, err
+		if err != nil {
+			return nil, false, err
+		}
+
+		err = mapping.AddCustomAnalyzer("jieba",
+			map[string]interface{}{
+				"type":      "custom",
+				"tokenizer": "jieba",
+				"token_filters": []string{
+					"possessive_en",
+					"to_lower",
+					"stop_en",
+				},
+			})
+		if err != nil {
+			return nil, false, err
+		}
+		mapping.DefaultAnalyzer = "jieba"
 	}
-	mapping.DefaultAnalyzer = "jieba"
 
 	mapping.DefaultType = "document"
 	indexButNoStoreNumField := bleve.NewNumericFieldMapping()

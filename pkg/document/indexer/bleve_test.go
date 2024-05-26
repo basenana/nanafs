@@ -14,7 +14,7 @@
  limitations under the License.
 */
 
-package document
+package indexer
 
 import (
 	"context"
@@ -30,28 +30,40 @@ import (
 var _ = Describe("testDocumentManage", func() {
 	var (
 		ctx             = context.TODO()
-		indexer         *Indexer
+		indexer         *Bleve
 		localIndexerDir = path.Join(workdir, "index")
 	)
 	Context("init document indexer", func() {
 		It("init should be succeed", func() {
 			var err error
-			indexer, err = NewDocumentIndexer(docManager.recorder, localIndexerDir)
+			indexer, err = NewBleveIndexer(recorder, map[string]string{
+				"localIndexerDir": localIndexerDir,
+				"jiebaDictFile":   "",
+			})
 			Expect(err).Should(BeNil())
 		})
 		It("insert one document should be succeed", func() {
 			Expect(indexer).ShouldNot(BeNil())
-			err := docManager.recorder.SaveDocument(ctx, needIndexedDoc)
+			err := recorder.SaveDocument(ctx, needIndexedDoc)
 			Expect(err).Should(BeNil())
 			err = indexer.Index(ctx, needIndexedDoc)
 			Expect(err).Should(BeNil())
 		})
 		It("search document should be succeed", func() {
 			Expect(indexer).ShouldNot(BeNil())
+			ctx = types.WithNamespace(ctx, types.NewNamespace("testns"))
 			docList, err := indexer.Query(ctx, "butter", QueryDialectBleve)
 			Expect(err).Should(BeNil())
 
 			Expect(len(docList)).Should(Equal(1))
+		})
+		It("search document in other ns should be succeed", func() {
+			Expect(indexer).ShouldNot(BeNil())
+			ctx = types.WithNamespace(ctx, types.NewNamespace("none"))
+			docList, err := indexer.Query(ctx, "butter", QueryDialectBleve)
+			Expect(err).Should(BeNil())
+
+			Expect(len(docList)).Should(Equal(0))
 		})
 	})
 })
@@ -61,6 +73,7 @@ var (
 		ID:            1727330397221748736,
 		OID:           1000,
 		Name:          "Hello World!",
+		Namespace:     "testns",
 		ParentEntryID: 1,
 		Source:        "unittest",
 		KeyWords:      make([]string, 0),

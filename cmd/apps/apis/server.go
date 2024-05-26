@@ -29,7 +29,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 
-	apifeed "github.com/basenana/nanafs/cmd/apps/apis/document"
 	apifriday "github.com/basenana/nanafs/cmd/apps/apis/friday"
 	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
 	"github.com/basenana/nanafs/cmd/apps/apis/webdav"
@@ -97,7 +96,6 @@ func NewPathEntryManager(ctrl controller.Controller) (*pathmgr.PathManager, erro
 }
 
 func NewHttpApiServer(ctrl controller.Controller, mgr *pathmgr.PathManager, apiConfig config.Loader) (*Server, error) {
-	docAPIServer := apifeed.NewDocumentAPIServer(ctrl)
 	s := &Server{
 		engine:    gin.New(),
 		apiConfig: apiConfig,
@@ -106,9 +104,6 @@ func NewHttpApiServer(ctrl controller.Controller, mgr *pathmgr.PathManager, apiC
 
 	s.engine.GET("/_ping", s.Ping)
 	s.engine.POST("/friday/question", apifriday.Question)
-	s.engine.GET("/document/summary", docAPIServer.Summary)
-	s.engine.GET("/document/query", docAPIServer.Query)
-	s.engine.GET("/feed/:feedId/atom.xml", docAPIServer.Atom)
 
 	enableMetric, err := apiConfig.GetSystemConfig(context.TODO(), config.AdminApiConfigGroup, "enable_metric").Bool()
 	if err != nil {
