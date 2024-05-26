@@ -64,7 +64,7 @@ service Entries {
   rpc ReadFile (ReadFileRequest) returns (stream ReadFileResponse) {}
 }
 
-message pages {
+message Pagination {
   int64 page = 1;
   int64 pageSize = 2;
 }
@@ -111,7 +111,7 @@ message DeleteEntryResponse {
 message ListGroupChildrenRequest {
   int64 parentID = 1;
 
-  pages pages = 10;
+  Pagination pagination = 10;
 }
 
 message ListGroupChildrenResponse {
@@ -212,7 +212,7 @@ message ListDocumentsRequest {
   int64 parentID = 2;
   bool marked = 3;
   bool unread = 4;
-  pages pages = 10;
+  Pagination pagination = 10;
 }
 
 message ListDocumentsResponse {
@@ -433,6 +433,7 @@ message EntryInfo {
   string name = 2;
   string kind = 3;
   bool isGroup = 6;
+  int64 size = 7;
   google.protobuf.Timestamp createdAt = 30;
   google.protobuf.Timestamp changedAt = 31;
   google.protobuf.Timestamp modifiedAt = 32;

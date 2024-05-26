@@ -259,7 +259,7 @@ func (s *services) ListDocuments(ctx context.Context, request *ListDocumentsRequ
 	if request.Unread {
 		filter.Unread = &request.Unread
 	}
-	ctx = types.WithPagination(ctx, types.NewPagination(request.Pages.Page, request.Pages.PageSize))
+	ctx = types.WithPagination(ctx, types.NewPagination(request.Pagination.Page, request.Pagination.PageSize))
 	docList, err := s.ctrl.ListDocuments(ctx, filter)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "filter document failed")
@@ -554,7 +554,7 @@ func (s *services) DeleteEntry(ctx context.Context, request *DeleteEntryRequest)
 }
 
 func (s *services) ListGroupChildren(ctx context.Context, request *ListGroupChildrenRequest) (*ListGroupChildrenResponse, error) {
-	ctx = types.WithPagination(ctx, types.NewPagination(request.Pages.Page, request.Pages.PageSize))
+	ctx = types.WithPagination(ctx, types.NewPagination(request.Pagination.Page, request.Pagination.PageSize))
 	children, err := s.ctrl.ListEntryChildren(ctx, request.ParentID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "list children failed")
