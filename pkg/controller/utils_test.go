@@ -56,7 +56,26 @@ var _ = Describe("testBuildGroupEntry", func() {
 			groupTree, err := ctrl.GetGroupTree(ctx)
 			Expect(err).Should(BeNil())
 
-			Expect(len(groupTree.Children)).Should(Equal(1))
+			var (
+				group1 *types.GroupEntry
+				group2 *types.GroupEntry
+			)
+
+			for i, g := range groupTree.Children {
+				if g.Entry.Name == "group1" {
+					group1 = groupTree.Children[i]
+				}
+			}
+			Expect(group1).ShouldNot(BeNil())
+
+			for i, g := range group1.Children {
+				if g.Entry.Name == "group2" {
+					group2 = groupTree.Children[i]
+				}
+			}
+			Expect(group2).ShouldNot(BeNil())
+
+			Expect(len(group2.Children[0].Children)).Should(Equal(0))
 		})
 	})
 })
