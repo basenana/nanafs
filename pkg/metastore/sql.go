@@ -902,6 +902,9 @@ func (s *sqlMetaStore) ListEntryChildren(ctx context.Context, parentId int64) (E
 	defer trace.StartRegion(ctx, "metastore.sql.ListEntryChildren").End()
 	var total int64
 	tx := s.WithNamespace(ctx).Model(&db.Object{}).Where("parent_id = ?", parentId)
+	if page := types.GetPagination(ctx); page != nil {
+		tx = tx.Offset(page.Offset()).Limit(page.Limit())
+	}
 	res := tx.Count(&total)
 	if err := res.Error; err != nil {
 		s.logger.Errorw("count children entry failed", "parent", parentId, "err", err)
@@ -928,6 +931,9 @@ func (s *sqlMetaStore) FilterEntries(ctx context.Context, filter types.Filter) (
 
 	var total int64
 	tx := queryFilter(s.WithNamespace(ctx).Model(&db.Object{}), filter, scopeIds)
+	if page := types.GetPagination(ctx); page != nil {
+		tx = tx.Offset(page.Offset()).Limit(page.Limit())
+	}
 	res := tx.Count(&total)
 	if err = res.Error; err != nil {
 		s.logger.Errorw("count filtered entry failed", "filter", filter, "err", err)
@@ -1436,6 +1442,9 @@ func (s *sqlMetaStore) ListTask(ctx context.Context, taskID string, filter types
 	if len(filter.Status) > 0 {
 		query = query.Where("status IN ?", filter.Status)
 	}
+	if page := types.GetPagination(ctx); page != nil {
+		query = query.Offset(page.Offset()).Limit(page.Limit())
+	}
 
 	res := query.Order("created_time").Find(&tasks)
 	if res.Error != nil {
@@ -1523,7 +1532,11 @@ func (s *sqlMetaStore) GetWorkflow(ctx context.Context, wfID string) (*types.Wor
 func (s *sqlMetaStore) ListWorkflow(ctx context.Context) ([]*types.WorkflowSpec, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListWorkflow").End()
 	wfList := make([]db.Workflow, 0)
-	res := s.WithContext(ctx).Order("created_at desc").Find(&wfList)
+	res := s.WithContext(ctx).Order("created_at desc")
+	if page := types.GetPagination(ctx); page != nil {
+		res = res.Offset(page.Offset()).Limit(page.Limit())
+	}
+	res = res.Find(&wfList)
 	if res.Error != nil {
 		return nil, db.SqlError2Error(res.Error)
 	}
@@ -1574,6 +1587,9 @@ func (s *sqlMetaStore) ListWorkflowJob(ctx context.Context, filter types.JobFilt
 	defer trace.StartRegion(ctx, "metastore.sql.ListWorkflowJob").End()
 	jobList := make([]db.WorkflowJob, 0)
 	query := s.WithNamespace(ctx)
+	if page := types.GetPagination(ctx); page != nil {
+		query = query.Offset(page.Offset()).Limit(page.Limit())
+	}
 
 	if filter.JobID != "" {
 		query = query.Where("id = ?", filter.JobID)
@@ -1852,6 +1868,9 @@ func (s *sqlMetaStore) ListDocument(ctx context.Context, filter types.DocFilter)
 	defer trace.StartRegion(ctx, "metastore.sql.ListDocument").End()
 	docList := make([]db.Document, 0)
 	query := s.WithNamespace(ctx)
+	if page := types.GetPagination(ctx); page != nil {
+		query = query.Offset(page.Offset()).Limit(page.Limit())
+	}
 	if filter.ParentID > 0 {
 		query = query.Where("parent_entry_id = ?", filter.ParentID)
 	}
@@ -1985,6 +2004,9 @@ func (s *sqlMetaStore) ListFridayAccount(ctx context.Context, refId int64) ([]*t
 	defer trace.StartRegion(ctx, "metastore.sql.ListFridayAccount").End()
 	accountList := make([]db.FridayAccount, 0)
 	query := s.WithNamespace(ctx).Where("ref_id = ?", refId)
+	if page := types.GetPagination(ctx); page != nil {
+		query = query.Offset(page.Offset()).Limit(page.Limit())
+	}
 	res := query.Order("created_at DESC").Find(&accountList)
 	if res.Error != nil {
 		return nil, db.SqlError2Error(res.Error)
@@ -2062,6 +2084,9 @@ func (s *sqlMetaStore) ListRooms(ctx context.Context, entryId int64) ([]*types.R
 	roomList := make([]db.Room, 0)
 	query := s.WithNamespace(ctx)
 	query = query.Where("entry_id = ?", entryId)
+	if page := types.GetPagination(ctx); page != nil {
+		query = query.Offset(page.Offset()).Limit(page.Limit())
+	}
 	res := query.Order("created_at DESC").Find(&roomList)
 	if res.Error != nil {
 		return nil, db.SqlError2Error(res.Error)
@@ -2083,6 +2108,9 @@ func (s *sqlMetaStore) ListRoomMessage(ctx context.Context, roomId int64) ([]*ty
 	roomMsgList := make([]db.RoomMessage, 0)
 	query := s.WithNamespace(ctx)
 	query = query.Where("room_id = ?", roomId)
+	if page := types.GetPagination(ctx); page != nil {
+		query = query.Offset(page.Offset()).Limit(page.Limit())
+	}
 	res := query.Order("send_at").Find(&roomMsgList)
 	if res.Error != nil {
 		return nil, db.SqlError2Error(res.Error)
@@ -2143,6 +2171,11 @@ func (s *sqlMetaStore) WithNamespace(ctx context.Context) *gorm.DB {
 		return s.WithContext(ctx)
 	}
 	return s.WithContext(ctx).Where("namespace = ?", ns.String())
+}
+
+func (s *sqlMetaStore) WithPagination(ctx context.Context) *gorm.DB {
+	page := types.GetPagination(ctx)
+	return s.WithContext(ctx).Where("limit = ? AND offset = ?", page.PageSize, (page.Page-1)*page.PageSize)
 }
 
 func newPostgresMetaStore(meta config.Meta) (*sqlMetaStore, error) {

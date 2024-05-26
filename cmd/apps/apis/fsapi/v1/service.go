@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/basenana/nanafs/pkg/workflow"
+	"github.com/basenana/nanafs/utils"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -258,6 +259,9 @@ func (s *services) ListDocuments(ctx context.Context, request *ListDocumentsRequ
 	if request.Unread {
 		filter.Unread = &request.Unread
 	}
+	if request.Pagination != nil {
+		ctx = types.WithPagination(ctx, types.NewPagination(request.Pagination.Page, request.Pagination.PageSize))
+	}
 	docList, err := s.ctrl.ListDocuments(ctx, filter)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "filter document failed")
@@ -275,6 +279,7 @@ func (s *services) ListDocuments(ctx context.Context, request *ListDocumentsRequ
 			Marked:        *doc.Marked,
 			Unread:        *doc.Unread,
 			Namespace:     doc.Namespace,
+			SubContent:    utils.GenerateContentSubContent(doc.Content),
 			CreatedAt:     timestamppb.New(doc.CreatedAt),
 			ChangedAt:     timestamppb.New(doc.ChangedAt),
 		})
@@ -288,6 +293,7 @@ func (s *services) GetDocumentDetail(ctx context.Context, request *GetDocumentDe
 	}
 	var (
 		doc *types.Document
+		en  *types.Metadata
 		err error
 	)
 	if request.DocumentID != 0 {
@@ -302,6 +308,12 @@ func (s *services) GetDocumentDetail(ctx context.Context, request *GetDocumentDe
 			return nil, status.Error(common.FsApiError(err), "query document with entry id failed")
 		}
 	}
+	if doc != nil {
+		en, err = s.ctrl.GetEntry(ctx, doc.OID)
+		if err != nil {
+			return nil, status.Error(common.FsApiError(err), "query entry of document failed")
+		}
+	}
 	return &GetDocumentDetailResponse{
 		Document: &DocumentDescribe{
 			Id:            doc.ID,
@@ -314,6 +326,7 @@ func (s *services) GetDocumentDetail(ctx context.Context, request *GetDocumentDe
 			HtmlContent:   doc.Content,
 			KeyWords:      doc.KeyWords,
 			Summary:       doc.Summary,
+			EntryInfo:     entryInfo(en),
 			CreatedAt:     timestamppb.New(doc.CreatedAt),
 			ChangedAt:     timestamppb.New(doc.ChangedAt),
 		},
@@ -543,6 +556,9 @@ func (s *services) DeleteEntry(ctx context.Context, request *DeleteEntryRequest)
 }
 
 func (s *services) ListGroupChildren(ctx context.Context, request *ListGroupChildrenRequest) (*ListGroupChildrenResponse, error) {
+	if request.Pagination != nil {
+		ctx = types.WithPagination(ctx, types.NewPagination(request.Pagination.Page, request.Pagination.PageSize))
+	}
 	children, err := s.ctrl.ListEntryChildren(ctx, request.ParentID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "list children failed")

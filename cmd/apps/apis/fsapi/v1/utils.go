@@ -50,6 +50,7 @@ func entryInfo(en *types.Metadata) *EntryInfo {
 		Name:       en.Name,
 		Kind:       string(en.Kind),
 		IsGroup:    en.IsGroup,
+		Size:       en.Size,
 		CreatedAt:  timestamppb.New(en.CreatedAt),
 		ChangedAt:  timestamppb.New(en.ChangedAt),
 		ModifiedAt: timestamppb.New(en.ModifiedAt),

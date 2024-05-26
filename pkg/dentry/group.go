@@ -19,15 +19,17 @@ package dentry
 import (
 	"context"
 	"errors"
+	"path"
+	"runtime/trace"
+
+	"go.uber.org/zap"
+
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/rule"
 	"github.com/basenana/nanafs/pkg/types"
-	"go.uber.org/zap"
-	"path"
-	"runtime/trace"
 )
 
 type Group interface {
