@@ -157,10 +157,10 @@ func (i instrumentalGroup) RemoveEntry(ctx context.Context, entryId int64) error
 	return logOperationError(groupOperationErrorCounter, operation, err)
 }
 
-func (i instrumentalGroup) ListChildren(ctx context.Context) ([]*types.Metadata, error) {
+func (i instrumentalGroup) ListChildren(ctx context.Context, filters ...types.Filter) ([]*types.Metadata, error) {
 	const operation = "list_children"
 	defer logOperationLatency(groupOperationLatency, operation, time.Now())
-	enList, err := i.grp.ListChildren(ctx)
+	enList, err := i.grp.ListChildren(ctx, filters...)
 	return enList, logOperationError(groupOperationErrorCounter, operation, err)
 }
 

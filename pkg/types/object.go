@@ -81,6 +81,11 @@ func NewMetadata(name string, kind Kind) Metadata {
 	return result
 }
 
+type GroupEntry struct {
+	Entry    *Metadata     `json:"entry"`
+	Children []*GroupEntry `json:"children"`
+}
+
 type EntryUri struct {
 	ID        int64  `json:"id"`
 	Uri       string `json:"uri"`

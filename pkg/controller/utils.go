@@ -15,3 +15,38 @@
 */
 
 package controller
+
+import (
+	"context"
+	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/types"
+	"strings"
+)
+
+func buildGroupEntry(ctx context.Context, entryMgr dentry.Manager, entry *types.Metadata, showHidden bool) (*types.GroupEntry, error) {
+	ge := &types.GroupEntry{
+		Entry:    entry,
+		Children: make([]*types.GroupEntry, 0),
+	}
+	parent, err := entryMgr.OpenGroup(ctx, entry.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	children, err := parent.ListChildren(ctx, types.Filter{IsGroup: true})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, ch := range children {
+		if strings.HasPrefix(ch.Name, ".") && !showHidden {
+			continue
+		}
+		nextGe, err := buildGroupEntry(ctx, entryMgr, ch, showHidden)
+		if err != nil {
+			return nil, err
+		}
+		ge.Children = append(ge.Children, nextGe)
+	}
+	return ge, nil
+}

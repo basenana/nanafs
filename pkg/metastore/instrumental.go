@@ -162,10 +162,10 @@ func (i instrumentalStore) UpdateEntryMetadata(ctx context.Context, entry *types
 	return err
 }
 
-func (i instrumentalStore) ListEntryChildren(ctx context.Context, parentId int64) (EntryIterator, error) {
+func (i instrumentalStore) ListEntryChildren(ctx context.Context, parentId int64, filters ...types.Filter) (EntryIterator, error) {
 	const operation = "list_entry_children"
 	defer logOperationLatency(operation, time.Now())
-	it, err := i.store.ListEntryChildren(ctx, parentId)
+	it, err := i.store.ListEntryChildren(ctx, parentId, filters...)
 	logOperationError(operation, err)
 	return it, err
 }

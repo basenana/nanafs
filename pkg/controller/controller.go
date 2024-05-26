@@ -49,6 +49,7 @@ type Controller interface {
 	CreateNamespace(ctx context.Context, namespace string) (*types.Namespace, error)
 
 	LoadRootEntry(ctx context.Context) (*types.Metadata, error)
+	GetGroupTree(ctx context.Context) (*types.GroupEntry, error)
 	FindEntry(ctx context.Context, parentId int64, name string) (*types.Metadata, error)
 	GetEntry(ctx context.Context, id int64) (*types.Metadata, error)
 	GetEntryByURI(ctx context.Context, uri string) (*types.Metadata, error)
@@ -164,6 +165,15 @@ func (c *controller) LoadRootEntry(ctx context.Context) (*types.Metadata, error)
 		return nil, err
 	}
 	return rootEntry, nil
+}
+
+func (c *controller) GetGroupTree(ctx context.Context) (*types.GroupEntry, error) {
+	defer trace.StartRegion(ctx, "controller.GetGroupTree").End()
+	root, err := c.entry.Root(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return buildGroupEntry(ctx, c.entry, root, false)
 }
 
 func (c *controller) FindEntry(ctx context.Context, parentId int64, name string) (*types.Metadata, error) {
