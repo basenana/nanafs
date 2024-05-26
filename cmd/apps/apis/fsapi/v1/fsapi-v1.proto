@@ -197,6 +197,7 @@ service Document {
   rpc ListDocuments (ListDocumentsRequest) returns (ListDocumentsResponse) {}
   rpc GetDocumentDetail (GetDocumentDetailRequest) returns (GetDocumentDetailResponse) {}
   rpc UpdateDocument (UpdateDocumentRequest) returns (UpdateDocumentResponse) {}
+  rpc SearchDocuments (SearchDocumentsRequest) returns (SearchDocumentsResponse) {}
 }
 
 message ListDocumentsRequest {
@@ -233,6 +234,14 @@ message UpdateDocumentRequest {
 
 message UpdateDocumentResponse {
   DocumentDescribe document = 1;
+}
+
+message SearchDocumentsRequest {
+  string query = 1;
+}
+
+message SearchDocumentsResponse {
+  repeated DocumentInfo documents = 1;
 }
 
 service Room {

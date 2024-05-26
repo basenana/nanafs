@@ -8,6 +8,7 @@ github.com/PuerkitoBio/goquery
 ## explicit; go 1.14
 github.com/RoaringBitmap/roaring
 github.com/RoaringBitmap/roaring/internal
+github.com/RoaringBitmap/roaring/roaring64
 # github.com/agiledragon/gomonkey/v2 v2.11.0
 ## explicit; go 1.14
 github.com/agiledragon/gomonkey/v2
@@ -163,10 +164,11 @@ github.com/beorn7/perks/quantile
 # github.com/bits-and-blooms/bitset v1.2.0
 ## explicit; go 1.14
 github.com/bits-and-blooms/bitset
-# github.com/blevesearch/bleve/v2 v2.3.10
-## explicit; go 1.19
+# github.com/blevesearch/bleve/v2 v2.4.0
+## explicit; go 1.20
 github.com/blevesearch/bleve/v2
 github.com/blevesearch/bleve/v2/analysis
+github.com/blevesearch/bleve/v2/analysis/analyzer/custom
 github.com/blevesearch/bleve/v2/analysis/analyzer/keyword
 github.com/blevesearch/bleve/v2/analysis/analyzer/standard
 github.com/blevesearch/bleve/v2/analysis/char/html
@@ -201,13 +203,16 @@ github.com/blevesearch/bleve/v2/search/scorer
 github.com/blevesearch/bleve/v2/search/searcher
 github.com/blevesearch/bleve/v2/size
 github.com/blevesearch/bleve/v2/util
-# github.com/blevesearch/bleve_index_api v1.0.6
-## explicit; go 1.18
+# github.com/blevesearch/bleve_index_api v1.1.6
+## explicit; go 1.20
 github.com/blevesearch/bleve_index_api
-# github.com/blevesearch/geo v0.1.18
+# github.com/blevesearch/geo v0.1.20
 ## explicit; go 1.18
 github.com/blevesearch/geo/geojson
 github.com/blevesearch/geo/s2
+# github.com/blevesearch/go-faiss v1.0.13
+## explicit; go 1.19
+github.com/blevesearch/go-faiss
 # github.com/blevesearch/go-porterstemmer v1.0.3
 ## explicit; go 1.13
 github.com/blevesearch/go-porterstemmer
@@ -217,8 +222,8 @@ github.com/blevesearch/gtreap
 # github.com/blevesearch/mmap-go v1.0.4
 ## explicit; go 1.13
 github.com/blevesearch/mmap-go
-# github.com/blevesearch/scorch_segment_api/v2 v2.1.6
-## explicit; go 1.19
+# github.com/blevesearch/scorch_segment_api/v2 v2.2.9
+## explicit; go 1.20
 github.com/blevesearch/scorch_segment_api/v2
 # github.com/blevesearch/segment v0.9.1
 ## explicit; go 1.18
@@ -251,6 +256,9 @@ github.com/blevesearch/zapx/v14
 # github.com/blevesearch/zapx/v15 v15.3.13
 ## explicit; go 1.19
 github.com/blevesearch/zapx/v15
+# github.com/blevesearch/zapx/v16 v16.0.12
+## explicit; go 1.20
+github.com/blevesearch/zapx/v16
 # github.com/bluele/gcache v0.0.2
 ## explicit; go 1.15
 github.com/bluele/gcache
@@ -412,6 +420,13 @@ github.com/hanwen/go-fuse/v2/splice
 # github.com/hyponet/eventbus v1.0.1
 ## explicit; go 1.20
 github.com/hyponet/eventbus/bus
+# github.com/hyponet/jiebago v0.0.0-20240525141904-e34990856482
+## explicit; go 1.20
+github.com/hyponet/jiebago
+github.com/hyponet/jiebago/dictionary
+github.com/hyponet/jiebago/finalseg
+github.com/hyponet/jiebago/tokenizers
+github.com/hyponet/jiebago/util
 # github.com/hyponet/webpage-packer v1.0.3
 ## explicit; go 1.18
 github.com/hyponet/webpage-packer/packer

@@ -83,14 +83,16 @@ func NewManager(recorder metastore.DEntry, entryMgr dentry.Manager, cfg config.L
 		return nil, err
 	}
 
-	indexerCfg, err := cfg.GetSystemConfig(context.Background(), config.DocConfigGroup, "index.local_indexer_dir").String()
-	if err == nil {
-		docMgr.indexer, err = NewDocumentIndexer(recorder, indexerCfg)
+	enableIndexer, indexerArgs, err := buildIndexConfigArgs(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	if enableIndexer {
+		docMgr.indexer, err = NewDocumentIndexer(recorder, indexerArgs)
 		if err != nil {
 			return nil, err
 		}
-	} else {
-		docMgr.logger.Warnw("skip open document indexer", "err", err)
 	}
 
 	return docMgr, nil
