@@ -52,6 +52,7 @@ message QuickInboxResponse {
 }
 
 service Entries {
+  rpc GroupTree (GetGroupTreeRequest) returns (GetGroupTreeResponse) {}
   rpc FindEntryDetail (FindEntryDetailRequest) returns (GetEntryDetailResponse) {}
   rpc GetEntryDetail (GetEntryDetailRequest) returns (GetEntryDetailResponse) {}
   rpc CreateEntry (CreateEntryRequest) returns (CreateEntryResponse) {}
@@ -67,6 +68,16 @@ service Entries {
 message Pagination {
   int64 page = 1;
   int64 pageSize = 2;
+}
+
+message GetGroupTreeRequest {}
+
+message GetGroupTreeResponse {
+  message GroupEntry {
+    EntryInfo entry = 1;
+    repeated GroupEntry children = 2;
+  }
+  GroupEntry root = 1;
 }
 
 message FindEntryDetailRequest {

@@ -397,6 +397,16 @@ func (s *services) SearchDocuments(ctx context.Context, request *SearchDocuments
 	return resp, nil
 }
 
+func (s *services) GroupTree(ctx context.Context, request *GetGroupTreeRequest) (*GetGroupTreeResponse, error) {
+	root, err := s.ctrl.GetGroupTree(ctx)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "query root entry failed")
+	}
+	resp := &GetGroupTreeResponse{}
+	resp.Root = buildRootGroup(root)
+	return resp, nil
+}
+
 func (s *services) FindEntryDetail(ctx context.Context, request *FindEntryDetailRequest) (*GetEntryDetailResponse, error) {
 	var (
 		en, par *types.Metadata

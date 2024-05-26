@@ -106,3 +106,15 @@ func eventInfo(evt *types.Event) *Event {
 		Sequence: evt.Sequence,
 	}
 }
+
+func buildRootGroup(entry *types.GroupEntry) *GetGroupTreeResponse_GroupEntry {
+	result := &GetGroupTreeResponse_GroupEntry{
+		Entry:    entryInfo(entry.Entry),
+		Children: make([]*GetGroupTreeResponse_GroupEntry, 0),
+	}
+
+	for _, ch := range entry.Children {
+		result.Children = append(result.Children, buildRootGroup(ch))
+	}
+	return nil
+}

@@ -146,10 +146,10 @@ func (s *sqliteMetaStore) UpdateEntryMetadata(ctx context.Context, ed *types.Met
 	return s.dbStore.UpdateEntryMetadata(ctx, ed)
 }
 
-func (s *sqliteMetaStore) ListEntryChildren(ctx context.Context, parentId int64) (EntryIterator, error) {
+func (s *sqliteMetaStore) ListEntryChildren(ctx context.Context, parentId int64, filters ...types.Filter) (EntryIterator, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.ListEntryChildren(ctx, parentId)
+	return s.dbStore.ListEntryChildren(ctx, parentId, filters...)
 }
 
 func (s *sqliteMetaStore) FilterEntries(ctx context.Context, filter types.Filter) (EntryIterator, error) {
@@ -898,10 +898,15 @@ func (s *sqlMetaStore) DeleteRemovedEntry(ctx context.Context, entryID int64) er
 	return nil
 }
 
-func (s *sqlMetaStore) ListEntryChildren(ctx context.Context, parentId int64) (EntryIterator, error) {
+func (s *sqlMetaStore) ListEntryChildren(ctx context.Context, parentId int64, filters ...types.Filter) (EntryIterator, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListEntryChildren").End()
 	var total int64
-	tx := s.WithNamespace(ctx).Model(&db.Object{}).Where("parent_id = ?", parentId)
+	if len(filters) > 0 {
+		filters[0].ParentID = parentId
+	} else {
+		filters = append(filters, types.Filter{ParentID: parentId})
+	}
+	tx := queryFilter(s.WithNamespace(ctx).Model(&db.Object{}), filters[0], nil)
 	if page := types.GetPagination(ctx); page != nil {
 		tx = tx.Offset(page.Offset()).Limit(page.Limit())
 	}
@@ -2303,6 +2308,9 @@ func queryFilter(tx *gorm.DB, filter types.Filter, scopeIds []int64) *gorm.DB {
 	}
 	if filter.Kind != "" {
 		tx = tx.Where("kind = ?", filter.Kind)
+	}
+	if filter.IsGroup {
+		tx = tx.Where("is_group = ?", filter.IsGroup)
 	}
 	return tx
 }

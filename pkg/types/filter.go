@@ -24,6 +24,7 @@ type Filter struct {
 	Kind      Kind
 	Namespace string
 	Label     LabelMatch
+	IsGroup   bool
 }
 
 type JobFilter struct {
