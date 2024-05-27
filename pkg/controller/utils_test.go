@@ -75,7 +75,7 @@ var _ = Describe("testBuildGroupEntry", func() {
 			}
 			Expect(group2).ShouldNot(BeNil())
 
-			Expect(len(group2.Children[0].Children)).Should(Equal(0))
+			Expect(len(group2.Children)).Should(Equal(0))
 		})
 	})
 })
