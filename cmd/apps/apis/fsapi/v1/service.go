@@ -261,6 +261,8 @@ func (s *services) ListDocuments(ctx context.Context, request *ListDocumentsRequ
 	}
 	if request.Pagination != nil {
 		ctx = types.WithPagination(ctx, types.NewPagination(request.Pagination.Page, request.Pagination.PageSize))
+	} else {
+		ctx = types.WithPagination(ctx, types.NewPagination(1, 20))
 	}
 	docList, err := s.ctrl.ListDocuments(ctx, filter)
 	if err != nil {

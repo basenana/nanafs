@@ -116,5 +116,5 @@ func buildRootGroup(entry *types.GroupEntry) *GetGroupTreeResponse_GroupEntry {
 	for _, ch := range entry.Children {
 		result.Children = append(result.Children, buildRootGroup(ch))
 	}
-	return nil
+	return result
 }
