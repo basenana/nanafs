@@ -18,9 +18,11 @@ package controller
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/types"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 var _ = Describe("testBuildGroupEntry", func() {
@@ -70,7 +72,7 @@ var _ = Describe("testBuildGroupEntry", func() {
 
 			for i, g := range group1.Children {
 				if g.Entry.Name == "group2" {
-					group2 = groupTree.Children[i]
+					group2 = group1.Children[i]
 				}
 			}
 			Expect(group2).ShouldNot(BeNil())
