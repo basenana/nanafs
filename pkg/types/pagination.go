@@ -35,11 +35,11 @@ func (p *Pagination) Limit() int {
 }
 
 func (p *Pagination) Offset() int {
-	return int((p.Page - 1) * p.PageSize)
+	return int(p.Page * p.PageSize)
 }
 
 func NewPagination(page, pageSize int64) *Pagination {
-	if page > 0 && pageSize > 0 {
+	if page >= 0 && pageSize >= 0 {
 		return &Pagination{
 			Page:     page,
 			PageSize: pageSize,
