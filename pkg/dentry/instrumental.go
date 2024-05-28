@@ -18,9 +18,11 @@ package dentry
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/types"
-	"github.com/prometheus/client_golang/prometheus"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 var (
@@ -157,10 +159,10 @@ func (i instrumentalGroup) RemoveEntry(ctx context.Context, entryId int64) error
 	return logOperationError(groupOperationErrorCounter, operation, err)
 }
 
-func (i instrumentalGroup) ListChildren(ctx context.Context, filters ...types.Filter) ([]*types.Metadata, error) {
+func (i instrumentalGroup) ListChildren(ctx context.Context, order *types.EntryOrder, filters ...types.Filter) ([]*types.Metadata, error) {
 	const operation = "list_children"
 	defer logOperationLatency(groupOperationLatency, operation, time.Now())
-	enList, err := i.grp.ListChildren(ctx, filters...)
+	enList, err := i.grp.ListChildren(ctx, order, filters...)
 	return enList, logOperationError(groupOperationErrorCounter, operation, err)
 }
 

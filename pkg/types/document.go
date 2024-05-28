@@ -74,7 +74,42 @@ type FridayAccount struct {
 }
 
 type DocFilter struct {
-	ParentID int64
-	Marked   *bool
-	Unread   *bool
+	FuzzyName      string
+	ParentID       int64
+	Source         string
+	Marked         *bool
+	Unread         *bool
+	CreatedAtStart *time.Time
+	CreatedAtEnd   *time.Time
+	ChangedAtStart *time.Time
+	ChangedAtEnd   *time.Time
+}
+
+type DocumentOrder struct {
+	Order DocOrder
+	Desc  bool
+}
+
+type DocOrder int
+
+const (
+	Name DocOrder = iota
+	Source
+	Marked
+	Unread
+	CreatedAt
+)
+
+func (d DocOrder) String() string {
+	names := []string{
+		"name",
+		"source",
+		"marked",
+		"unread",
+		"created_at",
+	}
+	if d < Name || d > CreatedAt {
+		return "Unknown"
+	}
+	return names[d]
 }

@@ -55,7 +55,7 @@ type DEntry interface {
 	SaveEntryUri(ctx context.Context, entryUri *types.EntryUri) error
 	GetEntryUri(ctx context.Context, uri string) (*types.EntryUri, error)
 
-	ListEntryChildren(ctx context.Context, parentId int64, filters ...types.Filter) (EntryIterator, error)
+	ListEntryChildren(ctx context.Context, parentId int64, order *types.EntryOrder, filters ...types.Filter) (EntryIterator, error)
 	FilterEntries(ctx context.Context, filter types.Filter) (EntryIterator, error)
 
 	Open(ctx context.Context, id int64, attr types.OpenAttr) (*types.Metadata, error)
@@ -69,7 +69,7 @@ type DEntry interface {
 	UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error
 
 	SaveDocument(ctx context.Context, doc *types.Document) error
-	ListDocument(ctx context.Context, filter types.DocFilter) ([]*types.Document, error)
+	ListDocument(ctx context.Context, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error)
 	GetDocument(ctx context.Context, id int64) (*types.Document, error)
 	GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error)
 	GetDocumentByName(ctx context.Context, name string) (*types.Document, error)

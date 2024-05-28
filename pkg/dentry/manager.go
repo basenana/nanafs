@@ -460,7 +460,7 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntryId int64, ov
 			if err != nil {
 				return err
 			}
-			children, err := overwriteGrp.ListChildren(ctx)
+			children, err := overwriteGrp.ListChildren(ctx, nil, types.Filter{})
 			if err != nil {
 				return err
 			}

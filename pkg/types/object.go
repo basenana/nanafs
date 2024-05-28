@@ -86,6 +86,37 @@ type GroupEntry struct {
 	Children []*GroupEntry `json:"children"`
 }
 
+type EntryOrder struct {
+	Order EnOrder
+	Desc  bool
+}
+
+type EnOrder int
+
+const (
+	EntryName EnOrder = iota
+	EntryKind
+	EntryIsGroup
+	EntrySize
+	EntryCreatedAt
+	EntryModifiedAt
+)
+
+func (d EnOrder) String() string {
+	names := []string{
+		"name",
+		"kind",
+		"is_group",
+		"size",
+		"created_at",
+		"modified_at",
+	}
+	if d < EntryName || d > EntryModifiedAt {
+		return "Unknown"
+	}
+	return names[d]
+}
+
 type EntryUri struct {
 	ID        int64  `json:"id"`
 	Uri       string `json:"uri"`

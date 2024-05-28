@@ -19,14 +19,16 @@ package workflow
 import (
 	"bytes"
 	"context"
-	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/pkg/workflow/jobrun"
-	"github.com/basenana/nanafs/utils"
+	"io"
+	"time"
+
 	"github.com/goccy/go-yaml"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"io"
-	"time"
+
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/pkg/workflow/jobrun"
+	"github.com/basenana/nanafs/utils"
 )
 
 var _ = Describe("TestMirrorPlugin", func() {
@@ -47,7 +49,7 @@ var _ = Describe("TestMirrorPlugin", func() {
 
 			rootGrp, err := entryMgr.OpenGroup(ctx, root.ID)
 			Expect(err).Should(BeNil())
-			child, err := rootGrp.ListChildren(ctx)
+			child, err := rootGrp.ListChildren(ctx, nil, types.Filter{})
 			Expect(err).Should(BeNil())
 
 			var workflowRoot *types.Metadata
@@ -61,7 +63,7 @@ var _ = Describe("TestMirrorPlugin", func() {
 
 			workflowRootGrp, err := entryMgr.OpenGroup(ctx, workflowRoot.ID)
 			Expect(err).Should(BeNil())
-			child, err = workflowRootGrp.ListChildren(ctx)
+			child, err = workflowRootGrp.ListChildren(ctx, nil, types.Filter{})
 			Expect(err).Should(BeNil())
 			for i, ch := range child {
 				switch ch.Name {

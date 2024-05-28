@@ -18,9 +18,10 @@ package controller
 
 import (
 	"context"
+	"strings"
+
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
-	"strings"
 )
 
 func buildGroupEntry(ctx context.Context, entryMgr dentry.Manager, entry *types.Metadata, showHidden bool) (*types.GroupEntry, error) {
@@ -33,7 +34,8 @@ func buildGroupEntry(ctx context.Context, entryMgr dentry.Manager, entry *types.
 		return nil, err
 	}
 
-	children, err := parent.ListChildren(ctx, types.Filter{IsGroup: true})
+	t := true
+	children, err := parent.ListChildren(ctx, nil, types.Filter{IsGroup: &t})
 	if err != nil {
 		return nil, err
 	}

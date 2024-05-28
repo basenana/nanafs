@@ -18,15 +18,15 @@ package v1
 
 import (
 	"context"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/encoding/gzip"
 	"io"
 	"time"
 
 	. "github.com/agiledragon/gomonkey/v2"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -472,12 +472,12 @@ var _ = Describe("testDocumentsService-ReadView", func() {
 			Expect(len(resp.Documents)).Should(Equal(3))
 		})
 		It("list marked should be succeed", func() {
-			resp, err := serviceClient.ListDocuments(ctx, &ListDocumentsRequest{Marked: true}, grpc.UseCompressor(gzip.Name))
+			resp, err := serviceClient.ListDocuments(ctx, &ListDocumentsRequest{Filter: &DocumentFilter{Marked: true}}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
 			Expect(len(resp.Documents)).Should(Equal(1))
 		})
 		It("list unread should be succeed", func() {
-			resp, err := serviceClient.ListDocuments(ctx, &ListDocumentsRequest{Unread: true}, grpc.UseCompressor(gzip.Name))
+			resp, err := serviceClient.ListDocuments(ctx, &ListDocumentsRequest{Filter: &DocumentFilter{Unread: true}}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
 			Expect(len(resp.Documents)).Should(Equal(1))
 		})
