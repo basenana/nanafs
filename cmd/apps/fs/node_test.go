@@ -18,15 +18,17 @@ package fs
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/controller"
-	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/types"
+	"os"
+	"syscall"
+
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"os"
-	"syscall"
+
+	"github.com/basenana/nanafs/pkg/controller"
+	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 var _ = Describe("TestAccess", func() {
@@ -185,7 +187,7 @@ var _ = Describe("TestCreate", func() {
 				inode, _, _, errNo := root.Create(context.Background(), newFileName, 0, 0755, out)
 				Expect(errNo).To(Equal(syscall.Errno(0)))
 				root.AddChild(newFileName, inode, false)
-				children, err := ctl.ListEntryChildren(context.Background(), mustGetNanaEntry(root, ctl).ID)
+				children, err := ctl.ListEntryChildren(context.Background(), mustGetNanaEntry(root, ctl).ID, nil, types.Filter{})
 				Expect(err).To(BeNil())
 
 				found := false

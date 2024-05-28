@@ -57,7 +57,7 @@ type Controller interface {
 	UpdateEntry(ctx context.Context, entry *types.Metadata) error
 	DestroyEntry(ctx context.Context, parentId, entryId int64, attr types.DestroyObjectAttr) error
 	MirrorEntry(ctx context.Context, srcEntryId, dstParentId int64, attr types.EntryAttr) (*types.Metadata, error)
-	ListEntryChildren(ctx context.Context, entryId int64) ([]*types.Metadata, error)
+	ListEntryChildren(ctx context.Context, entryId int64, order *types.EntryOrder, filters ...types.Filter) ([]*types.Metadata, error)
 	ChangeEntryParent(ctx context.Context, targetId, oldParentId, newParentId int64, newName string, opt types.ChangeParentAttr) error
 
 	ListEntryExtendField(ctx context.Context, id int64) (map[string]types.PropertyItem, error)
@@ -78,7 +78,7 @@ type Controller interface {
 	EnableGroupFeed(ctx context.Context, id int64, feedID string) error
 	DisableGroupFeed(ctx context.Context, id int64) error
 	GetDocumentsByFeed(ctx context.Context, feedId string, count int) (*types.FeedResult, error)
-	ListDocuments(ctx context.Context, filter types.DocFilter) ([]*types.Document, error)
+	ListDocuments(ctx context.Context, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error)
 	GetDocumentsByEntryId(ctx context.Context, entryId int64) (*types.Document, error)
 	GetDocument(ctx context.Context, documentId int64) (*types.Document, error)
 	QueryDocuments(ctx context.Context, query string) ([]*types.Document, error)
@@ -308,13 +308,13 @@ func (c *controller) MirrorEntry(ctx context.Context, srcId, dstParentId int64, 
 	return entry, nil
 }
 
-func (c *controller) ListEntryChildren(ctx context.Context, parentId int64) ([]*types.Metadata, error) {
+func (c *controller) ListEntryChildren(ctx context.Context, parentId int64, order *types.EntryOrder, filters ...types.Filter) ([]*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "controller.ListEntryChildren").End()
 	parent, err := c.entry.OpenGroup(ctx, parentId)
 	if err != nil {
 		return nil, err
 	}
-	result, err := parent.ListChildren(ctx)
+	result, err := parent.ListChildren(ctx, order, filters...)
 	if err != nil {
 		c.logger.Errorw("list entry children failed", "parent", parentId, "err", err)
 		return nil, err

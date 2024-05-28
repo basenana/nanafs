@@ -29,8 +29,8 @@ func (c *controller) QueryDocuments(ctx context.Context, query string) ([]*types
 	return c.document.QueryDocuments(ctx, query)
 }
 
-func (c *controller) ListDocuments(ctx context.Context, filter types.DocFilter) ([]*types.Document, error) {
-	result, err := c.document.ListDocuments(ctx, filter)
+func (c *controller) ListDocuments(ctx context.Context, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error) {
+	result, err := c.document.ListDocuments(ctx, filter, order)
 	if err != nil {
 		c.logger.Errorw("list documents failed", "err", err)
 		return nil, err

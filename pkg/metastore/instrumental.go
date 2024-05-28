@@ -162,10 +162,10 @@ func (i instrumentalStore) UpdateEntryMetadata(ctx context.Context, entry *types
 	return err
 }
 
-func (i instrumentalStore) ListEntryChildren(ctx context.Context, parentId int64, filters ...types.Filter) (EntryIterator, error) {
+func (i instrumentalStore) ListEntryChildren(ctx context.Context, parentId int64, order *types.EntryOrder, filters ...types.Filter) (EntryIterator, error) {
 	const operation = "list_entry_children"
 	defer logOperationLatency(operation, time.Now())
-	it, err := i.store.ListEntryChildren(ctx, parentId, filters...)
+	it, err := i.store.ListEntryChildren(ctx, parentId, order, filters...)
 	logOperationError(operation, err)
 	return it, err
 }
@@ -434,10 +434,10 @@ func (i instrumentalStore) SaveDocument(ctx context.Context, doc *types.Document
 	return err
 }
 
-func (i instrumentalStore) ListDocument(ctx context.Context, filter types.DocFilter) ([]*types.Document, error) {
+func (i instrumentalStore) ListDocument(ctx context.Context, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error) {
 	const operation = "list_document"
 	defer logOperationLatency(operation, time.Now())
-	docList, err := i.store.ListDocument(ctx, filter)
+	docList, err := i.store.ListDocument(ctx, filter, order)
 	logOperationError(operation, err)
 	return docList, err
 }

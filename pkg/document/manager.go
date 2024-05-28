@@ -46,7 +46,7 @@ const (
 )
 
 type Manager interface {
-	ListDocuments(ctx context.Context, filter types.DocFilter) ([]*types.Document, error)
+	ListDocuments(ctx context.Context, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error)
 	QueryDocuments(ctx context.Context, query string) ([]*types.Document, error)
 	SaveDocument(ctx context.Context, doc *types.Document) error
 	GetDocument(ctx context.Context, id int64) (*types.Document, error)
@@ -98,8 +98,8 @@ func NewManager(recorder metastore.DEntry, entryMgr dentry.Manager, cfg config.L
 	return docMgr, nil
 }
 
-func (m *manager) ListDocuments(ctx context.Context, filter types.DocFilter) ([]*types.Document, error) {
-	result, err := m.recorder.ListDocument(ctx, filter)
+func (m *manager) ListDocuments(ctx context.Context, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error) {
+	result, err := m.recorder.ListDocument(ctx, filter, order)
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +238,7 @@ func (m *manager) GetDocsByFeedId(ctx context.Context, feedID string, count int)
 
 			}
 		}
-		documents, err = m.recorder.ListDocument(ctx, types.DocFilter{ParentID: feed.ParentID})
+		documents, err = m.recorder.ListDocument(ctx, types.DocFilter{ParentID: feed.ParentID}, nil)
 		if err != nil {
 			return nil, err
 		}

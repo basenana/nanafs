@@ -255,7 +255,7 @@ func (n *NanaNode) Readdir(ctx context.Context) (fs.DirStream, syscall.Errno) {
 	defer trace.StartRegion(ctx, "fs.node.Readdir").End()
 	defer logOperationLatency("entry_read_dir", time.Now())
 	result := make([]fuse.DirEntry, 0)
-	children, err := n.R.ListEntryChildren(ctx, n.entryID)
+	children, err := n.R.ListEntryChildren(ctx, n.entryID, nil, types.Filter{})
 	if err != nil {
 		return nil, Error2FuseSysError("entry_read_dir", types.ErrNoGroup)
 	}
@@ -466,7 +466,7 @@ func (n *NanaNode) Rmdir(ctx context.Context, name string) syscall.Errno {
 		return Error2FuseSysError("entry_rmdir", types.ErrNoGroup)
 	}
 
-	children, err := n.R.ListEntryChildren(ctx, ch.ID)
+	children, err := n.R.ListEntryChildren(ctx, ch.ID, nil, types.Filter{})
 	if err != nil {
 		return Error2FuseSysError("entry_rmdir", err)
 	}

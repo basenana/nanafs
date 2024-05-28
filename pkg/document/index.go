@@ -19,10 +19,12 @@ package document
 import (
 	"context"
 	"errors"
-	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/document/indexer"
+
 	_ "github.com/blevesearch/bleve/v2/analysis/analyzer/custom"
 	"go.uber.org/zap"
+
+	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/document/indexer"
 
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
@@ -62,7 +64,7 @@ func NewDocumentIndexer(recorder metastore.DEntry, indexArgs map[string]string) 
 func (i *Indexer) rebuild() {
 	i.logger.Infow("rebuild index")
 	ctx := context.Background()
-	allDoc, err := i.recorder.ListDocument(ctx, types.DocFilter{ParentID: 0}) // list all
+	allDoc, err := i.recorder.ListDocument(ctx, types.DocFilter{ParentID: 0}, nil) // list all
 	if err != nil {
 		i.logger.Errorw("rebuild index failed: list all document failed", "err", err)
 		return

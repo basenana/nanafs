@@ -119,10 +119,36 @@ message DeleteEntryResponse {
   EntryDetail entry = 1;
 }
 
+message EntryFilter {
+  string fuzzyName = 1;
+  string kind = 2;
+  enum GroupFilter {
+    All = 0;
+    Group = 1;
+    File = 2;
+  }
+  GroupFilter isGroup = 3;
+  google.protobuf.Timestamp createdAtStart = 6;
+  google.protobuf.Timestamp createdAtEnd = 7;
+  google.protobuf.Timestamp modifiedAtStart = 8;
+  google.protobuf.Timestamp modifiedAtEnd = 9;
+}
+
 message ListGroupChildrenRequest {
   int64 parentID = 1;
 
   Pagination pagination = 10;
+  enum EntryOrder {
+    Name = 0;
+    Kind = 1;
+    IsGroup = 2;
+    Size = 3;
+    CreatedAt = 4;
+    ModifiedAt = 5;
+  }
+  EntryOrder order = 11;
+  bool OrderDesc = 12;
+  EntryFilter filter = 13;
 }
 
 message ListGroupChildrenResponse {
@@ -218,12 +244,32 @@ service Document {
   rpc SearchDocuments (SearchDocumentsRequest) returns (SearchDocumentsResponse) {}
 }
 
+message DocumentFilter {
+  string fuzzyName = 1;
+  int64 parentEntryID = 2;
+  string source = 3;
+  bool marked = 4;
+  bool unread = 5;
+  google.protobuf.Timestamp createdAtStart = 6;
+  google.protobuf.Timestamp createdAtEnd = 7;
+  google.protobuf.Timestamp changedAtStart = 8;
+  google.protobuf.Timestamp changedAtEnd = 9;
+}
+
 message ListDocumentsRequest {
   bool listAll = 1;
   int64 parentID = 2;
-  bool marked = 3;
-  bool unread = 4;
   Pagination pagination = 10;
+  enum DocumentOrder {
+    Name = 0;
+    Source = 1;
+    Marked = 2;
+    Unread = 3;
+    CreatedAt = 4;
+  }
+  DocumentOrder order = 11;
+  bool OrderDesc = 12;
+  DocumentFilter filter = 13;
 }
 
 message ListDocumentsResponse {

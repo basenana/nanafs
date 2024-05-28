@@ -146,10 +146,10 @@ func (s *sqliteMetaStore) UpdateEntryMetadata(ctx context.Context, ed *types.Met
 	return s.dbStore.UpdateEntryMetadata(ctx, ed)
 }
 
-func (s *sqliteMetaStore) ListEntryChildren(ctx context.Context, parentId int64, filters ...types.Filter) (EntryIterator, error) {
+func (s *sqliteMetaStore) ListEntryChildren(ctx context.Context, parentId int64, order *types.EntryOrder, filters ...types.Filter) (EntryIterator, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.ListEntryChildren(ctx, parentId, filters...)
+	return s.dbStore.ListEntryChildren(ctx, parentId, order, filters...)
 }
 
 func (s *sqliteMetaStore) FilterEntries(ctx context.Context, filter types.Filter) (EntryIterator, error) {
@@ -338,10 +338,10 @@ func (s *sqliteMetaStore) SaveDocument(ctx context.Context, doc *types.Document)
 	return s.dbStore.SaveDocument(ctx, doc)
 }
 
-func (s *sqliteMetaStore) ListDocument(ctx context.Context, filter types.DocFilter) ([]*types.Document, error) {
+func (s *sqliteMetaStore) ListDocument(ctx context.Context, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.ListDocument(ctx, filter)
+	return s.dbStore.ListDocument(ctx, filter, order)
 }
 
 func (s *sqliteMetaStore) GetDocument(ctx context.Context, id int64) (*types.Document, error) {
@@ -898,7 +898,7 @@ func (s *sqlMetaStore) DeleteRemovedEntry(ctx context.Context, entryID int64) er
 	return nil
 }
 
-func (s *sqlMetaStore) ListEntryChildren(ctx context.Context, parentId int64, filters ...types.Filter) (EntryIterator, error) {
+func (s *sqlMetaStore) ListEntryChildren(ctx context.Context, parentId int64, order *types.EntryOrder, filters ...types.Filter) (EntryIterator, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListEntryChildren").End()
 	var total int64
 	if len(filters) > 0 {
@@ -906,7 +906,7 @@ func (s *sqlMetaStore) ListEntryChildren(ctx context.Context, parentId int64, fi
 	} else {
 		filters = append(filters, types.Filter{ParentID: parentId})
 	}
-	tx := queryFilter(s.WithNamespace(ctx).Model(&db.Object{}), filters[0], nil)
+	tx := enOrder(queryFilter(s.WithNamespace(ctx).Model(&db.Object{}), filters[0], nil), order)
 	if page := types.GetPagination(ctx); page != nil {
 		tx = tx.Offset(page.Offset()).Limit(page.Limit())
 	}
@@ -1869,23 +1869,14 @@ func (s *sqlMetaStore) SaveDocument(ctx context.Context, doc *types.Document) er
 	return nil
 }
 
-func (s *sqlMetaStore) ListDocument(ctx context.Context, filter types.DocFilter) ([]*types.Document, error) {
+func (s *sqlMetaStore) ListDocument(ctx context.Context, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListDocument").End()
 	docList := make([]db.Document, 0)
 	query := s.WithNamespace(ctx)
 	if page := types.GetPagination(ctx); page != nil {
 		query = query.Offset(page.Offset()).Limit(page.Limit())
 	}
-	if filter.ParentID > 0 {
-		query = query.Where("parent_entry_id = ?", filter.ParentID)
-	}
-	if filter.Marked != nil {
-		query = query.Where("marked = ?", *filter.Marked)
-	}
-	if filter.Unread != nil {
-		query = query.Where("unread = ?", *filter.Unread)
-	}
-	res := query.Order("created_at DESC").Find(&docList)
+	res := docOrder(docQueryFilter(query, filter), order).Find(&docList)
 	if res.Error != nil {
 		return nil, db.SqlError2Error(res.Error)
 	}
@@ -2309,8 +2300,78 @@ func queryFilter(tx *gorm.DB, filter types.Filter, scopeIds []int64) *gorm.DB {
 	if filter.Kind != "" {
 		tx = tx.Where("kind = ?", filter.Kind)
 	}
-	if filter.IsGroup {
-		tx = tx.Where("is_group = ?", filter.IsGroup)
+	if filter.IsGroup != nil {
+		tx = tx.Where("is_group = ?", *filter.IsGroup)
+	}
+	if filter.CreatedAtStart != nil {
+		tx = tx.Where("created_at >= ?", *filter.CreatedAtStart)
+	}
+	if filter.CreatedAtEnd != nil {
+		tx = tx.Where("created_at < ?", *filter.CreatedAtEnd)
+	}
+	if filter.ModifiedAtStart != nil {
+		tx = tx.Where("modified_at >= ?", *filter.ModifiedAtStart)
+	}
+	if filter.ModifiedAtEnd != nil {
+		tx = tx.Where("modified_at < ?", *filter.ModifiedAtEnd)
+	}
+	if filter.FuzzyName != "" {
+		tx = tx.Where("name LIKE ?", "%"+filter.FuzzyName+"%")
+	}
+	return tx
+}
+
+func enOrder(tx *gorm.DB, order *types.EntryOrder) *gorm.DB {
+	if order != nil {
+		orderStr := order.Order.String()
+		if order.Desc {
+			orderStr += " DESC"
+		}
+		tx = tx.Order(orderStr)
+	}
+	return tx
+}
+
+func docQueryFilter(tx *gorm.DB, filter types.DocFilter) *gorm.DB {
+	if filter.ParentID > 0 {
+		tx = tx.Where("parent_entry_id = ?", filter.ParentID)
+	}
+	if filter.Marked != nil {
+		tx = tx.Where("marked = ?", *filter.Marked)
+	}
+	if filter.Unread != nil {
+		tx = tx.Where("unread = ?", *filter.Unread)
+	}
+	if filter.Source != "" {
+		tx = tx.Where("source = ?", filter.Source)
+	}
+	if filter.CreatedAtStart != nil {
+		tx = tx.Where("created_at >= ?", *filter.CreatedAtStart)
+	}
+	if filter.CreatedAtEnd != nil {
+		tx = tx.Where("created_at < ?", *filter.CreatedAtEnd)
+	}
+	if filter.ChangedAtStart != nil {
+		tx = tx.Where("changed_at >= ?", *filter.ChangedAtStart)
+	}
+	if filter.ChangedAtEnd != nil {
+		tx = tx.Where("changed_at < ?", *filter.ChangedAtEnd)
+	}
+	if filter.FuzzyName != "" {
+		tx = tx.Where("name LIKE ?", "%"+filter.FuzzyName+"%")
+	}
+	return tx
+}
+
+func docOrder(tx *gorm.DB, order *types.DocumentOrder) *gorm.DB {
+	if order != nil {
+		orderStr := order.Order.String()
+		if order.Desc {
+			orderStr += " DESC"
+		}
+		tx = tx.Order(orderStr)
+	} else {
+		tx = tx.Order("created_at DESC")
 	}
 	return tx
 }

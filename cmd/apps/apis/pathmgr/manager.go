@@ -77,7 +77,7 @@ func (m *PathManager) ListEntry(ctx context.Context, dirPath string) ([]*types.M
 	if !en.IsGroup {
 		return nil, types.ErrNoGroup
 	}
-	return m.ctrl.ListEntryChildren(ctx, en.ID)
+	return m.ctrl.ListEntryChildren(ctx, en.ID, nil, types.Filter{})
 }
 
 func (m *PathManager) FindParentEntry(ctx context.Context, entryPath string) (*types.Metadata, error) {
@@ -203,7 +203,7 @@ func (m *PathManager) RemoveAll(ctx context.Context, entryPath string, recursion
 		if !en.IsGroup {
 			return nil
 		}
-		children, err := m.ctrl.ListEntryChildren(ctx, en.ID)
+		children, err := m.ctrl.ListEntryChildren(ctx, en.ID, nil, types.Filter{})
 		if err != nil {
 			return err
 		}

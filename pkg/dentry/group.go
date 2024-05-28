@@ -37,7 +37,7 @@ type Group interface {
 	CreateEntry(ctx context.Context, attr types.EntryAttr) (*types.Metadata, error)
 	UpdateEntry(ctx context.Context, entry *types.Metadata) error
 	RemoveEntry(ctx context.Context, entryID int64) error
-	ListChildren(ctx context.Context, filters ...types.Filter) ([]*types.Metadata, error)
+	ListChildren(ctx context.Context, order *types.EntryOrder, filters ...types.Filter) ([]*types.Metadata, error)
 }
 
 type emptyGroup struct{}
@@ -60,7 +60,7 @@ func (e emptyGroup) RemoveEntry(ctx context.Context, enId int64) error {
 	return types.ErrNoAccess
 }
 
-func (e emptyGroup) ListChildren(ctx context.Context, filters ...types.Filter) ([]*types.Metadata, error) {
+func (e emptyGroup) ListChildren(ctx context.Context, order *types.EntryOrder, filters ...types.Filter) ([]*types.Metadata, error) {
 	return make([]*types.Metadata, 0), nil
 }
 
@@ -193,9 +193,9 @@ func (g *stdGroup) RemoveEntry(ctx context.Context, entryId int64) error {
 	return nil
 }
 
-func (g *stdGroup) ListChildren(ctx context.Context, filters ...types.Filter) ([]*types.Metadata, error) {
+func (g *stdGroup) ListChildren(ctx context.Context, order *types.EntryOrder, filters ...types.Filter) ([]*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.ListChildren").End()
-	it, err := g.store.ListEntryChildren(ctx, g.entryID, filters...)
+	it, err := g.store.ListEntryChildren(ctx, g.entryID, order, filters...)
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +221,7 @@ type dynamicGroup struct {
 }
 
 func (d *dynamicGroup) FindEntry(ctx context.Context, name string) (*types.Metadata, error) {
-	children, err := d.ListChildren(ctx)
+	children, err := d.ListChildren(ctx, nil, types.Filter{})
 	if err != nil {
 		return nil, err
 	}
@@ -252,8 +252,8 @@ func (d *dynamicGroup) RemoveEntry(ctx context.Context, entryID int64) error {
 	return d.std.RemoveEntry(ctx, entryID)
 }
 
-func (d *dynamicGroup) ListChildren(ctx context.Context, filters ...types.Filter) ([]*types.Metadata, error) {
-	children, err := d.std.ListChildren(ctx)
+func (d *dynamicGroup) ListChildren(ctx context.Context, order *types.EntryOrder, filters ...types.Filter) ([]*types.Metadata, error) {
+	children, err := d.std.ListChildren(ctx, order, filters...)
 	if err != nil {
 		d.logger.Errorw("list static children failed", "err", err)
 		return nil, err
@@ -285,7 +285,7 @@ type extGroup struct {
 }
 
 func (e *extGroup) FindEntry(ctx context.Context, name string) (*types.Metadata, error) {
-	children, err := e.ListChildren(ctx)
+	children, err := e.ListChildren(ctx, nil, types.Filter{})
 	if err != nil {
 		return nil, err
 	}
@@ -349,7 +349,7 @@ func (e *extGroup) RemoveEntry(ctx context.Context, entryId int64) error {
 	return e.entry.removeChild(entryId)
 }
 
-func (e *extGroup) ListChildren(ctx context.Context, filters ...types.Filter) ([]*types.Metadata, error) {
+func (e *extGroup) ListChildren(ctx context.Context, order *types.EntryOrder, filters ...types.Filter) ([]*types.Metadata, error) {
 	actualChild, err := e.mirror.ListChildren(ctx, e.entry.path)
 	if err != nil {
 		return nil, err

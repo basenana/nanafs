@@ -38,8 +38,16 @@ func ContentTrim(contentType, content string) string {
 func GenerateContentSubContent(content string) string {
 	content = ContentTrim("html", content)
 	subContents := strings.Split(content, "\n")
-	if len(subContents) < 5 {
-		return strings.Join(subContents, "\n")
+	contents := make([]string, 0)
+	i := 0
+	for _, subContent := range subContents {
+		if subContent != "" {
+			contents = append(contents, subContent)
+			i++
+			if i >= 3 {
+				break
+			}
+		}
 	}
-	return strings.Join(subContents[:5], "\n")
+	return strings.Join(contents, "")
 }

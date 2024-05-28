@@ -253,18 +253,42 @@ func (s *services) AccessToken(ctx context.Context, request *AccessTokenRequest)
 
 func (s *services) ListDocuments(ctx context.Context, request *ListDocumentsRequest) (*ListDocumentsResponse, error) {
 	filter := types.DocFilter{ParentID: request.ParentID}
-	if request.Marked {
-		filter.Marked = &request.Marked
-	}
-	if request.Unread {
-		filter.Unread = &request.Unread
+	if request.Filter != nil {
+		filter.FuzzyName = request.Filter.FuzzyName
+		filter.Source = request.Filter.Source
+		if request.Filter.Marked {
+			filter.Marked = &request.Filter.Marked
+		}
+		if request.Filter.Unread {
+			filter.Unread = &request.Filter.Unread
+		}
+		if request.Filter.CreatedAtStart != nil {
+			createdStart := request.Filter.CreatedAtStart.AsTime()
+			filter.CreatedAtStart = &createdStart
+		}
+		if request.Filter.CreatedAtEnd != nil {
+			t := request.Filter.CreatedAtEnd.AsTime()
+			filter.CreatedAtEnd = &t
+		}
+		if request.Filter.ChangedAtStart != nil {
+			t := request.Filter.ChangedAtStart.AsTime()
+			filter.ChangedAtStart = &t
+		}
+		if request.Filter.ChangedAtEnd != nil {
+			t := request.Filter.ChangedAtEnd.AsTime()
+			filter.ChangedAtEnd = &t
+		}
 	}
 	if request.Pagination != nil {
 		ctx = types.WithPagination(ctx, types.NewPagination(request.Pagination.Page, request.Pagination.PageSize))
 	} else {
 		ctx = types.WithPagination(ctx, types.NewPagination(1, 20))
 	}
-	docList, err := s.ctrl.ListDocuments(ctx, filter)
+	order := types.DocumentOrder{
+		Order: types.DocOrder(request.Order),
+		Desc:  request.OrderDesc,
+	}
+	docList, err := s.ctrl.ListDocuments(ctx, filter, &order)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "filter document failed")
 	}
@@ -571,7 +595,42 @@ func (s *services) ListGroupChildren(ctx context.Context, request *ListGroupChil
 	if request.Pagination != nil {
 		ctx = types.WithPagination(ctx, types.NewPagination(request.Pagination.Page, request.Pagination.PageSize))
 	}
-	children, err := s.ctrl.ListEntryChildren(ctx, request.ParentID)
+	filter := types.Filter{}
+	if request.Filter != nil {
+		filter.FuzzyName = request.Filter.FuzzyName
+		filter.Kind = types.Kind(request.Filter.Kind)
+		t := true
+		f := false
+		switch request.Filter.IsGroup {
+		case EntryFilter_All:
+			filter.IsGroup = nil
+		case EntryFilter_Group:
+			filter.IsGroup = &t
+		case EntryFilter_File:
+			filter.IsGroup = &f
+		}
+		if request.Filter.CreatedAtStart != nil {
+			createdStart := request.Filter.CreatedAtStart.AsTime()
+			filter.CreatedAtStart = &createdStart
+		}
+		if request.Filter.CreatedAtEnd != nil {
+			ct := request.Filter.CreatedAtEnd.AsTime()
+			filter.CreatedAtEnd = &ct
+		}
+		if request.Filter.ModifiedAtStart != nil {
+			ct := request.Filter.ModifiedAtStart.AsTime()
+			filter.ModifiedAtStart = &ct
+		}
+		if request.Filter.ModifiedAtEnd != nil {
+			ct := request.Filter.ModifiedAtEnd.AsTime()
+			filter.ModifiedAtEnd = &ct
+		}
+	}
+	order := types.EntryOrder{
+		Order: types.EnOrder(request.Order),
+		Desc:  request.OrderDesc,
+	}
+	children, err := s.ctrl.ListEntryChildren(ctx, request.ParentID, &order, filter)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "list children failed")
 	}

@@ -18,11 +18,13 @@ package dentry
 
 import (
 	"context"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("TestManageGroupEntry", func() {
@@ -86,7 +88,7 @@ var _ = Describe("TestManageGroupEntry", func() {
 		It("list file1 & file3 should be succeed", func() {
 			grp, err := entryManager.OpenGroup(context.TODO(), group1.ID)
 			Expect(err).Should(BeNil())
-			entries, err := grp.ListChildren(context.TODO())
+			entries, err := grp.ListChildren(context.TODO(), nil, types.Filter{})
 			Expect(err).Should(BeNil())
 			fileNames := map[string]bool{}
 			for _, en := range entries {
@@ -204,7 +206,7 @@ var _ = Describe("TestDynamicGroupEntry", func() {
 			Expect(err).Should(BeNil())
 			Expect(smtGrp).ShouldNot(BeNil())
 
-			children, err := smtGrp.ListChildren(ctx)
+			children, err := smtGrp.ListChildren(ctx, nil, types.Filter{})
 			Expect(err).Should(BeNil())
 			Expect(len(children)).ShouldNot(Equal(3))
 		})
@@ -317,7 +319,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			Expect(err).Should(BeNil())
 			Expect(extGrp).ShouldNot(BeNil())
 
-			child, err := extGrp.ListChildren(context.TODO())
+			child, err := extGrp.ListChildren(context.TODO(), nil, types.Filter{})
 			Expect(err).Should(BeNil())
 			Expect(len(child)).Should(Equal(2))
 
@@ -336,7 +338,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			Expect(err).Should(BeNil())
 			Expect(extGrp).ShouldNot(BeNil())
 
-			child, err := extGrp.ListChildren(context.TODO())
+			child, err := extGrp.ListChildren(context.TODO(), nil, types.Filter{})
 			Expect(err).Should(BeNil())
 			Expect(len(child)).Should(Equal(1))
 
@@ -399,7 +401,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			Expect(err).Should(BeNil())
 			Expect(extGrp).ShouldNot(BeNil())
 
-			child, err := extGrp.ListChildren(context.TODO())
+			child, err := extGrp.ListChildren(context.TODO(), nil, types.Filter{})
 			Expect(err).Should(BeNil())
 
 			need := map[string]struct{}{"file1.yaml": {}}
@@ -420,7 +422,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			Expect(err).Should(BeNil())
 			Expect(extGrp).ShouldNot(BeNil())
 
-			child, err := extGrp.ListChildren(context.TODO())
+			child, err := extGrp.ListChildren(context.TODO(), nil, types.Filter{})
 			Expect(err).Should(BeNil())
 
 			need := map[string]struct{}{"file1.yaml": {}, "sync_file1.yaml": {}}
@@ -440,7 +442,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			Expect(err).Should(BeNil())
 			Expect(extGrp).ShouldNot(BeNil())
 
-			child, err := extGrp.ListChildren(context.TODO())
+			child, err := extGrp.ListChildren(context.TODO(), nil, types.Filter{})
 			Expect(err).Should(BeNil())
 
 			need := map[string]struct{}{"file1.yaml": {}, "sync_file1.yaml": {}, "sync_file2.yaml": {}}
@@ -457,7 +459,7 @@ var _ = Describe("TestExtGroupEntry", func() {
 			Expect(err).Should(BeNil())
 			Expect(extGrp).ShouldNot(BeNil())
 
-			child, err := extGrp.ListChildren(context.TODO())
+			child, err := extGrp.ListChildren(context.TODO(), nil, types.Filter{})
 			Expect(err).Should(BeNil())
 
 			need := map[string]struct{}{"file1.yaml": {}, "sync_file1.yaml": {}}

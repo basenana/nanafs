@@ -16,15 +16,22 @@
 
 package types
 
+import "time"
+
 type Filter struct {
-	ID        int64
-	Name      string
-	ParentID  int64
-	RefID     int64
-	Kind      Kind
-	Namespace string
-	Label     LabelMatch
-	IsGroup   bool
+	ID              int64
+	Name            string
+	FuzzyName       string
+	ParentID        int64
+	RefID           int64
+	Kind            Kind
+	Namespace       string
+	Label           LabelMatch
+	IsGroup         *bool
+	CreatedAtStart  *time.Time
+	CreatedAtEnd    *time.Time
+	ModifiedAtStart *time.Time
+	ModifiedAtEnd   *time.Time
 }
 
 type JobFilter struct {

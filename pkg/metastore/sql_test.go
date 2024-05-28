@@ -18,11 +18,13 @@ package metastore
 
 import (
 	"context"
-	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/types"
+	"path"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"path"
+
+	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 var _ = Describe("TestSqliteObjectOperation", func() {
@@ -143,7 +145,7 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 		})
 
 		It("list new file object should be succeed", func() {
-			chIt, err := sqlite.ListEntryChildren(context.TODO(), group1.ID)
+			chIt, err := sqlite.ListEntryChildren(context.TODO(), group1.ID, nil, types.Filter{})
 			Expect(err).Should(BeNil())
 
 			chList := make([]*types.Metadata, 0)
@@ -173,7 +175,7 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 			err = sqlite.ChangeEntryParent(context.TODO(), targetEn.ID, group2.ID, targetEn.Name, types.ChangeParentAttr{})
 			Expect(err).Should(BeNil())
 
-			chIt, err := sqlite.ListEntryChildren(context.TODO(), group2.ID)
+			chIt, err := sqlite.ListEntryChildren(context.TODO(), group2.ID, nil, types.Filter{})
 			Expect(err).Should(BeNil())
 
 			chList := make([]*types.Metadata, 0)
@@ -194,7 +196,7 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 			}
 			Expect(len(chList)).Should(Equal(0))
 
-			chIt, err = sqlite.ListEntryChildren(context.TODO(), group1.ID)
+			chIt, err = sqlite.ListEntryChildren(context.TODO(), group1.ID, nil, types.Filter{})
 			Expect(err).Should(BeNil())
 
 			chList = make([]*types.Metadata, 0)

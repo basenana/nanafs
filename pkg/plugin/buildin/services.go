@@ -18,6 +18,7 @@ package buildin
 
 import (
 	"context"
+
 	"github.com/basenana/nanafs/pkg/types"
 )
 
@@ -33,7 +34,7 @@ type ExtendFieldManager interface {
 }
 
 type DocumentManager interface {
-	ListDocuments(ctx context.Context, filter types.DocFilter) ([]*types.Document, error)
+	ListDocuments(ctx context.Context, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error)
 	QueryDocuments(ctx context.Context, query string) ([]*types.Document, error)
 	SaveDocument(ctx context.Context, doc *types.Document) error
 	GetDocument(ctx context.Context, id int64) (*types.Document, error)
