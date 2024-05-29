@@ -530,6 +530,14 @@ func (i instrumentalStore) GetRoom(ctx context.Context, id int64) (*types.Room, 
 	return room, err
 }
 
+func (i instrumentalStore) FindRoom(ctx context.Context, entryId int64) (*types.Room, error) {
+	const operation = "find_room"
+	defer logOperationLatency(operation, time.Now())
+	room, err := i.store.FindRoom(ctx, entryId)
+	logOperationError(operation, err)
+	return room, err
+}
+
 func (i instrumentalStore) DeleteRoom(ctx context.Context, id int64) error {
 	const operation = "delete_room"
 	defer logOperationLatency(operation, time.Now())

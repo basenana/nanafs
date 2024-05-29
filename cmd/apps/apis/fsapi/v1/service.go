@@ -103,25 +103,26 @@ func (s *services) OpenRoom(ctx context.Context, request *OpenRoomRequest) (*Ope
 	if request.EntryID == 0 {
 		return nil, status.Error(codes.InvalidArgument, "entry id is empty")
 	}
-	if request.RoomID == 0 {
-		// need create a new one
-		prompt := ""
-		if request.Option != nil {
-			prompt = request.Option.Prompt
-		}
-		room, err := s.ctrl.CreateRoom(ctx, request.EntryID, prompt)
-		if err != nil {
-			return nil, status.Error(common.FsApiError(err), "create room failed")
-		}
-		return &OpenRoomResponse{
-			Room: &RoomInfo{Id: room.ID, EntryID: room.EntryId, Namespace: room.Namespace, Title: room.Title, Prompt: room.Prompt, CreatedAt: timestamppb.New(room.CreatedAt)},
-		}, nil
-	}
 
-	room, err := s.ctrl.GetRoom(ctx, request.RoomID)
+	room, err := s.ctrl.FindRoom(ctx, request.EntryID)
 	if err != nil {
+		if err == types.ErrNotFound {
+			// need create a new one
+			prompt := ""
+			if request.Option != nil {
+				prompt = request.Option.Prompt
+			}
+			room, err := s.ctrl.CreateRoom(ctx, request.EntryID, prompt)
+			if err != nil {
+				return nil, status.Error(common.FsApiError(err), "create room failed")
+			}
+			return &OpenRoomResponse{
+				Room: &RoomInfo{Id: room.ID, EntryID: room.EntryId, Namespace: room.Namespace, Title: room.Title, Prompt: room.Prompt, CreatedAt: timestamppb.New(room.CreatedAt)},
+			}, nil
+		}
 		return nil, status.Error(common.FsApiError(err), "get room failed")
 	}
+
 	msg := make([]*RoomMessage, 0, len(room.Messages))
 	for _, m := range room.Messages {
 		msg = append(msg, &RoomMessage{

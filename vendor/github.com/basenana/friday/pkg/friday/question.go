@@ -123,12 +123,12 @@ func (f *Friday) Chat(res *ChatState) *Friday {
 }
 
 func (f *Friday) generateSystemInfo() string {
-	systemTemplate := "基于以下内容，简洁和专业的来回答用户的问题。答案请使用中文。\n"
+	systemTemplate := "你是一位知识渊博的文字工作者，负责帮用户阅读文章，基于以下内容，简洁和专业的来回答用户的问题。答案请使用中文。\n"
 	if f.statement.Summary != "" {
 		systemTemplate += "\n这是文章简介: {{ .Summary }}\n"
 	}
 	if f.statement.Info != "" {
-		systemTemplate += "\n这是已知内容: {{ .Info }}\n"
+		systemTemplate += "\n这是相关的已知内容: {{ .Info }}\n"
 	}
 	if f.statement.HistorySummary != "" {
 		systemTemplate += "\n这是历史聊天总结作为前情提要: {{ .HistorySummary }}\n"

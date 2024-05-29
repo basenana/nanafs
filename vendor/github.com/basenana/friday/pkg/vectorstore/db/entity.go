@@ -17,7 +17,11 @@
 package db
 
 import (
+	"context"
+
 	"gorm.io/gorm"
+
+	"github.com/basenana/friday/pkg/models"
 )
 
 type Entity struct {
@@ -30,4 +34,12 @@ func NewDbEntity(db *gorm.DB, migrate func(db *gorm.DB) error) (*Entity, error) 
 		return nil, err
 	}
 	return ent, nil
+}
+
+func (e *Entity) WithNamespace(ctx context.Context) *gorm.DB {
+	ns := models.GetNamespace(ctx)
+	if ns.String() == models.DefaultNamespaceValue {
+		return e.WithContext(ctx)
+	}
+	return e.WithContext(ctx).Where("namespace = ?", ns.String())
 }

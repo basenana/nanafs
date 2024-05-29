@@ -117,7 +117,7 @@ func (f *Friday) WithContext(ctx context.Context) *Friday {
 	return t
 }
 
-func (f *Friday) Namespace(namespace string) *Friday {
-	f.statement.context = context.WithValue(f.statement.context, "namespace", namespace)
+func (f *Friday) Namespace(namespace *models.Namespace) *Friday {
+	f.statement.context = models.WithNamespace(f.statement.context, namespace)
 	return f
 }
