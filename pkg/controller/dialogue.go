@@ -63,6 +63,15 @@ func (c *controller) GetRoom(ctx context.Context, id int64) (*types.Room, error)
 	return result, nil
 }
 
+func (c *controller) FindRoom(ctx context.Context, entryId int64) (*types.Room, error) {
+	result, err := c.dialogue.FindRoom(ctx, entryId)
+	if err != nil {
+		c.logger.Errorw("find room failed", "err", err)
+		return nil, err
+	}
+	return result, nil
+}
+
 func (c *controller) DeleteRoom(ctx context.Context, id int64) error {
 	err := c.dialogue.DeleteRoom(ctx, id)
 	if err != nil {
@@ -88,7 +97,13 @@ func (c *controller) ClearRoom(ctx context.Context, id int64) error {
 }
 
 func (c *controller) CreateRoomMessage(ctx context.Context, roomID int64, sender, msg string, sendAt time.Time) (*types.RoomMessage, error) {
+	room, err := c.dialogue.GetRoom(ctx, roomID)
+	if err != nil {
+		c.logger.Errorw("get room failed", "err", err)
+		return nil, err
+	}
 	result, err := c.dialogue.SaveMessage(ctx, &types.RoomMessage{
+		Namespace: room.Namespace,
 		RoomID:    roomID,
 		Sender:    sender,
 		Message:   msg,
@@ -183,11 +198,12 @@ func (c *controller) ChatInRoom(ctx context.Context, roomId int64, newMsg string
 
 			// save model message
 			response, err := c.dialogue.SaveMessage(ctx, &types.RoomMessage{
-				ID:      responseMsgId,
-				RoomID:  roomId,
-				Sender:  model,
-				Message: respMsg,
-				SendAt:  time.Now(),
+				ID:        responseMsgId,
+				Namespace: room.Namespace,
+				RoomID:    roomId,
+				Sender:    model,
+				Message:   respMsg,
+				SendAt:    time.Now(),
 			})
 			if err != nil {
 				c.logger.Errorw("save message failed", "err", err)

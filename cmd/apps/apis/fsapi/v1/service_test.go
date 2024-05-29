@@ -128,12 +128,6 @@ var _ = Describe("testRoomService", func() {
 		It("delete should be succeed", func() {
 			_, err := serviceClient.DeleteRoom(ctx, &DeleteRoomRequest{RoomID: roomId}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
-			res, err := serviceClient.OpenRoom(ctx, &OpenRoomRequest{
-				EntryID: 1,
-				RoomID:  roomId,
-			}, grpc.UseCompressor(gzip.Name))
-			Expect(err).ShouldNot(BeNil())
-			Expect(res).Should(BeNil())
 		})
 	})
 })

@@ -87,6 +87,7 @@ type Controller interface {
 	ListRooms(ctx context.Context, entryId int64) ([]*types.Room, error)
 	CreateRoom(ctx context.Context, entryId int64, prompt string) (*types.Room, error)
 	GetRoom(ctx context.Context, id int64) (*types.Room, error)
+	FindRoom(ctx context.Context, entryId int64) (*types.Room, error)
 	UpdateRoom(ctx context.Context, roomId int64, prompt string) error
 	DeleteRoom(ctx context.Context, id int64) error
 	ClearRoom(ctx context.Context, id int64) error

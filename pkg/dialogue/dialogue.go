@@ -35,6 +35,7 @@ type Manager interface {
 	CreateRoom(ctx context.Context, entryId int64, prompt string) (*types.Room, error)
 	UpdateRoom(ctx context.Context, room *types.Room) error
 	GetRoom(ctx context.Context, id int64) (*types.Room, error)
+	FindRoom(ctx context.Context, entryId int64) (*types.Room, error)
 	DeleteRoom(ctx context.Context, id int64) error
 	DeleteRoomMessages(ctx context.Context, roomId int64) error
 	SaveMessage(ctx context.Context, roomMessage *types.RoomMessage) (*types.RoomMessage, error)
@@ -109,6 +110,19 @@ func (m *manager) GetRoom(ctx context.Context, id int64) (*types.Room, error) {
 	return room, nil
 }
 
+func (m *manager) FindRoom(ctx context.Context, entryId int64) (*types.Room, error) {
+	room, err := m.recorder.FindRoom(ctx, entryId)
+	if err != nil {
+		return nil, err
+	}
+	msgs, err := m.recorder.ListRoomMessage(ctx, room.ID)
+	if err != nil {
+		return nil, err
+	}
+	room.Messages = msgs
+	return room, nil
+}
+
 func (m *manager) DeleteRoom(ctx context.Context, id int64) error {
 	err := m.recorder.DeleteRoomMessages(ctx, id)
 	if err != nil {
@@ -132,7 +146,6 @@ func (m *manager) SaveMessage(ctx context.Context, roomMessage *types.RoomMessag
 
 	if crtMsg == nil {
 		roomMessage.CreatedAt = time.Now()
-		roomMessage.Namespace = types.GetNamespace(ctx).String()
 		return roomMessage, m.recorder.SaveRoomMessage(ctx, roomMessage)
 	}
 

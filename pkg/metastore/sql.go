@@ -410,6 +410,12 @@ func (s *sqliteMetaStore) GetRoom(ctx context.Context, id int64) (*types.Room, e
 	return s.dbStore.GetRoom(ctx, id)
 }
 
+func (s *sqliteMetaStore) FindRoom(ctx context.Context, entryId int64) (*types.Room, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.FindRoom(ctx, entryId)
+}
+
 func (s *sqliteMetaStore) DeleteRoom(ctx context.Context, id int64) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
@@ -2060,6 +2066,16 @@ func (s *sqlMetaStore) GetRoom(ctx context.Context, id int64) (*types.Room, erro
 	defer trace.StartRegion(ctx, "metastore.sql.GetRoom").End()
 	room := &db.Room{}
 	res := s.WithNamespace(ctx).Where("id = ?", id).First(room)
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
+	}
+	return room.To()
+}
+
+func (s *sqlMetaStore) FindRoom(ctx context.Context, entryId int64) (*types.Room, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.FindRoom").End()
+	room := &db.Room{}
+	res := s.WithNamespace(ctx).Where("entry_id = ?", entryId).First(room)
 	if res.Error != nil {
 		return nil, db.SqlError2Error(res.Error)
 	}

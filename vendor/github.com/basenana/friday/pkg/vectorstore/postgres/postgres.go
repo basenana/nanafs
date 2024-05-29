@@ -128,20 +128,14 @@ func (p *PostgresClient) Store(ctx context.Context, element *models.Element, ext
 }
 
 func (p *PostgresClient) Search(ctx context.Context, query models.DocQuery, vectors []float32, k int) ([]*models.Doc, error) {
-	namespace := ctx.Value("namespace")
-	if namespace == nil {
-		namespace = defaultNamespace
-	}
 	vectors64 := make([]float64, 0)
 	for _, v := range vectors {
 		vectors64 = append(vectors64, float64(v))
 	}
 	// query from db
 	existIndexes := make([]Index, 0)
-	var res *gorm.DB
 
-	res = p.dEntity.WithContext(ctx)
-	res = res.Where("namespace = ?", namespace)
+	res := p.dEntity.WithNamespace(ctx)
 	if query.ParentId != 0 {
 		res = res.Where("parent_entry_id = ?", query.ParentId)
 	}
@@ -183,17 +177,12 @@ func (p *PostgresClient) Search(ctx context.Context, query models.DocQuery, vect
 }
 
 func (p *PostgresClient) Get(ctx context.Context, oid int64, name string, group int) (*models.Element, error) {
-	namespace := ctx.Value("namespace")
-	if namespace == nil {
-		namespace = defaultNamespace
-	}
 	vModel := &Index{}
-	var res *gorm.DB
-	if oid == 0 {
-		res = p.dEntity.WithContext(ctx).Where("namespace = ? AND name = ? AND idx_group = ?", namespace, name, group).First(vModel)
-	} else {
-		res = p.dEntity.WithContext(ctx).Where("namespace = ? AND name = ? AND oid = ? AND idx_group = ?", namespace, name, oid, group).First(vModel)
+	tx := p.dEntity.WithNamespace(ctx).Where("name = ? AND idx_group = ?", name, group)
+	if oid != 0 {
+		tx = tx.Where("oid = ?", oid)
 	}
+	res := tx.First(vModel)
 	if res.Error != nil {
 		if res.Error == gorm.ErrRecordNotFound {
 			return nil, nil
@@ -232,4 +221,12 @@ func (d distances) Less(i, j int) bool {
 
 func (d distances) Swap(i, j int) {
 	d[i], d[j] = d[j], d[i]
+}
+
+func namespaceQuery(ctx context.Context, tx *gorm.DB) *gorm.DB {
+	ns := models.GetNamespace(ctx)
+	if ns.String() == models.DefaultNamespaceValue {
+		return tx
+	}
+	return tx.Where("namespace = ?", ns.String())
 }

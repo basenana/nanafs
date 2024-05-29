@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.26
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.36.0
 	github.com/aws/smithy-go v1.13.5
-	github.com/basenana/friday v0.0.0-20240514065549-962b40b3faf1
+	github.com/basenana/friday v0.0.0-20240529034549-d8f6efb8f215
 	github.com/blevesearch/bleve/v2 v2.4.0
 	github.com/bluele/gcache v0.0.2
 	github.com/getsentry/sentry-go v0.22.0
