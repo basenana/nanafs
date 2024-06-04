@@ -170,6 +170,14 @@ func (i instrumentalStore) ListEntryChildren(ctx context.Context, parentId int64
 	return it, err
 }
 
+func (i instrumentalStore) ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) (EntryIterator, error) {
+	const operation = "list_document_parents"
+	defer logOperationLatency(operation, time.Now())
+	it, err := i.store.ListDocumentGroups(ctx, parentId, filter)
+	logOperationError(operation, err)
+	return it, err
+}
+
 func (i instrumentalStore) FilterEntries(ctx context.Context, filter types.Filter) (EntryIterator, error) {
 	const operation = "filter_entries"
 	defer logOperationLatency(operation, time.Now())

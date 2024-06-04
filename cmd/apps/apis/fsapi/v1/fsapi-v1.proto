@@ -239,6 +239,7 @@ message DeletePropertyResponse {
 
 service Document {
   rpc ListDocuments (ListDocumentsRequest) returns (ListDocumentsResponse) {}
+  rpc GetDocumentParents (GetDocumentParentsRequest) returns (GetDocumentParentsResponse) {}
   rpc GetDocumentDetail (GetDocumentDetailRequest) returns (GetDocumentDetailResponse) {}
   rpc UpdateDocument (UpdateDocumentRequest) returns (UpdateDocumentResponse) {}
   rpc SearchDocuments (SearchDocumentsRequest) returns (SearchDocumentsResponse) {}
@@ -270,6 +271,15 @@ message ListDocumentsRequest {
   DocumentOrder order = 11;
   bool OrderDesc = 12;
   DocumentFilter filter = 13;
+}
+
+message GetDocumentParentsRequest {
+  int64 parentId = 1;
+  DocumentFilter filter = 10;
+}
+
+message GetDocumentParentsResponse {
+  repeated EntryInfo entries = 1;
 }
 
 message ListDocumentsResponse {

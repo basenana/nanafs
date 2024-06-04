@@ -56,6 +56,7 @@ type DEntry interface {
 	GetEntryUri(ctx context.Context, uri string) (*types.EntryUri, error)
 
 	ListEntryChildren(ctx context.Context, parentId int64, order *types.EntryOrder, filters ...types.Filter) (EntryIterator, error)
+	ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) (EntryIterator, error)
 	FilterEntries(ctx context.Context, filter types.Filter) (EntryIterator, error)
 
 	Open(ctx context.Context, id int64, attr types.OpenAttr) (*types.Metadata, error)

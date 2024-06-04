@@ -59,6 +59,7 @@ type Controller interface {
 	MirrorEntry(ctx context.Context, srcEntryId, dstParentId int64, attr types.EntryAttr) (*types.Metadata, error)
 	ListEntryChildren(ctx context.Context, entryId int64, order *types.EntryOrder, filters ...types.Filter) ([]*types.Metadata, error)
 	ChangeEntryParent(ctx context.Context, targetId, oldParentId, newParentId int64, newName string, opt types.ChangeParentAttr) error
+	ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) ([]*types.Metadata, error)
 
 	ListEntryExtendField(ctx context.Context, id int64) (map[string]types.PropertyItem, error)
 	GetEntryExtendField(ctx context.Context, id int64, fKey string) ([]byte, error)

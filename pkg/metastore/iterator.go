@@ -17,11 +17,13 @@
 package metastore
 
 import (
-	"github.com/basenana/nanafs/pkg/metastore/db"
-	"github.com/basenana/nanafs/pkg/types"
-	"gorm.io/gorm"
 	"sync/atomic"
 	"time"
+
+	"gorm.io/gorm"
+
+	"github.com/basenana/nanafs/pkg/metastore/db"
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 type EntryIterator interface {
@@ -39,7 +41,7 @@ type transactionEntryIterator struct {
 }
 
 func newTransactionEntryIterator(tx *gorm.DB, total int64) EntryIterator {
-	it := &transactionEntryIterator{tx: tx.Order("name DESC"), onePage: make([]*types.Metadata, 0)}
+	it := &transactionEntryIterator{tx: tx.Order("object.name DESC"), onePage: make([]*types.Metadata, 0)}
 	it.remain = total
 	return it
 }

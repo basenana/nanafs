@@ -840,10 +840,11 @@ var Properties_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	Document_ListDocuments_FullMethodName     = "/api.v1.Document/ListDocuments"
-	Document_GetDocumentDetail_FullMethodName = "/api.v1.Document/GetDocumentDetail"
-	Document_UpdateDocument_FullMethodName    = "/api.v1.Document/UpdateDocument"
-	Document_SearchDocuments_FullMethodName   = "/api.v1.Document/SearchDocuments"
+	Document_ListDocuments_FullMethodName      = "/api.v1.Document/ListDocuments"
+	Document_GetDocumentParents_FullMethodName = "/api.v1.Document/GetDocumentParents"
+	Document_GetDocumentDetail_FullMethodName  = "/api.v1.Document/GetDocumentDetail"
+	Document_UpdateDocument_FullMethodName     = "/api.v1.Document/UpdateDocument"
+	Document_SearchDocuments_FullMethodName    = "/api.v1.Document/SearchDocuments"
 )
 
 // DocumentClient is the client API for Document service.
@@ -851,6 +852,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type DocumentClient interface {
 	ListDocuments(ctx context.Context, in *ListDocumentsRequest, opts ...grpc.CallOption) (*ListDocumentsResponse, error)
+	GetDocumentParents(ctx context.Context, in *GetDocumentParentsRequest, opts ...grpc.CallOption) (*GetDocumentParentsResponse, error)
 	GetDocumentDetail(ctx context.Context, in *GetDocumentDetailRequest, opts ...grpc.CallOption) (*GetDocumentDetailResponse, error)
 	UpdateDocument(ctx context.Context, in *UpdateDocumentRequest, opts ...grpc.CallOption) (*UpdateDocumentResponse, error)
 	SearchDocuments(ctx context.Context, in *SearchDocumentsRequest, opts ...grpc.CallOption) (*SearchDocumentsResponse, error)
@@ -867,6 +869,15 @@ func NewDocumentClient(cc grpc.ClientConnInterface) DocumentClient {
 func (c *documentClient) ListDocuments(ctx context.Context, in *ListDocumentsRequest, opts ...grpc.CallOption) (*ListDocumentsResponse, error) {
 	out := new(ListDocumentsResponse)
 	err := c.cc.Invoke(ctx, Document_ListDocuments_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *documentClient) GetDocumentParents(ctx context.Context, in *GetDocumentParentsRequest, opts ...grpc.CallOption) (*GetDocumentParentsResponse, error) {
+	out := new(GetDocumentParentsResponse)
+	err := c.cc.Invoke(ctx, Document_GetDocumentParents_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -905,6 +916,7 @@ func (c *documentClient) SearchDocuments(ctx context.Context, in *SearchDocument
 // for forward compatibility
 type DocumentServer interface {
 	ListDocuments(context.Context, *ListDocumentsRequest) (*ListDocumentsResponse, error)
+	GetDocumentParents(context.Context, *GetDocumentParentsRequest) (*GetDocumentParentsResponse, error)
 	GetDocumentDetail(context.Context, *GetDocumentDetailRequest) (*GetDocumentDetailResponse, error)
 	UpdateDocument(context.Context, *UpdateDocumentRequest) (*UpdateDocumentResponse, error)
 	SearchDocuments(context.Context, *SearchDocumentsRequest) (*SearchDocumentsResponse, error)
@@ -916,6 +928,9 @@ type UnimplementedDocumentServer struct {
 
 func (UnimplementedDocumentServer) ListDocuments(context.Context, *ListDocumentsRequest) (*ListDocumentsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDocuments not implemented")
+}
+func (UnimplementedDocumentServer) GetDocumentParents(context.Context, *GetDocumentParentsRequest) (*GetDocumentParentsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetDocumentParents not implemented")
 }
 func (UnimplementedDocumentServer) GetDocumentDetail(context.Context, *GetDocumentDetailRequest) (*GetDocumentDetailResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDocumentDetail not implemented")
@@ -952,6 +967,24 @@ func _Document_ListDocuments_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DocumentServer).ListDocuments(ctx, req.(*ListDocumentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Document_GetDocumentParents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetDocumentParentsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentServer).GetDocumentParents(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Document_GetDocumentParents_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentServer).GetDocumentParents(ctx, req.(*GetDocumentParentsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1020,6 +1053,10 @@ var Document_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListDocuments",
 			Handler:    _Document_ListDocuments_Handler,
+		},
+		{
+			MethodName: "GetDocumentParents",
+			Handler:    _Document_GetDocumentParents_Handler,
 		},
 		{
 			MethodName: "GetDocumentDetail",
