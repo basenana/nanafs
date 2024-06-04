@@ -152,6 +152,12 @@ func (s *sqliteMetaStore) ListEntryChildren(ctx context.Context, parentId int64,
 	return s.dbStore.ListEntryChildren(ctx, parentId, order, filters...)
 }
 
+func (s *sqliteMetaStore) ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) (EntryIterator, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.ListDocumentGroups(ctx, parentId, filter)
+}
+
 func (s *sqliteMetaStore) FilterEntries(ctx context.Context, filter types.Filter) (EntryIterator, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
@@ -921,7 +927,32 @@ func (s *sqlMetaStore) ListEntryChildren(ctx context.Context, parentId int64, or
 		s.logger.Errorw("count children entry failed", "parent", parentId, "err", err)
 		return nil, db.SqlError2Error(err)
 	}
-	return newTransactionEntryIterator(tx, total), nil
+	return newTransactionEntryIterator(tx, "name DESC", total), nil
+}
+
+func (s *sqlMetaStore) ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) (EntryIterator, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.ListDocumentGroups").End()
+	var total int64
+	t := true
+	efilter := types.Filter{IsGroup: &t}
+	if parentId != 0 {
+		filter.ParentID = parentId
+	}
+	tx := queryFilter(s.WithNamespaceOfTable(ctx, "object").Model(&db.Object{}), efilter, nil)
+
+	if page := types.GetPagination(ctx); page != nil {
+		tx = tx.Offset(page.Offset()).Limit(page.Limit())
+	}
+
+	tx = tx.Joins("LEFT JOIN document ON object.id = document.parent_entry_id")
+	tx = docQueryFilter(tx, filter).Distinct()
+
+	res := tx.Count(&total)
+	if err := res.Error; err != nil {
+		s.logger.Errorw("count groups entry failed", "parent", parentId, "err", err)
+		return nil, db.SqlError2Error(err)
+	}
+	return newTransactionEntryIterator(tx, "", total), nil
 }
 
 func (s *sqlMetaStore) FilterEntries(ctx context.Context, filter types.Filter) (EntryIterator, error) {
@@ -936,7 +967,7 @@ func (s *sqlMetaStore) FilterEntries(ctx context.Context, filter types.Filter) (
 			return nil, db.SqlError2Error(err)
 		}
 		if len(scopeIds) == 0 {
-			return newTransactionEntryIterator(s.DB, 0), nil
+			return newTransactionEntryIterator(s.DB, "name DESC", 0), nil
 		}
 	}
 
@@ -950,7 +981,7 @@ func (s *sqlMetaStore) FilterEntries(ctx context.Context, filter types.Filter) (
 		s.logger.Errorw("count filtered entry failed", "filter", filter, "err", err)
 		return nil, db.SqlError2Error(err)
 	}
-	return newTransactionEntryIterator(tx, total), nil
+	return newTransactionEntryIterator(tx, "name DESC", total), nil
 }
 
 func (s *sqlMetaStore) Open(ctx context.Context, id int64, attr types.OpenAttr) (*types.Metadata, error) {
@@ -2177,6 +2208,14 @@ func (s *sqlMetaStore) DeleteRoomMessages(ctx context.Context, roomId int64) err
 	return db.SqlError2Error(err)
 }
 
+func (s *sqlMetaStore) WithNamespaceOfTable(ctx context.Context, table string) *gorm.DB {
+	ns := types.GetNamespace(ctx)
+	if ns.String() == types.DefaultNamespaceValue {
+		return s.WithContext(ctx)
+	}
+	return s.WithContext(ctx).Where(fmt.Sprintf("%s.namespace = ?", table), ns.String())
+}
+
 func (s *sqlMetaStore) WithNamespace(ctx context.Context) *gorm.DB {
 	ns := types.GetNamespace(ctx)
 	if ns.String() == types.DefaultNamespaceValue {
@@ -2350,31 +2389,31 @@ func enOrder(tx *gorm.DB, order *types.EntryOrder) *gorm.DB {
 
 func docQueryFilter(tx *gorm.DB, filter types.DocFilter) *gorm.DB {
 	if filter.ParentID > 0 {
-		tx = tx.Where("parent_entry_id = ?", filter.ParentID)
+		tx = tx.Where("document.parent_entry_id = ?", filter.ParentID)
 	}
 	if filter.Marked != nil {
-		tx = tx.Where("marked = ?", *filter.Marked)
+		tx = tx.Where("document.marked = ?", *filter.Marked)
 	}
 	if filter.Unread != nil {
-		tx = tx.Where("unread = ?", *filter.Unread)
+		tx = tx.Where("document.unread = ?", *filter.Unread)
 	}
 	if filter.Source != "" {
-		tx = tx.Where("source = ?", filter.Source)
+		tx = tx.Where("document.source = ?", filter.Source)
 	}
 	if filter.CreatedAtStart != nil {
-		tx = tx.Where("created_at >= ?", *filter.CreatedAtStart)
+		tx = tx.Where("document.created_at >= ?", *filter.CreatedAtStart)
 	}
 	if filter.CreatedAtEnd != nil {
-		tx = tx.Where("created_at < ?", *filter.CreatedAtEnd)
+		tx = tx.Where("document.created_at < ?", *filter.CreatedAtEnd)
 	}
 	if filter.ChangedAtStart != nil {
-		tx = tx.Where("changed_at >= ?", *filter.ChangedAtStart)
+		tx = tx.Where("document.changed_at >= ?", *filter.ChangedAtStart)
 	}
 	if filter.ChangedAtEnd != nil {
-		tx = tx.Where("changed_at < ?", *filter.ChangedAtEnd)
+		tx = tx.Where("document.changed_at < ?", *filter.ChangedAtEnd)
 	}
 	if filter.FuzzyName != "" {
-		tx = tx.Where("name LIKE ?", "%"+filter.FuzzyName+"%")
+		tx = tx.Where("document.name LIKE ?", "%"+filter.FuzzyName+"%")
 	}
 	return tx
 }

@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"runtime/trace"
 
 	"github.com/mmcdole/gofeed"
 
@@ -36,6 +37,16 @@ func (c *controller) ListDocuments(ctx context.Context, filter types.DocFilter, 
 		return nil, err
 	}
 	return result, nil
+}
+
+func (c *controller) ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) ([]*types.Metadata, error) {
+	defer trace.StartRegion(ctx, "controller.ListDocumentGroups").End()
+	result, err := c.document.ListDocumentGroups(ctx, parentId, filter)
+	if err != nil {
+		c.logger.Errorw("list document parents failed", "parent", parentId, "err", err)
+		return nil, err
+	}
+	return result, err
 }
 
 func (c *controller) GetDocument(ctx context.Context, id int64) (*types.Document, error) {

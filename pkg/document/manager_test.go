@@ -155,6 +155,42 @@ var _ = Describe("testDocumentManage", func() {
 			Expect(err).Should(Equal(types.ErrNotFound))
 		})
 	})
+	Context("test list document groups", func() {
+		var (
+			grp     *types.Metadata
+			grpFile *types.Metadata
+		)
+		It("create group and document should succeed", func() {
+			grp, err = entryMgr.CreateEntry(context.TODO(), root.ID, types.EntryAttr{
+				Name:   "test_list_grp",
+				Kind:   types.GroupKind,
+				Access: accessPermissions,
+			})
+			Expect(err).Should(BeNil())
+			grpFile, err = entryMgr.CreateEntry(context.TODO(), grp.ID, types.EntryAttr{
+				Name:   "test_list_grp_file",
+				Kind:   types.RawKind,
+				Access: accessPermissions,
+			})
+			Expect(err).Should(BeNil())
+
+			f := false
+			err := docManager.SaveDocument(context.TODO(), &types.Document{
+				OID:           grpFile.ID,
+				Name:          "test_list_grp_doc1",
+				ParentEntryID: grp.ID,
+				Unread:        &f,
+			})
+			Expect(err).Should(BeNil())
+
+			groups, err := docManager.ListDocumentGroups(context.TODO(), grp.ID, types.DocFilter{
+				Unread: &f,
+			})
+			Expect(err).Should(BeNil())
+			Expect(len(groups)).Should(Equal(1))
+			Expect(groups[0].ID).Should(Equal(grp.ID))
+		})
+	})
 })
 
 var _ = Describe("TestHandleEvent", func() {

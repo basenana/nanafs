@@ -296,8 +296,6 @@ func (s *services) ListDocuments(ctx context.Context, request *ListDocumentsRequ
 	resp := &ListDocumentsResponse{Documents: make([]*DocumentInfo, 0, len(docList))}
 	for _, doc := range docList {
 		resp.Documents = append(resp.Documents, &DocumentInfo{
-			sizeCache:     0,
-			unknownFields: nil,
 			Id:            doc.ID,
 			Name:          doc.Name,
 			EntryID:       doc.OID,
@@ -310,6 +308,46 @@ func (s *services) ListDocuments(ctx context.Context, request *ListDocumentsRequ
 			CreatedAt:     timestamppb.New(doc.CreatedAt),
 			ChangedAt:     timestamppb.New(doc.ChangedAt),
 		})
+	}
+	return resp, nil
+}
+
+func (s *services) GetDocumentParents(ctx context.Context, request *GetDocumentParentsRequest) (*GetDocumentParentsResponse, error) {
+	filter := types.DocFilter{}
+	if request.Filter != nil {
+		filter.FuzzyName = request.Filter.FuzzyName
+		filter.Source = request.Filter.Source
+		if request.Filter.Marked {
+			filter.Marked = &request.Filter.Marked
+		}
+		if request.Filter.Unread {
+			filter.Unread = &request.Filter.Unread
+		}
+		if request.Filter.CreatedAtStart != nil {
+			createdStart := request.Filter.CreatedAtStart.AsTime()
+			filter.CreatedAtStart = &createdStart
+		}
+		if request.Filter.CreatedAtEnd != nil {
+			t := request.Filter.CreatedAtEnd.AsTime()
+			filter.CreatedAtEnd = &t
+		}
+		if request.Filter.ChangedAtStart != nil {
+			t := request.Filter.ChangedAtStart.AsTime()
+			filter.ChangedAtStart = &t
+		}
+		if request.Filter.ChangedAtEnd != nil {
+			t := request.Filter.ChangedAtEnd.AsTime()
+			filter.ChangedAtEnd = &t
+		}
+	}
+	entries, err := s.ctrl.ListDocumentGroups(ctx, request.ParentId, filter)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "query groups of documents parent failed")
+	}
+
+	resp := &GetDocumentParentsResponse{}
+	for _, en := range entries {
+		resp.Entries = append(resp.Entries, entryInfo(en))
 	}
 	return resp, nil
 }

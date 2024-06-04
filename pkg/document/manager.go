@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime/trace"
 	"sort"
 	"strings"
 	"time"
@@ -52,6 +53,7 @@ type Manager interface {
 	GetDocument(ctx context.Context, id int64) (*types.Document, error)
 	GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error)
 	DeleteDocument(ctx context.Context, id int64) error
+	ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) ([]*types.Metadata, error)
 
 	EnableGroupFeed(ctx context.Context, id int64, feedID string) error
 	DisableGroupFeed(ctx context.Context, id int64) error
@@ -197,6 +199,26 @@ func (m *manager) DeleteDocument(ctx context.Context, id int64) error {
 	}
 	m.publicDocActionEvent(events.ActionTypeDestroy, doc)
 	return nil
+}
+
+func (m *manager) ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) ([]*types.Metadata, error) {
+	defer trace.StartRegion(ctx, "dentry.manager.ListDocumentGroups").End()
+	it, err := m.recorder.ListDocumentGroups(ctx, parentId, filter)
+	if err != nil {
+		return nil, err
+	}
+	var (
+		result = make([]*types.Metadata, 0)
+		next   *types.Metadata
+	)
+	for it.HasNext() {
+		next = it.Next()
+		if next.ID == next.ParentID {
+			continue
+		}
+		result = append(result, next)
+	}
+	return result, nil
 }
 
 func (m *manager) GetDocsByFeedId(ctx context.Context, feedID string, count int) (*types.FeedResult, error) {
