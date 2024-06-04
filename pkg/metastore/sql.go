@@ -927,7 +927,7 @@ func (s *sqlMetaStore) ListEntryChildren(ctx context.Context, parentId int64, or
 		s.logger.Errorw("count children entry failed", "parent", parentId, "err", err)
 		return nil, db.SqlError2Error(err)
 	}
-	return newTransactionEntryIterator(tx, "name DESC", total), nil
+	return newTransactionEntryIterator(tx, total), nil
 }
 
 func (s *sqlMetaStore) ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) (EntryIterator, error) {
@@ -952,7 +952,7 @@ func (s *sqlMetaStore) ListDocumentGroups(ctx context.Context, parentId int64, f
 		s.logger.Errorw("count groups entry failed", "parent", parentId, "err", err)
 		return nil, db.SqlError2Error(err)
 	}
-	return newTransactionEntryIterator(tx, "", total), nil
+	return newTransactionEntryIterator(tx, total), nil
 }
 
 func (s *sqlMetaStore) FilterEntries(ctx context.Context, filter types.Filter) (EntryIterator, error) {
@@ -967,7 +967,7 @@ func (s *sqlMetaStore) FilterEntries(ctx context.Context, filter types.Filter) (
 			return nil, db.SqlError2Error(err)
 		}
 		if len(scopeIds) == 0 {
-			return newTransactionEntryIterator(s.DB, "name DESC", 0), nil
+			return newTransactionEntryIterator(s.DB, 0), nil
 		}
 	}
 
@@ -981,7 +981,7 @@ func (s *sqlMetaStore) FilterEntries(ctx context.Context, filter types.Filter) (
 		s.logger.Errorw("count filtered entry failed", "filter", filter, "err", err)
 		return nil, db.SqlError2Error(err)
 	}
-	return newTransactionEntryIterator(tx, "name DESC", total), nil
+	return newTransactionEntryIterator(tx, total), nil
 }
 
 func (s *sqlMetaStore) Open(ctx context.Context, id int64, attr types.OpenAttr) (*types.Metadata, error) {

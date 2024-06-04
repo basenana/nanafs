@@ -40,11 +40,8 @@ type transactionEntryIterator struct {
 	crtPage int32
 }
 
-func newTransactionEntryIterator(tx *gorm.DB, orderName string, total int64) EntryIterator {
-	if orderName != "" {
-		tx = tx.Order(orderName)
-	}
-	it := &transactionEntryIterator{tx: tx, onePage: make([]*types.Metadata, 0)}
+func newTransactionEntryIterator(tx *gorm.DB, total int64) EntryIterator {
+	it := &transactionEntryIterator{tx: tx.Order("object.name DESC"), onePage: make([]*types.Metadata, 0)}
 	it.remain = total
 	return it
 }
