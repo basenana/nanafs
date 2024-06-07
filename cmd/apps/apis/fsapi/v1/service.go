@@ -604,30 +604,59 @@ func (s *services) DeleteEntry(ctx context.Context, request *DeleteEntryRequest)
 	if !caller.Authenticated {
 		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
 	}
+	en, parent, err := s.deleteEntry(ctx, caller.UID, request.EntryID)
+	if err != nil {
+		return nil, err
+	}
+	return &DeleteEntryResponse{Entry: entryDetail(en, parent)}, nil
+}
 
-	en, err := s.ctrl.GetEntry(ctx, request.EntryID)
+func (s *services) deleteEntry(ctx context.Context, uid, entryId int64) (en, parent *types.Metadata, err error) {
+	en, err = s.ctrl.GetEntry(ctx, entryId)
 	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query entry failed")
+		err = status.Error(common.FsApiError(err), "query entry failed")
+		return
 	}
-	err = dentry.IsHasPermissions(en.Access, caller.UID, 0, []types.Permission{types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite})
+	err = dentry.IsHasPermissions(en.Access, uid, 0, []types.Permission{types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite})
 	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "has no permission")
+		err = status.Error(common.FsApiError(err), "has no permission")
+		return
 	}
 
-	parent, err := s.ctrl.GetEntry(ctx, en.ParentID)
+	parent, err = s.ctrl.GetEntry(ctx, en.ParentID)
 	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query entry parent failed")
+		err = status.Error(common.FsApiError(err), "query entry parent failed")
+		return
 	}
-	err = dentry.IsHasPermissions(parent.Access, caller.UID, 0, []types.Permission{types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite})
+	err = dentry.IsHasPermissions(parent.Access, uid, 0, []types.Permission{types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite})
 	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "has no permission")
+		err = status.Error(common.FsApiError(err), "has no permission")
+		return
 	}
 
 	err = s.ctrl.DestroyEntry(ctx, parent.ID, en.ID, types.DestroyObjectAttr{Uid: 0, Gid: 0})
 	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "delete entry failed")
+		err = status.Error(common.FsApiError(err), "delete entry failed")
+		return
 	}
-	return &DeleteEntryResponse{Entry: entryDetail(en, parent)}, nil
+	return
+}
+
+func (s *services) DeleteEntries(ctx context.Context, request *DeleteEntriesRequest) (*DeleteEntriesResponse, error) {
+	caller := s.callerAuthFn(ctx)
+	if !caller.Authenticated {
+		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+
+	entryIds := make([]int64, 0, len(request.EntryIDs))
+	for _, entryId := range request.EntryIDs {
+		en, _, err := s.deleteEntry(ctx, caller.UID, entryId)
+		if err != nil {
+			return nil, err
+		}
+		entryIds = append(entryIds, en.ID)
+	}
+	return &DeleteEntriesResponse{EntryIDs: entryIds}, nil
 }
 
 func (s *services) ListGroupChildren(ctx context.Context, request *ListGroupChildrenRequest) (*ListGroupChildrenResponse, error) {

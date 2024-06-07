@@ -340,6 +340,21 @@ func (m *manager) CreateEntry(ctx context.Context, parentId int64, attr types.En
 
 func (m *manager) RemoveEntry(ctx context.Context, parentId, entryId int64) error {
 	defer trace.StartRegion(ctx, "dentry.manager.RemoveEntry").End()
+	children, err := m.store.ListEntryChildren(ctx, entryId, nil, types.Filter{})
+	if err != nil {
+		return err
+	}
+
+	for children.HasNext() {
+		next := children.Next()
+		if next.ID == next.ParentID {
+			continue
+		}
+		if err = m.RemoveEntry(ctx, entryId, next.ID); err != nil {
+			return err
+		}
+	}
+
 	parentGrp, err := m.OpenGroup(ctx, parentId)
 	if err != nil {
 		return err
