@@ -58,6 +58,7 @@ service Entries {
   rpc CreateEntry (CreateEntryRequest) returns (CreateEntryResponse) {}
   rpc UpdateEntry (UpdateEntryRequest) returns (UpdateEntryResponse) {}
   rpc DeleteEntry (DeleteEntryRequest) returns (DeleteEntryResponse) {}
+  rpc DeleteEntries (DeleteEntriesRequest) returns (DeleteEntriesResponse) {}
   rpc ListGroupChildren (ListGroupChildrenRequest) returns (ListGroupChildrenResponse) {}
   rpc ChangeParent (ChangeParentRequest) returns (ChangeParentResponse) {}
 
@@ -117,6 +118,14 @@ message DeleteEntryRequest {
 }
 message DeleteEntryResponse {
   EntryDetail entry = 1;
+}
+
+message DeleteEntriesRequest {
+  repeated int64 entryIDs = 1;
+}
+
+message DeleteEntriesResponse {
+  repeated int64 entryIDs = 1;
 }
 
 message EntryFilter {

@@ -201,6 +201,7 @@ const (
 	Entries_CreateEntry_FullMethodName       = "/api.v1.Entries/CreateEntry"
 	Entries_UpdateEntry_FullMethodName       = "/api.v1.Entries/UpdateEntry"
 	Entries_DeleteEntry_FullMethodName       = "/api.v1.Entries/DeleteEntry"
+	Entries_DeleteEntries_FullMethodName     = "/api.v1.Entries/DeleteEntries"
 	Entries_ListGroupChildren_FullMethodName = "/api.v1.Entries/ListGroupChildren"
 	Entries_ChangeParent_FullMethodName      = "/api.v1.Entries/ChangeParent"
 	Entries_WriteFile_FullMethodName         = "/api.v1.Entries/WriteFile"
@@ -217,6 +218,7 @@ type EntriesClient interface {
 	CreateEntry(ctx context.Context, in *CreateEntryRequest, opts ...grpc.CallOption) (*CreateEntryResponse, error)
 	UpdateEntry(ctx context.Context, in *UpdateEntryRequest, opts ...grpc.CallOption) (*UpdateEntryResponse, error)
 	DeleteEntry(ctx context.Context, in *DeleteEntryRequest, opts ...grpc.CallOption) (*DeleteEntryResponse, error)
+	DeleteEntries(ctx context.Context, in *DeleteEntriesRequest, opts ...grpc.CallOption) (*DeleteEntriesResponse, error)
 	ListGroupChildren(ctx context.Context, in *ListGroupChildrenRequest, opts ...grpc.CallOption) (*ListGroupChildrenResponse, error)
 	ChangeParent(ctx context.Context, in *ChangeParentRequest, opts ...grpc.CallOption) (*ChangeParentResponse, error)
 	WriteFile(ctx context.Context, opts ...grpc.CallOption) (Entries_WriteFileClient, error)
@@ -279,6 +281,15 @@ func (c *entriesClient) UpdateEntry(ctx context.Context, in *UpdateEntryRequest,
 func (c *entriesClient) DeleteEntry(ctx context.Context, in *DeleteEntryRequest, opts ...grpc.CallOption) (*DeleteEntryResponse, error) {
 	out := new(DeleteEntryResponse)
 	err := c.cc.Invoke(ctx, Entries_DeleteEntry_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *entriesClient) DeleteEntries(ctx context.Context, in *DeleteEntriesRequest, opts ...grpc.CallOption) (*DeleteEntriesResponse, error) {
+	out := new(DeleteEntriesResponse)
+	err := c.cc.Invoke(ctx, Entries_DeleteEntries_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -379,6 +390,7 @@ type EntriesServer interface {
 	CreateEntry(context.Context, *CreateEntryRequest) (*CreateEntryResponse, error)
 	UpdateEntry(context.Context, *UpdateEntryRequest) (*UpdateEntryResponse, error)
 	DeleteEntry(context.Context, *DeleteEntryRequest) (*DeleteEntryResponse, error)
+	DeleteEntries(context.Context, *DeleteEntriesRequest) (*DeleteEntriesResponse, error)
 	ListGroupChildren(context.Context, *ListGroupChildrenRequest) (*ListGroupChildrenResponse, error)
 	ChangeParent(context.Context, *ChangeParentRequest) (*ChangeParentResponse, error)
 	WriteFile(Entries_WriteFileServer) error
@@ -406,6 +418,9 @@ func (UnimplementedEntriesServer) UpdateEntry(context.Context, *UpdateEntryReque
 }
 func (UnimplementedEntriesServer) DeleteEntry(context.Context, *DeleteEntryRequest) (*DeleteEntryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteEntry not implemented")
+}
+func (UnimplementedEntriesServer) DeleteEntries(context.Context, *DeleteEntriesRequest) (*DeleteEntriesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteEntries not implemented")
 }
 func (UnimplementedEntriesServer) ListGroupChildren(context.Context, *ListGroupChildrenRequest) (*ListGroupChildrenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListGroupChildren not implemented")
@@ -539,6 +554,24 @@ func _Entries_DeleteEntry_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Entries_DeleteEntries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteEntriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EntriesServer).DeleteEntries(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Entries_DeleteEntries_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EntriesServer).DeleteEntries(ctx, req.(*DeleteEntriesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Entries_ListGroupChildren_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListGroupChildrenRequest)
 	if err := dec(in); err != nil {
@@ -652,6 +685,10 @@ var Entries_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteEntry",
 			Handler:    _Entries_DeleteEntry_Handler,
+		},
+		{
+			MethodName: "DeleteEntries",
+			Handler:    _Entries_DeleteEntries_Handler,
 		},
 		{
 			MethodName: "ListGroupChildren",
