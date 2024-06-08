@@ -70,8 +70,9 @@ var (
 	buildInWorkflows = []*types.WorkflowSpec{
 		{
 
-			Id:   "buildin.rss",
-			Name: "RSS Collect",
+			Id:        "buildin.rss",
+			Name:      "RSS Collect",
+			Namespace: types.GlobalNamespaceValue,
 			Rule: types.Rule{
 				Labels: &types.LabelMatch{
 					Include: []types.Label{
@@ -97,8 +98,9 @@ var (
 			Enable:    true,
 		},
 		{
-			Id:   BuildInWorkflowWebpack,
-			Name: "Webpack",
+			Id:        BuildInWorkflowWebpack,
+			Name:      "Webpack",
+			Namespace: types.GlobalNamespaceValue,
 			Steps: []types.WorkflowStepSpec{
 				{
 					Name: "set processing",
@@ -135,8 +137,9 @@ var (
 			Enable:    true,
 		},
 		{
-			Id:   "buildin.docload",
-			Name: "Document Load",
+			Id:        "buildin.docload",
+			Name:      "Document Load",
+			Namespace: types.GlobalNamespaceValue,
 			Rule: types.Rule{
 				Operation: types.RuleOpEndWith,
 				Column:    "name",
@@ -158,8 +161,9 @@ var (
 			Enable:    true,
 		},
 		{
-			Id:   BuildInWorkflowSummary,
-			Name: "Document Summary",
+			Id:        BuildInWorkflowSummary,
+			Name:      "Document Summary",
+			Namespace: types.GlobalNamespaceValue,
 			Steps: []types.WorkflowStepSpec{
 				{
 					Name: "set processing",
@@ -198,8 +202,9 @@ var (
 			Enable:    true,
 		},
 		{
-			Id:   BuildInWorkflowIngest,
-			Name: "Document Ingest",
+			Id:        BuildInWorkflowIngest,
+			Name:      "Document Ingest",
+			Namespace: types.GlobalNamespaceValue,
 			Steps: []types.WorkflowStepSpec{
 				{
 					Name: "set processing",

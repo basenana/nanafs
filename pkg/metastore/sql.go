@@ -260,6 +260,12 @@ func (s *sqliteMetaStore) GetWorkflow(ctx context.Context, wfID string) (*types.
 	return s.dbStore.GetWorkflow(ctx, wfID)
 }
 
+func (s *sqliteMetaStore) ListGlobalWorkflow(ctx context.Context) ([]*types.WorkflowSpec, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.ListGlobalWorkflow(ctx)
+}
+
 func (s *sqliteMetaStore) ListWorkflow(ctx context.Context) ([]*types.WorkflowSpec, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
@@ -1571,10 +1577,25 @@ func (s *sqlMetaStore) GetWorkflow(ctx context.Context, wfID string) (*types.Wor
 	return wf.To()
 }
 
+func (s *sqlMetaStore) ListGlobalWorkflow(ctx context.Context) ([]*types.WorkflowSpec, error) {
+	return s.listWorkflow(ctx, types.GlobalNamespaceValue)
+}
+
 func (s *sqlMetaStore) ListWorkflow(ctx context.Context) ([]*types.WorkflowSpec, error) {
+	ns := types.GetNamespace(ctx)
+	if ns.String() == types.DefaultNamespaceValue {
+		return s.listWorkflow(ctx, "")
+	}
+	return s.listWorkflow(ctx, ns.String())
+}
+
+func (s *sqlMetaStore) listWorkflow(ctx context.Context, namespace string) ([]*types.WorkflowSpec, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListWorkflow").End()
 	wfList := make([]db.Workflow, 0)
 	res := s.WithContext(ctx).Order("created_at desc")
+	if namespace != "" {
+		res = res.Where("namespace = ?", namespace)
+	}
 	if page := types.GetPagination(ctx); page != nil {
 		res = res.Offset(page.Offset()).Limit(page.Limit())
 	}
