@@ -65,13 +65,13 @@ func (w workflowExecutor) handleEntryEvent(evt *types.Event) error {
 		return err
 	}
 
-	enCtx := types.WithNamespace(ctx, types.NewNamespace(en.Namespace))
-	ed, err := w.entry.GetEntryExtendData(enCtx, en.ID)
+	ctx = types.WithNamespace(ctx, types.NewNamespace(en.Namespace))
+	ed, err := w.entry.GetEntryExtendData(ctx, en.ID)
 	if err != nil {
 		w.logger.Errorw("[workflowAutoTrigger] get entry extend data failed", "entry", evt.RefID, "err", err)
 		return err
 	}
-	labels, err := w.entry.GetEntryLabels(enCtx, en.ID)
+	labels, err := w.entry.GetEntryLabels(ctx, en.ID)
 	if err != nil {
 		w.logger.Errorw("[workflowAutoTrigger] get entry labels failed", "entry", evt.RefID, "err", err)
 		return err
@@ -82,9 +82,17 @@ func (w workflowExecutor) handleEntryEvent(evt *types.Event) error {
 		w.logger.Errorw("[workflowAutoTrigger] list workflow failed", "entry", evt.RefID, "err", err)
 		return err
 	}
+	if en.Namespace != types.GlobalNamespaceValue {
+		globalWfList, err := w.recorder.ListGlobalWorkflow(ctx)
+		if err != nil {
+			w.logger.Errorw("[workflowAutoTrigger] list global workflow failed", "entry", en.ID, "err", err)
+			return err
+		}
+		wfList = append(wfList, globalWfList...)
+	}
 
 	for _, wf := range wfList {
-		if wf.Namespace != types.DefaultNamespaceValue && wf.Namespace != en.Namespace {
+		if wf.Namespace != types.GlobalNamespaceValue && wf.Namespace != en.Namespace {
 			continue
 		}
 		if !wf.Enable {
@@ -98,13 +106,14 @@ func (w workflowExecutor) handleEntryEvent(evt *types.Event) error {
 		task := &types.ScheduledTask{
 			TaskID:         workflowAutoTriggerExecID,
 			Status:         types.ScheduledTaskWait,
+			Namespace:      en.Namespace,
 			RefType:        evt.RefType,
 			RefID:          evt.RefID,
 			CreatedTime:    time.Now(),
 			ExpirationTime: time.Now().Add(defaultTimeout),
 			Event:          *evt,
 		}
-		if err = w.recorder.SaveTask(enCtx, task); err != nil {
+		if err = w.recorder.SaveTask(ctx, task); err != nil {
 			w.logger.Errorw("[workflowAutoTrigger] save task to waiting error", "entry", evt.RefID, "err", err.Error())
 			return err
 		}
@@ -188,13 +197,13 @@ func (w workflowExecutor) execute(ctx context.Context, task *types.ScheduledTask
 		w.logger.Errorw("[workflowAutoTrigger] query entry error", "entry", entry.ID, "err", err.Error())
 		return err
 	}
-	enCtx := types.WithNamespace(ctx, types.NewNamespace(en.Namespace))
-	ed, err := w.entry.GetEntryExtendData(enCtx, en.ID)
+	ctx = types.WithNamespace(ctx, types.NewNamespace(en.Namespace))
+	ed, err := w.entry.GetEntryExtendData(ctx, en.ID)
 	if err != nil {
 		w.logger.Errorw("[workflowAutoTrigger] get entry extend data failed", "entry", en.ID, "err", err)
 		return err
 	}
-	labels, err := w.entry.GetEntryLabels(enCtx, en.ID)
+	labels, err := w.entry.GetEntryLabels(ctx, en.ID)
 	if err != nil {
 		w.logger.Errorw("[workflowAutoTrigger] get entry labels failed", "entry", en.ID, "err", err)
 		return err
@@ -206,9 +215,18 @@ func (w workflowExecutor) execute(ctx context.Context, task *types.ScheduledTask
 		return err
 	}
 
+	if en.Namespace != types.GlobalNamespaceValue {
+		globalWfList, err := w.recorder.ListGlobalWorkflow(ctx)
+		if err != nil {
+			w.logger.Errorw("[workflowAutoTrigger] list global workflow failed", "entry", en.ID, "err", err)
+			return err
+		}
+		wfList = append(wfList, globalWfList...)
+	}
+
 	var job *types.WorkflowJob
 	for _, wf := range wfList {
-		if wf.Namespace != types.DefaultNamespaceValue && wf.Namespace != en.Namespace {
+		if wf.Namespace != types.GlobalNamespaceValue && wf.Namespace != en.Namespace {
 			continue
 		}
 
@@ -220,7 +238,7 @@ func (w workflowExecutor) execute(ctx context.Context, task *types.ScheduledTask
 			continue
 		}
 
-		sameTargetJob, err := w.recorder.ListWorkflowJob(enCtx, types.JobFilter{WorkFlowID: wf.Id, TargetEntry: en.ID})
+		sameTargetJob, err := w.recorder.ListWorkflowJob(ctx, types.JobFilter{WorkFlowID: wf.Id, TargetEntry: en.ID})
 		if err != nil {
 			w.logger.Errorw("[workflowAutoTrigger] query same target job failed", "entry", en.ID, "workflow", wf.Id, "err", err)
 			continue
@@ -246,7 +264,7 @@ func (w workflowExecutor) execute(ctx context.Context, task *types.ScheduledTask
 			tgt.EntryID = en.ID
 			tgt.ParentEntryID = en.ParentID
 		}
-		job, err = w.manager.TriggerWorkflow(enCtx, wf.Id, tgt, workflow.JobAttr{Reason: fmt.Sprintf("event: entry created")})
+		job, err = w.manager.TriggerWorkflow(ctx, wf.Id, tgt, workflow.JobAttr{Reason: fmt.Sprintf("event: entry created")})
 		if err != nil {
 			w.logger.Errorw("[workflowAutoTrigger] workflow trigger failed", "entry", en.ID, "workflow", wf.Id, "err", err)
 			continue

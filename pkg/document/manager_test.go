@@ -272,6 +272,7 @@ var _ = Describe("TestHandleEvent", func() {
 					ID:       grp1File1.ID,
 					ParentID: grp1.ID,
 				},
+				Namespace: types.GlobalNamespaceValue,
 			})
 			Expect(err).Should(BeNil())
 			_, err = docManager.GetDocumentByEntryId(context.TODO(), grp1File1.ID)
@@ -287,6 +288,7 @@ var _ = Describe("TestHandleEvent", func() {
 					ID:       grp1File2.ID,
 					ParentID: root.ID,
 				},
+				Namespace: types.GlobalNamespaceValue,
 			})
 			Expect(err).Should(BeNil())
 			doc, err := docManager.GetDocumentByEntryId(context.TODO(), grp1File2.ID)
@@ -303,6 +305,7 @@ var _ = Describe("TestHandleEvent", func() {
 					ID:       grp1File3.ID,
 					ParentID: grp1.ID,
 				},
+				Namespace: types.GlobalNamespaceValue,
 			})
 			Expect(err).Should(BeNil())
 			doc, err := docManager.GetDocumentByEntryId(context.TODO(), grp1File3.ID)
@@ -317,6 +320,7 @@ var _ = Describe("TestHandleEvent", func() {
 					ID:       grp1File4.ID,
 					ParentID: grp1.ID,
 				},
+				Namespace: types.GlobalNamespaceValue,
 			})
 			Expect(err).Should(BeNil())
 			doc, err := docManager.GetDocumentByEntryId(context.TODO(), grp1File4.ID)

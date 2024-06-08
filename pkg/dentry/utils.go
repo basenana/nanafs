@@ -37,6 +37,7 @@ func initRootEntry() *types.Metadata {
 	root, _ := types.InitNewEntry(nil, types.EntryAttr{Name: RootEntryName, Kind: types.GroupKind, Access: acc})
 	root.ID = RootEntryID
 	root.ParentID = root.ID
+	root.Namespace = types.GlobalNamespaceValue
 	return root
 }
 

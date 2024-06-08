@@ -378,6 +378,14 @@ func (i instrumentalStore) GetWorkflow(ctx context.Context, wfID string) (*types
 	return spec, err
 }
 
+func (i instrumentalStore) ListGlobalWorkflow(ctx context.Context) ([]*types.WorkflowSpec, error) {
+	const operation = "list_global_workflow"
+	defer logOperationLatency(operation, time.Now())
+	specList, err := i.store.ListGlobalWorkflow(ctx)
+	logOperationError(operation, err)
+	return specList, err
+}
+
 func (i instrumentalStore) ListWorkflow(ctx context.Context) ([]*types.WorkflowSpec, error) {
 	const operation = "list_workflow"
 	defer logOperationLatency(operation, time.Now())
