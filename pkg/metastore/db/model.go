@@ -575,19 +575,6 @@ func (d *Document) To() *types.Document {
 	return result
 }
 
-type DocumentFeed struct {
-	ID          string    `gorm:"column:id;primaryKey"`
-	DisplayName string    `gorm:"column:display_name"`
-	ParentID    *int64    `gorm:"column:parent_id;index:docfeed_parent_id"`
-	Keywords    *string   `gorm:"column:keywords"`
-	IndexQuery  *string   `gorm:"column:index_query"`
-	CreatedAt   time.Time `gorm:"column:created_at"`
-}
-
-func (d *DocumentFeed) TableName() string {
-	return "document_feed"
-}
-
 type FridayAccount struct {
 	ID             int64     `gorm:"column:id;primaryKey"`
 	Namespace      string    `gorm:"column:namespace;index:fridayaccount_namespace"`

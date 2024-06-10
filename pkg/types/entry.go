@@ -28,6 +28,12 @@ const (
 	LabelKeyPluginPrefix = "org.basenana.internal.plugin/"
 	LabelKeyPluginKind   = LabelKeyPluginPrefix + "kind"
 	LabelKeyPluginName   = LabelKeyPluginPrefix + "name"
+
+	PropertyWebSiteName     = "org.basenana.web.site_name"
+	PropertyWebSiteURL      = "org.basenana.web.site_url"
+	PropertyWebPageURL      = "org.basenana.web.url"
+	PropertyWebPageUpdateAt = "org.basenana.web.updated_at"
+	PropertyWebPageTitle    = "org.basenana.web.title"
 )
 
 type SystemInfo struct {

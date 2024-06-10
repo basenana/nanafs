@@ -490,30 +490,6 @@ func (i instrumentalStore) GetDocumentByName(ctx context.Context, name string) (
 	return doc, err
 }
 
-func (i instrumentalStore) GetDocumentFeed(ctx context.Context, feedID string) (*types.DocumentFeed, error) {
-	const operation = "get_document_feed"
-	defer logOperationLatency(operation, time.Now())
-	feed, err := i.store.GetDocumentFeed(ctx, feedID)
-	logOperationError(operation, err)
-	return feed, err
-}
-
-func (i instrumentalStore) EnableDocumentFeed(ctx context.Context, feed types.DocumentFeed) error {
-	const operation = "enable_document_feed"
-	defer logOperationLatency(operation, time.Now())
-	err := i.store.EnableDocumentFeed(ctx, feed)
-	logOperationError(operation, err)
-	return err
-}
-
-func (i instrumentalStore) DisableDocumentFeed(ctx context.Context, feed types.DocumentFeed) error {
-	const operation = "disable_document_feed"
-	defer logOperationLatency(operation, time.Now())
-	err := i.store.DisableDocumentFeed(ctx, feed)
-	logOperationError(operation, err)
-	return err
-}
-
 func (i instrumentalStore) ListFridayAccount(ctx context.Context, refId int64) ([]*types.FridayAccount, error) {
 	const operation = "list_friday_account"
 	defer logOperationLatency(operation, time.Now())

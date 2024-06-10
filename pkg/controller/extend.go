@@ -26,8 +26,8 @@ import (
 )
 
 const (
+	attrPrefix             = "org.basenana"
 	attrSourcePluginPrefix = "org.basenana.plugin.source/"
-	attrFeedId             = "org.basenana.document/feed"
 )
 
 func (c *controller) ListEntryExtendField(ctx context.Context, id int64) (map[string]types.PropertyItem, error) {
@@ -91,14 +91,6 @@ func (c *controller) SetEntryExtendField(ctx context.Context, id int64, fKey, fV
 		return c.ConfigEntrySourcePlugin(ctx, id, scope)
 	}
 
-	if fKey == attrFeedId {
-		if err := c.EnableGroupFeed(ctx, id, strings.TrimSpace(fVal)); err != nil {
-			c.logger.Errorw("enable group feed failed", "val", fVal, "err", err)
-			return types.ErrUnsupported
-		}
-		return nil
-	}
-
 	err := c.entry.SetEntryExtendField(ctx, id, fKey, fVal, false)
 	if err != nil {
 		c.logger.Errorw("set entry extend filed failed", "entry", id, "key", fKey, "err", err)
@@ -111,7 +103,7 @@ func (c *controller) SetEntryEncodedExtendField(ctx context.Context, id int64, f
 	defer trace.StartRegion(ctx, "controller.SetEntryEncodedExtendField").End()
 	c.logger.Debugw("set entry extend filed", "entry", id, "key", fKey)
 
-	if strings.HasPrefix(fKey, attrSourcePluginPrefix) || fKey == attrFeedId {
+	if strings.HasPrefix(fKey, attrPrefix) {
 		return c.SetEntryExtendField(ctx, id, fKey, string(fVal))
 	}
 
@@ -129,49 +121,12 @@ func (c *controller) RemoveEntryExtendField(ctx context.Context, id int64, fKey 
 	if strings.HasPrefix(fKey, attrSourcePluginPrefix) {
 		return c.CleanupEntrySourcePlugin(ctx, id)
 	}
-	if fKey == attrFeedId {
-		return c.DisableGroupFeed(ctx, id)
-	}
 	err := c.entry.RemoveEntryExtendField(ctx, id, fKey)
 	if err != nil {
 		c.logger.Errorw("remove entry extend filed failed", "entry", id, "key", fKey, "err", err)
 		return err
 	}
 	return nil
-}
-
-func (c *controller) EnableGroupFeed(ctx context.Context, id int64, feedID string) error {
-	defer trace.StartRegion(ctx, "controller.EnableGroupFeed").End()
-	en, err := c.entry.GetEntry(ctx, id)
-	if err != nil {
-		c.logger.Errorw("enable group feed failed", "entry", id, "err", err)
-		return err
-	}
-	if !en.IsGroup {
-		c.logger.Errorw("enable group feed failed", "entry", id, "err", types.ErrNoGroup)
-		return types.ErrNoGroup
-	}
-
-	if len(feedID) == 0 {
-		return fmt.Errorf("feed id is empty")
-	}
-
-	return c.document.EnableGroupFeed(ctx, id, feedID)
-}
-
-func (c *controller) DisableGroupFeed(ctx context.Context, id int64) error {
-	defer trace.StartRegion(ctx, "controller.DisableGroupFeed").End()
-	en, err := c.entry.GetEntry(ctx, id)
-	if err != nil {
-		c.logger.Errorw("disable group feed failed", "entry", id, "err", err)
-		return err
-	}
-	if !en.IsGroup {
-		c.logger.Errorw("disable group feed failed", "entry", id, "err", types.ErrNoGroup)
-		return err
-	}
-
-	return c.document.DisableGroupFeed(ctx, id)
 }
 
 func (c *controller) ConfigEntrySourcePlugin(ctx context.Context, id int64, patch types.ExtendData) error {

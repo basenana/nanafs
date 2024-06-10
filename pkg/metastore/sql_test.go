@@ -33,7 +33,7 @@ var _ = Describe("TestSqliteObjectOperation", func() {
 	rootEn := InitRootEntry()
 	Expect(sqlite.CreateEntry(context.TODO(), 0, rootEn)).Should(BeNil())
 
-	Context("create a new file object", func() {
+	Context("create a new file entry", func() {
 		It("should be succeed", func() {
 			en, err := types.InitNewEntry(rootEn, types.EntryAttr{
 				Name: "test-new-en-1",
@@ -50,7 +50,7 @@ var _ = Describe("TestSqliteObjectOperation", func() {
 		})
 	})
 
-	Context("update a exist file object", func() {
+	Context("update a exist file entry", func() {
 		It("should be succeed", func() {
 			en, err := types.InitNewEntry(rootEn, types.EntryAttr{
 				Name: "test-update-en-1",
@@ -71,7 +71,7 @@ var _ = Describe("TestSqliteObjectOperation", func() {
 		})
 	})
 
-	Context("delete a exist file object", func() {
+	Context("delete a exist file entry", func() {
 		It("should be succeed", func() {
 			en, err := types.InitNewEntry(rootEn, types.EntryAttr{
 				Name: "test-delete-en-1",
@@ -92,7 +92,7 @@ var _ = Describe("TestSqliteObjectOperation", func() {
 		})
 	})
 
-	Context("create a new group object", func() {
+	Context("create a new group entry", func() {
 		It("should be succeed", func() {
 			en, err := types.InitNewEntry(rootEn, types.EntryAttr{
 				Name: "test-new-group-1",

@@ -21,8 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"runtime/trace"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/basenana/nanafs/config"
@@ -54,10 +52,6 @@ type Manager interface {
 	GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error)
 	DeleteDocument(ctx context.Context, id int64) error
 	ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) ([]*types.Metadata, error)
-
-	EnableGroupFeed(ctx context.Context, id int64, feedID string) error
-	DisableGroupFeed(ctx context.Context, id int64) error
-	GetDocsByFeedId(ctx context.Context, feedID string, count int) (*types.FeedResult, error)
 
 	CreateFridayAccount(ctx context.Context, account *types.FridayAccount) error
 }
@@ -219,134 +213,6 @@ func (m *manager) ListDocumentGroups(ctx context.Context, parentId int64, filter
 		result = append(result, next)
 	}
 	return result, nil
-}
-
-func (m *manager) GetDocsByFeedId(ctx context.Context, feedID string, count int) (*types.FeedResult, error) {
-	feed, err := m.recorder.GetDocumentFeed(ctx, feedID)
-	if err != nil {
-		m.logger.Errorw("query feed info error", "feed", feedID, "err", err)
-		return nil, err
-	}
-
-	result := &types.FeedResult{
-		FeedId:    feedID,
-		GroupName: feed.Display,
-		SiteName:  feed.Display,
-	}
-
-	var documents []*types.Document
-	switch {
-	case feed.ParentID != 0:
-		parentEn, err := m.recorder.GetEntry(ctx, feed.ParentID)
-		if err != nil {
-			m.logger.Errorw("query feed parent entry failed", "feed", feedID, "entry", feed.ParentID, "err", err)
-			return nil, err
-		}
-		result.GroupName = parentEn.Name
-
-		gExtend, err := m.recorder.GetEntryExtendData(ctx, parentEn.ID)
-		if err != nil {
-			m.logger.Errorw("get group extendData failed", "feed", feedID, "entry", parentEn.ID, "err", err)
-			return nil, err
-		}
-		for key, val := range gExtend.Properties.Fields {
-			switch key {
-			case attrSourcePluginPrefix + "site_url":
-				result.SiteUrl = val.Value
-			case attrSourcePluginPrefix + "site_name":
-				result.SiteName = val.Value
-			case attrSourcePluginPrefix + "feed_url":
-				result.FeedUrl = val.Value
-
-			}
-		}
-		documents, err = m.recorder.ListDocument(ctx, types.DocFilter{ParentID: feed.ParentID}, nil)
-		if err != nil {
-			return nil, err
-		}
-	case feed.Keywords != "":
-		parts := strings.Split(feed.Keywords, ",")
-		phrases := make([]string, len(parts))
-		for i := range parts {
-			phrases[i] = fmt.Sprintf("\"%s\"", parts[i])
-		}
-		feed.IndexQuery = strings.Join(phrases, " ")
-		fallthrough
-	case feed.IndexQuery != "":
-		documents, err = m.QueryDocuments(ctx, feed.IndexQuery)
-		if err != nil {
-			return nil, err
-		}
-		sort.Slice(documents, func(i, j int) bool {
-			return documents[i].ChangedAt.Before(documents[j].CreatedAt)
-		})
-	}
-
-	if len(documents) > count {
-		documents = documents[:count]
-	}
-
-	docFeeds := make([]types.FeedResultItem, len(documents))
-	for i, doc := range documents {
-		eExtend, err := m.recorder.GetEntryExtendData(ctx, doc.OID)
-		if err != nil {
-			m.logger.Errorw("get entry extendData failed", "feed", feedID, "entry", doc.OID, "err", err)
-			return nil, err
-		}
-		updatedAt := eExtend.Properties.Fields[rssPostMetaUpdatedAt].Value
-		if updatedAt == "" {
-			updatedAt = doc.CreatedAt.Format(time.RFC3339)
-		}
-		docFeeds[i] = types.FeedResultItem{
-			ID:        eExtend.Properties.Fields[rssPostMetaID].Value,
-			Title:     eExtend.Properties.Fields[rssPostMetaTitle].Value,
-			Link:      eExtend.Properties.Fields[rssPostMetaLink].Value,
-			UpdatedAt: updatedAt,
-			Document:  *doc,
-		}
-	}
-	result.Documents = docFeeds
-
-	return result, nil
-}
-
-func (m *manager) EnableGroupFeed(ctx context.Context, id int64, feedID string) error {
-	entry, err := m.recorder.GetEntry(ctx, id)
-	if err != nil {
-		m.logger.Errorw("check feed group error", "feed", feedID, "entry", id, "err", err)
-		return err
-	}
-
-	if !entry.IsGroup {
-		return types.ErrNoGroup
-	}
-
-	existedFeed, err := m.recorder.GetDocumentFeed(ctx, feedID)
-	if err != nil && err != types.ErrNotFound {
-		m.logger.Errorw("check feed existed error", "feed", feedID, "err", err)
-		return err
-	}
-
-	if existedFeed != nil && existedFeed.ParentID == id {
-		return nil
-	}
-
-	feed := types.DocumentFeed{ID: feedID, Display: entry.Name, ParentID: id}
-	err = m.recorder.EnableDocumentFeed(ctx, feed)
-	if err != nil {
-		m.logger.Errorw("enable group feed failed", "entry", id, "feed", feedID, "err", err)
-		return err
-	}
-	return nil
-}
-
-func (m *manager) DisableGroupFeed(ctx context.Context, id int64) error {
-	err := m.recorder.DisableDocumentFeed(ctx, types.DocumentFeed{ParentID: id})
-	if err != nil {
-		m.logger.Errorw("disable group feed failed", "entry", id, "err", err)
-		return err
-	}
-	return nil
 }
 
 func (m *manager) CreateFridayAccount(ctx context.Context, account *types.FridayAccount) error {

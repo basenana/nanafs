@@ -76,9 +76,6 @@ type Controller interface {
 	CommitSyncedEvent(ctx context.Context, deviceID string, sequence int64) error
 	ListNotifications(ctx context.Context) ([]types.Notification, error)
 
-	EnableGroupFeed(ctx context.Context, id int64, feedID string) error
-	DisableGroupFeed(ctx context.Context, id int64) error
-	GetDocumentsByFeed(ctx context.Context, feedId string, count int) (*types.FeedResult, error)
 	ListDocuments(ctx context.Context, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error)
 	GetDocumentsByEntryId(ctx context.Context, entryId int64) (*types.Document, error)
 	GetDocument(ctx context.Context, documentId int64) (*types.Document, error)
@@ -160,7 +157,7 @@ func (c *controller) CreateNamespace(ctx context.Context, namespace string) (*ty
 
 func (c *controller) LoadRootEntry(ctx context.Context) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "controller.LoadRootEntry").End()
-	c.logger.Info("init root object")
+	c.logger.Info("init root entry")
 	rootEntry, err := c.entry.Root(ctx)
 	if err != nil {
 		c.logger.Errorw("load root object error", "err", err.Error())

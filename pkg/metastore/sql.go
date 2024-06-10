@@ -380,24 +380,6 @@ func (s *sqliteMetaStore) DeleteDocument(ctx context.Context, id int64) error {
 	return s.dbStore.DeleteDocument(ctx, id)
 }
 
-func (s *sqliteMetaStore) GetDocumentFeed(ctx context.Context, feedID string) (*types.DocumentFeed, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.GetDocumentFeed(ctx, feedID)
-}
-
-func (s *sqliteMetaStore) EnableDocumentFeed(ctx context.Context, feed types.DocumentFeed) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.EnableDocumentFeed(ctx, feed)
-}
-
-func (s *sqliteMetaStore) DisableDocumentFeed(ctx context.Context, feed types.DocumentFeed) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.DisableDocumentFeed(ctx, feed)
-}
-
 func (s *sqliteMetaStore) ListFridayAccount(ctx context.Context, refId int64) ([]*types.FridayAccount, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
@@ -1981,75 +1963,6 @@ func (s *sqlMetaStore) DeleteDocument(ctx context.Context, id int64) error {
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		res := namespaceQuery(ctx, tx).Where("id = ?", id).Delete(&db.Document{})
 		return res.Error
-	})
-	return db.SqlError2Error(err)
-}
-
-func (s *sqlMetaStore) GetDocumentFeed(ctx context.Context, feedID string) (*types.DocumentFeed, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.GetDocumentFeed").End()
-	feedMod := &db.DocumentFeed{}
-	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQuery(ctx, tx).Where("id = ?", feedID).First(feedMod)
-		return res.Error
-	})
-	if err != nil {
-		return nil, db.SqlError2Error(err)
-	}
-	result := &types.DocumentFeed{ID: feedID, Display: feedMod.DisplayName}
-	if feedMod.ParentID != nil {
-		result.ParentID = *feedMod.ParentID
-	}
-	if feedMod.Keywords != nil {
-		result.Keywords = *feedMod.Keywords
-	}
-	if feedMod.IndexQuery != nil {
-		result.IndexQuery = *feedMod.IndexQuery
-	}
-	return result, nil
-}
-
-func (s *sqlMetaStore) EnableDocumentFeed(ctx context.Context, feed types.DocumentFeed) error {
-	defer trace.StartRegion(ctx, "metastore.sql.EnableDocumentFeed").End()
-	feedMod := &db.DocumentFeed{}
-	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQuery(ctx, tx).Where("id = ?", feed.ID).First(feedMod)
-		if res.Error != nil {
-			if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-				feedMod = &db.DocumentFeed{
-					ID:          feed.ID,
-					DisplayName: feed.Display,
-					ParentID:    &feed.ParentID,
-					Keywords:    &feed.Keywords,
-					IndexQuery:  &feed.IndexQuery,
-					CreatedAt:   time.Now(),
-				}
-				res = tx.Create(feedMod)
-			}
-			return res.Error
-		}
-
-		feedMod.DisplayName = feed.Display
-		feedMod.ParentID = &feed.ParentID
-		feedMod.Keywords = &feed.Keywords
-		feedMod.IndexQuery = &feed.IndexQuery
-		res = tx.Updates(feedMod)
-		return res.Error
-	})
-	return db.SqlError2Error(err)
-}
-
-func (s *sqlMetaStore) DisableDocumentFeed(ctx context.Context, feed types.DocumentFeed) error {
-	defer trace.StartRegion(ctx, "metastore.sql.DisableDocumentFeed").End()
-	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		switch {
-		case feed.ID != "":
-			res := tx.Where("id = ?", feed.ID).Delete(&db.DocumentFeed{})
-			return res.Error
-		case feed.ParentID > 0:
-			res := tx.Where("parent_id = ?", feed.ParentID).Delete(&db.DocumentFeed{})
-			return res.Error
-		}
-		return types.ErrNotFound
 	})
 	return db.SqlError2Error(err)
 }
