@@ -130,10 +130,10 @@ func (i instrumentalStore) FindEntry(ctx context.Context, parentID int64, name s
 	return en, err
 }
 
-func (i instrumentalStore) CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata) error {
+func (i instrumentalStore) CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata, ed *types.ExtendData) error {
 	const operation = "create_entry"
 	defer logOperationLatency(operation, time.Now())
-	err := i.store.CreateEntry(ctx, parentID, newEntry)
+	err := i.store.CreateEntry(ctx, parentID, newEntry, ed)
 	logOperationError(operation, err)
 	return err
 }

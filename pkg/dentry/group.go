@@ -19,15 +19,12 @@ package dentry
 import (
 	"context"
 	"errors"
-	"path"
 	"runtime/trace"
 
 	"go.uber.org/zap"
 
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/pkg/plugin"
-	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/rule"
 	"github.com/basenana/nanafs/pkg/types"
 )
@@ -91,9 +88,6 @@ func (g *stdGroup) FindEntry(ctx context.Context, name string) (*types.Metadata,
 	if err != nil {
 		return nil, err
 	}
-	if entry.Storage == externalStorage {
-		return entry, g.mgr.registerStubRoot(ctx, entry)
-	}
 	return entry, nil
 }
 
@@ -117,46 +111,14 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*type
 		return nil, err
 	}
 
-	if entry.Kind == types.ExternalGroupKind {
-		entry.Storage = externalStorage
-	}
-
-	err = g.store.CreateEntry(ctx, g.entryID, entry)
+	ed := attr.ExtendData
+	err = g.store.CreateEntry(ctx, g.entryID, entry, &ed)
 	if err != nil {
 		return nil, err
 	}
 
-	ed := attr.ExtendData
-	labels := attr.Labels
-	switch entry.Kind {
-	case types.ExternalGroupKind:
-		if attr.PlugScope != nil {
-			if attr.PlugScope.Parameters == nil {
-				attr.PlugScope.Parameters = map[string]string{}
-			}
-			ed.PlugScope = attr.PlugScope
-			ed.PlugScope.Parameters[types.PlugScopeEntryName] = attr.Name
-			ed.PlugScope.Parameters[types.PlugScopeEntryPath] = "/"
-		}
-
-		labels.Labels = append(labels.Labels, []types.Label{
-			{Key: types.LabelKeyPluginName, Value: ed.PlugScope.PluginName},
-			{Key: types.LabelKeyPluginKind, Value: string(types.TypeMirror)},
-		}...)
-	case types.SmartGroupKind:
-		ed.GroupFilter = attr.GroupFilter
-	default:
-		// skip create extend data
-		g.mgr.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeCreate, entry.ID)
-		return entry, nil
-	}
-
-	if err = g.store.UpdateEntryExtendData(ctx, entry.ID, ed); err != nil {
-		_ = g.store.RemoveEntry(ctx, entry.ParentID, entry.ID)
-		return nil, err
-	}
-	if len(labels.Labels) > 0 {
-		if err = g.store.UpdateEntryLabels(ctx, entry.ID, labels); err != nil {
+	if len(ed.Labels.Labels) > 0 {
+		if err = g.store.UpdateEntryLabels(ctx, entry.ID, ed.Labels); err != nil {
 			_ = g.store.RemoveEntry(ctx, entry.ParentID, entry.ID)
 			return nil, err
 		}
@@ -276,124 +238,4 @@ func (d *dynamicGroup) ListChildren(ctx context.Context, order *types.EntryOrder
 		children = append(children, dynamicChildren[i])
 	}
 	return children, nil
-}
-
-type extGroup struct {
-	entry  *StubEntry
-	mirror plugin.MirrorPlugin
-	logger *zap.SugaredLogger
-}
-
-func (e *extGroup) FindEntry(ctx context.Context, name string) (*types.Metadata, error) {
-	children, err := e.ListChildren(ctx, nil, types.Filter{})
-	if err != nil {
-		return nil, err
-	}
-	for i, ch := range children {
-		if ch.Name == name {
-			return children[i], nil
-		}
-	}
-	return nil, types.ErrNotFound
-}
-
-func (e *extGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*types.Metadata, error) {
-	mirrorEn, err := e.mirror.CreateEntry(ctx, e.entry.path, pluginapi.EntryAttr{
-		Name: attr.Name,
-		Kind: attr.Kind,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return e.entry.createChild(mirrorEn)
-}
-
-func (e *extGroup) UpdateEntry(ctx context.Context, entry *types.Metadata) error {
-	entryPath := path.Join(e.entry.path, entry.Name)
-
-	// query old and write back
-	mirrorEn, err := e.mirror.GetEntry(ctx, entryPath)
-	if err != nil {
-		e.logger.Warnw("find entry in mirror plugin failed", "name", entry.Name, "err", err)
-		return err
-	}
-
-	mirrorEn.Size = entry.Size
-	err = e.mirror.UpdateEntry(ctx, entryPath, mirrorEn)
-	if err != nil {
-		e.logger.Warnw("update entry to mirror plugin failed", "name", entry.Name, "err", err)
-		return err
-	}
-	err = e.entry.updateChild(mirrorEn)
-	if err != nil {
-		e.logger.Warnw("update ext entry indexer failed", "name", entry.Name, "err", err)
-		return err
-	}
-	return nil
-}
-
-func (e *extGroup) RemoveEntry(ctx context.Context, entryId int64) error {
-	child, err := e.entry.root.GetStubEntry(entryId)
-	if err != nil {
-		return err
-	}
-	if child.parent != e.entry.id {
-		return types.ErrNotFound
-	}
-
-	err = e.mirror.RemoveEntry(ctx, child.path)
-	if err != nil {
-		return err
-	}
-
-	return e.entry.removeChild(entryId)
-}
-
-func (e *extGroup) ListChildren(ctx context.Context, order *types.EntryOrder, filters ...types.Filter) ([]*types.Metadata, error) {
-	actualChild, err := e.mirror.ListChildren(ctx, e.entry.path)
-	if err != nil {
-		return nil, err
-	}
-	recordChild := e.entry.listChildren()
-
-	recordChildMap := make(map[string]*types.Metadata)
-	actualChildMap := make(map[string]*pluginapi.Entry)
-	for i, ch := range recordChild {
-		recordChildMap[ch.Name] = recordChild[i]
-	}
-	for i, ch := range actualChild {
-		actualChildMap[ch.Name] = actualChild[i]
-	}
-
-	result := make([]*types.Metadata, 0, len(actualChild))
-	for k := range actualChildMap {
-		record := recordChildMap[k]
-		if record == nil {
-			// create
-			en, err := e.entry.createChild(actualChildMap[k])
-			if err != nil {
-				return nil, err
-			}
-			result = append(result, en)
-			continue
-		}
-
-		// update
-		err = e.entry.updateChild(actualChildMap[k])
-		if err != nil {
-			return nil, err
-		}
-
-		en, err := e.entry.findChild(actualChildMap[k].Name)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, en)
-		delete(recordChildMap, k)
-	}
-
-	for _, ch := range recordChildMap {
-		e.entry.root.RemoveStubEntry(ch.ID)
-	}
-	return result, nil
 }

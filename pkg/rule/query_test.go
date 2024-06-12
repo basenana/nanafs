@@ -211,7 +211,7 @@ func mockedObjectForQuery(ctx context.Context, entryStore metastore.DEntry) erro
 	}
 
 	for _, o := range objectList {
-		err := entryStore.CreateEntry(ctx, 0, o.Metadata)
+		err := entryStore.CreateEntry(ctx, 0, o.Metadata, nil)
 		if err != nil {
 			return err
 		}

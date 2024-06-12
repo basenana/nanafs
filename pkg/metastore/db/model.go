@@ -191,7 +191,10 @@ func (o *ObjectExtend) TableName() string {
 	return "object_extend"
 }
 
-func (o *ObjectExtend) From(ed types.ExtendData) {
+func (o *ObjectExtend) From(ed *types.ExtendData) *ObjectExtend {
+	if ed == nil {
+		return o
+	}
 	o.Symlink = ed.Symlink
 	if ed.GroupFilter != nil {
 		o.GroupFilter, _ = json.Marshal(ed.GroupFilter)
@@ -199,6 +202,7 @@ func (o *ObjectExtend) From(ed types.ExtendData) {
 	if ed.PlugScope != nil {
 		o.PlugScope, _ = json.Marshal(ed.PlugScope)
 	}
+	return o
 }
 
 func (o *ObjectExtend) ToExtData() types.ExtendData {

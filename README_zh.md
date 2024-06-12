@@ -46,7 +46,6 @@ NanaFS 中的数据进行处理。
 NanaFS 通过支持多种类型的插件，以实现对功能的拓展。目前 NanaFS 主要支持三种类型的插件：
 
 - **Source Plugin**：定期的从源地址同步数据并收纳到 NanaFS 中，比如聚合 RSS 信息，根据 SMTP 协议归档电子邮件；
-- **Mirror Plugin**：将外部存储系统映射到 NanaFS 中，使得 NanaFS 可以统一入口的管理多个存储系统的数据；
 - **Process Plugin**：提供文件处理能力，通过拓展 Process Plugin，增强 Workflow 的功能。
 
 ### 数据安全

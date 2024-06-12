@@ -41,9 +41,5 @@ type DocumentManager interface {
 	GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error)
 	DeleteDocument(ctx context.Context, id int64) error
 
-	EnableGroupFeed(ctx context.Context, id int64, feedID string) error
-	DisableGroupFeed(ctx context.Context, id int64) error
-	GetDocsByFeedId(ctx context.Context, feedID string, count int) (*types.FeedResult, error)
-
 	CreateFridayAccount(ctx context.Context, account *types.FridayAccount) error
 }

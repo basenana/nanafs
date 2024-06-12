@@ -57,7 +57,14 @@ func (b *Inbox) QuickInbox(ctx context.Context, fileName string, option Option) 
 	}
 
 	fileEn, err := b.entry.CreateEntry(ctx, group.ID,
-		types.EntryAttr{Name: fileName, Kind: types.RawKind})
+		types.EntryAttr{
+			Name: fileName,
+			Kind: types.RawKind,
+			ExtendData: types.ExtendData{
+				Properties: types.Properties{
+					Fields: map[string]types.PropertyItem{types.PropertyWebPageURL: {Value: option.Url}},
+				},
+			}})
 	if err != nil {
 		return nil, err
 	}

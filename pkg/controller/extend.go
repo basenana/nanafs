@@ -18,7 +18,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"runtime/trace"
@@ -26,8 +25,7 @@ import (
 )
 
 const (
-	attrPrefix             = "org.basenana"
-	attrSourcePluginPrefix = "org.basenana.plugin.source/"
+	attrPrefix = "org.basenana"
 )
 
 func (c *controller) ListEntryExtendField(ctx context.Context, id int64) (map[string]types.PropertyItem, error) {
@@ -81,16 +79,6 @@ func (c *controller) SetEntryExtendField(ctx context.Context, id int64, fKey, fV
 	defer trace.StartRegion(ctx, "controller.SetEntryExtendField").End()
 	c.logger.Debugw("set entry extend filed", "entry", id, "key", fKey)
 
-	if strings.HasPrefix(fKey, attrSourcePluginPrefix) {
-		scope, err := buildPluginScopeFromAttr(fKey, fVal)
-		if err != nil {
-			c.logger.Errorw("build plugin scope from attr failed",
-				"entry", id, "key", fKey, "val", fVal, "err", err)
-			return types.ErrUnsupported
-		}
-		return c.ConfigEntrySourcePlugin(ctx, id, scope)
-	}
-
 	err := c.entry.SetEntryExtendField(ctx, id, fKey, fVal, false)
 	if err != nil {
 		c.logger.Errorw("set entry extend filed failed", "entry", id, "key", fKey, "err", err)
@@ -118,9 +106,6 @@ func (c *controller) SetEntryEncodedExtendField(ctx context.Context, id int64, f
 func (c *controller) RemoveEntryExtendField(ctx context.Context, id int64, fKey string) error {
 	defer trace.StartRegion(ctx, "controller.RemoveEntryExtendField").End()
 	c.logger.Debugw("remove entry extend filed", "entry", id, "key", fKey)
-	if strings.HasPrefix(fKey, attrSourcePluginPrefix) {
-		return c.CleanupEntrySourcePlugin(ctx, id)
-	}
 	err := c.entry.RemoveEntryExtendField(ctx, id, fKey)
 	if err != nil {
 		c.logger.Errorw("remove entry extend filed failed", "entry", id, "key", fKey, "err", err)
@@ -145,7 +130,7 @@ func (c *controller) ConfigEntrySourcePlugin(ctx context.Context, id int64, patc
 			ed.Properties.Fields = map[string]types.PropertyItem{}
 		}
 		for k, v := range patch.Properties.Fields {
-			ed.Properties.Fields[attrSourcePluginPrefix+k] = v
+			ed.Properties.Fields[k] = v
 		}
 	}
 
@@ -199,13 +184,6 @@ func (c *controller) CleanupEntrySourcePlugin(ctx context.Context, id int64) err
 	}
 
 	ed.PlugScope = nil
-	if len(ed.Properties.Fields) > 0 {
-		for k := range ed.Properties.Fields {
-			if strings.HasPrefix(k, attrSourcePluginPrefix) {
-				delete(ed.Properties.Fields, k)
-			}
-		}
-	}
 	err = c.entry.UpdateEntryExtendData(ctx, id, ed)
 	if err != nil {
 		c.logger.Errorw("cleanup entry source plugin encounter write-back failed", "entry", id, "err", err)
@@ -231,14 +209,4 @@ func (c *controller) CleanupEntrySourcePlugin(ctx context.Context, id int64) err
 		return err
 	}
 	return nil
-}
-
-func buildPluginScopeFromAttr(fKey, fVal string) (types.ExtendData, error) {
-	fVal = strings.TrimSpace(fVal)
-	sourceCfgKey := strings.TrimPrefix(fKey, attrSourcePluginPrefix)
-	switch sourceCfgKey {
-	case "rssurl":
-		return BuildRssPluginScopeFromURL(fVal)
-	}
-	return types.ExtendData{}, fmt.Errorf("unknown source attr config key: %s", fKey)
 }

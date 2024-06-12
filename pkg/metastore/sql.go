@@ -110,10 +110,10 @@ func (s *sqliteMetaStore) FindEntry(ctx context.Context, parentID int64, name st
 	return s.dbStore.FindEntry(ctx, parentID, name)
 }
 
-func (s *sqliteMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata) error {
+func (s *sqliteMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata, ed *types.ExtendData) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.CreateEntry(ctx, parentID, newEntry)
+	return s.dbStore.CreateEntry(ctx, parentID, newEntry, ed)
 }
 
 func (s *sqliteMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64) error {
@@ -693,11 +693,12 @@ func (s *sqlMetaStore) FindEntry(ctx context.Context, parentID int64, name strin
 	return objMod.ToEntry(), nil
 }
 
-func (s *sqlMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata) error {
+func (s *sqlMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata, ed *types.ExtendData) error {
 	defer trace.StartRegion(ctx, "metastore.sql.CreateEntry").End()
 	var (
 		parentMod = &db.Object{ID: parentID}
 		entryMod  = (&db.Object{}).FromEntry(newEntry)
+		edMod     = (&db.ObjectExtend{ID: entryMod.ID}).From(ed)
 		nowTime   = time.Now().UnixNano()
 	)
 	if parentID != 0 {
@@ -705,6 +706,11 @@ func (s *sqlMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry
 	}
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		res := tx.Create(entryMod)
+		if res.Error != nil {
+			return res.Error
+		}
+
+		res = tx.Create(edMod)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -1073,7 +1079,7 @@ func (s *sqlMetaStore) UpdateEntryExtendData(ctx context.Context, id int64, ed t
 			return res.Error
 		}
 
-		extModel.From(ed)
+		extModel.From(&ed)
 		res = tx.Save(extModel)
 		if res.Error != nil {
 			return res.Error

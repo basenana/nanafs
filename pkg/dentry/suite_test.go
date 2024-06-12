@@ -78,12 +78,11 @@ var _ = BeforeSuite(func() {
 	rule.InitQuery(memMeta)
 
 	entryMgr = &manager{
-		store:      metaStoreObj,
-		metastore:  metaStoreObj,
-		storages:   storages,
-		extIndexer: NewExtIndexer(),
-		eventQ:     make(chan *entryEvent, 8),
-		logger:     logger.NewLogger("entryManager"),
+		store:     metaStoreObj,
+		metastore: metaStoreObj,
+		storages:  storages,
+		eventQ:    make(chan *entryEvent, 8),
+		logger:    logger.NewLogger("entryManager"),
 	}
 
 	// init root

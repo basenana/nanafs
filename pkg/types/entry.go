@@ -131,6 +131,7 @@ type EntryUri struct {
 }
 
 type ExtendData struct {
+	Labels      Labels     `json:"labels"`
 	Properties  Properties `json:"properties"`
 	Symlink     string     `json:"symlink,omitempty"`
 	GroupFilter *Rule      `json:"group_filter,omitempty"`

@@ -68,7 +68,6 @@ func Init(svc buildin.Services, cfg config.Loader) error {
 
 	// register build-in plugins
 	registerBuildInProcessPlugin(svc, r)
-	registerBuildInMirrorPlugin(r)
 	registerBuildInSourcePlugin(r)
 
 	pluginRegistry = r

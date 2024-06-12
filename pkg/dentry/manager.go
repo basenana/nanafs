@@ -20,14 +20,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"path"
 	"runtime/trace"
 	"strings"
 
 	"go.uber.org/zap"
-
-	"github.com/basenana/nanafs/pkg/plugin"
 
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/bio"
@@ -35,7 +32,6 @@ import (
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 )
 
@@ -84,7 +80,6 @@ func NewManager(store metastore.Meta, cfg config.Bootstrap) (Manager, error) {
 	mgr := &manager{
 		store:          store,
 		metastore:      store,
-		extIndexer:     NewExtIndexer(),
 		defaultStorage: defaultStorage,
 		storages:       storages,
 		eventQ:         make(chan *entryEvent, 8),
@@ -102,7 +97,6 @@ func NewManager(store metastore.Meta, cfg config.Bootstrap) (Manager, error) {
 type manager struct {
 	store          metastore.DEntry
 	metastore      metastore.Meta
-	extIndexer     *ExtIndexer
 	defaultStorage storage.Storage
 	storages       map[string]storage.Storage
 	eventQ         chan *entryEvent
@@ -149,7 +143,7 @@ func (m *manager) Root(ctx context.Context) (*types.Metadata, error) {
 	root.Access.GID = m.fsOwnerGid
 	root.Storage = m.defaultStorage.ID()
 
-	err = m.store.CreateEntry(ctx, 0, root)
+	err = m.store.CreateEntry(ctx, 0, root, nil)
 	if err != nil {
 		m.logger.Errorw("create root entry failed", "err", err)
 		return nil, err
@@ -170,7 +164,7 @@ func (m *manager) CreateNamespace(ctx context.Context, namespace *types.Namespac
 	nsRoot.Access.GID = m.fsOwnerGid
 	nsRoot.Storage = m.defaultStorage.ID()
 
-	err = m.store.CreateEntry(ctx, RootEntryID, nsRoot)
+	err = m.store.CreateEntry(ctx, RootEntryID, nsRoot, nil)
 	if err != nil {
 		m.logger.Errorw("create root entry failed", "err", err)
 		return err
@@ -180,26 +174,12 @@ func (m *manager) CreateNamespace(ctx context.Context, namespace *types.Namespac
 
 func (m *manager) GetEntry(ctx context.Context, id int64) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.GetEntryMetadata").End()
-	if externalIDPrefix == id>>entryIDPrefixMask {
-		stubEn, err := m.extIndexer.GetStubEntry(id)
-		if err != nil {
-			m.logger.Warnw("query external entry with id failed", "entry", id, "err", err)
-			return nil, err
-		}
-		return stubEn.toEntry(), nil
-	}
 
 	en, err := m.store.GetEntry(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	if en.Storage == externalStorage {
-		if err = m.registerStubRoot(ctx, en); err != nil {
-			m.logger.Errorw("fetching ext entry but register stub root failed", "entry", en.ID, "err", err)
-		}
-		return en, nil
-	}
 	return en, nil
 }
 
@@ -230,11 +210,9 @@ func (m *manager) GetEntryByUri(ctx context.Context, uri string) (*types.Metadat
 			return nil, err
 		}
 
-		if entry.Storage != externalStorage {
-			entryUri = &types.EntryUri{ID: entry.ID, Namespace: entry.Namespace, Uri: uri}
-			if err = m.store.SaveEntryUri(ctx, entryUri); err != nil {
-				return nil, err
-			}
+		entryUri = &types.EntryUri{ID: entry.ID, Namespace: entry.Namespace, Uri: uri}
+		if err = m.store.SaveEntryUri(ctx, entryUri); err != nil {
+			return nil, err
 		}
 	}
 	return m.GetEntry(ctx, entryUri.ID)
@@ -247,9 +225,6 @@ func (m *manager) GetEntryExtendData(ctx context.Context, id int64) (types.Exten
 
 func (m *manager) UpdateEntryExtendData(ctx context.Context, id int64, ed types.ExtendData) error {
 	defer trace.StartRegion(ctx, "dentry.manager.UpdateEntryExtendData").End()
-	if externalIDPrefix == id>>entryIDPrefixMask {
-		return types.ErrUnsupported
-	}
 	return m.store.UpdateEntryExtendData(ctx, id, ed)
 }
 
@@ -316,9 +291,6 @@ func (m *manager) GetEntryLabels(ctx context.Context, id int64) (types.Labels, e
 
 func (m *manager) UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error {
 	defer trace.StartRegion(ctx, "dentry.manager.UpdateEntryLabels").End()
-	if externalIDPrefix == id>>entryIDPrefixMask {
-		return types.ErrUnsupported
-	}
 	return m.store.UpdateEntryLabels(ctx, id, labels)
 }
 
@@ -331,9 +303,6 @@ func (m *manager) CreateEntry(ctx context.Context, parentId int64, attr types.En
 	en, err := grp.CreateEntry(ctx, attr)
 	if err != nil {
 		return nil, err
-	}
-	if en.Storage == externalStorage {
-		return en, m.registerStubRoot(ctx, en)
 	}
 	return en, nil
 }
@@ -383,9 +352,6 @@ func (m *manager) CleanEntryData(ctx context.Context, entryId int64) error {
 	if err != nil {
 		return err
 	}
-	if entry.Storage == externalStorage {
-		return nil
-	}
 
 	s, ok := m.storages[entry.Storage]
 	if !ok {
@@ -425,10 +391,6 @@ func (m *manager) MirrorEntry(ctx context.Context, srcId, dstParentId int64, att
 		return nil, types.ErrNoGroup
 	}
 
-	if src.Storage == externalStorage || parent.Storage == externalStorage {
-		return nil, types.ErrUnsupported
-	}
-
 	if types.IsMirrored(src) {
 		m.logger.Warnw("source entry is mirrored", "entry", srcId)
 		return nil, fmt.Errorf("source entry is mirrored")
@@ -451,14 +413,6 @@ func (m *manager) MirrorEntry(ctx context.Context, srcId, dstParentId int64, att
 func (m *manager) ChangeEntryParent(ctx context.Context, targetEntryId int64, overwriteEntryId *int64, oldParentId, newParentId int64, newName string, opt types.ChangeParentAttr) error {
 	defer trace.StartRegion(ctx, "dentry.manager.ChangeEntryParent").End()
 
-	oldParent, err := m.GetEntry(ctx, oldParentId)
-	if err != nil {
-		return err
-	}
-	newParent, err := m.GetEntry(ctx, newParentId)
-	if err != nil {
-		return err
-	}
 	target, err := m.GetEntry(ctx, targetEntryId)
 	if err != nil {
 		return err
@@ -500,16 +454,6 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntryId int64, ov
 		m.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeDestroy, overwriteEntry.ID)
 	}
 
-	if oldParent.Storage == externalStorage || newParent.Storage == externalStorage || oldParent.Storage != newParent.Storage {
-		err = m.changeEntryParentByFileCopy(ctx, target, oldParent, newParent, newName, opt)
-		if err != nil {
-			m.logger.Errorw("change entry parent by file copy failed", "err", err)
-			return err
-		}
-		m.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeChangeParent, target.ID)
-		return nil
-	}
-
 	err = m.store.ChangeEntryParent(ctx, targetEntryId, newParentId, newName, opt)
 	if err != nil {
 		m.logger.Errorw("change object parent failed", "entry", target.ID, "newParent", newParentId, "newName", newName, "err", err)
@@ -519,81 +463,9 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntryId int64, ov
 	return nil
 }
 
-func (m *manager) changeEntryParentByFileCopy(ctx context.Context, targetEntry, oldParent, newParent *types.Metadata, newName string, _ types.ChangeParentAttr) error {
-	newParentEd, err := m.GetEntryExtendData(ctx, newParent.ID)
-	if err != nil {
-		m.logger.Errorw("change entry parent by file copy error, query new parent extend data failed", "err", err)
-		return err
-	}
-
-	if targetEntry.IsGroup {
-		if oldParent.ID == newParent.ID {
-			// only rename
-			targetEntry.Name = newName
-			err = m.store.UpdateEntryMetadata(ctx, targetEntry)
-			if err != nil {
-				m.logger.Errorw("change entry parent by file copy error, rename dir failed", "err", err)
-				return err
-			}
-			return nil
-		}
-		// TODO: move file with scheduled task
-		return types.ErrUnsupported
-	}
-
-	// step 1: create new file
-	attr := types.EntryAttr{
-		Name:      newName,
-		Kind:      targetEntry.Kind,
-		Access:    &targetEntry.Access,
-		PlugScope: newParentEd.PlugScope,
-	}
-	en, err := m.CreateEntry(ctx, newParent.ID, attr)
-	if err != nil {
-		m.logger.Errorw("change entry parent by file copy error, create new entry failed", "err", err)
-		return err
-	}
-
-	// step 2: copy old to new file
-	oldFileReader, err := m.Open(ctx, targetEntry.ID, types.OpenAttr{Read: true})
-	if err != nil {
-		m.logger.Errorw("change entry parent by file copy error, open old file failed", "err", err)
-		return err
-	}
-	newFileWriter, err := m.Open(ctx, en.ID, types.OpenAttr{Write: true})
-	if err != nil {
-		m.logger.Errorw("change entry parent by file copy error, open new file failed", "err", err)
-		return err
-	}
-	_, err = io.Copy(utils.NewWriterWithContextWriter(ctx, newFileWriter), utils.NewReaderWithContextReaderAt(ctx, oldFileReader))
-	if err != nil {
-		m.logger.Errorw("change entry parent by file copy error, copy file content failed", "err", err)
-		return err
-	}
-
-	// step 3: delete old file
-	if err = m.RemoveEntry(ctx, oldParent.ID, targetEntry.ID); err != nil {
-		m.logger.Errorw("change entry parent by file copy error, clean up old file failed", "err", err)
-		return err
-	}
-	return nil
-}
-
 func (m *manager) Open(ctx context.Context, entryId int64, attr types.OpenAttr) (f File, err error) {
 	defer trace.StartRegion(ctx, "dentry.manager.Open").End()
 	attr.EntryID = entryId
-
-	if externalIDPrefix == entryId>>entryIDPrefixMask {
-		stubEntry, err := m.extIndexer.GetStubEntry(entryId)
-		if err != nil {
-			return nil, err
-		}
-		f, err = openExternalFile(ctx, stubEntry, stubEntry.root.mirror, attr)
-		if err != nil {
-			return nil, err
-		}
-		return f, nil
-	}
 
 	entry, err := m.store.Open(ctx, entryId, attr)
 	if err != nil {
@@ -651,18 +523,6 @@ func (m *manager) OpenGroup(ctx context.Context, groupId int64) (Group, error) {
 			m.logger.Warnw("dynamic group not filter config", "entry", entry.ID)
 			grp = emptyGroup{}
 		}
-	case types.ExternalGroupKind:
-		stubEntry, _ := m.extIndexer.GetStubEntry(groupId)
-		if stubEntry != nil {
-			grp = &extGroup{
-				entry:  stubEntry,
-				mirror: stubEntry.root.mirror,
-				logger: logger.NewLogger("extGroup").With(zap.Int64("group", groupId)),
-			}
-		} else {
-			m.logger.Warnw("external group not indexed", "entry", entry.ID)
-			grp = emptyGroup{}
-		}
 	}
 	return instrumentalGroup{grp: grp}, nil
 }
@@ -686,26 +546,4 @@ func (m *manager) ChunkCompact(ctx context.Context, entryId int64) error {
 
 func (m *manager) MustCloseAll() {
 	bio.CloseAll()
-}
-
-func (m *manager) registerStubRoot(ctx context.Context, en *types.Metadata) error {
-	stubEntry, _ := m.extIndexer.GetStubEntry(en.ID)
-	if stubEntry != nil {
-		return nil
-	}
-
-	ed, err := m.store.GetEntryExtendData(ctx, en.ID)
-	if err != nil {
-		return err
-	}
-	if ed.PlugScope != nil {
-		mirror, err := plugin.NewMirrorPlugin(ctx, *ed.PlugScope)
-		if err != nil {
-			return err
-		}
-		m.extIndexer.AddStubRoot(en, mirror)
-	} else {
-		m.logger.Errorw("external root has no plug scope define")
-	}
-	return nil
 }

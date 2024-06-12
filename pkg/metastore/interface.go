@@ -47,7 +47,7 @@ type SysConfig interface {
 type DEntry interface {
 	GetEntry(ctx context.Context, id int64) (*types.Metadata, error)
 	FindEntry(ctx context.Context, parentID int64, name string) (*types.Metadata, error)
-	CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata) error
+	CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata, ed *types.ExtendData) error
 	RemoveEntry(ctx context.Context, parentID, entryID int64) error
 	DeleteRemovedEntry(ctx context.Context, entryID int64) error
 	UpdateEntryMetadata(ctx context.Context, entry *types.Metadata) error
