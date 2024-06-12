@@ -191,7 +191,10 @@ func (o *ObjectExtend) TableName() string {
 	return "object_extend"
 }
 
-func (o *ObjectExtend) From(ed types.ExtendData) {
+func (o *ObjectExtend) From(ed *types.ExtendData) *ObjectExtend {
+	if ed == nil {
+		return o
+	}
 	o.Symlink = ed.Symlink
 	if ed.GroupFilter != nil {
 		o.GroupFilter, _ = json.Marshal(ed.GroupFilter)
@@ -199,11 +202,11 @@ func (o *ObjectExtend) From(ed types.ExtendData) {
 	if ed.PlugScope != nil {
 		o.PlugScope, _ = json.Marshal(ed.PlugScope)
 	}
+	return o
 }
 
 func (o *ObjectExtend) ToExtData() types.ExtendData {
 	ext := types.ExtendData{
-		Properties:  types.Properties{Fields: map[string]types.PropertyItem{}},
 		Symlink:     o.Symlink,
 		GroupFilter: nil,
 		PlugScope:   nil,
@@ -573,19 +576,6 @@ func (d *Document) To() *types.Document {
 		ChangedAt:     d.ChangedAt,
 	}
 	return result
-}
-
-type DocumentFeed struct {
-	ID          string    `gorm:"column:id;primaryKey"`
-	DisplayName string    `gorm:"column:display_name"`
-	ParentID    *int64    `gorm:"column:parent_id;index:docfeed_parent_id"`
-	Keywords    *string   `gorm:"column:keywords"`
-	IndexQuery  *string   `gorm:"column:index_query"`
-	CreatedAt   time.Time `gorm:"column:created_at"`
-}
-
-func (d *DocumentFeed) TableName() string {
-	return "document_feed"
 }
 
 type FridayAccount struct {

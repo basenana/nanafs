@@ -28,6 +28,12 @@ const (
 	LabelKeyPluginPrefix = "org.basenana.internal.plugin/"
 	LabelKeyPluginKind   = LabelKeyPluginPrefix + "kind"
 	LabelKeyPluginName   = LabelKeyPluginPrefix + "name"
+
+	PropertyWebSiteName     = "org.basenana.web.site_name"
+	PropertyWebSiteURL      = "org.basenana.web.site_url"
+	PropertyWebPageURL      = "org.basenana.web.url"
+	PropertyWebPageUpdateAt = "org.basenana.web.updated_at"
+	PropertyWebPageTitle    = "org.basenana.web.title"
 )
 
 type SystemInfo struct {
@@ -125,7 +131,6 @@ type EntryUri struct {
 }
 
 type ExtendData struct {
-	Properties  Properties `json:"properties"`
 	Symlink     string     `json:"symlink,omitempty"`
 	GroupFilter *Rule      `json:"group_filter,omitempty"`
 	PlugScope   *PlugScope `json:"plug_scope,omitempty"`

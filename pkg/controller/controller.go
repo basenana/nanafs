@@ -61,13 +61,14 @@ type Controller interface {
 	ChangeEntryParent(ctx context.Context, targetId, oldParentId, newParentId int64, newName string, opt types.ChangeParentAttr) error
 	ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) ([]*types.Metadata, error)
 
-	ListEntryExtendField(ctx context.Context, id int64) (map[string]types.PropertyItem, error)
-	GetEntryExtendField(ctx context.Context, id int64, fKey string) ([]byte, error)
-	SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string) error
-	SetEntryEncodedExtendField(ctx context.Context, id int64, fKey string, fVal []byte) error
-	RemoveEntryExtendField(ctx context.Context, id int64, fKey string) error
 	ConfigEntrySourcePlugin(ctx context.Context, id int64, scope types.ExtendData) error
 	CleanupEntrySourcePlugin(ctx context.Context, id int64) error
+
+	ListEntryProperties(ctx context.Context, id int64) (map[string]types.PropertyItem, error)
+	GetEntryProperty(ctx context.Context, id int64, fKey string) ([]byte, error)
+	SetEntryProperty(ctx context.Context, id int64, fKey, fVal string) error
+	SetEntryEncodedProperty(ctx context.Context, id int64, fKey string, fVal []byte) error
+	RemoveEntryProperty(ctx context.Context, id int64, fKey string) error
 
 	QuickInbox(ctx context.Context, filename string, option inbox.Option) (*types.Metadata, error)
 
@@ -76,9 +77,6 @@ type Controller interface {
 	CommitSyncedEvent(ctx context.Context, deviceID string, sequence int64) error
 	ListNotifications(ctx context.Context) ([]types.Notification, error)
 
-	EnableGroupFeed(ctx context.Context, id int64, feedID string) error
-	DisableGroupFeed(ctx context.Context, id int64) error
-	GetDocumentsByFeed(ctx context.Context, feedId string, count int) (*types.FeedResult, error)
 	ListDocuments(ctx context.Context, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error)
 	GetDocumentsByEntryId(ctx context.Context, entryId int64) (*types.Document, error)
 	GetDocument(ctx context.Context, documentId int64) (*types.Document, error)
@@ -160,7 +158,7 @@ func (c *controller) CreateNamespace(ctx context.Context, namespace string) (*ty
 
 func (c *controller) LoadRootEntry(ctx context.Context) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "controller.LoadRootEntry").End()
-	c.logger.Info("init root object")
+	c.logger.Info("init root entry")
 	rootEntry, err := c.entry.Root(ctx)
 	if err != nil {
 		c.logger.Errorw("load root object error", "err", err.Error())

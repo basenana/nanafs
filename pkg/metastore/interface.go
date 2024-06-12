@@ -47,7 +47,7 @@ type SysConfig interface {
 type DEntry interface {
 	GetEntry(ctx context.Context, id int64) (*types.Metadata, error)
 	FindEntry(ctx context.Context, parentID int64, name string) (*types.Metadata, error)
-	CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata) error
+	CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata, ed *types.ExtendData) error
 	RemoveEntry(ctx context.Context, parentID, entryID int64) error
 	DeleteRemovedEntry(ctx context.Context, entryID int64) error
 	UpdateEntryMetadata(ctx context.Context, entry *types.Metadata) error
@@ -66,8 +66,14 @@ type DEntry interface {
 
 	GetEntryExtendData(ctx context.Context, id int64) (types.ExtendData, error)
 	UpdateEntryExtendData(ctx context.Context, id int64, ed types.ExtendData) error
+
 	GetEntryLabels(ctx context.Context, id int64) (types.Labels, error)
 	UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error
+	ListEntryProperties(ctx context.Context, id int64) (types.Properties, error)
+	GetEntryProperty(ctx context.Context, id int64, key string) (types.PropertyItem, error)
+	AddEntryProperty(ctx context.Context, id int64, key string, item types.PropertyItem) error
+	RemoveEntryProperty(ctx context.Context, id int64, key string) error
+	UpdateEntryProperties(ctx context.Context, id int64, properties types.Properties) error
 
 	SaveDocument(ctx context.Context, doc *types.Document) error
 	ListDocument(ctx context.Context, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error)
@@ -75,9 +81,6 @@ type DEntry interface {
 	GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error)
 	GetDocumentByName(ctx context.Context, name string) (*types.Document, error)
 	DeleteDocument(ctx context.Context, id int64) error
-	GetDocumentFeed(ctx context.Context, feedID string) (*types.DocumentFeed, error)
-	EnableDocumentFeed(ctx context.Context, feed types.DocumentFeed) error
-	DisableDocumentFeed(ctx context.Context, feed types.DocumentFeed) error
 
 	ListFridayAccount(ctx context.Context, refId int64) ([]*types.FridayAccount, error)
 	CreateFridayAccount(ctx context.Context, account *types.FridayAccount) error

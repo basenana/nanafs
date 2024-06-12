@@ -28,16 +28,18 @@ service Inbox {
   rpc QuickInbox (QuickInboxRequest) returns (QuickInboxResponse) {}
 }
 
+enum WebFileType {
+  BookmarkFile = 0;
+  HtmlFile = 1;
+  RawHtmlFile = 2;
+  WebArchiveFile = 3;
+}
+
 message QuickInboxRequest {
   enum SourceType {UrlSource = 0;}
-  enum FileType {
-    BookmarkFile = 0;
-    HtmlFile = 1;
-    WebArchiveFile = 2;
-  }
 
   SourceType sourceType = 1;
-  FileType fileType = 2;
+  WebFileType fileType = 2;
   string filename = 3;
   string url = 4;
   bytes data = 5;
@@ -100,6 +102,14 @@ message CreateEntryRequest {
   int64 parentID = 1;
   string  name = 2;
   string kind = 3;
+
+  message RssConfig {
+    string feed = 1;
+    string siteName = 2;
+    string siteURL = 3;
+    WebFileType fileType = 4;
+  }
+  RssConfig rss = 4;
 }
 
 message CreateEntryResponse {

@@ -30,7 +30,6 @@ import (
 	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
-	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow/exec"
 	"github.com/basenana/nanafs/pkg/workflow/jobrun"
@@ -96,17 +95,6 @@ func NewManager(entryMgr dentry.Manager, docMgr document.Manager, notify *notify
 
 	flowCtrl := jobrun.NewJobController(recorder, notify)
 	mgr := &manager{ctrl: flowCtrl, entryMgr: entryMgr, docMgr: docMgr, recorder: recorder, config: cfg, logger: wfLogger}
-	root, err := entryMgr.Root(context.Background())
-	if err != nil {
-		mgr.logger.Errorw("query root failed", "err", err)
-		return nil, err
-	}
-
-	mgr.logger.Infof("init workflow mirror dir to %s", MirrorRootDirName)
-	plugin.Register(mirrorPlugin, buildWorkflowMirrorPlugin(mgr))
-	if err := initWorkflowMirrorDir(root, entryMgr); err != nil {
-		return nil, fmt.Errorf("init workflow mirror dir failed: %s", err)
-	}
 	mgr.cron = newCronHandler(mgr)
 
 	return mgr, nil

@@ -17,14 +17,13 @@
 package types
 
 type EntryAttr struct {
-	Name        string
-	Kind        Kind
-	Access      *Access
-	Dev         int64
-	ExtendData  ExtendData
-	Labels      Labels
-	PlugScope   *PlugScope
-	GroupFilter *Rule
+	Name       string
+	Kind       Kind
+	Access     *Access
+	Dev        int64
+	Properties Properties
+	Labels     Labels
+	ExtendData *ExtendData
 }
 
 type OpenAttr struct {

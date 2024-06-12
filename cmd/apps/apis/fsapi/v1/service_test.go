@@ -148,7 +148,7 @@ var _ = Describe("testInboxService", func() {
 		It("inbox should be succeed", func() {
 			resp, err := serviceClient.QuickInbox(ctx, &QuickInboxRequest{
 				SourceType:  QuickInboxRequest_UrlSource,
-				FileType:    QuickInboxRequest_WebArchiveFile,
+				FileType:    WebFileType_WebArchiveFile,
 				Filename:    "test",
 				Url:         "https://blog.ihypo.net",
 				ClutterFree: true,

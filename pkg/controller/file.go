@@ -43,7 +43,7 @@ func (c *controller) OpenFile(ctx context.Context, entryID int64, attr types.Ope
 			return nil, err
 		}
 		entry = sourceEn
-		c.logger.Infow("replace source object", "sourceEntry", entry.ID)
+		c.logger.Infow("replace source entry", "sourceEntry", entry.ID)
 	}
 
 	file, err := c.entry.Open(ctx, entry.ID, attr)

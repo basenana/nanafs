@@ -48,11 +48,6 @@ const (
 	archiveFileTypeRawHtml    = "rawhtml"
 	archiveFileTypeWebArchive = "webarchive"
 
-	rssPostMetaID        = "org.basenana.plugin.rss/id"
-	rssPostMetaLink      = "org.basenana.plugin.rss/link"
-	rssPostMetaTitle     = "org.basenana.plugin.rss/title"
-	rssPostMetaUpdatedAt = "org.basenana.plugin.rss/updated_at"
-
 	rssPostMaxCollect = 50
 )
 
@@ -291,10 +286,9 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 			Kind: types.RawKind,
 			Size: fInfo.Size(),
 			Parameters: map[string]string{
-				rssPostMetaID:        item.GUID,
-				rssPostMetaTitle:     item.Title,
-				rssPostMetaLink:      item.Link,
-				rssPostMetaUpdatedAt: updatedAt.Format(time.RFC3339),
+				types.PropertyWebPageTitle:    item.Title,
+				types.PropertyWebPageURL:      item.Link,
+				types.PropertyWebPageUpdateAt: updatedAt.Format(time.RFC3339),
 			},
 			IsGroup: false,
 		})

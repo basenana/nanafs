@@ -511,7 +511,7 @@ func (s *services) GetEntryDetail(ctx context.Context, request *GetEntryDetailRe
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
-	err = dentry.IsHasPermissions(en.Access, caller.UID, 0, []types.Permission{types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead})
+	err = dentry.IsHasPermissions(en.Access, caller.UID, caller.GID, []types.Permission{types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead})
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "has no permission")
 	}
@@ -549,17 +549,22 @@ func (s *services) CreateEntry(ctx context.Context, request *CreateEntryRequest)
 		return nil, status.Error(common.FsApiError(err), "query entry parent failed")
 	}
 
-	err = dentry.IsHasPermissions(parent.Access, caller.UID, 0, []types.Permission{types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite})
+	err = dentry.IsHasPermissions(parent.Access, caller.UID, caller.GID, []types.Permission{types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite})
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "has no permission")
 	}
 
-	en, err := s.ctrl.CreateEntry(ctx, request.ParentID, types.EntryAttr{
+	attr := types.EntryAttr{
 		Name:   request.Name,
 		Kind:   pdKind2EntryKind(request.Kind),
 		Access: &parent.Access,
 		Dev:    parent.Dev,
-	})
+	}
+	if request.Rss != nil {
+		s.logger.Debugw("setup rss feed to dir", "feed", request.Rss.Feed, "siteName", request.Rss.SiteName)
+		setupRssConfig(request.Rss, &attr)
+	}
+	en, err := s.ctrl.CreateEntry(ctx, request.ParentID, attr)
 	return &CreateEntryResponse{Entry: entryInfo(en)}, nil
 }
 
@@ -579,7 +584,7 @@ func (s *services) UpdateEntry(ctx context.Context, request *UpdateEntryRequest)
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
 
-	err = dentry.IsHasPermissions(en.Access, caller.UID, 0, []types.Permission{types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite})
+	err = dentry.IsHasPermissions(en.Access, caller.UID, caller.GID, []types.Permission{types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite})
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "has no permission")
 	}
@@ -720,7 +725,7 @@ func (s *services) ChangeParent(ctx context.Context, request *ChangeParentReques
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
-	err = dentry.IsHasPermissions(en.Access, caller.UID, 0, []types.Permission{types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite})
+	err = dentry.IsHasPermissions(en.Access, caller.UID, caller.GID, []types.Permission{types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite})
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "has no permission")
 	}
@@ -729,7 +734,7 @@ func (s *services) ChangeParent(ctx context.Context, request *ChangeParentReques
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
-	err = dentry.IsHasPermissions(newParent.Access, caller.UID, 0, []types.Permission{types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite})
+	err = dentry.IsHasPermissions(newParent.Access, caller.UID, caller.GID, []types.Permission{types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite})
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "has no permission")
 	}
@@ -790,7 +795,7 @@ func (s *services) WriteFile(reader Entries_WriteFileServer) error {
 				return status.Error(common.FsApiError(err), "query entry failed")
 			}
 
-			err = dentry.IsHasPermissions(en.Access, caller.UID, 0, []types.Permission{types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite})
+			err = dentry.IsHasPermissions(en.Access, caller.UID, caller.GID, []types.Permission{types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite})
 			if err != nil {
 				return status.Error(common.FsApiError(err), "has no permission")
 			}
@@ -836,7 +841,7 @@ func (s *services) ReadFile(request *ReadFileRequest, writer Entries_ReadFileSer
 		return status.Error(common.FsApiError(err), "query entry failed")
 	}
 
-	err = dentry.IsHasPermissions(en.Access, caller.UID, 0, []types.Permission{types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead})
+	err = dentry.IsHasPermissions(en.Access, caller.UID, caller.GID, []types.Permission{types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead})
 	if err != nil {
 		return status.Error(common.FsApiError(err), "has no permission")
 	}
@@ -877,11 +882,11 @@ func (s *services) QuickInbox(ctx context.Context, request *QuickInboxRequest) (
 		ClutterFree: request.ClutterFree,
 	}
 	switch request.FileType {
-	case QuickInboxRequest_BookmarkFile:
+	case WebFileType_BookmarkFile:
 		option.FileType = "url"
-	case QuickInboxRequest_WebArchiveFile:
+	case WebFileType_WebArchiveFile:
 		option.FileType = "webarchive"
-	case QuickInboxRequest_HtmlFile:
+	case WebFileType_HtmlFile:
 		option.FileType = "html"
 	}
 	en, err := s.ctrl.QuickInbox(ctx, request.Filename, option)
@@ -897,7 +902,7 @@ func (s *services) AddProperty(ctx context.Context, request *AddPropertyRequest)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
-	err = s.ctrl.SetEntryExtendField(ctx, en.ID, request.Key, request.Value)
+	err = s.ctrl.SetEntryProperty(ctx, en.ID, request.Key, request.Value)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "add entry extend field failed")
 	}
@@ -917,12 +922,12 @@ func (s *services) UpdateProperty(ctx context.Context, request *UpdatePropertyRe
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
 
-	_, err = s.ctrl.GetEntryExtendField(ctx, en.ID, request.Key)
+	_, err = s.ctrl.GetEntryProperty(ctx, en.ID, request.Key)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "fetch entry exist extend field failed")
 	}
 
-	err = s.ctrl.SetEntryExtendField(ctx, en.ID, request.Key, request.Value)
+	err = s.ctrl.SetEntryProperty(ctx, en.ID, request.Key, request.Value)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "set entry extend field failed")
 	}
@@ -941,7 +946,7 @@ func (s *services) DeleteProperty(ctx context.Context, request *DeletePropertyRe
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
-	err = s.ctrl.RemoveEntryExtendField(ctx, en.ID, request.Key)
+	err = s.ctrl.RemoveEntryProperty(ctx, en.ID, request.Key)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "set entry extend field failed")
 	}
@@ -1030,11 +1035,11 @@ func (s *services) TriggerWorkflow(ctx context.Context, request *TriggerWorkflow
 }
 
 func (s *services) queryEntryProperties(ctx context.Context, entryID, parentID int64) ([]*Property, error) {
-	properties, err := s.ctrl.ListEntryExtendField(ctx, parentID)
+	properties, err := s.ctrl.ListEntryProperties(ctx, parentID)
 	if err != nil {
 		return nil, err
 	}
-	entryProperties, err := s.ctrl.ListEntryExtendField(ctx, entryID)
+	entryProperties, err := s.ctrl.ListEntryProperties(ctx, entryID)
 	if err != nil {
 		return nil, err
 	}

@@ -103,58 +103,6 @@ var _ = Describe("testDocumentManage", func() {
 			Expect(doc).Should(BeNil())
 		})
 	})
-	Context("Feed", func() {
-		var (
-			grp     *types.Metadata
-			grpFile *types.Metadata
-			doc     *types.Document
-		)
-		It("create group should succeed", func() {
-			var err error
-			grp, err = entryMgr.CreateEntry(context.TODO(), root.ID, types.EntryAttr{
-				Name:   "test_feed_grp",
-				Kind:   types.GroupKind,
-				Access: accessPermissions,
-			})
-			Expect(err).Should(BeNil())
-			grpFile, err = entryMgr.CreateEntry(context.TODO(), grp.ID, types.EntryAttr{
-				Name:   "test_feed_grp_file",
-				Kind:   types.RawKind,
-				Access: accessPermissions,
-			})
-			Expect(err).Should(BeNil())
-			err = docManager.SaveDocument(context.TODO(), &types.Document{
-				OID:           grpFile.ID,
-				Name:          grpFile.Name,
-				ParentEntryID: grp.ID,
-				Content:       "this is content",
-				Summary:       "this is summary",
-			})
-			Expect(err).Should(BeNil())
-			doc, err = docManager.GetDocumentByEntryId(context.TODO(), grpFile.ID)
-			Expect(err).Should(BeNil())
-		})
-		It("Enable should succeed", func() {
-			err := docManager.EnableGroupFeed(context.TODO(), grp.ID, "test-feed")
-			Expect(err).Should(BeNil())
-			_, err = docManager.recorder.GetDocumentFeed(context.TODO(), "test-feed")
-			Expect(err).Should(BeNil())
-		})
-		It("Get docs by feed should succeed", func() {
-			result, err := docManager.GetDocsByFeedId(context.TODO(), "test-feed", 1)
-			Expect(err).Should(BeNil())
-			Expect(len(result.Documents)).Should(Equal(1))
-			Expect(result.Documents[0].Document.ID).Should(Equal(doc.ID))
-			Expect(result.Documents[0].Document.Content).Should(Equal(doc.Content))
-			Expect(result.Documents[0].Document.KeyWords).Should(Equal(doc.KeyWords))
-		})
-		It("Disable should succeed", func() {
-			err := docManager.DisableGroupFeed(context.TODO(), grp.ID)
-			Expect(err).Should(BeNil())
-			_, err = docManager.recorder.GetDocumentFeed(context.TODO(), "test-feed")
-			Expect(err).Should(Equal(types.ErrNotFound))
-		})
-	})
 	Context("test list document groups", func() {
 		var (
 			grp     *types.Metadata

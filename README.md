@@ -57,8 +57,6 @@ of plugins:
 
 - **Source Plugin**: synchronizes data periodically from a source address and integrates it into NanaFS. This includes
   aggregating RSS information and filing emails according to the SMTP protocol.
-- **Mirror Plugin**: maps external storage systems into NanaFS, allowing NanaFS to manage data from multiple storage
-  systems through a unified interface.
 - **Process Plugin**: provides file processing capabilities and enhances the functionality of workflows by extending
   Process Plugins.
 

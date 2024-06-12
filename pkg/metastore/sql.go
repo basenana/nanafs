@@ -110,10 +110,10 @@ func (s *sqliteMetaStore) FindEntry(ctx context.Context, parentID int64, name st
 	return s.dbStore.FindEntry(ctx, parentID, name)
 }
 
-func (s *sqliteMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata) error {
+func (s *sqliteMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata, ed *types.ExtendData) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.CreateEntry(ctx, parentID, newEntry)
+	return s.dbStore.CreateEntry(ctx, parentID, newEntry, ed)
 }
 
 func (s *sqliteMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64) error {
@@ -210,6 +210,36 @@ func (s *sqliteMetaStore) UpdateEntryLabels(ctx context.Context, id int64, label
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	return s.dbStore.UpdateEntryLabels(ctx, id, labels)
+}
+
+func (s *sqliteMetaStore) ListEntryProperties(ctx context.Context, id int64) (types.Properties, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.ListEntryProperties(ctx, id)
+}
+
+func (s *sqliteMetaStore) GetEntryProperty(ctx context.Context, id int64, key string) (types.PropertyItem, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.GetEntryProperty(ctx, id, key)
+}
+
+func (s *sqliteMetaStore) AddEntryProperty(ctx context.Context, id int64, key string, item types.PropertyItem) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.AddEntryProperty(ctx, id, key, item)
+}
+
+func (s *sqliteMetaStore) RemoveEntryProperty(ctx context.Context, id int64, key string) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.RemoveEntryProperty(ctx, id, key)
+}
+
+func (s *sqliteMetaStore) UpdateEntryProperties(ctx context.Context, id int64, properties types.Properties) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.UpdateEntryProperties(ctx, id, properties)
 }
 
 func (s *sqliteMetaStore) NextSegmentID(ctx context.Context) (int64, error) {
@@ -378,24 +408,6 @@ func (s *sqliteMetaStore) DeleteDocument(ctx context.Context, id int64) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	return s.dbStore.DeleteDocument(ctx, id)
-}
-
-func (s *sqliteMetaStore) GetDocumentFeed(ctx context.Context, feedID string) (*types.DocumentFeed, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.GetDocumentFeed(ctx, feedID)
-}
-
-func (s *sqliteMetaStore) EnableDocumentFeed(ctx context.Context, feed types.DocumentFeed) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.EnableDocumentFeed(ctx, feed)
-}
-
-func (s *sqliteMetaStore) DisableDocumentFeed(ctx context.Context, feed types.DocumentFeed) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.DisableDocumentFeed(ctx, feed)
 }
 
 func (s *sqliteMetaStore) ListFridayAccount(ctx context.Context, refId int64) ([]*types.FridayAccount, error) {
@@ -711,7 +723,7 @@ func (s *sqlMetaStore) FindEntry(ctx context.Context, parentID int64, name strin
 	return objMod.ToEntry(), nil
 }
 
-func (s *sqlMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata) error {
+func (s *sqlMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata, ed *types.ExtendData) error {
 	defer trace.StartRegion(ctx, "metastore.sql.CreateEntry").End()
 	var (
 		parentMod = &db.Object{ID: parentID}
@@ -727,6 +739,13 @@ func (s *sqlMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry
 			return res.Error
 		}
 
+		if ed != nil {
+			edMod := (&db.ObjectExtend{ID: entryMod.ID}).From(ed)
+			res = tx.Create(edMod)
+			if res.Error != nil {
+				return res.Error
+			}
+		}
 		if parentID == 0 {
 			return nil
 		}
@@ -1044,45 +1063,23 @@ func (s *sqlMetaStore) Flush(ctx context.Context, id int64, size int64) error {
 
 func (s *sqlMetaStore) GetEntryExtendData(ctx context.Context, id int64) (types.ExtendData, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.GetEntryExtendData").End()
-	var (
-		ext      = &db.ObjectExtend{}
-		property = make([]db.ObjectProperty, 0)
-	)
-
-	if err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := tx.Where("id = ?", id).First(ext)
-		if res.Error != nil {
-			return res.Error
-		}
-		res = namespaceQuery(ctx, tx).Where("oid = ?", id).Find(&property)
-		if res.Error != nil {
-			return res.Error
-		}
-		return nil
-	}); err != nil {
-		err = db.SqlError2Error(err)
-		if err == types.ErrNotFound {
+	var ext = &db.ObjectExtend{}
+	res := s.WithContext(ctx).Where("id = ?", id).First(ext)
+	if res.Error != nil {
+		err := db.SqlError2Error(res.Error)
+		if errors.Is(err, types.ErrNotFound) {
 			return types.ExtendData{}, nil
 		}
 		return types.ExtendData{}, err
 	}
-
-	ed := ext.ToExtData()
-	for _, p := range property {
-		ed.Properties.Fields[p.Name] = types.PropertyItem{Value: p.Value, Encoded: p.Encoded}
-	}
-	return ed, nil
+	return ext.ToExtData(), nil
 }
 
 func (s *sqlMetaStore) UpdateEntryExtendData(ctx context.Context, id int64, ed types.ExtendData) error {
 	defer trace.StartRegion(ctx, "metastore.sql.UpdateEntryExtendData").End()
 	var (
-		entryModel                 = &db.Object{ID: id}
-		extModel                   = &db.ObjectExtend{ID: id}
-		objectProperties           = make([]db.ObjectProperty, 0)
-		needCreatePropertiesModels = make([]db.ObjectProperty, 0)
-		needUpdatePropertiesModels = make([]db.ObjectProperty, 0)
-		needDeletePropertiesModels = make([]db.ObjectProperty, 0)
+		entryModel = &db.Object{ID: id}
+		extModel   = &db.ObjectExtend{ID: id}
 	)
 
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -1091,68 +1088,10 @@ func (s *sqlMetaStore) UpdateEntryExtendData(ctx context.Context, id int64, ed t
 			return res.Error
 		}
 
-		extModel.From(ed)
+		extModel.From(&ed)
 		res = tx.Save(extModel)
 		if res.Error != nil {
 			return res.Error
-		}
-
-		res = namespaceQuery(ctx, tx).Where("oid = ?", id).Find(&objectProperties)
-		if res.Error != nil {
-			return res.Error
-		}
-
-		propertiesMap := map[string]types.PropertyItem{}
-		for k, v := range ed.Properties.Fields {
-			propertiesMap[k] = v
-		}
-
-		for i := range objectProperties {
-			oldKv := objectProperties[i]
-			if newV, ok := propertiesMap[oldKv.Name]; ok {
-				if oldKv.Value != newV.Value {
-					oldKv.Value = newV.Value
-					oldKv.Encoded = newV.Encoded
-					needUpdatePropertiesModels = append(needUpdatePropertiesModels, oldKv)
-				}
-				delete(propertiesMap, oldKv.Name)
-				continue
-			}
-			needDeletePropertiesModels = append(needDeletePropertiesModels, oldKv)
-		}
-
-		for k, v := range propertiesMap {
-			needCreatePropertiesModels = append(needCreatePropertiesModels,
-				db.ObjectProperty{OID: id, Name: k, Namespace: entryModel.Namespace, Value: v.Value, Encoded: v.Encoded})
-		}
-
-		if len(needCreatePropertiesModels) > 0 {
-			for i := range needCreatePropertiesModels {
-				property := needCreatePropertiesModels[i]
-				res = tx.Create(&property)
-				if res.Error != nil {
-					return res.Error
-				}
-			}
-		}
-		if len(needUpdatePropertiesModels) > 0 {
-			for i := range needUpdatePropertiesModels {
-				property := needUpdatePropertiesModels[i]
-				res = tx.Save(&property)
-				if res.Error != nil {
-					return res.Error
-				}
-			}
-		}
-
-		if len(needDeletePropertiesModels) > 0 {
-			for i := range needDeletePropertiesModels {
-				property := needDeletePropertiesModels[i]
-				res = tx.Delete(&property)
-				if res.Error != nil {
-					return res.Error
-				}
-			}
 		}
 		return nil
 	})
@@ -1371,6 +1310,166 @@ func (s *sqlMetaStore) UpdateEntryLabels(ctx context.Context, id int64, labels t
 	})
 	if err != nil {
 		s.logger.Errorw("update entry labels failed", "entry", id, "err", err)
+		return db.SqlError2Error(err)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) ListEntryProperties(ctx context.Context, id int64) (types.Properties, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.ListEntryProperties").End()
+	var (
+		property = make([]db.ObjectProperty, 0)
+		result   = types.Properties{Fields: map[string]types.PropertyItem{}}
+	)
+
+	res := s.WithNamespace(ctx).Where("oid = ?", id).Find(&property)
+	if res.Error != nil {
+		return result, res.Error
+	}
+
+	for _, p := range property {
+		result.Fields[p.Name] = types.PropertyItem{Value: p.Value, Encoded: p.Encoded}
+	}
+	return result, nil
+}
+
+func (s *sqlMetaStore) GetEntryProperty(ctx context.Context, id int64, key string) (types.PropertyItem, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.GetEntryProperty").End()
+	var (
+		itemModel = &db.ObjectProperty{}
+		result    types.PropertyItem
+	)
+	res := s.WithContext(ctx).Where("oid = ? AND key = ?", id, key).First(&itemModel)
+	if res.Error != nil {
+		return result, db.SqlError2Error(res.Error)
+	}
+	result.Value = itemModel.Value
+	result.Encoded = itemModel.Encoded
+	return result, nil
+}
+
+func (s *sqlMetaStore) AddEntryProperty(ctx context.Context, id int64, key string, item types.PropertyItem) error {
+	defer trace.StartRegion(ctx, "metastore.sql.AddEntryProperty").End()
+	var (
+		entryModel   = &db.Object{ID: id}
+		propertyItem = &db.ObjectProperty{}
+	)
+	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := namespaceQuery(ctx, tx).Where("id = ?", id).First(entryModel)
+		if res.Error != nil {
+			return res.Error
+		}
+
+		res = namespaceQuery(ctx, tx).Where("oid = ? AND key = ?", id, key).First(propertyItem)
+		if res.Error != nil && !errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			return res.Error
+		}
+
+		propertyItem.OID = id
+		propertyItem.Namespace = entryModel.Namespace
+		propertyItem.Name = key
+		propertyItem.Value = item.Value
+		propertyItem.Encoded = item.Encoded
+
+		if propertyItem.ID == 0 {
+			res = tx.Create(propertyItem)
+			return res.Error
+		}
+		res = tx.Updates(propertyItem)
+		return res.Error
+	})
+	if err != nil {
+		s.logger.Errorw("add entry property failed", "entry", id, "err", err)
+		return db.SqlError2Error(err)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) RemoveEntryProperty(ctx context.Context, id int64, key string) error {
+	defer trace.StartRegion(ctx, "metastore.sql.RemoveEntryProperty").End()
+	res := s.WithContext(ctx).Where("oid = ? AND key = ?", id, key).Delete(&db.ObjectProperty{})
+	if res.Error != nil {
+		return db.SqlError2Error(res.Error)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) UpdateEntryProperties(ctx context.Context, id int64, properties types.Properties) error {
+	defer trace.StartRegion(ctx, "metastore.sql.UpdateEntryProperties").End()
+	var (
+		entryModel                 = &db.Object{ID: id}
+		objectProperties           = make([]db.ObjectProperty, 0)
+		needCreatePropertiesModels = make([]db.ObjectProperty, 0)
+		needUpdatePropertiesModels = make([]db.ObjectProperty, 0)
+		needDeletePropertiesModels = make([]db.ObjectProperty, 0)
+	)
+	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := namespaceQuery(ctx, tx).Where("id = ?", id).First(entryModel)
+		if res.Error != nil {
+			return res.Error
+		}
+
+		res = namespaceQuery(ctx, tx).Where("oid = ?", id).Find(&objectProperties)
+		if res.Error != nil {
+			return res.Error
+		}
+
+		propertiesMap := map[string]types.PropertyItem{}
+		for k, v := range properties.Fields {
+			propertiesMap[k] = v
+		}
+
+		for i := range objectProperties {
+			oldKv := objectProperties[i]
+			if newV, ok := propertiesMap[oldKv.Name]; ok {
+				if oldKv.Value != newV.Value {
+					oldKv.Value = newV.Value
+					oldKv.Encoded = newV.Encoded
+					needUpdatePropertiesModels = append(needUpdatePropertiesModels, oldKv)
+				}
+				delete(propertiesMap, oldKv.Name)
+				continue
+			}
+			needDeletePropertiesModels = append(needDeletePropertiesModels, oldKv)
+		}
+
+		for k, v := range propertiesMap {
+			needCreatePropertiesModels = append(needCreatePropertiesModels,
+				db.ObjectProperty{OID: id, Name: k, Namespace: entryModel.Namespace, Value: v.Value, Encoded: v.Encoded})
+		}
+
+		if len(needCreatePropertiesModels) > 0 {
+			for i := range needCreatePropertiesModels {
+				property := needCreatePropertiesModels[i]
+				res = tx.Create(&property)
+				if res.Error != nil {
+					return res.Error
+				}
+			}
+		}
+		if len(needUpdatePropertiesModels) > 0 {
+			for i := range needUpdatePropertiesModels {
+				property := needUpdatePropertiesModels[i]
+				res = tx.Save(&property)
+				if res.Error != nil {
+					return res.Error
+				}
+			}
+		}
+
+		if len(needDeletePropertiesModels) > 0 {
+			for i := range needDeletePropertiesModels {
+				property := needDeletePropertiesModels[i]
+				res = tx.Delete(&property)
+				if res.Error != nil {
+					return res.Error
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		s.logger.Errorw("save entry properties failed", "entry", id, "err", err)
 		return db.SqlError2Error(err)
 	}
 	return nil
@@ -1981,75 +2080,6 @@ func (s *sqlMetaStore) DeleteDocument(ctx context.Context, id int64) error {
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		res := namespaceQuery(ctx, tx).Where("id = ?", id).Delete(&db.Document{})
 		return res.Error
-	})
-	return db.SqlError2Error(err)
-}
-
-func (s *sqlMetaStore) GetDocumentFeed(ctx context.Context, feedID string) (*types.DocumentFeed, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.GetDocumentFeed").End()
-	feedMod := &db.DocumentFeed{}
-	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQuery(ctx, tx).Where("id = ?", feedID).First(feedMod)
-		return res.Error
-	})
-	if err != nil {
-		return nil, db.SqlError2Error(err)
-	}
-	result := &types.DocumentFeed{ID: feedID, Display: feedMod.DisplayName}
-	if feedMod.ParentID != nil {
-		result.ParentID = *feedMod.ParentID
-	}
-	if feedMod.Keywords != nil {
-		result.Keywords = *feedMod.Keywords
-	}
-	if feedMod.IndexQuery != nil {
-		result.IndexQuery = *feedMod.IndexQuery
-	}
-	return result, nil
-}
-
-func (s *sqlMetaStore) EnableDocumentFeed(ctx context.Context, feed types.DocumentFeed) error {
-	defer trace.StartRegion(ctx, "metastore.sql.EnableDocumentFeed").End()
-	feedMod := &db.DocumentFeed{}
-	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQuery(ctx, tx).Where("id = ?", feed.ID).First(feedMod)
-		if res.Error != nil {
-			if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-				feedMod = &db.DocumentFeed{
-					ID:          feed.ID,
-					DisplayName: feed.Display,
-					ParentID:    &feed.ParentID,
-					Keywords:    &feed.Keywords,
-					IndexQuery:  &feed.IndexQuery,
-					CreatedAt:   time.Now(),
-				}
-				res = tx.Create(feedMod)
-			}
-			return res.Error
-		}
-
-		feedMod.DisplayName = feed.Display
-		feedMod.ParentID = &feed.ParentID
-		feedMod.Keywords = &feed.Keywords
-		feedMod.IndexQuery = &feed.IndexQuery
-		res = tx.Updates(feedMod)
-		return res.Error
-	})
-	return db.SqlError2Error(err)
-}
-
-func (s *sqlMetaStore) DisableDocumentFeed(ctx context.Context, feed types.DocumentFeed) error {
-	defer trace.StartRegion(ctx, "metastore.sql.DisableDocumentFeed").End()
-	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		switch {
-		case feed.ID != "":
-			res := tx.Where("id = ?", feed.ID).Delete(&db.DocumentFeed{})
-			return res.Error
-		case feed.ParentID > 0:
-			res := tx.Where("parent_id = ?", feed.ParentID).Delete(&db.DocumentFeed{})
-			return res.Error
-		}
-		return types.ErrNotFound
 	})
 	return db.SqlError2Error(err)
 }

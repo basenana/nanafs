@@ -29,8 +29,11 @@ type Services struct {
 
 type ExtendFieldManager interface {
 	RemoveEntry(ctx context.Context, parentId, entryId int64) error
-	GetEntryExtendField(ctx context.Context, id int64, fKey string) (*string, bool, error)
-	SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string, encoded bool) error
+
+	ListEntryProperty(ctx context.Context, id int64) (types.Properties, error)
+	GetEntryProperty(ctx context.Context, id int64, fKey string) (*string, bool, error)
+	SetEntryProperty(ctx context.Context, id int64, fKey, fVal string, encoded bool) error
+	RemoveEntryProperty(ctx context.Context, id int64, fKey string) error
 }
 
 type DocumentManager interface {
@@ -40,10 +43,6 @@ type DocumentManager interface {
 	GetDocument(ctx context.Context, id int64) (*types.Document, error)
 	GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error)
 	DeleteDocument(ctx context.Context, id int64) error
-
-	EnableGroupFeed(ctx context.Context, id int64, feedID string) error
-	DisableGroupFeed(ctx context.Context, id int64) error
-	GetDocsByFeedId(ctx context.Context, feedID string, count int) (*types.FeedResult, error)
 
 	CreateFridayAccount(ctx context.Context, account *types.FridayAccount) error
 }

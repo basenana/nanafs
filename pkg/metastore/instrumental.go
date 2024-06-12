@@ -130,10 +130,10 @@ func (i instrumentalStore) FindEntry(ctx context.Context, parentID int64, name s
 	return en, err
 }
 
-func (i instrumentalStore) CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata) error {
+func (i instrumentalStore) CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata, ed *types.ExtendData) error {
 	const operation = "create_entry"
 	defer logOperationLatency(operation, time.Now())
-	err := i.store.CreateEntry(ctx, parentID, newEntry)
+	err := i.store.CreateEntry(ctx, parentID, newEntry, ed)
 	logOperationError(operation, err)
 	return err
 }
@@ -262,6 +262,46 @@ func (i instrumentalStore) UpdateEntryLabels(ctx context.Context, id int64, labe
 	const operation = "update_entry_labels"
 	defer logOperationLatency(operation, time.Now())
 	err := i.store.UpdateEntryLabels(ctx, id, labels)
+	logOperationError(operation, err)
+	return err
+}
+
+func (i instrumentalStore) ListEntryProperties(ctx context.Context, id int64) (types.Properties, error) {
+	const operation = "list_entry_properties"
+	defer logOperationLatency(operation, time.Now())
+	result, err := i.store.ListEntryProperties(ctx, id)
+	logOperationError(operation, err)
+	return result, err
+}
+
+func (i instrumentalStore) GetEntryProperty(ctx context.Context, id int64, key string) (types.PropertyItem, error) {
+	const operation = "get_entry_property"
+	defer logOperationLatency(operation, time.Now())
+	result, err := i.store.GetEntryProperty(ctx, id, key)
+	logOperationError(operation, err)
+	return result, err
+}
+
+func (i instrumentalStore) AddEntryProperty(ctx context.Context, id int64, key string, item types.PropertyItem) error {
+	const operation = "add_entry_property"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.AddEntryProperty(ctx, id, key, item)
+	logOperationError(operation, err)
+	return err
+}
+
+func (i instrumentalStore) RemoveEntryProperty(ctx context.Context, id int64, key string) error {
+	const operation = "remove_entry_property"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.RemoveEntryProperty(ctx, id, key)
+	logOperationError(operation, err)
+	return err
+}
+
+func (i instrumentalStore) UpdateEntryProperties(ctx context.Context, id int64, properties types.Properties) error {
+	const operation = "update_entry_properties"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.UpdateEntryProperties(ctx, id, properties)
 	logOperationError(operation, err)
 	return err
 }
@@ -488,30 +528,6 @@ func (i instrumentalStore) GetDocumentByName(ctx context.Context, name string) (
 	doc, err := i.store.GetDocumentByName(ctx, name)
 	logOperationError(operation, err)
 	return doc, err
-}
-
-func (i instrumentalStore) GetDocumentFeed(ctx context.Context, feedID string) (*types.DocumentFeed, error) {
-	const operation = "get_document_feed"
-	defer logOperationLatency(operation, time.Now())
-	feed, err := i.store.GetDocumentFeed(ctx, feedID)
-	logOperationError(operation, err)
-	return feed, err
-}
-
-func (i instrumentalStore) EnableDocumentFeed(ctx context.Context, feed types.DocumentFeed) error {
-	const operation = "enable_document_feed"
-	defer logOperationLatency(operation, time.Now())
-	err := i.store.EnableDocumentFeed(ctx, feed)
-	logOperationError(operation, err)
-	return err
-}
-
-func (i instrumentalStore) DisableDocumentFeed(ctx context.Context, feed types.DocumentFeed) error {
-	const operation = "disable_document_feed"
-	defer logOperationLatency(operation, time.Now())
-	err := i.store.DisableDocumentFeed(ctx, feed)
-	logOperationError(operation, err)
-	return err
 }
 
 func (i instrumentalStore) ListFridayAccount(ctx context.Context, refId int64) ([]*types.FridayAccount, error) {
