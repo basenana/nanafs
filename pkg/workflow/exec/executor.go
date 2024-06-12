@@ -169,18 +169,22 @@ func (b *localExecutor) DoOperation(ctx context.Context, step types.WorkflowJobS
 		if ed.PlugScope != nil {
 			ps = mergeParentEntryPlugScope(ps, *ed.PlugScope)
 		}
-		if ed.Properties.Fields != nil {
-			for k, v := range ed.Properties.Fields {
-				val := v.Value
-				if v.Encoded {
-					val, err = utils.DecodeBase64String(val)
-					if err != nil {
-						b.logger.Warnw("decode extend property value failed", "key", k)
-						continue
-					}
+
+		properties, err := b.entryMgr.ListEntryProperty(ctx, b.job.Target.ParentEntryID)
+		if err != nil {
+			err = fmt.Errorf("get parent entry properties error: %s", err)
+			return logOperationError(LocalExecName, "do_operation", err)
+		}
+		for k, v := range properties.Fields {
+			val := v.Value
+			if v.Encoded {
+				val, err = utils.DecodeBase64String(val)
+				if err != nil {
+					b.logger.Warnw("decode extend property value failed", "key", k)
+					continue
 				}
-				req.ParentProperties[k] = val
 			}
+			req.ParentProperties[k] = val
 		}
 	}
 
@@ -381,18 +385,22 @@ func (p *pipeExecutor) DoOperation(ctx context.Context, step types.WorkflowJobSt
 		if ed.PlugScope != nil {
 			ps = mergeParentEntryPlugScope(ps, *ed.PlugScope)
 		}
-		if ed.Properties.Fields != nil {
-			for k, v := range ed.Properties.Fields {
-				val := v.Value
-				if v.Encoded {
-					val, err = utils.DecodeBase64String(val)
-					if err != nil {
-						p.logger.Warnw("decode extend property value failed", "key", k)
-						continue
-					}
+
+		properties, err := p.entryMgr.ListEntryProperty(ctx, p.job.Target.ParentEntryID)
+		if err != nil {
+			err = fmt.Errorf("get parent entry properties error: %s", err)
+			return logOperationError(DataPipeExecName, "do_operation", err)
+		}
+		for k, v := range properties.Fields {
+			val := v.Value
+			if v.Encoded {
+				val, err = utils.DecodeBase64String(val)
+				if err != nil {
+					p.logger.Warnw("decode extend property value failed", "key", k)
+					continue
 				}
-				req.ParentProperties[k] = val
 			}
+			req.ParentProperties[k] = val
 		}
 	}
 

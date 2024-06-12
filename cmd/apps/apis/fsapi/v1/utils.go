@@ -145,24 +145,26 @@ func setupRssConfig(config *CreateEntryRequest_RssConfig, attr *types.EntryAttr)
 		fileType = archiveFileTypeHtml
 	}
 
-	attr.ExtendData.PlugScope = &types.PlugScope{
-		PluginName: "rss",
-		Version:    "1.0",
-		PluginType: types.TypeSource,
-		Parameters: map[string]string{
-			"feed":         config.Feed,
-			"file_type":    fileType,
-			"clutter_free": "true",
+	attr.ExtendData = &types.ExtendData{
+		PlugScope: &types.PlugScope{
+			PluginName: "rss",
+			Version:    "1.0",
+			PluginType: types.TypeSource,
+			Parameters: map[string]string{
+				"feed":         config.Feed,
+				"file_type":    fileType,
+				"clutter_free": "true",
+			},
 		},
 	}
 
-	if attr.ExtendData.Properties.Fields == nil {
-		attr.ExtendData.Properties.Fields = map[string]types.PropertyItem{}
+	if attr.Properties.Fields == nil {
+		attr.Properties.Fields = map[string]types.PropertyItem{}
 	}
 	if config.SiteURL != "" {
-		attr.ExtendData.Properties.Fields[types.PropertyWebSiteURL] = types.PropertyItem{Value: config.SiteURL}
+		attr.Properties.Fields[types.PropertyWebSiteURL] = types.PropertyItem{Value: config.SiteURL}
 	}
 	if config.SiteName != "" {
-		attr.ExtendData.Properties.Fields[types.PropertyWebSiteName] = types.PropertyItem{Value: config.SiteName}
+		attr.Properties.Fields[types.PropertyWebSiteName] = types.PropertyItem{Value: config.SiteName}
 	}
 }

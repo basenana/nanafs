@@ -61,13 +61,14 @@ type Controller interface {
 	ChangeEntryParent(ctx context.Context, targetId, oldParentId, newParentId int64, newName string, opt types.ChangeParentAttr) error
 	ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) ([]*types.Metadata, error)
 
-	ListEntryExtendField(ctx context.Context, id int64) (map[string]types.PropertyItem, error)
-	GetEntryExtendField(ctx context.Context, id int64, fKey string) ([]byte, error)
-	SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string) error
-	SetEntryEncodedExtendField(ctx context.Context, id int64, fKey string, fVal []byte) error
-	RemoveEntryExtendField(ctx context.Context, id int64, fKey string) error
 	ConfigEntrySourcePlugin(ctx context.Context, id int64, scope types.ExtendData) error
 	CleanupEntrySourcePlugin(ctx context.Context, id int64) error
+
+	ListEntryProperties(ctx context.Context, id int64) (map[string]types.PropertyItem, error)
+	GetEntryProperty(ctx context.Context, id int64, fKey string) ([]byte, error)
+	SetEntryProperty(ctx context.Context, id int64, fKey, fVal string) error
+	SetEntryEncodedProperty(ctx context.Context, id int64, fKey string, fVal []byte) error
+	RemoveEntryProperty(ctx context.Context, id int64, fKey string) error
 
 	QuickInbox(ctx context.Context, filename string, option inbox.Option) (*types.Metadata, error)
 

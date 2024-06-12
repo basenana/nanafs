@@ -23,7 +23,7 @@ import (
 
 type object struct {
 	*types.Metadata
-	*types.ExtendData
+	*types.Properties
 	*types.Labels
 }
 
@@ -194,7 +194,7 @@ func TestObjectFilter(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := Filter(tt.filter, obj.Metadata, obj.ExtendData, obj.Labels); got != tt.want {
+			if got := Filter(tt.filter, obj.Metadata, obj.Properties, obj.Labels); got != tt.want {
 				t.Errorf("Filter() = %v, want %v", got, tt.want)
 			}
 		})

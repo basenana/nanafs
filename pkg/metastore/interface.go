@@ -66,8 +66,14 @@ type DEntry interface {
 
 	GetEntryExtendData(ctx context.Context, id int64) (types.ExtendData, error)
 	UpdateEntryExtendData(ctx context.Context, id int64, ed types.ExtendData) error
+
 	GetEntryLabels(ctx context.Context, id int64) (types.Labels, error)
 	UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error
+	ListEntryProperties(ctx context.Context, id int64) (types.Properties, error)
+	GetEntryProperty(ctx context.Context, id int64, key string) (types.PropertyItem, error)
+	AddEntryProperty(ctx context.Context, id int64, key string, item types.PropertyItem) error
+	RemoveEntryProperty(ctx context.Context, id int64, key string) error
+	UpdateEntryProperties(ctx context.Context, id int64, properties types.Properties) error
 
 	SaveDocument(ctx context.Context, doc *types.Document) error
 	ListDocument(ctx context.Context, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error)

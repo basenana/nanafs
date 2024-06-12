@@ -27,15 +27,15 @@ type entryMatch struct {
 	Properties map[string]string `json:"properties"`
 }
 
-func entryToMap(entry *types.Metadata, ed *types.ExtendData) map[string]interface{} {
+func entryToMap(entry *types.Metadata, properties *types.Properties) map[string]interface{} {
 	if entry == nil {
 		return make(map[string]interface{})
 	}
 
 	m := entryMatch{Metadata: entry, Properties: make(map[string]string)}
-	if ed != nil {
-		var err error
-		for k, v := range ed.Properties.Fields {
+	var err error
+	if properties != nil {
+		for k, v := range properties.Fields {
 			val := v.Value
 			if v.Encoded {
 				val, err = utils.DecodeBase64String(v.Value)

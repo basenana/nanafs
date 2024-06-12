@@ -207,7 +207,6 @@ func (o *ObjectExtend) From(ed *types.ExtendData) *ObjectExtend {
 
 func (o *ObjectExtend) ToExtData() types.ExtendData {
 	ext := types.ExtendData{
-		Properties:  types.Properties{Fields: map[string]types.PropertyItem{}},
 		Symlink:     o.Symlink,
 		GroupFilter: nil,
 		PlugScope:   nil,

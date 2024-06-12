@@ -81,7 +81,7 @@ func (d DocMetaPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pl
 			continue
 		}
 
-		if err := d.svc.SetEntryExtendField(ctx, request.EntryId, k, valStr, false); err != nil {
+		if err := d.svc.SetEntryProperty(ctx, request.EntryId, k, valStr, false); err != nil {
 			return pluginapi.NewFailedResponse(fmt.Sprintf("update entry %d extend field %s error: %s", request.EntryId, k, err)), nil
 		}
 

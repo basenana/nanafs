@@ -111,14 +111,20 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*type
 		return nil, err
 	}
 
-	ed := attr.ExtendData
-	err = g.store.CreateEntry(ctx, g.entryID, entry, &ed)
+	err = g.store.CreateEntry(ctx, g.entryID, entry, attr.ExtendData)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(ed.Labels.Labels) > 0 {
-		if err = g.store.UpdateEntryLabels(ctx, entry.ID, ed.Labels); err != nil {
+	if len(attr.Labels.Labels) > 0 {
+		if err = g.store.UpdateEntryLabels(ctx, entry.ID, attr.Labels); err != nil {
+			_ = g.store.RemoveEntry(ctx, entry.ParentID, entry.ID)
+			return nil, err
+		}
+	}
+
+	if len(attr.Properties.Fields) > 0 {
+		if err = g.store.UpdateEntryProperties(ctx, entry.ID, attr.Properties); err != nil {
 			_ = g.store.RemoveEntry(ctx, entry.ParentID, entry.ID)
 			return nil, err
 		}

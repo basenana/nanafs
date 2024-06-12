@@ -66,9 +66,9 @@ func (w workflowExecutor) handleEntryEvent(evt *types.Event) error {
 	}
 
 	ctx = types.WithNamespace(ctx, types.NewNamespace(en.Namespace))
-	ed, err := w.entry.GetEntryExtendData(ctx, en.ID)
+	properties, err := w.entry.ListEntryProperty(ctx, en.ID)
 	if err != nil {
-		w.logger.Errorw("[workflowAutoTrigger] get entry extend data failed", "entry", evt.RefID, "err", err)
+		w.logger.Errorw("[workflowAutoTrigger] get entry properties failed", "entry", evt.RefID, "err", err)
 		return err
 	}
 	labels, err := w.entry.GetEntryLabels(ctx, en.ID)
@@ -99,7 +99,7 @@ func (w workflowExecutor) handleEntryEvent(evt *types.Event) error {
 			continue
 		}
 
-		if !rule.Filter(wf.Rule, en, &ed, &labels) {
+		if !rule.Filter(wf.Rule, en, &properties, &labels) {
 			continue
 		}
 
@@ -149,7 +149,7 @@ func (w workflowExecutor) handleDocEvent(evt *types.Event) error {
 
 	enCtx := types.WithNamespace(ctx, types.NewNamespace(entry.Namespace))
 
-	ed, err := w.entry.GetEntryExtendData(enCtx, entry.ParentID)
+	propertiesObject, err := w.entry.ListEntryProperty(enCtx, entry.ParentID)
 	if err != nil {
 		err = fmt.Errorf("get parent entry extend data error: %s", err)
 		w.logger.Errorw("[handleDocEvent] query document parent entry ext data failed", "document", doc.ID, "parent", entry.ParentID, "err", err)
@@ -157,18 +157,16 @@ func (w workflowExecutor) handleDocEvent(evt *types.Event) error {
 	}
 
 	properties := make(map[string]string)
-	if ed.Properties.Fields != nil {
-		for k, v := range ed.Properties.Fields {
-			val := v.Value
-			if v.Encoded {
-				val, err = utils.DecodeBase64String(val)
-				if err != nil {
-					w.logger.Warnw("[handleDocEvent] decode extend property value failed", "key", k)
-					continue
-				}
+	for k, v := range propertiesObject.Fields {
+		val := v.Value
+		if v.Encoded {
+			val, err = utils.DecodeBase64String(val)
+			if err != nil {
+				w.logger.Warnw("[handleDocEvent] decode extend property value failed", "key", k)
+				continue
 			}
-			properties[k] = val
 		}
+		properties[k] = val
 	}
 
 	if properties[propertyKeyFridayEnabled] != "true" {
@@ -198,9 +196,9 @@ func (w workflowExecutor) execute(ctx context.Context, task *types.ScheduledTask
 		return err
 	}
 	ctx = types.WithNamespace(ctx, types.NewNamespace(en.Namespace))
-	ed, err := w.entry.GetEntryExtendData(ctx, en.ID)
+	properties, err := w.entry.ListEntryProperty(ctx, en.ID)
 	if err != nil {
-		w.logger.Errorw("[workflowAutoTrigger] get entry extend data failed", "entry", en.ID, "err", err)
+		w.logger.Errorw("[workflowAutoTrigger] get entry properties failed", "entry", en.ID, "err", err)
 		return err
 	}
 	labels, err := w.entry.GetEntryLabels(ctx, en.ID)
@@ -234,7 +232,7 @@ func (w workflowExecutor) execute(ctx context.Context, task *types.ScheduledTask
 			continue
 		}
 
-		if !rule.Filter(wf.Rule, en, &ed, &labels) {
+		if !rule.Filter(wf.Rule, en, &properties, &labels) {
 			continue
 		}
 

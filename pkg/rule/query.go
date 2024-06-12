@@ -98,7 +98,7 @@ func (q *query) Results(ctx context.Context) ([]*types.Metadata, error) {
 	// filter in memory
 	for entriesIt.HasNext() {
 		en := entriesIt.Next()
-		ed, err := q.entry.GetEntryExtendData(ctx, en.ID)
+		properties, err := q.entry.ListEntryProperties(ctx, en.ID)
 		if err != nil {
 			q.logger.Errorw("get entry extend data failed", "entry", en.ID, "err", err)
 			return nil, err
@@ -110,7 +110,7 @@ func (q *query) Results(ctx context.Context) ([]*types.Metadata, error) {
 			return nil, err
 		}
 
-		if Filter(mergeRules(q.rules), en, &ed, &labels) {
+		if Filter(mergeRules(q.rules), en, &properties, &labels) {
 			entries = append(entries, en)
 		}
 	}

@@ -201,29 +201,19 @@ func collectFile2BaseEntry(ctx context.Context, entryMgr dentry.Manager, baseEnt
 	}
 	defer tmpFile.Close()
 
-	var ed *types.ExtendData
+	var properties types.Properties
 	if len(tmpEn.Parameters) > 0 {
-		ed = &types.ExtendData{}
-		ed.Properties.Fields = map[string]types.PropertyItem{}
+		properties.Fields = map[string]types.PropertyItem{}
 		for k, v := range tmpEn.Parameters {
 			if strings.HasPrefix(k, pluginapi.ResWorkflowKeyPrefix) {
 				continue
 			}
-			ed.Properties.Fields[k] = types.PropertyItem{Value: v}
+			properties.Fields[k] = types.PropertyItem{Value: v}
 		}
 	}
-	newEn, err := grp.CreateEntry(ctx, types.EntryAttr{Name: tmpEn.Name, Kind: tmpEn.Kind})
+	newEn, err := grp.CreateEntry(ctx, types.EntryAttr{Name: tmpEn.Name, Kind: tmpEn.Kind, Properties: properties})
 	if err != nil {
 		return fmt.Errorf("create new entry failed: %s", err)
-	}
-
-	if ed != nil {
-		// update entry properties
-		err = entryMgr.UpdateEntryExtendData(ctx, newEn.ID, *ed)
-		if err != nil {
-			_ = grp.RemoveEntry(ctx, newEn.ID)
-			return fmt.Errorf("update entry extend data failed: %s", err)
-		}
 	}
 
 	f, err := entryMgr.Open(ctx, newEn.ID, types.OpenAttr{Write: true})

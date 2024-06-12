@@ -167,12 +167,11 @@ func mockedObjectForQuery(ctx context.Context, entryStore metastore.DEntry) erro
 	var objectList = []object{
 		{
 			Metadata: createMetadata(10001),
-			ExtendData: &types.ExtendData{
-				Properties: types.Properties{Fields: map[string]types.PropertyItem{
-					"customKey1": {Value: "customValue"},
-					"customKey2": {Value: "customValue"},
-					"customKey3": {Value: "customValue2"},
-				}},
+			Properties: &types.Properties{Fields: map[string]types.PropertyItem{
+				"customKey1": {Value: "customValue"},
+				"customKey2": {Value: "customValue"},
+				"customKey3": {Value: "customValue2"},
+			},
 			},
 			Labels: &types.Labels{Labels: []types.Label{
 				{Key: "test.nanafs.labels1", Value: "label_value"},
@@ -182,10 +181,9 @@ func mockedObjectForQuery(ctx context.Context, entryStore metastore.DEntry) erro
 		},
 		{
 			Metadata: createMetadata(10002),
-			ExtendData: &types.ExtendData{
-				Properties: types.Properties{Fields: map[string]types.PropertyItem{
-					"customKey1": {Value: "customValue2"},
-				}},
+			Properties: &types.Properties{Fields: map[string]types.PropertyItem{
+				"customKey1": {Value: "customValue2"},
+			},
 			},
 			Labels: &types.Labels{Labels: []types.Label{
 				{Key: "test.nanafs.labels1", Value: "label_value"},
@@ -193,11 +191,10 @@ func mockedObjectForQuery(ctx context.Context, entryStore metastore.DEntry) erro
 		},
 		{
 			Metadata: createMetadata(10003),
-			ExtendData: &types.ExtendData{
-				Properties: types.Properties{Fields: map[string]types.PropertyItem{
-					"customKey1": {Value: "customValue2"},
-					"customKey3": {Value: "customValue3"},
-				}},
+			Properties: &types.Properties{Fields: map[string]types.PropertyItem{
+				"customKey1": {Value: "customValue2"},
+				"customKey3": {Value: "customValue3"},
+			},
 			},
 			Labels: &types.Labels{Labels: []types.Label{
 				{Key: "test.nanafs.labels3", Value: "label_value3"},
@@ -205,7 +202,7 @@ func mockedObjectForQuery(ctx context.Context, entryStore metastore.DEntry) erro
 		},
 		{
 			Metadata:   createMetadata(10004),
-			ExtendData: &types.ExtendData{Properties: types.Properties{Fields: map[string]types.PropertyItem{}}},
+			Properties: &types.Properties{Fields: map[string]types.PropertyItem{}},
 			Labels:     &types.Labels{Labels: []types.Label{}},
 		},
 	}
@@ -215,7 +212,7 @@ func mockedObjectForQuery(ctx context.Context, entryStore metastore.DEntry) erro
 		if err != nil {
 			return err
 		}
-		err = entryStore.UpdateEntryExtendData(ctx, o.ID, *o.ExtendData)
+		err = entryStore.UpdateEntryProperties(ctx, o.ID, *o.Properties)
 		if err != nil {
 			return err
 		}

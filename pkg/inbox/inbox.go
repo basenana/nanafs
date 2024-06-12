@@ -60,11 +60,10 @@ func (b *Inbox) QuickInbox(ctx context.Context, fileName string, option Option) 
 		types.EntryAttr{
 			Name: fileName,
 			Kind: types.RawKind,
-			ExtendData: types.ExtendData{
-				Properties: types.Properties{
-					Fields: map[string]types.PropertyItem{types.PropertyWebPageURL: {Value: option.Url}},
-				},
-			}})
+			Properties: types.Properties{
+				Fields: map[string]types.PropertyItem{types.PropertyWebPageURL: {Value: option.Url}},
+			},
+		})
 	if err != nil {
 		return nil, err
 	}

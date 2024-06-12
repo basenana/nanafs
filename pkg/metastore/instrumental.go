@@ -266,6 +266,46 @@ func (i instrumentalStore) UpdateEntryLabels(ctx context.Context, id int64, labe
 	return err
 }
 
+func (i instrumentalStore) ListEntryProperties(ctx context.Context, id int64) (types.Properties, error) {
+	const operation = "list_entry_properties"
+	defer logOperationLatency(operation, time.Now())
+	result, err := i.store.ListEntryProperties(ctx, id)
+	logOperationError(operation, err)
+	return result, err
+}
+
+func (i instrumentalStore) GetEntryProperty(ctx context.Context, id int64, key string) (types.PropertyItem, error) {
+	const operation = "get_entry_property"
+	defer logOperationLatency(operation, time.Now())
+	result, err := i.store.GetEntryProperty(ctx, id, key)
+	logOperationError(operation, err)
+	return result, err
+}
+
+func (i instrumentalStore) AddEntryProperty(ctx context.Context, id int64, key string, item types.PropertyItem) error {
+	const operation = "add_entry_property"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.AddEntryProperty(ctx, id, key, item)
+	logOperationError(operation, err)
+	return err
+}
+
+func (i instrumentalStore) RemoveEntryProperty(ctx context.Context, id int64, key string) error {
+	const operation = "remove_entry_property"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.RemoveEntryProperty(ctx, id, key)
+	logOperationError(operation, err)
+	return err
+}
+
+func (i instrumentalStore) UpdateEntryProperties(ctx context.Context, id int64, properties types.Properties) error {
+	const operation = "update_entry_properties"
+	defer logOperationLatency(operation, time.Now())
+	err := i.store.UpdateEntryProperties(ctx, id, properties)
+	logOperationError(operation, err)
+	return err
+}
+
 func (i instrumentalStore) NextSegmentID(ctx context.Context) (int64, error) {
 	const operation = "next_segment_id"
 	defer logOperationLatency(operation, time.Now())

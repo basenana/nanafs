@@ -23,8 +23,6 @@ import (
 	"github.com/basenana/nanafs/pkg/bio"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/pkg/plugin"
-	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"go.uber.org/zap"
@@ -150,7 +148,6 @@ type symlink struct {
 	mgr     *manager
 	store   metastore.DEntry
 
-	plugin.MemFS
 	size       int64
 	modifiedAt time.Time
 	data       []byte
@@ -238,39 +235,6 @@ func openSymlink(mgr *manager, en *types.Metadata, attr types.OpenAttr) (File, e
 
 	increaseOpenedFile(en.ID)
 	return &symlink{entryID: en.ID, size: size, modifiedAt: en.ModifiedAt, mgr: mgr, data: raw, attr: attr}, nil
-}
-
-type extFile struct {
-	pluginapi.File
-	attr    types.OpenAttr
-	entryID int64
-}
-
-func (e *extFile) GetAttr() types.OpenAttr {
-	return e.attr
-}
-
-func (e *extFile) Flush(ctx context.Context) error {
-	return e.Fsync(ctx)
-}
-
-func openExternalFile(ctx context.Context, en *StubEntry, p plugin.MirrorPlugin, attr types.OpenAttr) (File, error) {
-	f, err := p.Open(ctx, en.path)
-	if err != nil {
-		return nil, err
-	}
-	eFile := &extFile{
-		File:    f,
-		attr:    attr,
-		entryID: en.id,
-	}
-	if attr.Trunc || en.info.Size == 0 {
-		err = f.Trunc(ctx)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return eFile, nil
 }
 
 var (

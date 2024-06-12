@@ -50,9 +50,11 @@ type Manager interface {
 
 	GetEntryExtendData(ctx context.Context, id int64) (types.ExtendData, error)
 	UpdateEntryExtendData(ctx context.Context, id int64, ed types.ExtendData) error
-	GetEntryExtendField(ctx context.Context, id int64, fKey string) (*string, bool, error)
-	SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string, encoded bool) error
-	RemoveEntryExtendField(ctx context.Context, id int64, fKey string) error
+
+	ListEntryProperty(ctx context.Context, id int64) (types.Properties, error)
+	GetEntryProperty(ctx context.Context, id int64, fKey string) (*string, bool, error)
+	SetEntryProperty(ctx context.Context, id int64, fKey, fVal string, encoded bool) error
+	RemoveEntryProperty(ctx context.Context, id int64, fKey string) error
 	GetEntryLabels(ctx context.Context, id int64) (types.Labels, error)
 	UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error
 
@@ -228,60 +230,37 @@ func (m *manager) UpdateEntryExtendData(ctx context.Context, id int64, ed types.
 	return m.store.UpdateEntryExtendData(ctx, id, ed)
 }
 
-func (m *manager) GetEntryExtendField(ctx context.Context, id int64, fKey string) (*string, bool, error) {
-	defer trace.StartRegion(ctx, "dentry.manager.GetEntryExtendField").End()
-	ed, err := m.GetEntryExtendData(ctx, id)
+func (m *manager) ListEntryProperty(ctx context.Context, id int64) (types.Properties, error) {
+	defer trace.StartRegion(ctx, "dentry.manager.ListEntryProperty").End()
+	return m.store.ListEntryProperties(ctx, id)
+}
+
+func (m *manager) GetEntryProperty(ctx context.Context, id int64, fKey string) (*string, bool, error) {
+	defer trace.StartRegion(ctx, "dentry.manager.GetEntryProperty").End()
+	p, err := m.store.GetEntryProperty(ctx, id, fKey)
 	if err != nil {
 		return nil, false, err
 	}
-	if ed.Properties.Fields == nil {
-		return nil, false, nil
-	}
-	item, ok := ed.Properties.Fields[fKey]
-	if !ok {
-		return nil, false, nil
-	}
-	return &item.Value, item.Encoded, nil
+	return &p.Value, p.Encoded, nil
 }
 
-func (m *manager) SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string, encoded bool) error {
-	defer trace.StartRegion(ctx, "dentry.manager.SetEntryExtendField").End()
-	ed, err := m.GetEntryExtendData(ctx, id)
-	if err != nil {
-		return err
-	}
-
-	if ed.Properties.Fields == nil {
-		ed.Properties.Fields = map[string]types.PropertyItem{}
-	}
-	ed.Properties.Fields[fKey] = types.PropertyItem{Value: fVal, Encoded: encoded}
-
-	err = m.UpdateEntryExtendData(ctx, id, ed)
-	if err != nil {
+func (m *manager) SetEntryProperty(ctx context.Context, id int64, fKey, fVal string, encoded bool) error {
+	defer trace.StartRegion(ctx, "dentry.manager.SetEntryProperty").End()
+	if err := m.store.AddEntryProperty(ctx, id, fKey, types.PropertyItem{Value: fVal, Encoded: encoded}); err != nil {
 		return err
 	}
 	m.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeUpdate, id)
 	return nil
 }
 
-func (m *manager) RemoveEntryExtendField(ctx context.Context, id int64, fKey string) error {
-	defer trace.StartRegion(ctx, "dentry.manager.RemoveEntryExtendField").End()
-	ed, err := m.GetEntryExtendData(ctx, id)
-	if err != nil {
+func (m *manager) RemoveEntryProperty(ctx context.Context, id int64, fKey string) error {
+	defer trace.StartRegion(ctx, "dentry.manager.RemoveEntryProperty").End()
+
+	if err := m.store.RemoveEntryProperty(ctx, id, fKey); err != nil {
 		return err
 	}
-
-	if ed.Properties.Fields == nil {
-		ed.Properties.Fields = map[string]types.PropertyItem{}
-	}
-	_, ok := ed.Properties.Fields[fKey]
-	if ok {
-		delete(ed.Properties.Fields, fKey)
-	}
-	if !ok {
-		return types.ErrNotFound
-	}
-	return m.UpdateEntryExtendData(ctx, id, ed)
+	m.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeUpdate, id)
+	return nil
 }
 
 func (m *manager) GetEntryLabels(ctx context.Context, id int64) (types.Labels, error) {

@@ -139,12 +139,10 @@ var _ = Describe("TestDynamicGroupEntry", func() {
 				Name:   "filter-target-file-1.txt",
 				Kind:   types.RawKind,
 				Access: accessPermissions,
-				ExtendData: types.ExtendData{
-					Labels: types.Labels{
-						Labels: []types.Label{
-							{Key: "test.filter.key1", Value: "test.filter.val1"},
-							{Key: "test.filter.key2", Value: "test.filter.val1"},
-						},
+				Labels: types.Labels{
+					Labels: []types.Label{
+						{Key: "test.filter.key1", Value: "test.filter.val1"},
+						{Key: "test.filter.key2", Value: "test.filter.val1"},
 					},
 				},
 			})
@@ -153,12 +151,10 @@ var _ = Describe("TestDynamicGroupEntry", func() {
 				Name:   "filter-target-file-2.txt",
 				Kind:   types.RawKind,
 				Access: accessPermissions,
-				ExtendData: types.ExtendData{
-					Labels: types.Labels{
-						Labels: []types.Label{
-							{Key: "test.filter.key1", Value: "test.filter.val2"},
-							{Key: "test.filter.key2", Value: "test.filter.val2"},
-						},
+				Labels: types.Labels{
+					Labels: []types.Label{
+						{Key: "test.filter.key1", Value: "test.filter.val2"},
+						{Key: "test.filter.key2", Value: "test.filter.val2"},
 					},
 				},
 			})
@@ -167,12 +163,10 @@ var _ = Describe("TestDynamicGroupEntry", func() {
 				Name:   "filter-target-file-3.txt",
 				Kind:   types.RawKind,
 				Access: accessPermissions,
-				ExtendData: types.ExtendData{
-					Labels: types.Labels{
-						Labels: []types.Label{
-							{Key: "test.filter.key1", Value: "test.filter.val1"},
-							{Key: "test.filter.key2", Value: "test.filter.val3"},
-						},
+				Labels: types.Labels{
+					Labels: []types.Label{
+						{Key: "test.filter.key1", Value: "test.filter.val1"},
+						{Key: "test.filter.key2", Value: "test.filter.val3"},
 					},
 				},
 			})
@@ -181,9 +175,7 @@ var _ = Describe("TestDynamicGroupEntry", func() {
 				Name:   "filter-target-file-4.txt",
 				Kind:   types.RawKind,
 				Access: accessPermissions,
-				ExtendData: types.ExtendData{
-					Labels: types.Labels{Labels: []types.Label{}},
-				},
+				Labels: types.Labels{Labels: []types.Label{}},
 			})
 			Expect(err).Should(BeNil())
 		})
@@ -195,7 +187,7 @@ var _ = Describe("TestDynamicGroupEntry", func() {
 				Name:   "test_dynamic_group",
 				Kind:   types.SmartGroupKind,
 				Access: accessPermissions,
-				ExtendData: types.ExtendData{
+				ExtendData: &types.ExtendData{
 					GroupFilter: &types.Rule{
 						Logic: types.RuleLogicAny,
 						Rules: []types.Rule{
@@ -216,7 +208,7 @@ var _ = Describe("TestDynamicGroupEntry", func() {
 
 			children, err := smtGrp.ListChildren(ctx, nil, types.Filter{})
 			Expect(err).Should(BeNil())
-			Expect(len(children)).ShouldNot(Equal(3))
+			Expect(len(children)).Should(Equal(3))
 		})
 	})
 })

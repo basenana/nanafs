@@ -902,7 +902,7 @@ func (s *services) AddProperty(ctx context.Context, request *AddPropertyRequest)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
-	err = s.ctrl.SetEntryExtendField(ctx, en.ID, request.Key, request.Value)
+	err = s.ctrl.SetEntryProperty(ctx, en.ID, request.Key, request.Value)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "add entry extend field failed")
 	}
@@ -922,12 +922,12 @@ func (s *services) UpdateProperty(ctx context.Context, request *UpdatePropertyRe
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
 
-	_, err = s.ctrl.GetEntryExtendField(ctx, en.ID, request.Key)
+	_, err = s.ctrl.GetEntryProperty(ctx, en.ID, request.Key)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "fetch entry exist extend field failed")
 	}
 
-	err = s.ctrl.SetEntryExtendField(ctx, en.ID, request.Key, request.Value)
+	err = s.ctrl.SetEntryProperty(ctx, en.ID, request.Key, request.Value)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "set entry extend field failed")
 	}
@@ -946,7 +946,7 @@ func (s *services) DeleteProperty(ctx context.Context, request *DeletePropertyRe
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
-	err = s.ctrl.RemoveEntryExtendField(ctx, en.ID, request.Key)
+	err = s.ctrl.RemoveEntryProperty(ctx, en.ID, request.Key)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "set entry extend field failed")
 	}
@@ -1035,11 +1035,11 @@ func (s *services) TriggerWorkflow(ctx context.Context, request *TriggerWorkflow
 }
 
 func (s *services) queryEntryProperties(ctx context.Context, entryID, parentID int64) ([]*Property, error) {
-	properties, err := s.ctrl.ListEntryExtendField(ctx, parentID)
+	properties, err := s.ctrl.ListEntryProperties(ctx, parentID)
 	if err != nil {
 		return nil, err
 	}
-	entryProperties, err := s.ctrl.ListEntryExtendField(ctx, entryID)
+	entryProperties, err := s.ctrl.ListEntryProperties(ctx, entryID)
 	if err != nil {
 		return nil, err
 	}

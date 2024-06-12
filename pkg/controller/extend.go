@@ -28,31 +28,29 @@ const (
 	attrPrefix = "org.basenana"
 )
 
-func (c *controller) ListEntryExtendField(ctx context.Context, id int64) (map[string]types.PropertyItem, error) {
-	defer trace.StartRegion(ctx, "controller.ListEntryExtendField").End()
-	ed, err := c.entry.GetEntryExtendData(ctx, id)
+func (c *controller) ListEntryProperties(ctx context.Context, id int64) (map[string]types.PropertyItem, error) {
+	defer trace.StartRegion(ctx, "controller.ListEntryProperties").End()
+	properties, err := c.entry.ListEntryProperty(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	result := make(map[string]types.PropertyItem)
-	if ed.Properties.Fields != nil {
-		for key, p := range ed.Properties.Fields {
-			if p.Encoded {
-				// ignore encoded field
-				continue
-			}
-			result[key] = types.PropertyItem{
-				Value:   p.Value,
-				Encoded: p.Encoded,
-			}
+	for key, p := range properties.Fields {
+		if p.Encoded {
+			// ignore encoded field
+			continue
+		}
+		result[key] = types.PropertyItem{
+			Value:   p.Value,
+			Encoded: p.Encoded,
 		}
 	}
 	return result, nil
 }
 
-func (c *controller) GetEntryExtendField(ctx context.Context, id int64, fKey string) ([]byte, error) {
-	defer trace.StartRegion(ctx, "controller.GetEntryExtendField").End()
-	str, encoded, err := c.entry.GetEntryExtendField(ctx, id, fKey)
+func (c *controller) GetEntryProperty(ctx context.Context, id int64, fKey string) ([]byte, error) {
+	defer trace.StartRegion(ctx, "controller.GetEntryProperty").End()
+	str, encoded, err := c.entry.GetEntryProperty(ctx, id, fKey)
 	if err != nil {
 		return nil, err
 	}
@@ -75,11 +73,11 @@ func (c *controller) GetEntryExtendField(ctx context.Context, id int64, fKey str
 	return result, nil
 }
 
-func (c *controller) SetEntryExtendField(ctx context.Context, id int64, fKey, fVal string) error {
-	defer trace.StartRegion(ctx, "controller.SetEntryExtendField").End()
+func (c *controller) SetEntryProperty(ctx context.Context, id int64, fKey, fVal string) error {
+	defer trace.StartRegion(ctx, "controller.SetEntryProperty").End()
 	c.logger.Debugw("set entry extend filed", "entry", id, "key", fKey)
 
-	err := c.entry.SetEntryExtendField(ctx, id, fKey, fVal, false)
+	err := c.entry.SetEntryProperty(ctx, id, fKey, fVal, false)
 	if err != nil {
 		c.logger.Errorw("set entry extend filed failed", "entry", id, "key", fKey, "err", err)
 		return err
@@ -87,15 +85,15 @@ func (c *controller) SetEntryExtendField(ctx context.Context, id int64, fKey, fV
 	return nil
 }
 
-func (c *controller) SetEntryEncodedExtendField(ctx context.Context, id int64, fKey string, fVal []byte) error {
-	defer trace.StartRegion(ctx, "controller.SetEntryEncodedExtendField").End()
+func (c *controller) SetEntryEncodedProperty(ctx context.Context, id int64, fKey string, fVal []byte) error {
+	defer trace.StartRegion(ctx, "controller.SetEntryEncodedProperty").End()
 	c.logger.Debugw("set entry extend filed", "entry", id, "key", fKey)
 
 	if strings.HasPrefix(fKey, attrPrefix) {
-		return c.SetEntryExtendField(ctx, id, fKey, string(fVal))
+		return c.SetEntryProperty(ctx, id, fKey, string(fVal))
 	}
 
-	err := c.entry.SetEntryExtendField(ctx, id, fKey, utils.EncodeBase64(fVal), true)
+	err := c.entry.SetEntryProperty(ctx, id, fKey, utils.EncodeBase64(fVal), true)
 	if err != nil {
 		c.logger.Errorw("set entry extend filed failed", "entry", id, "key", fKey, "err", err)
 		return err
@@ -103,10 +101,10 @@ func (c *controller) SetEntryEncodedExtendField(ctx context.Context, id int64, f
 	return nil
 }
 
-func (c *controller) RemoveEntryExtendField(ctx context.Context, id int64, fKey string) error {
-	defer trace.StartRegion(ctx, "controller.RemoveEntryExtendField").End()
+func (c *controller) RemoveEntryProperty(ctx context.Context, id int64, fKey string) error {
+	defer trace.StartRegion(ctx, "controller.RemoveEntryProperty").End()
 	c.logger.Debugw("remove entry extend filed", "entry", id, "key", fKey)
-	err := c.entry.RemoveEntryExtendField(ctx, id, fKey)
+	err := c.entry.RemoveEntryProperty(ctx, id, fKey)
 	if err != nil {
 		c.logger.Errorw("remove entry extend filed failed", "entry", id, "key", fKey, "err", err)
 		return err
@@ -125,15 +123,6 @@ func (c *controller) ConfigEntrySourcePlugin(ctx context.Context, id int64, patc
 	}
 
 	ed.PlugScope = patch.PlugScope
-	if len(patch.Properties.Fields) > 0 {
-		if ed.Properties.Fields == nil {
-			ed.Properties.Fields = map[string]types.PropertyItem{}
-		}
-		for k, v := range patch.Properties.Fields {
-			ed.Properties.Fields[k] = v
-		}
-	}
-
 	err = c.entry.UpdateEntryExtendData(ctx, id, ed)
 	if err != nil {
 		c.logger.Errorw("config entry source plugin encounter write-back failed", "entry", id, "err", err)

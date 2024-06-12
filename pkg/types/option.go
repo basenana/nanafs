@@ -21,7 +21,9 @@ type EntryAttr struct {
 	Kind       Kind
 	Access     *Access
 	Dev        int64
-	ExtendData ExtendData
+	Properties Properties
+	Labels     Labels
+	ExtendData *ExtendData
 }
 
 type OpenAttr struct {
