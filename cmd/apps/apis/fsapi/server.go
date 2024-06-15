@@ -91,6 +91,7 @@ func New(ctrl controller.Controller, pathEntryMgr *pathmgr.PathManager, cfg conf
 
 	var opts = []grpc.ServerOption{
 		grpc.Creds(creds),
+		grpc.MaxRecvMsgSize(1024 * 1024 * 50), // 50M
 		common.WithCommonInterceptors(),
 		common.WithStreamInterceptors(),
 	}

@@ -128,6 +128,7 @@ func (m *PathManager) CreateFile(ctx context.Context, parentDir string, attr typ
 
 	en, err = m.ctrl.CreateEntry(ctx, parent.ID, attr)
 	if err != nil {
+		m.logger.Errorw("create file entry failed", "path", entryPath, "err", err)
 		return nil, err
 	}
 	m.logger.Infow("create file entry", "path", entryPath, "entry", en.ID)
