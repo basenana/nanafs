@@ -516,9 +516,12 @@ func (s *services) GetEntryDetail(ctx context.Context, request *GetEntryDetailRe
 		return nil, status.Error(common.FsApiError(err), "has no permission")
 	}
 
-	p, err := s.ctrl.GetEntry(ctx, en.ParentID)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query entry parent failed")
+	var p *types.Metadata
+	if en.ParentID != dentry.RootEntryID {
+		p, err = s.ctrl.GetEntry(ctx, en.ParentID)
+		if err != nil {
+			return nil, status.Error(common.FsApiError(err), "query entry parent failed")
+		}
 	}
 
 	properties, err := s.queryEntryProperties(ctx, en.ID, en.ParentID)
@@ -1035,9 +1038,15 @@ func (s *services) TriggerWorkflow(ctx context.Context, request *TriggerWorkflow
 }
 
 func (s *services) queryEntryProperties(ctx context.Context, entryID, parentID int64) ([]*Property, error) {
-	properties, err := s.ctrl.ListEntryProperties(ctx, parentID)
-	if err != nil {
-		return nil, err
+	var (
+		properties = make(map[string]types.PropertyItem)
+		err        error
+	)
+	if parentID != dentry.RootEntryID {
+		properties, err = s.ctrl.ListEntryProperties(ctx, parentID)
+		if err != nil {
+			return nil, err
+		}
 	}
 	entryProperties, err := s.ctrl.ListEntryProperties(ctx, entryID)
 	if err != nil {
