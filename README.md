@@ -5,7 +5,7 @@
 
 <p align="right">[ English | <a href="https://github.com/basenana/nanafs/blob/main/README_zh.md">简体中文</a> ]</p>
 
-NanaFS is a Reference Filing System inspired by the [GTD (Getting Things Done®) methodology](https://gettingthingsdone.com/wp-content/uploads/2014/10/Filing.pdf),
+NanaFS is a **Reference Filing System** inspired by the [GTD (Getting Things Done®)](https://gettingthingsdone.com/wp-content/uploads/2014/10/Filing.pdf) methodology,
 designed to collect, store, and process information that does not require immediate action but may be useful in the future.
 
 In personal, academic, and professional life, vast amounts of data and materials are scattered across various information silos,

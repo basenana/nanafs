@@ -5,7 +5,7 @@
 
 <p align="right">[ <a href="https://github.com/basenana/nanafs/blob/main/README.md">English</a> | 简体中文 ]</p>
 
-NanaFS 是一款受 GTD 方法论启发的[参考资料归档系统](https://gettingthingsdone.com/wp-content/uploads/2014/10/Filing.pdf)，
+NanaFS 是一款受 [GTD®](https://gettingthingsdone.com/wp-content/uploads/2014/10/Filing.pdf) 方法论启发的**参考资料归档系统**，
 用于收集、存储、处理那些不需要立即采取行动，但可能在未来有用的信息。
 
 在个人工作、学习和生活中，大量的数据和材料存储在不同的信息孤岛之中，例如 Office 文件、电子邮件、RSS、工作笔记等。
