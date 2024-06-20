@@ -49,6 +49,7 @@ func entryInfo(en *types.Metadata) *EntryInfo {
 		Id:         en.ID,
 		Name:       en.Name,
 		Kind:       string(en.Kind),
+		ParentID:   en.ParentID,
 		IsGroup:    en.IsGroup,
 		Size:       en.Size,
 		CreatedAt:  timestamppb.New(en.CreatedAt),
