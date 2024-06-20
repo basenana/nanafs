@@ -518,6 +518,7 @@ message EntryInfo {
   int64 id = 1;
   string name = 2;
   string kind = 3;
+  int64 parentID = 4;
   bool isGroup = 6;
   int64 size = 7;
   google.protobuf.Timestamp createdAt = 30;
