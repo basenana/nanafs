@@ -1,0 +1,48 @@
+project_name: nanafs
+env:
+  - GO111MODULE=on
+  - CGO_ENABLED=0
+before:
+  hooks:
+    - go mod download
+builds:
+  - id: nanafs-darwin-amd64
+    ldflags: -s -w -X config.gitCommit={{.ShortCommit}} -X config.gitTag={{.Version}}
+    main: .
+    goos:
+      - darwin
+    goarch:
+      - amd64
+  - id: nanafs-darwin-arm64
+    ldflags: -s -w -X config.gitCommit={{.ShortCommit}} -X config.gitTag={{.Version}}
+    main: .
+    goos:
+      - darwin
+    goarch:
+      - arm64
+  - id: nanafs-linux-amd64
+    ldflags: -s -w -X config.gitCommit={{.ShortCommit}} -X config.gitTag={{.Version}}
+    main: .
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - id: nanafs-linux-arm64
+    ldflags: -s -w -X config.gitCommit={{.ShortCommit}} -X config.gitTag={{.Version}}
+    main: .
+    goos:
+      - linux
+    goarch:
+      - arm64
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: "{{ .Tag }}-next"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+archives:
+  - name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
