@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"runtime/trace"
 	"time"
 
@@ -356,7 +357,7 @@ func (c *controller) ChangeEntryParent(ctx context.Context, targetId, oldParentI
 	var existObjId *int64
 	existObj, err := c.FindEntry(ctx, newParentId, newName)
 	if err != nil {
-		if err != types.ErrNotFound {
+		if !errors.Is(err, types.ErrNotFound) {
 			c.logger.Errorw("new name verify failed", "old", targetId, "newParent", newParentId, "newName", newName, "err", err)
 			return err
 		}
@@ -369,6 +370,22 @@ func (c *controller) ChangeEntryParent(ctx context.Context, targetId, oldParentI
 		eid := existObj.ID
 		existObjId = &eid
 	}
+
+	//nextParentID := newParentId
+	//for nextParentID != dentry.RootEntryID {
+	//	en, err := c.GetEntry(ctx, newParentId)
+	//	if err != nil {
+	//		if errors.Is(err, types.ErrNotFound) {
+	//			break
+	//		}
+	//		c.logger.Errorw("check in loop failed", "old", targetId, "newParent", newParentId, "newName", newName, "err", err)
+	//		return err
+	//	}
+	//	if en.ID == targetId {
+	//		return types.ErrNotEmpty
+	//	}
+	//	nextParentID = en.ParentID
+	//}
 
 	c.logger.Debugw("change entry parent", "target", targetId, "existObj", existObjId, "oldParent", oldParentId, "newParent", newParentId, "newName", newName)
 	err = c.entry.ChangeEntryParent(ctx, targetId, existObjId, oldParentId, newParentId, newName, types.ChangeParentAttr{

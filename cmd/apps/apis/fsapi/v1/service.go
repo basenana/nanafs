@@ -568,6 +568,9 @@ func (s *services) CreateEntry(ctx context.Context, request *CreateEntryRequest)
 		setupRssConfig(request.Rss, &attr)
 	}
 	en, err := s.ctrl.CreateEntry(ctx, request.ParentID, attr)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "create entry failed")
+	}
 	return &CreateEntryResponse{Entry: entryInfo(en)}, nil
 }
 
@@ -1047,6 +1050,7 @@ func (s *services) queryEntryProperties(ctx context.Context, entryID, parentID i
 		if err != nil {
 			return nil, err
 		}
+		s.logger.Infow("list entry properties", "entry", entryID, "parentID", parentID, "got", len(properties))
 	}
 	entryProperties, err := s.ctrl.ListEntryProperties(ctx, entryID)
 	if err != nil {

@@ -305,7 +305,6 @@ github.com/chenzhuoyu/base64x
 github.com/dustin/go-humanize
 # github.com/fatih/color v1.15.0
 ## explicit; go 1.17
-github.com/fatih/color
 # github.com/fsnotify/fsnotify v1.6.0
 ## explicit; go 1.16
 github.com/fsnotify/fsnotify
@@ -374,14 +373,6 @@ github.com/goccy/go-json/internal/errors
 github.com/goccy/go-json/internal/runtime
 # github.com/goccy/go-yaml v1.11.2
 ## explicit; go 1.19
-github.com/goccy/go-yaml
-github.com/goccy/go-yaml/ast
-github.com/goccy/go-yaml/internal/errors
-github.com/goccy/go-yaml/lexer
-github.com/goccy/go-yaml/parser
-github.com/goccy/go-yaml/printer
-github.com/goccy/go-yaml/scanner
-github.com/goccy/go-yaml/token
 # github.com/gogs/chardet v0.0.0-20211120154057-b7413eaefb8f
 ## explicit
 github.com/gogs/chardet
@@ -484,7 +475,6 @@ github.com/ledongthuc/pdf
 github.com/leodido/go-urn
 # github.com/mattn/go-colorable v0.1.13
 ## explicit; go 1.15
-github.com/mattn/go-colorable
 # github.com/mattn/go-isatty v0.0.19
 ## explicit; go 1.15
 github.com/mattn/go-isatty
@@ -686,7 +676,7 @@ golang.org/x/crypto/argon2
 golang.org/x/crypto/blake2b
 golang.org/x/crypto/pbkdf2
 golang.org/x/crypto/sha3
-# golang.org/x/exp v0.0.0-20240604190554-fc45aab8b7f8
+# golang.org/x/exp v0.0.0-20240613232115-7f521ea00fb8
 ## explicit; go 1.20
 golang.org/x/exp/constraints
 golang.org/x/exp/slices
@@ -745,8 +735,6 @@ golang.org/x/text/width
 golang.org/x/time/rate
 # golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 ## explicit; go 1.17
-golang.org/x/xerrors
-golang.org/x/xerrors/internal
 # google.golang.org/genproto/googleapis/rpc v0.0.0-20240123012728-ef4313101c80
 ## explicit; go 1.19
 google.golang.org/genproto/googleapis/rpc/status

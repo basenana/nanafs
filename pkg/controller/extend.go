@@ -32,6 +32,7 @@ func (c *controller) ListEntryProperties(ctx context.Context, id int64) (map[str
 	defer trace.StartRegion(ctx, "controller.ListEntryProperties").End()
 	properties, err := c.entry.ListEntryProperty(ctx, id)
 	if err != nil {
+		c.logger.Infow("list entry properties failed", "entry", id, "err", err)
 		return nil, err
 	}
 	result := make(map[string]types.PropertyItem)
