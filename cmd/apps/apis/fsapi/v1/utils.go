@@ -159,6 +159,17 @@ func setupRssConfig(config *CreateEntryRequest_RssConfig, attr *types.EntryAttr)
 		},
 	}
 
+	attr.Labels = types.Labels{Labels: []types.Label{
+		{
+			Key:   types.LabelKeyPluginKind,
+			Value: "source",
+		},
+		{
+			Key:   types.LabelKeyPluginName,
+			Value: "rss",
+		},
+	}}
+
 	if attr.Properties.Fields == nil {
 		attr.Properties.Fields = map[string]types.PropertyItem{}
 	}

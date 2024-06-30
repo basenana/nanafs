@@ -3,6 +3,7 @@ package packer
 import (
 	"bytes"
 	"fmt"
+	"github.com/yosssi/gohtml"
 	"net/url"
 	"strings"
 
@@ -14,6 +15,7 @@ const readableHtmlTpl = `
 <title>{TITLE}</title>
 <meta charset='UTF-8' />
 <meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=yes'>
+<meta name='packer' content='webpage-packer, clutter-free=true'>
 <style type='text/css'>body, table { width: 95%; margin: 0 auto; background-color: #FFF; color:#333; font-family: arial, sans-serif; font-weight: 100; font-size: 12pt; margin:2em 2em 2em 2em; }
 p, li { line-height: 150%; }
 h1, h2, h3 { color: #333; }
@@ -25,39 +27,19 @@ blockquote { color: #888888; padding: 10px; }
 figure { width: 100%; margin: 0px; }
 figure figcaption { display: none; }
 iframe { height: auto; width: auto; max-width: 95%; max-height: 100%; }</style>
+</head>
 <body>
 <div> <a href="{URL}" target="_blank">{HOST}</a> <h1>{TITLE}</h1> </div>
 {CONTENT}
 </body>
 `
 
-func makeClutterFree(wa *WebArchive) error {
-	res := wa.WebMainResource
-	resUrl, err := url.Parse(res.WebResourceURL)
-	if err != nil {
-		return fmt.Errorf("parse main resource url failed: %s", err)
-	}
-
-	article, err := readability.FromReader(bytes.NewReader(res.WebResourceData), resUrl)
-	if err != nil {
-		return fmt.Errorf("parse main resource failed: %s", err)
-	}
-
-	patched := strings.ReplaceAll(readableHtmlTpl, "{TITLE}", article.Title)
-	patched = strings.ReplaceAll(patched, "{HOST}", resUrl.Host)
-	patched = strings.ReplaceAll(patched, "{URL}", resUrl.String())
-	patched = strings.ReplaceAll(patched, "{CONTENT}", article.Content)
-
-	res.WebResourceData = []byte(patched)
-	wa.WebMainResource = res
-	wa.WebSubresources[0] = res
-
-	return nil
-}
-
 func htmlContentClutterFree(urlStr, htmlContent string) (string, error) {
-	resUrl := &url.URL{}
+	if strings.Contains(htmlContent, "clutter-free=true") {
+		return htmlContent, nil
+	}
 
+	resUrl := &url.URL{}
 	if urlStr != "" {
 		var err error
 		resUrl, err = url.Parse(urlStr)
@@ -68,12 +50,13 @@ func htmlContentClutterFree(urlStr, htmlContent string) (string, error) {
 
 	article, err := readability.FromReader(bytes.NewReader([]byte(htmlContent)), resUrl)
 	if err != nil {
-		return "", fmt.Errorf("parse main resource failed: %s", err)
+		return "", fmt.Errorf("parse html resource failed: %s", err)
 	}
 
-	buf := bytes.Buffer{}
-	buf.WriteString(fmt.Sprintf("<h1>%s</h1>\n", article.Title))
-	buf.WriteString(article.Content)
+	patched := strings.ReplaceAll(readableHtmlTpl, "{TITLE}", article.Title)
+	patched = strings.ReplaceAll(patched, "{HOST}", resUrl.Host)
+	patched = strings.ReplaceAll(patched, "{URL}", resUrl.String())
+	patched = strings.ReplaceAll(patched, "{CONTENT}", article.Content)
 
-	return buf.String(), nil
+	return gohtml.Format(patched), nil
 }

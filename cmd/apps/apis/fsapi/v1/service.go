@@ -564,7 +564,7 @@ func (s *services) CreateEntry(ctx context.Context, request *CreateEntryRequest)
 		Dev:    parent.Dev,
 	}
 	if request.Rss != nil {
-		s.logger.Debugw("setup rss feed to dir", "feed", request.Rss.Feed, "siteName", request.Rss.SiteName)
+		s.logger.Infow("setup rss feed to dir", "feed", request.Rss.Feed, "siteName", request.Rss.SiteName)
 		setupRssConfig(request.Rss, &attr)
 	}
 	en, err := s.ctrl.CreateEntry(ctx, request.ParentID, attr)
