@@ -982,6 +982,16 @@ func (s *services) GetLatestSequence(ctx context.Context, request *GetLatestSequ
 	}, nil
 }
 
+func (s *services) ListMessages(ctx context.Context, request *ListMessagesRequest) (*ListMessagesResponse, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *services) ReadMessages(ctx context.Context, request *ReadMessagesRequest) (*ReadMessagesResponse, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (s *services) ListUnSyncedEvent(ctx context.Context, request *ListUnSyncedEventRequest) (*ListUnSyncedEventResponse, error) {
 	eventList, err := s.ctrl.ListUnSyncedEvent(ctx, request.StartSequence)
 	if err != nil {
@@ -1007,6 +1017,16 @@ func (s *services) CommitSyncedEvent(ctx context.Context, request *CommitSyncedE
 		return nil, status.Error(common.FsApiError(err), "device commit sequence failed")
 	}
 	return &CommitSyncedEventResponse{}, nil
+}
+
+func (s *services) ListWorkflows(ctx context.Context, request *ListWorkflowsRequest) (*ListWorkflowsResponse, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *services) ListWorkflowJobs(ctx context.Context, request *ListWorkflowJobsRequest) (*ListWorkflowJobsResponse, error) {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (s *services) TriggerWorkflow(ctx context.Context, request *TriggerWorkflowRequest) (*TriggerWorkflowResponse, error) {
