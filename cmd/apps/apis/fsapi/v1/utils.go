@@ -180,3 +180,16 @@ func setupRssConfig(config *CreateEntryRequest_RssConfig, attr *types.EntryAttr)
 		attr.Properties.Fields[types.PropertyWebSiteName] = types.PropertyItem{Value: config.SiteName}
 	}
 }
+
+func buildWorkflow(w *types.Workflow) *WorkflowInfo {
+	return &WorkflowInfo{
+		Id:              w.Id,
+		Name:            w.Name,
+		Executor:        w.Executor,
+		QueueName:       w.QueueName,
+		HealthScore:     int32(w.HealthScore),
+		CreatedAt:       timestamppb.New(w.CreatedAt),
+		UpdatedAt:       timestamppb.New(w.UpdatedAt),
+		LastTriggeredAt: timestamppb.New(w.LastTriggeredAt),
+	}
+}

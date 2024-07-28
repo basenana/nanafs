@@ -70,7 +70,7 @@ var _ = BeforeSuite(func() {
 	Expect(plugin.Init(buildin.Services{}, cfgLoader)).Should(BeNil())
 
 	// init fake workflow to test wf job
-	fakeWf := &types.WorkflowSpec{
+	fakeWf := &types.Workflow{
 		Id:   "fake-workflow-1",
 		Name: "fake-workflow-1",
 	}

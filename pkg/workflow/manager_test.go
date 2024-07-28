@@ -28,7 +28,7 @@ import (
 var _ = Describe("TestWorkflowManage", func() {
 	var (
 		ctx = context.TODO()
-		wf  = &types.WorkflowSpec{
+		wf  = &types.Workflow{
 			Name: "test-create-workflow-1",
 			Rule: types.Rule{},
 			Steps: []types.WorkflowStepSpec{
@@ -69,7 +69,7 @@ var _ = Describe("TestWorkflowManage", func() {
 	})
 
 	Context("update a workflow", func() {
-		var old *types.WorkflowSpec
+		var old *types.Workflow
 		It("get workflow should be succeed", func() {
 			var err error
 			old, err = mgr.GetWorkflow(ctx, wf.Id)
@@ -105,7 +105,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 			Action:     "delay",
 			Parameters: map[string]string{"delay": "1s"},
 		}
-		wf = &types.WorkflowSpec{
+		wf = &types.Workflow{
 			Name: "test-trigger-workflow-1",
 			Rule: types.Rule{},
 			Steps: []types.WorkflowStepSpec{

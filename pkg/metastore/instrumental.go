@@ -410,7 +410,7 @@ func (i instrumentalStore) DeleteFinishedTask(ctx context.Context, aliveTime tim
 	return err
 }
 
-func (i instrumentalStore) GetWorkflow(ctx context.Context, wfID string) (*types.WorkflowSpec, error) {
+func (i instrumentalStore) GetWorkflow(ctx context.Context, wfID string) (*types.Workflow, error) {
 	const operation = "get_workflow"
 	defer logOperationLatency(operation, time.Now())
 	spec, err := i.store.GetWorkflow(ctx, wfID)
@@ -418,7 +418,7 @@ func (i instrumentalStore) GetWorkflow(ctx context.Context, wfID string) (*types
 	return spec, err
 }
 
-func (i instrumentalStore) ListGlobalWorkflow(ctx context.Context) ([]*types.WorkflowSpec, error) {
+func (i instrumentalStore) ListGlobalWorkflow(ctx context.Context) ([]*types.Workflow, error) {
 	const operation = "list_global_workflow"
 	defer logOperationLatency(operation, time.Now())
 	specList, err := i.store.ListGlobalWorkflow(ctx)
@@ -426,7 +426,7 @@ func (i instrumentalStore) ListGlobalWorkflow(ctx context.Context) ([]*types.Wor
 	return specList, err
 }
 
-func (i instrumentalStore) ListWorkflow(ctx context.Context) ([]*types.WorkflowSpec, error) {
+func (i instrumentalStore) ListWorkflow(ctx context.Context) ([]*types.Workflow, error) {
 	const operation = "list_workflow"
 	defer logOperationLatency(operation, time.Now())
 	specList, err := i.store.ListWorkflow(ctx)
@@ -458,7 +458,7 @@ func (i instrumentalStore) ListWorkflowJob(ctx context.Context, filter types.Job
 	return jobList, err
 }
 
-func (i instrumentalStore) SaveWorkflow(ctx context.Context, wf *types.WorkflowSpec) error {
+func (i instrumentalStore) SaveWorkflow(ctx context.Context, wf *types.Workflow) error {
 	const operation = "save_workflow"
 	defer logOperationLatency(operation, time.Now())
 	err := i.store.SaveWorkflow(ctx, wf)

@@ -1020,8 +1020,20 @@ func (s *services) CommitSyncedEvent(ctx context.Context, request *CommitSyncedE
 }
 
 func (s *services) ListWorkflows(ctx context.Context, request *ListWorkflowsRequest) (*ListWorkflowsResponse, error) {
-	//TODO implement me
-	panic("implement me")
+	workflowList, err := s.ctrl.ListWorkflows(ctx)
+	if err != nil {
+		s.logger.Errorw("list workflow failed", "err", err)
+		return nil, status.Error(common.FsApiError(err), "list workflow failed")
+	}
+
+	buildInWorkflow := workflow.BuildInWorkflows()
+	workflowList = append(workflowList, buildInWorkflow...)
+
+	resp := &ListWorkflowsResponse{}
+	for _, w := range workflowList {
+		resp.Workflows = append(resp.Workflows, buildWorkflow(w))
+	}
+	return resp, nil
 }
 
 func (s *services) ListWorkflowJobs(ctx context.Context, request *ListWorkflowJobsRequest) (*ListWorkflowJobsResponse, error) {

@@ -99,10 +99,10 @@ type Controller interface {
 	WriteFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error)
 	CloseFile(ctx context.Context, file dentry.File) error
 
-	ListWorkflows(ctx context.Context) ([]*types.WorkflowSpec, error)
-	GetWorkflow(ctx context.Context, wfId string) (*types.WorkflowSpec, error)
-	CreateWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error)
-	UpdateWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error)
+	ListWorkflows(ctx context.Context) ([]*types.Workflow, error)
+	GetWorkflow(ctx context.Context, wfId string) (*types.Workflow, error)
+	CreateWorkflow(ctx context.Context, spec *types.Workflow) (*types.Workflow, error)
+	UpdateWorkflow(ctx context.Context, spec *types.Workflow) (*types.Workflow, error)
 	DeleteWorkflow(ctx context.Context, wfId string) error
 	ListJobs(ctx context.Context, wfId string) ([]*types.WorkflowJob, error)
 	GetJob(ctx context.Context, wfId string, jobID string) (*types.WorkflowJob, error)

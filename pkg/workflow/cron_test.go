@@ -79,7 +79,7 @@ var _ = Describe("testConfigEntrySourcePlugin", func() {
 	Context("config source cron workflow", func() {
 		var workflowID = "test_source_" + utils.RandStringRunes(5)
 		It("create source workflow should be succeed", func() {
-			_, err := mgr.CreateWorkflow(ctx, &types.WorkflowSpec{
+			_, err := mgr.CreateWorkflow(ctx, &types.Workflow{
 				Id:   workflowID,
 				Name: workflowID,
 				Rule: types.Rule{Labels: &types.LabelMatch{

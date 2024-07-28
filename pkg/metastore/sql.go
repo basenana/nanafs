@@ -284,19 +284,19 @@ func (s *sqliteMetaStore) DeleteFinishedTask(ctx context.Context, aliveTime time
 	return s.dbStore.DeleteFinishedTask(ctx, aliveTime)
 }
 
-func (s *sqliteMetaStore) GetWorkflow(ctx context.Context, wfID string) (*types.WorkflowSpec, error) {
+func (s *sqliteMetaStore) GetWorkflow(ctx context.Context, wfID string) (*types.Workflow, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	return s.dbStore.GetWorkflow(ctx, wfID)
 }
 
-func (s *sqliteMetaStore) ListGlobalWorkflow(ctx context.Context) ([]*types.WorkflowSpec, error) {
+func (s *sqliteMetaStore) ListGlobalWorkflow(ctx context.Context) ([]*types.Workflow, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	return s.dbStore.ListGlobalWorkflow(ctx)
 }
 
-func (s *sqliteMetaStore) ListWorkflow(ctx context.Context) ([]*types.WorkflowSpec, error) {
+func (s *sqliteMetaStore) ListWorkflow(ctx context.Context) ([]*types.Workflow, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	return s.dbStore.ListWorkflow(ctx)
@@ -320,7 +320,7 @@ func (s *sqliteMetaStore) ListWorkflowJob(ctx context.Context, filter types.JobF
 	return s.dbStore.ListWorkflowJob(ctx, filter)
 }
 
-func (s *sqliteMetaStore) SaveWorkflow(ctx context.Context, wf *types.WorkflowSpec) error {
+func (s *sqliteMetaStore) SaveWorkflow(ctx context.Context, wf *types.Workflow) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	return s.dbStore.SaveWorkflow(ctx, wf)
@@ -1666,21 +1666,26 @@ func (s *sqlMetaStore) DeleteFinishedTask(ctx context.Context, aliveTime time.Du
 	return nil
 }
 
-func (s *sqlMetaStore) GetWorkflow(ctx context.Context, wfID string) (*types.WorkflowSpec, error) {
+func (s *sqlMetaStore) GetWorkflow(ctx context.Context, wfID string) (*types.Workflow, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.GetWorkflow").End()
 	wf := &db.Workflow{}
 	res := s.WithContext(ctx).Where("id = ?", wfID).First(wf)
 	if res.Error != nil {
 		return nil, db.SqlError2Error(res.Error)
 	}
-	return wf.To()
+	result, err := wf.To()
+	if err != nil {
+		return nil, err
+	}
+	result.HealthScore = workflowScore(ctx, wf.ID, s.DB)
+	return result, nil
 }
 
-func (s *sqlMetaStore) ListGlobalWorkflow(ctx context.Context) ([]*types.WorkflowSpec, error) {
+func (s *sqlMetaStore) ListGlobalWorkflow(ctx context.Context) ([]*types.Workflow, error) {
 	return s.listWorkflow(ctx, types.GlobalNamespaceValue)
 }
 
-func (s *sqlMetaStore) ListWorkflow(ctx context.Context) ([]*types.WorkflowSpec, error) {
+func (s *sqlMetaStore) ListWorkflow(ctx context.Context) ([]*types.Workflow, error) {
 	ns := types.GetNamespace(ctx)
 	if ns.String() == types.DefaultNamespaceValue {
 		return s.listWorkflow(ctx, "")
@@ -1688,7 +1693,7 @@ func (s *sqlMetaStore) ListWorkflow(ctx context.Context) ([]*types.WorkflowSpec,
 	return s.listWorkflow(ctx, ns.String())
 }
 
-func (s *sqlMetaStore) listWorkflow(ctx context.Context, namespace string) ([]*types.WorkflowSpec, error) {
+func (s *sqlMetaStore) listWorkflow(ctx context.Context, namespace string) ([]*types.Workflow, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListWorkflow").End()
 	wfList := make([]db.Workflow, 0)
 	res := s.WithContext(ctx).Order("created_at desc")
@@ -1704,7 +1709,7 @@ func (s *sqlMetaStore) listWorkflow(ctx context.Context, namespace string) ([]*t
 	}
 
 	var (
-		result = make([]*types.WorkflowSpec, len(wfList))
+		result = make([]*types.Workflow, len(wfList))
 		err    error
 	)
 	for i, wf := range wfList {
@@ -1712,6 +1717,7 @@ func (s *sqlMetaStore) listWorkflow(ctx context.Context, namespace string) ([]*t
 		if err != nil {
 			return nil, err
 		}
+		result[i].HealthScore = workflowScore(ctx, wf.ID, s.DB)
 	}
 	return result, nil
 }
@@ -1790,7 +1796,7 @@ func (s *sqlMetaStore) ListWorkflowJob(ctx context.Context, filter types.JobFilt
 	return result, nil
 }
 
-func (s *sqlMetaStore) SaveWorkflow(ctx context.Context, wf *types.WorkflowSpec) error {
+func (s *sqlMetaStore) SaveWorkflow(ctx context.Context, wf *types.Workflow) error {
 	defer trace.StartRegion(ctx, "metastore.sql.SaveWorkflow").End()
 	wf.UpdatedAt = time.Now()
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -2488,6 +2494,43 @@ func namespaceQuery(ctx context.Context, tx *gorm.DB) *gorm.DB {
 		return tx
 	}
 	return tx.Where("namespace = ?", ns.String())
+}
+
+func workflowScore(ctx context.Context, workflow string, tx *gorm.DB) int {
+	var (
+		totalCount  int64
+		totalFailed int64
+		totalError  int64
+	)
+
+	err := namespaceQuery(ctx, tx).WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&db.WorkflowJob{}).Where("workflow = ? AND status = ?", workflow, "error").Order("created_at DESC").Limit(100).Count(&totalError)
+		if res.Error != nil {
+			return res.Error
+		}
+		res = tx.Model(&db.WorkflowJob{}).Where("workflow = ? AND status = ?", workflow, "failed").Order("created_at DESC").Limit(100).Count(&totalFailed)
+		if res.Error != nil {
+			return res.Error
+		}
+		res = tx.Model(&db.WorkflowJob{}).Where("workflow = ?", workflow).Order("created_at DESC").Limit(100).Count(&totalFailed)
+		if res.Error != nil {
+			return res.Error
+		}
+		return nil
+	})
+	if err != nil {
+		return 0
+	}
+	if totalCount == 0 {
+		return 100
+	}
+
+	totalFailed += totalError
+	if totalFailed >= totalCount {
+		return 0
+	}
+
+	return int((totalCount - totalFailed) / totalCount)
 }
 
 func labelSearchKey(k, v string) string {
