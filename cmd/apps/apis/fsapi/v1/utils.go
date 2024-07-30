@@ -108,6 +108,36 @@ func eventInfo(evt *types.Event) *Event {
 	}
 }
 
+func jobDetail(j *types.WorkflowJob) *WorkflowJobDetail {
+	jd := &WorkflowJobDetail{
+		Id:            j.Id,
+		Workflow:      j.Workflow,
+		TriggerReason: j.TriggerReason,
+		Status:        j.Status,
+		Message:       j.Message,
+		Executor:      j.Executor,
+		QueueName:     j.QueueName,
+		Target: &WorkflowJobDetail_JobTarget{
+			EntryID:       j.Target.EntryID,
+			ParentEntryID: j.Target.ParentEntryID,
+		},
+		Steps:     nil,
+		CreatedAt: timestamppb.New(j.CreatedAt),
+		UpdatedAt: timestamppb.New(j.UpdatedAt),
+		StartAt:   timestamppb.New(j.StartAt),
+		FinishAt:  timestamppb.New(j.FinishAt),
+	}
+
+	for _, s := range j.Steps {
+		jd.Steps = append(jd.Steps, &WorkflowJobDetail_JobStep{
+			Name:    s.StepName,
+			Status:  s.Status,
+			Message: s.Message,
+		})
+	}
+	return jd
+}
+
 func buildRootGroup(entry *types.GroupEntry) *GetGroupTreeResponse_GroupEntry {
 	result := &GetGroupTreeResponse_GroupEntry{
 		Entry:    entryInfo(entry.Entry),

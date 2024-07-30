@@ -491,7 +491,7 @@ message ListWorkflowJobsRequest {
 }
 
 message ListWorkflowJobsResponse {
-  repeated WorkflowInfo workflows = 1;
+  repeated WorkflowJobDetail jobs = 1;
 }
 
 

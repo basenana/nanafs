@@ -1037,8 +1037,20 @@ func (s *services) ListWorkflows(ctx context.Context, request *ListWorkflowsRequ
 }
 
 func (s *services) ListWorkflowJobs(ctx context.Context, request *ListWorkflowJobsRequest) (*ListWorkflowJobsResponse, error) {
-	//TODO implement me
-	panic("implement me")
+	if request.WorkflowID == "" {
+		return nil, status.Error(codes.InvalidArgument, "invalid workflow id")
+	}
+	jobs, err := s.ctrl.ListJobs(ctx, request.WorkflowID)
+	if err != nil {
+		s.logger.Errorw("list workflow job failed", "err", err)
+		return nil, status.Error(common.FsApiError(err), "list workflow failed")
+	}
+
+	resp := &ListWorkflowJobsResponse{}
+	for _, j := range jobs {
+		resp.Jobs = append(resp.Jobs, jobDetail(j))
+	}
+	return resp, nil
 }
 
 func (s *services) TriggerWorkflow(ctx context.Context, request *TriggerWorkflowRequest) (*TriggerWorkflowResponse, error) {
