@@ -1043,7 +1043,7 @@ func (s *services) ListWorkflowJobs(ctx context.Context, request *ListWorkflowJo
 	jobs, err := s.ctrl.ListJobs(ctx, request.WorkflowID)
 	if err != nil {
 		s.logger.Errorw("list workflow job failed", "err", err)
-		return nil, status.Error(common.FsApiError(err), "list workflow failed")
+		return nil, status.Error(common.FsApiError(err), "list workflow job failed")
 	}
 
 	resp := &ListWorkflowJobsResponse{}

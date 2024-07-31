@@ -550,3 +550,26 @@ var _ = Describe("testNotifyService", func() {
 		})
 	})
 })
+
+var _ = Describe("testWorkflowService", func() {
+	var (
+		ctx  = context.TODO()
+		wfID string
+	)
+
+	Context("list all workflow", func() {
+		It("get should be succeed", func() {
+			resp, err := serviceClient.ListWorkflows(ctx, &ListWorkflowsRequest{}, grpc.UseCompressor(gzip.Name))
+			Expect(err).Should(BeNil())
+
+			Expect(len(resp.Workflows) > 0).Should(BeTrue())
+			wfID = resp.Workflows[0].Id
+		})
+		It("list jobs should be succeed", func() {
+			_, err := serviceClient.ListWorkflowJobs(ctx, &ListWorkflowJobsRequest{
+				WorkflowID: wfID,
+			}, grpc.UseCompressor(gzip.Name))
+			Expect(err).Should(BeNil())
+		})
+	})
+})
