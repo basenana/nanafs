@@ -18,6 +18,8 @@ package v1
 
 import (
 	"context"
+	"github.com/basenana/nanafs/pkg/workflow/jobrun"
+	"github.com/basenana/nanafs/utils"
 	"io"
 	"time"
 
@@ -554,22 +556,57 @@ var _ = Describe("testNotifyService", func() {
 var _ = Describe("testWorkflowService", func() {
 	var (
 		ctx  = context.TODO()
-		wfID string
+		wfID = "mock-workflow-1"
 	)
 
 	Context("list all workflow", func() {
+		It("mole should be succeed", func() {
+			err := testMeta.SaveWorkflow(ctx, &types.Workflow{
+				Id:              wfID,
+				Name:            "mock workflow",
+				Namespace:       types.DefaultNamespaceValue,
+				Enable:          true,
+				CreatedAt:       time.Now(),
+				UpdatedAt:       time.Now(),
+				LastTriggeredAt: time.Now(),
+			})
+			Expect(err).Should(BeNil())
+
+			for i := 0; i < 200; i++ {
+				err = testMeta.SaveWorkflowJob(ctx, &types.WorkflowJob{
+					Id:            utils.MustRandString(16),
+					Namespace:     types.DefaultNamespaceValue,
+					Workflow:      wfID,
+					TriggerReason: "mock",
+					Steps:         make([]types.WorkflowJobStep, 0),
+					Status:        jobrun.SucceedStatus,
+					StartAt:       time.Now(),
+					FinishAt:      time.Now(),
+					CreatedAt:     time.Now(),
+					UpdatedAt:     time.Now(),
+				})
+			}
+		})
 		It("get should be succeed", func() {
 			resp, err := serviceClient.ListWorkflows(ctx, &ListWorkflowsRequest{}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
 
 			Expect(len(resp.Workflows) > 0).Should(BeTrue())
-			wfID = resp.Workflows[0].Id
+
+			for _, wf := range resp.Workflows {
+				if wf.Id == wfID {
+					Expect(wf.HealthScore).Should(Equal(int32(100)))
+				}
+			}
 		})
+
 		It("list jobs should be succeed", func() {
-			_, err := serviceClient.ListWorkflowJobs(ctx, &ListWorkflowJobsRequest{
+			jobList, err := serviceClient.ListWorkflowJobs(ctx, &ListWorkflowJobsRequest{
 				WorkflowID: wfID,
 			}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
+
+			Expect(len(jobList.Jobs)).Should(Equal(200))
 		})
 	})
 })
