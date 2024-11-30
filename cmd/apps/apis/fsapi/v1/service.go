@@ -24,8 +24,6 @@ import (
 	"time"
 
 	"github.com/basenana/nanafs/pkg/workflow"
-	"github.com/basenana/nanafs/utils"
-
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -295,19 +293,7 @@ func (s *services) ListDocuments(ctx context.Context, request *ListDocumentsRequ
 	}
 	resp := &ListDocumentsResponse{Documents: make([]*DocumentInfo, 0, len(docList))}
 	for _, doc := range docList {
-		resp.Documents = append(resp.Documents, &DocumentInfo{
-			Id:            doc.ID,
-			Name:          doc.Name,
-			EntryID:       doc.OID,
-			ParentEntryID: doc.ParentEntryID,
-			Source:        doc.Source,
-			Marked:        *doc.Marked,
-			Unread:        *doc.Unread,
-			Namespace:     doc.Namespace,
-			SubContent:    utils.GenerateContentSubContent(doc.Content),
-			CreatedAt:     timestamppb.New(doc.CreatedAt),
-			ChangedAt:     timestamppb.New(doc.ChangedAt),
-		})
+		resp.Documents = append(resp.Documents, documentInfo(doc))
 	}
 	return resp, nil
 }
@@ -795,10 +781,15 @@ func (s *services) WriteFile(reader Entries_WriteFileServer) error {
 			}
 		}
 
+		if len(writeRequest.Data) == 0 || writeRequest.Len == 0 {
+			break
+		}
+
 		if writeRequest.EntryID != accessEn {
+			s.logger.Debugw("handle write data to file", "entry", writeRequest.EntryID)
 			en, err := s.ctrl.GetEntry(ctx, writeRequest.EntryID)
 			if err != nil {
-				return status.Error(common.FsApiError(err), "query entry failed")
+				return status.Error(common.FsApiError(err), "query entry failed "+err.Error())
 			}
 
 			err = dentry.IsHasPermissions(en.Access, caller.UID, caller.GID, []types.Permission{types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite})
@@ -806,10 +797,12 @@ func (s *services) WriteFile(reader Entries_WriteFileServer) error {
 				return status.Error(common.FsApiError(err), "has no permission")
 			}
 			accessEn = writeRequest.EntryID
+			s.logger.Infow("start to write data", "entry", accessEn)
 		}
 
 		if file == nil {
-			file, err = s.ctrl.OpenFile(ctx, writeRequest.EntryID, types.OpenAttr{Write: true})
+			file, err = s.ctrl.OpenFile(ctx, accessEn, types.OpenAttr{Write: true})
+			s.logger.Errorw("open file error", "entry", accessEn, "err", err)
 			if err != nil {
 				return status.Error(common.FsApiError(err), "open file failed")
 			}
@@ -824,6 +817,7 @@ func (s *services) WriteFile(reader Entries_WriteFileServer) error {
 
 	if file != nil {
 		if err := file.Flush(ctx); err != nil {
+			s.logger.Errorw("flush data to file error", "entry", accessEn, "recv", recvTotal, "err", err)
 			return err
 		}
 	}

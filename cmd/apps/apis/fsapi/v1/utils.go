@@ -17,6 +17,7 @@
 package v1
 
 import (
+	"github.com/basenana/nanafs/utils"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/basenana/nanafs/pkg/types"
@@ -136,6 +137,22 @@ func jobDetail(j *types.WorkflowJob) *WorkflowJobDetail {
 		})
 	}
 	return jd
+}
+
+func documentInfo(doc *types.Document) *DocumentInfo {
+	return &DocumentInfo{
+		Id:            doc.ID,
+		Name:          doc.Name,
+		EntryID:       doc.OID,
+		ParentEntryID: doc.ParentEntryID,
+		Source:        doc.Source,
+		Marked:        *doc.Marked,
+		Unread:        *doc.Unread,
+		Namespace:     doc.Namespace,
+		SubContent:    utils.GenerateContentSubContent(doc.Content),
+		CreatedAt:     timestamppb.New(doc.CreatedAt),
+		ChangedAt:     timestamppb.New(doc.ChangedAt),
+	}
 }
 
 func buildRootGroup(entry *types.GroupEntry) *GetGroupTreeResponse_GroupEntry {

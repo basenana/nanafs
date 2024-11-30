@@ -17,10 +17,13 @@
 package utils
 
 import (
+	"bytes"
+	"github.com/PuerkitoBio/goquery"
 	"regexp"
 	"strings"
 )
 
+var repeatSpace = regexp.MustCompile(`\s+`)
 var htmlCharFilterRegexp = regexp.MustCompile(`</?[!\w:]+((\s+[\w-]+(\s*=\s*(?:\\*".*?"|'.*?'|[^'">\s]+))?)+\s*|\s*)/?>`)
 
 func ContentTrim(contentType, content string) string {
@@ -30,17 +33,23 @@ func ContentTrim(contentType, content string) string {
 		content = strings.ReplaceAll(content, "</P>", "</P>\n")
 		content = strings.ReplaceAll(content, "</div>", "</div>\n")
 		content = strings.ReplaceAll(content, "</DIV>", "</DIV>\n")
-		return string(htmlCharFilterRegexp.ReplaceAll([]byte(content), []byte{}))
+		content = htmlCharFilterRegexp.ReplaceAllString(content, "")
 	}
+	content = repeatSpace.ReplaceAllString(content, " ")
 	return content
 }
 
 func GenerateContentSubContent(content string) string {
+	if subContent, err := slowPathContentSubContent([]byte(content)); err == nil {
+		return subContent
+	}
+
 	content = ContentTrim("html", content)
 	subContents := strings.Split(content, "\n")
 	contents := make([]string, 0)
 	i := 0
 	for _, subContent := range subContents {
+		subContent = strings.TrimSpace(subContent)
 		if subContent != "" {
 			contents = append(contents, subContent)
 			i++
@@ -49,5 +58,35 @@ func GenerateContentSubContent(content string) string {
 			}
 		}
 	}
-	return strings.Join(contents, "")
+	return strings.Join(contents, " ")
+}
+
+func slowPathContentSubContent(content []byte) (string, error) {
+	query, err := goquery.NewDocumentFromReader(bytes.NewReader(content))
+	if err != nil {
+		return "", err
+	}
+
+	contents := make([]string, 0)
+	query.Find("p").EachWithBreak(func(i int, selection *goquery.Selection) bool {
+		if len(contents) > 10 {
+			return false
+		}
+		t := strings.TrimSpace(selection.Text())
+		if t != "" {
+			contents = append(contents, strings.ReplaceAll(t, "\n", " "))
+		}
+		return true
+	})
+
+	return trimDocumentContent(strings.Join(contents, " "), 400), nil
+}
+
+func trimDocumentContent(str string, m int) string {
+	str = ContentTrim("html", str)
+	runes := []rune(str)
+	if len(runes) > m {
+		return string(runes[:m])
+	}
+	return str
 }
