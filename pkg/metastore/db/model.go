@@ -376,7 +376,7 @@ func (o *Workflow) TableName() string {
 	return "workflow"
 }
 
-func (o *Workflow) From(wf *types.WorkflowSpec) (*Workflow, error) {
+func (o *Workflow) From(wf *types.Workflow) (*Workflow, error) {
 	o.ID = wf.Id
 	o.Name = wf.Name
 	o.Namespace = wf.Namespace
@@ -402,8 +402,8 @@ func (o *Workflow) From(wf *types.WorkflowSpec) (*Workflow, error) {
 	return o, nil
 }
 
-func (o *Workflow) To() (*types.WorkflowSpec, error) {
-	result := &types.WorkflowSpec{
+func (o *Workflow) To() (*types.Workflow, error) {
+	result := &types.Workflow{
 		Id:              o.ID,
 		Name:            o.Name,
 		Namespace:       o.Namespace,

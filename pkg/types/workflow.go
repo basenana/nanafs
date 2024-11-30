@@ -20,7 +20,7 @@ import (
 	"time"
 )
 
-type WorkflowSpec struct {
+type Workflow struct {
 	Id              string             `json:"id"`
 	Name            string             `json:"name"`
 	Namespace       string             `json:"namespace"`
@@ -30,9 +30,10 @@ type WorkflowSpec struct {
 	Enable          bool               `json:"enable"`
 	Executor        string             `json:"executor"`
 	QueueName       string             `json:"queue_name"`
-	CreatedAt       time.Time          `json:"created_at"`
-	UpdatedAt       time.Time          `json:"updated_at"`
-	LastTriggeredAt time.Time          `json:"last_triggered_at"`
+	HealthScore     int                `json:"health_score,omitempty"`
+	CreatedAt       time.Time          `json:"created_at,omitempty"`
+	UpdatedAt       time.Time          `json:"updated_at,omitempty"`
+	LastTriggeredAt time.Time          `json:"last_triggered_at,omitempty"`
 }
 
 type WorkflowStepSpec struct {

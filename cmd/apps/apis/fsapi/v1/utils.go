@@ -17,6 +17,7 @@
 package v1
 
 import (
+	"github.com/basenana/nanafs/utils"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/basenana/nanafs/pkg/types"
@@ -108,6 +109,52 @@ func eventInfo(evt *types.Event) *Event {
 	}
 }
 
+func jobDetail(j *types.WorkflowJob) *WorkflowJobDetail {
+	jd := &WorkflowJobDetail{
+		Id:            j.Id,
+		Workflow:      j.Workflow,
+		TriggerReason: j.TriggerReason,
+		Status:        j.Status,
+		Message:       j.Message,
+		Executor:      j.Executor,
+		QueueName:     j.QueueName,
+		Target: &WorkflowJobDetail_JobTarget{
+			EntryID:       j.Target.EntryID,
+			ParentEntryID: j.Target.ParentEntryID,
+		},
+		Steps:     nil,
+		CreatedAt: timestamppb.New(j.CreatedAt),
+		UpdatedAt: timestamppb.New(j.UpdatedAt),
+		StartAt:   timestamppb.New(j.StartAt),
+		FinishAt:  timestamppb.New(j.FinishAt),
+	}
+
+	for _, s := range j.Steps {
+		jd.Steps = append(jd.Steps, &WorkflowJobDetail_JobStep{
+			Name:    s.StepName,
+			Status:  s.Status,
+			Message: s.Message,
+		})
+	}
+	return jd
+}
+
+func documentInfo(doc *types.Document) *DocumentInfo {
+	return &DocumentInfo{
+		Id:            doc.ID,
+		Name:          doc.Name,
+		EntryID:       doc.OID,
+		ParentEntryID: doc.ParentEntryID,
+		Source:        doc.Source,
+		Marked:        *doc.Marked,
+		Unread:        *doc.Unread,
+		Namespace:     doc.Namespace,
+		SubContent:    utils.GenerateContentSubContent(doc.Content),
+		CreatedAt:     timestamppb.New(doc.CreatedAt),
+		ChangedAt:     timestamppb.New(doc.ChangedAt),
+	}
+}
+
 func buildRootGroup(entry *types.GroupEntry) *GetGroupTreeResponse_GroupEntry {
 	result := &GetGroupTreeResponse_GroupEntry{
 		Entry:    entryInfo(entry.Entry),
@@ -159,6 +206,17 @@ func setupRssConfig(config *CreateEntryRequest_RssConfig, attr *types.EntryAttr)
 		},
 	}
 
+	attr.Labels = types.Labels{Labels: []types.Label{
+		{
+			Key:   types.LabelKeyPluginKind,
+			Value: "source",
+		},
+		{
+			Key:   types.LabelKeyPluginName,
+			Value: "rss",
+		},
+	}}
+
 	if attr.Properties.Fields == nil {
 		attr.Properties.Fields = map[string]types.PropertyItem{}
 	}
@@ -167,5 +225,18 @@ func setupRssConfig(config *CreateEntryRequest_RssConfig, attr *types.EntryAttr)
 	}
 	if config.SiteName != "" {
 		attr.Properties.Fields[types.PropertyWebSiteName] = types.PropertyItem{Value: config.SiteName}
+	}
+}
+
+func buildWorkflow(w *types.Workflow) *WorkflowInfo {
+	return &WorkflowInfo{
+		Id:              w.Id,
+		Name:            w.Name,
+		Executor:        w.Executor,
+		QueueName:       w.QueueName,
+		HealthScore:     int32(w.HealthScore),
+		CreatedAt:       timestamppb.New(w.CreatedAt),
+		UpdatedAt:       timestamppb.New(w.UpdatedAt),
+		LastTriggeredAt: timestamppb.New(w.LastTriggeredAt),
 	}
 }

@@ -39,10 +39,10 @@ import (
 type Manager interface {
 	Start(stopCh chan struct{})
 
-	ListWorkflows(ctx context.Context) ([]*types.WorkflowSpec, error)
-	GetWorkflow(ctx context.Context, wfId string) (*types.WorkflowSpec, error)
-	CreateWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error)
-	UpdateWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error)
+	ListWorkflows(ctx context.Context) ([]*types.Workflow, error)
+	GetWorkflow(ctx context.Context, wfId string) (*types.Workflow, error)
+	CreateWorkflow(ctx context.Context, spec *types.Workflow) (*types.Workflow, error)
+	UpdateWorkflow(ctx context.Context, spec *types.Workflow) (*types.Workflow, error)
 	DeleteWorkflow(ctx context.Context, wfId string) error
 	ListJobs(ctx context.Context, wfId string) ([]*types.WorkflowJob, error)
 	GetJob(ctx context.Context, wfId string, jobID string) (*types.WorkflowJob, error)
@@ -133,7 +133,7 @@ func (m *manager) Start(stopCh chan struct{}) {
 	canF()
 }
 
-func (m *manager) ListWorkflows(ctx context.Context) ([]*types.WorkflowSpec, error) {
+func (m *manager) ListWorkflows(ctx context.Context) ([]*types.Workflow, error) {
 	result, err := m.recorder.ListWorkflow(ctx)
 	if err != nil {
 		return nil, err
@@ -141,11 +141,11 @@ func (m *manager) ListWorkflows(ctx context.Context) ([]*types.WorkflowSpec, err
 	return result, nil
 }
 
-func (m *manager) GetWorkflow(ctx context.Context, wfId string) (*types.WorkflowSpec, error) {
+func (m *manager) GetWorkflow(ctx context.Context, wfId string) (*types.Workflow, error) {
 	return m.recorder.GetWorkflow(ctx, wfId)
 }
 
-func (m *manager) CreateWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error) {
+func (m *manager) CreateWorkflow(ctx context.Context, spec *types.Workflow) (*types.Workflow, error) {
 	if spec.Name == "" {
 		return nil, fmt.Errorf("workflow name is empty")
 	}
@@ -167,7 +167,7 @@ func (m *manager) CreateWorkflow(ctx context.Context, spec *types.WorkflowSpec) 
 	return spec, nil
 }
 
-func (m *manager) UpdateWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error) {
+func (m *manager) UpdateWorkflow(ctx context.Context, spec *types.Workflow) (*types.Workflow, error) {
 	err := validateWorkflowSpec(spec)
 	if err != nil {
 		return nil, err
@@ -320,19 +320,19 @@ type disabledManager struct{}
 
 func (d disabledManager) Start(stopCh chan struct{}) {}
 
-func (d disabledManager) ListWorkflows(ctx context.Context) ([]*types.WorkflowSpec, error) {
-	return make([]*types.WorkflowSpec, 0), nil
+func (d disabledManager) ListWorkflows(ctx context.Context) ([]*types.Workflow, error) {
+	return make([]*types.Workflow, 0), nil
 }
 
-func (d disabledManager) GetWorkflow(ctx context.Context, wfId string) (*types.WorkflowSpec, error) {
+func (d disabledManager) GetWorkflow(ctx context.Context, wfId string) (*types.Workflow, error) {
 	return nil, types.ErrNotEnable
 }
 
-func (d disabledManager) CreateWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error) {
+func (d disabledManager) CreateWorkflow(ctx context.Context, spec *types.Workflow) (*types.Workflow, error) {
 	return nil, types.ErrNotEnable
 }
 
-func (d disabledManager) UpdateWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error) {
+func (d disabledManager) UpdateWorkflow(ctx context.Context, spec *types.Workflow) (*types.Workflow, error) {
 	return nil, types.ErrNotEnable
 }
 

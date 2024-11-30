@@ -109,6 +109,8 @@ func (d *Dispatcher) dispatch(ctx context.Context, taskID string, exec executor,
 	defer logTaskExecutionLatency(taskID, time.Now())
 	task.Status = types.ScheduledTaskExecuting
 	task.ExecutionTime = time.Now()
+
+	ctx = types.WithNamespace(ctx, types.NewNamespace(task.Namespace))
 	if err := d.recorder.SaveTask(ctx, task); err != nil {
 		taskExecutionErrorCounter.Inc()
 		return err

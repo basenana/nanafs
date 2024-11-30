@@ -23,22 +23,22 @@ import (
 	"runtime/trace"
 )
 
-func (c *controller) ListWorkflows(ctx context.Context) ([]*types.WorkflowSpec, error) {
+func (c *controller) ListWorkflows(ctx context.Context) ([]*types.Workflow, error) {
 	defer trace.StartRegion(ctx, "controller.ListWorkflows").End()
 	return c.workflow.ListWorkflows(ctx)
 }
 
-func (c *controller) GetWorkflow(ctx context.Context, wfId string) (*types.WorkflowSpec, error) {
+func (c *controller) GetWorkflow(ctx context.Context, wfId string) (*types.Workflow, error) {
 	defer trace.StartRegion(ctx, "controller.GetWorkflow").End()
 	return c.workflow.GetWorkflow(ctx, wfId)
 }
 
-func (c *controller) CreateWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error) {
+func (c *controller) CreateWorkflow(ctx context.Context, spec *types.Workflow) (*types.Workflow, error) {
 	defer trace.StartRegion(ctx, "controller.CreateWorkflow").End()
 	return c.workflow.CreateWorkflow(ctx, spec)
 }
 
-func (c *controller) UpdateWorkflow(ctx context.Context, spec *types.WorkflowSpec) (*types.WorkflowSpec, error) {
+func (c *controller) UpdateWorkflow(ctx context.Context, spec *types.Workflow) (*types.Workflow, error) {
 	defer trace.StartRegion(ctx, "controller.UpdateWorkflow").End()
 	return c.workflow.UpdateWorkflow(ctx, spec)
 }

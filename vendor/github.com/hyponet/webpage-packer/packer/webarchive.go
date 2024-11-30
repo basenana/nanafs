@@ -85,13 +85,6 @@ func (w *webArchiver) Pack(ctx context.Context, opt Option) error {
 		w.resource.WebMainResource = w.resource.WebSubresources[0]
 	}
 
-	if opt.ClutterFree {
-		err := makeClutterFree(w.resource)
-		if err != nil {
-			return fmt.Errorf("make clustter free failed: %s", err)
-		}
-	}
-
 	output, err := os.OpenFile(opt.FilePath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0655)
 	if err != nil {
 		return fmt.Errorf("open output file failed: %s", err)
@@ -263,11 +256,11 @@ func (w *webArchiver) loadWebPageFromUrl(ctx context.Context, cli *http.Client, 
 		w.mux.Unlock()
 
 		if opt.ClutterFree {
-			clutterFreeData, err := htmlContentClutterFree(urlStr, string(data))
+			clutterFreeContent, err := htmlContentClutterFree(urlStr, string(data))
 			if err != nil {
-				return fmt.Errorf("pre clutter free error: %s", err)
+				return fmt.Errorf("make clustter free failed: %s", err)
 			}
-			data = []byte(clutterFreeData)
+			data = []byte(clutterFreeContent)
 		}
 
 		query, err := goquery.NewDocumentFromReader(bytes.NewReader(data))
@@ -290,6 +283,11 @@ func (w *webArchiver) loadWebPageFromUrl(ctx context.Context, cli *http.Client, 
 				nextUrl(w.workerQ, urlStr, srcVal)
 			}
 			srcVal, isExisted = selection.Attr("data-src-retina")
+			if isExisted {
+				selection.SetAttr("src", srcVal)
+				nextUrl(w.workerQ, urlStr, srcVal)
+			}
+			srcVal, isExisted = selection.Attr("data-original")
 			if isExisted {
 				selection.SetAttr("src", srcVal)
 				nextUrl(w.workerQ, urlStr, srcVal)

@@ -108,13 +108,13 @@ type ScheduledTaskRecorder interface {
 	SaveTask(ctx context.Context, task *types.ScheduledTask) error
 	DeleteFinishedTask(ctx context.Context, aliveTime time.Duration) error
 
-	GetWorkflow(ctx context.Context, wfID string) (*types.WorkflowSpec, error)
-	ListGlobalWorkflow(ctx context.Context) ([]*types.WorkflowSpec, error)
-	ListWorkflow(ctx context.Context) ([]*types.WorkflowSpec, error)
+	GetWorkflow(ctx context.Context, wfID string) (*types.Workflow, error)
+	ListGlobalWorkflow(ctx context.Context) ([]*types.Workflow, error)
+	ListWorkflow(ctx context.Context) ([]*types.Workflow, error)
 	DeleteWorkflow(ctx context.Context, wfID string) error
 	GetWorkflowJob(ctx context.Context, jobID string) (*types.WorkflowJob, error)
 	ListWorkflowJob(ctx context.Context, filter types.JobFilter) ([]*types.WorkflowJob, error)
-	SaveWorkflow(ctx context.Context, wf *types.WorkflowSpec) error
+	SaveWorkflow(ctx context.Context, wf *types.Workflow) error
 	SaveWorkflowJob(ctx context.Context, wf *types.WorkflowJob) error
 	DeleteWorkflowJob(ctx context.Context, wfJobID ...string) error
 }

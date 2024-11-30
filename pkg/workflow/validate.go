@@ -34,7 +34,7 @@ func isValidID(idStr string) error {
 	return fmt.Errorf("invalid ID [%s], pattern: %s", idStr, workflowIDPattern)
 }
 
-func validateWorkflowSpec(spec *types.WorkflowSpec) error {
+func validateWorkflowSpec(spec *types.Workflow) error {
 	if spec.Id == "" {
 		return fmt.Errorf("workflow id is empty")
 	}

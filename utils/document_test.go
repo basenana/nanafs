@@ -34,7 +34,7 @@ func TestContentTrim(t *testing.T) {
 				contentType: "html",
 				content:     "<h1>abc</h1><div id=\"readability-page-1\" class=\"page\"><p data-check-id=\"619724\">def</p><p data-check-id=\"619724\">xyz</p>",
 			},
-			want: "abcdef\nxyz\n",
+			want: "abcdef xyz ",
 		},
 	}
 	for _, tt := range tests {

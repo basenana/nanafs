@@ -55,7 +55,7 @@ func (c *CronHandler) Start(ctx context.Context) {
 	}()
 }
 
-func (c *CronHandler) Register(wf *types.WorkflowSpec) error {
+func (c *CronHandler) Register(wf *types.Workflow) error {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 	oldRecord, ok := c.registry[wf.Id]
@@ -106,7 +106,7 @@ func (c *CronHandler) newJobFunc(wfID string) func() {
 	}
 }
 
-func (c *CronHandler) filterAndTrigger(ctx context.Context, wf *types.WorkflowSpec) error {
+func (c *CronHandler) filterAndTrigger(ctx context.Context, wf *types.Workflow) error {
 	var (
 		entries []*types.Metadata
 		err     error

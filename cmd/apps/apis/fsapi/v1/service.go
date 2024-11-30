@@ -24,8 +24,6 @@ import (
 	"time"
 
 	"github.com/basenana/nanafs/pkg/workflow"
-	"github.com/basenana/nanafs/utils"
-
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -295,19 +293,7 @@ func (s *services) ListDocuments(ctx context.Context, request *ListDocumentsRequ
 	}
 	resp := &ListDocumentsResponse{Documents: make([]*DocumentInfo, 0, len(docList))}
 	for _, doc := range docList {
-		resp.Documents = append(resp.Documents, &DocumentInfo{
-			Id:            doc.ID,
-			Name:          doc.Name,
-			EntryID:       doc.OID,
-			ParentEntryID: doc.ParentEntryID,
-			Source:        doc.Source,
-			Marked:        *doc.Marked,
-			Unread:        *doc.Unread,
-			Namespace:     doc.Namespace,
-			SubContent:    utils.GenerateContentSubContent(doc.Content),
-			CreatedAt:     timestamppb.New(doc.CreatedAt),
-			ChangedAt:     timestamppb.New(doc.ChangedAt),
-		})
+		resp.Documents = append(resp.Documents, documentInfo(doc))
 	}
 	return resp, nil
 }
@@ -564,10 +550,13 @@ func (s *services) CreateEntry(ctx context.Context, request *CreateEntryRequest)
 		Dev:    parent.Dev,
 	}
 	if request.Rss != nil {
-		s.logger.Debugw("setup rss feed to dir", "feed", request.Rss.Feed, "siteName", request.Rss.SiteName)
+		s.logger.Infow("setup rss feed to dir", "feed", request.Rss.Feed, "siteName", request.Rss.SiteName)
 		setupRssConfig(request.Rss, &attr)
 	}
 	en, err := s.ctrl.CreateEntry(ctx, request.ParentID, attr)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "create entry failed")
+	}
 	return &CreateEntryResponse{Entry: entryInfo(en)}, nil
 }
 
@@ -792,7 +781,12 @@ func (s *services) WriteFile(reader Entries_WriteFileServer) error {
 			}
 		}
 
+		if len(writeRequest.Data) == 0 || writeRequest.Len == 0 {
+			break
+		}
+
 		if writeRequest.EntryID != accessEn {
+			s.logger.Debugw("handle write data to file", "entry", writeRequest.EntryID)
 			en, err := s.ctrl.GetEntry(ctx, writeRequest.EntryID)
 			if err != nil {
 				return status.Error(common.FsApiError(err), "query entry failed")
@@ -803,11 +797,13 @@ func (s *services) WriteFile(reader Entries_WriteFileServer) error {
 				return status.Error(common.FsApiError(err), "has no permission")
 			}
 			accessEn = writeRequest.EntryID
+			s.logger.Infow("start to write data", "entry", accessEn)
 		}
 
 		if file == nil {
-			file, err = s.ctrl.OpenFile(ctx, writeRequest.EntryID, types.OpenAttr{Write: true})
+			file, err = s.ctrl.OpenFile(ctx, accessEn, types.OpenAttr{Write: true})
 			if err != nil {
+				s.logger.Errorw("open file error", "entry", accessEn, "err", err)
 				return status.Error(common.FsApiError(err), "open file failed")
 			}
 		}
@@ -821,6 +817,7 @@ func (s *services) WriteFile(reader Entries_WriteFileServer) error {
 
 	if file != nil {
 		if err := file.Flush(ctx); err != nil {
+			s.logger.Errorw("flush data to file error", "entry", accessEn, "recv", recvTotal, "err", err)
 			return err
 		}
 	}
@@ -979,6 +976,16 @@ func (s *services) GetLatestSequence(ctx context.Context, request *GetLatestSequ
 	}, nil
 }
 
+func (s *services) ListMessages(ctx context.Context, request *ListMessagesRequest) (*ListMessagesResponse, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *services) ReadMessages(ctx context.Context, request *ReadMessagesRequest) (*ReadMessagesResponse, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (s *services) ListUnSyncedEvent(ctx context.Context, request *ListUnSyncedEventRequest) (*ListUnSyncedEventResponse, error) {
 	eventList, err := s.ctrl.ListUnSyncedEvent(ctx, request.StartSequence)
 	if err != nil {
@@ -1004,6 +1011,40 @@ func (s *services) CommitSyncedEvent(ctx context.Context, request *CommitSyncedE
 		return nil, status.Error(common.FsApiError(err), "device commit sequence failed")
 	}
 	return &CommitSyncedEventResponse{}, nil
+}
+
+func (s *services) ListWorkflows(ctx context.Context, request *ListWorkflowsRequest) (*ListWorkflowsResponse, error) {
+	workflowList, err := s.ctrl.ListWorkflows(ctx)
+	if err != nil {
+		s.logger.Errorw("list workflow failed", "err", err)
+		return nil, status.Error(common.FsApiError(err), "list workflow failed")
+	}
+
+	buildInWorkflow := workflow.BuildInWorkflows()
+	workflowList = append(workflowList, buildInWorkflow...)
+
+	resp := &ListWorkflowsResponse{}
+	for _, w := range workflowList {
+		resp.Workflows = append(resp.Workflows, buildWorkflow(w))
+	}
+	return resp, nil
+}
+
+func (s *services) ListWorkflowJobs(ctx context.Context, request *ListWorkflowJobsRequest) (*ListWorkflowJobsResponse, error) {
+	if request.WorkflowID == "" {
+		return nil, status.Error(codes.InvalidArgument, "invalid workflow id")
+	}
+	jobs, err := s.ctrl.ListJobs(ctx, request.WorkflowID)
+	if err != nil {
+		s.logger.Errorw("list workflow job failed", "err", err)
+		return nil, status.Error(common.FsApiError(err), "list workflow job failed")
+	}
+
+	resp := &ListWorkflowJobsResponse{}
+	for _, j := range jobs {
+		resp.Jobs = append(resp.Jobs, jobDetail(j))
+	}
+	return resp, nil
 }
 
 func (s *services) TriggerWorkflow(ctx context.Context, request *TriggerWorkflowRequest) (*TriggerWorkflowResponse, error) {
@@ -1047,6 +1088,7 @@ func (s *services) queryEntryProperties(ctx context.Context, entryID, parentID i
 		if err != nil {
 			return nil, err
 		}
+		s.logger.Infow("list entry properties", "entry", entryID, "parentID", parentID, "got", len(properties))
 	}
 	entryProperties, err := s.ctrl.ListEntryProperties(ctx, entryID)
 	if err != nil {

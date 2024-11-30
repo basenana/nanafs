@@ -26,7 +26,7 @@ func (h *htmlPacker) Pack(ctx context.Context, opt Option) error {
 		return err
 	}
 
-	output, err := os.OpenFile(opt.FilePath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0655)
+	output, err := os.OpenFile(opt.FilePath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0644)
 	if err != nil {
 		return fmt.Errorf("open output file failed: %s", err)
 	}
@@ -45,7 +45,7 @@ func (h *htmlPacker) ReadContent(ctx context.Context, opt Option) (string, error
 		err     error
 	)
 	if opt.FilePath != "" {
-		f, err := os.OpenFile(opt.FilePath, os.O_RDONLY, 0655)
+		f, err := os.OpenFile(opt.FilePath, os.O_RDONLY, 0644)
 		if err != nil {
 			return "", fmt.Errorf("open %s failed: %s", opt.FilePath, err)
 		}

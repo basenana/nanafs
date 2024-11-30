@@ -36,8 +36,8 @@ const (
 	WebpackPluginName    = "webpack"
 	WebpackPluginVersion = "1.0"
 
-	packerPostMetaURL   = "org.basenana.plugin.source/url"
-	packerPostMetaTitle = "org.basenana.plugin.source/title"
+	packerPostMetaURL   = types.PropertyWebPageURL
+	packerPostMetaTitle = types.PropertyWebPageTitle
 )
 
 type WebpackPlugin struct {

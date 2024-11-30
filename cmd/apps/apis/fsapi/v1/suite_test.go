@@ -78,7 +78,11 @@ var _ = BeforeSuite(func() {
 
 	storage.InitLocalCache(config.Bootstrap{CacheDir: workdir, CacheSize: 0})
 
-	ctrl, err = controller.New(config.NewFakeConfigLoader(mockConfig), memMeta)
+	cl := config.NewFakeConfigLoader(mockConfig)
+	_ = cl.SetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "enable", true)
+	_ = cl.SetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "job_workdir", workdir)
+
+	ctrl, err = controller.New(cl, memMeta)
 	Expect(err).Should(BeNil())
 
 	_, err = ctrl.LoadRootEntry(context.TODO())
@@ -114,6 +118,7 @@ var _ = BeforeSuite(func() {
 		EntriesClient:    NewEntriesClient(conn),
 		InboxClient:      NewInboxClient(conn),
 		PropertiesClient: NewPropertiesClient(conn),
+		WorkflowClient:   NewWorkflowClient(conn),
 		NotifyClient:     NewNotifyClient(conn),
 	}
 })
@@ -134,6 +139,7 @@ type Client struct {
 	EntriesClient
 	InboxClient
 	PropertiesClient
+	WorkflowClient
 	NotifyClient
 }
 

@@ -429,10 +429,26 @@ message ChatResponse {
 }
 
 service Notify {
+  rpc ListMessages (ListMessagesRequest) returns (ListMessagesResponse) {}
+  rpc ReadMessages (ReadMessagesRequest) returns (ReadMessagesResponse) {}
   rpc GetLatestSequence (GetLatestSequenceRequest) returns (GetLatestSequenceResponse) {}
   rpc ListUnSyncedEvent (ListUnSyncedEventRequest) returns (ListUnSyncedEventResponse) {}
   rpc CommitSyncedEvent (CommitSyncedEventRequest) returns (CommitSyncedEventResponse) {}
 }
+
+message ListMessagesRequest {
+  bool all = 1;
+}
+
+message ListMessagesResponse {
+  repeated Message messages = 1;
+}
+
+message ReadMessagesRequest {
+  repeated string messageIDList = 1;
+}
+
+message ReadMessagesResponse {}
 
 message GetLatestSequenceRequest {
   int64 startSequence = 1;
@@ -459,8 +475,25 @@ message CommitSyncedEventRequest {
 message CommitSyncedEventResponse {}
 
 service Workflow {
+  rpc ListWorkflows (ListWorkflowsRequest) returns (ListWorkflowsResponse) {}
+  rpc ListWorkflowJobs (ListWorkflowJobsRequest) returns (ListWorkflowJobsResponse) {}
   rpc TriggerWorkflow (TriggerWorkflowRequest) returns (TriggerWorkflowResponse) {}
 }
+
+message ListWorkflowsRequest {}
+
+message ListWorkflowsResponse {
+  repeated WorkflowInfo workflows = 1;
+}
+
+message ListWorkflowJobsRequest {
+  string workflowID = 1;
+}
+
+message ListWorkflowJobsResponse {
+  repeated WorkflowJobDetail jobs = 1;
+}
+
 
 message TriggerWorkflowRequest {
   message WorkflowTarget {
@@ -478,6 +511,55 @@ message TriggerWorkflowRequest {
 
 message TriggerWorkflowResponse {
   string jobID = 1;
+}
+
+message WorkflowInfo {
+  string id = 1;
+  string name = 2;
+  string executor = 3;
+  string queueName = 4;
+  int32 healthScore = 5;
+
+  google.protobuf.Timestamp createdAt = 10;
+  google.protobuf.Timestamp updatedAt = 11;
+  google.protobuf.Timestamp lastTriggeredAt = 12;
+}
+
+message WorkflowJobDetail {
+
+  string id = 1;
+  string workflow = 2;
+  string triggerReason = 3;
+  string status = 4;
+  string message = 5;
+  string executor = 6;
+  string queueName = 7;
+
+  message JobTarget {
+    int64 entryID = 1;
+    int64 parentEntryID = 2;
+  }
+  JobTarget target = 8;
+
+  message JobStep {
+    string name = 1;
+    string status = 2;
+    string message = 3;
+  }
+  repeated JobStep steps = 9;
+
+  google.protobuf.Timestamp createdAt = 10;
+  google.protobuf.Timestamp updatedAt = 11;
+  google.protobuf.Timestamp startAt = 12;
+  google.protobuf.Timestamp finishAt = 13;
+}
+
+message WorkflowPlugScope {
+  string pluginName = 1;
+  string version = 2;
+  string pluginType = 3;
+  string action = 4;
+  map<string, string> parameters = 5;
 }
 
 message DocumentInfo {
@@ -573,4 +655,15 @@ message Event {
   int64 refID = 10;
   string refType = 11;
   int64 sequence = 12;
+}
+
+message Message {
+  string id = 1;
+  string title = 2;
+  string message = 3;
+  string type = 4;
+  string source = 5;
+  string action = 6;
+  string status = 7;
+  google.protobuf.Timestamp time = 10;
 }

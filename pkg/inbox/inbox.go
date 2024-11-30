@@ -53,6 +53,7 @@ func (b *Inbox) QuickInbox(ctx context.Context, fileName string, option Option) 
 
 	group, err := FindInboxInternalGroup(ctx, b.entry)
 	if err != nil && !errors.Is(err, types.ErrNotFound) {
+		b.logger.Errorw("find inbox internal group failed", "err", err)
 		return nil, err
 	}
 
@@ -68,6 +69,7 @@ func (b *Inbox) QuickInbox(ctx context.Context, fileName string, option Option) 
 		return nil, err
 	}
 
+	b.logger.Infow("quick inbox: new entry", "entry", fileEn.ID)
 	newFile, err := b.writeInboxFile(ctx, fileEn, option)
 	if err != nil {
 		b.logger.Errorw("write inbox file error", "entry", fileEn.ID, "err", err)
@@ -81,9 +83,9 @@ func (b *Inbox) QuickInbox(ctx context.Context, fileName string, option Option) 
 				return newFile, nil
 			}
 			b.logger.Errorw("trigger pack job error", "entry", fileEn.ID, "err", err)
-			return nil, err
+		} else {
+			b.logger.Infow("trigger pack job succeed", "entry", fileEn.ID, "job", job.Id)
 		}
-		b.logger.Infow("trigger pack job succeed", "entry", fileEn.ID, "job", job.Id)
 	}
 	return newFile, nil
 }

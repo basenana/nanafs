@@ -35,7 +35,7 @@ const (
 	defaultJobTimeout = time.Hour * 3
 )
 
-func assembleWorkflowJob(spec *types.WorkflowSpec, tgt types.WorkflowTarget) (*types.WorkflowJob, error) {
+func assembleWorkflowJob(spec *types.Workflow, tgt types.WorkflowTarget) (*types.WorkflowJob, error) {
 	var globalParam = map[string]string{}
 	j := &types.WorkflowJob{
 		Id:        uuid.New().String(),
@@ -84,7 +84,7 @@ func genDefaultJobRootWorkdir() (jobWorkdir string) {
 	return
 }
 
-func initWorkflow(wf *types.WorkflowSpec) *types.WorkflowSpec {
+func initWorkflow(wf *types.Workflow) *types.Workflow {
 	if wf.Id == "" {
 		wf.Id = uuid.New().String()
 	}

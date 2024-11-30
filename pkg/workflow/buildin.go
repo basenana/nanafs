@@ -31,6 +31,10 @@ const (
 	BuildInWorkflowWebpack = "buildin.webpack"
 )
 
+func BuildInWorkflows() []*types.Workflow {
+	return buildInWorkflows
+}
+
 func registerBuildInWorkflow(ctx context.Context, mgr Manager) error {
 	for i, bWf := range buildInWorkflows {
 		old, err := mgr.GetWorkflow(ctx, bWf.Id)
@@ -45,7 +49,7 @@ func registerBuildInWorkflow(ctx context.Context, mgr Manager) error {
 	return nil
 }
 
-func createOrUpdateBuildInWorkflow(ctx context.Context, mgr Manager, expect, old *types.WorkflowSpec) error {
+func createOrUpdateBuildInWorkflow(ctx context.Context, mgr Manager, expect, old *types.Workflow) error {
 	if old == nil {
 		_, err := mgr.CreateWorkflow(ctx, expect)
 		return err
@@ -67,7 +71,7 @@ func createOrUpdateBuildInWorkflow(ctx context.Context, mgr Manager, expect, old
 }
 
 var (
-	buildInWorkflows = []*types.WorkflowSpec{
+	buildInWorkflows = []*types.Workflow{
 		{
 
 			Id:        "buildin.rss",
