@@ -789,7 +789,7 @@ func (s *services) WriteFile(reader Entries_WriteFileServer) error {
 			s.logger.Debugw("handle write data to file", "entry", writeRequest.EntryID)
 			en, err := s.ctrl.GetEntry(ctx, writeRequest.EntryID)
 			if err != nil {
-				return status.Error(common.FsApiError(err), "query entry failed "+err.Error())
+				return status.Error(common.FsApiError(err), "query entry failed")
 			}
 
 			err = dentry.IsHasPermissions(en.Access, caller.UID, caller.GID, []types.Permission{types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite})
@@ -802,8 +802,8 @@ func (s *services) WriteFile(reader Entries_WriteFileServer) error {
 
 		if file == nil {
 			file, err = s.ctrl.OpenFile(ctx, accessEn, types.OpenAttr{Write: true})
-			s.logger.Errorw("open file error", "entry", accessEn, "err", err)
 			if err != nil {
+				s.logger.Errorw("open file error", "entry", accessEn, "err", err)
 				return status.Error(common.FsApiError(err), "open file failed")
 			}
 		}
