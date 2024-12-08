@@ -170,14 +170,6 @@ func (i instrumentalStore) ListEntryChildren(ctx context.Context, parentId int64
 	return it, err
 }
 
-func (i instrumentalStore) ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) (EntryIterator, error) {
-	const operation = "list_document_parents"
-	defer logOperationLatency(operation, time.Now())
-	it, err := i.store.ListDocumentGroups(ctx, parentId, filter)
-	logOperationError(operation, err)
-	return it, err
-}
-
 func (i instrumentalStore) FilterEntries(ctx context.Context, filter types.Filter) (EntryIterator, error) {
 	const operation = "filter_entries"
 	defer logOperationLatency(operation, time.Now())
@@ -478,70 +470,6 @@ func (i instrumentalStore) DeleteWorkflowJob(ctx context.Context, wfJobID ...str
 	const operation = "delete_workflow_job"
 	defer logOperationLatency(operation, time.Now())
 	err := i.store.DeleteWorkflowJob(ctx, wfJobID...)
-	logOperationError(operation, err)
-	return err
-}
-
-func (i instrumentalStore) SaveDocument(ctx context.Context, doc *types.Document) error {
-	const operation = "save_document"
-	defer logOperationLatency(operation, time.Now())
-	err := i.store.SaveDocument(ctx, doc)
-	logOperationError(operation, err)
-	return err
-}
-
-func (i instrumentalStore) ListDocument(ctx context.Context, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error) {
-	const operation = "list_document"
-	defer logOperationLatency(operation, time.Now())
-	docList, err := i.store.ListDocument(ctx, filter, order)
-	logOperationError(operation, err)
-	return docList, err
-}
-
-func (i instrumentalStore) GetDocument(ctx context.Context, id int64) (*types.Document, error) {
-	const operation = "get_document"
-	defer logOperationLatency(operation, time.Now())
-	doc, err := i.store.GetDocument(ctx, id)
-	logOperationError(operation, err)
-	return doc, err
-}
-
-func (i instrumentalStore) DeleteDocument(ctx context.Context, id int64) error {
-	const operation = "delete_document"
-	defer logOperationLatency(operation, time.Now())
-	err := i.store.DeleteDocument(ctx, id)
-	logOperationError(operation, err)
-	return err
-}
-
-func (i instrumentalStore) GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error) {
-	const operation = "get_document_by_entry_id"
-	defer logOperationLatency(operation, time.Now())
-	doc, err := i.store.GetDocumentByEntryId(ctx, oid)
-	logOperationError(operation, err)
-	return doc, err
-}
-
-func (i instrumentalStore) GetDocumentByName(ctx context.Context, name string) (*types.Document, error) {
-	const operation = "get_document_by_name"
-	defer logOperationLatency(operation, time.Now())
-	doc, err := i.store.GetDocumentByName(ctx, name)
-	logOperationError(operation, err)
-	return doc, err
-}
-
-func (i instrumentalStore) ListFridayAccount(ctx context.Context, refId int64) ([]*types.FridayAccount, error) {
-	const operation = "list_friday_account"
-	defer logOperationLatency(operation, time.Now())
-	res, err := i.store.ListFridayAccount(ctx, refId)
-	logOperationError(operation, err)
-	return res, err
-}
-
-func (i instrumentalStore) CreateFridayAccount(ctx context.Context, account *types.FridayAccount) error {
-	const operation = "create_friday_account"
-	defer logOperationLatency(operation, time.Now())
-	err := i.store.CreateFridayAccount(ctx, account)
 	logOperationError(operation, err)
 	return err
 }

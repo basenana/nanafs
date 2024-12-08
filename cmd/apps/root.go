@@ -22,6 +22,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/rule"
 
 	"github.com/spf13/cobra"
@@ -94,7 +95,9 @@ var daemonCmd = &cobra.Command{
 		storage.InitLocalCache(cfg)
 		rule.InitQuery(meta)
 
-		ctrl, err := controller.New(loader, meta)
+		fridayClient := friday.NewFridayClient(cfg.FridayConfig)
+
+		ctrl, err := controller.New(loader, meta, fridayClient)
 		if err != nil {
 			panic(err)
 		}
@@ -178,7 +181,9 @@ var NamespaceCmd = &cobra.Command{
 		storage.InitLocalCache(cfg)
 		rule.InitQuery(meta)
 
-		ctrl, err := controller.New(loader, meta)
+		fridayClient := friday.NewFridayClient(cfg.FridayConfig)
+
+		ctrl, err := controller.New(loader, meta, fridayClient)
 		if err != nil {
 			panic(err)
 		}

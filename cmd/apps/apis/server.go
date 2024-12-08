@@ -20,16 +20,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/basenana/nanafs/cmd/apps/apis/fsapi"
 	"net/http"
 	"time"
+
+	"github.com/basenana/nanafs/cmd/apps/apis/fsapi"
 
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 
-	apifriday "github.com/basenana/nanafs/cmd/apps/apis/friday"
 	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
 	"github.com/basenana/nanafs/cmd/apps/apis/webdav"
 	"github.com/basenana/nanafs/config"
@@ -103,7 +103,6 @@ func NewHttpApiServer(ctrl controller.Controller, mgr *pathmgr.PathManager, apiC
 	}
 
 	s.engine.GET("/_ping", s.Ping)
-	s.engine.POST("/friday/question", apifriday.Question)
 
 	enableMetric, err := apiConfig.GetSystemConfig(context.TODO(), config.AdminApiConfigGroup, "enable_metric").Bool()
 	if err != nil {

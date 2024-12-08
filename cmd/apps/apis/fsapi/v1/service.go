@@ -23,12 +23,13 @@ import (
 	"io"
 	"time"
 
-	"github.com/basenana/nanafs/pkg/workflow"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/basenana/nanafs/pkg/workflow"
 
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
 	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
@@ -293,7 +294,13 @@ func (s *services) ListDocuments(ctx context.Context, request *ListDocumentsRequ
 	}
 	resp := &ListDocumentsResponse{Documents: make([]*DocumentInfo, 0, len(docList))}
 	for _, doc := range docList {
-		resp.Documents = append(resp.Documents, documentInfo(doc))
+		properties, err := s.queryEntryProperties(ctx, doc.EntryId, doc.ParentEntryID)
+		if err != nil {
+			return nil, status.Error(common.FsApiError(err), "query entry properties failed")
+		}
+		docInfo := documentInfo(doc)
+		docInfo.Properties = properties
+		resp.Documents = append(resp.Documents, docInfo)
 	}
 	return resp, nil
 }
@@ -343,9 +350,10 @@ func (s *services) GetDocumentDetail(ctx context.Context, request *GetDocumentDe
 		return nil, status.Error(codes.InvalidArgument, "entry id and document are all empty")
 	}
 	var (
-		doc *types.Document
-		en  *types.Metadata
-		err error
+		doc        *types.Document
+		en         *types.Metadata
+		properties []*Property
+		err        error
 	)
 	if request.DocumentID != 0 {
 		doc, err = s.ctrl.GetDocument(ctx, request.DocumentID)
@@ -358,29 +366,35 @@ func (s *services) GetDocumentDetail(ctx context.Context, request *GetDocumentDe
 		if err != nil {
 			return nil, status.Error(common.FsApiError(err), "query document with entry id failed")
 		}
+		properties, err = s.queryEntryProperties(ctx, request.EntryID, doc.ParentEntryID)
+		if err != nil {
+			return nil, status.Error(common.FsApiError(err), "query entry properties failed")
+		}
 	}
 	if doc != nil {
-		en, err = s.ctrl.GetEntry(ctx, doc.OID)
+		en, err = s.ctrl.GetEntry(ctx, doc.EntryId)
 		if err != nil {
 			return nil, status.Error(common.FsApiError(err), "query entry of document failed")
 		}
 	}
+
 	return &GetDocumentDetailResponse{
 		Document: &DocumentDescribe{
-			Id:            doc.ID,
+			Id:            doc.EntryId,
 			Name:          doc.Name,
-			EntryID:       doc.OID,
+			EntryID:       doc.EntryId,
 			ParentEntryID: doc.ParentEntryID,
 			Source:        doc.Source,
 			Marked:        *doc.Marked,
 			Unread:        *doc.Unread,
+			Namespace:     doc.Namespace,
 			HtmlContent:   doc.Content,
-			KeyWords:      doc.KeyWords,
 			Summary:       doc.Summary,
 			EntryInfo:     entryInfo(en),
 			CreatedAt:     timestamppb.New(doc.CreatedAt),
 			ChangedAt:     timestamppb.New(doc.ChangedAt),
 		},
+		Properties: properties,
 	}, nil
 }
 
@@ -393,13 +407,10 @@ func (s *services) UpdateDocument(ctx context.Context, request *UpdateDocumentRe
 		return nil, status.Error(codes.InvalidArgument, "document id is empty")
 	}
 	newDoc := &types.Document{
-		ID:            doc.Id,
 		Name:          doc.Name,
-		OID:           doc.EntryID,
 		ParentEntryID: doc.ParentEntryID,
 		Source:        doc.Source,
 		Content:       doc.HtmlContent,
-		KeyWords:      doc.KeyWords,
 		Summary:       doc.Summary,
 	}
 	t := true
@@ -433,14 +444,16 @@ func (s *services) SearchDocuments(ctx context.Context, request *SearchDocuments
 	resp := &SearchDocumentsResponse{}
 	for _, doc := range docList {
 		resp.Documents = append(resp.Documents, &DocumentInfo{
-			Id:            doc.ID,
+			Id:            doc.EntryId,
 			Name:          doc.Name,
-			EntryID:       doc.OID,
+			EntryID:       doc.EntryId,
 			ParentEntryID: doc.ParentEntryID,
 			Source:        doc.Source,
 			Marked:        *doc.Marked,
 			Unread:        *doc.Unread,
 			Namespace:     doc.Namespace,
+			SubContent:    doc.SubContent,
+			HeaderImage:   doc.HeaderImage,
 			CreatedAt:     timestamppb.New(doc.CreatedAt),
 			ChangedAt:     timestamppb.New(doc.ChangedAt),
 		})

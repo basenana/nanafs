@@ -29,6 +29,7 @@ type Services struct {
 
 type ExtendFieldManager interface {
 	RemoveEntry(ctx context.Context, parentId, entryId int64) error
+	GetEntry(ctx context.Context, id int64) (*types.Metadata, error)
 
 	ListEntryProperty(ctx context.Context, id int64) (types.Properties, error)
 	GetEntryProperty(ctx context.Context, id int64, fKey string) (*string, bool, error)
@@ -43,6 +44,4 @@ type DocumentManager interface {
 	GetDocument(ctx context.Context, id int64) (*types.Document, error)
 	GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error)
 	DeleteDocument(ctx context.Context, id int64) error
-
-	CreateFridayAccount(ctx context.Context, account *types.FridayAccount) error
 }

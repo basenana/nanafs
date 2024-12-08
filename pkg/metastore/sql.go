@@ -152,12 +152,6 @@ func (s *sqliteMetaStore) ListEntryChildren(ctx context.Context, parentId int64,
 	return s.dbStore.ListEntryChildren(ctx, parentId, order, filters...)
 }
 
-func (s *sqliteMetaStore) ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) (EntryIterator, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.ListDocumentGroups(ctx, parentId, filter)
-}
-
 func (s *sqliteMetaStore) FilterEntries(ctx context.Context, filter types.Filter) (EntryIterator, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
@@ -372,54 +366,6 @@ func (s *sqliteMetaStore) DeviceSync(ctx context.Context, deviceID string, synce
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	return s.dbStore.DeviceSync(ctx, deviceID, syncedSequence)
-}
-
-func (s *sqliteMetaStore) SaveDocument(ctx context.Context, doc *types.Document) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.SaveDocument(ctx, doc)
-}
-
-func (s *sqliteMetaStore) ListDocument(ctx context.Context, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.ListDocument(ctx, filter, order)
-}
-
-func (s *sqliteMetaStore) GetDocument(ctx context.Context, id int64) (*types.Document, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.GetDocument(ctx, id)
-}
-
-func (s *sqliteMetaStore) GetDocumentByName(ctx context.Context, name string) (*types.Document, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.GetDocumentByName(ctx, name)
-}
-
-func (s *sqliteMetaStore) GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.GetDocumentByEntryId(ctx, oid)
-}
-
-func (s *sqliteMetaStore) DeleteDocument(ctx context.Context, id int64) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.DeleteDocument(ctx, id)
-}
-
-func (s *sqliteMetaStore) ListFridayAccount(ctx context.Context, refId int64) ([]*types.FridayAccount, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.ListFridayAccount(ctx, refId)
-}
-
-func (s *sqliteMetaStore) CreateFridayAccount(ctx context.Context, account *types.FridayAccount) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.CreateFridayAccount(ctx, account)
 }
 
 func (s *sqliteMetaStore) SaveRoom(ctx context.Context, room *types.Room) error {
@@ -955,31 +901,6 @@ func (s *sqlMetaStore) ListEntryChildren(ctx context.Context, parentId int64, or
 	return newTransactionEntryIterator(tx, total), nil
 }
 
-func (s *sqlMetaStore) ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) (EntryIterator, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.ListDocumentGroups").End()
-	var total int64
-	t := true
-	efilter := types.Filter{IsGroup: &t}
-	if parentId != 0 {
-		filter.ParentID = parentId
-	}
-	tx := queryFilter(s.WithNamespaceOfTable(ctx, "object").Model(&db.Object{}), efilter, nil)
-
-	if page := types.GetPagination(ctx); page != nil {
-		tx = tx.Offset(page.Offset()).Limit(page.Limit())
-	}
-
-	tx = tx.Joins("LEFT JOIN document ON object.id = document.parent_entry_id")
-	tx = docQueryFilter(tx, filter).Distinct()
-
-	res := tx.Count(&total)
-	if err := res.Error; err != nil {
-		s.logger.Errorw("count groups entry failed", "parent", parentId, "err", err)
-		return nil, db.SqlError2Error(err)
-	}
-	return newTransactionEntryIterator(tx, total), nil
-}
-
 func (s *sqlMetaStore) FilterEntries(ctx context.Context, filter types.Filter) (EntryIterator, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.FilterEntries").End()
 	var (
@@ -1182,11 +1103,6 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, targetEntryId int6
 			s.logger.Errorw("update target entry failed when change parent",
 				"entry", targetEntryId, "srcParent", srcParentEntryID, "dstParent", newParentId, "err", updateErr)
 			return updateErr
-		}
-
-		res = namespaceQuery(ctx, tx).Model(&db.Document{}).Where("oid = ?", targetEntryId).Update("parent_entry_id", newParentId)
-		if res.Error != nil {
-			return res.Error
 		}
 
 		res = namespaceQuery(ctx, tx).Where("id = ?", srcParentEntryID).First(srcParentEnModel)
@@ -2009,117 +1925,6 @@ func (s *sqlMetaStore) DeviceSync(ctx context.Context, deviceID string, syncedSe
 	})
 }
 
-func (s *sqlMetaStore) SaveDocument(ctx context.Context, doc *types.Document) error {
-	defer trace.StartRegion(ctx, "metastore.sql.SaveDocument").End()
-	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		docMod := &db.Document{}
-		res := tx.Where("id = ?", doc.ID).First(docMod)
-		if res.Error != nil {
-			if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-				docMod = docMod.From(doc)
-				res = tx.Create(docMod)
-				return res.Error
-			}
-			return res.Error
-		}
-		docMod = docMod.From(doc)
-		res = tx.Save(docMod)
-		return res.Error
-	})
-	if err != nil {
-		return db.SqlError2Error(err)
-	}
-	return nil
-}
-
-func (s *sqlMetaStore) ListDocument(ctx context.Context, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.ListDocument").End()
-	docList := make([]db.Document, 0)
-	query := s.WithNamespace(ctx)
-	if page := types.GetPagination(ctx); page != nil {
-		query = query.Offset(page.Offset()).Limit(page.Limit())
-	}
-	res := docOrder(docQueryFilter(query, filter), order).Find(&docList)
-	if res.Error != nil {
-		return nil, db.SqlError2Error(res.Error)
-	}
-
-	result := make([]*types.Document, len(docList))
-	for i, doc := range docList {
-		result[i] = doc.To()
-	}
-	return result, nil
-}
-
-func (s *sqlMetaStore) GetDocument(ctx context.Context, id int64) (*types.Document, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.GetDocument").End()
-	doc := &db.Document{}
-	res := s.WithNamespace(ctx).Where("id = ?", id).First(doc)
-	if res.Error != nil {
-		return nil, db.SqlError2Error(res.Error)
-	}
-	return doc.To(), nil
-}
-
-func (s *sqlMetaStore) GetDocumentByName(ctx context.Context, name string) (*types.Document, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.GetDocumentByName").End()
-	doc := &db.Document{}
-	res := s.WithNamespace(ctx).Where("name = ?", name).First(doc)
-	if res.Error != nil {
-		return nil, db.SqlError2Error(res.Error)
-	}
-	return doc.To(), nil
-}
-
-func (s *sqlMetaStore) GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.GetDocumentByEntryId").End()
-	doc := &db.Document{}
-	res := s.WithNamespace(ctx).Where("oid = ?", oid).First(doc)
-	if res.Error != nil {
-		return nil, db.SqlError2Error(res.Error)
-	}
-	return doc.To(), nil
-}
-
-func (s *sqlMetaStore) DeleteDocument(ctx context.Context, id int64) error {
-	defer trace.StartRegion(ctx, "metastore.sql.DeleteDocument").End()
-	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQuery(ctx, tx).Where("id = ?", id).Delete(&db.Document{})
-		return res.Error
-	})
-	return db.SqlError2Error(err)
-}
-
-func (s *sqlMetaStore) ListFridayAccount(ctx context.Context, refId int64) ([]*types.FridayAccount, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.ListFridayAccount").End()
-	accountList := make([]db.FridayAccount, 0)
-	query := s.WithNamespace(ctx).Where("ref_id = ?", refId)
-	if page := types.GetPagination(ctx); page != nil {
-		query = query.Offset(page.Offset()).Limit(page.Limit())
-	}
-	res := query.Order("created_at DESC").Find(&accountList)
-	if res.Error != nil {
-		return nil, db.SqlError2Error(res.Error)
-	}
-
-	result := make([]*types.FridayAccount, len(accountList))
-	for i, account := range accountList {
-		result[i] = account.To()
-	}
-	return result, nil
-}
-
-func (s *sqlMetaStore) CreateFridayAccount(ctx context.Context, account *types.FridayAccount) error {
-	defer trace.StartRegion(ctx, "metastore.sql.CreateFridayAccount").End()
-	accountMod := &db.FridayAccount{}
-	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		accountMod = accountMod.From(account)
-		res := namespaceQuery(ctx, tx).Create(accountMod)
-		return res.Error
-	})
-	return db.SqlError2Error(err)
-}
-
 func (s *sqlMetaStore) SaveRoom(ctx context.Context, room *types.Room) error {
 	defer trace.StartRegion(ctx, "metastore.sql.CreateRoom").End()
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -2440,50 +2245,6 @@ func enOrder(tx *gorm.DB, order *types.EntryOrder) *gorm.DB {
 			orderStr += " DESC"
 		}
 		tx = tx.Order(orderStr)
-	}
-	return tx
-}
-
-func docQueryFilter(tx *gorm.DB, filter types.DocFilter) *gorm.DB {
-	if filter.ParentID > 0 {
-		tx = tx.Where("document.parent_entry_id = ?", filter.ParentID)
-	}
-	if filter.Marked != nil {
-		tx = tx.Where("document.marked = ?", *filter.Marked)
-	}
-	if filter.Unread != nil {
-		tx = tx.Where("document.unread = ?", *filter.Unread)
-	}
-	if filter.Source != "" {
-		tx = tx.Where("document.source = ?", filter.Source)
-	}
-	if filter.CreatedAtStart != nil {
-		tx = tx.Where("document.created_at >= ?", *filter.CreatedAtStart)
-	}
-	if filter.CreatedAtEnd != nil {
-		tx = tx.Where("document.created_at < ?", *filter.CreatedAtEnd)
-	}
-	if filter.ChangedAtStart != nil {
-		tx = tx.Where("document.changed_at >= ?", *filter.ChangedAtStart)
-	}
-	if filter.ChangedAtEnd != nil {
-		tx = tx.Where("document.changed_at < ?", *filter.ChangedAtEnd)
-	}
-	if filter.FuzzyName != "" {
-		tx = tx.Where("document.name LIKE ?", "%"+filter.FuzzyName+"%")
-	}
-	return tx
-}
-
-func docOrder(tx *gorm.DB, order *types.DocumentOrder) *gorm.DB {
-	if order != nil {
-		orderStr := order.Order.String()
-		if order.Desc {
-			orderStr += " DESC"
-		}
-		tx = tx.Order(orderStr)
-	} else {
-		tx = tx.Order("created_at DESC")
 	}
 	return tx
 }

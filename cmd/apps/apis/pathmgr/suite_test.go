@@ -17,14 +17,17 @@
 package pathmgr
 
 import (
+	"testing"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
+	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils/logger"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	"testing"
 )
 
 var cfg = config.Bootstrap{
@@ -41,7 +44,7 @@ func (m mockConfig) GetBootstrapConfig() (config.Bootstrap, error) {
 
 func NewMockController() controller.Controller {
 	m, _ := metastore.NewMetaStorage(metastore.MemoryMeta, cfg.Meta)
-	ctrl, _ := controller.New(config.NewFakeConfigLoader(cfg), m)
+	ctrl, _ := controller.New(config.NewFakeConfigLoader(cfg), m, friday.NewMockFriday())
 	return ctrl
 }
 

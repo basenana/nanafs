@@ -62,14 +62,6 @@ func NewEventDataFromEntry(entry *Metadata) EventData {
 	}
 }
 
-func NewEventDataFromDocument(doc *Document) EventData {
-	return EventData{
-		ID:        doc.ID,
-		ParentID:  doc.ParentEntryID,
-		Namespace: doc.Namespace,
-	}
-}
-
 const (
 	ScheduledTaskInitial   = "initial"
 	ScheduledTaskWait      = "wait"

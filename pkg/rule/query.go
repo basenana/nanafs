@@ -18,11 +18,13 @@ package rule
 
 import (
 	"context"
+	"time"
+
+	"go.uber.org/zap"
+
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
-	"go.uber.org/zap"
-	"time"
 )
 
 var defaultQuery Query
@@ -73,8 +75,11 @@ func (q *query) Results(ctx context.Context) ([]*types.Metadata, error) {
 		entries []*types.Metadata
 		err     error
 	)
-	defer q.logger.Infow("query entries with rules and labels",
-		"ruleCount", len(q.rules), "labelCount", len(q.labels), "cost", time.Since(startAt).String())
+	defer func() {
+		cost := time.Since(startAt).String()
+		q.logger.Infow("query entries with rules and labels",
+			"ruleCount", len(q.rules), "labelCount", len(q.labels), "cost", cost)
+	}()
 
 	if len(q.labels) == 0 {
 		q.logger.Warnf("scan all entries without lable query")

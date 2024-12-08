@@ -20,7 +20,6 @@ import (
 	"context"
 	"time"
 
-	friday2 "github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 )
@@ -124,13 +123,12 @@ func (c *controller) ChatInRoom(ctx context.Context, roomId int64, newMsg string
 		c.logger.Errorw("get room failed", "err", err)
 		return err
 	}
-	entry, err := c.entry.GetEntry(ctx, room.EntryId)
+	_, err = c.entry.GetEntry(ctx, room.EntryId)
 	if err != nil {
 		c.logger.Errorw("get entry failed", "err", err)
 		return err
 	}
 	var (
-		isDir         = false
 		responseCh    = make(chan map[string]string)
 		model         string
 		respMsg       string
@@ -139,9 +137,6 @@ func (c *controller) ChatInRoom(ctx context.Context, roomId int64, newMsg string
 		responseMsgId = utils.GenerateNewID()
 		historyCh     = make(chan []map[string]string)
 	)
-	if entry.Kind == types.GroupKind {
-		isDir = true
-	}
 
 	realHistory = append(realHistory, map[string]string{"role": "user", "content": newMsg})
 
@@ -167,10 +162,7 @@ func (c *controller) ChatInRoom(ctx context.Context, roomId int64, newMsg string
 
 	go func() {
 		defer close(errCh)
-		err = friday2.ChatWithEntry(ctx, room.EntryId, isDir, realHistory, responseCh, historyCh)
-		if err != nil {
-			errCh <- err
-		}
+		// todo chat
 	}()
 
 	for {

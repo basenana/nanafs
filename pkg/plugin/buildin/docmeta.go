@@ -18,10 +18,8 @@ package buildin
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"go.uber.org/zap"
 
@@ -88,19 +86,6 @@ func (d DocMetaPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pl
 		d.log.Infof("set entey %d extend field %s=%s", request.EntryId, k, valStr)
 	}
 
-	doc, err := d.svc.GetDocumentByEntryId(ctx, request.EntryId)
-	if err != nil {
-		if errors.Is(err, types.ErrNotFound) {
-			return pluginapi.NewResponseWithResult(nil), nil
-		}
-		return pluginapi.NewFailedResponse(fmt.Sprintf("get document with entry id %d error: %s", request.EntryId, err)), nil
-	}
-
-	doc.ChangedAt = time.Now()
-	err = d.svc.SaveDocument(ctx, doc)
-	if err != nil {
-		return pluginapi.NewFailedResponse(fmt.Sprintf("update document %d meta failed: %s", doc.ID, err)), nil
-	}
 	return pluginapi.NewResponseWithResult(nil), nil
 }
 

@@ -32,6 +32,7 @@ import (
 	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
+	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils/logger"
@@ -40,6 +41,7 @@ import (
 var (
 	ctrl          controller.Controller
 	testMeta      metastore.Meta
+	testFriday    friday.Friday
 	testServer    *grpc.Server
 	serviceClient *Client
 	mockListen    *bufconn.Listener
@@ -73,6 +75,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 	testMeta = memMeta
 
+	testFriday = friday.NewMockFriday()
+
 	workdir, err := os.MkdirTemp(os.TempDir(), "ut-nanafs-fsapi-")
 	Expect(err).Should(BeNil())
 
@@ -82,7 +86,7 @@ var _ = BeforeSuite(func() {
 	_ = cl.SetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "enable", true)
 	_ = cl.SetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "job_workdir", workdir)
 
-	ctrl, err = controller.New(cl, memMeta)
+	ctrl, err = controller.New(cl, memMeta, testFriday)
 	Expect(err).Should(BeNil())
 
 	_, err = ctrl.LoadRootEntry(context.TODO())

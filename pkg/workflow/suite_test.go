@@ -18,10 +18,12 @@ package workflow
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/basenana/nanafs/pkg/friday"
+	"github.com/basenana/nanafs/pkg/plugin/buildin"
 
 	"github.com/basenana/nanafs/pkg/rule"
 
@@ -82,7 +84,7 @@ var _ = BeforeSuite(func() {
 	err = cfg.SetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "job_workdir", tempDir)
 	Expect(err).Should(BeNil())
 
-	docMgr, err = document.NewManager(memMeta, entryMgr, cfg)
+	docMgr, err = document.NewManager(memMeta, entryMgr, cfg, friday.NewMockFriday())
 	Expect(err).Should(BeNil())
 
 	// init plugin

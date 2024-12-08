@@ -24,6 +24,8 @@ import (
 	"time"
 
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/friday"
+	"github.com/basenana/nanafs/utils"
 
 	"go.uber.org/zap"
 
@@ -31,7 +33,6 @@ import (
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 )
 
@@ -52,21 +53,19 @@ type Manager interface {
 	GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error)
 	DeleteDocument(ctx context.Context, id int64) error
 	ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) ([]*types.Metadata, error)
-
-	CreateFridayAccount(ctx context.Context, account *types.FridayAccount) error
 }
 
 type manager struct {
 	recorder metastore.DEntry
 	entryMgr dentry.Manager
-	indexer  *Indexer
 	cfg      config.Loader
 	logger   *zap.SugaredLogger
+	friday   friday.Friday
 }
 
 var _ Manager = &manager{}
 
-func NewManager(recorder metastore.DEntry, entryMgr dentry.Manager, cfg config.Loader) (Manager, error) {
+func NewManager(recorder metastore.DEntry, entryMgr dentry.Manager, cfg config.Loader, fridayClient friday.Friday) (Manager, error) {
 	docLogger := logger.NewLogger("document")
 	docMgr := &manager{
 		recorder: recorder,
@@ -78,86 +77,32 @@ func NewManager(recorder metastore.DEntry, entryMgr dentry.Manager, cfg config.L
 	if err != nil {
 		return nil, err
 	}
-
-	enableIndexer, indexerArgs, err := buildIndexConfigArgs(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	if enableIndexer {
-		docMgr.indexer, err = NewDocumentIndexer(recorder, indexerArgs)
-		if err != nil {
-			return nil, err
-		}
-	}
+	docMgr.friday = fridayClient
 
 	return docMgr, nil
 }
 
 func (m *manager) ListDocuments(ctx context.Context, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error) {
-	result, err := m.recorder.ListDocument(ctx, filter, order)
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
+	return m.friday.FilterDocuments(ctx, &filter, order)
 }
 
 func (m *manager) QueryDocuments(ctx context.Context, query string) ([]*types.Document, error) {
-	if m.indexer == nil {
-		return nil, fmt.Errorf("indexer not enable")
+	filter := &types.DocFilter{
+		Search: query,
 	}
-	return m.indexer.Query(ctx, query, QueryDialectBleve)
+	return m.friday.FilterDocuments(ctx, filter, nil)
 }
 
 func (m *manager) SaveDocument(ctx context.Context, doc *types.Document) error {
-	var (
-		crtDoc *types.Document
-		err    error
-	)
-	crtDoc, err = m.recorder.GetDocument(ctx, doc.ID)
-	if err != nil && !errors.Is(err, types.ErrNotFound) {
-		return err
-	}
-	if crtDoc == nil {
-		crtDoc, err = m.recorder.GetDocumentByEntryId(ctx, doc.OID)
-		if err != nil {
-			if errors.Is(err, types.ErrNotFound) {
-				// create new one
-				doc.ID = utils.GenerateNewID()
-				doc.CreatedAt = time.Now()
-				doc.ChangedAt = time.Now()
-				if err = m.recorder.SaveDocument(ctx, doc); err != nil {
-					m.logger.Errorw("create document failed", "document", doc.ID, "err", err)
-					return err
-				}
-				m.publicDocActionEvent(events.ActionTypeCreate, doc)
-				return nil
-			}
-			m.logger.Errorw("create document failed", "err", err)
+	crtDoc, err := m.friday.GetDocument(ctx, doc.EntryId)
+	if err != nil {
+		if !errors.Is(err, types.ErrNotFound) {
 			return err
 		}
-	}
-	// update
-	if doc.OID != 0 && crtDoc.OID != doc.OID {
-		return errors.New("can't update oid of doc")
-	}
-	if doc.Name != "" {
-		crtDoc.Name = doc.Name
+		return m.friday.CreateDocument(ctx, doc)
 	}
 	if doc.ParentEntryID != 0 {
 		crtDoc.ParentEntryID = doc.ParentEntryID
-	}
-	if doc.Summary != "" {
-		crtDoc.Summary = doc.Summary
-	}
-	if len(doc.KeyWords) != 0 {
-		crtDoc.KeyWords = doc.KeyWords
-	}
-	if doc.Content != "" {
-		crtDoc.Content = doc.Content
-	}
-	if doc.Desync != nil {
-		crtDoc.Desync = doc.Desync
 	}
 	if doc.Marked != nil {
 		crtDoc.Marked = doc.Marked
@@ -165,39 +110,34 @@ func (m *manager) SaveDocument(ctx context.Context, doc *types.Document) error {
 	if doc.Unread != nil {
 		crtDoc.Unread = doc.Unread
 	}
-	crtDoc.ChangedAt = time.Now()
-	if err = m.recorder.SaveDocument(ctx, crtDoc); err != nil {
-		m.logger.Errorw("update document failed", "document", doc.ID, "err", err)
-		return err
-	}
-	m.publicDocActionEvent(events.ActionTypeUpdate, crtDoc)
-	return nil
+	return m.friday.UpdateDocument(ctx, crtDoc)
 }
 
 func (m *manager) GetDocument(ctx context.Context, id int64) (*types.Document, error) {
-	return m.recorder.GetDocument(ctx, id)
+	return m.friday.GetDocument(ctx, id)
 }
 
 func (m *manager) GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error) {
-	return m.recorder.GetDocumentByEntryId(ctx, oid)
+	return m.friday.GetDocument(ctx, oid)
 }
 
 func (m *manager) DeleteDocument(ctx context.Context, id int64) error {
-	doc, err := m.GetDocument(ctx, id)
-	if err != nil {
-		return err
-	}
-	err = m.recorder.DeleteDocument(ctx, id)
-	if err != nil {
-		return err
-	}
-	m.publicDocActionEvent(events.ActionTypeDestroy, doc)
-	return nil
+	return m.friday.DeleteDocument(ctx, id)
 }
 
 func (m *manager) ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) ([]*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.ListDocumentGroups").End()
-	it, err := m.recorder.ListDocumentGroups(ctx, parentId, filter)
+	entryFilter := types.Filter{
+		ID:              parentId,
+		FuzzyName:       filter.FuzzyName,
+		Namespace:       types.GetNamespace(ctx).String(),
+		IsGroup:         utils.ToPtr(true),
+		CreatedAtStart:  filter.CreatedAtStart,
+		CreatedAtEnd:    filter.CreatedAtEnd,
+		ModifiedAtStart: filter.ChangedAtStart,
+		ModifiedAtEnd:   filter.ChangedAtEnd,
+	}
+	it, err := m.recorder.FilterEntries(ctx, entryFilter)
 	if err != nil {
 		return nil, err
 	}
@@ -215,17 +155,6 @@ func (m *manager) ListDocumentGroups(ctx context.Context, parentId int64, filter
 	return result, nil
 }
 
-func (m *manager) CreateFridayAccount(ctx context.Context, account *types.FridayAccount) error {
-	account.CreatedAt = time.Now()
-	account.ID = utils.GenerateNewID()
-	err := m.recorder.CreateFridayAccount(ctx, account)
-	if err != nil {
-		m.logger.Errorw("save friday account failed", "refId", account.RefID, "refType", account.RefType, "err", err)
-		return err
-	}
-	return nil
-}
-
 func (m *manager) handleEntryEvent(evt *types.Event) error {
 	ctx, cancel := context.WithTimeout(context.TODO(), time.Hour)
 	defer cancel()
@@ -235,7 +164,7 @@ func (m *manager) handleEntryEvent(evt *types.Event) error {
 
 	switch evt.Type {
 	case events.ActionTypeDestroy:
-		doc, err := m.GetDocumentByEntryId(ctx, entry.ID)
+		en, err := m.GetDocumentByEntryId(ctx, entry.ID)
 		if err != nil {
 			if err == types.ErrNotFound {
 				return nil
@@ -244,12 +173,7 @@ func (m *manager) handleEntryEvent(evt *types.Event) error {
 			return err
 		}
 
-		err = m.DeleteDocument(ctx, doc.ID)
-		if err != nil {
-			m.logger.Errorw("[docCleanExecutor] delete doc failed", "entry", entry.ID, "document", doc.ID, "err", err)
-			return err
-		}
-		return nil
+		return m.DeleteDocument(ctx, en.EntryId)
 	case events.ActionTypeChangeParent:
 		fallthrough
 	case events.ActionTypeUpdate:
@@ -273,30 +197,13 @@ func (m *manager) handleEntryEvent(evt *types.Event) error {
 			doc.ParentEntryID = en.ParentID
 			err = m.SaveDocument(ctx, doc)
 			if err != nil {
-				m.logger.Errorw("[docUpdateExecutor] update doc failed", "entry", entry.ID, "document", doc.ID, "err", err)
+				m.logger.Errorw("[docUpdateExecutor] update doc failed", "entry", entry.ID, "err", err)
 				return err
 			}
 		}
 		return nil
 	case events.ActionTypeCompact:
-		doc, err := m.GetDocumentByEntryId(ctx, entry.ID)
-		if err != nil {
-			if err == types.ErrNotFound {
-				return nil
-			}
-			m.logger.Errorw("[docDesyncExecutor] get entry failed", "entry", entry.ID, "err", err)
-			return err
-		}
-		if *doc.Desync {
-			return nil
-		}
-		dsync := true
-		doc.Desync = &dsync
-		err = m.SaveDocument(ctx, doc)
-		if err != nil {
-			m.logger.Errorw("[docDesyncExecutor] update doc failed", "entry", entry.ID, "document", doc.ID, "err", err)
-			return err
-		}
+		// do nothing
 		return nil
 	}
 
@@ -313,9 +220,6 @@ func registerDocExecutor(docMgr *manager) error {
 		{events.TopicNamespaceEntry, events.ActionTypeUpdate, docMgr.handleEntryEvent},
 		{events.TopicNamespaceEntry, events.ActionTypeChangeParent, docMgr.handleEntryEvent},
 		{events.TopicNamespaceFile, events.ActionTypeCompact, docMgr.handleEntryEvent},
-		{events.TopicNamespaceDocument, events.ActionTypeCreate, docMgr.handleDocumentEvent},
-		{events.TopicNamespaceDocument, events.ActionTypeUpdate, docMgr.handleDocumentEvent},
-		{events.TopicNamespaceDocument, events.ActionTypeDestroy, docMgr.handleDocumentEvent},
 	}
 
 	for _, mapping := range eventMappings {

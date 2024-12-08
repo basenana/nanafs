@@ -312,6 +312,7 @@ message GetDocumentDetailRequest {
 
 message GetDocumentDetailResponse {
   DocumentDescribe document = 1;
+  repeated Property properties = 2;
 }
 
 message UpdateDocumentRequest {
@@ -572,6 +573,8 @@ message DocumentInfo {
   bool unread = 7;
   string namespace = 8;
   string subContent = 9;
+  string headerImage = 10;
+  repeated Property properties = 20;
   google.protobuf.Timestamp createdAt = 30;
   google.protobuf.Timestamp changedAt = 31;
 }
@@ -589,6 +592,7 @@ message DocumentDescribe {
   string htmlContent = 10;
   repeated string keyWords = 11;
   string summary = 12;
+  string headerImage = 13;
 
   EntryInfo entryInfo = 20;
 

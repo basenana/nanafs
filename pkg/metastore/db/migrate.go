@@ -69,15 +69,6 @@ func buildMigrations() []*gormigrate.Migration {
 			},
 		},
 		{
-			ID: "2023101400",
-			Migrate: func(db *gorm.DB) error {
-				return db.AutoMigrate(&Document{})
-			},
-			Rollback: func(db *gorm.DB) error {
-				return nil
-			},
-		},
-		{
 			ID: "2023111200",
 			Migrate: func(db *gorm.DB) error {
 				err := db.AutoMigrate(&ObjectProperty{})
@@ -97,21 +88,8 @@ func buildMigrations() []*gormigrate.Migration {
 			},
 		},
 		{
-			ID: "2023120901",
-			Migrate: func(db *gorm.DB) error {
-				return db.AutoMigrate(&FridayAccount{})
-			},
-			Rollback: func(db *gorm.DB) error {
-				return nil
-			},
-		},
-		{
 			ID: "2023122700",
 			Migrate: func(db *gorm.DB) error {
-				err := db.AutoMigrate(&Workflow{}, &WorkflowJob{}, &Document{})
-				if err != nil {
-					return err
-				}
 				_ = db.Exec("UPDATE workflow SET queue_name='default' WHERE 1=1;")
 				_ = db.Exec("UPDATE workflow SET executor='local' WHERE 1=1;")
 				_ = db.Exec("UPDATE workflow_job SET queue_name='default' WHERE 1=1;")
@@ -129,7 +107,6 @@ func buildMigrations() []*gormigrate.Migration {
 					&Object{},
 					&Label{},
 					&Notification{},
-					&Document{},
 					&Workflow{},
 					&WorkflowJob{},
 					&Event{},
@@ -178,7 +155,6 @@ func buildMigrations() []*gormigrate.Migration {
 			ID: "2024051400",
 			Migrate: func(db *gorm.DB) error {
 				err := db.AutoMigrate(
-					&FridayAccount{},
 					&ScheduledTask{},
 					&ObjectProperty{},
 				)

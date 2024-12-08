@@ -16,10 +16,6 @@
 
 package config
 
-import (
-	fridayconf "github.com/basenana/friday/config"
-)
-
 type Bootstrap struct {
 	FUSE FUSE `json:"fuse"`
 
@@ -27,12 +23,16 @@ type Bootstrap struct {
 	Storages         []Storage  `json:"storages"`
 	GlobalEncryption Encryption `json:"global_encryption"`
 
-	FS     *FS                `json:"fs,omitempty"`
-	Friday *fridayconf.Config `json:"friday,omitempty"`
+	FS           *FS          `json:"fs,omitempty"`
+	FridayConfig FridayConfig `json:"friday_config,omitempty"`
 
 	CacheDir  string `json:"cache_dir,omitempty"`
 	CacheSize int    `json:"cache_size,omitempty"`
 	Debug     bool   `json:"debug,omitempty"`
+}
+
+type FridayConfig struct {
+	HttpAddr string `json:"http_addr"`
 }
 
 type FsApi struct {

@@ -17,13 +17,15 @@
 package controller
 
 import (
+	"testing"
+
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils/logger"
-	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -52,7 +54,7 @@ var _ = BeforeSuite(func() {
 		Storages: []config.Storage{{ID: "test-memory-0", Type: storage.MemoryStorage}},
 	})
 
-	ctrl, err = New(cfgLoader, memMeta)
+	ctrl, err = New(cfgLoader, memMeta, friday.NewMockFriday())
 	Expect(err).Should(BeNil())
 
 	// init plugin

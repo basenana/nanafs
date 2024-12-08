@@ -56,7 +56,6 @@ type DEntry interface {
 	GetEntryUri(ctx context.Context, uri string) (*types.EntryUri, error)
 
 	ListEntryChildren(ctx context.Context, parentId int64, order *types.EntryOrder, filters ...types.Filter) (EntryIterator, error)
-	ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) (EntryIterator, error)
 	FilterEntries(ctx context.Context, filter types.Filter) (EntryIterator, error)
 
 	Open(ctx context.Context, id int64, attr types.OpenAttr) (*types.Metadata, error)
@@ -74,16 +73,6 @@ type DEntry interface {
 	AddEntryProperty(ctx context.Context, id int64, key string, item types.PropertyItem) error
 	RemoveEntryProperty(ctx context.Context, id int64, key string) error
 	UpdateEntryProperties(ctx context.Context, id int64, properties types.Properties) error
-
-	SaveDocument(ctx context.Context, doc *types.Document) error
-	ListDocument(ctx context.Context, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error)
-	GetDocument(ctx context.Context, id int64) (*types.Document, error)
-	GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error)
-	GetDocumentByName(ctx context.Context, name string) (*types.Document, error)
-	DeleteDocument(ctx context.Context, id int64) error
-
-	ListFridayAccount(ctx context.Context, refId int64) ([]*types.FridayAccount, error)
-	CreateFridayAccount(ctx context.Context, account *types.FridayAccount) error
 
 	SaveRoom(ctx context.Context, room *types.Room) error
 	GetRoom(ctx context.Context, id int64) (*types.Room, error)
