@@ -237,13 +237,15 @@ func collectFile2Document(ctx context.Context, docMgr document.Manager, entryMgr
 	}
 	unread := true
 	doc := &types.Document{
-		OID:           baseEn.ID,
+		EntryId:       entryId,
 		Name:          trimFileExtension(baseEn.Name),
 		Namespace:     baseEn.Namespace,
 		ParentEntryID: baseEn.ParentID,
 		Source:        "collect",
 		Content:       content.String(),
 		Unread:        &unread,
+		CreatedAt:     baseEn.CreatedAt,
+		ChangedAt:     baseEn.ChangedAt,
 	}
 	err = docMgr.SaveDocument(ctx, doc)
 	if err != nil {

@@ -19,7 +19,6 @@ package db
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/basenana/nanafs/pkg/types"
@@ -506,119 +505,6 @@ func (o *WorkflowJob) To() (*types.WorkflowJob, error) {
 	}
 
 	return result, nil
-}
-
-type Document struct {
-	ID            int64     `gorm:"column:id;primaryKey"`
-	OID           int64     `gorm:"column:oid;index:doc_oid"`
-	Name          string    `gorm:"column:name;index:doc_name"`
-	Namespace     string    `gorm:"column:namespace;index:doc_ns"`
-	Source        string    `gorm:"column:source;index:doc_source"`
-	ParentEntryID *int64    `gorm:"column:parent_entry_id;index:doc_parent_entry_id"`
-	Keywords      string    `gorm:"column:keywords"`
-	Content       string    `gorm:"column:content"`
-	Summary       string    `gorm:"column:summary"`
-	Marked        bool      `gorm:"column:marked;index:doc_is_marked"`
-	Unread        bool      `gorm:"column:unread;index:doc_is_unread"`
-	Desync        bool      `gorm:"column:desync"`
-	CreatedAt     time.Time `gorm:"column:created_at"`
-	ChangedAt     time.Time `gorm:"column:changed_at"`
-}
-
-func (d *Document) TableName() string {
-	return "document"
-}
-
-func (d *Document) From(document *types.Document) *Document {
-
-	d.ID = document.ID
-	d.OID = document.OID
-	d.Name = document.Name
-	d.Namespace = document.Namespace
-	d.ParentEntryID = &document.ParentEntryID
-	d.Keywords = strings.Join(document.KeyWords, ",")
-	d.Source = document.Source
-	d.Content = document.Content
-	d.Summary = document.Summary
-	d.CreatedAt = document.CreatedAt
-	d.ChangedAt = document.ChangedAt
-	if document.Marked != nil {
-		d.Marked = *document.Marked
-	}
-	if document.Unread != nil {
-		d.Unread = *document.Unread
-	}
-	if document.Desync != nil {
-		d.Desync = *document.Desync
-	}
-	return d
-}
-
-func (d *Document) To() *types.Document {
-	keyWords := []string{}
-	if strings.TrimSpace(d.Keywords) != "" {
-		keyWords = strings.Split(d.Keywords, ",")
-	}
-	result := &types.Document{
-		ID:            d.ID,
-		OID:           d.OID,
-		Name:          d.Name,
-		Namespace:     d.Namespace,
-		ParentEntryID: *d.ParentEntryID,
-		Source:        d.Source,
-		KeyWords:      keyWords,
-		Content:       d.Content,
-		Summary:       d.Summary,
-		Marked:        &d.Marked,
-		Unread:        &d.Unread,
-		Desync:        &d.Desync,
-		CreatedAt:     d.CreatedAt,
-		ChangedAt:     d.ChangedAt,
-	}
-	return result
-}
-
-type FridayAccount struct {
-	ID             int64     `gorm:"column:id;primaryKey"`
-	Namespace      string    `gorm:"column:namespace;index:fridayaccount_namespace"`
-	RefId          int64     `gorm:"column:ref_id;index:fridayaccount_ref_id"`
-	RefType        string    `gorm:"column:ref_type;index:fridayaccount_ref_type"`
-	Type           string    `gorm:"column:type;index:fridayaccount_type"`
-	CompleteTokens int       `gorm:"column:complete_tokens"`
-	PromptTokens   int       `gorm:"column:prompt_tokens"`
-	TotalTokens    int       `gorm:"column:total_tokens"`
-	CreatedAt      time.Time `gorm:"column:created_at"`
-}
-
-func (a *FridayAccount) TableName() string {
-	return "friday_account"
-}
-
-func (a *FridayAccount) To() *types.FridayAccount {
-	return &types.FridayAccount{
-		ID:             a.ID,
-		Namespace:      a.Namespace,
-		RefID:          a.RefId,
-		RefType:        a.RefType,
-		Type:           a.Type,
-		CompleteTokens: a.CompleteTokens,
-		PromptTokens:   a.PromptTokens,
-		TotalTokens:    a.TotalTokens,
-		CreatedAt:      a.CreatedAt,
-	}
-}
-
-func (a *FridayAccount) From(account *types.FridayAccount) *FridayAccount {
-	a.ID = account.ID
-	a.Namespace = account.Namespace
-	a.RefId = account.RefID
-	a.RefType = account.RefType
-	a.Type = account.Type
-	a.PromptTokens = account.PromptTokens
-	a.CompleteTokens = account.CompleteTokens
-	a.TotalTokens = account.TotalTokens
-	a.CreatedAt = account.CreatedAt
-	return a
 }
 
 type Room struct {

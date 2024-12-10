@@ -24,6 +24,7 @@ import (
 
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 )
 
 var _ = Describe("testDocumentManage", func() {
@@ -39,14 +40,14 @@ var _ = Describe("testDocumentManage", func() {
 				Kind: types.RawKind,
 			})
 			Expect(err).Should(BeNil())
+			docId = entry.ID
 			doc := &types.Document{
+				EntryId:       entry.ID,
 				Name:          entry.Name,
 				ParentEntryID: entry.ParentID,
-				OID:           entry.ID,
 			}
 			err := docManager.SaveDocument(context.TODO(), doc)
 			Expect(err).Should(BeNil())
-			docId = doc.ID
 		})
 		It("query should be succeed", func() {
 			doc, err := docManager.GetDocument(context.TODO(), docId)
@@ -60,36 +61,32 @@ var _ = Describe("testDocumentManage", func() {
 		})
 		It("update should be succeed", func() {
 			err := docManager.SaveDocument(context.TODO(), &types.Document{
-				ID:      docId,
-				Name:    entry.Name,
-				Content: "abc",
+				EntryId: entry.ID,
+				Unread:  utils.ToPtr(false),
 			})
 			Expect(err).Should(BeNil())
 			doc, err := docManager.GetDocument(context.TODO(), docId)
 			Expect(err).Should(BeNil())
-			Expect(doc.Content).Should(Equal("abc"))
+			Expect(doc.Unread).Should(Equal(utils.ToPtr(false)))
 		})
 		It("save should be succeed", func() {
-			keywords := []string{"a", "b"}
 			content := "this is content"
 			summary := "this is summary"
 			t := true
 			newDoc := &types.Document{
-				Name:     "test_create_doc",
-				OID:      entry.ID,
-				Source:   "",
-				Unread:   &t,
-				KeyWords: keywords,
-				Content:  content,
-				Summary:  summary,
+				EntryId: int64(123),
+				Name:    "test_create_doc",
+				Source:  "",
+				Unread:  &t,
+				Content: content,
+				Summary: summary,
 			}
 			err := docManager.SaveDocument(context.TODO(), newDoc)
 			Expect(err).Should(BeNil())
 
-			doc, err := docManager.GetDocument(context.TODO(), docId)
+			doc, err := docManager.GetDocument(context.TODO(), int64(123))
 			Expect(err).Should(BeNil())
 			Expect(doc.Content).Should(Equal(content))
-			Expect(doc.KeyWords).Should(Equal(keywords))
 			Expect(doc.Summary).Should(Equal(summary))
 			Expect(*doc.Unread).Should(BeTrue())
 		})
@@ -105,8 +102,7 @@ var _ = Describe("testDocumentManage", func() {
 	})
 	Context("test list document groups", func() {
 		var (
-			grp     *types.Metadata
-			grpFile *types.Metadata
+			grp *types.Metadata
 		)
 		It("create group and document should succeed", func() {
 			grp, err = entryMgr.CreateEntry(context.TODO(), root.ID, types.EntryAttr{
@@ -115,16 +111,9 @@ var _ = Describe("testDocumentManage", func() {
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
-			grpFile, err = entryMgr.CreateEntry(context.TODO(), grp.ID, types.EntryAttr{
-				Name:   "test_list_grp_file",
-				Kind:   types.RawKind,
-				Access: accessPermissions,
-			})
-			Expect(err).Should(BeNil())
 
 			f := false
 			err := docManager.SaveDocument(context.TODO(), &types.Document{
-				OID:           grpFile.ID,
 				Name:          "test_list_grp_doc1",
 				ParentEntryID: grp.ID,
 				Unread:        &f,
@@ -166,7 +155,7 @@ var _ = Describe("TestHandleEvent", func() {
 			})
 			Expect(err).Should(BeNil())
 			err = docManager.SaveDocument(context.TODO(), &types.Document{
-				OID:           grp1File1.ID,
+				EntryId:       grp1File1.ID,
 				Name:          grp1File1.Name,
 				ParentEntryID: grp1File1.ParentID,
 			})
@@ -179,8 +168,8 @@ var _ = Describe("TestHandleEvent", func() {
 			})
 			Expect(err).Should(BeNil())
 			err = docManager.SaveDocument(context.TODO(), &types.Document{
-				OID:           grp1File2.ID,
 				Name:          grp1File2.Name,
+				EntryId:       grp1File2.ID,
 				ParentEntryID: grp1File2.ParentID,
 			})
 			Expect(err).Should(BeNil())
@@ -192,8 +181,8 @@ var _ = Describe("TestHandleEvent", func() {
 			})
 			Expect(err).Should(BeNil())
 			err = docManager.SaveDocument(context.TODO(), &types.Document{
-				OID:           grp1File3.ID,
 				Name:          grp1File3.Name,
+				EntryId:       grp1File3.ID,
 				ParentEntryID: grp1File3.ParentID,
 			})
 			Expect(err).Should(BeNil())
@@ -205,8 +194,8 @@ var _ = Describe("TestHandleEvent", func() {
 			})
 			Expect(err).Should(BeNil())
 			err = docManager.SaveDocument(context.TODO(), &types.Document{
-				OID:           grp1File4.ID,
 				Name:          grp1File4.Name,
+				EntryId:       grp1File4.ID,
 				ParentEntryID: grp1File4.ParentID,
 			})
 			Expect(err).Should(BeNil())
@@ -275,7 +264,6 @@ var _ = Describe("TestHandleEvent", func() {
 			Expect(err).Should(BeNil())
 			Expect(doc.ParentEntryID).Should(Equal(grp1.ID))
 			Expect(doc.Name).Should(Equal(grp1File4.Name))
-			Expect(*doc.Desync).Should(BeTrue())
 		})
 	})
 })

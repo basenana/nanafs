@@ -18,22 +18,20 @@ package v1
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/workflow/jobrun"
-	"github.com/basenana/nanafs/utils"
 	"io"
 	"time"
 
-	. "github.com/agiledragon/gomonkey/v2"
+	"github.com/basenana/nanafs/pkg/workflow/jobrun"
+	"github.com/basenana/nanafs/utils"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/types"
 )
 
@@ -79,52 +77,6 @@ var _ = Describe("testRoomService", func() {
 			resp, err := serviceClient.ListRooms(ctx, &ListRoomsRequest{EntryID: 1}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
 			Expect(len(resp.Rooms)).Should(Equal(1))
-		})
-
-		It("chat should be succeed", func() {
-			patch1 := ApplyFunc(friday.ChatWithEntry, func(ctx context.Context, dirId int64, isGroup bool, history []map[string]string, response chan map[string]string, historyCh chan []map[string]string) error {
-				response <- map[string]string{"content": "hello, I am response\n"}
-				response <- map[string]string{"content": "abc"}
-				close(response)
-				return nil
-			})
-			defer patch1.Reset()
-
-			var (
-				content   string
-				requestId int64
-			)
-			chater, err := serviceClient.ChatInRoom(ctx, &ChatRequest{
-				RoomID:     roomId,
-				NewRequest: "hello",
-				SendAt:     timestamppb.New(time.Now()),
-			}, grpc.UseCompressor(gzip.Name))
-			Expect(err).Should(BeNil())
-
-			for {
-				resp, err := chater.Recv()
-				if err != nil && err == io.EOF {
-					break
-				}
-				Expect(err).Should(BeNil())
-				if resp.RequestID != 0 {
-					requestId = resp.RequestID
-				}
-				content += resp.ResponseMessage
-			}
-
-			Expect(content).Should(Equal("🤔hello, I am response\nabc"))
-
-			// message should be saved
-			res, err := serviceClient.OpenRoom(ctx, &OpenRoomRequest{
-				EntryID: 1,
-				RoomID:  roomId,
-			}, grpc.UseCompressor(gzip.Name))
-			Expect(err).Should(BeNil())
-			Expect(len(res.Room.Messages)).Should(Equal(2))
-			Expect(res.Room.Messages[0].Message).Should(Equal("hello"))
-			Expect(res.Room.Messages[0].Id).Should(Equal(requestId))
-			Expect(res.Room.Messages[1].Message).Should(Equal("hello, I am response\nabc"))
 		})
 
 		It("delete should be succeed", func() {
@@ -434,7 +386,9 @@ var _ = Describe("testEntryPropertiesService", func() {
 
 var _ = Describe("testDocumentsService-ReadView", func() {
 	var (
-		ctx = context.TODO()
+		ctx      = context.TODO()
+		groupID1 int64
+		groupID2 int64
 	)
 
 	Context("test get document details", func() {
@@ -444,19 +398,35 @@ var _ = Describe("testDocumentsService-ReadView", func() {
 				t   = true
 				f   = false
 			)
-			err = testMeta.SaveDocument(ctx, &types.Document{
-				ID: 100, OID: 1, Name: "test document 1", ParentEntryID: 1, Source: "unittest",
-				KeyWords: make([]string, 0), Content: "test document", Marked: &f, Unread: &f,
+			resp, err := serviceClient.CreateEntry(ctx, &CreateEntryRequest{
+				ParentID: dentry.RootEntryID,
+				Name:     "test-doc-group-1",
+				Kind:     types.GroupKind,
+			}, grpc.UseCompressor(gzip.Name))
+			Expect(err).Should(BeNil())
+			Expect(resp.Entry.Name).Should(Equal("test-doc-group-1"))
+			groupID1 = resp.Entry.Id
+			resp, err = serviceClient.CreateEntry(ctx, &CreateEntryRequest{
+				ParentID: dentry.RootEntryID,
+				Name:     "test-doc-group-2",
+				Kind:     types.GroupKind,
+			}, grpc.UseCompressor(gzip.Name))
+			Expect(err).Should(BeNil())
+			Expect(resp.Entry.Name).Should(Equal("test-doc-group-2"))
+			groupID2 = resp.Entry.Id
+			err = testFriday.CreateDocument(ctx, &types.Document{
+				EntryId: 100, Name: "test document 1", ParentEntryID: groupID1, Source: "unittest",
+				Content: "test document", Marked: &f, Unread: &f,
 				CreatedAt: time.Now(), ChangedAt: time.Now()})
 			Expect(err).Should(BeNil())
-			err = testMeta.SaveDocument(ctx, &types.Document{
-				ID: 101, OID: 1, Name: "test document unread 1", ParentEntryID: 1, Source: "unittest",
-				KeyWords: make([]string, 0), Content: "test document", Marked: &f, Unread: &t,
+			err = testFriday.CreateDocument(ctx, &types.Document{
+				EntryId: 101, Name: "test document unread 1", ParentEntryID: groupID1, Source: "unittest",
+				Content: "test document", Marked: &f, Unread: &t,
 				CreatedAt: time.Now(), ChangedAt: time.Now()})
 			Expect(err).Should(BeNil())
-			err = testMeta.SaveDocument(ctx, &types.Document{
-				ID: 102, OID: 1, Name: "test document unread 1", ParentEntryID: 2, Source: "unittest",
-				KeyWords: make([]string, 0), Content: "test document", Marked: &t, Unread: &f,
+			err = testFriday.CreateDocument(ctx, &types.Document{
+				EntryId: 102, Name: "test document unread 1", ParentEntryID: groupID2, Source: "unittest",
+				Content: "test document", Marked: &t, Unread: &f,
 				CreatedAt: time.Now(), ChangedAt: time.Now()})
 			Expect(err).Should(BeNil())
 		})
@@ -478,7 +448,7 @@ var _ = Describe("testDocumentsService-ReadView", func() {
 			Expect(len(resp.Documents)).Should(Equal(1))
 		})
 		It("list by parent id should be succeed", func() {
-			resp, err := serviceClient.ListDocuments(ctx, &ListDocumentsRequest{ParentID: 2}, grpc.UseCompressor(gzip.Name))
+			resp, err := serviceClient.ListDocuments(ctx, &ListDocumentsRequest{ParentID: groupID2}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
 			Expect(len(resp.Documents)).Should(Equal(1))
 		})

@@ -17,7 +17,6 @@
 package v1
 
 import (
-	"github.com/basenana/nanafs/utils"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/basenana/nanafs/pkg/types"
@@ -141,15 +140,16 @@ func jobDetail(j *types.WorkflowJob) *WorkflowJobDetail {
 
 func documentInfo(doc *types.Document) *DocumentInfo {
 	return &DocumentInfo{
-		Id:            doc.ID,
+		Id:            doc.EntryId,
 		Name:          doc.Name,
-		EntryID:       doc.OID,
+		EntryID:       doc.EntryId,
 		ParentEntryID: doc.ParentEntryID,
 		Source:        doc.Source,
 		Marked:        *doc.Marked,
 		Unread:        *doc.Unread,
 		Namespace:     doc.Namespace,
-		SubContent:    utils.GenerateContentSubContent(doc.Content),
+		SubContent:    doc.SubContent,
+		HeaderImage:   doc.HeaderImage,
 		CreatedAt:     timestamppb.New(doc.CreatedAt),
 		ChangedAt:     timestamppb.New(doc.ChangedAt),
 	}

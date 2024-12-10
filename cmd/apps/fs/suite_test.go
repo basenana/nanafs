@@ -18,17 +18,20 @@ package fs
 
 import (
 	"context"
+	"testing"
+	"time"
+
+	"github.com/hanwen/go-fuse/v2/fs"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
+	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
-	"github.com/hanwen/go-fuse/v2/fs"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	"testing"
-	"time"
 )
 
 var (
@@ -42,7 +45,7 @@ var (
 
 func NewMockController() controller.Controller {
 	m, _ := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
-	ctrl, _ := controller.New(config.NewFakeConfigLoader(cfg), m)
+	ctrl, _ := controller.New(config.NewFakeConfigLoader(cfg), m, friday.NewMockFriday())
 	return ctrl
 }
 

@@ -19,61 +19,24 @@ package types
 import "time"
 
 type Document struct {
-	ID            int64     `json:"id"`
-	OID           int64     `json:"oid"`
+	EntryId       int64     `json:"entry_id"`
 	Name          string    `json:"name"`
 	Namespace     string    `json:"namespace"`
 	ParentEntryID int64     `json:"parent_entry_id"`
 	Source        string    `json:"source"`
-	KeyWords      []string  `json:"keywords,omitempty"`
 	Content       string    `json:"content,omitempty"`
 	Summary       string    `json:"summary,omitempty"`
+	WebUrl        string    `json:"web_url,omitempty"`
+	HeaderImage   string    `json:"header_image,omitempty"`
+	SubContent    string    `json:"sub_content,omitempty"`
 	Marked        *bool     `json:"marked,omitempty"`
 	Unread        *bool     `json:"unread,omitempty"`
-	Desync        *bool     `json:"desync"`
 	CreatedAt     time.Time `json:"created_at"`
 	ChangedAt     time.Time `json:"changed_at"`
 }
 
-type DocumentFeed struct {
-	ID         string
-	Display    string
-	ParentID   int64
-	Keywords   string
-	IndexQuery string
-}
-
-type FeedResult struct {
-	FeedId    string `json:"feed_id"`
-	GroupName string `json:"group_name"`
-	SiteUrl   string `json:"site_url"`
-	SiteName  string `json:"site_name"`
-	FeedUrl   string `json:"feed_url"`
-
-	Documents []FeedResultItem `json:"documents"`
-}
-
-type FeedResultItem struct {
-	ID        string   `json:"id"`
-	Title     string   `json:"title"`
-	Link      string   `json:"link"`
-	UpdatedAt string   `json:"updated_at"`
-	Document  Document `json:"document"`
-}
-
-type FridayAccount struct {
-	ID             int64     `json:"id"`
-	Namespace      string    `json:"namespace"`
-	RefID          int64     `json:"ref_id"`
-	RefType        string    `json:"ref_type"`
-	Type           string    `json:"type"`
-	CompleteTokens int       `json:"complete_tokens"`
-	PromptTokens   int       `json:"prompt_tokens"`
-	TotalTokens    int       `json:"total_tokens"`
-	CreatedAt      time.Time `json:"created_at"`
-}
-
 type DocFilter struct {
+	Search         string
 	FuzzyName      string
 	ParentID       int64
 	Source         string
@@ -106,10 +69,10 @@ func (d DocOrder) String() string {
 		"source",
 		"marked",
 		"unread",
-		"created_at",
+		"createdAt",
 	}
 	if d < Name || d > CreatedAt {
-		return "Unknown"
+		return ""
 	}
 	return names[d]
 }

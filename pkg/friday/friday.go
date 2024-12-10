@@ -17,109 +17,194 @@
 package friday
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 
-	"github.com/basenana/friday/config"
-	"github.com/basenana/friday/pkg/build/withvector"
-	"github.com/basenana/friday/pkg/friday"
-	"github.com/basenana/friday/pkg/friday/summary"
-	"github.com/basenana/friday/pkg/models"
-	"github.com/basenana/friday/pkg/vectorstore/postgres"
+	"go.uber.org/zap"
+
+	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils/logger"
 )
 
-var (
-	fridayClient *friday.Friday
-)
+type Client struct {
+	log     *zap.SugaredLogger
+	baseurl string
+}
 
-func InitFriday(cfg *config.Config) (err error) {
-	if cfg == nil {
-		return nil
+var _ Friday = &Client{}
+
+func NewFridayClient(conf config.FridayConfig) Friday {
+	return &Client{
+		baseurl: conf.HttpAddr,
+		log:     logger.NewLogger("friday"),
 	}
-	pgClient, err := postgres.NewPostgresClient(cfg.Logger, cfg.VectorStoreConfig.VectorUrl)
+}
+
+func (c *Client) request(ctx context.Context, method, uri string, data []byte) ([]byte, error) {
+	c.log.Debugf("request friday %s %s", method, uri)
+	body := bytes.NewBuffer(data)
+	req, err := http.NewRequest(method, uri, body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != 200 {
+		if resp.StatusCode == 404 {
+			return nil, types.ErrNotFound
+		}
+		respBody, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		return nil, fmt.Errorf("request failed, status code: %d, body: %s", resp.StatusCode, string(respBody))
+	}
+
+	respBody, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	return respBody, nil
+}
+
+func (c *Client) CreateDocument(ctx context.Context, doc *types.Document) error {
+	if doc.Namespace == "" {
+		ns := types.GetNamespace(ctx)
+		doc.Namespace = ns.String()
+	}
+	docReq := &DocRequest{}
+	docReq.FromType(doc)
+
+	data, _ := json.Marshal(docReq)
+	uri := fmt.Sprintf("%s/api/namespace/%s/docs/entry/%d", c.baseurl, doc.Namespace, doc.EntryId)
+	resp, err := c.request(ctx, "POST", uri, data)
 	if err != nil {
 		return err
 	}
-	fridayClient, err = withvector.NewFridayWithVector(cfg, pgClient)
-	return
-}
 
-func InitFridayFromConfig() (err error) {
-	loader := config.NewConfigLoader()
-	cfg, err := loader.GetConfig()
-	if err != nil {
+	docResp := &Document{}
+	if err := json.Unmarshal(resp, docResp); err != nil {
 		return err
 	}
+	doc.HeaderImage = docResp.HeaderImage
+	doc.SubContent = docResp.SubContent
+	doc.Summary = docResp.Summary
 
-	return InitFriday(&cfg)
+	return nil
 }
 
-func IngestFile(ctx context.Context, entryId, parentId int64, fileName, content string) (map[string]int, error) {
-	if fridayClient == nil {
-		return nil, fmt.Errorf("fridayClient is nil, can not use it")
+func (c *Client) UpdateDocument(ctx context.Context, doc *types.Document) error {
+	if doc.Namespace == "" {
+		ns := types.GetNamespace(ctx)
+		doc.Namespace = ns.String()
 	}
-	file := models.File{
-		Name:     fileName,
-		OID:      entryId,
-		ParentId: parentId,
-		Content:  content,
-	}
-	result := friday.IngestState{}
-	f := fridayClient.WithContext(ctx).File(&file).Ingest(&result)
-	return result.Tokens, f.Error
+	docReq := &DocAttrRequest{}
+	docReq.FromType(doc)
+
+	data, _ := json.Marshal(docReq)
+	uri := fmt.Sprintf("%s/api/namespace/%s/docs/entry/%d", c.baseurl, doc.Namespace, doc.EntryId)
+	_, err := c.request(ctx, "PUT", uri, data)
+	return err
 }
 
-func Question(ctx context.Context, q string) (answer string, usage map[string]int, err error) {
-	if fridayClient == nil {
-		return "", nil, fmt.Errorf("fridayClient is nil, can not use it")
+func (c *Client) GetDocument(ctx context.Context, entryId int64) (*types.Document, error) {
+	ns := types.GetNamespace(ctx)
+
+	uri := fmt.Sprintf("%s/api/namespace/%s/docs/entry/%d", c.baseurl, ns.String(), entryId)
+	resp, err := c.request(ctx, "GET", uri, nil)
+	if err != nil {
+		return nil, err
 	}
-	result := friday.ChatState{}
-	f := fridayClient.WithContext(ctx).Question(q).Complete(&result)
-	return result.Answer, result.Tokens, f.Error
+
+	docResp := &DocumentWithAttr{}
+	if err := json.Unmarshal(resp, docResp); err != nil {
+		return nil, err
+	}
+	doc := docResp.ToType()
+	return doc, nil
 }
 
-func SummaryFile(ctx context.Context, fileName, content string) (string, map[string]int, error) {
-	if fridayClient == nil {
-		return "", nil, fmt.Errorf("fridayClient is nil, can not use it")
-	}
-	file := models.File{
-		Name:    fileName,
-		Content: content,
-	}
-	result := friday.SummaryState{}
-	f := fridayClient.WithContext(ctx).File(&file).OfType(summary.MapReduce).Summary(&result)
-	if f.Error != nil {
-		return "", nil, f.Error
-	}
-	if result.Summary == nil || result.Summary[fileName] == "" {
-		return "", nil, fmt.Errorf("fail to summary file %s", fileName)
-	}
-	return result.Summary[fileName], result.Tokens, nil
+func (c *Client) DeleteDocument(ctx context.Context, entryId int64) error {
+	ns := types.GetNamespace(ctx)
+	uri := fmt.Sprintf("%s/api/namespace/%s/docs/entry/%d", c.baseurl, ns.String(), entryId)
+	_, err := c.request(ctx, "DELETE", uri, nil)
+	return err
 }
 
-func Keywords(ctx context.Context, content string) ([]string, map[string]int, error) {
-	if fridayClient == nil {
-		return nil, nil, fmt.Errorf("fridayClient is nil, can not use it")
-	}
-	result := friday.KeywordsState{}
-	f := fridayClient.WithContext(ctx).Content(content).Keywords(&result)
-	return result.Keywords, result.Tokens, f.Error
-}
+func (c *Client) FilterDocuments(ctx context.Context, query *types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error) {
+	ns := types.GetNamespace(ctx)
+	uri := fmt.Sprintf("%s/api/namespace/%s/docs/filter", c.baseurl, ns.String())
 
-func ChatWithEntry(ctx context.Context, entryId int64, isGroup bool, history []map[string]string, response chan map[string]string, realHistory chan []map[string]string) error {
-	defer close(realHistory)
-	if fridayClient == nil {
-		return fmt.Errorf("fridayClient is nil, can not use it")
+	u, err := url.Parse(uri)
+	if err != nil {
+		return nil, err
 	}
-	result := friday.ChatState{Response: response}
-	f := fridayClient.WithContext(ctx).History(history)
-	if isGroup {
-		f = f.SearchIn(&models.DocQuery{ParentId: entryId})
-	} else {
-		f = f.SearchIn(&models.DocQuery{Oid: entryId})
+
+	q := u.Query()
+	if query.FuzzyName != "" {
+		q.Set("fuzzyName", query.FuzzyName)
 	}
-	f = f.Chat(&result)
-	h := f.GetRealHistory()
-	realHistory <- h
-	return f.Error
+	if query.Search != "" {
+		q.Set("search", query.Search)
+	}
+	if query.ParentID != 0 {
+		q.Set("parentID", fmt.Sprintf("%d", query.ParentID))
+	}
+	if query.Marked != nil {
+		q.Set("mark", fmt.Sprintf("%t", *query.Marked))
+	}
+	if query.Unread != nil {
+		q.Set("unRead", fmt.Sprintf("%t", *query.Unread))
+	}
+	if query.CreatedAtStart != nil {
+		q.Set("createdAtStart", fmt.Sprintf("%d", query.CreatedAtStart.Unix()))
+	}
+	if query.CreatedAtEnd != nil {
+		q.Set("createdAtEnd", fmt.Sprintf("%d", query.CreatedAtEnd.Unix()))
+	}
+	if query.ChangedAtStart != nil {
+		q.Set("changedAtStart", fmt.Sprintf("%d", query.ChangedAtStart.Unix()))
+	}
+	if query.ChangedAtEnd != nil {
+		q.Set("changedAtEnd", fmt.Sprintf("%d", query.ChangedAtEnd.Unix()))
+	}
+
+	page := types.GetPagination(ctx)
+	if page.Page > 0 {
+		q.Set("page", fmt.Sprintf("%d", page.Page))
+	}
+	if page.PageSize > 0 {
+		q.Set("pageSize", fmt.Sprintf("%d", page.PageSize))
+	}
+
+	if order != nil {
+		q.Set("sort", order.Order.String())
+		q.Set("desc", fmt.Sprintf("%t", order.Desc))
+	}
+
+	u.RawQuery = q.Encode()
+
+	resp, err := c.request(ctx, "GET", u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var docs []*types.Document
+	var docResp []DocumentWithAttr
+	if err := json.Unmarshal(resp, &docResp); err != nil {
+		return nil, err
+	}
+	for _, d := range docResp {
+		docs = append(docs, d.ToType())
+	}
+	return docs, nil
 }

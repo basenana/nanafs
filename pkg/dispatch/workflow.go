@@ -31,7 +31,6 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/pkg/workflow"
 	"github.com/basenana/nanafs/pkg/workflow/jobrun"
-	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 )
 
@@ -122,65 +121,6 @@ func (w workflowExecutor) handleEntryEvent(evt *types.Event) error {
 		return nil
 	}
 
-	return nil
-}
-func (w workflowExecutor) handleDocEvent(evt *types.Event) error {
-	if evt.Type != events.ActionTypeCreate {
-		return nil
-	}
-	if evt.RefType != "document" {
-		return nil
-	}
-	ctx := context.Background()
-	doc, err := w.doc.GetDocument(ctx, evt.Data.ID)
-	if err != nil {
-		w.logger.Errorw("[handleDocEvent] query document failed", "document", evt.Data.ID, "err", err)
-		return err
-	}
-
-	if doc.OID == 0 {
-		return nil
-	}
-	entry, err := w.entry.GetEntry(ctx, doc.OID)
-	if err != nil {
-		w.logger.Errorw("[handleDocEvent] query document entry failed", "document", doc.ID, "entry", doc.OID, "err", err)
-		return err
-	}
-
-	enCtx := types.WithNamespace(ctx, types.NewNamespace(entry.Namespace))
-
-	propertiesObject, err := w.entry.ListEntryProperty(enCtx, entry.ParentID)
-	if err != nil {
-		err = fmt.Errorf("get parent entry extend data error: %s", err)
-		w.logger.Errorw("[handleDocEvent] query document parent entry ext data failed", "document", doc.ID, "parent", entry.ParentID, "err", err)
-		return err
-	}
-
-	properties := make(map[string]string)
-	for k, v := range propertiesObject.Fields {
-		val := v.Value
-		if v.Encoded {
-			val, err = utils.DecodeBase64String(val)
-			if err != nil {
-				w.logger.Warnw("[handleDocEvent] decode extend property value failed", "key", k)
-				continue
-			}
-		}
-		properties[k] = val
-	}
-
-	if properties[propertyKeyFridayEnabled] != "true" {
-		return nil
-	}
-
-	job, err := w.manager.TriggerWorkflow(enCtx, workflow.BuildInWorkflowSummary,
-		types.WorkflowTarget{EntryID: entry.ID, ParentEntryID: entry.ParentID},
-		workflow.JobAttr{Reason: "event: auto summary"})
-	if err != nil {
-		w.logger.Infow("[handleDocEvent] document has enable friday auto summary, but trigger failed", "document", doc.ID, "err", err)
-		return err
-	}
-	w.logger.Infow("[handleDocEvent] document has enable friday auto summary", "document", doc.ID, "job", job.Id)
 	return nil
 }
 
@@ -336,10 +276,6 @@ func registerWorkflowExecutor(
 	d.registerRoutineTask(6, e.cleanUpFinishJobs)
 	if _, err := events.Subscribe(
 		events.NamespacedTopic(events.TopicNamespaceEntry, events.ActionTypeCreate), e.handleEntryEvent); err != nil {
-		return err
-	}
-	if _, err := events.Subscribe(
-		events.NamespacedTopic(events.TopicNamespaceDocument, events.ActionTypeCreate), e.handleDocEvent); err != nil {
 		return err
 	}
 	return nil

@@ -141,30 +141,6 @@ func registerBuildInProcessPlugin(svc buildin.Services, r *registry) {
 	)
 
 	r.Register(
-		buildin.IngestPluginName,
-		types.PluginSpec{Name: buildin.IngestPluginName, Version: buildin.IngestPluginVersion, Type: types.TypeProcess, Parameters: map[string]string{}},
-		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
-			return buildin.NewIngestPlugin(spec, scope, svc)
-		},
-	)
-
-	r.Register(
-		buildin.SummaryPluginName,
-		types.PluginSpec{Name: buildin.SummaryPluginName, Version: buildin.SummaryPluginVersion, Type: types.TypeProcess, Parameters: map[string]string{}},
-		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
-			return buildin.NewSummaryPlugin(spec, scope, svc)
-		},
-	)
-
-	r.Register(
-		buildin.KeywordsPluginName,
-		types.PluginSpec{Name: buildin.KeywordsPluginName, Version: buildin.KeywordsPluginVersion, Type: types.TypeProcess, Parameters: map[string]string{}},
-		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
-			return buildin.NewKeyWordsPlugin(spec, scope, svc)
-		},
-	)
-
-	r.Register(
 		buildin.DocMetaPluginName,
 		types.PluginSpec{Name: buildin.DocMetaPluginName, Version: buildin.DocMetaPluginVersion, Type: types.TypeProcess, Parameters: map[string]string{}},
 		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {

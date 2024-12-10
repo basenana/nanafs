@@ -399,7 +399,7 @@ func (c *controller) ChangeEntryParent(ctx context.Context, targetId, oldParentI
 	return nil
 }
 
-func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
+func New(loader config.Loader, meta metastore.Meta, fridayClient friday.Friday) (Controller, error) {
 	ctl := &controller{
 		meta:      meta,
 		cfgLoader: loader,
@@ -421,18 +421,12 @@ func New(loader config.Loader, meta metastore.Meta) (Controller, error) {
 		return nil, err
 	}
 
-	ctl.document, err = document.NewManager(meta, ctl.entry, loader)
+	ctl.document, err = document.NewManager(meta, ctl.entry, loader, fridayClient)
 	if err != nil {
 		return nil, err
 	}
 
 	ctl.dialogue, err = dialogue.NewManager(meta, ctl.entry)
-	if err != nil {
-		return nil, err
-	}
-
-	// init friday
-	err = friday.InitFriday(bCfg.Friday)
 	if err != nil {
 		return nil, err
 	}

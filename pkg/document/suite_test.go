@@ -18,9 +18,11 @@ package document
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"os"
 	"testing"
+
+	"github.com/basenana/nanafs/pkg/friday"
+	"github.com/basenana/nanafs/pkg/plugin/buildin"
 
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
@@ -71,6 +73,7 @@ var _ = BeforeSuite(func() {
 		logger:   logger.NewLogger("doc"),
 		recorder: memMeta,
 		entryMgr: entryMgr,
+		friday:   friday.NewMockFriday(),
 	}
 
 	// init plugin
