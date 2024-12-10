@@ -71,6 +71,9 @@ type DocRequest struct {
 	Source    string `json:"source,omitempty"`
 	WebUrl    string `json:"webUrl,omitempty"`
 	Content   string `json:"content"`
+	UnRead    *bool  `json:"unRead,omitempty"`
+	Mark      *bool  `json:"mark,omitempty"`
+	ParentID  string `json:"parentId,omitempty"`
 	CreatedAt int64  `json:"createdAt,omitempty"`
 	ChangedAt int64  `json:"changedAt,omitempty"`
 }
@@ -82,6 +85,9 @@ func (r *DocRequest) FromType(doc *types.Document) {
 	r.Source = doc.Source
 	r.WebUrl = doc.WebUrl
 	r.Content = doc.Content
+	r.Mark = doc.Marked
+	r.UnRead = doc.Unread
+	r.ParentID = strconv.Itoa(int(doc.ParentEntryID))
 	r.CreatedAt = doc.CreatedAt.Unix()
 	r.ChangedAt = doc.ChangedAt.Unix()
 }
