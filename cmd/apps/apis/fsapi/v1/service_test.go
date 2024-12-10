@@ -386,7 +386,9 @@ var _ = Describe("testEntryPropertiesService", func() {
 
 var _ = Describe("testDocumentsService-ReadView", func() {
 	var (
-		ctx = context.TODO()
+		ctx      = context.TODO()
+		groupID1 int64
+		groupID2 int64
 	)
 
 	Context("test get document details", func() {
@@ -396,18 +398,34 @@ var _ = Describe("testDocumentsService-ReadView", func() {
 				t   = true
 				f   = false
 			)
+			resp, err := serviceClient.CreateEntry(ctx, &CreateEntryRequest{
+				ParentID: dentry.RootEntryID,
+				Name:     "test-doc-group-1",
+				Kind:     types.GroupKind,
+			}, grpc.UseCompressor(gzip.Name))
+			Expect(err).Should(BeNil())
+			Expect(resp.Entry.Name).Should(Equal("test-doc-group-1"))
+			groupID1 = resp.Entry.Id
+			resp, err = serviceClient.CreateEntry(ctx, &CreateEntryRequest{
+				ParentID: dentry.RootEntryID,
+				Name:     "test-doc-group-2",
+				Kind:     types.GroupKind,
+			}, grpc.UseCompressor(gzip.Name))
+			Expect(err).Should(BeNil())
+			Expect(resp.Entry.Name).Should(Equal("test-doc-group-2"))
+			groupID2 = resp.Entry.Id
 			err = testFriday.CreateDocument(ctx, &types.Document{
-				EntryId: 100, Name: "test document 1", ParentEntryID: 1, Source: "unittest",
+				EntryId: 100, Name: "test document 1", ParentEntryID: groupID1, Source: "unittest",
 				Content: "test document", Marked: &f, Unread: &f,
 				CreatedAt: time.Now(), ChangedAt: time.Now()})
 			Expect(err).Should(BeNil())
 			err = testFriday.CreateDocument(ctx, &types.Document{
-				EntryId: 101, Name: "test document unread 1", ParentEntryID: 1, Source: "unittest",
+				EntryId: 101, Name: "test document unread 1", ParentEntryID: groupID1, Source: "unittest",
 				Content: "test document", Marked: &f, Unread: &t,
 				CreatedAt: time.Now(), ChangedAt: time.Now()})
 			Expect(err).Should(BeNil())
 			err = testFriday.CreateDocument(ctx, &types.Document{
-				EntryId: 102, Name: "test document unread 1", ParentEntryID: 2, Source: "unittest",
+				EntryId: 102, Name: "test document unread 1", ParentEntryID: groupID2, Source: "unittest",
 				Content: "test document", Marked: &t, Unread: &f,
 				CreatedAt: time.Now(), ChangedAt: time.Now()})
 			Expect(err).Should(BeNil())
@@ -430,7 +448,7 @@ var _ = Describe("testDocumentsService-ReadView", func() {
 			Expect(len(resp.Documents)).Should(Equal(1))
 		})
 		It("list by parent id should be succeed", func() {
-			resp, err := serviceClient.ListDocuments(ctx, &ListDocumentsRequest{ParentID: 2}, grpc.UseCompressor(gzip.Name))
+			resp, err := serviceClient.ListDocuments(ctx, &ListDocumentsRequest{ParentID: groupID2}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
 			Expect(len(resp.Documents)).Should(Equal(1))
 		})
