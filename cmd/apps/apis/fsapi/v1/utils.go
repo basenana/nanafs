@@ -140,6 +140,7 @@ func jobDetail(j *types.WorkflowJob) *WorkflowJobDetail {
 
 func documentInfo(doc *types.Document) *DocumentInfo {
 	return &DocumentInfo{
+		Id:            doc.EntryId,
 		Name:          doc.Name,
 		EntryID:       doc.EntryId,
 		ParentEntryID: doc.ParentEntryID,

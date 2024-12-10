@@ -575,6 +575,7 @@ message DocumentInfo {
   string subContent = 9;
   string headerImage = 10;
   repeated Property properties = 20;
+  EntryInfo parent = 21;
   google.protobuf.Timestamp createdAt = 30;
   google.protobuf.Timestamp changedAt = 31;
 }

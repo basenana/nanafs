@@ -69,7 +69,7 @@ func (d DocOrder) String() string {
 		"source",
 		"marked",
 		"unread",
-		"created_at",
+		"createdAt",
 	}
 	if d < Name || d > CreatedAt {
 		return ""

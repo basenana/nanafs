@@ -36,15 +36,6 @@ import (
 	"github.com/basenana/nanafs/utils/logger"
 )
 
-const (
-	attrSourcePluginPrefix = "org.basenana.plugin.source/"
-
-	rssPostMetaID        = "org.basenana.plugin.rss/id"
-	rssPostMetaLink      = "org.basenana.plugin.rss/link"
-	rssPostMetaTitle     = "org.basenana.plugin.rss/title"
-	rssPostMetaUpdatedAt = "org.basenana.plugin.rss/updated_at"
-)
-
 type Manager interface {
 	ListDocuments(ctx context.Context, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error)
 	QueryDocuments(ctx context.Context, query string) ([]*types.Document, error)

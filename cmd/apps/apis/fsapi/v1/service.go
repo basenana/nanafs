@@ -300,6 +300,11 @@ func (s *services) ListDocuments(ctx context.Context, request *ListDocumentsRequ
 		}
 		docInfo := documentInfo(doc)
 		docInfo.Properties = properties
+		parentEn, err := s.ctrl.GetEntry(ctx, doc.ParentEntryID)
+		if err != nil {
+			return nil, status.Error(common.FsApiError(err), "query parent entry failed")
+		}
+		docInfo.Parent = entryInfo(parentEn)
 		resp.Documents = append(resp.Documents, docInfo)
 	}
 	return resp, nil
@@ -407,6 +412,7 @@ func (s *services) UpdateDocument(ctx context.Context, request *UpdateDocumentRe
 		return nil, status.Error(codes.InvalidArgument, "document id is empty")
 	}
 	newDoc := &types.Document{
+		EntryId:       doc.Id,
 		Name:          doc.Name,
 		ParentEntryID: doc.ParentEntryID,
 		Source:        doc.Source,

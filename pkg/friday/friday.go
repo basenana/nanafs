@@ -25,21 +25,29 @@ import (
 	"net/http"
 	"net/url"
 
+	"go.uber.org/zap"
+
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils/logger"
 )
 
 type Client struct {
+	log     *zap.SugaredLogger
 	baseurl string
 }
 
 var _ Friday = &Client{}
 
 func NewFridayClient(conf config.FridayConfig) Friday {
-	return &Client{baseurl: conf.HttpAddr}
+	return &Client{
+		baseurl: conf.HttpAddr,
+		log:     logger.NewLogger("friday"),
+	}
 }
 
 func (c *Client) request(ctx context.Context, method, uri string, data []byte) ([]byte, error) {
+	c.log.Debugf("request friday %s %s", method, uri)
 	body := bytes.NewBuffer(data)
 	req, err := http.NewRequest(method, uri, body)
 	if err != nil {
@@ -77,7 +85,7 @@ func (c *Client) CreateDocument(ctx context.Context, doc *types.Document) error 
 	docReq.FromType(doc)
 
 	data, _ := json.Marshal(docReq)
-	uri := fmt.Sprintf("%s/namespace/%s/docs/entry/%d", c.baseurl, doc.Namespace, doc.EntryId)
+	uri := fmt.Sprintf("%s/api/namespace/%s/docs/entry/%d", c.baseurl, doc.Namespace, doc.EntryId)
 	resp, err := c.request(ctx, "POST", uri, data)
 	if err != nil {
 		return err
@@ -103,7 +111,7 @@ func (c *Client) UpdateDocument(ctx context.Context, doc *types.Document) error 
 	docReq.FromType(doc)
 
 	data, _ := json.Marshal(docReq)
-	uri := fmt.Sprintf("%s/namespace/%s/docs/entry/%d", c.baseurl, doc.Namespace, doc.EntryId)
+	uri := fmt.Sprintf("%s/api/namespace/%s/docs/entry/%d", c.baseurl, doc.Namespace, doc.EntryId)
 	_, err := c.request(ctx, "PUT", uri, data)
 	return err
 }
@@ -111,7 +119,7 @@ func (c *Client) UpdateDocument(ctx context.Context, doc *types.Document) error 
 func (c *Client) GetDocument(ctx context.Context, entryId int64) (*types.Document, error) {
 	ns := types.GetNamespace(ctx)
 
-	uri := fmt.Sprintf("%s/namespace/%s/docs/entry/%d", c.baseurl, ns.String(), entryId)
+	uri := fmt.Sprintf("%s/api/namespace/%s/docs/entry/%d", c.baseurl, ns.String(), entryId)
 	resp, err := c.request(ctx, "GET", uri, nil)
 	if err != nil {
 		return nil, err
@@ -127,14 +135,14 @@ func (c *Client) GetDocument(ctx context.Context, entryId int64) (*types.Documen
 
 func (c *Client) DeleteDocument(ctx context.Context, entryId int64) error {
 	ns := types.GetNamespace(ctx)
-	uri := fmt.Sprintf("%s/namespace/%s/docs/entry/%d", c.baseurl, ns.String(), entryId)
+	uri := fmt.Sprintf("%s/api/namespace/%s/docs/entry/%d", c.baseurl, ns.String(), entryId)
 	_, err := c.request(ctx, "DELETE", uri, nil)
 	return err
 }
 
 func (c *Client) FilterDocuments(ctx context.Context, query *types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error) {
 	ns := types.GetNamespace(ctx)
-	uri := fmt.Sprintf("%s/namespace/%s/docs/filter", c.baseurl, ns.String())
+	uri := fmt.Sprintf("%s/api/namespace/%s/docs/filter", c.baseurl, ns.String())
 
 	u, err := url.Parse(uri)
 	if err != nil {

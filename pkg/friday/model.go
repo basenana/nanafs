@@ -121,6 +121,14 @@ func (a *DocumentWithAttr) ToType() *types.Document {
 	entryId, _ := strconv.ParseInt(a.EntryId, 10, 64)
 	parentId, _ := strconv.ParseInt(a.ParentID, 10, 64)
 
+	mark := false
+	unread := true
+	if a.Mark != nil {
+		mark = *a.Mark
+	}
+	if a.UnRead != nil {
+		unread = *a.UnRead
+	}
 	return &types.Document{
 		EntryId:       entryId,
 		Name:          a.Name,
@@ -132,8 +140,8 @@ func (a *DocumentWithAttr) ToType() *types.Document {
 		WebUrl:        a.WebUrl,
 		HeaderImage:   a.HeaderImage,
 		SubContent:    a.SubContent,
-		Marked:        a.Mark,
-		Unread:        a.UnRead,
+		Marked:        &mark,
+		Unread:        &unread,
 		CreatedAt:     time.Unix(a.CreatedAt, 0),
 		ChangedAt:     time.Unix(a.UpdatedAt, 0),
 	}
