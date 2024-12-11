@@ -18,7 +18,6 @@ package document
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"runtime/trace"
 	"time"
@@ -39,7 +38,8 @@ import (
 type Manager interface {
 	ListDocuments(ctx context.Context, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error)
 	QueryDocuments(ctx context.Context, query string) ([]*types.Document, error)
-	SaveDocument(ctx context.Context, doc *types.Document) error
+	CreateDocument(ctx context.Context, doc *types.Document) error
+	UpdateDocument(ctx context.Context, doc *types.Document) error
 	GetDocument(ctx context.Context, id int64) (*types.Document, error)
 	GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error)
 	DeleteDocument(ctx context.Context, id int64) error
@@ -84,24 +84,12 @@ func (m *manager) QueryDocuments(ctx context.Context, query string) ([]*types.Do
 	return m.friday.FilterDocuments(ctx, filter, nil)
 }
 
-func (m *manager) SaveDocument(ctx context.Context, doc *types.Document) error {
-	crtDoc, err := m.friday.GetDocument(ctx, doc.EntryId)
-	if err != nil {
-		if !errors.Is(err, types.ErrNotFound) {
-			return err
-		}
-		return m.friday.CreateDocument(ctx, doc)
-	}
-	if doc.ParentEntryID != 0 {
-		crtDoc.ParentEntryID = doc.ParentEntryID
-	}
-	if doc.Marked != nil {
-		crtDoc.Marked = doc.Marked
-	}
-	if doc.Unread != nil {
-		crtDoc.Unread = doc.Unread
-	}
-	return m.friday.UpdateDocument(ctx, crtDoc)
+func (m *manager) UpdateDocument(ctx context.Context, doc *types.Document) error {
+	return m.friday.UpdateDocument(ctx, doc)
+}
+
+func (m *manager) CreateDocument(ctx context.Context, doc *types.Document) error {
+	return m.friday.CreateDocument(ctx, doc)
 }
 
 func (m *manager) GetDocument(ctx context.Context, id int64) (*types.Document, error) {
@@ -186,7 +174,7 @@ func (m *manager) handleEntryEvent(evt *types.Event) error {
 		if doc.Name != en.Name || doc.ParentEntryID != en.ParentID {
 			doc.Name = en.Name
 			doc.ParentEntryID = en.ParentID
-			err = m.SaveDocument(ctx, doc)
+			err = m.UpdateDocument(ctx, doc)
 			if err != nil {
 				m.logger.Errorw("[docUpdateExecutor] update doc failed", "entry", entry.ID, "err", err)
 				return err
