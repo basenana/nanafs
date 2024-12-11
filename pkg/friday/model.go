@@ -59,7 +59,9 @@ type DocAttrRequest struct {
 func (a *DocAttrRequest) FromType(doc *types.Document) {
 	a.EntryId = strconv.Itoa(int(doc.EntryId))
 	a.Namespace = doc.Namespace
-	a.ParentID = strconv.Itoa(int(doc.ParentEntryID))
+	if doc.ParentEntryID != 0 {
+		a.ParentID = strconv.Itoa(int(doc.ParentEntryID))
+	}
 	a.Mark = doc.Marked
 	a.UnRead = doc.Unread
 }

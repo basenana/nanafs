@@ -47,7 +47,7 @@ func NewFridayClient(conf config.FridayConfig) Friday {
 }
 
 func (c *Client) request(ctx context.Context, method, uri string, data []byte) ([]byte, error) {
-	c.log.Debugf("request friday %s %s", method, uri)
+	c.log.Debugf("request friday %s %s, body: %s", method, uri, string(data))
 	body := bytes.NewBuffer(data)
 	req, err := http.NewRequest(method, uri, body)
 	if err != nil {

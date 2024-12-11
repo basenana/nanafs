@@ -46,7 +46,7 @@ var _ = Describe("testDocumentManage", func() {
 				Name:          entry.Name,
 				ParentEntryID: entry.ParentID,
 			}
-			err := docManager.SaveDocument(context.TODO(), doc)
+			err := docManager.CreateDocument(context.TODO(), doc)
 			Expect(err).Should(BeNil())
 		})
 		It("query should be succeed", func() {
@@ -60,7 +60,7 @@ var _ = Describe("testDocumentManage", func() {
 			Expect(doc.Name).Should(Equal(entry.Name))
 		})
 		It("update should be succeed", func() {
-			err := docManager.SaveDocument(context.TODO(), &types.Document{
+			err := docManager.UpdateDocument(context.TODO(), &types.Document{
 				EntryId: entry.ID,
 				Unread:  utils.ToPtr(false),
 			})
@@ -81,7 +81,7 @@ var _ = Describe("testDocumentManage", func() {
 				Content: content,
 				Summary: summary,
 			}
-			err := docManager.SaveDocument(context.TODO(), newDoc)
+			err := docManager.CreateDocument(context.TODO(), newDoc)
 			Expect(err).Should(BeNil())
 
 			doc, err := docManager.GetDocument(context.TODO(), int64(123))
@@ -113,7 +113,7 @@ var _ = Describe("testDocumentManage", func() {
 			Expect(err).Should(BeNil())
 
 			f := false
-			err := docManager.SaveDocument(context.TODO(), &types.Document{
+			err := docManager.CreateDocument(context.TODO(), &types.Document{
 				Name:          "test_list_grp_doc1",
 				ParentEntryID: grp.ID,
 				Unread:        &f,
@@ -154,7 +154,7 @@ var _ = Describe("TestHandleEvent", func() {
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
-			err = docManager.SaveDocument(context.TODO(), &types.Document{
+			err = docManager.CreateDocument(context.TODO(), &types.Document{
 				EntryId:       grp1File1.ID,
 				Name:          grp1File1.Name,
 				ParentEntryID: grp1File1.ParentID,
@@ -167,7 +167,7 @@ var _ = Describe("TestHandleEvent", func() {
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
-			err = docManager.SaveDocument(context.TODO(), &types.Document{
+			err = docManager.CreateDocument(context.TODO(), &types.Document{
 				Name:          grp1File2.Name,
 				EntryId:       grp1File2.ID,
 				ParentEntryID: grp1File2.ParentID,
@@ -180,7 +180,7 @@ var _ = Describe("TestHandleEvent", func() {
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
-			err = docManager.SaveDocument(context.TODO(), &types.Document{
+			err = docManager.CreateDocument(context.TODO(), &types.Document{
 				Name:          grp1File3.Name,
 				EntryId:       grp1File3.ID,
 				ParentEntryID: grp1File3.ParentID,
@@ -193,7 +193,7 @@ var _ = Describe("TestHandleEvent", func() {
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
-			err = docManager.SaveDocument(context.TODO(), &types.Document{
+			err = docManager.CreateDocument(context.TODO(), &types.Document{
 				Name:          grp1File4.Name,
 				EntryId:       grp1File4.ID,
 				ParentEntryID: grp1File4.ParentID,

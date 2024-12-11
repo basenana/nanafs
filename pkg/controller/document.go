@@ -55,5 +55,5 @@ func (c *controller) GetDocumentsByEntryId(ctx context.Context, entryId int64) (
 }
 
 func (c *controller) UpdateDocument(ctx context.Context, doc *types.Document) error {
-	return c.document.SaveDocument(ctx, doc)
+	return c.document.UpdateDocument(ctx, doc)
 }
