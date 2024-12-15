@@ -24,6 +24,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"go.uber.org/zap"
 
@@ -73,6 +74,7 @@ func (c *Client) request(ctx context.Context, method, uri string, data []byte) (
 
 	respBody, _ := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
+	c.log.Debugf("response friday %s %s", method, uri)
 	return respBody, nil
 }
 
@@ -81,7 +83,7 @@ func (c *Client) CreateDocument(ctx context.Context, doc *types.Document) error 
 		ns := types.GetNamespace(ctx)
 		doc.Namespace = ns.String()
 	}
-	docReq := &DocRequest{}
+	docReq := &Document{}
 	docReq.FromType(doc)
 
 	data, _ := json.Marshal(docReq)
@@ -107,8 +109,7 @@ func (c *Client) UpdateDocument(ctx context.Context, doc *types.Document) error 
 		ns := types.GetNamespace(ctx)
 		doc.Namespace = ns.String()
 	}
-	docReq := &DocAttrRequest{}
-	docReq.FromType(doc)
+	docReq := (&DocUpdateRequest{}).FromType(doc)
 
 	data, _ := json.Marshal(docReq)
 	uri := fmt.Sprintf("%s/api/namespace/%s/docs/entry/%d", c.baseurl, doc.Namespace, doc.EntryId)
@@ -125,7 +126,7 @@ func (c *Client) GetDocument(ctx context.Context, entryId int64) (*types.Documen
 		return nil, err
 	}
 
-	docResp := &DocumentWithAttr{}
+	docResp := &Document{}
 	if err := json.Unmarshal(resp, docResp); err != nil {
 		return nil, err
 	}
@@ -187,7 +188,7 @@ func (c *Client) FilterDocuments(ctx context.Context, query *types.DocFilter, or
 	}
 
 	if order != nil {
-		q.Set("sort", order.Order.String())
+		q.Set("sort", strconv.Itoa(int(order.Order)))
 		q.Set("desc", fmt.Sprintf("%t", order.Desc))
 	}
 
@@ -199,12 +200,13 @@ func (c *Client) FilterDocuments(ctx context.Context, query *types.DocFilter, or
 	}
 
 	var docs []*types.Document
-	var docResp []DocumentWithAttr
+	var docResp []Document
 	if err := json.Unmarshal(resp, &docResp); err != nil {
 		return nil, err
 	}
 	for _, d := range docResp {
 		docs = append(docs, d.ToType())
 	}
+	c.log.Debugf("filter docs: %d", len(docs))
 	return docs, nil
 }

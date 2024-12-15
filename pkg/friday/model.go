@@ -17,81 +17,85 @@
 package friday
 
 import (
-	"strconv"
 	"time"
 
 	"github.com/basenana/nanafs/pkg/types"
 )
 
 type Document struct {
-	Id        string `json:"id"`
-	Namespace string `json:"namespace"`
-	EntryId   string `json:"entryId"`
-	Name      string `json:"name"`
-	Source    string `json:"source,omitempty"`
-	WebUrl    string `json:"webUrl,omitempty"`
-
-	Content     string `json:"content"`
-	Summary     string `json:"summary,omitempty"`
-	HeaderImage string `json:"headerImage,omitempty"`
-	SubContent  string `json:"subContent,omitempty"`
-
-	CreatedAt int64 `json:"createdAt,omitempty"`
-	UpdatedAt int64 `json:"updatedAt,omitempty"`
+	EntryId       int64     `json:"entry_id"`
+	Name          string    `json:"name"`
+	Namespace     string    `json:"namespace"`
+	ParentEntryID *int64    `json:"parent_entry_id"`
+	Source        string    `json:"source"`
+	Content       string    `json:"content,omitempty"`
+	Summary       string    `json:"summary,omitempty"`
+	WebUrl        string    `json:"web_url,omitempty"`
+	HeaderImage   string    `json:"header_image,omitempty"`
+	SubContent    string    `json:"sub_content,omitempty"`
+	Marked        *bool     `json:"marked,omitempty"`
+	Unread        *bool     `json:"unread,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+	ChangedAt     time.Time `json:"changed_at"`
 }
 
-type DocumentAttr struct {
-	Id        string      `json:"id"`
-	Namespace string      `json:"namespace"`
-	EntryId   string      `json:"entryId"`
-	Key       string      `json:"key"`
-	Value     interface{} `json:"value"`
+func (d *Document) FromType(doc *types.Document) *Document {
+	d.EntryId = doc.EntryId
+	d.Name = doc.Name
+	d.Namespace = doc.Namespace
+	d.Source = doc.Source
+	d.Content = doc.Content
+	d.Summary = doc.Summary
+	d.WebUrl = doc.WebUrl
+	d.HeaderImage = doc.HeaderImage
+	d.SubContent = doc.SubContent
+	d.Marked = doc.Marked
+	d.Unread = doc.Unread
+	d.CreatedAt = doc.CreatedAt
+	d.ChangedAt = doc.ChangedAt
+	d.ParentEntryID = &doc.ParentEntryID
+	return d
 }
 
-type DocAttrRequest struct {
-	Namespace string `json:"namespace"`
-	EntryId   string `json:"entryId,omitempty"`
-	ParentID  string `json:"parentId,omitempty"`
-	UnRead    *bool  `json:"unRead,omitempty"`
-	Mark      *bool  `json:"mark,omitempty"`
-}
-
-func (a *DocAttrRequest) FromType(doc *types.Document) {
-	a.EntryId = strconv.Itoa(int(doc.EntryId))
-	a.Namespace = doc.Namespace
-	if doc.ParentEntryID != 0 {
-		a.ParentID = strconv.Itoa(int(doc.ParentEntryID))
+func (d *Document) ToType() *types.Document {
+	doc := &types.Document{
+		EntryId:     d.EntryId,
+		Name:        d.Name,
+		Namespace:   d.Namespace,
+		Source:      d.Source,
+		Content:     d.Content,
+		Summary:     d.Summary,
+		WebUrl:      d.WebUrl,
+		HeaderImage: d.HeaderImage,
+		SubContent:  d.SubContent,
+		Marked:      d.Marked,
+		Unread:      d.Unread,
+		CreatedAt:   d.CreatedAt,
+		ChangedAt:   d.ChangedAt,
 	}
-	a.Mark = doc.Marked
-	a.UnRead = doc.Unread
+	if d.ParentEntryID != nil {
+		doc.ParentEntryID = *d.ParentEntryID
+	}
+	return doc
 }
 
-type DocRequest struct {
-	EntryId   string `json:"entryId,omitempty"`
-	Name      string `json:"name"`
+type DocUpdateRequest struct {
 	Namespace string `json:"namespace"`
-	Source    string `json:"source,omitempty"`
-	WebUrl    string `json:"webUrl,omitempty"`
-	Content   string `json:"content"`
+	EntryId   int64  `json:"entryId,omitempty"`
+	ParentID  *int64 `json:"parentId,omitempty"`
 	UnRead    *bool  `json:"unRead,omitempty"`
 	Mark      *bool  `json:"mark,omitempty"`
-	ParentID  string `json:"parentId,omitempty"`
-	CreatedAt int64  `json:"createdAt,omitempty"`
-	ChangedAt int64  `json:"changedAt,omitempty"`
 }
 
-func (r *DocRequest) FromType(doc *types.Document) {
-	r.EntryId = strconv.Itoa(int(doc.EntryId))
-	r.Name = doc.Name
+func (r *DocUpdateRequest) FromType(doc *types.Document) *DocUpdateRequest {
 	r.Namespace = doc.Namespace
-	r.Source = doc.Source
-	r.WebUrl = doc.WebUrl
-	r.Content = doc.Content
+	r.EntryId = doc.EntryId
+	if doc.ParentEntryID != 0 {
+		r.ParentID = &doc.ParentEntryID
+	}
 	r.Mark = doc.Marked
 	r.UnRead = doc.Unread
-	r.ParentID = strconv.Itoa(int(doc.ParentEntryID))
-	r.CreatedAt = doc.CreatedAt.Unix()
-	r.ChangedAt = doc.ChangedAt.Unix()
+	return r
 }
 
 type DocQuery struct {
@@ -108,49 +112,11 @@ type DocQuery struct {
 	ChangedAtEnd   *int64   `json:"changedAtEnd,omitempty"`
 	FuzzyName      *string  `json:"fuzzyName,omitempty"`
 
-	Search string `json:"search"`
+	Search string `json:"search,omitempty"`
 
 	HitsPerPage int64  `json:"hitsPerPage,omitempty"`
 	Page        int64  `json:"page,omitempty"`
 	Limit       int64  `json:"limit,omitempty"`
 	Sort        string `json:"sort,omitempty"`
 	Desc        bool   `json:"desc,omitempty"`
-}
-
-type DocumentWithAttr struct {
-	Document
-
-	ParentID string `json:"parentId,omitempty"`
-	UnRead   *bool  `json:"unRead,omitempty"`
-	Mark     *bool  `json:"mark,omitempty"`
-}
-
-func (a *DocumentWithAttr) ToType() *types.Document {
-	entryId, _ := strconv.ParseInt(a.EntryId, 10, 64)
-	parentId, _ := strconv.ParseInt(a.ParentID, 10, 64)
-
-	mark := false
-	unread := true
-	if a.Mark != nil {
-		mark = *a.Mark
-	}
-	if a.UnRead != nil {
-		unread = *a.UnRead
-	}
-	return &types.Document{
-		EntryId:       entryId,
-		Name:          a.Name,
-		Namespace:     a.Namespace,
-		ParentEntryID: parentId,
-		Source:        a.Source,
-		Content:       a.Content,
-		Summary:       a.Summary,
-		WebUrl:        a.WebUrl,
-		HeaderImage:   a.HeaderImage,
-		SubContent:    a.SubContent,
-		Marked:        &mark,
-		Unread:        &unread,
-		CreatedAt:     time.Unix(a.CreatedAt, 0),
-		ChangedAt:     time.Unix(a.UpdatedAt, 0),
-	}
 }
