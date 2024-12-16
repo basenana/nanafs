@@ -121,7 +121,6 @@ func buildMigrations() []*gormigrate.Migration {
 				// init namespace
 				_ = db.Exec(`UPDATE label SET namespace='global' WHERE 1=1;`)
 				_ = db.Exec(`UPDATE notification SET namespace='global' WHERE 1=1;`)
-				_ = db.Exec(`UPDATE document SET namespace='global' WHERE 1=1;`)
 				_ = db.Exec(`UPDATE workflow SET namespace='global' WHERE 1=1;`)
 				_ = db.Exec(`UPDATE workflow_job SET namespace='global' WHERE 1=1;`)
 				return nil
@@ -164,7 +163,6 @@ func buildMigrations() []*gormigrate.Migration {
 
 				// init namespace
 				_ = db.Exec(`UPDATE scheduled_task SET namespace='global' WHERE 1=1;`)
-				_ = db.Exec(`UPDATE friday_account SET namespace='global' WHERE 1=1;`)
 				_ = db.Exec(`UPDATE object_property SET namespace='global' WHERE 1=1;`)
 				return nil
 			},

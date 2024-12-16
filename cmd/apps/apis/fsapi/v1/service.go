@@ -288,6 +288,7 @@ func (s *services) ListDocuments(ctx context.Context, request *ListDocumentsRequ
 		Order: types.DocOrder(request.Order),
 		Desc:  request.OrderDesc,
 	}
+
 	docList, err := s.ctrl.ListDocuments(ctx, filter, &order)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "filter document failed")
