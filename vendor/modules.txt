@@ -130,6 +130,9 @@ github.com/aws/smithy-go/waiter
 ## explicit
 github.com/aymerick/douceur/css
 github.com/aymerick/douceur/parser
+# github.com/basenana/go-flow v0.0.0-20241216145728-1aad9aca7566
+## explicit; go 1.23
+github.com/basenana/go-flow
 # github.com/beorn7/perks v1.0.1
 ## explicit; go 1.11
 github.com/beorn7/perks/quantile

@@ -65,7 +65,6 @@ func createOrUpdateBuildInWorkflow(ctx context.Context, mgr Manager, expect, old
 	old.Rule = expect.Rule
 	old.Steps = expect.Steps
 	old.QueueName = expect.QueueName
-	old.Executor = expect.Executor
 	_, err := mgr.UpdateWorkflow(ctx, old)
 	return err
 }
@@ -98,7 +97,6 @@ var (
 				},
 			},
 			QueueName: "default",
-			Executor:  "local",
 			Enable:    true,
 		},
 		{
@@ -137,7 +135,6 @@ var (
 				},
 			},
 			QueueName: "default",
-			Executor:  "local",
 			Enable:    true,
 		},
 		{
@@ -161,7 +158,6 @@ var (
 				},
 			},
 			QueueName: "default",
-			Executor:  "local",
 			Enable:    true,
 		},
 	}

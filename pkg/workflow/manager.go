@@ -69,13 +69,6 @@ var _ Manager = &manager{}
 func NewManager(entryMgr dentry.Manager, docMgr document.Manager, notify *notify.Notify, recorder metastore.ScheduledTaskRecorder, cfg config.Loader) (Manager, error) {
 	wfLogger = logger.NewLogger("workflow")
 
-	workflowEnabled, err := cfg.GetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "enable").Bool()
-	if err != nil || !workflowEnabled {
-		if err != nil && errors.Is(err, config.ErrNotConfigured) {
-			wfLogger.Warnw("get workflow enable config failed, set disable", "err", err)
-		}
-		return disabledManager{}, nil
-	}
 	jobWorkdir, err := cfg.GetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "job_workdir").String()
 	if err != nil && !errors.Is(err, config.ErrNotConfigured) {
 		return nil, fmt.Errorf("get workflow job workdir failed: %w", err)
@@ -314,54 +307,6 @@ func (m *manager) CancelWorkflowJob(ctx context.Context, jobId string) error {
 		return fmt.Errorf("canceling is not supported in finished state")
 	}
 	return m.ctrl.CancelJob(jobId)
-}
-
-type disabledManager struct{}
-
-func (d disabledManager) Start(stopCh chan struct{}) {}
-
-func (d disabledManager) ListWorkflows(ctx context.Context) ([]*types.Workflow, error) {
-	return make([]*types.Workflow, 0), nil
-}
-
-func (d disabledManager) GetWorkflow(ctx context.Context, wfId string) (*types.Workflow, error) {
-	return nil, types.ErrNotEnable
-}
-
-func (d disabledManager) CreateWorkflow(ctx context.Context, spec *types.Workflow) (*types.Workflow, error) {
-	return nil, types.ErrNotEnable
-}
-
-func (d disabledManager) UpdateWorkflow(ctx context.Context, spec *types.Workflow) (*types.Workflow, error) {
-	return nil, types.ErrNotEnable
-}
-
-func (d disabledManager) DeleteWorkflow(ctx context.Context, wfId string) error {
-	return types.ErrNotEnable
-}
-
-func (d disabledManager) GetJob(ctx context.Context, wfId string, jobID string) (*types.WorkflowJob, error) {
-	return nil, types.ErrNotEnable
-}
-
-func (d disabledManager) ListJobs(ctx context.Context, wfId string) ([]*types.WorkflowJob, error) {
-	return nil, types.ErrNotEnable
-}
-
-func (d disabledManager) TriggerWorkflow(ctx context.Context, wfId string, tgt types.WorkflowTarget, attr JobAttr) (*types.WorkflowJob, error) {
-	return nil, types.ErrNotEnable
-}
-
-func (d disabledManager) PauseWorkflowJob(ctx context.Context, jobId string) error {
-	return types.ErrNotEnable
-}
-
-func (d disabledManager) ResumeWorkflowJob(ctx context.Context, jobId string) error {
-	return types.ErrNotEnable
-}
-
-func (d disabledManager) CancelWorkflowJob(ctx context.Context, jobId string) error {
-	return types.ErrNotEnable
 }
 
 type JobAttr struct {

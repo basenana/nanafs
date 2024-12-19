@@ -54,7 +54,7 @@ func (i *transactionEntryIterator) HasNext() bool {
 	// fetch next page
 	if atomic.LoadInt64(&i.remain) > 0 {
 		defer logOperationLatency("transactionEntryIterator.query_one_page", time.Now())
-		onePage := make([]db.Object, 0, entryFetchPageSize)
+		onePage := make([]db.Entry, 0, entryFetchPageSize)
 		res := i.tx.Limit(entryFetchPageSize).Offset(entryFetchPageSize * int(i.crtPage)).Find(&onePage)
 		if res.Error != nil {
 			logOperationError("transactionEntryIterator.query_one_page", res.Error)

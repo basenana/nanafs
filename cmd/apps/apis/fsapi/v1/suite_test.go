@@ -83,7 +83,6 @@ var _ = BeforeSuite(func() {
 	storage.InitLocalCache(config.Bootstrap{CacheDir: workdir, CacheSize: 0})
 
 	cl := config.NewFakeConfigLoader(mockConfig)
-	_ = cl.SetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "enable", true)
 	_ = cl.SetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "job_workdir", workdir)
 
 	ctrl, err = controller.New(cl, memMeta, testFriday)

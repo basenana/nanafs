@@ -42,7 +42,6 @@ func assembleWorkflowJob(spec *types.Workflow, tgt types.WorkflowTarget) (*types
 		Workflow:  spec.Id,
 		Target:    tgt,
 		Status:    jobrun.InitializingStatus,
-		Executor:  spec.Executor,
 		QueueName: spec.QueueName,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),

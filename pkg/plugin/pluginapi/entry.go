@@ -22,6 +22,7 @@ import (
 )
 
 type Entry struct {
+	ID         int64
 	Name       string
 	Kind       types.Kind
 	Size       int64

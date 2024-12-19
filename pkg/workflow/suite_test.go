@@ -79,8 +79,6 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 
 	cfg := config.NewFakeConfigLoader(config.Bootstrap{})
-	err = cfg.SetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "enable", true)
-	Expect(err).Should(BeNil())
 	err = cfg.SetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "job_workdir", tempDir)
 	Expect(err).Should(BeNil())
 

@@ -99,7 +99,6 @@ var _ = Describe("testConfigEntrySourcePlugin", func() {
 					},
 				},
 				QueueName: "default",
-				Executor:  "local",
 				Enable:    true,
 			})
 			Expect(err).Should(BeNil())

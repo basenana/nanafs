@@ -62,7 +62,7 @@ func (o *AccessToken) TableName() string {
 	return "access_token"
 }
 
-type Object struct {
+type Entry struct {
 	ID         int64   `gorm:"column:id;primaryKey"`
 	Name       string  `gorm:"column:name;index:obj_name"`
 	Aliases    *string `gorm:"column:aliases"`
@@ -86,11 +86,11 @@ type Object struct {
 	AccessAt   int64   `gorm:"column:access_at"`
 }
 
-func (o *Object) TableName() string {
+func (o *Entry) TableName() string {
 	return "object"
 }
 
-func (o *Object) FromEntry(en *types.Metadata) *Object {
+func (o *Entry) FromEntry(en *types.Metadata) *Entry {
 	o.ID = en.ID
 	o.Name = en.Name
 	o.Aliases = &en.Aliases
@@ -111,11 +111,11 @@ func (o *Object) FromEntry(en *types.Metadata) *Object {
 	o.AccessAt = en.AccessAt.UnixNano()
 	o.Owner = &en.Access.UID
 	o.GroupOwner = &en.Access.GID
-	o.Permission = updateObjectPermission(en.Access)
+	o.Permission = updateEntryPermission(en.Access)
 	return o
 }
 
-func (o *Object) ToEntry() *types.Metadata {
+func (o *Entry) ToEntry() *types.Metadata {
 	result := &types.Metadata{
 		ID:         o.ID,
 		Name:       o.Name,
@@ -129,7 +129,7 @@ func (o *Object) ToEntry() *types.Metadata {
 		ChangedAt:  time.Unix(0, o.ChangedAt),
 		ModifiedAt: time.Unix(0, o.ModifiedAt),
 		AccessAt:   time.Unix(0, o.AccessAt),
-		Access:     buildObjectAccess(o.Permission, o.Owner, o.GroupOwner),
+		Access:     buildEntryAccess(o.Permission, o.Owner, o.GroupOwner),
 	}
 	if o.Aliases != nil {
 		result.Aliases = *o.Aliases
@@ -166,7 +166,7 @@ func (o Label) TableName() string {
 	return "label"
 }
 
-type ObjectProperty struct {
+type EntryProperty struct {
 	ID        int64  `gorm:"column:id;autoIncrement"`
 	OID       int64  `gorm:"column:oid;index:prop_oid"`
 	Name      string `gorm:"column:key;index:prop_name"`
@@ -175,22 +175,22 @@ type ObjectProperty struct {
 	Encoded   bool   `gorm:"column:encoded"`
 }
 
-func (o ObjectProperty) TableName() string {
+func (o EntryProperty) TableName() string {
 	return "object_property"
 }
 
-type ObjectExtend struct {
+type EntryExtend struct {
 	ID          int64  `gorm:"column:id;primaryKey"`
 	Symlink     string `gorm:"column:symlink"`
 	GroupFilter []byte `gorm:"column:group_filter"`
 	PlugScope   []byte `gorm:"column:plug_scope"`
 }
 
-func (o *ObjectExtend) TableName() string {
+func (o *EntryExtend) TableName() string {
 	return "object_extend"
 }
 
-func (o *ObjectExtend) From(ed *types.ExtendData) *ObjectExtend {
+func (o *EntryExtend) From(ed *types.ExtendData) *EntryExtend {
 	if ed == nil {
 		return o
 	}
@@ -204,7 +204,7 @@ func (o *ObjectExtend) From(ed *types.ExtendData) *ObjectExtend {
 	return o
 }
 
-func (o *ObjectExtend) ToExtData() types.ExtendData {
+func (o *EntryExtend) ToExtData() types.ExtendData {
 	ext := types.ExtendData{
 		Symlink:     o.Symlink,
 		GroupFilter: nil,
@@ -219,18 +219,18 @@ func (o *ObjectExtend) ToExtData() types.ExtendData {
 	return ext
 }
 
-type ObjectURI struct {
+type EntryURI struct {
 	OID       int64  `gorm:"column:oid;primaryKey"`
 	Uri       string `gorm:"column:uri;index:obj_uri"`
 	Namespace string `gorm:"column:namespace;index:obj_uri_ns"`
 	Invalid   bool   `gorm:"column:invalid"`
 }
 
-func (o *ObjectURI) TableName() string {
+func (o *EntryURI) TableName() string {
 	return "object_uri"
 }
 
-func (o *ObjectURI) ToEntryUri() *types.EntryUri {
+func (o *EntryURI) ToEntryUri() *types.EntryUri {
 	return &types.EntryUri{
 		ID:        o.OID,
 		Uri:       o.Uri,
@@ -239,7 +239,7 @@ func (o *ObjectURI) ToEntryUri() *types.EntryUri {
 	}
 }
 
-func (o *ObjectURI) FromEntryUri(entryUri *types.EntryUri) *ObjectURI {
+func (o *EntryURI) FromEntryUri(entryUri *types.EntryUri) *EntryURI {
 	o.OID = entryUri.ID
 	o.Uri = entryUri.Uri
 	o.Namespace = entryUri.Namespace
@@ -247,7 +247,7 @@ func (o *ObjectURI) FromEntryUri(entryUri *types.EntryUri) *ObjectURI {
 	return o
 }
 
-type ObjectChunk struct {
+type EntryChunk struct {
 	ID       int64 `gorm:"column:id;primaryKey"`
 	OID      int64 `gorm:"column:oid;index:ck_oid"`
 	ChunkID  int64 `gorm:"column:chunk_id;index:ck_id"`
@@ -257,7 +257,7 @@ type ObjectChunk struct {
 	AppendAt int64 `gorm:"column:append_at;index:ck_append_at"`
 }
 
-func (o ObjectChunk) TableName() string {
+func (o EntryChunk) TableName() string {
 	return "object_chunk"
 }
 
@@ -363,8 +363,7 @@ type Workflow struct {
 	Cron            string    `gorm:"column:cron"`
 	Steps           string    `gorm:"column:steps"`
 	Enable          bool      `gorm:"column:enable;index:wf_enable"`
-	QueueName       string    `gorm:"column:queue_name"`
-	Executor        string    `gorm:"column:executor"`
+	QueueName       string    `gorm:"column:queue_name,index:wf_q"`
 	Namespace       string    `gorm:"column:namespace;index:wf_ns"`
 	CreatedAt       time.Time `gorm:"column:created_at;index:wf_creat"`
 	UpdatedAt       time.Time `gorm:"column:updated_at"`
@@ -382,7 +381,6 @@ func (o *Workflow) From(wf *types.Workflow) (*Workflow, error) {
 	o.Enable = wf.Enable
 	o.Cron = wf.Cron
 	o.QueueName = wf.QueueName
-	o.Executor = wf.Executor
 	o.CreatedAt = wf.CreatedAt
 	o.UpdatedAt = wf.UpdatedAt
 	o.LastTriggeredAt = wf.LastTriggeredAt
@@ -410,7 +408,6 @@ func (o *Workflow) To() (*types.Workflow, error) {
 		Cron:            o.Cron,
 		Steps:           []types.WorkflowStepSpec{},
 		QueueName:       o.QueueName,
-		Executor:        o.Executor,
 		CreatedAt:       o.CreatedAt,
 		UpdatedAt:       o.UpdatedAt,
 		LastTriggeredAt: o.LastTriggeredAt,
