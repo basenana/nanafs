@@ -20,15 +20,18 @@ package fs
 
 import (
 	"fmt"
-	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/types"
+	"syscall"
+
 	"github.com/hanwen/go-fuse/v2/fuse"
 	"golang.org/x/sys/unix"
-	"syscall"
+
+	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 const (
 	ENOAttr = syscall.ENOATTR
+	ENODATA = syscall.ENODATA
 )
 
 func fsMountOptions(displayName string, ops []string) []string {
