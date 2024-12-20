@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 )
 
 type Document struct {
@@ -75,6 +76,12 @@ func (d *Document) ToType() *types.Document {
 	}
 	if d.ParentEntryID != nil {
 		doc.ParentEntryID = *d.ParentEntryID
+	}
+	if d.Marked == nil {
+		doc.Marked = utils.ToPtr(false)
+	}
+	if d.Unread == nil {
+		doc.Unread = utils.ToPtr(true)
 	}
 	return doc
 }

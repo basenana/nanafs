@@ -133,7 +133,7 @@ func (n *NanaNode) Getxattr(ctx context.Context, attr string, dest []byte) (uint
 	defer logOperationLatency("entry_get_xattr", time.Now())
 	data, err := n.R.GetEntryProperty(ctx, n.entryID, attr)
 	if err != nil {
-		return 0, Error2FuseSysError("entry_get_xattr", err)
+		return 0, ENODATA
 	}
 	if data == nil {
 		return 0, ENOAttr
