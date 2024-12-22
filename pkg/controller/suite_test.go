@@ -22,8 +22,6 @@ import (
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/pkg/plugin"
-	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils/logger"
 
@@ -55,9 +53,5 @@ var _ = BeforeSuite(func() {
 	})
 
 	ctrl, err = New(cfgLoader, memMeta, friday.NewMockFriday())
-	Expect(err).Should(BeNil())
-
-	// init plugin
-	err = plugin.Init(buildin.Services{}, cfgLoader)
 	Expect(err).Should(BeNil())
 })

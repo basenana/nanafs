@@ -18,7 +18,7 @@ package workflow
 
 import (
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/pkg/workflow/jobrun"
+	"github.com/basenana/nanafs/workflow/jobrun"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"os"

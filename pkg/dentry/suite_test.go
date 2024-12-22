@@ -21,12 +21,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"github.com/basenana/nanafs/pkg/rule"
 
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
@@ -87,11 +85,5 @@ var _ = BeforeSuite(func() {
 
 	// init root
 	root, err = entryManager.Root(context.TODO())
-	Expect(err).Should(BeNil())
-
-	cfgLoader := config.NewFakeConfigLoader(config.Bootstrap{})
-
-	// init plugin
-	err = plugin.Init(buildin.Services{}, cfgLoader)
 	Expect(err).Should(BeNil())
 })

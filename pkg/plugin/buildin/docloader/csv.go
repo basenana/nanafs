@@ -21,7 +21,6 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/types"
 	"io"
 	"os"
 	"strconv"
@@ -40,7 +39,7 @@ func NewCSV(docPath string, option map[string]string) CSV {
 	return CSV{docPath: docPath}
 }
 
-func (c CSV) Load(_ context.Context) (result []types.FDocument, err error) {
+func (c CSV) Load(_ context.Context) (result []FDocument, err error) {
 	f, err := os.Open(c.docPath)
 	if err != nil {
 		return nil, err
@@ -72,7 +71,7 @@ func (c CSV) Load(_ context.Context) (result []types.FDocument, err error) {
 
 		rown++
 		// TODO: using HTML fmt?
-		result = append(result, types.FDocument{
+		result = append(result, FDocument{
 			Content:  strings.Join(content, "\n"),
 			Metadata: map[string]string{"type": csvLoader, "row": strconv.Itoa(rown)},
 		})

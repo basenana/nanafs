@@ -17,14 +17,7 @@
 package plugin
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
-	"github.com/basenana/nanafs/pkg/plugin/adaptors"
-	"github.com/basenana/nanafs/pkg/types"
 	"github.com/prometheus/client_golang/prometheus"
-	"os"
-	"path/filepath"
 )
 
 var (
@@ -42,55 +35,4 @@ func init() {
 	prometheus.MustRegister(
 		processCallTimeUsage,
 	)
-}
-
-func readPluginSpec(basePath, pluginSpecFile string) (types.PluginSpec, Builder, error) {
-	pluginPath := filepath.Join(basePath, pluginSpecFile)
-	info, err := os.Stat(pluginPath)
-	if err != nil {
-		return types.PluginSpec{}, nil, err
-	}
-
-	if info.IsDir() {
-		return types.PluginSpec{}, nil, fmt.Errorf("%s was dir", pluginPath)
-	}
-
-	f, err := os.Open(pluginPath)
-	if err != nil {
-		return types.PluginSpec{}, nil, err
-	}
-	defer f.Close()
-
-	spec := types.PluginSpec{}
-	if err = json.NewDecoder(f).Decode(&spec); err != nil {
-		return types.PluginSpec{}, nil, err
-	}
-
-	if spec.Name == "" {
-		return types.PluginSpec{}, nil, fmt.Errorf("plugin name was empty")
-	}
-
-	var builder Builder
-	switch spec.Adaptor {
-	case adaptors.AdaptorTypeScriptPlugin:
-		builder = scriptAdaptorBuilder()
-	case adaptors.AdaptorTypeGoPlugin:
-		builder = gopluginAdaptorBuilder()
-	default:
-		return types.PluginSpec{}, nil, fmt.Errorf("unknow adaptor %s", spec.Adaptor)
-	}
-
-	return spec, builder, nil
-}
-
-func scriptAdaptorBuilder() Builder {
-	return func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
-		return adaptors.NewScriptPluginAdaptor(spec, scope)
-	}
-}
-
-func gopluginAdaptorBuilder() Builder {
-	return func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
-		return adaptors.NewGoPluginAdaptor(spec, scope)
-	}
 }

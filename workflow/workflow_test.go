@@ -19,7 +19,7 @@ package workflow
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/pkg/workflow/jobrun"
+	"github.com/basenana/nanafs/workflow/jobrun"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"time"
@@ -43,13 +43,13 @@ var _ = Describe("TestWorkflowManage", func() {
 					},
 				},
 			},
-			QueueName: "default",
+			QueueName: types.WorkflowQueueFile,
 		}
 	)
 	Context("create a workflow", func() {
 		It("should be succeed", func() {
 			var err error
-			wf, err = mgr.CreateWorkflow(ctx, wf)
+			wf, err = mgr.CreateWorkflow(ctx, namespace, wf)
 			Expect(err).Should(BeNil())
 			Expect(wf.Id).ShouldNot(BeEmpty())
 		})
@@ -57,11 +57,11 @@ var _ = Describe("TestWorkflowManage", func() {
 
 	Context("query workflow", func() {
 		It("get workflow should be succeed", func() {
-			_, err := mgr.GetWorkflow(ctx, wf.Id)
+			_, err := mgr.GetWorkflow(ctx, namespace, wf.Id)
 			Expect(err).Should(BeNil())
 		})
 		It("list workflow should be succeed", func() {
-			wfList, err := mgr.ListWorkflows(ctx)
+			wfList, err := mgr.ListWorkflows(ctx, namespace)
 			Expect(err).Should(BeNil())
 			Expect(len(wfList) > 0).Should(BeTrue())
 		})
@@ -71,12 +71,12 @@ var _ = Describe("TestWorkflowManage", func() {
 		var old *types.Workflow
 		It("get workflow should be succeed", func() {
 			var err error
-			old, err = mgr.GetWorkflow(ctx, wf.Id)
+			old, err = mgr.GetWorkflow(ctx, namespace, wf.Id)
 			Expect(err).Should(BeNil())
 		})
 		It("update should be succeed", func() {
 			old.Name = "test-update-workflow-1"
-			newWf, err := mgr.UpdateWorkflow(ctx, old)
+			newWf, err := mgr.UpdateWorkflow(ctx, namespace, old)
 			Expect(err).Should(BeNil())
 			Expect(newWf.Id).Should(Equal(old.Id))
 			Expect(newWf.Name).Should(Equal("test-update-workflow-1"))
@@ -85,10 +85,10 @@ var _ = Describe("TestWorkflowManage", func() {
 
 	Context("delete workflow", func() {
 		It("delete workflow should be succeed", func() {
-			Expect(mgr.DeleteWorkflow(ctx, wf.Id)).Should(BeNil())
+			Expect(mgr.DeleteWorkflow(ctx, namespace, wf.Id)).Should(BeNil())
 		})
 		It("query deleted workflow should be error", func() {
-			_, err := mgr.GetWorkflow(ctx, wf.Id)
+			_, err := mgr.GetWorkflow(ctx, namespace, wf.Id)
 			Expect(err).Should(Equal(types.ErrNotFound))
 		})
 	})
@@ -111,7 +111,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 				{Name: "step-1", Plugin: ps},
 				{Name: "step-2", Plugin: ps},
 			},
-			QueueName: "default",
+			QueueName: types.WorkflowQueueFile,
 		}
 		en *types.Metadata
 	)
@@ -130,7 +130,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 		})
 		It("create workflow should be succeed", func() {
 			var err error
-			wf, err = mgr.CreateWorkflow(ctx, wf)
+			wf, err = mgr.CreateWorkflow(ctx, namespace, wf)
 			Expect(err).Should(BeNil())
 			Expect(wf.Id).ShouldNot(BeEmpty())
 		})
@@ -140,14 +140,14 @@ var _ = Describe("TestWorkflowJobManage", func() {
 		var job *types.WorkflowJob
 		It("trigger workflow should be succeed", func() {
 			var err error
-			job, err = mgr.TriggerWorkflow(ctx, wf.Id, types.WorkflowTarget{EntryID: en.ID}, JobAttr{})
+			job, err = mgr.TriggerWorkflow(ctx, namespace, wf.Id, types.WorkflowTarget{EntryID: en.ID}, JobAttr{})
 			Expect(err).Should(BeNil())
 			Expect(job.Id).ShouldNot(BeEmpty())
 		})
 
 		It("job should be succeed", func() {
 			Eventually(func() string {
-				jobList, err := mgr.ListJobs(ctx, wf.Id)
+				jobList, err := mgr.ListJobs(ctx, namespace, wf.Id)
 				Expect(err).Should(BeNil())
 
 				for _, j := range jobList {
@@ -164,12 +164,12 @@ var _ = Describe("TestWorkflowJobManage", func() {
 		var job *types.WorkflowJob
 		It("trigger workflow should be succeed", func() {
 			var err error
-			job, err = mgr.TriggerWorkflow(ctx, wf.Id, types.WorkflowTarget{EntryID: en.ID}, JobAttr{})
+			job, err = mgr.TriggerWorkflow(ctx, namespace, wf.Id, types.WorkflowTarget{EntryID: en.ID}, JobAttr{})
 			Expect(err).Should(BeNil())
 			Expect(job.Id).ShouldNot(BeEmpty())
 
 			Eventually(func() string {
-				jobList, err := mgr.ListJobs(ctx, wf.Id)
+				jobList, err := mgr.ListJobs(ctx, namespace, wf.Id)
 				Expect(err).Should(BeNil())
 
 				for _, j := range jobList {
@@ -182,9 +182,9 @@ var _ = Describe("TestWorkflowJobManage", func() {
 		})
 
 		It("pause job should be succeed", func() {
-			Expect(mgr.PauseWorkflowJob(ctx, job.Id)).Should(BeNil())
+			Expect(mgr.PauseWorkflowJob(ctx, namespace, job.Id)).Should(BeNil())
 			Eventually(func() string {
-				jobList, err := mgr.ListJobs(ctx, wf.Id)
+				jobList, err := mgr.ListJobs(ctx, namespace, wf.Id)
 				Expect(err).Should(BeNil())
 
 				for _, j := range jobList {
@@ -197,9 +197,9 @@ var _ = Describe("TestWorkflowJobManage", func() {
 		})
 
 		It("resume job should be succeed", func() {
-			Expect(mgr.ResumeWorkflowJob(ctx, job.Id)).Should(BeNil())
+			Expect(mgr.ResumeWorkflowJob(ctx, namespace, job.Id)).Should(BeNil())
 			Eventually(func() string {
-				jobList, err := mgr.ListJobs(ctx, wf.Id)
+				jobList, err := mgr.ListJobs(ctx, namespace, wf.Id)
 				Expect(err).Should(BeNil())
 
 				for _, j := range jobList {
@@ -213,7 +213,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 
 		It("job should be succeed", func() {
 			Eventually(func() string {
-				jobList, err := mgr.ListJobs(ctx, wf.Id)
+				jobList, err := mgr.ListJobs(ctx, namespace, wf.Id)
 				Expect(err).Should(BeNil())
 
 				for _, j := range jobList {
@@ -230,12 +230,12 @@ var _ = Describe("TestWorkflowJobManage", func() {
 		var job *types.WorkflowJob
 		It("trigger workflow should be succeed", func() {
 			var err error
-			job, err = mgr.TriggerWorkflow(ctx, wf.Id, types.WorkflowTarget{EntryID: en.ID}, JobAttr{})
+			job, err = mgr.TriggerWorkflow(ctx, namespace, wf.Id, types.WorkflowTarget{EntryID: en.ID}, JobAttr{})
 			Expect(err).Should(BeNil())
 			Expect(job.Id).ShouldNot(BeEmpty())
 
 			Eventually(func() string {
-				jobList, err := mgr.ListJobs(ctx, wf.Id)
+				jobList, err := mgr.ListJobs(ctx, namespace, wf.Id)
 				Expect(err).Should(BeNil())
 
 				for _, j := range jobList {
@@ -248,9 +248,9 @@ var _ = Describe("TestWorkflowJobManage", func() {
 		})
 
 		It("pause job should be succeed", func() {
-			Expect(mgr.PauseWorkflowJob(ctx, job.Id)).Should(BeNil())
+			Expect(mgr.PauseWorkflowJob(ctx, namespace, job.Id)).Should(BeNil())
 			Eventually(func() string {
-				jobList, err := mgr.ListJobs(ctx, wf.Id)
+				jobList, err := mgr.ListJobs(ctx, namespace, wf.Id)
 				Expect(err).Should(BeNil())
 
 				for _, j := range jobList {
@@ -263,9 +263,9 @@ var _ = Describe("TestWorkflowJobManage", func() {
 		})
 
 		It("cancel job should be succeed", func() {
-			Expect(mgr.CancelWorkflowJob(ctx, job.Id)).Should(BeNil())
+			Expect(mgr.CancelWorkflowJob(ctx, namespace, job.Id)).Should(BeNil())
 			Eventually(func() string {
-				jobList, err := mgr.ListJobs(ctx, wf.Id)
+				jobList, err := mgr.ListJobs(ctx, namespace, wf.Id)
 				Expect(err).Should(BeNil())
 
 				for _, j := range jobList {

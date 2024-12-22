@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/basenana/nanafs/pkg/plugin"
 	"strings"
 	"time"
 
@@ -31,26 +32,25 @@ import (
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/pkg/workflow/exec"
-	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	"github.com/basenana/nanafs/utils/logger"
+	"github.com/basenana/nanafs/workflow/jobrun"
 )
 
-type Manager interface {
-	Start(stopCh chan struct{})
+type Workflow interface {
+	Start(ctx context.Context)
 
-	ListWorkflows(ctx context.Context) ([]*types.Workflow, error)
-	GetWorkflow(ctx context.Context, wfId string) (*types.Workflow, error)
-	CreateWorkflow(ctx context.Context, spec *types.Workflow) (*types.Workflow, error)
-	UpdateWorkflow(ctx context.Context, spec *types.Workflow) (*types.Workflow, error)
-	DeleteWorkflow(ctx context.Context, wfId string) error
-	ListJobs(ctx context.Context, wfId string) ([]*types.WorkflowJob, error)
-	GetJob(ctx context.Context, wfId string, jobID string) (*types.WorkflowJob, error)
+	ListWorkflows(ctx context.Context, namespace string) ([]*types.Workflow, error)
+	GetWorkflow(ctx context.Context, namespace string, wfId string) (*types.Workflow, error)
+	CreateWorkflow(ctx context.Context, namespace string, spec *types.Workflow) (*types.Workflow, error)
+	UpdateWorkflow(ctx context.Context, namespace string, spec *types.Workflow) (*types.Workflow, error)
+	DeleteWorkflow(ctx context.Context, namespace string, wfId string) error
+	ListJobs(ctx context.Context, namespace string, wfId string) ([]*types.WorkflowJob, error)
+	GetJob(ctx context.Context, namespace string, wfId string, jobID string) (*types.WorkflowJob, error)
 
-	TriggerWorkflow(ctx context.Context, wfId string, tgt types.WorkflowTarget, attr JobAttr) (*types.WorkflowJob, error)
-	PauseWorkflowJob(ctx context.Context, jobId string) error
-	ResumeWorkflowJob(ctx context.Context, jobId string) error
-	CancelWorkflowJob(ctx context.Context, jobId string) error
+	TriggerWorkflow(ctx context.Context, namespace string, wfId string, tgt types.WorkflowTarget, attr JobAttr) (*types.WorkflowJob, error)
+	PauseWorkflowJob(ctx context.Context, namespace string, jobId string) error
+	ResumeWorkflowJob(ctx context.Context, namespace string, jobId string) error
+	CancelWorkflowJob(ctx context.Context, namespace string, jobId string) error
 }
 
 type manager struct {
@@ -58,15 +58,14 @@ type manager struct {
 	entryMgr dentry.Manager
 	docMgr   document.Manager
 	notify   *notify.Notify
-	cron     *CronHandler
 	recorder metastore.ScheduledTaskRecorder
 	config   config.Loader
 	logger   *zap.SugaredLogger
 }
 
-var _ Manager = &manager{}
+var _ Workflow = &manager{}
 
-func NewManager(entryMgr dentry.Manager, docMgr document.Manager, notify *notify.Notify, recorder metastore.ScheduledTaskRecorder, cfg config.Loader) (Manager, error) {
+func New(entryMgr dentry.Manager, docMgr document.Manager, notify *notify.Notify, recorder metastore.ScheduledTaskRecorder, cfg config.Loader) (Workflow, error) {
 	wfLogger = logger.NewLogger("workflow")
 
 	jobWorkdir, err := cfg.GetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "job_workdir").String()
@@ -82,51 +81,20 @@ func NewManager(entryMgr dentry.Manager, docMgr document.Manager, notify *notify
 		return nil, fmt.Errorf("init workflow job root workdir error: %s", err)
 	}
 
-	if err := exec.RegisterOperators(entryMgr, docMgr, exec.Config{Enable: true, JobWorkdir: jobWorkdir}); err != nil {
-		return nil, fmt.Errorf("register operators failed: %s", err)
+	pluginMgr, err := plugin.Init(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("init plugin failed %w", err)
 	}
-
-	flowCtrl := jobrun.NewJobController(recorder, notify)
+	flowCtrl := jobrun.NewJobController(pluginMgr, entryMgr, docMgr, recorder, notify, jobWorkdir)
 	mgr := &manager{ctrl: flowCtrl, entryMgr: entryMgr, docMgr: docMgr, recorder: recorder, config: cfg, logger: wfLogger}
-	mgr.cron = newCronHandler(mgr)
 
 	return mgr, nil
 }
-
-func (m *manager) Start(stopCh chan struct{}) {
-	bgCtx, canF := context.WithCancel(context.Background())
-	m.cron.Start(bgCtx)
-	m.ctrl.Start(bgCtx)
-
-	if err := registerBuildInWorkflow(bgCtx, m); err != nil {
-		m.logger.Errorw("register build-in workflow failed", "err", err)
-	}
-
-	// delay register
-	time.Sleep(time.Minute)
-
-	allWorkflows, err := m.ListWorkflows(bgCtx)
-	if err != nil {
-		m.logger.Errorw("init cron workflows failed: list workflows error", "err", err)
-	}
-
-	if len(allWorkflows) > 0 {
-		for i, wf := range allWorkflows {
-			if wf.Cron == "" {
-				continue
-			}
-			err = m.cron.Register(allWorkflows[i])
-			if err != nil {
-				m.logger.Errorw("init cron workflows failed: registry workflow error", "workflow", wf.Id, "err", err)
-			}
-		}
-	}
-
-	<-stopCh
-	canF()
+func (m *manager) Start(ctx context.Context) {
+	m.ctrl.Start(ctx)
 }
 
-func (m *manager) ListWorkflows(ctx context.Context) ([]*types.Workflow, error) {
+func (m *manager) ListWorkflows(ctx context.Context, namespace string) ([]*types.Workflow, error) {
 	result, err := m.recorder.ListWorkflow(ctx)
 	if err != nil {
 		return nil, err
@@ -134,11 +102,11 @@ func (m *manager) ListWorkflows(ctx context.Context) ([]*types.Workflow, error) 
 	return result, nil
 }
 
-func (m *manager) GetWorkflow(ctx context.Context, wfId string) (*types.Workflow, error) {
+func (m *manager) GetWorkflow(ctx context.Context, namespace string, wfId string) (*types.Workflow, error) {
 	return m.recorder.GetWorkflow(ctx, wfId)
 }
 
-func (m *manager) CreateWorkflow(ctx context.Context, spec *types.Workflow) (*types.Workflow, error) {
+func (m *manager) CreateWorkflow(ctx context.Context, namespace string, spec *types.Workflow) (*types.Workflow, error) {
 	if spec.Name == "" {
 		return nil, fmt.Errorf("workflow name is empty")
 	}
@@ -151,16 +119,10 @@ func (m *manager) CreateWorkflow(ctx context.Context, spec *types.Workflow) (*ty
 	if err = m.recorder.SaveWorkflow(ctx, spec); err != nil {
 		return nil, err
 	}
-
-	if spec.Cron != "" {
-		if err = m.cron.Register(spec); err != nil {
-			return spec, fmt.Errorf("handle cron rules encounter failure: %s", err)
-		}
-	}
 	return spec, nil
 }
 
-func (m *manager) UpdateWorkflow(ctx context.Context, spec *types.Workflow) (*types.Workflow, error) {
+func (m *manager) UpdateWorkflow(ctx context.Context, namespace string, spec *types.Workflow) (*types.Workflow, error) {
 	err := validateWorkflowSpec(spec)
 	if err != nil {
 		return nil, err
@@ -170,21 +132,11 @@ func (m *manager) UpdateWorkflow(ctx context.Context, spec *types.Workflow) (*ty
 		return nil, err
 	}
 
-	if spec.Cron != "" {
-		if err = m.cron.Register(spec); err != nil {
-			return spec, fmt.Errorf("handle cron rules encounter failure: %s", err)
-		}
-	}
 	return spec, nil
 }
 
-func (m *manager) DeleteWorkflow(ctx context.Context, wfId string) error {
-	wfSpec, err := m.GetWorkflow(ctx, wfId)
-	if err != nil {
-		return err
-	}
-
-	jobs, err := m.ListJobs(ctx, wfId)
+func (m *manager) DeleteWorkflow(ctx context.Context, namespace string, wfId string) error {
+	jobs, err := m.ListJobs(ctx, namespace, wfId)
 	if err != nil {
 		return err
 	}
@@ -199,13 +151,10 @@ func (m *manager) DeleteWorkflow(ctx context.Context, wfId string) error {
 		return fmt.Errorf("has running jobs: [%s]", strings.Join(runningJobs, ","))
 	}
 
-	if wfSpec.Cron != "" {
-		m.cron.Unregister(wfId)
-	}
 	return m.recorder.DeleteWorkflow(ctx, wfId)
 }
 
-func (m *manager) GetJob(ctx context.Context, wfId string, jobID string) (*types.WorkflowJob, error) {
+func (m *manager) GetJob(ctx context.Context, namespace string, wfId string, jobID string) (*types.WorkflowJob, error) {
 	result, err := m.recorder.GetWorkflowJob(ctx, jobID)
 	if err != nil {
 		return nil, err
@@ -213,7 +162,7 @@ func (m *manager) GetJob(ctx context.Context, wfId string, jobID string) (*types
 	return result, nil
 }
 
-func (m *manager) ListJobs(ctx context.Context, wfId string) ([]*types.WorkflowJob, error) {
+func (m *manager) ListJobs(ctx context.Context, namespace string, wfId string) ([]*types.WorkflowJob, error) {
 	result, err := m.recorder.ListWorkflowJob(ctx, types.JobFilter{WorkFlowID: wfId})
 	if err != nil {
 		return nil, err
@@ -221,8 +170,8 @@ func (m *manager) ListJobs(ctx context.Context, wfId string) ([]*types.WorkflowJ
 	return result, nil
 }
 
-func (m *manager) TriggerWorkflow(ctx context.Context, wfId string, tgt types.WorkflowTarget, attr JobAttr) (*types.WorkflowJob, error) {
-	workflow, err := m.GetWorkflow(ctx, wfId)
+func (m *manager) TriggerWorkflow(ctx context.Context, namespace string, wfId string, tgt types.WorkflowTarget, attr JobAttr) (*types.WorkflowJob, error) {
+	workflow, err := m.GetWorkflow(ctx, namespace, wfId)
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +195,7 @@ func (m *manager) TriggerWorkflow(ctx context.Context, wfId string, tgt types.Wo
 
 	if attr.JobID != "" {
 		// TODO: improve this
-		jobs, err := m.ListJobs(ctx, wfId)
+		jobs, err := m.ListJobs(ctx, namespace, wfId)
 		if err != nil {
 			return nil, err
 		}
@@ -276,7 +225,7 @@ func (m *manager) TriggerWorkflow(ctx context.Context, wfId string, tgt types.Wo
 	return job, nil
 }
 
-func (m *manager) PauseWorkflowJob(ctx context.Context, jobId string) error {
+func (m *manager) PauseWorkflowJob(ctx context.Context, namespace string, jobId string) error {
 	job, err := m.recorder.GetWorkflowJob(ctx, jobId)
 	if err != nil {
 		return err
@@ -287,7 +236,7 @@ func (m *manager) PauseWorkflowJob(ctx context.Context, jobId string) error {
 	return m.ctrl.PauseJob(jobId)
 }
 
-func (m *manager) ResumeWorkflowJob(ctx context.Context, jobId string) error {
+func (m *manager) ResumeWorkflowJob(ctx context.Context, namespace string, jobId string) error {
 	job, err := m.recorder.GetWorkflowJob(ctx, jobId)
 	if err != nil {
 		return err
@@ -298,7 +247,7 @@ func (m *manager) ResumeWorkflowJob(ctx context.Context, jobId string) error {
 	return m.ctrl.ResumeJob(jobId)
 }
 
-func (m *manager) CancelWorkflowJob(ctx context.Context, jobId string) error {
+func (m *manager) CancelWorkflowJob(ctx context.Context, namespace string, jobId string) error {
 	job, err := m.recorder.GetWorkflowJob(ctx, jobId)
 	if err != nil {
 		return err

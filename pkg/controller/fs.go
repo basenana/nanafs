@@ -23,8 +23,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/basenana/nanafs/pkg/dispatch"
-	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/types"
 )
 
@@ -81,15 +79,6 @@ func (c *controller) FsInfo(ctx context.Context) Info {
 	return info
 }
 
-func (c *controller) StartBackendTask(stopCh chan struct{}) {
-	st, err := dispatch.Init(c.entry, c.document, c.workflow, c.Notify, c.meta)
-	if err != nil {
-		c.logger.Panicf("start backend task failed: %s", err)
-	}
-	go st.Run(stopCh)
-	go c.workflow.Start(stopCh)
-}
-
 func (c *controller) SetupShutdownHandler(stopCh chan struct{}) chan struct{} {
 	shutdownSafe := make(chan struct{})
 	go func() {
@@ -101,11 +90,6 @@ func (c *controller) SetupShutdownHandler(stopCh chan struct{}) chan struct{} {
 			defer wg.Done()
 			c.logger.Warn("waiting all entry closed")
 			c.entry.MustCloseAll()
-		}()
-		go func() {
-			defer wg.Done()
-			c.logger.Warn("waiting all plugin shutdown")
-			plugin.MustShutdown()
 		}()
 
 		wg.Wait()

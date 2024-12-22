@@ -24,6 +24,7 @@ import (
 	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
+	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
@@ -42,11 +43,13 @@ type Config struct {
 type Controller struct {
 	runners map[string]*flow.Runner
 	queue   *GroupJobQueue
+	workdir string
 
-	entryMgr dentry.Manager
-	docMgr   document.Manager
-	recorder metastore.ScheduledTaskRecorder
-	notify   *notify.Notify
+	pluginMgr *plugin.Manager
+	entryMgr  dentry.Manager
+	docMgr    document.Manager
+	recorder  metastore.ScheduledTaskRecorder
+	notify    *notify.Notify
 
 	isStartUp bool
 	config    Config
@@ -274,15 +277,18 @@ func (c *Controller) Handle(event flow.UpdateEvent) {
 		"job", event.Flow.ID, "status", event.Flow.Status)
 }
 
-func NewJobController(entryMgr dentry.Manager, docMgr document.Manager,
-	recorder metastore.ScheduledTaskRecorder, notify *notify.Notify, config Config) *Controller {
+func NewJobController(pluginMgr *plugin.Manager, entryMgr dentry.Manager, docMgr document.Manager,
+	recorder metastore.ScheduledTaskRecorder, notify *notify.Notify, workdir string) *Controller {
 	ctrl := &Controller{
-		runners:  make(map[string]*flow.Runner),
-		queue:    newQueue(),
-		recorder: recorder,
-		notify:   notify,
-		config:   config,
-		logger:   logger.NewLogger("flow"),
+		pluginMgr: pluginMgr,
+		entryMgr:  entryMgr,
+		docMgr:    docMgr,
+		recorder:  recorder,
+		notify:    notify,
+		workdir:   workdir,
+		runners:   make(map[string]*flow.Runner),
+		queue:     newQueue(),
+		logger:    logger.NewLogger("flow"),
 	}
 	return ctrl
 }

@@ -14,50 +14,57 @@
  limitations under the License.
 */
 
-package exec
+package workflow
 
 import (
 	"context"
-	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/pkg/plugin"
-	"github.com/basenana/nanafs/pkg/plugin/buildin"
-	"github.com/basenana/nanafs/pkg/storage"
-	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils/logger"
 	"os"
 	"testing"
+	"time"
+
+	"github.com/basenana/nanafs/pkg/friday"
+	"github.com/basenana/nanafs/pkg/rule"
+
+	testcfg "github.com/onsi/ginkgo/config"
+
+	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/document"
+	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/notify"
+	"github.com/basenana/nanafs/pkg/storage"
+	"github.com/basenana/nanafs/utils/logger"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var (
-	tempDir  string
-	targetID int64
-	entryMgr dentry.Manager
-
-	loCfg = Config{}
+	stopCh    = make(chan struct{})
+	tempDir   string
+	entryMgr  dentry.Manager
+	docMgr    document.Manager
+	mgr       Workflow
+	namespace = "test"
 )
 
-func TestExec(t *testing.T) {
+func TestWorkflow(t *testing.T) {
 	logger.InitLogger()
 	defer logger.Sync()
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Workflow Exec Suite")
+	testcfg.DefaultReporterConfig.SlowSpecThreshold = time.Minute.Seconds()
+	RunSpecs(t, "Workflow Suite")
 }
 
 var _ = BeforeSuite(func() {
 	var err error
-	tempDir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-exec-")
+	tempDir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-wf-")
 	Expect(err).Should(BeNil())
-
-	loCfg.Enable = true
-	loCfg.JobWorkdir = tempDir
 
 	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())
+
+	rule.InitQuery(memMeta)
 
 	storage.InitLocalCache(config.Bootstrap{CacheDir: tempDir, CacheSize: 1})
 	entryMgr, err = dentry.NewManager(memMeta, config.Bootstrap{
@@ -69,21 +76,25 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).Should(BeNil())
 
-	// init mocked file
-	root, err := entryMgr.Root(context.TODO())
+	cfg := config.NewFakeConfigLoader(config.Bootstrap{})
+	err = cfg.SetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "job_workdir", tempDir)
 	Expect(err).Should(BeNil())
-	txtFile, err := entryMgr.CreateEntry(context.TODO(), root.ID, types.EntryAttr{
-		Name: "target.txt", Kind: types.RawKind})
-	Expect(err).Should(BeNil())
-	targetID = txtFile.ID
 
-	f, err := entryMgr.Open(context.TODO(), txtFile.ID, types.OpenAttr{Write: true})
+	docMgr, err = document.NewManager(memMeta, entryMgr, cfg, friday.NewMockFriday())
 	Expect(err).Should(BeNil())
-	_, err = f.WriteAt(context.TODO(), []byte("Hello World!"), 0)
-	Expect(err).Should(BeNil())
-	Expect(f.Close(context.TODO())).Should(BeNil())
 
-	// init plugin
-	cfgLoader := config.NewFakeConfigLoader(config.Bootstrap{})
-	Expect(plugin.Init(buildin.Services{}, cfgLoader)).Should(BeNil())
+	mgr, err = New(entryMgr, docMgr, notify.NewNotify(memMeta), memMeta, cfg)
+	Expect(err).Should(BeNil())
+
+	ctx, canF := context.WithCancel(context.Background())
+	go func() {
+		<-stopCh
+		canF()
+	}()
+
+	mgr.Start(ctx)
+})
+
+var _ = AfterSuite(func() {
+	close(stopCh)
 })

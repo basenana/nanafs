@@ -25,7 +25,6 @@ import (
 	"github.com/basenana/nanafs/pkg/plugin/buildin/docloader"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
 )
 
 type ProcessPlugin interface {
@@ -33,34 +32,23 @@ type ProcessPlugin interface {
 	Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error)
 }
 
-func Call(ctx context.Context, ps types.PlugScope, req *pluginapi.Request) (resp *pluginapi.Response, err error) {
-	startAt := time.Now()
-	defer func() {
-		if rErr := utils.Recover(); rErr != nil {
-			err = rErr
-		}
-		processCallTimeUsage.WithLabelValues(ps.PluginName).Observe(time.Since(startAt).Seconds())
-	}()
-	var plugin Plugin
-	plugin, err = BuildPlugin(ctx, ps)
-	if err != nil {
-		return nil, err
-	}
-
-	runnablePlugin, ok := plugin.(ProcessPlugin)
-	if !ok {
-		return nil, fmt.Errorf("not process plugin")
-	}
-	return runnablePlugin.Run(ctx, req)
-}
-
 const (
 	delayPluginName    = "delay"
 	delayPluginVersion = "1.0"
 )
 
+var DelayProcessPluginSpec = types.PluginSpec{
+	Name:       delayPluginName,
+	Version:    delayPluginVersion,
+	Type:       types.TypeProcess,
+	Parameters: make(map[string]string),
+	Customization: []types.PluginConfig{
+		{Key: "delay", Default: ""},
+		{Key: "until", Default: ""},
+	},
+}
+
 type DelayProcessPlugin struct {
-	spec  types.PluginSpec
 	scope types.PlugScope
 }
 
@@ -84,11 +72,10 @@ func (d *DelayProcessPlugin) Run(ctx context.Context, request *pluginapi.Request
 		nowTime = time.Now()
 	)
 
-	pluginParams := d.scope.Parameters
 	switch request.Action {
 
 	case "delay":
-		delayDurationStr := pluginParams["delay"]
+		delayDurationStr := pluginapi.GetParameter("delay", request, DelayProcessPluginSpec, d.scope)
 		duration, err := time.ParseDuration(delayDurationStr)
 		if err != nil {
 			return nil, fmt.Errorf("parse delay duration [%s] failed: %s", delayDurationStr, err)
@@ -97,16 +84,14 @@ func (d *DelayProcessPlugin) Run(ctx context.Context, request *pluginapi.Request
 
 	case "until":
 		var err error
-		untilStr := pluginParams["until"]
+		untilStr := pluginapi.GetParameter("until", request, DelayProcessPluginSpec, d.scope)
 		until, err = time.Parse(untilStr, time.RFC3339)
 		if err != nil {
 			return nil, fmt.Errorf("parse delay until [%s] failed: %s", untilStr, err)
 		}
 
 	default:
-		resp := pluginapi.NewResponse()
-		resp.Message = fmt.Sprintf("unknown action: %s", request.Action)
-		return resp, nil
+		return pluginapi.NewFailedResponse(fmt.Sprintf("unknown action: %s", request.Action)), nil
 	}
 
 	if nowTime.Before(until) {
@@ -114,45 +99,37 @@ func (d *DelayProcessPlugin) Run(ctx context.Context, request *pluginapi.Request
 		defer timer.Stop()
 		select {
 		case <-timer.C:
-			return pluginapi.NewResponseWithResult(map[string]any{"delay_finish_at": time.Now().String()}), nil
+			return pluginapi.NewResponse(), nil
 		case <-ctx.Done():
-			return &pluginapi.Response{IsSucceed: false, Message: ctx.Err().Error()}, nil
+			return pluginapi.NewFailedResponse(ctx.Err().Error()), nil
 		}
 	}
 
-	return pluginapi.NewResponseWithResult(nil), nil
+	return pluginapi.NewResponse(), nil
 }
 
-func registerBuildInProcessPlugin(svc buildin.Services, r *registry) {
+func registerBuildInProcessPlugin(r *registry) {
 	r.Register(
 		delayPluginName,
-		types.PluginSpec{Name: delayPluginName, Version: delayPluginVersion, Type: types.TypeProcess, Parameters: map[string]string{}},
-		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
-			return &DelayProcessPlugin{spec: spec, scope: scope}, nil
+		DelayProcessPluginSpec,
+		func(job *types.WorkflowJob, scope types.PlugScope) (Plugin, error) {
+			return &DelayProcessPlugin{scope: scope}, nil
 		},
 	)
 
 	r.Register(
 		docloader.PluginName,
-		types.PluginSpec{Name: docloader.PluginName, Version: docloader.PluginVersion, Type: types.TypeProcess, Parameters: map[string]string{}},
-		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
-			return docloader.NewDocLoader(spec, scope), nil
-		},
-	)
-
-	r.Register(
-		buildin.DocMetaPluginName,
-		types.PluginSpec{Name: buildin.DocMetaPluginName, Version: buildin.DocMetaPluginVersion, Type: types.TypeProcess, Parameters: map[string]string{}},
-		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
-			return buildin.NewDocMetaPlugin(spec, scope, svc)
+		docloader.PluginSpec,
+		func(job *types.WorkflowJob, scope types.PlugScope) (Plugin, error) {
+			return docloader.NewDocLoader(job, scope), nil
 		},
 	)
 
 	r.Register(
 		buildin.WebpackPluginName,
-		types.PluginSpec{Name: buildin.WebpackPluginName, Version: buildin.WebpackPluginVersion, Type: types.TypeProcess, Parameters: map[string]string{}},
-		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
-			return buildin.NewWebpackPlugin(spec, scope, svc)
+		buildin.WebpackPluginSpec,
+		func(job *types.WorkflowJob, scope types.PlugScope) (Plugin, error) {
+			return buildin.NewWebpackPlugin(job, scope)
 		},
 	)
 }

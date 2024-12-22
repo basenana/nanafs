@@ -17,14 +17,13 @@
 package jobrun
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -35,30 +34,21 @@ import (
 	"github.com/basenana/nanafs/utils"
 )
 
-func initWorkdir(ctx context.Context, jobWorkdir string, job *types.WorkflowJob) (string, error) {
-	if job.Id == "" {
-		return "", fmt.Errorf("job id is empty")
-	}
-	_, err := os.Stat(jobWorkdir)
-	if err != nil {
-		return "", fmt.Errorf("base job workdir %s: %s", jobWorkdir, err)
-	}
-
-	workdir := path.Join(jobWorkdir, fmt.Sprintf("job-%s", job.Id))
+func initWorkdir(ctx context.Context, workdir string, job *types.WorkflowJob) error {
 	enInfo, err := os.Stat(workdir)
 	if err != nil && !os.IsNotExist(err) {
-		return "", err
+		return err
 	}
 
 	if enInfo != nil {
 		if enInfo.IsDir() {
-			return workdir, nil
+			return nil
 		}
-		return workdir, fmt.Errorf("job workdir is existed and not a dir")
+		return fmt.Errorf("job workdir is existed and not a dir")
 	}
 
 	if err = utils.Mkdir(workdir); err != nil {
-		return "", err
+		return err
 	}
 
 	// workdir info
@@ -71,7 +61,7 @@ func initWorkdir(ctx context.Context, jobWorkdir string, job *types.WorkflowJob)
 	infoRaw, _ := json.Marshal(info)
 	_ = os.WriteFile(infoFile, infoRaw, 0655)
 
-	return workdir, nil
+	return nil
 }
 
 func cleanupWorkdir(ctx context.Context, workdir string) error {
@@ -179,44 +169,47 @@ func copyEntryToJobWorkDir(ctx context.Context, entryPath string, entry *types.M
 	return err
 }
 
-func collectFile2BaseEntry(ctx context.Context, entryMgr dentry.Manager, baseEntryId int64, workdir string, tmpEn pluginapi.Entry) error {
+func collectFile2BaseEntry(ctx context.Context, entryMgr dentry.Manager, baseEntryId int64, workdir string, entry *pluginapi.Entry) error {
+	isNeedCreate := entry.ID == 0
+
 	grp, err := entryMgr.OpenGroup(ctx, baseEntryId)
 	if err != nil {
 		return fmt.Errorf("open base entry group failed: %s", err)
 	}
 
-	_, err = grp.FindEntry(ctx, tmpEn.Name)
-	if err != nil && err != types.ErrNotFound {
+	_, err = grp.FindEntry(ctx, entry.Name)
+	if err != nil && !errors.Is(err, types.ErrNotFound) {
 		return fmt.Errorf("check new file existed error: %s", err)
 	}
 
-	// TODO: overwrite existed file
-	if err == nil {
+	if isNeedCreate && err == nil {
+		// file already existed
 		return nil
 	}
 
-	tmpFile, err := os.Open(path.Join(workdir, tmpEn.Name))
+	tmpFile, err := os.Open(path.Join(workdir, entry.Name))
 	if err != nil {
 		return fmt.Errorf("read temporary file failed: %s", err)
 	}
 	defer tmpFile.Close()
 
-	var properties types.Properties
-	if len(tmpEn.Parameters) > 0 {
-		properties.Fields = map[string]types.PropertyItem{}
-		for k, v := range tmpEn.Parameters {
-			if strings.HasPrefix(k, pluginapi.ResWorkflowKeyPrefix) {
-				continue
-			}
-			properties.Fields[k] = types.PropertyItem{Value: v}
+	var properties = types.Properties{Fields: make(map[string]types.PropertyItem)}
+	for k, v := range entry.Parameters {
+		if strings.HasPrefix(k, pluginapi.ResWorkflowKeyPrefix) {
+			continue
 		}
-	}
-	newEn, err := grp.CreateEntry(ctx, types.EntryAttr{Name: tmpEn.Name, Kind: tmpEn.Kind, Properties: properties})
-	if err != nil {
-		return fmt.Errorf("create new entry failed: %s", err)
+		properties.Fields[k] = types.PropertyItem{Value: v}
 	}
 
-	f, err := entryMgr.Open(ctx, newEn.ID, types.OpenAttr{Write: true})
+	if isNeedCreate {
+		newEn, err := grp.CreateEntry(ctx, types.EntryAttr{Name: entry.Name, Kind: entry.Kind, Properties: properties})
+		if err != nil {
+			return fmt.Errorf("create new entry failed: %s", err)
+		}
+		entry.ID = newEn.ID
+	}
+
+	f, err := entryMgr.Open(ctx, entry.ID, types.OpenAttr{Write: true, Trunc: true})
 	if err != nil {
 		return fmt.Errorf("open entry file failed: %s", err)
 	}
@@ -230,7 +223,7 @@ func collectFile2BaseEntry(ctx context.Context, entryMgr dentry.Manager, baseEnt
 	return nil
 }
 
-func collectFile2Document(ctx context.Context, docMgr document.Manager, entryMgr dentry.Manager, entryId int64, content bytes.Buffer) error {
+func collectFile2Document(ctx context.Context, docMgr document.Manager, entryMgr dentry.Manager, entryId int64, document *pluginapi.Document) error {
 	baseEn, err := entryMgr.GetEntry(ctx, entryId)
 	if err != nil {
 		return fmt.Errorf("query entry failed: %s", err)
@@ -238,14 +231,18 @@ func collectFile2Document(ctx context.Context, docMgr document.Manager, entryMgr
 	unread := true
 	doc := &types.Document{
 		EntryId:       entryId,
-		Name:          trimFileExtension(baseEn.Name),
+		Name:          document.Title,
 		Namespace:     baseEn.Namespace,
 		ParentEntryID: baseEn.ParentID,
 		Source:        "collect",
-		Content:       content.String(),
+		Content:       document.Content,
 		Unread:        &unread,
 		CreatedAt:     baseEn.CreatedAt,
 		ChangedAt:     baseEn.ChangedAt,
+	}
+	if !document.PublicAt.IsZero() {
+		doc.CreatedAt = document.PublicAt
+		doc.ChangedAt = document.PublicAt
 	}
 	err = docMgr.CreateDocument(ctx, doc)
 	if err != nil {
@@ -253,9 +250,4 @@ func collectFile2Document(ctx context.Context, docMgr document.Manager, entryMgr
 	}
 
 	return nil
-}
-
-func trimFileExtension(fileName string) string {
-	fileName = strings.TrimSuffix(fileName, filepath.Ext(fileName))
-	return strings.TrimSpace(fileName)
 }

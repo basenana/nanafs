@@ -1,5 +1,5 @@
 /*
- Copyright 2023 NanaFS Authors.
+ Copyright 2024 NanaFS Authors.
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -14,10 +14,4 @@
  limitations under the License.
 */
 
-package exec
-
-const (
-	OpEntryInit    = "entryInit"
-	OpEntryCollect = "entryCollect"
-	OpPluginCall   = "pluginCall"
-)
+package fs

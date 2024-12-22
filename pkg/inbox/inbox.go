@@ -77,7 +77,7 @@ func (b *Inbox) QuickInbox(ctx context.Context, fileName string, option Option) 
 	}
 
 	if option.Data == nil {
-		job, err := b.workflow.TriggerWorkflow(ctx, workflow.BuildInWorkflowWebpack, types.WorkflowTarget{EntryID: newFile.ID, ParentEntryID: newFile.ParentID}, workflow.JobAttr{Reason: "quick inbox"})
+		job, err := b.workflow.TriggerWorkflow(ctx, "", workflow.BuildInWorkflowWebpack, types.WorkflowTarget{EntryID: newFile.ID, ParentEntryID: newFile.ParentID}, workflow.JobAttr{Reason: "quick inbox"})
 		if err != nil {
 			if errors.Is(err, types.ErrNotEnable) {
 				return newFile, nil

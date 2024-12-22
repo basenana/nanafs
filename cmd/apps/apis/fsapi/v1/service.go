@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/basenana/nanafs/fs"
 	"io"
 	"time"
 
@@ -29,7 +30,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/basenana/nanafs/pkg/workflow"
+	"github.com/basenana/nanafs/workflow"
 
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
 	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
@@ -50,9 +51,10 @@ type Services interface {
 	WorkflowServer
 }
 
-func InitServices(server *grpc.Server, ctrl controller.Controller, pathEntryMgr *pathmgr.PathManager) (Services, error) {
+func InitServices(server *grpc.Server, ctrl controller.Controller, depends *fs.Depends, pathEntryMgr *pathmgr.PathManager) (Services, error) {
 	s := &services{
 		ctrl:         ctrl,
+		workflow:     depends.Workflow,
 		pathEntryMgr: pathEntryMgr,
 		callerAuthFn: callerAuthGetter,
 		logger:       logger.NewLogger("fsapi"),
@@ -71,6 +73,7 @@ func InitServices(server *grpc.Server, ctrl controller.Controller, pathEntryMgr 
 
 type services struct {
 	ctrl         controller.Controller
+	workflow     workflow.Workflow
 	pathEntryMgr *pathmgr.PathManager
 	callerAuthFn common.CallerAuthGetter
 	logger       *zap.SugaredLogger
@@ -1034,14 +1037,16 @@ func (s *services) CommitSyncedEvent(ctx context.Context, request *CommitSyncedE
 }
 
 func (s *services) ListWorkflows(ctx context.Context, request *ListWorkflowsRequest) (*ListWorkflowsResponse, error) {
-	workflowList, err := s.ctrl.ListWorkflows(ctx)
+	ns, err := s.namespace(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	workflowList, err := s.workflow.ListWorkflows(ctx, ns)
 	if err != nil {
 		s.logger.Errorw("list workflow failed", "err", err)
 		return nil, status.Error(common.FsApiError(err), "list workflow failed")
 	}
-
-	buildInWorkflow := workflow.BuildInWorkflows()
-	workflowList = append(workflowList, buildInWorkflow...)
 
 	resp := &ListWorkflowsResponse{}
 	for _, w := range workflowList {
@@ -1054,7 +1059,13 @@ func (s *services) ListWorkflowJobs(ctx context.Context, request *ListWorkflowJo
 	if request.WorkflowID == "" {
 		return nil, status.Error(codes.InvalidArgument, "invalid workflow id")
 	}
-	jobs, err := s.ctrl.ListJobs(ctx, request.WorkflowID)
+
+	ns, err := s.namespace(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	jobs, err := s.workflow.ListJobs(ctx, ns, request.WorkflowID)
 	if err != nil {
 		s.logger.Errorw("list workflow job failed", "err", err)
 		return nil, status.Error(common.FsApiError(err), "list workflow job failed")
@@ -1069,6 +1080,10 @@ func (s *services) ListWorkflowJobs(ctx context.Context, request *ListWorkflowJo
 
 func (s *services) TriggerWorkflow(ctx context.Context, request *TriggerWorkflowRequest) (*TriggerWorkflowResponse, error) {
 	s.logger.Infow("trigger workflow", "workflow", request.WorkflowID)
+	ns, err := s.namespace(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	if request.WorkflowID == "" {
 		return nil, status.Error(codes.InvalidArgument, "workflow id is empty")
@@ -1077,7 +1092,7 @@ func (s *services) TriggerWorkflow(ctx context.Context, request *TriggerWorkflow
 		return nil, status.Error(codes.InvalidArgument, "workflow target is empty")
 	}
 
-	if _, err := s.ctrl.GetWorkflow(ctx, request.WorkflowID); err != nil {
+	if _, err := s.workflow.GetWorkflow(ctx, ns, request.WorkflowID); err != nil {
 		return nil, status.Error(common.FsApiError(err), "fetch workflow failed")
 	}
 
@@ -1088,7 +1103,7 @@ func (s *services) TriggerWorkflow(ctx context.Context, request *TriggerWorkflow
 		}
 	}
 
-	job, err := s.ctrl.TriggerWorkflow(ctx, request.WorkflowID,
+	job, err := s.workflow.TriggerWorkflow(ctx, ns, request.WorkflowID,
 		types.WorkflowTarget{EntryID: request.Target.EntryID, ParentEntryID: request.Target.ParentEntryID},
 		workflow.JobAttr{Reason: request.Attr.Reason, Timeout: time.Second * time.Duration(request.Attr.Timeout)},
 	)
@@ -1127,6 +1142,18 @@ func (s *services) queryEntryProperties(ctx context.Context, entryID, parentID i
 	}
 
 	return result, nil
+}
+
+func (s *services) namespace(ctx context.Context) (string, error) {
+	ai := s.callerAuthFn(ctx)
+	if !ai.Authenticated {
+		return "", status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+
+	if ai.Namespace == "" {
+		return "", status.Error(codes.Unauthenticated, "namespace is empty")
+	}
+	return ai.Namespace, nil
 }
 
 var (

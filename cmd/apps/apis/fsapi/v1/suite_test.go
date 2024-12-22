@@ -18,6 +18,7 @@ package v1
 
 import (
 	"context"
+	"github.com/basenana/nanafs/fs"
 	"net"
 	"os"
 	"testing"
@@ -40,6 +41,7 @@ import (
 
 var (
 	ctrl          controller.Controller
+	dep           *fs.Depends
 	testMeta      metastore.Meta
 	testFriday    friday.Friday
 	testServer    *grpc.Server
@@ -86,6 +88,7 @@ var _ = BeforeSuite(func() {
 	_ = cl.SetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "job_workdir", workdir)
 
 	ctrl, err = controller.New(cl, memMeta, testFriday)
+	dep, err = fs.InitDepends(cl, memMeta, testFriday)
 	Expect(err).Should(BeNil())
 
 	_, err = ctrl.LoadRootEntry(context.TODO())
@@ -98,7 +101,7 @@ var _ = BeforeSuite(func() {
 	mockListen = bufconn.Listen(buffer)
 
 	testServer = grpc.NewServer()
-	_, err = InitServices(testServer, ctrl, pm)
+	_, err = InitServices(testServer, ctrl, dep, pm)
 	Expect(err).Should(BeNil())
 
 	go func() {

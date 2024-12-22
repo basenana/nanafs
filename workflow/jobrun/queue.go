@@ -126,7 +126,7 @@ func (n *NamespacedJobQueue) Signal() chan struct{} {
 func newNamespacedQueue() *NamespacedJobQueue {
 	return &NamespacedJobQueue{
 		namespaces:       make(map[string]*JobQueue),
-		namespaceList:    make([]string, 1024),
+		namespaceList:    make([]string, 0, 1024),
 		namespaceInQueue: make(map[string]struct{}),
 		signalCh:         make(chan struct{}, maxPreNamespace),
 	}

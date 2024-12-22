@@ -18,7 +18,6 @@ package docloader
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/types"
 	"github.com/hyponet/webpage-packer/packer"
 	"strings"
 )
@@ -36,7 +35,7 @@ func NewHTML(docPath string, option map[string]string) Parser {
 	return HTML{docPath: docPath}
 }
 
-func (h HTML) Load(ctx context.Context) (result []types.FDocument, err error) {
+func (h HTML) Load(ctx context.Context) (result *FDocument, err error) {
 	var (
 		p       packer.Packer
 		docType = "html"
@@ -59,8 +58,8 @@ func (h HTML) Load(ctx context.Context) (result []types.FDocument, err error) {
 		return nil, err
 	}
 
-	return []types.FDocument{{
+	return &FDocument{
 		Content:  content,
-		Metadata: map[string]string{"type": docType},
-	}}, nil
+		Metadata: map[string]string{"org.basenana.document/type": docType},
+	}, nil
 }

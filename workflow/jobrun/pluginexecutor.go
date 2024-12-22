@@ -17,7 +17,6 @@
 package jobrun
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -30,6 +29,7 @@ import (
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
+	"path"
 	"time"
 )
 
@@ -42,29 +42,30 @@ func newExecutor(ctrl *Controller, job *types.WorkflowJob) flow.Executor {
 	switch job.QueueName {
 	case types.WorkflowQueuePipe:
 		return &pipeExecutor{
-			job:      job,
-			entryMgr: ctrl.entryMgr,
-			docMgr:   ctrl.docMgr,
-			config:   ctrl.config,
-			logger:   logger.NewLogger("pipeExecutor").With(zap.String("job", job.Id)),
+			job:       job,
+			pluginMgr: ctrl.pluginMgr,
+			entryMgr:  ctrl.entryMgr,
+			docMgr:    ctrl.docMgr,
+			logger:    logger.NewLogger("pipeExecutor").With(zap.String("job", job.Id)),
 		}
 	default:
 		return &fileExecutor{
-			job:      job,
-			entryMgr: ctrl.entryMgr,
-			docMgr:   ctrl.docMgr,
-			config:   ctrl.config,
-			logger:   logger.NewLogger("fileExecutor").With(zap.String("job", job.Id)),
+			job:       job,
+			pluginMgr: ctrl.pluginMgr,
+			entryMgr:  ctrl.entryMgr,
+			docMgr:    ctrl.docMgr,
+			workdir:   path.Join(ctrl.workdir, fmt.Sprintf("job-%s", job.Id)),
+			logger:    logger.NewLogger("fileExecutor").With(zap.String("job", job.Id)),
 		}
 	}
 }
 
 type pipeExecutor struct {
-	job      *types.WorkflowJob
-	entryMgr dentry.Manager
-	docMgr   document.Manager
-	config   Config
-	logger   *zap.SugaredLogger
+	job       *types.WorkflowJob
+	pluginMgr *plugin.Manager
+	entryMgr  dentry.Manager
+	docMgr    document.Manager
+	logger    *zap.SugaredLogger
 
 	ctxResults pluginapi.Results
 	targets    []*types.Metadata
@@ -116,9 +117,16 @@ func (p *pipeExecutor) Exec(ctx context.Context, flow *flow.Flow, task flow.Task
 			Parameters: make(map[string]string),
 		})
 	}
-	err = callPlugin(ctx, p.job, *t.step.Plugin, p.entryMgr, req, p.ctxResults, p.logger)
+	var resp *pluginapi.Response
+	resp, err = callPlugin(ctx, p.job, *t.step.Plugin, p.pluginMgr, p.entryMgr, req, p.logger)
 	if err != nil {
 		return logOperationError(DataPipeExecName, "call_plugin", err)
+	}
+
+	for k, v := range resp.Results {
+		if err = p.ctxResults.Set(k, v); err != nil {
+			return logOperationError(DataPipeExecName, "update_context", err)
+		}
 	}
 	return
 }
@@ -128,10 +136,10 @@ func (p *pipeExecutor) Teardown(ctx context.Context) error {
 }
 
 type fileExecutor struct {
-	job      *types.WorkflowJob
-	entryMgr dentry.Manager
-	docMgr   document.Manager
-	config   Config
+	job       *types.WorkflowJob
+	entryMgr  dentry.Manager
+	pluginMgr *plugin.Manager
+	docMgr    document.Manager
 
 	workdir    string
 	entryPath  string
@@ -149,7 +157,7 @@ func (b *fileExecutor) Setup(ctx context.Context) (err error) {
 	defer logOperationLatency(FileExecName, "setup", startAt)
 
 	// init workdir and copy entry file
-	b.workdir, err = initWorkdir(ctx, b.config.JobWorkdir, b.job)
+	err = initWorkdir(ctx, b.workdir, b.job)
 	if err != nil {
 		b.logger.Errorw("init job workdir failed", "err", err)
 		return logOperationError(FileExecName, "setup", err)
@@ -204,22 +212,31 @@ func (b *fileExecutor) Exec(ctx context.Context, flow *flow.Flow, task flow.Task
 	req.CacheData = b.cachedData
 	req.ContextResults = b.ctxResults
 
-	err = callPlugin(ctx, b.job, *t.step.Plugin, b.entryMgr, req, b.ctxResults, b.logger)
+	var resp *pluginapi.Response
+	resp, err = callPlugin(ctx, b.job, *t.step.Plugin, b.pluginMgr, b.entryMgr, req, b.logger)
+	if err != nil {
+		return logOperationError(FileExecName, "call_plugin", err)
+	}
+
+	for k, v := range resp.Results {
+		if err = b.ctxResults.Set(k, v); err != nil {
+			return logOperationError(FileExecName, "update_context", err)
+		}
+	}
+
+	err = b.tryCollect(ctx, resp)
+	if err != nil {
+		return logOperationError(FileExecName, "collect_data", err)
+	}
 	return
 }
 
-func (b *fileExecutor) Collect(ctx context.Context) error {
+func (b *fileExecutor) tryCollect(ctx context.Context, resp *pluginapi.Response) error {
 	startAt := time.Now()
 	defer logOperationLatency(FileExecName, "collect", startAt)
-	if b.ctxResults.IsSet(pluginapi.ResCollectManifests) {
-		var manifests []pluginapi.CollectManifest
-		if err := b.ctxResults.Load(pluginapi.ResCollectManifests, &manifests); err != nil {
-			msg := fmt.Sprintf("collect manifest objects failed: %s", err)
-			b.logger.Error(msg)
-			return logOperationError(FileExecName, "collect", fmt.Errorf(msg))
-		}
+	if len(resp.NewEntries) > 0 {
 		// collect files
-		err := b.collectFiles(ctx, manifests)
+		err := b.collectEntries(ctx, resp.NewEntries)
 		if err != nil {
 			return err
 		}
@@ -233,51 +250,35 @@ func (b *fileExecutor) Collect(ctx context.Context) error {
 		}
 	}
 
-	if b.ctxResults.IsSet(pluginapi.ResEntryDocumentsKey) {
-		var docs []types.FDocument
-		if err := b.ctxResults.Load(pluginapi.ResEntryDocumentsKey, &docs); err != nil {
-			msg := fmt.Sprintf("collect document objects failed: %s", err)
-			b.logger.Error(msg)
-			return logOperationError(FileExecName, "collect", fmt.Errorf(msg))
-		}
-
-		buf := bytes.Buffer{}
-		for _, doc := range docs {
-			buf.WriteString(doc.Content)
-			buf.WriteString("\n")
-		}
-
-		// collect documents
-		var entryID = b.job.Target.EntryID
-		err := b.collectDocuments(ctx, entryID, buf)
-		if err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
-func (b *fileExecutor) collectFiles(ctx context.Context, manifests []pluginapi.CollectManifest) error {
+func (b *fileExecutor) collectEntries(ctx context.Context, manifests []pluginapi.CollectManifest) error {
 	b.logger.Infow("collect files", "manifests", len(manifests))
 	var errList []error
 	for _, manifest := range manifests {
-		for _, file := range manifest.NewFiles {
+		for i := range manifest.NewFiles {
+			file := &(manifest.NewFiles[i])
 			if err := collectFile2BaseEntry(ctx, b.entryMgr, manifest.BaseEntry, b.workdir, file); err != nil {
 				b.logger.Errorw("collect file to base entry failed", "entry", manifest.BaseEntry, "newFile", file.Name, "err", err)
 				errList = append(errList, err)
+				continue
+			}
+
+			if file.Document != nil {
+				if file.ID == 0 {
+					errList = append(errList, fmt.Errorf("collect document %s error: entry id is empty", file.Document.Title))
+					continue
+				}
+				b.logger.Infow("collect documents", "entryId", file.ID)
+				if err := collectFile2Document(ctx, b.docMgr, b.entryMgr, file.ID, file.Document); err != nil {
+					return logOperationError(FileExecName, "collect", err)
+				}
 			}
 		}
 	}
 	if len(errList) > 0 {
 		err := fmt.Errorf("collect file to base entry failed: %s, there are %d more similar errors", errList[0], len(errList))
-		return logOperationError(FileExecName, "collect", err)
-	}
-	return nil
-}
-
-func (b *fileExecutor) collectDocuments(ctx context.Context, entryId int64, content bytes.Buffer) error {
-	b.logger.Infow("collect documents", "entryId", entryId)
-	if err := collectFile2Document(ctx, b.docMgr, b.entryMgr, entryId, content); err != nil {
 		return logOperationError(FileExecName, "collect", err)
 	}
 	return nil
@@ -295,13 +296,13 @@ func (b *fileExecutor) Teardown(ctx context.Context) error {
 	return nil
 }
 
-func callPlugin(ctx context.Context, job *types.WorkflowJob, ps types.PlugScope,
-	entryMgr dentry.Manager, req *pluginapi.Request, ctxResults pluginapi.Results, logger *zap.SugaredLogger) (err error) {
+func callPlugin(ctx context.Context, job *types.WorkflowJob, ps types.PlugScope, mgr *plugin.Manager,
+	entryMgr dentry.Manager, req *pluginapi.Request, logger *zap.SugaredLogger) (*pluginapi.Response, error) {
 	if job.Target.ParentEntryID != 0 {
 		ed, err := entryMgr.GetEntryExtendData(ctx, job.Target.ParentEntryID)
 		if err != nil {
 			err = fmt.Errorf("get parent entry extend data error: %s", err)
-			return err
+			return nil, err
 		}
 		if ed.PlugScope != nil {
 			ps = mergeParentEntryPlugScope(ps, *ed.PlugScope)
@@ -310,7 +311,7 @@ func callPlugin(ctx context.Context, job *types.WorkflowJob, ps types.PlugScope,
 		properties, err := entryMgr.ListEntryProperty(ctx, job.Target.ParentEntryID)
 		if err != nil {
 			err = fmt.Errorf("get parent entry properties error: %w", err)
-			return err
+			return nil, err
 		}
 		for k, v := range properties.Fields {
 			val := v.Value
@@ -325,30 +326,15 @@ func callPlugin(ctx context.Context, job *types.WorkflowJob, ps types.PlugScope,
 		}
 	}
 
-	if ps.PluginType == types.TypeSource {
-		info, err := plugin.SourceInfo(ctx, ps)
-		if err != nil {
-			err = fmt.Errorf("get source info error: %s", err)
-			return err
-		}
-		logger.Infow("running source plugin", "plugin", ps.PluginName, "source", info)
-	}
-
 	req.Action = ps.Action
-	resp, err := plugin.Call(ctx, ps, req)
+	resp, err := mgr.Call(ctx, job, ps, req)
 	if err != nil {
 		err = fmt.Errorf("plugin action error: %s", err)
-		return err
+		return nil, err
 	}
 	if !resp.IsSucceed {
 		err = fmt.Errorf("plugin action failed: %s", resp.Message)
-		return err
+		return nil, err
 	}
-	if len(resp.Results) > 0 {
-		if err = ctxResults.SetAll(resp.Results); err != nil {
-			logger.Errorw("set context result error", "err", err)
-			return err
-		}
-	}
-	return err
+	return resp, nil
 }

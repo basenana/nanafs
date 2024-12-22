@@ -202,7 +202,7 @@ func (w workflowExecutor) execute(ctx context.Context, task *types.ScheduledTask
 			tgt.EntryID = en.ID
 			tgt.ParentEntryID = en.ParentID
 		}
-		job, err = w.manager.TriggerWorkflow(ctx, wf.Id, tgt, workflow.JobAttr{Reason: fmt.Sprintf("event: entry created")})
+		job, err = w.manager.TriggerWorkflow(ctx, "", wf.Id, tgt, workflow.JobAttr{Reason: fmt.Sprintf("event: entry created")})
 		if err != nil {
 			w.logger.Errorw("[workflowAutoTrigger] workflow trigger failed", "entry", en.ID, "workflow", wf.Id, "err", err)
 			continue

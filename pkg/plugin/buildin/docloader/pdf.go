@@ -17,11 +17,10 @@
 package docloader
 
 import (
+	"bytes"
 	"context"
-	"github.com/basenana/nanafs/pkg/types"
 	"github.com/ledongthuc/pdf"
 	"os"
-	"strconv"
 )
 
 const (
@@ -41,7 +40,7 @@ func newPDFWithPassword(docPath, pass string) Parser {
 	return &PDF{docPath: docPath, password: pass}
 }
 
-func (p *PDF) Load(_ context.Context) ([]types.FDocument, error) {
+func (p *PDF) Load(_ context.Context) (*FDocument, error) {
 	fInfo, err := os.Stat(p.docPath)
 	if err != nil {
 		return nil, err
@@ -68,10 +67,10 @@ func (p *PDF) Load(_ context.Context) ([]types.FDocument, error) {
 
 	var (
 		numPages = reader.NumPage()
-		result   = make([]types.FDocument, 0)
 	)
 
 	fonts := make(map[string]*pdf.Font)
+	buf := &bytes.Buffer{}
 	for i := 1; i < numPages+1; i++ {
 		page := reader.Page(i)
 		for _, name := range page.Fonts() {
@@ -86,17 +85,15 @@ func (p *PDF) Load(_ context.Context) ([]types.FDocument, error) {
 		}
 
 		// TODO: using HTML fmt?
-		result = append(result, types.FDocument{
-			Content: text,
-			Metadata: map[string]string{
-				"type":        "pdf",
-				"page":        strconv.Itoa(i),
-				"total_pages": strconv.Itoa(numPages),
-			},
-		})
+		buf.WriteString(text)
 	}
 
-	return result, nil
+	return &FDocument{
+		Content: buf.String(),
+		Metadata: map[string]string{
+			"org.basenana.document/type": "pdf",
+		},
+	}, nil
 }
 
 func (p *PDF) getAndCleanPassword() string {

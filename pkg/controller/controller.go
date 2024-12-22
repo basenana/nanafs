@@ -25,9 +25,8 @@ import (
 	"github.com/basenana/nanafs/pkg/dialogue"
 	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/inbox"
-	"github.com/basenana/nanafs/pkg/plugin"
-	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"github.com/basenana/nanafs/pkg/token"
+	"github.com/basenana/nanafs/workflow"
 
 	"go.uber.org/zap"
 
@@ -37,7 +36,6 @@ import (
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/pkg/workflow"
 	"github.com/basenana/nanafs/utils/logger"
 )
 
@@ -99,19 +97,6 @@ type Controller interface {
 	WriteFile(ctx context.Context, file dentry.File, data []byte, offset int64) (n int64, err error)
 	CloseFile(ctx context.Context, file dentry.File) error
 
-	ListWorkflows(ctx context.Context) ([]*types.Workflow, error)
-	GetWorkflow(ctx context.Context, wfId string) (*types.Workflow, error)
-	CreateWorkflow(ctx context.Context, spec *types.Workflow) (*types.Workflow, error)
-	UpdateWorkflow(ctx context.Context, spec *types.Workflow) (*types.Workflow, error)
-	DeleteWorkflow(ctx context.Context, wfId string) error
-	ListJobs(ctx context.Context, wfId string) ([]*types.WorkflowJob, error)
-	GetJob(ctx context.Context, wfId string, jobID string) (*types.WorkflowJob, error)
-
-	TriggerWorkflow(ctx context.Context, wfId string, tgt types.WorkflowTarget, attr workflow.JobAttr) (*types.WorkflowJob, error)
-	PauseWorkflowJob(ctx context.Context, jobId string) error
-	ResumeWorkflowJob(ctx context.Context, jobId string) error
-	CancelWorkflowJob(ctx context.Context, jobId string) error
-
 	FsInfo(ctx context.Context) Info
 	StartBackendTask(stopCh chan struct{})
 	SetupShutdownHandler(stopCh chan struct{}) chan struct{}
@@ -126,7 +111,7 @@ type controller struct {
 
 	entry    dentry.Manager
 	notify   *notify.Notify
-	workflow workflow.Manager
+	workflow workflow.Workflow
 	document document.Manager
 	dialogue dialogue.Manager
 	token    *token.Manager
@@ -135,6 +120,9 @@ type controller struct {
 }
 
 var _ Controller = &controller{}
+
+func (c *controller) StartBackendTask(stopCh chan struct{}) {
+}
 
 func (c *controller) CreateNamespace(ctx context.Context, namespace string) (*types.Namespace, error) {
 	defer trace.StartRegion(ctx, "controller.CreateNamespace").End()
@@ -427,19 +415,6 @@ func New(loader config.Loader, meta metastore.Meta, fridayClient friday.Friday) 
 	}
 
 	ctl.dialogue, err = dialogue.NewManager(meta, ctl.entry)
-	if err != nil {
-		return nil, err
-	}
-
-	if err = plugin.Init(buildin.Services{DocumentManager: ctl.document, ExtendFieldManager: ctl.entry}, loader); err != nil {
-		return nil, err
-	}
-	ctl.workflow, err = workflow.NewManager(ctl.entry, ctl.document, ctl.Notify, meta, loader)
-	if err != nil {
-		return nil, err
-	}
-
-	ctl.Inbox, err = inbox.New(ctl.entry, ctl.workflow)
 	if err != nil {
 		return nil, err
 	}
