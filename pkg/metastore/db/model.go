@@ -385,11 +385,13 @@ func (o *Workflow) From(wf *types.Workflow) (*Workflow, error) {
 	o.UpdatedAt = wf.UpdatedAt
 	o.LastTriggeredAt = wf.LastTriggeredAt
 
-	rawRule, err := json.Marshal(wf.Rule)
-	if err != nil {
-		return o, fmt.Errorf("marshal workflow rule config failed: %s", err)
+	if wf.Rule != nil {
+		rawRule, err := json.Marshal(wf.Rule)
+		if err != nil {
+			return o, fmt.Errorf("marshal workflow rule config failed: %s", err)
+		}
+		o.Rule = string(rawRule)
 	}
-	o.Rule = string(rawRule)
 
 	rawSteps, err := json.Marshal(wf.Steps)
 	if err != nil {
@@ -413,9 +415,12 @@ func (o *Workflow) To() (*types.Workflow, error) {
 		LastTriggeredAt: o.LastTriggeredAt,
 	}
 
-	if err := json.Unmarshal([]byte(o.Rule), &result.Rule); err != nil {
-		return nil, fmt.Errorf("load workflow rule config failed: %s", err)
+	if o.Rule != "" {
+		if err := json.Unmarshal([]byte(o.Rule), &result.Rule); err != nil {
+			return nil, fmt.Errorf("load workflow rule config failed: %s", err)
+		}
 	}
+
 	if err := json.Unmarshal([]byte(o.Steps), &result.Steps); err != nil {
 		return nil, fmt.Errorf("load workflow steps config failed: %s", err)
 	}

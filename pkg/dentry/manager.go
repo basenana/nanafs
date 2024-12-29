@@ -119,7 +119,7 @@ func (m *manager) Root(ctx context.Context) (*types.Metadata, error) {
 		err    error
 	)
 	ns := types.GetNamespace(ctx)
-	if ns.String() != types.DefaultNamespaceValue {
+	if ns.String() != types.DefaultNamespace {
 		nsRoot, err = m.store.FindEntry(ctx, RootEntryID, ns.String())
 		if err != nil {
 			m.logger.Errorw("load ns root object error", "namespace", ns.String(), "err", err)

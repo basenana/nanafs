@@ -36,7 +36,6 @@ import (
 	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/inbox"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 )
@@ -56,7 +55,7 @@ func InitServices(server *grpc.Server, ctrl controller.Controller, depends *fs.D
 		ctrl:         ctrl,
 		workflow:     depends.Workflow,
 		pathEntryMgr: pathEntryMgr,
-		callerAuthFn: callerAuthGetter,
+		callerAuthFn: common.CallerAuth,
 		logger:       logger.NewLogger("fsapi"),
 	}
 
@@ -899,25 +898,7 @@ func (s *services) ReadFile(request *ReadFileRequest, writer Entries_ReadFileSer
 }
 
 func (s *services) QuickInbox(ctx context.Context, request *QuickInboxRequest) (*QuickInboxResponse, error) {
-	option := inbox.Option{
-		Url:         request.Url,
-		Data:        request.Data,
-		ClutterFree: request.ClutterFree,
-	}
-	switch request.FileType {
-	case WebFileType_BookmarkFile:
-		option.FileType = "url"
-	case WebFileType_WebArchiveFile:
-		option.FileType = "webarchive"
-	case WebFileType_HtmlFile:
-		option.FileType = "html"
-	}
-	en, err := s.ctrl.QuickInbox(ctx, request.Filename, option)
-	if err != nil {
-		s.logger.Errorw("quick inbox failed", "err", err)
-		return nil, status.Error(common.FsApiError(err), "quick inbox failed")
-	}
-	return &QuickInboxResponse{EntryID: en.ID}, nil
+	return nil, status.Error(codes.PermissionDenied, "quick inbox api will remove")
 }
 
 func (s *services) AddProperty(ctx context.Context, request *AddPropertyRequest) (*AddPropertyResponse, error) {
@@ -1037,12 +1018,12 @@ func (s *services) CommitSyncedEvent(ctx context.Context, request *CommitSyncedE
 }
 
 func (s *services) ListWorkflows(ctx context.Context, request *ListWorkflowsRequest) (*ListWorkflowsResponse, error) {
-	ns, err := s.namespace(ctx)
-	if err != nil {
-		return nil, err
+	caller := s.callerAuthFn(ctx)
+	if !caller.Authenticated {
+		return nil, status.Errorf(codes.Unauthenticated, "unauthenticated")
 	}
 
-	workflowList, err := s.workflow.ListWorkflows(ctx, ns)
+	workflowList, err := s.workflow.ListWorkflows(ctx, caller.Namespace)
 	if err != nil {
 		s.logger.Errorw("list workflow failed", "err", err)
 		return nil, status.Error(common.FsApiError(err), "list workflow failed")
@@ -1056,16 +1037,16 @@ func (s *services) ListWorkflows(ctx context.Context, request *ListWorkflowsRequ
 }
 
 func (s *services) ListWorkflowJobs(ctx context.Context, request *ListWorkflowJobsRequest) (*ListWorkflowJobsResponse, error) {
+	caller := s.callerAuthFn(ctx)
+	if !caller.Authenticated {
+		return nil, status.Errorf(codes.Unauthenticated, "unauthenticated")
+	}
+
 	if request.WorkflowID == "" {
 		return nil, status.Error(codes.InvalidArgument, "invalid workflow id")
 	}
 
-	ns, err := s.namespace(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	jobs, err := s.workflow.ListJobs(ctx, ns, request.WorkflowID)
+	jobs, err := s.workflow.ListJobs(ctx, caller.Namespace, request.WorkflowID)
 	if err != nil {
 		s.logger.Errorw("list workflow job failed", "err", err)
 		return nil, status.Error(common.FsApiError(err), "list workflow job failed")
@@ -1079,10 +1060,9 @@ func (s *services) ListWorkflowJobs(ctx context.Context, request *ListWorkflowJo
 }
 
 func (s *services) TriggerWorkflow(ctx context.Context, request *TriggerWorkflowRequest) (*TriggerWorkflowResponse, error) {
-	s.logger.Infow("trigger workflow", "workflow", request.WorkflowID)
-	ns, err := s.namespace(ctx)
-	if err != nil {
-		return nil, err
+	caller := s.callerAuthFn(ctx)
+	if !caller.Authenticated {
+		return nil, status.Errorf(codes.Unauthenticated, "unauthenticated")
 	}
 
 	if request.WorkflowID == "" {
@@ -1092,7 +1072,8 @@ func (s *services) TriggerWorkflow(ctx context.Context, request *TriggerWorkflow
 		return nil, status.Error(codes.InvalidArgument, "workflow target is empty")
 	}
 
-	if _, err := s.workflow.GetWorkflow(ctx, ns, request.WorkflowID); err != nil {
+	s.logger.Infow("trigger workflow", "workflow", request.WorkflowID)
+	if _, err := s.workflow.GetWorkflow(ctx, caller.Namespace, request.WorkflowID); err != nil {
 		return nil, status.Error(common.FsApiError(err), "fetch workflow failed")
 	}
 
@@ -1103,7 +1084,7 @@ func (s *services) TriggerWorkflow(ctx context.Context, request *TriggerWorkflow
 		}
 	}
 
-	job, err := s.workflow.TriggerWorkflow(ctx, ns, request.WorkflowID,
+	job, err := s.workflow.TriggerWorkflow(ctx, caller.Namespace, request.WorkflowID,
 		types.WorkflowTarget{EntryID: request.Target.EntryID, ParentEntryID: request.Target.ParentEntryID},
 		workflow.JobAttr{Reason: request.Attr.Reason, Timeout: time.Second * time.Duration(request.Attr.Timeout)},
 	)

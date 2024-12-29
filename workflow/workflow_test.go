@@ -29,8 +29,8 @@ var _ = Describe("TestWorkflowManage", func() {
 	var (
 		ctx = context.TODO()
 		wf  = &types.Workflow{
-			Name: "test-create-workflow-1",
-			Rule: types.Rule{},
+			Name:      "test-create-workflow-1",
+			Namespace: namespace,
 			Steps: []types.WorkflowStepSpec{
 				{
 					Name: "step-1",
@@ -85,7 +85,8 @@ var _ = Describe("TestWorkflowManage", func() {
 
 	Context("delete workflow", func() {
 		It("delete workflow should be succeed", func() {
-			Expect(mgr.DeleteWorkflow(ctx, namespace, wf.Id)).Should(BeNil())
+			err := mgr.DeleteWorkflow(ctx, namespace, wf.Id)
+			Expect(err).Should(BeNil())
 		})
 		It("query deleted workflow should be error", func() {
 			_, err := mgr.GetWorkflow(ctx, namespace, wf.Id)
@@ -105,8 +106,8 @@ var _ = Describe("TestWorkflowJobManage", func() {
 			Parameters: map[string]string{"delay": "1s"},
 		}
 		wf = &types.Workflow{
-			Name: "test-trigger-workflow-1",
-			Rule: types.Rule{},
+			Name:      "test-trigger-workflow-1",
+			Namespace: namespace,
 			Steps: []types.WorkflowStepSpec{
 				{Name: "step-1", Plugin: ps},
 				{Name: "step-2", Plugin: ps},

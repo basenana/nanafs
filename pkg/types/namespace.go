@@ -19,9 +19,10 @@ package types
 import "context"
 
 const (
-	NamespaceKey          = "namespace"
-	DefaultNamespaceValue = "global" // TODO: using 'public'
-	GlobalNamespaceValue  = "global"
+	NamespaceKey         = "namespace"
+	AllNamespace         = ""
+	DefaultNamespace     = "default"
+	GlobalNamespaceValue = "global"
 )
 
 type Namespace struct {
@@ -38,7 +39,7 @@ func (n *Namespace) String() string {
 
 func GetNamespace(ctx context.Context) (ns *Namespace) {
 	ns = &Namespace{
-		name: DefaultNamespaceValue,
+		name: DefaultNamespace,
 	}
 	if ctx.Value(NamespaceKey) != nil {
 		ns.name = ctx.Value(NamespaceKey).(string)

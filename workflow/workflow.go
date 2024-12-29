@@ -60,6 +60,7 @@ type manager struct {
 	notify   *notify.Notify
 	recorder metastore.ScheduledTaskRecorder
 	config   config.Loader
+	hooks    *hooks
 	logger   *zap.SugaredLogger
 }
 
@@ -87,15 +88,17 @@ func New(entryMgr dentry.Manager, docMgr document.Manager, notify *notify.Notify
 	}
 	flowCtrl := jobrun.NewJobController(pluginMgr, entryMgr, docMgr, recorder, notify, jobWorkdir)
 	mgr := &manager{ctrl: flowCtrl, entryMgr: entryMgr, docMgr: docMgr, recorder: recorder, config: cfg, logger: wfLogger}
+	mgr.hooks = initHooks(mgr)
 
 	return mgr, nil
 }
 func (m *manager) Start(ctx context.Context) {
 	m.ctrl.Start(ctx)
+	m.hooks.start(ctx)
 }
 
 func (m *manager) ListWorkflows(ctx context.Context, namespace string) ([]*types.Workflow, error) {
-	result, err := m.recorder.ListWorkflow(ctx)
+	result, err := m.recorder.ListWorkflows(ctx, namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -103,36 +106,40 @@ func (m *manager) ListWorkflows(ctx context.Context, namespace string) ([]*types
 }
 
 func (m *manager) GetWorkflow(ctx context.Context, namespace string, wfId string) (*types.Workflow, error) {
-	return m.recorder.GetWorkflow(ctx, wfId)
+	return m.recorder.GetWorkflow(ctx, namespace, wfId)
 }
 
-func (m *manager) CreateWorkflow(ctx context.Context, namespace string, spec *types.Workflow) (*types.Workflow, error) {
-	if spec.Name == "" {
+func (m *manager) CreateWorkflow(ctx context.Context, namespace string, workflow *types.Workflow) (*types.Workflow, error) {
+	if workflow.Name == "" {
 		return nil, fmt.Errorf("workflow name is empty")
 	}
-	spec = initWorkflow(spec)
-	err := validateWorkflowSpec(spec)
+	workflow = initWorkflow(namespace, workflow)
+	err := validateWorkflowSpec(workflow)
 	if err != nil {
 		return nil, err
 	}
-
-	if err = m.recorder.SaveWorkflow(ctx, spec); err != nil {
+	workflow.System = false
+	if err = m.recorder.SaveWorkflow(ctx, namespace, workflow); err != nil {
 		return nil, err
 	}
-	return spec, nil
+
+	m.hooks.handleWorkflowUpdate(workflow)
+	return workflow, nil
 }
 
-func (m *manager) UpdateWorkflow(ctx context.Context, namespace string, spec *types.Workflow) (*types.Workflow, error) {
-	err := validateWorkflowSpec(spec)
+func (m *manager) UpdateWorkflow(ctx context.Context, namespace string, workflow *types.Workflow) (*types.Workflow, error) {
+	workflow.Namespace = namespace
+	err := validateWorkflowSpec(workflow)
 	if err != nil {
 		return nil, err
 	}
-	spec.UpdatedAt = time.Now()
-	if err = m.recorder.SaveWorkflow(ctx, spec); err != nil {
+	workflow.UpdatedAt = time.Now()
+	if err = m.recorder.SaveWorkflow(ctx, namespace, workflow); err != nil {
 		return nil, err
 	}
 
-	return spec, nil
+	m.hooks.handleWorkflowUpdate(workflow)
+	return workflow, nil
 }
 
 func (m *manager) DeleteWorkflow(ctx context.Context, namespace string, wfId string) error {
@@ -151,11 +158,16 @@ func (m *manager) DeleteWorkflow(ctx context.Context, namespace string, wfId str
 		return fmt.Errorf("has running jobs: [%s]", strings.Join(runningJobs, ","))
 	}
 
-	return m.recorder.DeleteWorkflow(ctx, wfId)
+	err = m.recorder.DeleteWorkflow(ctx, namespace, wfId)
+	if err != nil {
+		return err
+	}
+	m.hooks.handleWorkflowDelete(namespace, wfId)
+	return nil
 }
 
 func (m *manager) GetJob(ctx context.Context, namespace string, wfId string, jobID string) (*types.WorkflowJob, error) {
-	result, err := m.recorder.GetWorkflowJob(ctx, jobID)
+	result, err := m.recorder.GetWorkflowJob(ctx, namespace, jobID)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +175,7 @@ func (m *manager) GetJob(ctx context.Context, namespace string, wfId string, job
 }
 
 func (m *manager) ListJobs(ctx context.Context, namespace string, wfId string) ([]*types.WorkflowJob, error) {
-	result, err := m.recorder.ListWorkflowJob(ctx, types.JobFilter{WorkFlowID: wfId})
+	result, err := m.recorder.ListWorkflowJobs(ctx, namespace, types.JobFilter{WorkFlowID: wfId})
 	if err != nil {
 		return nil, err
 	}
@@ -213,12 +225,12 @@ func (m *manager) TriggerWorkflow(ctx context.Context, namespace string, wfId st
 	job.TimeoutSeconds = int(attr.Timeout.Seconds())
 	job.TriggerReason = attr.Reason
 
-	err = m.recorder.SaveWorkflowJob(ctx, job)
+	err = m.recorder.SaveWorkflowJob(ctx, namespace, job)
 	if err != nil {
 		return nil, err
 	}
 
-	if err = m.ctrl.TriggerJob(ctx, job.Id); err != nil {
+	if err = m.ctrl.TriggerJob(ctx, job.Namespace, job.Id); err != nil {
 		m.logger.Errorw("trigger job flow failed", "job", job.Id, "err", err)
 		return nil, err
 	}
@@ -226,36 +238,36 @@ func (m *manager) TriggerWorkflow(ctx context.Context, namespace string, wfId st
 }
 
 func (m *manager) PauseWorkflowJob(ctx context.Context, namespace string, jobId string) error {
-	job, err := m.recorder.GetWorkflowJob(ctx, jobId)
+	job, err := m.recorder.GetWorkflowJob(ctx, namespace, jobId)
 	if err != nil {
 		return err
 	}
 	if job.Status != jobrun.RunningStatus {
 		return fmt.Errorf("pausing is not supported in non-running state")
 	}
-	return m.ctrl.PauseJob(jobId)
+	return m.ctrl.PauseJob(namespace, jobId)
 }
 
 func (m *manager) ResumeWorkflowJob(ctx context.Context, namespace string, jobId string) error {
-	job, err := m.recorder.GetWorkflowJob(ctx, jobId)
+	job, err := m.recorder.GetWorkflowJob(ctx, namespace, jobId)
 	if err != nil {
 		return err
 	}
 	if job.Status != jobrun.PausedStatus {
 		return fmt.Errorf("resuming is not supported in non-paused state")
 	}
-	return m.ctrl.ResumeJob(jobId)
+	return m.ctrl.ResumeJob(namespace, jobId)
 }
 
 func (m *manager) CancelWorkflowJob(ctx context.Context, namespace string, jobId string) error {
-	job, err := m.recorder.GetWorkflowJob(ctx, jobId)
+	job, err := m.recorder.GetWorkflowJob(ctx, namespace, jobId)
 	if err != nil {
 		return err
 	}
 	if !job.FinishAt.IsZero() {
 		return fmt.Errorf("canceling is not supported in finished state")
 	}
-	return m.ctrl.CancelJob(jobId)
+	return m.ctrl.CancelJob(namespace, jobId)
 }
 
 type JobAttr struct {

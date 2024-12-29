@@ -39,12 +39,12 @@ func TestObjectFilter(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		filter types.Rule
+		filter *types.Rule
 		want   bool
 	}{
 		{
 			name: "test-all-need-true",
-			filter: types.Rule{
+			filter: &types.Rule{
 				Logic: types.RuleLogicAll,
 				Rules: []types.Rule{
 					{
@@ -73,7 +73,7 @@ func TestObjectFilter(t *testing.T) {
 		},
 		{
 			name: "test-all-need-false",
-			filter: types.Rule{
+			filter: &types.Rule{
 				Logic: types.RuleLogicAll,
 				Rules: []types.Rule{
 					{
@@ -97,7 +97,7 @@ func TestObjectFilter(t *testing.T) {
 		},
 		{
 			name: "test-or-need-true",
-			filter: types.Rule{
+			filter: &types.Rule{
 				Logic: types.RuleLogicAny,
 				Rules: []types.Rule{
 					{
@@ -121,7 +121,7 @@ func TestObjectFilter(t *testing.T) {
 		},
 		{
 			name: "test-or-need-false",
-			filter: types.Rule{
+			filter: &types.Rule{
 				Logic: types.RuleLogicAny,
 				Rules: []types.Rule{
 					{
@@ -145,7 +145,7 @@ func TestObjectFilter(t *testing.T) {
 		},
 		{
 			name: "test-not-need-true",
-			filter: types.Rule{
+			filter: &types.Rule{
 				Logic: types.RuleLogicNot,
 				Rules: []types.Rule{
 					{
@@ -169,7 +169,7 @@ func TestObjectFilter(t *testing.T) {
 		},
 		{
 			name: "test-not-need-false",
-			filter: types.Rule{
+			filter: &types.Rule{
 				Logic: types.RuleLogicNot,
 				Rules: []types.Rule{
 					{

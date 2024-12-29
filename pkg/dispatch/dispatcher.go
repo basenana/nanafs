@@ -33,7 +33,6 @@ import (
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
-	"github.com/basenana/nanafs/workflow"
 )
 
 var taskExecutionInterval = 5 * time.Minute
@@ -216,7 +215,7 @@ func (d *Dispatcher) registerRoutineTask(periodH int, task routineTask) {
 	}
 }
 
-func Init(entry dentry.Manager, doc document.Manager, wfMgr workflow.Workflow, notify *notify.Notify, recorder metastore.ScheduledTaskRecorder) (*Dispatcher, error) {
+func Init(entry dentry.Manager, doc document.Manager, notify *notify.Notify, recorder metastore.ScheduledTaskRecorder) (*Dispatcher, error) {
 	d := &Dispatcher{
 		entry:     entry,
 		notify:    notify,
@@ -231,7 +230,7 @@ func Init(entry dentry.Manager, doc document.Manager, wfMgr workflow.Workflow, n
 		return nil, err
 	}
 
-	if err := registerWorkflowExecutor(d, entry, doc, wfMgr, recorder); err != nil {
+	if err := registerWorkflowExecutor(d, entry, doc, recorder); err != nil {
 		return nil, err
 	}
 

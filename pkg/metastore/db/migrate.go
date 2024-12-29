@@ -90,10 +90,6 @@ func buildMigrations() []*gormigrate.Migration {
 		{
 			ID: "2023122700",
 			Migrate: func(db *gorm.DB) error {
-				_ = db.Exec("UPDATE workflow SET queue_name='default' WHERE 1=1;")
-				_ = db.Exec("UPDATE workflow SET executor='local' WHERE 1=1;")
-				_ = db.Exec("UPDATE workflow_job SET queue_name='default' WHERE 1=1;")
-				_ = db.Exec("UPDATE workflow_job SET executor='local' WHERE 1=1;")
 				return nil
 			},
 			Rollback: func(db *gorm.DB) error {

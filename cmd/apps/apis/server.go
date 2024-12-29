@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/basenana/nanafs/fs"
 	"net/http"
 	"time"
 
@@ -124,7 +125,7 @@ func NewHttpApiServer(ctrl controller.Controller, mgr *pathmgr.PathManager, apiC
 	return s, nil
 }
 
-func Setup(ctrl controller.Controller, pathEntryMgr *pathmgr.PathManager, cfg config.Loader, stopCh chan struct{}) error {
+func Setup(ctrl controller.Controller, depends *fs.Depends, pathEntryMgr *pathmgr.PathManager, cfg config.Loader, stopCh chan struct{}) error {
 	var ctx = context.Background()
 
 	fsAPIEnable, err := cfg.GetSystemConfig(ctx, config.FsAPIConfigGroup, "enable").Bool()
@@ -132,7 +133,7 @@ func Setup(ctrl controller.Controller, pathEntryMgr *pathmgr.PathManager, cfg co
 		return fmt.Errorf("get fs api enable config failed: %w", err)
 	}
 	if fsAPIEnable {
-		s, err := fsapi.New(ctrl, pathEntryMgr, cfg)
+		s, err := fsapi.New(ctrl, depends, pathEntryMgr, cfg)
 		if err != nil {
 			return fmt.Errorf("init fsapi server failed: %w", err)
 		}

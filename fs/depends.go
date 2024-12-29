@@ -74,7 +74,7 @@ func InitDepends(loader config.Loader, meta metastore.Meta, fridayClient friday.
 		return nil, err
 	}
 
-	dep.Dispatcher, err = dispatch.Init(dep.Entry, dep.Document, dep.Workflow, dep.Notify, meta)
+	dep.Dispatcher, err = dispatch.Init(dep.Entry, dep.Document, dep.Notify, meta)
 	if err != nil {
 		return nil, err
 	}

@@ -94,9 +94,9 @@ func mergeLabelMatch(labelMatches []types.LabelMatch) types.LabelMatch {
 	return merged
 }
 
-func mergeRules(rules []types.Rule) types.Rule {
+func mergeRules(rules []types.Rule) *types.Rule {
 	if len(rules) == 1 {
-		return rules[0]
+		return &rules[0]
 	}
-	return types.Rule{Logic: types.RuleLogicAll, Rules: rules}
+	return &types.Rule{Logic: types.RuleLogicAll, Rules: rules}
 }

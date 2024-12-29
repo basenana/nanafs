@@ -35,19 +35,20 @@ const (
 	defaultJobTimeout = time.Hour * 3
 )
 
-func assembleWorkflowJob(spec *types.Workflow, tgt types.WorkflowTarget) (*types.WorkflowJob, error) {
+func assembleWorkflowJob(wf *types.Workflow, tgt types.WorkflowTarget) (*types.WorkflowJob, error) {
 	var globalParam = map[string]string{}
 	j := &types.WorkflowJob{
 		Id:        uuid.New().String(),
-		Workflow:  spec.Id,
+		Workflow:  wf.Id,
 		Target:    tgt,
 		Status:    jobrun.InitializingStatus,
-		QueueName: spec.QueueName,
+		Namespace: wf.Namespace,
+		QueueName: wf.QueueName,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
 
-	for _, stepSpec := range spec.Steps {
+	for _, stepSpec := range wf.Steps {
 		if stepSpec.Plugin != nil {
 			for k, v := range globalParam {
 				stepSpec.Plugin.Parameters[k] = v
@@ -83,10 +84,11 @@ func genDefaultJobRootWorkdir() (jobWorkdir string) {
 	return
 }
 
-func initWorkflow(wf *types.Workflow) *types.Workflow {
+func initWorkflow(namespace string, wf *types.Workflow) *types.Workflow {
 	if wf.Id == "" {
 		wf.Id = uuid.New().String()
 	}
+	wf.Namespace = namespace
 	wf.CreatedAt = time.Now()
 	wf.UpdatedAt = time.Now()
 	return wf

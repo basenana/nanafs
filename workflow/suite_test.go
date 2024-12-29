@@ -18,6 +18,7 @@ package workflow
 
 import (
 	"context"
+	"github.com/basenana/nanafs/pkg/types"
 	"os"
 	"testing"
 	"time"
@@ -45,7 +46,7 @@ var (
 	entryMgr  dentry.Manager
 	docMgr    document.Manager
 	mgr       Workflow
-	namespace = "test"
+	namespace = types.DefaultNamespace
 )
 
 func TestWorkflow(t *testing.T) {

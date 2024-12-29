@@ -29,10 +29,11 @@ type Workflow struct {
 	Id              string             `json:"id"`
 	Name            string             `json:"name"`
 	Namespace       string             `json:"namespace"`
-	Rule            Rule               `json:"rule,omitempty"`
+	Rule            *Rule              `json:"rule,omitempty"`
 	Cron            string             `json:"cron,omitempty"`
 	Steps           []WorkflowStepSpec `json:"steps,omitempty"`
 	Enable          bool               `json:"enable"`
+	System          bool               `json:"system"`
 	QueueName       string             `json:"queue_name"`
 	CreatedAt       time.Time          `json:"created_at,omitempty"`
 	UpdatedAt       time.Time          `json:"updated_at,omitempty"`

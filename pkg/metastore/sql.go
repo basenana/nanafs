@@ -278,58 +278,64 @@ func (s *sqliteMetaStore) DeleteFinishedTask(ctx context.Context, aliveTime time
 	return s.dbStore.DeleteFinishedTask(ctx, aliveTime)
 }
 
-func (s *sqliteMetaStore) GetWorkflow(ctx context.Context, wfID string) (*types.Workflow, error) {
+func (s *sqliteMetaStore) GetWorkflow(ctx context.Context, namespace string, wfID string) (*types.Workflow, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.GetWorkflow(ctx, wfID)
+	return s.dbStore.GetWorkflow(ctx, namespace, wfID)
 }
 
-func (s *sqliteMetaStore) ListGlobalWorkflow(ctx context.Context) ([]*types.Workflow, error) {
+func (s *sqliteMetaStore) ListAllNamespaceWorkflows(ctx context.Context) ([]*types.Workflow, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.ListGlobalWorkflow(ctx)
+	return s.dbStore.ListAllNamespaceWorkflows(ctx)
 }
 
-func (s *sqliteMetaStore) ListWorkflow(ctx context.Context) ([]*types.Workflow, error) {
+func (s *sqliteMetaStore) ListAllNamespaceWorkflowJobs(ctx context.Context, filter types.JobFilter) ([]*types.WorkflowJob, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.ListWorkflow(ctx)
+	return s.dbStore.ListAllNamespaceWorkflowJobs(ctx, filter)
 }
 
-func (s *sqliteMetaStore) DeleteWorkflow(ctx context.Context, wfID string) error {
+func (s *sqliteMetaStore) ListWorkflows(ctx context.Context, namespace string) ([]*types.Workflow, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.DeleteWorkflow(ctx, wfID)
+	return s.dbStore.ListWorkflows(ctx, namespace)
 }
 
-func (s *sqliteMetaStore) GetWorkflowJob(ctx context.Context, jobID string) (*types.WorkflowJob, error) {
+func (s *sqliteMetaStore) DeleteWorkflow(ctx context.Context, namespace string, wfID string) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.GetWorkflowJob(ctx, jobID)
+	return s.dbStore.DeleteWorkflow(ctx, namespace, wfID)
 }
 
-func (s *sqliteMetaStore) ListWorkflowJob(ctx context.Context, filter types.JobFilter) ([]*types.WorkflowJob, error) {
+func (s *sqliteMetaStore) GetWorkflowJob(ctx context.Context, namespace string, jobID string) (*types.WorkflowJob, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.ListWorkflowJob(ctx, filter)
+	return s.dbStore.GetWorkflowJob(ctx, namespace, jobID)
 }
 
-func (s *sqliteMetaStore) SaveWorkflow(ctx context.Context, wf *types.Workflow) error {
+func (s *sqliteMetaStore) ListWorkflowJobs(ctx context.Context, namespace string, filter types.JobFilter) ([]*types.WorkflowJob, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.SaveWorkflow(ctx, wf)
+	return s.dbStore.ListWorkflowJobs(ctx, namespace, filter)
 }
 
-func (s *sqliteMetaStore) SaveWorkflowJob(ctx context.Context, wf *types.WorkflowJob) error {
+func (s *sqliteMetaStore) SaveWorkflow(ctx context.Context, namespace string, wf *types.Workflow) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.SaveWorkflowJob(ctx, wf)
+	return s.dbStore.SaveWorkflow(ctx, namespace, wf)
 }
 
-func (s *sqliteMetaStore) DeleteWorkflowJob(ctx context.Context, wfJobID ...string) error {
+func (s *sqliteMetaStore) SaveWorkflowJob(ctx context.Context, namespace string, wf *types.WorkflowJob) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.DeleteWorkflowJob(ctx, wfJobID...)
+	return s.dbStore.SaveWorkflowJob(ctx, namespace, wf)
+}
+
+func (s *sqliteMetaStore) DeleteWorkflowJobs(ctx context.Context, wfJobID ...string) error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.DeleteWorkflowJobs(ctx, wfJobID...)
 }
 
 func (s *sqliteMetaStore) ListNotifications(ctx context.Context) ([]types.Notification, error) {
@@ -623,7 +629,7 @@ func (s *sqlMetaStore) SystemInfo(ctx context.Context) (*types.SystemInfo, error
 func (s *sqlMetaStore) GetConfigValue(ctx context.Context, group string, name string) (string, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.GetConfigValue").End()
 	var sysCfg = db.SystemConfig{}
-	res := s.WithNamespace(ctx).Where("cfg_group = ? AND cfg_name = ?", group, name).First(&sysCfg)
+	res := s.WithNamespaceInCtx(ctx).Where("cfg_group = ? AND cfg_name = ?", group, name).First(&sysCfg)
 	if res.Error != nil {
 		return "", db.SqlError2Error(res.Error)
 	}
@@ -633,7 +639,7 @@ func (s *sqlMetaStore) GetConfigValue(ctx context.Context, group string, name st
 func (s *sqlMetaStore) SetConfigValue(ctx context.Context, group, name, value string) error {
 	defer trace.StartRegion(ctx, "metastore.sql.SetConfigValue").End()
 	var sysCfg = db.SystemConfig{}
-	res := s.WithNamespace(ctx).Where("cfg_group = ? AND cfg_name = ?", group, name).First(&sysCfg)
+	res := s.WithNamespaceInCtx(ctx).Where("cfg_group = ? AND cfg_name = ?", group, name).First(&sysCfg)
 	if res.Error != nil && !errors.Is(res.Error, gorm.ErrRecordNotFound) {
 		return res.Error
 	}
@@ -642,14 +648,14 @@ func (s *sqlMetaStore) SetConfigValue(ctx context.Context, group, name, value st
 	sysCfg.Name = name
 	sysCfg.Value = value
 	sysCfg.ChangedAt = time.Now()
-	res = s.WithNamespace(ctx).Save(&sysCfg)
+	res = s.WithNamespaceInCtx(ctx).Save(&sysCfg)
 	return res.Error
 }
 
 func (s *sqlMetaStore) GetEntry(ctx context.Context, id int64) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.GetEntry").End()
 	var objMod = &db.Entry{ID: id}
-	res := s.WithNamespace(ctx).Where("id = ?", id).First(objMod)
+	res := s.WithNamespaceInCtx(ctx).Where("id = ?", id).First(objMod)
 	if err := res.Error; err != nil {
 		return nil, db.SqlError2Error(err)
 	}
@@ -659,7 +665,7 @@ func (s *sqlMetaStore) GetEntry(ctx context.Context, id int64) (*types.Metadata,
 func (s *sqlMetaStore) FindEntry(ctx context.Context, parentID int64, name string) (*types.Metadata, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.FindEntry").End()
 	var objMod = &db.Entry{ParentID: &parentID, Name: name}
-	res := s.WithNamespace(ctx).Where("parent_id = ? AND name = ?", parentID, name).First(objMod)
+	res := s.WithNamespaceInCtx(ctx).Where("parent_id = ? AND name = ?", parentID, name).First(objMod)
 	if err := res.Error; err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			s.logger.Errorw("find entry by name failed", "parent", parentID, "name", name, "err", err)
@@ -743,7 +749,7 @@ func (s *sqlMetaStore) SaveEntryUri(ctx context.Context, entryUri *types.EntryUr
 func (s *sqlMetaStore) GetEntryUri(ctx context.Context, uri string) (*types.EntryUri, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.GetEntryUri").End()
 	var entryUri = &db.EntryURI{Uri: uri}
-	res := s.WithNamespace(ctx).Where("uri = ?", uri).First(entryUri)
+	res := s.WithNamespaceInCtx(ctx).Where("uri = ?", uri).First(entryUri)
 	if err := res.Error; err != nil {
 		if err != gorm.ErrRecordNotFound {
 			s.logger.Errorw("get entryUri by uri failed", "uri", uri, "err", err)
@@ -777,18 +783,18 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64)
 		nowTime      = time.Now().UnixNano()
 	)
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQuery(ctx, tx).Where("id = ?", parentID).First(parentMod)
+		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", parentID).First(parentMod)
 		if res.Error != nil {
 			return res.Error
 		}
-		res = namespaceQuery(ctx, tx).Where("id = ?", entryID).First(entryMod)
+		res = namespaceQueryInCtx(ctx, tx).Where("id = ?", entryID).First(entryMod)
 		if res.Error != nil {
 			return res.Error
 		}
 
 		if entryMod.RefID != nil && *entryMod.RefID != 0 {
 			srcMod = &db.Entry{ID: *entryMod.RefID}
-			res = namespaceQuery(ctx, tx).Where("id = ?", *entryMod.RefID).First(srcMod)
+			res = namespaceQueryInCtx(ctx, tx).Where("id = ?", *entryMod.RefID).First(srcMod)
 			if res.Error != nil {
 				return res.Error
 			}
@@ -799,7 +805,7 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64)
 		if entryMod.IsGroup {
 
 			var entryChildCount int64
-			res = namespaceQuery(ctx, tx.Model(&db.Entry{})).Where("parent_id = ?", entryID).Count(&entryChildCount)
+			res = namespaceQueryInCtx(ctx, tx.Model(&db.Entry{})).Where("parent_id = ?", entryID).Count(&entryChildCount)
 			if res.Error != nil {
 				return res.Error
 			}
@@ -846,7 +852,7 @@ func (s *sqlMetaStore) DeleteRemovedEntry(ctx context.Context, entryID int64) er
 		entryMod = &db.Entry{ID: entryID}
 	)
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQuery(ctx, tx).Where("id = ?", entryID).First(entryMod)
+		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", entryID).First(entryMod)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -855,19 +861,19 @@ func (s *sqlMetaStore) DeleteRemovedEntry(ctx context.Context, entryID int64) er
 			s.logger.Warnf("entry %d ref_count is %d, more than 0", entryMod.ID, *entryMod.RefCount)
 		}
 
-		res = namespaceQuery(ctx, tx).Where("id = ?", entryMod.ID).Delete(&db.Entry{})
+		res = namespaceQueryInCtx(ctx, tx).Where("id = ?", entryMod.ID).Delete(&db.Entry{})
 		if res.Error != nil {
 			return res.Error
 		}
-		res = namespaceQuery(ctx, tx).Where("id = ?", entryMod.ID).Delete(&db.EntryExtend{})
+		res = namespaceQueryInCtx(ctx, tx).Where("id = ?", entryMod.ID).Delete(&db.EntryExtend{})
 		if res.Error != nil {
 			return res.Error
 		}
-		res = namespaceQuery(ctx, tx).Where("oid = ?", entryMod.ID).Delete(&db.EntryProperty{})
+		res = namespaceQueryInCtx(ctx, tx).Where("oid = ?", entryMod.ID).Delete(&db.EntryProperty{})
 		if res.Error != nil {
 			return res.Error
 		}
-		res = namespaceQuery(ctx, tx).Where("ref_type = 'object' AND ref_id = ?", entryID).Delete(&db.Label{})
+		res = namespaceQueryInCtx(ctx, tx).Where("ref_type = 'object' AND ref_id = ?", entryID).Delete(&db.Label{})
 		if res.Error != nil {
 			return res.Error
 		}
@@ -889,7 +895,7 @@ func (s *sqlMetaStore) ListEntryChildren(ctx context.Context, parentId int64, or
 	} else {
 		filters = append(filters, types.Filter{ParentID: parentId})
 	}
-	tx := enOrder(queryFilter(s.WithNamespace(ctx).Model(&db.Entry{}), filters[0], nil), order)
+	tx := enOrder(queryFilter(s.WithNamespaceInCtx(ctx).Model(&db.Entry{}), filters[0], nil), order)
 	if page := types.GetPagination(ctx); page != nil {
 		tx = tx.Offset(page.Offset()).Limit(page.Limit())
 	}
@@ -918,7 +924,7 @@ func (s *sqlMetaStore) FilterEntries(ctx context.Context, filter types.Filter) (
 	}
 
 	var total int64
-	tx := queryFilter(s.WithNamespace(ctx).Model(&db.Entry{}), filter, scopeIds)
+	tx := queryFilter(s.WithNamespaceInCtx(ctx).Model(&db.Entry{}), filter, scopeIds)
 	if page := types.GetPagination(ctx); page != nil {
 		tx = tx.Offset(page.Offset()).Limit(page.Limit())
 	}
@@ -937,7 +943,7 @@ func (s *sqlMetaStore) Open(ctx context.Context, id int64, attr types.OpenAttr) 
 		nowTime = time.Now().UnixNano()
 	)
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQuery(ctx, tx).Where("id = ?", id).First(enMod)
+		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", id).First(enMod)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -966,7 +972,7 @@ func (s *sqlMetaStore) Flush(ctx context.Context, id int64, size int64) error {
 		nowTime = time.Now().UnixNano()
 	)
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQuery(ctx, tx).Where("id = ?", id).First(enMod)
+		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", id).First(enMod)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -1004,7 +1010,7 @@ func (s *sqlMetaStore) UpdateEntryExtendData(ctx context.Context, id int64, ed t
 	)
 
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQuery(ctx, tx).Where("id = ?", id).First(entryModel)
+		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", id).First(entryModel)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -1039,7 +1045,7 @@ func (s *sqlMetaStore) MirrorEntry(ctx context.Context, newEntry *types.Metadata
 			updateErr        error
 		)
 
-		res := namespaceQuery(ctx, tx).Where("id = ?", newEntry.RefID).First(srcEnModel)
+		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", newEntry.RefID).First(srcEnModel)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -1050,7 +1056,7 @@ func (s *sqlMetaStore) MirrorEntry(ctx context.Context, newEntry *types.Metadata
 			return updateErr
 		}
 
-		res = namespaceQuery(ctx, tx).Where("id = ?", newEntry.ParentID).First(dstParentEnModel)
+		res = namespaceQueryInCtx(ctx, tx).Where("id = ?", newEntry.ParentID).First(dstParentEnModel)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -1084,11 +1090,11 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, targetEntryId int6
 			srcParentEntryID int64
 			updateErr        error
 		)
-		res := namespaceQuery(ctx, tx).Where("id = ?", targetEntryId).First(enModel)
+		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", targetEntryId).First(enModel)
 		if res.Error != nil {
 			return res.Error
 		}
-		res = namespaceQuery(ctx, tx).Where("id = ?", newParentId).First(dstParentEnModel)
+		res = namespaceQueryInCtx(ctx, tx).Where("id = ?", newParentId).First(dstParentEnModel)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -1105,7 +1111,7 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, targetEntryId int6
 			return updateErr
 		}
 
-		res = namespaceQuery(ctx, tx).Where("id = ?", srcParentEntryID).First(srcParentEnModel)
+		res = namespaceQueryInCtx(ctx, tx).Where("id = ?", srcParentEntryID).First(srcParentEnModel)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -1144,7 +1150,7 @@ func (s *sqlMetaStore) GetEntryLabels(ctx context.Context, id int64) (types.Labe
 		labelMods []db.Label
 	)
 
-	res := s.WithNamespace(ctx).Where("ref_type = ? and ref_id = ?", "object", id).Find(&labelMods)
+	res := s.WithNamespaceInCtx(ctx).Where("ref_type = ? and ref_id = ?", "object", id).Find(&labelMods)
 	if res.Error != nil {
 		s.logger.Errorw("get entry labels failed", "entry", id, "err", res.Error)
 		return result, db.SqlError2Error(res.Error)
@@ -1167,7 +1173,7 @@ func (s *sqlMetaStore) UpdateEntryLabels(ctx context.Context, id int64, labels t
 
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		labelModels := make([]db.Label, 0)
-		res := namespaceQuery(ctx, tx).Where("ref_type = ? AND ref_id = ?", "object", id).Find(&labelModels)
+		res := namespaceQueryInCtx(ctx, tx).Where("ref_type = ? AND ref_id = ?", "object", id).Find(&labelModels)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -1238,7 +1244,7 @@ func (s *sqlMetaStore) ListEntryProperties(ctx context.Context, id int64) (types
 		result   = types.Properties{Fields: map[string]types.PropertyItem{}}
 	)
 
-	res := s.WithNamespace(ctx).Where("oid = ?", id).Find(&property)
+	res := s.WithNamespaceInCtx(ctx).Where("oid = ?", id).Find(&property)
 	if res.Error != nil {
 		return result, res.Error
 	}
@@ -1271,12 +1277,12 @@ func (s *sqlMetaStore) AddEntryProperty(ctx context.Context, id int64, key strin
 		propertyItem = &db.EntryProperty{}
 	)
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQuery(ctx, tx).Where("id = ?", id).First(entryModel)
+		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", id).First(entryModel)
 		if res.Error != nil {
 			return res.Error
 		}
 
-		res = namespaceQuery(ctx, tx).Where("oid = ? AND key = ?", id, key).First(propertyItem)
+		res = namespaceQueryInCtx(ctx, tx).Where("oid = ? AND key = ?", id, key).First(propertyItem)
 		if res.Error != nil && !errors.Is(res.Error, gorm.ErrRecordNotFound) {
 			return res.Error
 		}
@@ -1320,12 +1326,12 @@ func (s *sqlMetaStore) UpdateEntryProperties(ctx context.Context, id int64, prop
 		needDeletePropertiesModels = make([]db.EntryProperty, 0)
 	)
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQuery(ctx, tx).Where("id = ?", id).First(entryModel)
+		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", id).First(entryModel)
 		if res.Error != nil {
 			return res.Error
 		}
 
-		res = namespaceQuery(ctx, tx).Where("oid = ?", id).Find(&objectProperties)
+		res = namespaceQueryInCtx(ctx, tx).Where("oid = ?", id).Find(&objectProperties)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -1582,10 +1588,10 @@ func (s *sqlMetaStore) DeleteFinishedTask(ctx context.Context, aliveTime time.Du
 	return nil
 }
 
-func (s *sqlMetaStore) GetWorkflow(ctx context.Context, wfID string) (*types.Workflow, error) {
+func (s *sqlMetaStore) GetWorkflow(ctx context.Context, namespace string, wfID string) (*types.Workflow, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.GetWorkflow").End()
 	wf := &db.Workflow{}
-	res := s.WithContext(ctx).Where("id = ?", wfID).First(wf)
+	res := s.WithNamespace(ctx, namespace).Where("id = ?", wfID).First(wf)
 	if res.Error != nil {
 		return nil, db.SqlError2Error(res.Error)
 	}
@@ -1596,23 +1602,23 @@ func (s *sqlMetaStore) GetWorkflow(ctx context.Context, wfID string) (*types.Wor
 	return result, nil
 }
 
-func (s *sqlMetaStore) ListGlobalWorkflow(ctx context.Context) ([]*types.Workflow, error) {
-	return s.listWorkflow(ctx, types.GlobalNamespaceValue)
+func (s *sqlMetaStore) ListAllNamespaceWorkflows(ctx context.Context) ([]*types.Workflow, error) {
+	return s.listWorkflow(ctx, types.AllNamespace)
 }
 
-func (s *sqlMetaStore) ListWorkflow(ctx context.Context) ([]*types.Workflow, error) {
-	ns := types.GetNamespace(ctx)
-	if ns.String() == types.DefaultNamespaceValue {
-		return s.listWorkflow(ctx, "")
-	}
-	return s.listWorkflow(ctx, ns.String())
+func (s *sqlMetaStore) ListAllNamespaceWorkflowJobs(ctx context.Context, filter types.JobFilter) ([]*types.WorkflowJob, error) {
+	return s.listWorkflowJobs(ctx, types.AllNamespace, filter)
+}
+
+func (s *sqlMetaStore) ListWorkflows(ctx context.Context, namespace string) ([]*types.Workflow, error) {
+	return s.listWorkflow(ctx, namespace)
 }
 
 func (s *sqlMetaStore) listWorkflow(ctx context.Context, namespace string) ([]*types.Workflow, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListWorkflow").End()
 	wfList := make([]db.Workflow, 0)
 	res := s.WithContext(ctx).Order("created_at desc")
-	if namespace != "" {
+	if namespace != types.AllNamespace {
 		res = res.Where("namespace = ?", namespace)
 	}
 	if page := types.GetPagination(ctx); page != nil {
@@ -1636,14 +1642,14 @@ func (s *sqlMetaStore) listWorkflow(ctx context.Context, namespace string) ([]*t
 	return result, nil
 }
 
-func (s *sqlMetaStore) DeleteWorkflow(ctx context.Context, wfID string) error {
+func (s *sqlMetaStore) DeleteWorkflow(ctx context.Context, namespace string, wfID string) error {
 	defer trace.StartRegion(ctx, "metastore.sql.DeleteWorkflow").End()
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQuery(ctx, tx).Where("id = ?", wfID).Delete(&db.Workflow{})
+		res := namespaceQuery(tx, namespace).Where("id = ?", wfID).Delete(&db.Workflow{})
 		if res.Error != nil {
 			return res.Error
 		}
-		res = namespaceQuery(ctx, tx).Where("workflow = ?", wfID).Delete(&db.WorkflowJob{})
+		res = namespaceQuery(tx, namespace).Where("workflow = ?", wfID).Delete(&db.WorkflowJob{})
 		if res.Error != nil {
 			return res.Error
 		}
@@ -1655,22 +1661,29 @@ func (s *sqlMetaStore) DeleteWorkflow(ctx context.Context, wfID string) error {
 	return nil
 }
 
-func (s *sqlMetaStore) GetWorkflowJob(ctx context.Context, jobID string) (*types.WorkflowJob, error) {
+func (s *sqlMetaStore) GetWorkflowJob(ctx context.Context, namespace string, jobID string) (*types.WorkflowJob, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.GetWorkflowJob").End()
 	jobMod := &db.WorkflowJob{}
-	res := s.WithNamespace(ctx).Where("id = ?", jobID).First(jobMod)
+	res := s.WithNamespace(ctx, namespace).Where("id = ?", jobID).First(jobMod)
 	if res.Error != nil {
 		return nil, db.SqlError2Error(res.Error)
 	}
 	return jobMod.To()
 }
+func (s *sqlMetaStore) ListWorkflowJobs(ctx context.Context, namespace string, filter types.JobFilter) ([]*types.WorkflowJob, error) {
+	return s.listWorkflowJobs(ctx, namespace, filter)
+}
 
-func (s *sqlMetaStore) ListWorkflowJob(ctx context.Context, filter types.JobFilter) ([]*types.WorkflowJob, error) {
+func (s *sqlMetaStore) listWorkflowJobs(ctx context.Context, namespace string, filter types.JobFilter) ([]*types.WorkflowJob, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListWorkflowJob").End()
 	jobList := make([]db.WorkflowJob, 0)
-	query := s.WithNamespace(ctx)
+	query := s.WithContext(ctx)
 	if page := types.GetPagination(ctx); page != nil {
 		query = query.Offset(page.Offset()).Limit(page.Limit())
+	}
+
+	if namespace != types.AllNamespace {
+		query = query.Where("namespace = ?", namespace)
 	}
 
 	if filter.JobID != "" {
@@ -1710,15 +1723,19 @@ func (s *sqlMetaStore) ListWorkflowJob(ctx context.Context, filter types.JobFilt
 	return result, nil
 }
 
-func (s *sqlMetaStore) SaveWorkflow(ctx context.Context, wf *types.Workflow) error {
-	defer trace.StartRegion(ctx, "metastore.sql.SaveWorkflow").End()
+func (s *sqlMetaStore) SaveWorkflow(ctx context.Context, namespace string, wf *types.Workflow) error {
+	if namespace == "" {
+		return types.ErrNoNamespace
+	}
 	wf.UpdatedAt = time.Now()
+	wf.Namespace = namespace
+	defer trace.StartRegion(ctx, "metastore.sql.SaveWorkflow").End()
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var loadErr error
 		dbMod := &db.Workflow{}
-		res := namespaceQuery(ctx, tx).Where("id = ?", wf.Id).First(dbMod)
+		res := namespaceQuery(tx, namespace).Where("id = ?", wf.Id).First(dbMod)
 		if res.Error != nil {
-			if res.Error == gorm.ErrRecordNotFound {
+			if errors.Is(res.Error, gorm.ErrRecordNotFound) {
 				// create
 				dbMod, loadErr = dbMod.From(wf)
 				if loadErr != nil {
@@ -1743,18 +1760,19 @@ func (s *sqlMetaStore) SaveWorkflow(ctx context.Context, wf *types.Workflow) err
 	return nil
 }
 
-func (s *sqlMetaStore) SaveWorkflowJob(ctx context.Context, job *types.WorkflowJob) error {
-	defer trace.StartRegion(ctx, "metastore.sql.SaveWorkflowJob").End()
-	job.UpdatedAt = time.Now()
-	if job.Namespace == "" {
-		job.Namespace = types.GetNamespace(ctx).String()
+func (s *sqlMetaStore) SaveWorkflowJob(ctx context.Context, namespace string, job *types.WorkflowJob) error {
+	if namespace == "" {
+		return types.ErrNoNamespace
 	}
+	job.UpdatedAt = time.Now()
+	job.Namespace = namespace
+	defer trace.StartRegion(ctx, "metastore.sql.SaveWorkflowJob").End()
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		jobModel := &db.WorkflowJob{}
 		var loadErr error
-		res := namespaceQuery(ctx, tx).Where("id = ?", job.Id).First(jobModel)
+		res := namespaceQuery(tx, namespace).Where("id = ?", job.Id).First(jobModel)
 		if res.Error != nil {
-			if res.Error == gorm.ErrRecordNotFound {
+			if errors.Is(res.Error, gorm.ErrRecordNotFound) {
 				if jobModel, loadErr = jobModel.From(job); loadErr != nil {
 					return loadErr
 				}
@@ -1776,9 +1794,9 @@ func (s *sqlMetaStore) SaveWorkflowJob(ctx context.Context, job *types.WorkflowJ
 	return nil
 }
 
-func (s *sqlMetaStore) DeleteWorkflowJob(ctx context.Context, wfJobID ...string) error {
+func (s *sqlMetaStore) DeleteWorkflowJobs(ctx context.Context, wfJobID ...string) error {
 	defer trace.StartRegion(ctx, "metastore.sql.DeleteWorkflowJob").End()
-	res := s.WithNamespace(ctx).Where("id IN ?", wfJobID).Delete(&db.WorkflowJob{})
+	res := s.WithNamespaceInCtx(ctx).Where("id IN ?", wfJobID).Delete(&db.WorkflowJob{})
 	if res.Error != nil {
 		return db.SqlError2Error(res.Error)
 	}
@@ -1788,7 +1806,7 @@ func (s *sqlMetaStore) DeleteWorkflowJob(ctx context.Context, wfJobID ...string)
 func (s *sqlMetaStore) ListNotifications(ctx context.Context) ([]types.Notification, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListNotifications").End()
 	noList := make([]db.Notification, 0)
-	res := s.WithNamespace(ctx).Order("time desc").Find(&noList)
+	res := s.WithNamespaceInCtx(ctx).Order("time desc").Find(&noList)
 	if res.Error != nil {
 		return nil, db.SqlError2Error(res.Error)
 	}
@@ -1832,7 +1850,7 @@ func (s *sqlMetaStore) RecordNotification(ctx context.Context, nid string, no ty
 
 func (s *sqlMetaStore) UpdateNotificationStatus(ctx context.Context, nid, status string) error {
 	defer trace.StartRegion(ctx, "metastore.sql.UpdateNotificationStatus").End()
-	res := s.WithNamespace(ctx).Model(&db.Notification{}).Where("id = ?", nid).UpdateColumn("status", status)
+	res := s.WithNamespaceInCtx(ctx).Model(&db.Notification{}).Where("id = ?", nid).UpdateColumn("status", status)
 	if res.Error != nil {
 		return db.SqlError2Error(res.Error)
 	}
@@ -1865,7 +1883,7 @@ func (s *sqlMetaStore) RecordEvents(ctx context.Context, events []types.Event) e
 
 func (s *sqlMetaStore) ListEvents(ctx context.Context, filter types.EventFilter) ([]types.Event, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListEvents").End()
-	query := s.WithNamespace(ctx)
+	query := s.WithNamespaceInCtx(ctx)
 	if filter.StartSequence > 0 {
 		query = query.Where("sequence > ?", filter.StartSequence)
 	}
@@ -1902,7 +1920,7 @@ func (s *sqlMetaStore) DeviceSync(ctx context.Context, deviceID string, syncedSe
 	defer trace.StartRegion(ctx, "metastore.sql.DeviceSync").End()
 	return s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		model := db.RegisteredDevice{}
-		res := namespaceQuery(ctx, tx).Where("id = ?", deviceID).First(&model)
+		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", deviceID).First(&model)
 		if res.Error != nil {
 			if errors.Is(res.Error, gorm.ErrRecordNotFound) {
 				model.ID = deviceID
@@ -1928,7 +1946,7 @@ func (s *sqlMetaStore) SaveRoom(ctx context.Context, room *types.Room) error {
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		roomMod := &db.Room{}
 		var err error
-		res := namespaceQuery(ctx, tx).Where("id = ?", room.ID).First(roomMod)
+		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", room.ID).First(roomMod)
 		if res.Error != nil {
 			if errors.Is(res.Error, gorm.ErrRecordNotFound) {
 				roomMod, err = roomMod.From(room)
@@ -1956,7 +1974,7 @@ func (s *sqlMetaStore) SaveRoom(ctx context.Context, room *types.Room) error {
 func (s *sqlMetaStore) GetRoom(ctx context.Context, id int64) (*types.Room, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.GetRoom").End()
 	room := &db.Room{}
-	res := s.WithNamespace(ctx).Where("id = ?", id).First(room)
+	res := s.WithNamespaceInCtx(ctx).Where("id = ?", id).First(room)
 	if res.Error != nil {
 		return nil, db.SqlError2Error(res.Error)
 	}
@@ -1966,7 +1984,7 @@ func (s *sqlMetaStore) GetRoom(ctx context.Context, id int64) (*types.Room, erro
 func (s *sqlMetaStore) FindRoom(ctx context.Context, entryId int64) (*types.Room, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.FindRoom").End()
 	room := &db.Room{}
-	res := s.WithNamespace(ctx).Where("entry_id = ?", entryId).First(room)
+	res := s.WithNamespaceInCtx(ctx).Where("entry_id = ?", entryId).First(room)
 	if res.Error != nil {
 		return nil, db.SqlError2Error(res.Error)
 	}
@@ -1976,7 +1994,7 @@ func (s *sqlMetaStore) FindRoom(ctx context.Context, entryId int64) (*types.Room
 func (s *sqlMetaStore) DeleteRoom(ctx context.Context, id int64) error {
 	defer trace.StartRegion(ctx, "metastore.sql.DeleteRoom").End()
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQuery(ctx, tx).Where("id = ?", id).Delete(&db.Room{})
+		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", id).Delete(&db.Room{})
 		return res.Error
 	})
 	return db.SqlError2Error(err)
@@ -1985,7 +2003,7 @@ func (s *sqlMetaStore) DeleteRoom(ctx context.Context, id int64) error {
 func (s *sqlMetaStore) ListRooms(ctx context.Context, entryId int64) ([]*types.Room, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListRoom").End()
 	roomList := make([]db.Room, 0)
-	query := s.WithNamespace(ctx)
+	query := s.WithNamespaceInCtx(ctx)
 	query = query.Where("entry_id = ?", entryId)
 	if page := types.GetPagination(ctx); page != nil {
 		query = query.Offset(page.Offset()).Limit(page.Limit())
@@ -2009,7 +2027,7 @@ func (s *sqlMetaStore) ListRooms(ctx context.Context, entryId int64) ([]*types.R
 func (s *sqlMetaStore) ListRoomMessage(ctx context.Context, roomId int64) ([]*types.RoomMessage, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListRoomMessage").End()
 	roomMsgList := make([]db.RoomMessage, 0)
-	query := s.WithNamespace(ctx)
+	query := s.WithNamespaceInCtx(ctx)
 	query = query.Where("room_id = ?", roomId)
 	if page := types.GetPagination(ctx); page != nil {
 		query = query.Offset(page.Offset()).Limit(page.Limit())
@@ -2030,7 +2048,7 @@ func (s *sqlMetaStore) SaveRoomMessage(ctx context.Context, msg *types.RoomMessa
 	defer trace.StartRegion(ctx, "metastore.sql.SaveRoomMessage").End()
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		roomMsgMod := &db.RoomMessage{}
-		res := namespaceQuery(ctx, tx).Where("id = ?", msg.ID).First(roomMsgMod)
+		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", msg.ID).First(roomMsgMod)
 		if res.Error != nil {
 			if errors.Is(res.Error, gorm.ErrRecordNotFound) {
 				roomMsgMod = roomMsgMod.From(msg)
@@ -2052,7 +2070,7 @@ func (s *sqlMetaStore) SaveRoomMessage(ctx context.Context, msg *types.RoomMessa
 func (s *sqlMetaStore) GetRoomMessage(ctx context.Context, msgId int64) (*types.RoomMessage, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.GetRoomMessage").End()
 	roomMsg := &db.RoomMessage{}
-	res := s.WithNamespace(ctx).Where("id = ?", msgId).First(roomMsg)
+	res := s.WithNamespaceInCtx(ctx).Where("id = ?", msgId).First(roomMsg)
 	if res.Error != nil {
 		return nil, db.SqlError2Error(res.Error)
 	}
@@ -2062,7 +2080,7 @@ func (s *sqlMetaStore) GetRoomMessage(ctx context.Context, msgId int64) (*types.
 func (s *sqlMetaStore) DeleteRoomMessages(ctx context.Context, roomId int64) error {
 	defer trace.StartRegion(ctx, "metastore.sql.DeleteRoomMessage").End()
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQuery(ctx, tx).Where("room_id = ?", roomId).Delete(&db.RoomMessage{})
+		res := namespaceQueryInCtx(ctx, tx).Where("room_id = ?", roomId).Delete(&db.RoomMessage{})
 		return res.Error
 	})
 	return db.SqlError2Error(err)
@@ -2070,18 +2088,22 @@ func (s *sqlMetaStore) DeleteRoomMessages(ctx context.Context, roomId int64) err
 
 func (s *sqlMetaStore) WithNamespaceOfTable(ctx context.Context, table string) *gorm.DB {
 	ns := types.GetNamespace(ctx)
-	if ns.String() == types.DefaultNamespaceValue {
+	if ns.String() == types.DefaultNamespace {
 		return s.WithContext(ctx)
 	}
 	return s.WithContext(ctx).Where(fmt.Sprintf("%s.namespace = ?", table), ns.String())
 }
 
-func (s *sqlMetaStore) WithNamespace(ctx context.Context) *gorm.DB {
+func (s *sqlMetaStore) WithNamespaceInCtx(ctx context.Context) *gorm.DB {
 	ns := types.GetNamespace(ctx)
-	if ns.String() == types.DefaultNamespaceValue {
+	if ns.String() == types.DefaultNamespace {
 		return s.WithContext(ctx)
 	}
 	return s.WithContext(ctx).Where("namespace = ?", ns.String())
+}
+
+func (s *sqlMetaStore) WithNamespace(ctx context.Context, namespace string) *gorm.DB {
+	return s.WithContext(ctx).Where("namespace = ?", namespace)
 }
 
 func (s *sqlMetaStore) WithPagination(ctx context.Context) *gorm.DB {
@@ -2153,7 +2175,7 @@ func updateEntryWithVersion(tx *gorm.DB, entryMod *db.Entry) error {
 }
 
 func listEntryIdsWithLabelMatcher(ctx context.Context, tx *gorm.DB, labelMatch types.LabelMatch) ([]int64, error) {
-	tx = namespaceQuery(ctx, tx.WithContext(ctx))
+	tx = namespaceQueryInCtx(ctx, tx.WithContext(ctx))
 	includeSearchKeys := make([]string, len(labelMatch.Include))
 	for i, inKey := range labelMatch.Include {
 		includeSearchKeys[i] = labelSearchKey(inKey.Key, inKey.Value)
@@ -2247,12 +2269,16 @@ func enOrder(tx *gorm.DB, order *types.EntryOrder) *gorm.DB {
 	return tx
 }
 
-func namespaceQuery(ctx context.Context, tx *gorm.DB) *gorm.DB {
+func namespaceQueryInCtx(ctx context.Context, tx *gorm.DB) *gorm.DB {
 	ns := types.GetNamespace(ctx)
-	if ns.String() == types.DefaultNamespaceValue {
+	if ns.String() == types.DefaultNamespace {
 		return tx
 	}
 	return tx.Where("namespace = ?", ns.String())
+}
+
+func namespaceQuery(tx *gorm.DB, namespace string) *gorm.DB {
+	return tx.Where("namespace = ?", namespace)
 }
 
 func labelSearchKey(k, v string) string {

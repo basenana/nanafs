@@ -21,8 +21,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	"github.com/basenana/nanafs/utils"
+	"github.com/basenana/nanafs/workflow/jobrun"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -82,40 +82,6 @@ var _ = Describe("testRoomService", func() {
 		It("delete should be succeed", func() {
 			_, err := serviceClient.DeleteRoom(ctx, &DeleteRoomRequest{RoomID: roomId}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
-		})
-	})
-})
-
-var _ = Describe("testInboxService", func() {
-	var (
-		ctx        = context.TODO()
-		inboxGroup int64
-	)
-
-	Context("test quick inbox", func() {
-		var newEntry int64
-		It("find inbox should be succeed", func() {
-			en, err := ctrl.FindEntry(ctx, dentry.RootEntryID, ".inbox")
-			Expect(err).Should(BeNil())
-			inboxGroup = en.ID
-		})
-		It("inbox should be succeed", func() {
-			resp, err := serviceClient.QuickInbox(ctx, &QuickInboxRequest{
-				SourceType:  QuickInboxRequest_UrlSource,
-				FileType:    WebFileType_WebArchiveFile,
-				Filename:    "test",
-				Url:         "https://blog.ihypo.net",
-				ClutterFree: true,
-			}, grpc.UseCompressor(gzip.Name))
-			Expect(err).Should(BeNil())
-
-			newEntry = resp.EntryID
-			Expect(newEntry > 0).Should(BeTrue())
-		})
-		It("file in inbox should be found", func() {
-			en, err := ctrl.GetEntry(ctx, newEntry)
-			Expect(err).Should(BeNil())
-			Expect(en.ParentID).Should(Equal(inboxGroup))
 		})
 	})
 })
@@ -531,10 +497,10 @@ var _ = Describe("testWorkflowService", func() {
 
 	Context("list all workflow", func() {
 		It("mole should be succeed", func() {
-			err := testMeta.SaveWorkflow(ctx, &types.Workflow{
+			err := testMeta.SaveWorkflow(ctx, types.DefaultNamespace, &types.Workflow{
 				Id:              wfID,
 				Name:            "mock workflow",
-				Namespace:       types.DefaultNamespaceValue,
+				Namespace:       types.DefaultNamespace,
 				Enable:          true,
 				CreatedAt:       time.Now(),
 				UpdatedAt:       time.Now(),
@@ -543,9 +509,9 @@ var _ = Describe("testWorkflowService", func() {
 			Expect(err).Should(BeNil())
 
 			for i := 0; i < 200; i++ {
-				err = testMeta.SaveWorkflowJob(ctx, &types.WorkflowJob{
+				err = testMeta.SaveWorkflowJob(ctx, types.DefaultNamespace, &types.WorkflowJob{
 					Id:            utils.MustRandString(16),
-					Namespace:     types.DefaultNamespaceValue,
+					Namespace:     types.DefaultNamespace,
 					Workflow:      wfID,
 					TriggerReason: "mock",
 					Steps:         make([]types.WorkflowJobStep, 0),
@@ -563,11 +529,6 @@ var _ = Describe("testWorkflowService", func() {
 
 			Expect(len(resp.Workflows) > 0).Should(BeTrue())
 
-			for _, wf := range resp.Workflows {
-				if wf.Id == wfID {
-					Expect(wf.HealthScore).Should(Equal(int32(100)))
-				}
-			}
 		})
 
 		It("list jobs should be succeed", func() {

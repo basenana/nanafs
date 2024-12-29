@@ -41,7 +41,7 @@ type Config struct {
 }
 
 type Controller struct {
-	runners map[string]*flow.Runner
+	runners map[JobID]*runner
 	queue   *GroupJobQueue
 	workdir string
 
@@ -57,12 +57,12 @@ type Controller struct {
 	logger    *zap.SugaredLogger
 }
 
-func (c *Controller) TriggerJob(ctx context.Context, jID string) error {
-	job, err := c.recorder.GetWorkflowJob(ctx, jID)
+func (c *Controller) TriggerJob(ctx context.Context, namespace, jID string) error {
+	job, err := c.recorder.GetWorkflowJob(ctx, namespace, jID)
 	if err != nil {
 		return err
 	}
-	c.queue.Put(job.Namespace, job.QueueName, job.Id)
+	c.queue.Put(namespace, job.QueueName, job.Id)
 	return nil
 }
 
@@ -103,14 +103,14 @@ func (c *Controller) jobWorkQueueIterator(ctx context.Context, queue string, par
 		parallelCh = make(chan struct{}, parallel)
 	)
 
-	var trigger = func(jid string) {
+	var trigger = func(namespace, jid string) {
 		parallelCh <- struct{}{}
 		go func() {
 			defer func() {
 				<-parallelCh
 				nextCh <- struct{}{}
 			}()
-			c.handleNextJob(jid)
+			c.handleNextJob(namespace, jid)
 		}()
 	}
 
@@ -120,16 +120,16 @@ func (c *Controller) jobWorkQueueIterator(ctx context.Context, queue string, par
 			return
 
 		case <-nextCh:
-			if jid := c.queue.Pop(queue); jid != "" {
-				trigger(jid)
+			if jid := c.queue.Pop(queue); jid != nil {
+				trigger(jid.namespace, jid.id)
 			}
 		}
 	}
 }
 
-func (c *Controller) handleNextJob(jobID string) {
+func (c *Controller) handleNextJob(namespace, jobID string) {
 	ctx := context.Background()
-	job, err := c.recorder.GetWorkflowJob(ctx, jobID)
+	job, err := c.recorder.GetWorkflowJob(ctx, namespace, jobID)
 	if err != nil {
 		c.logger.Errorw("handle next job encounter failed: get workflow job error", "job", jobID, "err", err)
 		return
@@ -141,13 +141,18 @@ func (c *Controller) handleNextJob(jobID string) {
 	ctx = utils.NewWorkflowJobContext(ctx, job.Id)
 
 	c.mux.Lock()
-
-	r := flow.NewRunner(f)
-	c.runners[jobID] = r
+	jid := JobID{namespace: namespace, id: jobID}
+	r := &runner{
+		namespace: namespace,
+		workflow:  job.Workflow,
+		job:       jobID,
+		runner:    flow.NewRunner(f),
+	}
+	c.runners[jid] = r
 	c.mux.Unlock()
 	defer func() {
 		c.mux.Lock()
-		delete(c.runners, jobID)
+		delete(c.runners, jid)
 		c.mux.Unlock()
 	}()
 
@@ -157,8 +162,8 @@ func (c *Controller) handleNextJob(jobID string) {
 	jobCtx, canF := context.WithTimeout(ctx, time.Duration(job.TimeoutSeconds)*time.Second)
 	defer canF()
 
-	c.logger.Infof("trigger flow %s", job.Id)
-	err = r.Start(jobCtx)
+	c.logger.Infof("trigger flow %s %s", namespace, job.Id)
+	err = r.runner.Start(jobCtx)
 	if err != nil {
 		c.logger.Errorw("start runner failed: job failed", "job", jobID, "err", err)
 		_ = c.notify.RecordWarn(jobCtx, fmt.Sprintf("Workflow %s failed", job.Workflow),
@@ -172,7 +177,7 @@ func (c *Controller) rescanRunnableJob(ctx context.Context) error {
 
 	if !c.isStartUp {
 		// all running job
-		runningJobs, err := c.recorder.ListWorkflowJob(ctx, types.JobFilter{Status: RunningStatus})
+		runningJobs, err := c.recorder.ListAllNamespaceWorkflowJobs(ctx, types.JobFilter{Status: RunningStatus})
 		if err != nil {
 			return err
 		}
@@ -181,8 +186,8 @@ func (c *Controller) rescanRunnableJob(ctx context.Context) error {
 		})
 
 		for _, j := range runningJobs {
-			_, ok := c.runners[j.Id]
-			if ok {
+			existR := c.getRunner(j.Workflow, j.Id)
+			if existR != nil {
 				continue
 			}
 			c.logger.Infow("requeue running job", "job", j.Id, "status", j.Status)
@@ -190,7 +195,7 @@ func (c *Controller) rescanRunnableJob(ctx context.Context) error {
 		}
 	}
 
-	pendingJobs, err := c.recorder.ListWorkflowJob(ctx, types.JobFilter{Status: PendingStatus})
+	pendingJobs, err := c.recorder.ListAllNamespaceWorkflowJobs(ctx, types.JobFilter{Status: PendingStatus})
 	if err != nil {
 		return err
 	}
@@ -205,29 +210,29 @@ func (c *Controller) rescanRunnableJob(ctx context.Context) error {
 	return nil
 }
 
-func (c *Controller) PauseJob(jID string) error {
-	r, ok := c.runners[jID]
-	if !ok {
-		return fmt.Errorf("flow %s not found", jID)
+func (c *Controller) PauseJob(namespace, jID string) error {
+	r := c.getRunner(namespace, jID)
+	if r == nil {
+		return types.ErrNotFound
 	}
 	c.logger.Infof("pause flow %s", jID)
-	return r.Pause()
+	return r.runner.Pause()
 }
 
-func (c *Controller) CancelJob(jID string) error {
-	r, ok := c.runners[jID]
-	if !ok {
-		return fmt.Errorf("flow %s not found", jID)
+func (c *Controller) CancelJob(namespace, jID string) error {
+	r := c.getRunner(namespace, jID)
+	if r == nil {
+		return types.ErrNotFound
 	}
-	return r.Cancel()
+	return r.runner.Cancel()
 }
 
-func (c *Controller) ResumeJob(jID string) error {
-	r, ok := c.runners[jID]
-	if !ok {
-		return fmt.Errorf("flow %s not found", jID)
+func (c *Controller) ResumeJob(namespace, jID string) error {
+	r := c.getRunner(namespace, jID)
+	if r == nil {
+		return types.ErrNotFound
 	}
-	return r.Resume()
+	return r.runner.Resume()
 }
 
 func (c *Controller) Shutdown() error {
@@ -235,9 +240,9 @@ func (c *Controller) Shutdown() error {
 	defer c.mux.Unlock()
 
 	failedFlows := make([]string, 0)
-	for fId, r := range c.runners {
-		if err := r.Cancel(); err != nil {
-			failedFlows = append(failedFlows, fId)
+	for jid, r := range c.runners {
+		if err := r.runner.Cancel(); err != nil {
+			failedFlows = append(failedFlows, jid.id)
 		}
 	}
 	if len(failedFlows) > 0 {
@@ -248,10 +253,11 @@ func (c *Controller) Shutdown() error {
 
 func (c *Controller) Handle(event flow.UpdateEvent) {
 	ctx := context.Background()
-	job, err := c.recorder.GetWorkflowJob(ctx, event.Flow.ID)
+	jid := NewJobID(event.Flow.ID)
+	job, err := c.recorder.GetWorkflowJob(ctx, jid.namespace, jid.id)
 	if err != nil {
 		c.logger.Errorw("update workflow job status failed, failed to get job",
-			"err", err, "job", event.Flow.ID)
+			"err", err, "namespace", jid.namespace, "job", jid.id)
 		return
 	}
 
@@ -268,13 +274,20 @@ func (c *Controller) Handle(event flow.UpdateEvent) {
 		}
 	}
 
-	if err = c.recorder.SaveWorkflowJob(ctx, job); err != nil {
+	if err = c.recorder.SaveWorkflowJob(ctx, job.Namespace, job); err != nil {
 		c.logger.Errorw("update workflow job status failed, failed to save job",
 			"err", err, "job", event.Flow.ID)
 		return
 	}
 	c.logger.Infow("update workflow job status finish",
 		"job", event.Flow.ID, "status", event.Flow.Status)
+}
+
+func (c *Controller) getRunner(namespace, jobiD string) *runner {
+	c.mux.Lock()
+	r := c.runners[JobID{namespace: namespace, id: jobiD}]
+	c.mux.Unlock()
+	return r
 }
 
 func NewJobController(pluginMgr *plugin.Manager, entryMgr dentry.Manager, docMgr document.Manager,
@@ -286,9 +299,16 @@ func NewJobController(pluginMgr *plugin.Manager, entryMgr dentry.Manager, docMgr
 		recorder:  recorder,
 		notify:    notify,
 		workdir:   workdir,
-		runners:   make(map[string]*flow.Runner),
+		runners:   make(map[JobID]*runner),
 		queue:     newQueue(),
 		logger:    logger.NewLogger("flow"),
 	}
 	return ctrl
+}
+
+type runner struct {
+	namespace string
+	workflow  string
+	job       string
+	runner    *flow.Runner
 }

@@ -19,6 +19,7 @@ package jobrun
 import (
 	"github.com/basenana/go-flow"
 	"github.com/basenana/nanafs/pkg/types"
+	"strings"
 )
 
 var (
@@ -64,8 +65,26 @@ func newTask(job *types.WorkflowJob, step *types.WorkflowJobStep) flow.Task {
 
 var _ flow.Task = &Task{}
 
+type JobID struct {
+	namespace string
+	id        string
+}
+
+func (j JobID) FlowID() string {
+	return j.namespace + "." + j.id
+}
+
+func NewJobID(flowID string) (jid JobID) {
+	parts := strings.Split(flowID, ".")
+	jid.namespace = parts[0]
+	if len(parts) > 1 {
+		jid.id = parts[1]
+	}
+	return
+}
+
 func workflowJob2Flow(ctrl *Controller, job *types.WorkflowJob) *flow.Flow {
-	fb := flow.NewFlowBuilder(job.Id).
+	fb := flow.NewFlowBuilder(JobID{namespace: job.Namespace, id: job.Id}.FlowID()).
 		Executor(newExecutor(ctrl, job)).
 		Observer(ctrl)
 

@@ -69,8 +69,6 @@ type Controller interface {
 	SetEntryEncodedProperty(ctx context.Context, id int64, fKey string, fVal []byte) error
 	RemoveEntryProperty(ctx context.Context, id int64, fKey string) error
 
-	QuickInbox(ctx context.Context, filename string, option inbox.Option) (*types.Metadata, error)
-
 	GetLatestSequence(ctx context.Context) (int64, error)
 	ListUnSyncedEvent(ctx context.Context, sequence int64) ([]types.Event, error)
 	CommitSyncedEvent(ctx context.Context, deviceID string, sequence int64) error
@@ -104,7 +102,6 @@ type Controller interface {
 
 type controller struct {
 	*notify.Notify
-	*inbox.Inbox
 
 	meta      metastore.Meta
 	cfgLoader config.Loader

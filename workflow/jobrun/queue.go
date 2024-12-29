@@ -38,10 +38,10 @@ func newQueue() *GroupJobQueue {
 	}
 }
 
-func (g *GroupJobQueue) Pop(group string) string {
+func (g *GroupJobQueue) Pop(group string) *JobID {
 	grpQ, ok := g.groups[group]
 	if !ok {
-		return ""
+		return nil
 	}
 	return grpQ.Pop()
 }
@@ -70,9 +70,9 @@ type NamespacedJobQueue struct {
 	mux              sync.Mutex
 }
 
-func (n *NamespacedJobQueue) Pop() string {
+func (n *NamespacedJobQueue) Pop() *JobID {
 	if len(n.namespaceList) == 0 {
-		return ""
+		return nil
 	}
 
 	n.mux.Lock()
@@ -86,7 +86,7 @@ func (n *NamespacedJobQueue) Pop() string {
 	n.mux.Unlock()
 
 	if q == nil {
-		return ""
+		return nil
 	}
 
 	return q.Pop()
@@ -101,7 +101,7 @@ func (n *NamespacedJobQueue) Put(ns, jid string) {
 		n.namespaces[ns] = q
 	}
 
-	q.Put(jid)
+	q.Put(JobID{namespace: ns, id: jid})
 
 	if _, ok := n.namespaceInQueue[ns]; ok {
 		n.mux.Unlock()
@@ -133,33 +133,33 @@ func newNamespacedQueue() *NamespacedJobQueue {
 }
 
 type JobQueue struct {
-	queue   []string
-	inQueue map[string]struct{}
+	queue   []*JobID
+	inQueue map[JobID]struct{}
 	mux     sync.Mutex
 }
 
 func newJobQueue() *JobQueue {
 	return &JobQueue{
-		queue:   make([]string, 0, maxPreNamespace),
-		inQueue: make(map[string]struct{}),
+		queue:   make([]*JobID, 0, maxPreNamespace),
+		inQueue: make(map[JobID]struct{}),
 	}
 }
 
-func (j *JobQueue) Pop() string {
+func (j *JobQueue) Pop() *JobID {
 	j.mux.Lock()
 	if len(j.queue) == 0 {
 		j.mux.Unlock()
-		return ""
+		return nil
 	}
 
 	pop := j.queue[0]
 	j.queue = j.queue[1:]
-	delete(j.inQueue, pop)
+	delete(j.inQueue, *pop)
 	j.mux.Unlock()
 	return pop
 }
 
-func (j *JobQueue) Put(jid string) {
+func (j *JobQueue) Put(jid JobID) {
 	if len(j.queue) > maxPreNamespace {
 		return
 	}
@@ -169,7 +169,7 @@ func (j *JobQueue) Put(jid string) {
 		j.mux.Unlock()
 		return
 	}
-	j.queue = append(j.queue, jid)
+	j.queue = append(j.queue, &jid)
 	j.inQueue[jid] = struct{}{}
 	j.mux.Unlock()
 }

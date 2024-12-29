@@ -18,7 +18,13 @@ package v1
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"fmt"
 	"github.com/basenana/nanafs/fs"
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
+	"google.golang.org/grpc/credentials"
 	"net"
 	"os"
 	"testing"
@@ -26,7 +32,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
@@ -100,7 +105,16 @@ var _ = BeforeSuite(func() {
 	buffer := 1024 * 1024
 	mockListen = bufconn.Listen(buffer)
 
-	testServer = grpc.NewServer()
+	// TODO: use token mgr
+	serverCreds, clientCreds, err := setupCerts(cl)
+	Expect(err).Should(BeNil())
+	var opts = []grpc.ServerOption{
+		grpc.Creds(serverCreds),
+		grpc.MaxRecvMsgSize(1024 * 1024 * 50), // 50M
+		common.WithCommonInterceptors(),
+		common.WithStreamInterceptors(),
+	}
+	testServer = grpc.NewServer(opts...)
 	_, err = InitServices(testServer, ctrl, dep, pm)
 	Expect(err).Should(BeNil())
 
@@ -113,7 +127,7 @@ var _ = BeforeSuite(func() {
 	conn, err := grpc.DialContext(
 		context.Background(), "bufnet",
 		grpc.WithContextDialer(dialer),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithTransportCredentials(clientCreds),
 		grpc.WithDisableRetry(),
 	)
 	Expect(err).Should(BeNil())
@@ -151,4 +165,53 @@ type Client struct {
 
 func dialer(context.Context, string) (net.Conn, error) {
 	return mockListen.Dial()
+}
+
+func setupCerts(cfg config.Loader) (credentials.TransportCredentials, credentials.TransportCredentials, error) {
+	ct := &utils.CertTool{}
+	caCert, _, err := ct.GenerateCAPair()
+	if err != nil {
+		return nil, nil, fmt.Errorf("gen root cert/key file error: %w", err)
+	}
+
+	rootCaPool := x509.NewCertPool()
+	rootCaPool.AppendCertsFromPEM(caCert)
+	clientCaPool := rootCaPool
+
+	serverCert, serverKey, err := ct.GenerateCertPair("basenana", "nanafs", "localhost", "localhost")
+	if err != nil {
+		return nil, nil, fmt.Errorf("gen server cert/key file error: %w", err)
+	}
+	certificate, err := tls.X509KeyPair(serverCert, serverKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load server cert/key file error: %w", err)
+	}
+
+	serverCreds := credentials.NewTLS(&tls.Config{
+		Certificates: []tls.Certificate{certificate},
+		ServerName:   "localhost",
+		RootCAs:      rootCaPool,
+		ClientCAs:    clientCaPool,
+		ClientAuth:   tls.VerifyClientCertIfGiven,
+	})
+
+	clientCert, clientKey, err := ct.GenerateCertPair(
+		types.DefaultNamespace,     // O
+		"ak-test",                  // OU
+		fmt.Sprintf("%d,%d", 0, 0), // CN
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gen client cert/key file error: %w", err)
+	}
+	clientCertificate, err := tls.X509KeyPair(clientCert, clientKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load client cert/key file error: %w", err)
+	}
+
+	clientCreds := credentials.NewTLS(&tls.Config{
+		Certificates: []tls.Certificate{clientCertificate},
+		ServerName:   "localhost",
+		RootCAs:      rootCaPool,
+	})
+	return serverCreds, clientCreds, nil
 }

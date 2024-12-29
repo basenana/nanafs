@@ -56,7 +56,7 @@ func init() {
 func initParentDirCacheData(ctx context.Context, entryMgr dentry.Manager, parentEntryID int64) (*pluginapi.CachedData, error) {
 	parent, err := entryMgr.OpenGroup(ctx, parentEntryID)
 	if err != nil {
-		return nil, fmt.Errorf("open parent %d entry failed: %s", parentEntryID, err)
+		return nil, fmt.Errorf("open parent %d to init failed: %s", parentEntryID, err)
 	}
 	cachedDataEn, err := parent.FindEntry(ctx, pluginapi.CachedDataFile)
 	if err != nil && err != types.ErrNotFound {
@@ -86,7 +86,7 @@ func writeParentDirCacheData(ctx context.Context, entryMgr dentry.Manager, paren
 
 	parent, err := entryMgr.OpenGroup(ctx, parentEntryID)
 	if err != nil {
-		return fmt.Errorf("open parent %d entry failed: %s", parentEntryID, err)
+		return fmt.Errorf("open parent %d to write cache failed: %s", parentEntryID, err)
 	}
 	cachedDataEn, err := parent.FindEntry(ctx, pluginapi.CachedDataFile)
 	if err != nil && err != types.ErrNotFound {

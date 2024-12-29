@@ -97,15 +97,17 @@ type ScheduledTaskRecorder interface {
 	SaveTask(ctx context.Context, task *types.ScheduledTask) error
 	DeleteFinishedTask(ctx context.Context, aliveTime time.Duration) error
 
-	GetWorkflow(ctx context.Context, wfID string) (*types.Workflow, error)
-	ListGlobalWorkflow(ctx context.Context) ([]*types.Workflow, error)
-	ListWorkflow(ctx context.Context) ([]*types.Workflow, error)
-	DeleteWorkflow(ctx context.Context, wfID string) error
-	GetWorkflowJob(ctx context.Context, jobID string) (*types.WorkflowJob, error)
-	ListWorkflowJob(ctx context.Context, filter types.JobFilter) ([]*types.WorkflowJob, error)
-	SaveWorkflow(ctx context.Context, wf *types.Workflow) error
-	SaveWorkflowJob(ctx context.Context, wf *types.WorkflowJob) error
-	DeleteWorkflowJob(ctx context.Context, wfJobID ...string) error
+	ListAllNamespaceWorkflows(ctx context.Context) ([]*types.Workflow, error)
+	ListAllNamespaceWorkflowJobs(ctx context.Context, filter types.JobFilter) ([]*types.WorkflowJob, error)
+
+	GetWorkflow(ctx context.Context, namespace string, wfID string) (*types.Workflow, error)
+	ListWorkflows(ctx context.Context, namespace string) ([]*types.Workflow, error)
+	DeleteWorkflow(ctx context.Context, namespace string, wfID string) error
+	GetWorkflowJob(ctx context.Context, namespace string, jobID string) (*types.WorkflowJob, error)
+	ListWorkflowJobs(ctx context.Context, namespace string, filter types.JobFilter) ([]*types.WorkflowJob, error)
+	SaveWorkflow(ctx context.Context, namespace string, wf *types.Workflow) error
+	SaveWorkflowJob(ctx context.Context, namespace string, wf *types.WorkflowJob) error
+	DeleteWorkflowJobs(ctx context.Context, wfJobID ...string) error
 }
 
 type NotificationRecorder interface {
