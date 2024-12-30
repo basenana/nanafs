@@ -24,33 +24,11 @@ message AccessTokenResponse {
   google.protobuf.Timestamp CertExpiration = 6;
 }
 
-service Inbox {
-  rpc QuickInbox (QuickInboxRequest) returns (QuickInboxResponse) {}
-}
-
 enum WebFileType {
   BookmarkFile = 0;
   HtmlFile = 1;
   RawHtmlFile = 2;
   WebArchiveFile = 3;
-}
-
-message QuickInboxRequest {
-  enum SourceType {UrlSource = 0;}
-
-  SourceType sourceType = 1;
-  WebFileType fileType = 2;
-  string filename = 3;
-  string url = 4;
-  bytes data = 5;
-
-  // url source
-  bool clutterFree = 10;
-}
-
-message QuickInboxResponse {
-  int64 entryID = 1;
-  string jobID = 2;
 }
 
 service Entries {
@@ -432,9 +410,6 @@ message ChatResponse {
 service Notify {
   rpc ListMessages (ListMessagesRequest) returns (ListMessagesResponse) {}
   rpc ReadMessages (ReadMessagesRequest) returns (ReadMessagesResponse) {}
-  rpc GetLatestSequence (GetLatestSequenceRequest) returns (GetLatestSequenceResponse) {}
-  rpc ListUnSyncedEvent (ListUnSyncedEventRequest) returns (ListUnSyncedEventResponse) {}
-  rpc CommitSyncedEvent (CommitSyncedEventRequest) returns (CommitSyncedEventResponse) {}
 }
 
 message ListMessagesRequest {
@@ -450,30 +425,6 @@ message ReadMessagesRequest {
 }
 
 message ReadMessagesResponse {}
-
-message GetLatestSequenceRequest {
-  int64 startSequence = 1;
-}
-
-message GetLatestSequenceResponse {
-  int64 sequence = 1;
-  bool needRelist = 2;
-}
-
-message ListUnSyncedEventRequest {
-  int64 startSequence = 1;
-}
-
-message ListUnSyncedEventResponse {
-  repeated Event events = 1;
-}
-
-message CommitSyncedEventRequest {
-  string deviceID = 1;
-  int64 sequence = 2;
-}
-
-message CommitSyncedEventResponse {}
 
 service Workflow {
   rpc ListWorkflows (ListWorkflowsRequest) returns (ListWorkflowsResponse) {}
@@ -537,8 +488,8 @@ message WorkflowJobDetail {
   string queueName = 7;
 
   message JobTarget {
-    int64 entryID = 1;
     int64 parentEntryID = 2;
+    repeated int64 entries = 3;
   }
   JobTarget target = 8;
 

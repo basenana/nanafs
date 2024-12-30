@@ -60,16 +60,6 @@ var (
 	}
 )
 
-func init() {
-	callerAuthGetter = func(ctx context.Context) common.AuthInfo {
-		return common.AuthInfo{
-			Authenticated: true,
-			UID:           0,
-			Namespace:     "personal",
-		}
-	}
-}
-
 func TestV1API(t *testing.T) {
 	logger.InitLogger()
 	defer logger.Sync()
@@ -136,7 +126,6 @@ var _ = BeforeSuite(func() {
 		DocumentClient:   NewDocumentClient(conn),
 		RoomClient:       NewRoomClient(conn),
 		EntriesClient:    NewEntriesClient(conn),
-		InboxClient:      NewInboxClient(conn),
 		PropertiesClient: NewPropertiesClient(conn),
 		WorkflowClient:   NewWorkflowClient(conn),
 		NotifyClient:     NewNotifyClient(conn),
@@ -157,7 +146,6 @@ type Client struct {
 	DocumentClient
 	RoomClient
 	EntriesClient
-	InboxClient
 	PropertiesClient
 	WorkflowClient
 	NotifyClient

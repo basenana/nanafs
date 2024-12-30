@@ -370,14 +370,6 @@ func (i instrumentalStore) ListEvents(ctx context.Context, filter types.EventFil
 	return result, err
 }
 
-func (i instrumentalStore) DeviceSync(ctx context.Context, deviceID string, syncedSequence int64) error {
-	const operation = "device_sync"
-	defer logOperationLatency(operation, time.Now())
-	err := i.store.DeviceSync(ctx, deviceID, syncedSequence)
-	logOperationError(operation, err)
-	return err
-}
-
 func (i instrumentalStore) ListTask(ctx context.Context, taskID string, filter types.ScheduledTaskFilter) ([]*types.ScheduledTask, error) {
 	const operation = "list_task"
 	defer logOperationLatency(operation, time.Now())

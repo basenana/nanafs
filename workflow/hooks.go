@@ -159,6 +159,7 @@ func (h *hooks) handleWorkflowDelete(namespace, wfID string) {
 // MARK: entry trigger hook
 
 func (h *hooks) handleEntryCreate(evt *types.Event) {
+	h.logger.Infow("[handleEntryCreate] handle entry create event", "type", evt.RefType, "entry", evt.RefID)
 	h.mux.Lock()
 	nsHooks, ok := h.allHooks[evt.Namespace]
 	h.mux.Unlock()
@@ -241,7 +242,7 @@ func (h *hooks) filterAndTrigger(ctx context.Context, wf *types.Workflow) error 
 
 		needSkip := false
 		for _, j := range sameTargetJob {
-			if j.Status == jobrun.InitializingStatus || j.Status == jobrun.PendingStatus || j.Status == jobrun.RunningStatus {
+			if j.Status == jobrun.InitializingStatus || j.Status == jobrun.RunningStatus {
 				h.logger.Debugw("[filterAndTrigger] found same target job, skip this event", "entry", en.ID, "job", j.Id)
 				needSkip = true
 				break
@@ -262,7 +263,7 @@ func (h *hooks) triggerWorkflow(ctx context.Context, namespace, wfId string, en 
 		tgt.ParentEntryID = en.ID
 	} else {
 		tgt.ParentEntryID = en.ParentID
-		tgt.EntryID = en.ID
+		tgt.Entries = append(tgt.Entries, en.ID)
 	}
 	job, err := h.mgr.TriggerWorkflow(ctx, namespace, wfId, tgt, JobAttr{Reason: reason})
 	if err != nil {

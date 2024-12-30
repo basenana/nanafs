@@ -84,7 +84,7 @@ func (c *controller) SetupShutdownHandler(stopCh chan struct{}) chan struct{} {
 	go func() {
 		<-stopCh
 		wg := sync.WaitGroup{}
-		wg.Add(2)
+		wg.Add(1)
 
 		go func() {
 			defer wg.Done()

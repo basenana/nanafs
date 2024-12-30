@@ -118,7 +118,7 @@ func jobDetail(j *types.WorkflowJob) *WorkflowJobDetail {
 		Executor:      j.Executor,
 		QueueName:     j.QueueName,
 		Target: &WorkflowJobDetail_JobTarget{
-			EntryID:       j.Target.EntryID,
+			Entries:       j.Target.Entries,
 			ParentEntryID: j.Target.ParentEntryID,
 		},
 		Steps:     nil,

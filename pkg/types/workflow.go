@@ -87,7 +87,6 @@ type WorkflowJobStep struct {
 }
 
 type WorkflowTarget struct {
-	EntryID       int64   `json:"entry_id,omitempty"`
 	Entries       []int64 `json:"entries,omitempty"`
 	ParentEntryID int64   `json:"parent_entry_id,omitempty"`
 }

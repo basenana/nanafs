@@ -28,9 +28,11 @@ type Entry struct {
 	Kind       types.Kind
 	Size       int64
 	IsGroup    bool
-	Document   *Document
 	Properties map[string]string
 	Parameters map[string]string
+
+	Overwrite bool
+	Document  *Document
 }
 
 type EntryAttr struct {

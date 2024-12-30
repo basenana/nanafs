@@ -363,7 +363,7 @@ type Workflow struct {
 	Cron            string    `gorm:"column:cron"`
 	Steps           string    `gorm:"column:steps"`
 	Enable          bool      `gorm:"column:enable;index:wf_enable"`
-	QueueName       string    `gorm:"column:queue_name,index:wf_q"`
+	QueueName       string    `gorm:"column:queue_name;index:wf_q"`
 	Namespace       string    `gorm:"column:namespace;index:wf_ns"`
 	CreatedAt       time.Time `gorm:"column:created_at;index:wf_creat"`
 	UpdatedAt       time.Time `gorm:"column:updated_at"`
@@ -467,7 +467,6 @@ func (o *WorkflowJob) From(job *types.WorkflowJob) (*WorkflowJob, error) {
 	if err != nil {
 		return o, fmt.Errorf("marshal workflow job target failed: %s", err)
 	}
-	o.TargetEntry = job.Target.EntryID
 	o.Target = string(rawTarget)
 
 	rawStep, err := json.Marshal(job.Steps)

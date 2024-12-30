@@ -19,7 +19,6 @@ package docloader
 import (
 	"context"
 	"fmt"
-	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -60,18 +59,6 @@ func (d DocLoader) Version() string {
 }
 
 func (d DocLoader) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
-	entryPath := request.Parameter[pluginapi.ResEntryPathKey].(string)
-	if entryPath == "" {
-		resp := pluginapi.NewFailedResponse("entry_path is empty")
-		return resp, nil
-	}
-
-	_, err := os.Stat(entryPath)
-	if err != nil {
-		resp := pluginapi.NewFailedResponse(fmt.Sprintf("stat entry file %s failed: %s", entryPath, err))
-		return resp, nil
-	}
-
 	var result = pluginapi.CollectManifest{BaseEntry: request.ParentEntryId}
 	for i := range request.Entries {
 		en := request.Entries[i]

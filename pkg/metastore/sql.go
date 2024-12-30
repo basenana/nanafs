@@ -368,12 +368,6 @@ func (s *sqliteMetaStore) ListEvents(ctx context.Context, filter types.EventFilt
 	return s.dbStore.ListEvents(ctx, filter)
 }
 
-func (s *sqliteMetaStore) DeviceSync(ctx context.Context, deviceID string, syncedSequence int64) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.DeviceSync(ctx, deviceID, syncedSequence)
-}
-
 func (s *sqliteMetaStore) SaveRoom(ctx context.Context, room *types.Room) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
@@ -1914,31 +1908,6 @@ func (s *sqlMetaStore) ListEvents(ctx context.Context, filter types.EventFilter)
 		}
 	}
 	return result, nil
-}
-
-func (s *sqlMetaStore) DeviceSync(ctx context.Context, deviceID string, syncedSequence int64) error {
-	defer trace.StartRegion(ctx, "metastore.sql.DeviceSync").End()
-	return s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		model := db.RegisteredDevice{}
-		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", deviceID).First(&model)
-		if res.Error != nil {
-			if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-				model.ID = deviceID
-				model.SyncedSequence = syncedSequence
-				model.Namespace = types.GetNamespace(ctx).String()
-				model.LastSeenAt = time.Now()
-				res = tx.Create(model)
-				return res.Error
-			}
-			s.logger.Errorw("query device error", "deviceID", deviceID, "err", res.Error)
-			return res.Error
-		}
-
-		model.SyncedSequence = syncedSequence
-		model.LastSeenAt = time.Now()
-		res = tx.Save(model)
-		return res.Error
-	})
 }
 
 func (s *sqlMetaStore) SaveRoom(ctx context.Context, room *types.Room) error {

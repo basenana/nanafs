@@ -172,9 +172,6 @@ func (c *Controller) handleNextJob(namespace, jobID string) {
 }
 
 func (c *Controller) rescanRunnableJob(ctx context.Context) error {
-	c.mux.Lock()
-	defer c.mux.Unlock()
-
 	if !c.isStartUp {
 		// all running job
 		runningJobs, err := c.recorder.ListAllNamespaceWorkflowJobs(ctx, types.JobFilter{Status: RunningStatus})
@@ -195,7 +192,7 @@ func (c *Controller) rescanRunnableJob(ctx context.Context) error {
 		}
 	}
 
-	pendingJobs, err := c.recorder.ListAllNamespaceWorkflowJobs(ctx, types.JobFilter{Status: PendingStatus})
+	pendingJobs, err := c.recorder.ListAllNamespaceWorkflowJobs(ctx, types.JobFilter{Status: InitializingStatus})
 	if err != nil {
 		return err
 	}
@@ -259,6 +256,14 @@ func (c *Controller) Handle(event flow.UpdateEvent) {
 		c.logger.Errorw("update workflow job status failed, failed to get job",
 			"err", err, "namespace", jid.namespace, "job", jid.id)
 		return
+	}
+
+	if job.StartAt.IsZero() {
+		job.StartAt = time.Now()
+	}
+
+	if flow.IsFinishedStatus(event.Flow.Status) {
+		job.FinishAt = time.Now()
 	}
 
 	job.Status = event.Flow.Status

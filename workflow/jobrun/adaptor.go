@@ -23,7 +23,6 @@ import (
 )
 
 var (
-	PendingStatus      = "pending"
 	InitializingStatus = flow.InitializingStatus
 	RunningStatus      = flow.RunningStatus
 	PausingStatus      = flow.PausedStatus

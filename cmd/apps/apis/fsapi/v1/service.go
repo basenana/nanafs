@@ -44,7 +44,6 @@ type Services interface {
 	AuthServer
 	DocumentServer
 	EntriesServer
-	InboxServer
 	PropertiesServer
 	NotifyServer
 	WorkflowServer
@@ -55,14 +54,13 @@ func InitServices(server *grpc.Server, ctrl controller.Controller, depends *fs.D
 		ctrl:         ctrl,
 		workflow:     depends.Workflow,
 		pathEntryMgr: pathEntryMgr,
-		callerAuthFn: common.CallerAuth,
+		caller:       common.CallerAuth,
 		logger:       logger.NewLogger("fsapi"),
 	}
 
 	RegisterAuthServer(server, s)
 	RegisterDocumentServer(server, s)
 	RegisterEntriesServer(server, s)
-	RegisterInboxServer(server, s)
 	RegisterRoomServer(server, s)
 	RegisterPropertiesServer(server, s)
 	RegisterNotifyServer(server, s)
@@ -74,7 +72,7 @@ type services struct {
 	ctrl         controller.Controller
 	workflow     workflow.Workflow
 	pathEntryMgr *pathmgr.PathManager
-	callerAuthFn common.CallerAuthGetter
+	caller       common.CallerAuthGetter
 	logger       *zap.SugaredLogger
 }
 
@@ -511,7 +509,7 @@ func (s *services) FindEntryDetail(ctx context.Context, request *FindEntryDetail
 }
 
 func (s *services) GetEntryDetail(ctx context.Context, request *GetEntryDetailRequest) (*GetEntryDetailResponse, error) {
-	caller := s.callerAuthFn(ctx)
+	caller := s.caller(ctx)
 	if !caller.Authenticated {
 		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
 	}
@@ -540,7 +538,7 @@ func (s *services) GetEntryDetail(ctx context.Context, request *GetEntryDetailRe
 }
 
 func (s *services) CreateEntry(ctx context.Context, request *CreateEntryRequest) (*CreateEntryResponse, error) {
-	caller := s.callerAuthFn(ctx)
+	caller := s.caller(ctx)
 	if !caller.Authenticated {
 		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
 	}
@@ -583,7 +581,7 @@ func (s *services) CreateEntry(ctx context.Context, request *CreateEntryRequest)
 }
 
 func (s *services) UpdateEntry(ctx context.Context, request *UpdateEntryRequest) (*UpdateEntryResponse, error) {
-	caller := s.callerAuthFn(ctx)
+	caller := s.caller(ctx)
 	if !caller.Authenticated {
 		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
 	}
@@ -619,7 +617,7 @@ func (s *services) UpdateEntry(ctx context.Context, request *UpdateEntryRequest)
 }
 
 func (s *services) DeleteEntry(ctx context.Context, request *DeleteEntryRequest) (*DeleteEntryResponse, error) {
-	caller := s.callerAuthFn(ctx)
+	caller := s.caller(ctx)
 	if !caller.Authenticated {
 		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
 	}
@@ -662,7 +660,7 @@ func (s *services) deleteEntry(ctx context.Context, uid, entryId int64) (en, par
 }
 
 func (s *services) DeleteEntries(ctx context.Context, request *DeleteEntriesRequest) (*DeleteEntriesResponse, error) {
-	caller := s.callerAuthFn(ctx)
+	caller := s.caller(ctx)
 	if !caller.Authenticated {
 		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
 	}
@@ -730,7 +728,7 @@ func (s *services) ListGroupChildren(ctx context.Context, request *ListGroupChil
 }
 
 func (s *services) ChangeParent(ctx context.Context, request *ChangeParentRequest) (*ChangeParentResponse, error) {
-	caller := s.callerAuthFn(ctx)
+	caller := s.caller(ctx)
 	if !caller.Authenticated {
 		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
 	}
@@ -781,7 +779,7 @@ func (s *services) WriteFile(reader Entries_WriteFileServer) error {
 		file      dentry.File
 	)
 
-	caller := s.callerAuthFn(ctx)
+	caller := s.caller(ctx)
 	if !caller.Authenticated {
 		return status.Error(codes.Unauthenticated, "unauthenticated")
 	}
@@ -853,7 +851,7 @@ func (s *services) ReadFile(request *ReadFileRequest, writer Entries_ReadFileSer
 		readOnce int64
 	)
 
-	caller := s.callerAuthFn(ctx)
+	caller := s.caller(ctx)
 	if !caller.Authenticated {
 		return status.Error(codes.Unauthenticated, "unauthenticated")
 	}
@@ -895,10 +893,6 @@ func (s *services) ReadFile(request *ReadFileRequest, writer Entries_ReadFileSer
 		off += readOnce
 	}
 	return nil
-}
-
-func (s *services) QuickInbox(ctx context.Context, request *QuickInboxRequest) (*QuickInboxResponse, error) {
-	return nil, status.Error(codes.PermissionDenied, "quick inbox api will remove")
 }
 
 func (s *services) AddProperty(ctx context.Context, request *AddPropertyRequest) (*AddPropertyResponse, error) {
@@ -964,22 +958,6 @@ func (s *services) DeleteProperty(ctx context.Context, request *DeletePropertyRe
 	}, nil
 }
 
-func (s *services) GetLatestSequence(ctx context.Context, request *GetLatestSequenceRequest) (*GetLatestSequenceResponse, error) {
-	caller := s.callerAuthFn(ctx)
-	if !caller.Authenticated {
-		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
-	}
-	seq, err := s.ctrl.GetLatestSequence(ctx)
-	if err != nil {
-		s.logger.Errorw("query latest sequence failed", "err", err)
-		return nil, status.Error(common.FsApiError(err), "query latest sequence failed")
-	}
-	return &GetLatestSequenceResponse{
-		Sequence:   seq,
-		NeedRelist: request.StartSequence <= 0,
-	}, nil
-}
-
 func (s *services) ListMessages(ctx context.Context, request *ListMessagesRequest) (*ListMessagesResponse, error) {
 	//TODO implement me
 	panic("implement me")
@@ -990,35 +968,8 @@ func (s *services) ReadMessages(ctx context.Context, request *ReadMessagesReques
 	panic("implement me")
 }
 
-func (s *services) ListUnSyncedEvent(ctx context.Context, request *ListUnSyncedEventRequest) (*ListUnSyncedEventResponse, error) {
-	eventList, err := s.ctrl.ListUnSyncedEvent(ctx, request.StartSequence)
-	if err != nil {
-		s.logger.Errorw("list unsynced event failed", "err", err)
-		return nil, status.Error(common.FsApiError(err), "list unsynced event failed")
-	}
-
-	resp := &ListUnSyncedEventResponse{}
-	for _, evt := range eventList {
-		resp.Events = append(resp.Events, eventInfo(&evt))
-	}
-	return resp, nil
-}
-
-func (s *services) CommitSyncedEvent(ctx context.Context, request *CommitSyncedEventRequest) (*CommitSyncedEventResponse, error) {
-	s.logger.Infow("device commit sequence", "device", request.DeviceID, "sequence", request.Sequence)
-	if request.DeviceID == "" {
-		return nil, status.Error(codes.InvalidArgument, "device id is empty")
-	}
-	err := s.ctrl.CommitSyncedEvent(ctx, request.DeviceID, request.Sequence)
-	if err != nil {
-		s.logger.Errorw("device commit sequence failed", "device", request.DeviceID, "err", err)
-		return nil, status.Error(common.FsApiError(err), "device commit sequence failed")
-	}
-	return &CommitSyncedEventResponse{}, nil
-}
-
 func (s *services) ListWorkflows(ctx context.Context, request *ListWorkflowsRequest) (*ListWorkflowsResponse, error) {
-	caller := s.callerAuthFn(ctx)
+	caller := s.caller(ctx)
 	if !caller.Authenticated {
 		return nil, status.Errorf(codes.Unauthenticated, "unauthenticated")
 	}
@@ -1037,7 +988,7 @@ func (s *services) ListWorkflows(ctx context.Context, request *ListWorkflowsRequ
 }
 
 func (s *services) ListWorkflowJobs(ctx context.Context, request *ListWorkflowJobsRequest) (*ListWorkflowJobsResponse, error) {
-	caller := s.callerAuthFn(ctx)
+	caller := s.caller(ctx)
 	if !caller.Authenticated {
 		return nil, status.Errorf(codes.Unauthenticated, "unauthenticated")
 	}
@@ -1060,7 +1011,7 @@ func (s *services) ListWorkflowJobs(ctx context.Context, request *ListWorkflowJo
 }
 
 func (s *services) TriggerWorkflow(ctx context.Context, request *TriggerWorkflowRequest) (*TriggerWorkflowResponse, error) {
-	caller := s.callerAuthFn(ctx)
+	caller := s.caller(ctx)
 	if !caller.Authenticated {
 		return nil, status.Errorf(codes.Unauthenticated, "unauthenticated")
 	}
@@ -1085,7 +1036,7 @@ func (s *services) TriggerWorkflow(ctx context.Context, request *TriggerWorkflow
 	}
 
 	job, err := s.workflow.TriggerWorkflow(ctx, caller.Namespace, request.WorkflowID,
-		types.WorkflowTarget{EntryID: request.Target.EntryID, ParentEntryID: request.Target.ParentEntryID},
+		types.WorkflowTarget{Entries: []int64{request.Target.EntryID}, ParentEntryID: request.Target.ParentEntryID},
 		workflow.JobAttr{Reason: request.Attr.Reason, Timeout: time.Second * time.Duration(request.Attr.Timeout)},
 	)
 	if err != nil {
@@ -1126,7 +1077,7 @@ func (s *services) queryEntryProperties(ctx context.Context, entryID, parentID i
 }
 
 func (s *services) namespace(ctx context.Context) (string, error) {
-	ai := s.callerAuthFn(ctx)
+	ai := s.caller(ctx)
 	if !ai.Authenticated {
 		return "", status.Error(codes.Unauthenticated, "unauthenticated")
 	}
@@ -1136,7 +1087,3 @@ func (s *services) namespace(ctx context.Context) (string, error) {
 	}
 	return ai.Namespace, nil
 }
-
-var (
-	callerAuthGetter = common.CallerAuth
-)

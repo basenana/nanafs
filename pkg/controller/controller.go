@@ -69,11 +69,6 @@ type Controller interface {
 	SetEntryEncodedProperty(ctx context.Context, id int64, fKey string, fVal []byte) error
 	RemoveEntryProperty(ctx context.Context, id int64, fKey string) error
 
-	GetLatestSequence(ctx context.Context) (int64, error)
-	ListUnSyncedEvent(ctx context.Context, sequence int64) ([]types.Event, error)
-	CommitSyncedEvent(ctx context.Context, deviceID string, sequence int64) error
-	ListNotifications(ctx context.Context) ([]types.Notification, error)
-
 	ListDocuments(ctx context.Context, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error)
 	GetDocumentsByEntryId(ctx context.Context, entryId int64) (*types.Document, error)
 	GetDocument(ctx context.Context, documentId int64) (*types.Document, error)

@@ -189,34 +189,26 @@ func (m *manager) TriggerWorkflow(ctx context.Context, namespace string, wfId st
 	}
 
 	m.logger.Infow("receive workflow", "workflow", workflow.Name, "entryID", tgt)
-	if tgt.EntryID != 0 {
+	for _, tgtEn := range tgt.Entries {
 		var en *types.Metadata
-		en, err = m.entryMgr.GetEntry(ctx, tgt.EntryID)
+		en, err = m.entryMgr.GetEntry(ctx, tgtEn)
 		if err != nil {
 			m.logger.Errorw("query entry failed", "workflow", workflow.Name, "entryID", tgt, "err", err)
 			return nil, err
 		}
-		tgt.ParentEntryID = en.ParentID
+		if tgt.ParentEntryID == 0 {
+			tgt.ParentEntryID = en.ParentID
+		}
+
+		if tgt.ParentEntryID != en.ParentID {
+			return nil, fmt.Errorf("entry has wrong parent id")
+		}
 	}
 
 	job, err := assembleWorkflowJob(workflow, tgt)
 	if err != nil {
 		m.logger.Errorw("assemble job failed", "workflow", workflow.Name, "err", err)
 		return nil, err
-	}
-
-	if attr.JobID != "" {
-		// TODO: improve this
-		jobs, err := m.ListJobs(ctx, namespace, wfId)
-		if err != nil {
-			return nil, err
-		}
-		for _, j := range jobs {
-			if j.Id == attr.JobID {
-				return nil, fmt.Errorf("job id %s is already existes", attr.JobID)
-			}
-		}
-		job.Id = attr.JobID
 	}
 
 	if attr.Timeout == 0 {
@@ -271,7 +263,6 @@ func (m *manager) CancelWorkflowJob(ctx context.Context, namespace string, jobId
 }
 
 type JobAttr struct {
-	JobID   string
 	Reason  string
 	Queue   string
 	Timeout time.Duration

@@ -117,5 +117,4 @@ type NotificationRecorder interface {
 
 	RecordEvents(ctx context.Context, events []types.Event) error
 	ListEvents(ctx context.Context, filter types.EventFilter) ([]types.Event, error)
-	DeviceSync(ctx context.Context, deviceID string, syncedSequence int64) error
 }

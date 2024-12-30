@@ -89,7 +89,21 @@ func (n *NamespacedJobQueue) Pop() *JobID {
 		return nil
 	}
 
-	return q.Pop()
+	nextJob := q.Pop()
+	if nextJob != nil {
+		select {
+		case n.signalCh <- struct{}{}:
+			n.mux.Lock()
+			n.namespaceList = append(n.namespaceList, ns)
+			n.namespaceInQueue[ns] = struct{}{}
+			n.mux.Unlock()
+
+		default:
+
+		}
+	}
+
+	return nextJob
 }
 
 func (n *NamespacedJobQueue) Put(ns, jid string) {

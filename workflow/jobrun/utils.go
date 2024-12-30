@@ -164,7 +164,7 @@ func logOperationError(execName, operation string, err error) error {
 	return err
 }
 
-func newPluginRequest(job *types.WorkflowJob, step *types.WorkflowJobStep, result pluginapi.Results) *pluginapi.Request {
+func newPluginRequest(job *types.WorkflowJob, step *types.WorkflowJobStep, result pluginapi.Results, targets ...*types.Metadata) *pluginapi.Request {
 	req := pluginapi.NewRequest()
 	req.ParentEntryId = job.Target.ParentEntryID
 	req.ContextResults = result
@@ -179,5 +179,16 @@ func newPluginRequest(job *types.WorkflowJob, step *types.WorkflowJobStep, resul
 	req.Parameter[pluginapi.ResPluginType] = step.Plugin.PluginType
 	req.Parameter[pluginapi.ResPluginAction] = step.Plugin.Action
 	req.ParentProperties = map[string]string{}
+
+	for _, en := range targets {
+		req.Entries = append(req.Entries, pluginapi.Entry{
+			ID:         en.ID,
+			Name:       en.Name,
+			Kind:       en.Kind,
+			Size:       en.Size,
+			IsGroup:    en.IsGroup,
+			Parameters: make(map[string]string),
+		})
+	}
 	return req
 }

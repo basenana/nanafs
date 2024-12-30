@@ -172,6 +172,10 @@ func copyEntryToJobWorkDir(ctx context.Context, entryPath string, entry *types.M
 func collectFile2BaseEntry(ctx context.Context, entryMgr dentry.Manager, baseEntryId int64, workdir string, entry *pluginapi.Entry) error {
 	isNeedCreate := entry.ID == 0
 
+	if !isNeedCreate && !entry.Overwrite {
+		return nil
+	}
+
 	grp, err := entryMgr.OpenGroup(ctx, baseEntryId)
 	if err != nil {
 		return fmt.Errorf("open base entry group failed: %s", err)

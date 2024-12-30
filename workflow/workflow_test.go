@@ -141,7 +141,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 		var job *types.WorkflowJob
 		It("trigger workflow should be succeed", func() {
 			var err error
-			job, err = mgr.TriggerWorkflow(ctx, namespace, wf.Id, types.WorkflowTarget{EntryID: en.ID}, JobAttr{})
+			job, err = mgr.TriggerWorkflow(ctx, namespace, wf.Id, types.WorkflowTarget{Entries: []int64{en.ID}}, JobAttr{})
 			Expect(err).Should(BeNil())
 			Expect(job.Id).ShouldNot(BeEmpty())
 		})
@@ -165,7 +165,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 		var job *types.WorkflowJob
 		It("trigger workflow should be succeed", func() {
 			var err error
-			job, err = mgr.TriggerWorkflow(ctx, namespace, wf.Id, types.WorkflowTarget{EntryID: en.ID}, JobAttr{})
+			job, err = mgr.TriggerWorkflow(ctx, namespace, wf.Id, types.WorkflowTarget{Entries: []int64{en.ID}}, JobAttr{})
 			Expect(err).Should(BeNil())
 			Expect(job.Id).ShouldNot(BeEmpty())
 
@@ -231,7 +231,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 		var job *types.WorkflowJob
 		It("trigger workflow should be succeed", func() {
 			var err error
-			job, err = mgr.TriggerWorkflow(ctx, namespace, wf.Id, types.WorkflowTarget{EntryID: en.ID}, JobAttr{})
+			job, err = mgr.TriggerWorkflow(ctx, namespace, wf.Id, types.WorkflowTarget{Entries: []int64{en.ID}}, JobAttr{})
 			Expect(err).Should(BeNil())
 			Expect(job.Id).ShouldNot(BeEmpty())
 

@@ -118,6 +118,11 @@ func run(ctrl controller.Controller, depends *fs.Depends, cfgLoader config.Loade
 	ctrl.StartBackendTask(stopCh)
 	shutdown := ctrl.SetupShutdownHandler(stopCh)
 
+	ctx, canF := context.WithCancel(context.Background())
+	defer canF()
+
+	depends.Workflow.Start(ctx)
+
 	pathEntryMgr, err := apis.NewPathEntryManager(ctrl)
 	if err != nil {
 		log.Panicf("init api path entry manager error: %s", err)

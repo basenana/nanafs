@@ -106,17 +106,7 @@ func (p *pipeExecutor) Exec(ctx context.Context, flow *flow.Flow, task flow.Task
 			err = panicErr
 		}
 	}()
-	req := newPluginRequest(p.job, t.step, p.ctxResults)
-	for _, en := range p.targets {
-		req.Entries = append(req.Entries, pluginapi.Entry{
-			ID:         en.ID,
-			Name:       en.Name,
-			Kind:       en.Kind,
-			Size:       en.Size,
-			IsGroup:    en.IsGroup,
-			Parameters: make(map[string]string),
-		})
-	}
+	req := newPluginRequest(p.job, t.step, p.ctxResults, p.targets...)
 	var resp *pluginapi.Response
 	resp, err = callPlugin(ctx, p.job, *t.step.Plugin, p.pluginMgr, p.entryMgr, req, p.logger)
 	if err != nil {
@@ -145,6 +135,7 @@ type fileExecutor struct {
 	entryPath  string
 	entryURI   string
 	cachedData *pluginapi.CachedData
+	targets    []*types.Metadata
 
 	ctxResults pluginapi.Results
 	logger     *zap.SugaredLogger
@@ -170,6 +161,12 @@ func (b *fileExecutor) Setup(ctx context.Context) (err error) {
 	}
 
 	for _, enID := range b.job.Target.Entries {
+		en, err := b.entryMgr.GetEntry(ctx, enID)
+		if err != nil && !errors.Is(err, types.ErrNotFound) {
+			return fmt.Errorf("get entry by id failed %w", err)
+		}
+		b.targets = append(b.targets, en)
+
 		epath, err := entryWorkdirInit(ctx, enID, b.entryMgr, b.workdir)
 		if err != nil {
 			b.logger.Errorw("copy target file to workdir failed", "err", err, "entry", enID)
@@ -207,7 +204,7 @@ func (b *fileExecutor) Exec(ctx context.Context, flow *flow.Flow, task flow.Task
 		}
 	}()
 
-	req := newPluginRequest(b.job, t.step, b.ctxResults)
+	req := newPluginRequest(b.job, t.step, b.ctxResults, b.targets...)
 	req.WorkPath = b.workdir
 	req.CacheData = b.cachedData
 	req.ContextResults = b.ctxResults
