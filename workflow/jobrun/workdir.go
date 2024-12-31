@@ -154,7 +154,7 @@ func entryWorkdirInit(ctx context.Context, entryID int64, entryMgr dentry.Manage
 	return entryPath, nil
 }
 
-func copyEntryToJobWorkDir(ctx context.Context, entryPath string, entry *types.Metadata, file dentry.File) error {
+func copyEntryToJobWorkDir(ctx context.Context, entryPath string, entry *types.Entry, file dentry.File) error {
 	if entryPath == "" {
 		entryPath = entry.Name
 	}

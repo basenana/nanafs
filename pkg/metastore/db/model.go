@@ -90,7 +90,7 @@ func (o *Entry) TableName() string {
 	return "object"
 }
 
-func (o *Entry) FromEntry(en *types.Metadata) *Entry {
+func (o *Entry) FromEntry(en *types.Entry) *Entry {
 	o.ID = en.ID
 	o.Name = en.Name
 	o.Aliases = &en.Aliases
@@ -115,8 +115,8 @@ func (o *Entry) FromEntry(en *types.Metadata) *Entry {
 	return o
 }
 
-func (o *Entry) ToEntry() *types.Metadata {
-	result := &types.Metadata{
+func (o *Entry) ToEntry() *types.Entry {
+	result := &types.Entry{
 		ID:         o.ID,
 		Name:       o.Name,
 		Kind:       types.Kind(o.Kind),
@@ -431,7 +431,6 @@ type WorkflowJob struct {
 	ID            string    `gorm:"column:id;autoIncrement"`
 	Workflow      string    `gorm:"column:workflow;index:job_wf_id"`
 	TriggerReason string    `gorm:"column:trigger_reason"`
-	TargetEntry   int64     `gorm:"column:target_entry;index:job_tgt_en"`
 	Target        string    `gorm:"column:target"`
 	Steps         string    `gorm:"column:steps"`
 	Status        string    `gorm:"column:status;index:job_status"`

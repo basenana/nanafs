@@ -81,7 +81,7 @@ var _ = Describe("TestPathSplit", func() {
 
 var _ = Describe("TestPathMgr", func() {
 	ctrl := NewMockController()
-	var root *types.Metadata
+	var root *types.Entry
 	Context("init test file", func() {
 		It("should be succeed", func() {
 			var err error

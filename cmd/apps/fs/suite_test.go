@@ -60,7 +60,7 @@ func initFsBridge(nfs *NanaFS) *NanaNode {
 	return root
 }
 
-func mustGetNanaEntry(node *NanaNode, ctrl controller.Controller) *types.Metadata {
+func mustGetNanaEntry(node *NanaNode, ctrl controller.Controller) *types.Entry {
 	result, err := ctrl.GetEntry(context.Background(), node.entryID)
 	if err != nil {
 		panic(err)

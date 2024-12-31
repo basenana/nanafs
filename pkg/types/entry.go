@@ -43,7 +43,7 @@ type SystemInfo struct {
 	FileSizeTotal int64  `json:"file_size_total"`
 }
 
-type Metadata struct {
+type Entry struct {
 	ID         int64     `json:"id"`
 	Name       string    `json:"name"`
 	Aliases    string    `json:"aliases,omitempty"`
@@ -65,8 +65,8 @@ type Metadata struct {
 	Access     Access    `json:"access"`
 }
 
-func NewMetadata(name string, kind Kind) Metadata {
-	result := Metadata{
+func NewEntry(name string, kind Kind) Entry {
+	result := Entry{
 		ID:         utils.GenerateNewID(),
 		Name:       name,
 		Kind:       FileKind(name, kind),
@@ -88,7 +88,7 @@ func NewMetadata(name string, kind Kind) Metadata {
 }
 
 type GroupEntry struct {
-	Entry    *Metadata     `json:"entry"`
+	Entry    *Entry        `json:"entry"`
 	Children []*GroupEntry `json:"children"`
 }
 
@@ -178,12 +178,12 @@ type PropertyItem struct {
 	Encoded bool   `json:"encoded"`
 }
 
-func InitNewEntry(parent *Metadata, attr EntryAttr) (*Metadata, error) {
+func InitNewEntry(parent *Entry, attr EntryAttr) (*Entry, error) {
 	if len(attr.Name) > entryNameMaxLength {
 		return nil, ErrNameTooLong
 	}
 
-	md := NewMetadata(attr.Name, attr.Kind)
+	md := NewEntry(attr.Name, attr.Kind)
 	md.Dev = attr.Dev
 
 	if parent != nil {
@@ -212,6 +212,6 @@ type ChunkSeg struct {
 	State   int16
 }
 
-func IsMirrored(entry *Metadata) bool {
+func IsMirrored(entry *Entry) bool {
 	return !entry.IsGroup && entry.RefID != 0 && entry.RefID != entry.ID
 }

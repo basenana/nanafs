@@ -38,7 +38,7 @@ var (
 	entryMgr   dentry.Manager
 
 	workdir string
-	root    *types.Metadata
+	root    *types.Entry
 )
 
 func TestDocument(t *testing.T) {

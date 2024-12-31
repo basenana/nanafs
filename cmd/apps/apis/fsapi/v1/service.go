@@ -357,7 +357,7 @@ func (s *services) GetDocumentDetail(ctx context.Context, request *GetDocumentDe
 	}
 	var (
 		doc        *types.Document
-		en         *types.Metadata
+		en         *types.Entry
 		properties []*Property
 		err        error
 	)
@@ -480,7 +480,7 @@ func (s *services) GroupTree(ctx context.Context, request *GetGroupTreeRequest) 
 
 func (s *services) FindEntryDetail(ctx context.Context, request *FindEntryDetailRequest) (*GetEntryDetailResponse, error) {
 	var (
-		en, par *types.Metadata
+		en, par *types.Entry
 		err     error
 	)
 
@@ -522,7 +522,7 @@ func (s *services) GetEntryDetail(ctx context.Context, request *GetEntryDetailRe
 		return nil, status.Error(common.FsApiError(err), "has no permission")
 	}
 
-	var p *types.Metadata
+	var p *types.Entry
 	if en.ParentID != dentry.RootEntryID {
 		p, err = s.ctrl.GetEntry(ctx, en.ParentID)
 		if err != nil {
@@ -628,7 +628,7 @@ func (s *services) DeleteEntry(ctx context.Context, request *DeleteEntryRequest)
 	return &DeleteEntryResponse{Entry: entryDetail(en, parent)}, nil
 }
 
-func (s *services) deleteEntry(ctx context.Context, uid, entryId int64) (en, parent *types.Metadata, err error) {
+func (s *services) deleteEntry(ctx context.Context, uid, entryId int64) (en, parent *types.Entry, err error) {
 	en, err = s.ctrl.GetEntry(ctx, entryId)
 	if err != nil {
 		err = status.Error(common.FsApiError(err), "query entry failed")

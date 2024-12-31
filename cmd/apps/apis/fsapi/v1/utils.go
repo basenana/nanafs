@@ -44,7 +44,7 @@ func pdKind2EntryKind(k string) types.Kind {
 	return types.Kind(k)
 }
 
-func entryInfo(en *types.Metadata) *EntryInfo {
+func entryInfo(en *types.Entry) *EntryInfo {
 	return &EntryInfo{
 		Id:         en.ID,
 		Name:       en.Name,
@@ -59,7 +59,7 @@ func entryInfo(en *types.Metadata) *EntryInfo {
 	}
 }
 
-func entryDetail(en, parent *types.Metadata) *EntryDetail {
+func entryDetail(en, parent *types.Entry) *EntryDetail {
 	access := &EntryDetail_Access{Uid: en.Access.UID, Gid: en.Access.GID}
 	for _, perm := range en.Access.Permissions {
 		access.Permissions = append(access.Permissions, string(perm))

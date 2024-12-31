@@ -40,7 +40,7 @@ type Query interface {
 	Reset() Query
 	Rule(rule types.Rule) Query
 	Label(label types.LabelMatch) Query
-	Results(ctx context.Context) ([]*types.Metadata, error)
+	Results(ctx context.Context) ([]*types.Entry, error)
 }
 
 type query struct {
@@ -69,10 +69,10 @@ func (q *query) Label(label types.LabelMatch) Query {
 	return q
 }
 
-func (q *query) Results(ctx context.Context) ([]*types.Metadata, error) {
+func (q *query) Results(ctx context.Context) ([]*types.Entry, error) {
 	var (
 		startAt = time.Now()
-		entries []*types.Metadata
+		entries []*types.Entry
 		err     error
 	)
 	defer func() {

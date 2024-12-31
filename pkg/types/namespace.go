@@ -19,10 +19,9 @@ package types
 import "context"
 
 const (
-	NamespaceKey         = "namespace"
-	AllNamespace         = ""
-	DefaultNamespace     = "default"
-	GlobalNamespaceValue = "global"
+	NamespaceKey     = "namespace"
+	AllNamespace     = ""
+	DefaultNamespace = "default"
 )
 
 type Namespace struct {

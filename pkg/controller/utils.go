@@ -24,7 +24,7 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 )
 
-func buildGroupEntry(ctx context.Context, entryMgr dentry.Manager, entry *types.Metadata, showHidden bool) (*types.GroupEntry, error) {
+func buildGroupEntry(ctx context.Context, entryMgr dentry.Manager, entry *types.Entry, showHidden bool) (*types.GroupEntry, error) {
 	ge := &types.GroupEntry{
 		Entry:    entry,
 		Children: make([]*types.GroupEntry, 0),

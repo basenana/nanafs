@@ -28,20 +28,20 @@ import (
 
 type EntryIterator interface {
 	HasNext() bool
-	Next() *types.Metadata
+	Next() *types.Entry
 }
 
 const entryFetchPageSize = 1000
 
 type transactionEntryIterator struct {
 	tx      *gorm.DB
-	onePage []*types.Metadata
+	onePage []*types.Entry
 	remain  int64
 	crtPage int32
 }
 
 func newTransactionEntryIterator(tx *gorm.DB, total int64) EntryIterator {
-	it := &transactionEntryIterator{tx: tx.Order("object.name DESC"), onePage: make([]*types.Metadata, 0)}
+	it := &transactionEntryIterator{tx: tx.Order("object.name DESC"), onePage: make([]*types.Entry, 0)}
 	it.remain = total
 	return it
 }
@@ -75,7 +75,7 @@ func (i *transactionEntryIterator) HasNext() bool {
 	return len(i.onePage) > 0
 }
 
-func (i *transactionEntryIterator) Next() *types.Metadata {
+func (i *transactionEntryIterator) Next() *types.Entry {
 	defer logOperationLatency("transactionEntryIterator.next", time.Now())
 	if len(i.onePage) > 0 {
 		one := i.onePage[0]

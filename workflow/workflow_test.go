@@ -114,7 +114,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 			},
 			QueueName: types.WorkflowQueueFile,
 		}
-		en *types.Metadata
+		en *types.Entry
 	)
 	Context("trigger a workflow", func() {
 		It("create dummy entry should be succeed", func() {

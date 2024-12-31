@@ -39,7 +39,7 @@ var _ = Describe("TestQuery", func() {
 	err = mockedObjectForQuery(ctx, memMeta)
 	gomega.Expect(err).Should(gomega.BeNil())
 
-	doQuery := func(rules []types.Rule, labelMatches []types.LabelMatch) []*types.Metadata {
+	doQuery := func(rules []types.Rule, labelMatches []types.LabelMatch) []*types.Entry {
 		q := Q()
 		for i := range rules {
 			q = q.Rule(rules[i])
@@ -129,7 +129,7 @@ var _ = Describe("TestQuery", func() {
 	})
 })
 
-func isMatchAllWanted(wants []int64, got []*types.Metadata) error {
+func isMatchAllWanted(wants []int64, got []*types.Entry) error {
 	wantMap := make(map[int64]struct{})
 	for _, wId := range wants {
 		wantMap[wId] = struct{}{}
@@ -166,7 +166,7 @@ func isMatchAllWanted(wants []int64, got []*types.Metadata) error {
 func mockedObjectForQuery(ctx context.Context, entryStore metastore.DEntry) error {
 	var objectList = []object{
 		{
-			Metadata: createMetadata(10001),
+			Entry: createMetadata(10001),
 			Properties: &types.Properties{Fields: map[string]types.PropertyItem{
 				"customKey1": {Value: "customValue"},
 				"customKey2": {Value: "customValue"},
@@ -180,7 +180,7 @@ func mockedObjectForQuery(ctx context.Context, entryStore metastore.DEntry) erro
 			}},
 		},
 		{
-			Metadata: createMetadata(10002),
+			Entry: createMetadata(10002),
 			Properties: &types.Properties{Fields: map[string]types.PropertyItem{
 				"customKey1": {Value: "customValue2"},
 			},
@@ -190,7 +190,7 @@ func mockedObjectForQuery(ctx context.Context, entryStore metastore.DEntry) erro
 			}},
 		},
 		{
-			Metadata: createMetadata(10003),
+			Entry: createMetadata(10003),
 			Properties: &types.Properties{Fields: map[string]types.PropertyItem{
 				"customKey1": {Value: "customValue2"},
 				"customKey3": {Value: "customValue3"},
@@ -201,14 +201,14 @@ func mockedObjectForQuery(ctx context.Context, entryStore metastore.DEntry) erro
 			}},
 		},
 		{
-			Metadata:   createMetadata(10004),
+			Entry:      createMetadata(10004),
 			Properties: &types.Properties{Fields: map[string]types.PropertyItem{}},
 			Labels:     &types.Labels{Labels: []types.Label{}},
 		},
 	}
 
 	for _, o := range objectList {
-		err := entryStore.CreateEntry(ctx, 0, o.Metadata, nil)
+		err := entryStore.CreateEntry(ctx, 0, o.Entry, nil)
 		if err != nil {
 			return err
 		}
@@ -225,9 +225,9 @@ func mockedObjectForQuery(ctx context.Context, entryStore metastore.DEntry) erro
 	return nil
 }
 
-func createMetadata(enID int64) *types.Metadata {
+func createMetadata(enID int64) *types.Entry {
 	enName := utils.RandStringRunes(50)
-	md := types.NewMetadata(enName, types.RawKind)
+	md := types.NewEntry(enName, types.RawKind)
 	md.ID = enID
 	md.ParentID = 1
 	return &md

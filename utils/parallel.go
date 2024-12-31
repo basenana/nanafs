@@ -60,7 +60,7 @@ func (p *ParallelWorker) Dispatch(ctx context.Context, fn func()) {
 }
 
 func (p *ParallelWorker) workRun() {
-	leastWait := time.NewTimer(time.Hour)
+	leastWait := time.NewTicker(time.Hour)
 	defer leastWait.Stop()
 	for {
 		select {

@@ -45,7 +45,7 @@ var (
 )
 
 type chunkReader struct {
-	entry *types.Metadata
+	entry *types.Entry
 
 	page        *pageCache
 	store       metastore.ChunkStore
@@ -57,7 +57,7 @@ type chunkReader struct {
 	needCompact bool
 }
 
-func NewChunkReader(entry *types.Metadata, chunkStore metastore.ChunkStore, dataStore storage.Storage) Reader {
+func NewChunkReader(entry *types.Entry, chunkStore metastore.ChunkStore, dataStore storage.Storage) Reader {
 	fileChunkMux.Lock()
 	defer fileChunkMux.Unlock()
 
@@ -964,7 +964,7 @@ type segment struct {
 	len int64 // segment remaining length after pos
 }
 
-func CompactChunksData(ctx context.Context, entry *types.Metadata, chunkStore metastore.ChunkStore, dataStore storage.Storage) (resultErr error) {
+func CompactChunksData(ctx context.Context, entry *types.Entry, chunkStore metastore.ChunkStore, dataStore storage.Storage) (resultErr error) {
 	maxChunkID := (entry.Size / fileChunkSize) + 1
 	var (
 		reader Reader
@@ -1031,7 +1031,7 @@ func CompactChunksData(ctx context.Context, entry *types.Metadata, chunkStore me
 	return resultErr
 }
 
-func DeleteChunksData(ctx context.Context, entry *types.Metadata, chunkStore metastore.ChunkStore, dataStore storage.Storage) error {
+func DeleteChunksData(ctx context.Context, entry *types.Entry, chunkStore metastore.ChunkStore, dataStore storage.Storage) error {
 	segments, err := chunkStore.ListSegments(ctx, entry.ID, 0, true)
 	if err != nil {
 		return err

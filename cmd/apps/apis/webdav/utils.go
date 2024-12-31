@@ -24,7 +24,7 @@ import (
 	"syscall"
 )
 
-func Stat(entry *types.Metadata) Info {
+func Stat(entry *types.Entry) Info {
 	return Info{
 		name:  entry.Name,
 		size:  entry.Size,

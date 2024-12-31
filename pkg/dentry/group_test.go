@@ -27,8 +27,8 @@ import (
 
 var _ = Describe("TestManageGroupEntry", func() {
 	var (
-		group1 *types.Metadata
-		file1  *types.Metadata
+		group1 *types.Entry
+		file1  *types.Entry
 	)
 	Context("init group1", func() {
 		It("init group should be succeed", func() {
@@ -120,11 +120,11 @@ var _ = Describe("TestDynamicGroupEntry", func() {
 	var (
 		ctx      = context.TODO()
 		smtGrp   Group
-		smtGrpEn *types.Metadata
+		smtGrpEn *types.Entry
 		err      error
 	)
 	Context("init source group", func() {
-		var srcGrpEn *types.Metadata
+		var srcGrpEn *types.Entry
 		It("init source group should be succeed", func() {
 			srcGrpEn, err = entryManager.CreateEntry(ctx, root.ID, types.EntryAttr{
 				Name:   "test_dynamic_source_group",

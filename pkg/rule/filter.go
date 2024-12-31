@@ -18,7 +18,7 @@ package rule
 
 import "github.com/basenana/nanafs/pkg/types"
 
-func Filter(filter *types.Rule, entry *types.Metadata, properties *types.Properties, label *types.Labels) bool {
+func Filter(filter *types.Rule, entry *types.Entry, properties *types.Properties, label *types.Labels) bool {
 	if filter == nil {
 		return false
 	}

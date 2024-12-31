@@ -36,16 +36,16 @@ import (
 )
 
 type Manager interface {
-	Root(ctx context.Context) (*types.Metadata, error)
+	Root(ctx context.Context) (*types.Entry, error)
 	CreateNamespace(ctx context.Context, namespace *types.Namespace) error
 
-	GetEntry(ctx context.Context, id int64) (*types.Metadata, error)
-	GetEntryByUri(ctx context.Context, uri string) (*types.Metadata, error)
-	CreateEntry(ctx context.Context, parentId int64, attr types.EntryAttr) (*types.Metadata, error)
+	GetEntry(ctx context.Context, id int64) (*types.Entry, error)
+	GetEntryByUri(ctx context.Context, uri string) (*types.Entry, error)
+	CreateEntry(ctx context.Context, parentId int64, attr types.EntryAttr) (*types.Entry, error)
 	RemoveEntry(ctx context.Context, parentId, entryId int64) error
 	DestroyEntry(ctx context.Context, entryId int64) error
 	CleanEntryData(ctx context.Context, entryId int64) error
-	MirrorEntry(ctx context.Context, srcId, dstParentId int64, attr types.EntryAttr) (*types.Metadata, error)
+	MirrorEntry(ctx context.Context, srcId, dstParentId int64, attr types.EntryAttr) (*types.Entry, error)
 	ChangeEntryParent(ctx context.Context, targetEntryId int64, overwriteEntryId *int64, oldParentId, newParentId int64, newName string, opt types.ChangeParentAttr) error
 
 	GetEntryExtendData(ctx context.Context, id int64) (types.ExtendData, error)
@@ -111,11 +111,11 @@ type manager struct {
 
 var _ Manager = &manager{}
 
-func (m *manager) Root(ctx context.Context) (*types.Metadata, error) {
+func (m *manager) Root(ctx context.Context) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.Root").End()
 	var (
-		root   *types.Metadata
-		nsRoot *types.Metadata
+		root   *types.Entry
+		nsRoot *types.Entry
 		err    error
 	)
 	ns := types.GetNamespace(ctx)
@@ -174,7 +174,7 @@ func (m *manager) CreateNamespace(ctx context.Context, namespace *types.Namespac
 	return nil
 }
 
-func (m *manager) GetEntry(ctx context.Context, id int64) (*types.Metadata, error) {
+func (m *manager) GetEntry(ctx context.Context, id int64) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.GetEntryMetadata").End()
 
 	en, err := m.store.GetEntry(ctx, id)
@@ -185,7 +185,7 @@ func (m *manager) GetEntry(ctx context.Context, id int64) (*types.Metadata, erro
 	return en, nil
 }
 
-func (m *manager) GetEntryByUri(ctx context.Context, uri string) (*types.Metadata, error) {
+func (m *manager) GetEntryByUri(ctx context.Context, uri string) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.GetEntryUri").End()
 	if uri == "/" {
 		return m.Root(ctx)
@@ -273,7 +273,7 @@ func (m *manager) UpdateEntryLabels(ctx context.Context, id int64, labels types.
 	return m.store.UpdateEntryLabels(ctx, id, labels)
 }
 
-func (m *manager) CreateEntry(ctx context.Context, parentId int64, attr types.EntryAttr) (*types.Metadata, error) {
+func (m *manager) CreateEntry(ctx context.Context, parentId int64, attr types.EntryAttr) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.CreateEntry").End()
 	grp, err := m.OpenGroup(ctx, parentId)
 	if err != nil {
@@ -351,7 +351,7 @@ func (m *manager) CleanEntryData(ctx context.Context, entryId int64) error {
 	return nil
 }
 
-func (m *manager) MirrorEntry(ctx context.Context, srcId, dstParentId int64, attr types.EntryAttr) (*types.Metadata, error) {
+func (m *manager) MirrorEntry(ctx context.Context, srcId, dstParentId int64, attr types.EntryAttr) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.MirrorEntry").End()
 
 	src, err := m.GetEntry(ctx, srcId)

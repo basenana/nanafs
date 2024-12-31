@@ -37,7 +37,7 @@ var (
 	metaStoreObj metastore.Meta
 	entryManager Manager
 	entryMgr     *manager
-	root         *types.Metadata
+	root         *types.Entry
 
 	workdir string
 )

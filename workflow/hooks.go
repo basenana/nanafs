@@ -32,12 +32,18 @@ import (
 	"time"
 )
 
+var entryHandleDelay = time.Second * 30
+
 type hooks struct {
 	mgr      *manager
 	cron     *cron.Cron
 	allHooks map[string]*workflowHooks
 	mux      sync.Mutex
-	logger   *zap.SugaredLogger
+
+	delayQ []*pendingEntry
+	qMux   sync.Mutex
+
+	logger *zap.SugaredLogger
 }
 
 func initHooks(mgr *manager) *hooks {
@@ -78,6 +84,20 @@ func (h *hooks) start(ctx context.Context) {
 	for i := range workflows {
 		h.handleWorkflowUpdate(workflows[i])
 	}
+
+	go func() {
+		rechecker := time.NewTicker(entryHandleDelay)
+		defer rechecker.Stop()
+		for {
+			select {
+			case <-rechecker.C:
+				h.triggerDelayedWorkflowJob(false)
+			case <-ctx.Done():
+				h.triggerDelayedWorkflowJob(true)
+				return
+			}
+		}
+	}()
 }
 
 // MARK: workflow cache hook
@@ -200,7 +220,8 @@ func (h *hooks) handleEntryCreate(evt *types.Event) {
 		if !rule.Filter(&hook.rule, en, &properties, &labels) {
 			continue
 		}
-		_ = h.triggerWorkflow(ctx, evt.Namespace, wfID, en, "entry created")
+
+		h.workflowJobDelay(ctx, evt.Namespace, wfID, en, "entry created")
 	}
 	return
 }
@@ -214,36 +235,46 @@ func (h *hooks) newJobFunc(namespace, wfID string) func() {
 			return
 		}
 
-		if err = h.filterAndTrigger(context.Background(), wf); err != nil {
+		if err = h.filterAndRunCronWorkflow(context.Background(), wf); err != nil {
 			h.logger.Errorw("filter and trigger workflow failed", "workflow", wfID, "err", err)
 			return
 		}
 	}
 }
 
-func (h *hooks) filterAndTrigger(ctx context.Context, wf *types.Workflow) error {
+func (h *hooks) filterAndRunCronWorkflow(ctx context.Context, wf *types.Workflow) error {
 	var (
-		entries []*types.Metadata
+		entries []*types.Entry
 		err     error
 	)
 	entries, err = rule.Q().Rule(*wf.Rule).Results(ctx)
 	if err != nil {
-		h.logger.Errorw("[filterAndTrigger] query entries with wf rule failed", "workflow", wf.Id, "rule", wf.Rule, "err", err)
+		h.logger.Errorw("[filterAndRunCronWorkflow] query entries with wf rule failed", "workflow", wf.Id, "rule", wf.Rule, "err", err)
 		return err
 	}
-	h.logger.Infow("[filterAndTrigger] query entries with wf rule", "workflow", wf.Id, "entries", len(entries))
+	h.logger.Infow("[filterAndRunCronWorkflow] query entries with wf rule", "workflow", wf.Id, "entries", len(entries))
 
 	for _, en := range entries {
+		if en.Namespace != wf.Namespace {
+			h.logger.Warnw("[filterAndRunCronWorkflow] match wrong namespace entry", "entry", en.ID, "entryNamespace", en.Namespace, "namespace", wf.Namespace)
+			continue
+		}
+
+		if !en.IsGroup {
+			h.logger.Warnw("[filterAndRunCronWorkflow] only group entry support cron run", "entry", en.ID, "namespace", en.Namespace)
+			continue
+		}
+
 		sameTargetJob, err := h.mgr.recorder.ListWorkflowJobs(ctx, wf.Namespace, types.JobFilter{WorkFlowID: wf.Id, TargetEntry: en.ID})
 		if err != nil {
-			h.logger.Errorw("[filterAndTrigger] query same target job failed", "entry", en.ID, "workflow", wf.Id, "err", err)
+			h.logger.Errorw("[filterAndRunCronWorkflow] query same target job failed", "entry", en.ID, "workflow", wf.Id, "err", err)
 			continue
 		}
 
 		needSkip := false
 		for _, j := range sameTargetJob {
 			if j.Status == jobrun.InitializingStatus || j.Status == jobrun.RunningStatus {
-				h.logger.Debugw("[filterAndTrigger] found same target job, skip this event", "entry", en.ID, "job", j.Id)
+				h.logger.Debugw("[filterAndRunCronWorkflow] found same target job, skip this event", "entry", en.ID, "job", j.Id)
 				needSkip = true
 				break
 			}
@@ -252,25 +283,97 @@ func (h *hooks) filterAndTrigger(ctx context.Context, wf *types.Workflow) error 
 			continue
 		}
 
-		_ = h.triggerWorkflow(ctx, wf.Namespace, wf.Id, en, "cronjob")
+		_ = h.triggerGroupWorkflow(ctx, wf.Namespace, wf.Id, en.ID, "cronjob")
 	}
 	return nil
 }
 
-func (h *hooks) triggerWorkflow(ctx context.Context, namespace, wfId string, en *types.Metadata, reason string) error {
-	tgt := types.WorkflowTarget{}
-	if en.IsGroup {
-		tgt.ParentEntryID = en.ID
-	} else {
-		tgt.ParentEntryID = en.ParentID
-		tgt.Entries = append(tgt.Entries, en.ID)
+func (h *hooks) workflowJobDelay(ctx context.Context, namespace, wfId string, en *types.Entry, reason string) {
+	h.qMux.Lock()
+	h.delayQ = append(h.delayQ, &pendingEntry{
+		namespace: namespace,
+		workflow:  wfId,
+		entryID:   en.ID,
+		parentID:  en.ParentID,
+		isGroup:   en.IsGroup,
+		reason:    reason,
+		addAt:     time.Now(),
+	})
+	h.qMux.Unlock()
+	h.logger.Infow("delay handle entry", "namespace", namespace, "workflow", wfId, "entry", en.ID, "reason", reason)
+}
+
+func (h *hooks) triggerDelayedWorkflowJob(isAll bool) {
+	if len(h.delayQ) == 0 {
+		return
 	}
+
+	workflows := make(map[string][]*pendingEntry)
+	h.qMux.Lock()
+	for len(h.delayQ) > 0 {
+		pe := h.delayQ[0]
+		if !isAll && time.Since(pe.addAt) < entryHandleDelay {
+			break
+		}
+
+		workflows[pe.workflow] = append(workflows[pe.workflow], pe)
+		h.delayQ = h.delayQ[1:]
+	}
+	h.qMux.Unlock()
+
+	if len(workflows) == 0 {
+		return
+	}
+
+	ctx := context.Background()
+	for wf, pendingEntries := range workflows {
+		parents := make(map[int64][]*pendingEntry)
+
+		for _, pe := range pendingEntries {
+			parents[pe.parentID] = append(parents[pe.parentID], pe)
+		}
+
+		for parentID, entries := range parents {
+			if len(entries) == 0 {
+				continue
+			}
+
+			firstEn := entries[0]
+			var entryIDs []int64
+			for _, en := range entries {
+				entryIDs = append(entryIDs, en.entryID)
+			}
+			if err := h.triggerEntriesWorkflow(ctx, firstEn.namespace, wf, entryIDs, parentID, firstEn.reason); err != nil {
+				h.logger.Errorw("trigger entries workflow failed", "parentID", parentID, "workflow", wf, "err", err)
+			}
+		}
+	}
+
+}
+
+func (h *hooks) triggerGroupWorkflow(ctx context.Context, namespace, wfId string, parentID int64, reason string) error {
+	tgt := types.WorkflowTarget{ParentEntryID: parentID}
+	return h.triggerWorkflow(ctx, namespace, wfId, tgt, reason)
+}
+
+func (h *hooks) triggerEntriesWorkflow(ctx context.Context, namespace, wfId string, entries []int64, parentID int64, reason string) error {
+	if len(entries) == 0 {
+		return nil
+	}
+	tgt := types.WorkflowTarget{
+		Entries:       entries,
+		ParentEntryID: parentID,
+	}
+	return h.triggerWorkflow(ctx, namespace, wfId, tgt, reason)
+}
+
+func (h *hooks) triggerWorkflow(ctx context.Context, namespace, wfId string, tgt types.WorkflowTarget, reason string) error {
 	job, err := h.mgr.TriggerWorkflow(ctx, namespace, wfId, tgt, JobAttr{Reason: reason})
 	if err != nil {
-		h.logger.Errorw("trigger workflow failed", "workflow", wfId, "entry", en.ID, "err", err)
+		h.logger.Errorw("trigger workflow failed", "workflow", wfId, "err", err)
 		return err
 	}
-	h.logger.Infow("trigger workflow finish", "workflow", wfId, "job", job.Id, "entry", en.ID)
+	h.logger.Infow("trigger workflow finish", "workflow", wfId, "job", job.Id)
 	return nil
 }
 
@@ -357,4 +460,14 @@ func buildInNsWorkflows(namespace string) []*types.Workflow {
 			QueueName: types.WorkflowQueueFile,
 		},
 	}
+}
+
+type pendingEntry struct {
+	namespace string
+	workflow  string
+	entryID   int64
+	parentID  int64
+	isGroup   bool
+	reason    string
+	addAt     time.Time
 }

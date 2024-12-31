@@ -28,7 +28,7 @@ import (
 )
 
 var _ = Describe("TestChunkIO", func() {
-	var fakeEn = types.NewMetadata("test_chunk_io.file", types.RawKind)
+	var fakeEn = types.NewEntry("test_chunk_io.file", types.RawKind)
 	Expect(entryStore.CreateEntry(context.Background(), 0, &fakeEn, nil)).Should(BeNil())
 	Context("test one page", func() {
 		var reader Reader
@@ -84,7 +84,7 @@ var _ = Describe("TestChunkIO", func() {
 })
 
 var _ = Describe("TestChunkRewrite", func() {
-	var fakeEn = types.NewMetadata("test_chunk_rewrite.file", types.RawKind)
+	var fakeEn = types.NewEntry("test_chunk_rewrite.file", types.RawKind)
 	Expect(entryStore.CreateEntry(context.Background(), 0, &fakeEn, nil)).Should(BeNil())
 	Context("test one chunk", func() {
 		var reader Reader
@@ -206,7 +206,7 @@ var _ = Describe("TestChunkRewrite", func() {
 })
 
 var _ = Describe("TestChunkCompact", func() {
-	var fakeEn = types.NewMetadata("test_chunk_compact.file", types.RawKind)
+	var fakeEn = types.NewEntry("test_chunk_compact.file", types.RawKind)
 	Expect(entryStore.CreateEntry(context.Background(), 0, &fakeEn, nil)).Should(BeNil())
 	Context("test multi chunk", func() {
 		var reader Reader

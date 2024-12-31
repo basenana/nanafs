@@ -36,7 +36,7 @@ func (c *controller) OpenFile(ctx context.Context, entryID int64, attr types.Ope
 	}
 
 	for types.IsMirrored(entry) {
-		var sourceEn *types.Metadata
+		var sourceEn *types.Entry
 		sourceEn, err = c.entry.GetEntry(ctx, entry.RefID)
 		if err != nil {
 			c.logger.Errorw("query source object error", "entry", entry.ID, "sourceEntry", entry.RefID, "err", err)

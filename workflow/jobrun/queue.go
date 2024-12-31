@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	maxPreNamespace = 100
+	maxPreNamespace = 1024
 )
 
 type GroupJobQueue struct {
@@ -76,6 +76,7 @@ func (n *NamespacedJobQueue) Pop() *JobID {
 	}
 
 	n.mux.Lock()
+	defer n.mux.Unlock()
 
 	ns := n.namespaceList[0]
 	n.namespaceList = n.namespaceList[1:]
@@ -83,24 +84,22 @@ func (n *NamespacedJobQueue) Pop() *JobID {
 
 	q := n.namespaces[ns]
 
-	n.mux.Unlock()
-
 	if q == nil {
 		return nil
 	}
 
 	nextJob := q.Pop()
-	if nextJob != nil {
-		select {
-		case n.signalCh <- struct{}{}:
-			n.mux.Lock()
-			n.namespaceList = append(n.namespaceList, ns)
-			n.namespaceInQueue[ns] = struct{}{}
-			n.mux.Unlock()
+	if nextJob == nil {
+		delete(n.namespaces, ns)
+		return nil
+	}
 
-		default:
+	select {
+	case n.signalCh <- struct{}{}:
+		n.namespaceList = append(n.namespaceList, ns)
+		n.namespaceInQueue[ns] = struct{}{}
+	default:
 
-		}
 	}
 
 	return nextJob
@@ -108,6 +107,7 @@ func (n *NamespacedJobQueue) Pop() *JobID {
 
 func (n *NamespacedJobQueue) Put(ns, jid string) {
 	n.mux.Lock()
+	defer n.mux.Unlock()
 
 	q := n.namespaces[ns]
 	if q == nil {
@@ -118,14 +118,11 @@ func (n *NamespacedJobQueue) Put(ns, jid string) {
 	q.Put(JobID{namespace: ns, id: jid})
 
 	if _, ok := n.namespaceInQueue[ns]; ok {
-		n.mux.Unlock()
 		return
 	}
 
 	n.namespaceList = append(n.namespaceList, ns)
 	n.namespaceInQueue[ns] = struct{}{}
-
-	n.mux.Unlock()
 
 	select {
 	case n.signalCh <- struct{}{}:

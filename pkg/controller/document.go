@@ -36,7 +36,7 @@ func (c *controller) ListDocuments(ctx context.Context, filter types.DocFilter, 
 	return result, nil
 }
 
-func (c *controller) ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) ([]*types.Metadata, error) {
+func (c *controller) ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) ([]*types.Entry, error) {
 	defer trace.StartRegion(ctx, "controller.ListDocumentGroups").End()
 	result, err := c.document.ListDocumentGroups(ctx, parentId, filter)
 	if err != nil {

@@ -47,29 +47,29 @@ type Controller interface {
 	AccessToken(ctx context.Context, ak, sk string) (*types.AccessToken, error)
 	CreateNamespace(ctx context.Context, namespace string) (*types.Namespace, error)
 
-	LoadRootEntry(ctx context.Context) (*types.Metadata, error)
-	GetGroupTree(ctx context.Context) (*types.GroupEntry, error)
-	FindEntry(ctx context.Context, parentId int64, name string) (*types.Metadata, error)
-	GetEntry(ctx context.Context, id int64) (*types.Metadata, error)
-	GetEntryByURI(ctx context.Context, uri string) (*types.Metadata, error)
-	CreateEntry(ctx context.Context, parentId int64, attr types.EntryAttr) (*types.Metadata, error)
-	UpdateEntry(ctx context.Context, entry *types.Metadata) error
+	CreateEntry(ctx context.Context, parentId int64, attr types.EntryAttr) (*types.Entry, error)
+	UpdateEntry(ctx context.Context, entry *types.Entry) error
 	DestroyEntry(ctx context.Context, parentId, entryId int64, attr types.DestroyObjectAttr) error
-	MirrorEntry(ctx context.Context, srcEntryId, dstParentId int64, attr types.EntryAttr) (*types.Metadata, error)
-	ListEntryChildren(ctx context.Context, entryId int64, order *types.EntryOrder, filters ...types.Filter) ([]*types.Metadata, error)
+	MirrorEntry(ctx context.Context, srcEntryId, dstParentId int64, attr types.EntryAttr) (*types.Entry, error)
 	ChangeEntryParent(ctx context.Context, targetId, oldParentId, newParentId int64, newName string, opt types.ChangeParentAttr) error
-	ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) ([]*types.Metadata, error)
+	SetEntryEncodedProperty(ctx context.Context, id int64, fKey string, fVal []byte) error
+	SetEntryProperty(ctx context.Context, id int64, fKey, fVal string) error
+	RemoveEntryProperty(ctx context.Context, id int64, fKey string) error
+
+	LoadRootEntry(ctx context.Context) (*types.Entry, error)
+	GetGroupTree(ctx context.Context) (*types.GroupEntry, error)
+	FindEntry(ctx context.Context, parentId int64, name string) (*types.Entry, error)
+	GetEntry(ctx context.Context, id int64) (*types.Entry, error)
+	GetEntryByURI(ctx context.Context, uri string) (*types.Entry, error)
+	ListEntryChildren(ctx context.Context, entryId int64, order *types.EntryOrder, filters ...types.Filter) ([]*types.Entry, error)
+	ListEntryProperties(ctx context.Context, id int64) (map[string]types.PropertyItem, error)
+	GetEntryProperty(ctx context.Context, id int64, fKey string) ([]byte, error)
 
 	ConfigEntrySourcePlugin(ctx context.Context, id int64, scope types.ExtendData) error
 	CleanupEntrySourcePlugin(ctx context.Context, id int64) error
 
-	ListEntryProperties(ctx context.Context, id int64) (map[string]types.PropertyItem, error)
-	GetEntryProperty(ctx context.Context, id int64, fKey string) ([]byte, error)
-	SetEntryProperty(ctx context.Context, id int64, fKey, fVal string) error
-	SetEntryEncodedProperty(ctx context.Context, id int64, fKey string, fVal []byte) error
-	RemoveEntryProperty(ctx context.Context, id int64, fKey string) error
-
 	ListDocuments(ctx context.Context, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error)
+	ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) ([]*types.Entry, error)
 	GetDocumentsByEntryId(ctx context.Context, entryId int64) (*types.Document, error)
 	GetDocument(ctx context.Context, documentId int64) (*types.Document, error)
 	QueryDocuments(ctx context.Context, query string) ([]*types.Document, error)
@@ -137,7 +137,7 @@ func (c *controller) CreateNamespace(ctx context.Context, namespace string) (*ty
 	return ns, nil
 }
 
-func (c *controller) LoadRootEntry(ctx context.Context) (*types.Metadata, error) {
+func (c *controller) LoadRootEntry(ctx context.Context) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "controller.LoadRootEntry").End()
 	c.logger.Info("init root entry")
 	rootEntry, err := c.entry.Root(ctx)
@@ -157,7 +157,7 @@ func (c *controller) GetGroupTree(ctx context.Context) (*types.GroupEntry, error
 	return buildGroupEntry(ctx, c.entry, root, false)
 }
 
-func (c *controller) FindEntry(ctx context.Context, parentId int64, name string) (*types.Metadata, error) {
+func (c *controller) FindEntry(ctx context.Context, parentId int64, name string) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "controller.FindEntry").End()
 	if len(name) > entryNameMaxLength {
 		return nil, types.ErrNameTooLong
@@ -176,7 +176,7 @@ func (c *controller) FindEntry(ctx context.Context, parentId int64, name string)
 	return result, nil
 }
 
-func (c *controller) GetEntry(ctx context.Context, id int64) (*types.Metadata, error) {
+func (c *controller) GetEntry(ctx context.Context, id int64) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "controller.GetEntry").End()
 	result, err := c.entry.GetEntry(ctx, id)
 	if err != nil {
@@ -188,7 +188,7 @@ func (c *controller) GetEntry(ctx context.Context, id int64) (*types.Metadata, e
 	return result, nil
 }
 
-func (c *controller) GetEntryByURI(ctx context.Context, uri string) (*types.Metadata, error) {
+func (c *controller) GetEntryByURI(ctx context.Context, uri string) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "controller.GetEntryByURI").End()
 	result, err := c.entry.GetEntryByUri(ctx, uri)
 	if err != nil {
@@ -200,7 +200,7 @@ func (c *controller) GetEntryByURI(ctx context.Context, uri string) (*types.Meta
 	return result, nil
 }
 
-func (c *controller) CreateEntry(ctx context.Context, parentId int64, attr types.EntryAttr) (*types.Metadata, error) {
+func (c *controller) CreateEntry(ctx context.Context, parentId int64, attr types.EntryAttr) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "controller.CreateEntry").End()
 
 	if len(attr.Name) > entryNameMaxLength {
@@ -216,7 +216,7 @@ func (c *controller) CreateEntry(ctx context.Context, parentId int64, attr types
 	return entry, nil
 }
 
-func (c *controller) UpdateEntry(ctx context.Context, entry *types.Metadata) error {
+func (c *controller) UpdateEntry(ctx context.Context, entry *types.Entry) error {
 	entryID := entry.ID
 	defer trace.StartRegion(ctx, "controller.UpdateEntry").End()
 	en, err := c.GetEntry(ctx, entryID)
@@ -265,7 +265,7 @@ func (c *controller) DestroyEntry(ctx context.Context, parentId, entryId int64, 
 	return nil
 }
 
-func (c *controller) MirrorEntry(ctx context.Context, srcId, dstParentId int64, attr types.EntryAttr) (*types.Metadata, error) {
+func (c *controller) MirrorEntry(ctx context.Context, srcId, dstParentId int64, attr types.EntryAttr) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "controller.MirrorEntry").End()
 	if len(attr.Name) > entryNameMaxLength {
 		return nil, types.ErrNameTooLong
@@ -289,7 +289,7 @@ func (c *controller) MirrorEntry(ctx context.Context, srcId, dstParentId int64, 
 	return entry, nil
 }
 
-func (c *controller) ListEntryChildren(ctx context.Context, parentId int64, order *types.EntryOrder, filters ...types.Filter) ([]*types.Metadata, error) {
+func (c *controller) ListEntryChildren(ctx context.Context, parentId int64, order *types.EntryOrder, filters ...types.Filter) ([]*types.Entry, error) {
 	defer trace.StartRegion(ctx, "controller.ListEntryChildren").End()
 	parent, err := c.entry.OpenGroup(ctx, parentId)
 	if err != nil {

@@ -29,7 +29,7 @@ import (
 var _ = Describe("testRoomManage", func() {
 	var (
 		roomId int64
-		entry  *types.Metadata
+		entry  *types.Entry
 		err    error
 	)
 	Context("room", func() {

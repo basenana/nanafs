@@ -80,7 +80,7 @@ func (c *Controller) Start(ctx context.Context) {
 	c.isStartUp = true
 
 	go func() {
-		timer := time.NewTimer(time.Minute * 10)
+		timer := time.NewTicker(time.Minute * 10)
 		c.logger.Infof("start job controller, waiting for next job")
 		for {
 			select {
@@ -159,7 +159,10 @@ func (c *Controller) handleNextJob(namespace, jobID string) {
 	if job.TimeoutSeconds == 0 {
 		job.TimeoutSeconds = 60 * 60 * 3 // 3H
 	}
-	jobCtx, canF := context.WithTimeout(ctx, time.Duration(job.TimeoutSeconds)*time.Second)
+
+	// FIXME: delete this
+	nsCtx := types.WithNamespace(ctx, types.NewNamespace(job.Namespace))
+	jobCtx, canF := context.WithTimeout(nsCtx, time.Duration(job.TimeoutSeconds)*time.Second)
 	defer canF()
 
 	c.logger.Infof("trigger flow %s %s", namespace, job.Id)

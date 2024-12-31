@@ -68,14 +68,14 @@ type pipeExecutor struct {
 	logger    *zap.SugaredLogger
 
 	ctxResults pluginapi.Results
-	targets    []*types.Metadata
+	targets    []*types.Entry
 }
 
 var _ flow.Executor = &pipeExecutor{}
 
 func (p *pipeExecutor) Setup(ctx context.Context) error {
 	var (
-		en  *types.Metadata
+		en  *types.Entry
 		err error
 	)
 
@@ -135,7 +135,7 @@ type fileExecutor struct {
 	entryPath  string
 	entryURI   string
 	cachedData *pluginapi.CachedData
-	targets    []*types.Metadata
+	targets    []*types.Entry
 
 	ctxResults pluginapi.Results
 	logger     *zap.SugaredLogger
@@ -175,7 +175,7 @@ func (b *fileExecutor) Setup(ctx context.Context) (err error) {
 		b.logger.Infow("copy entry to workdir", "entry", enID, "path", epath)
 	}
 
-	if b.job.Target.ParentEntryID != 0 {
+	if b.job.Target.ParentEntryID != 0 && len(b.job.Target.Entries) == 0 {
 		// base on parent entry
 		b.cachedData, err = initParentDirCacheData(ctx, b.entryMgr, b.job.Target.ParentEntryID)
 		if err != nil {

@@ -23,16 +23,16 @@ import (
 )
 
 type entryMatch struct {
-	*types.Metadata
+	*types.Entry
 	Properties map[string]string `json:"properties"`
 }
 
-func entryToMap(entry *types.Metadata, properties *types.Properties) map[string]interface{} {
+func entryToMap(entry *types.Entry, properties *types.Properties) map[string]interface{} {
 	if entry == nil {
 		return make(map[string]interface{})
 	}
 
-	m := entryMatch{Metadata: entry, Properties: make(map[string]string)}
+	m := entryMatch{Entry: entry, Properties: make(map[string]string)}
 	var err error
 	if properties != nil {
 		for k, v := range properties.Fields {

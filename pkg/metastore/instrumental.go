@@ -114,7 +114,7 @@ func (i instrumentalStore) SetConfigValue(ctx context.Context, group, name, valu
 	return err
 }
 
-func (i instrumentalStore) GetEntry(ctx context.Context, id int64) (*types.Metadata, error) {
+func (i instrumentalStore) GetEntry(ctx context.Context, id int64) (*types.Entry, error) {
 	const operation = "get_entry"
 	defer logOperationLatency(operation, time.Now())
 	en, err := i.store.GetEntry(ctx, id)
@@ -122,7 +122,7 @@ func (i instrumentalStore) GetEntry(ctx context.Context, id int64) (*types.Metad
 	return en, err
 }
 
-func (i instrumentalStore) FindEntry(ctx context.Context, parentID int64, name string) (*types.Metadata, error) {
+func (i instrumentalStore) FindEntry(ctx context.Context, parentID int64, name string) (*types.Entry, error) {
 	const operation = "find_entry"
 	defer logOperationLatency(operation, time.Now())
 	en, err := i.store.FindEntry(ctx, parentID, name)
@@ -130,7 +130,7 @@ func (i instrumentalStore) FindEntry(ctx context.Context, parentID int64, name s
 	return en, err
 }
 
-func (i instrumentalStore) CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata, ed *types.ExtendData) error {
+func (i instrumentalStore) CreateEntry(ctx context.Context, parentID int64, newEntry *types.Entry, ed *types.ExtendData) error {
 	const operation = "create_entry"
 	defer logOperationLatency(operation, time.Now())
 	err := i.store.CreateEntry(ctx, parentID, newEntry, ed)
@@ -154,7 +154,7 @@ func (i instrumentalStore) DeleteRemovedEntry(ctx context.Context, entryID int64
 	return err
 }
 
-func (i instrumentalStore) UpdateEntryMetadata(ctx context.Context, entry *types.Metadata) error {
+func (i instrumentalStore) UpdateEntryMetadata(ctx context.Context, entry *types.Entry) error {
 	const operation = "update_entry_metadata"
 	defer logOperationLatency(operation, time.Now())
 	err := i.store.UpdateEntryMetadata(ctx, entry)
@@ -178,7 +178,7 @@ func (i instrumentalStore) FilterEntries(ctx context.Context, filter types.Filte
 	return it, err
 }
 
-func (i instrumentalStore) Open(ctx context.Context, id int64, attr types.OpenAttr) (*types.Metadata, error) {
+func (i instrumentalStore) Open(ctx context.Context, id int64, attr types.OpenAttr) (*types.Entry, error) {
 	const operation = "open"
 	defer logOperationLatency(operation, time.Now())
 	en, err := i.store.Open(ctx, id, attr)
@@ -194,7 +194,7 @@ func (i instrumentalStore) Flush(ctx context.Context, id int64, size int64) erro
 	return err
 }
 
-func (i instrumentalStore) MirrorEntry(ctx context.Context, newEntry *types.Metadata) error {
+func (i instrumentalStore) MirrorEntry(ctx context.Context, newEntry *types.Entry) error {
 	const operation = "mirror_entry"
 	defer logOperationLatency(operation, time.Now())
 	err := i.store.MirrorEntry(ctx, newEntry)
@@ -314,7 +314,7 @@ func (i instrumentalStore) ListSegments(ctx context.Context, oid, chunkID int64,
 	return segList, err
 }
 
-func (i instrumentalStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Metadata, error) {
+func (i instrumentalStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Entry, error) {
 	const operation = "append_segments"
 	defer logOperationLatency(operation, time.Now())
 	en, err := i.store.AppendSegments(ctx, seg)
