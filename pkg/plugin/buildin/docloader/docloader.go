@@ -19,8 +19,10 @@ package docloader
 import (
 	"context"
 	"fmt"
-	"os"
+	"path"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
@@ -31,8 +33,16 @@ const (
 	PluginVersion = "1.0"
 )
 
+var PluginSpec = types.PluginSpec{
+	Name:          PluginName,
+	Version:       PluginVersion,
+	Type:          types.TypeProcess,
+	Parameters:    make(map[string]string),
+	Customization: []types.PluginConfig{},
+}
+
 type DocLoader struct {
-	spec  types.PluginSpec
+	job   *types.WorkflowJob
 	scope types.PlugScope
 }
 
@@ -49,19 +59,26 @@ func (d DocLoader) Version() string {
 }
 
 func (d DocLoader) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
-	entryPath := request.Parameter[pluginapi.ResEntryPathKey].(string)
-	if entryPath == "" {
-		resp := pluginapi.NewFailedResponse("entry_path is empty")
-		return resp, nil
+	var result = pluginapi.CollectManifest{BaseEntry: request.ParentEntryId}
+	for i := range request.Entries {
+		en := request.Entries[i]
+		if err := d.loadEntry(ctx, request.WorkPath, &en); err != nil {
+			return pluginapi.NewFailedResponse(fmt.Sprintf("load entry %d error: %s", en.ID, err.Error())), nil
+		}
+
+		if en.Document != nil {
+			result.NewFiles = append(result.NewFiles, en)
+		}
 	}
 
-	_, err := os.Stat(entryPath)
-	if err != nil {
-		resp := pluginapi.NewFailedResponse(fmt.Sprintf("stat entry file %s failed: %s", entryPath, err))
-		return resp, nil
-	}
+	resp := pluginapi.NewResponse()
+	resp.NewEntries = append(resp.NewEntries, result)
+	return resp, nil
+}
 
+func (d DocLoader) loadEntry(ctx context.Context, workdir string, entry *pluginapi.Entry) error {
 	var (
+		entryPath   = path.Join(workdir, entry.Name)
 		fileExt     = filepath.Ext(entryPath)
 		p           Parser
 		parseOption = map[string]string{}
@@ -77,29 +94,34 @@ func (d DocLoader) Run(ctx context.Context, request *pluginapi.Request) (*plugin
 	case ".webarchive":
 		p = buildInLoaders[webArchiveParser](entryPath, parseOption)
 	default:
-		resp := pluginapi.NewFailedResponse(fmt.Sprintf("load %s file unsupported", fileExt))
-		return resp, nil
+		return fmt.Errorf("load %s file unsupported", fileExt)
 	}
 
-	documents, err := p.Load(ctx)
+	document, err := p.Load(ctx)
 	if err != nil {
-		resp := pluginapi.NewFailedResponse(fmt.Sprintf("load file %s failed: %s", entryPath, err))
-		return resp, nil
+		return fmt.Errorf("load file %s failed: %w", entryPath, err)
 	}
 
-	return pluginapi.NewResponseWithResult(map[string]any{
-		pluginapi.ResEntryIdKey:        request.EntryId,
-		pluginapi.ResEntryURIKey:       request.EntryURI,
-		pluginapi.ResEntryDocumentsKey: documents,
-	}), nil
+	title := strings.TrimSpace(strings.TrimSuffix(entry.Name, fileExt))
+	entry.Document = &pluginapi.Document{
+		Title:    title,
+		Content:  document.Content,
+		PublicAt: document.PublicAt,
+	}
+
+	for k, v := range document.Metadata {
+		entry.Parameters[k] = v
+	}
+
+	return nil
 }
 
-func NewDocLoader(spec types.PluginSpec, scope types.PlugScope) *DocLoader {
-	return &DocLoader{spec: spec, scope: scope}
+func NewDocLoader(job *types.WorkflowJob, scope types.PlugScope) *DocLoader {
+	return &DocLoader{job: job, scope: scope}
 }
 
 type Parser interface {
-	Load(ctx context.Context) (result []types.FDocument, err error)
+	Load(ctx context.Context) (result *FDocument, err error)
 }
 
 type parserBuilder func(docPath string, docOption map[string]string) Parser
@@ -112,3 +134,10 @@ var (
 		webArchiveParser: NewHTML,
 	}
 )
+
+type FDocument struct {
+	Title    string
+	Content  string
+	PublicAt time.Time
+	Metadata map[string]string
+}

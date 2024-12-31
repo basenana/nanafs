@@ -165,7 +165,7 @@ var _ = Describe("TestEntryManage", func() {
 
 var _ = Describe("TestMirrorEntryManage", func() {
 	var (
-		grp1        *types.Metadata
+		grp1        *types.Entry
 		sourceFile  = "test_mirror_grp1_file1"
 		mirrorFile2 = "test_mirror_grp1_file2"
 		mirrorFile3 = "test_mirror_grp1_file3"
@@ -298,11 +298,11 @@ var _ = Describe("TestMirrorEntryManage", func() {
 
 var _ = Describe("TestChangeEntryParent", func() {
 	var (
-		grp1      *types.Metadata
-		grp1File1 *types.Metadata
-		grp1File2 *types.Metadata
-		grp2File2 *types.Metadata
-		grp2      *types.Metadata
+		grp1      *types.Entry
+		grp1File1 *types.Entry
+		grp1File2 *types.Entry
+		grp2File2 *types.Entry
+		grp2      *types.Entry
 	)
 
 	Context("create grp and files", func() {
@@ -367,12 +367,12 @@ var _ = Describe("TestChangeEntryParent", func() {
 
 var _ = Describe("TestHandleEvent", func() {
 	var (
-		grp1      *types.Metadata
-		grp1File1 *types.Metadata
-		grp1File2 *types.Metadata
-		grp1File3 *types.Metadata
-		grp2      *types.Metadata
-		grp2File1 *types.Metadata
+		grp1      *types.Entry
+		grp1File1 *types.Entry
+		grp1File2 *types.Entry
+		grp1File3 *types.Entry
+		grp2      *types.Entry
+		grp2File1 *types.Entry
 	)
 
 	Context("create grp and files", func() {
@@ -470,7 +470,7 @@ var _ = Describe("TestHandleEvent", func() {
 	})
 })
 
-func mustGetSourceEntry(entry *types.Metadata) *types.Metadata {
+func mustGetSourceEntry(entry *types.Entry) *types.Entry {
 	var err error
 	for entry.RefID != 0 && entry.RefID != entry.ID {
 		entry, err = entryManager.GetEntry(context.TODO(), entry.RefID)

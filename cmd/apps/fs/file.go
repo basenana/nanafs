@@ -39,7 +39,7 @@ type fileOperation interface {
 
 type File struct {
 	node  *NanaNode
-	entry *types.Metadata
+	entry *types.Entry
 	file  dentry.File
 }
 

@@ -28,20 +28,20 @@ import (
 
 type EntryIterator interface {
 	HasNext() bool
-	Next() *types.Metadata
+	Next() *types.Entry
 }
 
 const entryFetchPageSize = 1000
 
 type transactionEntryIterator struct {
 	tx      *gorm.DB
-	onePage []*types.Metadata
+	onePage []*types.Entry
 	remain  int64
 	crtPage int32
 }
 
 func newTransactionEntryIterator(tx *gorm.DB, total int64) EntryIterator {
-	it := &transactionEntryIterator{tx: tx.Order("object.name DESC"), onePage: make([]*types.Metadata, 0)}
+	it := &transactionEntryIterator{tx: tx.Order("object.name DESC"), onePage: make([]*types.Entry, 0)}
 	it.remain = total
 	return it
 }
@@ -54,7 +54,7 @@ func (i *transactionEntryIterator) HasNext() bool {
 	// fetch next page
 	if atomic.LoadInt64(&i.remain) > 0 {
 		defer logOperationLatency("transactionEntryIterator.query_one_page", time.Now())
-		onePage := make([]db.Object, 0, entryFetchPageSize)
+		onePage := make([]db.Entry, 0, entryFetchPageSize)
 		res := i.tx.Limit(entryFetchPageSize).Offset(entryFetchPageSize * int(i.crtPage)).Find(&onePage)
 		if res.Error != nil {
 			logOperationError("transactionEntryIterator.query_one_page", res.Error)
@@ -75,7 +75,7 @@ func (i *transactionEntryIterator) HasNext() bool {
 	return len(i.onePage) > 0
 }
 
-func (i *transactionEntryIterator) Next() *types.Metadata {
+func (i *transactionEntryIterator) Next() *types.Entry {
 	defer logOperationLatency("transactionEntryIterator.next", time.Now())
 	if len(i.onePage) > 0 {
 		one := i.onePage[0]

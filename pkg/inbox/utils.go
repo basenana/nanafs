@@ -51,7 +51,7 @@ func InitInboxInternalGroup(ctx context.Context, entryMgr dentry.Manager) error 
 	return nil
 }
 
-func FindInboxInternalGroup(ctx context.Context, entryMgr dentry.Manager) (*types.Metadata, error) {
+func FindInboxInternalGroup(ctx context.Context, entryMgr dentry.Manager) (*types.Entry, error) {
 	root, err := entryMgr.Root(ctx)
 	if err != nil {
 		return nil, err

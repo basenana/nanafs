@@ -24,6 +24,7 @@ import (
 	v1 "github.com/basenana/nanafs/cmd/apps/apis/fsapi/v1"
 	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/fs"
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/utils/logger"
 	"google.golang.org/grpc"
@@ -53,7 +54,7 @@ func (s *Server) Run(stopCh chan struct{}) {
 	}
 }
 
-func New(ctrl controller.Controller, pathEntryMgr *pathmgr.PathManager, cfg config.Loader) (*Server, error) {
+func New(ctrl controller.Controller, depends *fs.Depends, pathEntryMgr *pathmgr.PathManager, cfg config.Loader) (*Server, error) {
 	rootCaPool, err := common.ReadRootCAs(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("load root ca error: %w", err)
@@ -103,7 +104,7 @@ func New(ctrl controller.Controller, pathEntryMgr *pathmgr.PathManager, cfg conf
 		listener: l,
 		server:   grpc.NewServer(opts...),
 	}
-	s.services, err = v1.InitServices(s.server, ctrl, pathEntryMgr)
+	s.services, err = v1.InitServices(s.server, ctrl, depends, pathEntryMgr)
 	if err != nil {
 		return nil, err
 	}

@@ -21,8 +21,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/basenana/nanafs/pkg/workflow/jobrun"
 	"github.com/basenana/nanafs/utils"
+	"github.com/basenana/nanafs/workflow/jobrun"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -82,40 +82,6 @@ var _ = Describe("testRoomService", func() {
 		It("delete should be succeed", func() {
 			_, err := serviceClient.DeleteRoom(ctx, &DeleteRoomRequest{RoomID: roomId}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
-		})
-	})
-})
-
-var _ = Describe("testInboxService", func() {
-	var (
-		ctx        = context.TODO()
-		inboxGroup int64
-	)
-
-	Context("test quick inbox", func() {
-		var newEntry int64
-		It("find inbox should be succeed", func() {
-			en, err := ctrl.FindEntry(ctx, dentry.RootEntryID, ".inbox")
-			Expect(err).Should(BeNil())
-			inboxGroup = en.ID
-		})
-		It("inbox should be succeed", func() {
-			resp, err := serviceClient.QuickInbox(ctx, &QuickInboxRequest{
-				SourceType:  QuickInboxRequest_UrlSource,
-				FileType:    WebFileType_WebArchiveFile,
-				Filename:    "test",
-				Url:         "https://blog.ihypo.net",
-				ClutterFree: true,
-			}, grpc.UseCompressor(gzip.Name))
-			Expect(err).Should(BeNil())
-
-			newEntry = resp.EntryID
-			Expect(newEntry > 0).Should(BeTrue())
-		})
-		It("file in inbox should be found", func() {
-			en, err := ctrl.GetEntry(ctx, newEntry)
-			Expect(err).Should(BeNil())
-			Expect(en.ParentID).Should(Equal(inboxGroup))
 		})
 	})
 })
@@ -455,74 +421,6 @@ var _ = Describe("testDocumentsService-ReadView", func() {
 	})
 })
 
-var _ = Describe("testNotifyService", func() {
-	var (
-		ctx  = context.TODO()
-		seq1 int64
-	)
-
-	Context("get events sequence", func() {
-		It("get sequence should be succeed", func() {
-			_, err := serviceClient.GetLatestSequence(ctx, &GetLatestSequenceRequest{}, grpc.UseCompressor(gzip.Name))
-			Expect(err).Should(BeNil())
-		})
-		It("send events using event should be succeed", func() {
-			_, err := ctrl.CreateEntry(ctx, dentry.RootEntryID, types.EntryAttr{
-				Name: "test-event-file-1.txt",
-				Kind: types.RawKind,
-			})
-			Expect(err).Should(BeNil())
-		})
-		It("get sequence should be succeed", func() {
-			Eventually(func() bool {
-				resp, err := serviceClient.GetLatestSequence(ctx, &GetLatestSequenceRequest{}, grpc.UseCompressor(gzip.Name))
-				Expect(err).Should(BeNil())
-				seq1 = resp.Sequence
-				return seq1 > 0
-			}, time.Second*30, time.Second).Should(BeTrue())
-		})
-	})
-	Context("test device sync", func() {
-		var (
-			deviceSeq int64
-			newEntry  int64
-		)
-		It("sync from never been seen should be succeed", func() {
-			resp1, err := serviceClient.GetLatestSequence(ctx, &GetLatestSequenceRequest{StartSequence: deviceSeq}, grpc.UseCompressor(gzip.Name))
-			Expect(err).Should(BeNil())
-			Expect(resp1.NeedRelist).Should(BeTrue())
-			deviceSeq = resp1.Sequence
-		})
-		It("insert new entry should be succeed", func() {
-			en, err := ctrl.CreateEntry(ctx, dentry.RootEntryID, types.EntryAttr{
-				Name: "test-event-file-2.txt",
-				Kind: types.RawKind,
-			})
-			Expect(err).Should(BeNil())
-			newEntry = en.ID
-
-			Eventually(func() bool {
-				resp, err := serviceClient.GetLatestSequence(ctx, &GetLatestSequenceRequest{StartSequence: deviceSeq}, grpc.UseCompressor(gzip.Name))
-				Expect(err).Should(BeNil())
-				return resp.Sequence > deviceSeq
-			}, time.Second*30, time.Second).Should(BeTrue())
-		})
-		It("sync from last-sync should be succeed", func() {
-			resp, err := serviceClient.ListUnSyncedEvent(ctx, &ListUnSyncedEventRequest{StartSequence: deviceSeq}, grpc.UseCompressor(gzip.Name))
-			Expect(err).Should(BeNil())
-			Expect(len(resp.Events) > 0).Should(BeTrue())
-
-			found := false
-			for _, evt := range resp.Events {
-				if evt.RefID == newEntry {
-					found = true
-				}
-			}
-			Expect(found).Should(BeTrue())
-		})
-	})
-})
-
 var _ = Describe("testWorkflowService", func() {
 	var (
 		ctx  = context.TODO()
@@ -531,10 +429,10 @@ var _ = Describe("testWorkflowService", func() {
 
 	Context("list all workflow", func() {
 		It("mole should be succeed", func() {
-			err := testMeta.SaveWorkflow(ctx, &types.Workflow{
+			err := testMeta.SaveWorkflow(ctx, types.DefaultNamespace, &types.Workflow{
 				Id:              wfID,
 				Name:            "mock workflow",
-				Namespace:       types.DefaultNamespaceValue,
+				Namespace:       types.DefaultNamespace,
 				Enable:          true,
 				CreatedAt:       time.Now(),
 				UpdatedAt:       time.Now(),
@@ -543,9 +441,9 @@ var _ = Describe("testWorkflowService", func() {
 			Expect(err).Should(BeNil())
 
 			for i := 0; i < 200; i++ {
-				err = testMeta.SaveWorkflowJob(ctx, &types.WorkflowJob{
+				err = testMeta.SaveWorkflowJob(ctx, types.DefaultNamespace, &types.WorkflowJob{
 					Id:            utils.MustRandString(16),
-					Namespace:     types.DefaultNamespaceValue,
+					Namespace:     types.DefaultNamespace,
 					Workflow:      wfID,
 					TriggerReason: "mock",
 					Steps:         make([]types.WorkflowJobStep, 0),
@@ -563,11 +461,6 @@ var _ = Describe("testWorkflowService", func() {
 
 			Expect(len(resp.Workflows) > 0).Should(BeTrue())
 
-			for _, wf := range resp.Workflows {
-				if wf.Id == wfID {
-					Expect(wf.HealthScore).Should(Equal(int32(100)))
-				}
-			}
 		})
 
 		It("list jobs should be succeed", func() {

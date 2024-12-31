@@ -21,12 +21,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/basenana/nanafs/pkg/plugin/buildin"
-
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
@@ -40,7 +37,7 @@ var (
 	entryMgr    dentry.Manager
 
 	workdir string
-	root    *types.Metadata
+	root    *types.Entry
 )
 
 func TestDocument(t *testing.T) {
@@ -73,10 +70,6 @@ var _ = BeforeSuite(func() {
 		recorder: memMeta,
 		entryMgr: entryMgr,
 	}
-
-	cfgLoader := config.NewFakeConfigLoader(config.Bootstrap{})
-	err = plugin.Init(buildin.Services{}, cfgLoader)
-	Expect(err).Should(BeNil())
 
 	// init root
 	root, err = entryMgr.Root(context.TODO())

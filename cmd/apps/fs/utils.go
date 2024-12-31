@@ -104,7 +104,7 @@ func idFromStat(st *syscall.Stat_t) fs.StableAttr {
 	}
 }
 
-func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, entry *types.Metadata, crtUid, crtGid int64, fileOpenAttr types.OpenAttr) error {
+func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, entry *types.Entry, crtUid, crtGid int64, fileOpenAttr types.OpenAttr) error {
 	// do check
 	if _, ok := attr.GetMode(); ok {
 		if crtUid != 0 && crtUid != entry.Access.UID {

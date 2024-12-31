@@ -19,6 +19,7 @@ package apps
 import (
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/fs"
 	"path"
 	"time"
 
@@ -29,7 +30,7 @@ import (
 
 	"github.com/basenana/nanafs/cmd/apps/apis"
 	configapp "github.com/basenana/nanafs/cmd/apps/config"
-	"github.com/basenana/nanafs/cmd/apps/fs"
+	fsapi "github.com/basenana/nanafs/cmd/apps/fs"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/bio"
 	"github.com/basenana/nanafs/pkg/controller"
@@ -96,6 +97,10 @@ var daemonCmd = &cobra.Command{
 		rule.InitQuery(meta)
 
 		fridayClient := friday.NewFridayClient(cfg.FridayConfig)
+		depends, err := fs.InitDepends(loader, meta, fridayClient)
+		if err != nil {
+			panic(err)
+		}
 
 		ctrl, err := controller.New(loader, meta, fridayClient)
 		if err != nil {
@@ -103,26 +108,31 @@ var daemonCmd = &cobra.Command{
 		}
 		stop := utils.HandleTerminalSignal()
 
-		run(ctrl, loader, cfg, stop)
+		run(ctrl, depends, loader, cfg, stop)
 	},
 }
 
-func run(ctrl controller.Controller, cfgLoader config.Loader, cfg config.Bootstrap, stopCh chan struct{}) {
+func run(ctrl controller.Controller, depends *fs.Depends, cfgLoader config.Loader, cfg config.Bootstrap, stopCh chan struct{}) {
 	log := logger.NewLogger("nanafs")
 	log.Infow("starting", "version", config.VersionInfo().Version())
 	ctrl.StartBackendTask(stopCh)
 	shutdown := ctrl.SetupShutdownHandler(stopCh)
 
+	ctx, canF := context.WithCancel(context.Background())
+	defer canF()
+
+	depends.Workflow.Start(ctx)
+
 	pathEntryMgr, err := apis.NewPathEntryManager(ctrl)
 	if err != nil {
 		log.Panicf("init api path entry manager error: %s", err)
 	}
-	err = apis.Setup(ctrl, pathEntryMgr, cfgLoader, stopCh)
+	err = apis.Setup(ctrl, depends, pathEntryMgr, cfgLoader, stopCh)
 	if err != nil {
 		log.Panicw("setup api servers failed", "err", err.Error())
 	}
 	if cfg.FUSE.Enable {
-		fsServer, err := fs.NewNanaFsRoot(cfg.FUSE, ctrl)
+		fsServer, err := fsapi.NewNanaFsRoot(cfg.FUSE, ctrl)
 		if err != nil {
 			panic(err)
 		}

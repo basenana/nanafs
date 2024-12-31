@@ -28,10 +28,10 @@ func buildMigrations() []*gormigrate.Migration {
 			Migrate: func(db *gorm.DB) error {
 				return db.AutoMigrate(
 					&SystemInfo{},
-					&Object{},
-					&ObjectProperty{},
-					&ObjectExtend{},
-					&ObjectChunk{},
+					&Entry{},
+					&EntryProperty{},
+					&EntryExtend{},
+					&EntryChunk{},
 					&Label{},
 				)
 			},
@@ -60,7 +60,7 @@ func buildMigrations() []*gormigrate.Migration {
 		{
 			ID: "2023072200",
 			Migrate: func(db *gorm.DB) error {
-				err := db.AutoMigrate(&Object{})
+				err := db.AutoMigrate(&Entry{})
 				_ = db.Exec("UPDATE object SET version=1 WHERE 1=1;")
 				return err
 			},
@@ -71,12 +71,12 @@ func buildMigrations() []*gormigrate.Migration {
 		{
 			ID: "2023111200",
 			Migrate: func(db *gorm.DB) error {
-				err := db.AutoMigrate(&ObjectProperty{})
+				err := db.AutoMigrate(&EntryProperty{})
 				if err != nil {
 					return err
 				}
 				_ = db.Exec("UPDATE object_property SET encoded=true WHERE 1=1;")
-				err = db.AutoMigrate(&ObjectURI{})
+				err = db.AutoMigrate(&EntryURI{})
 				if err != nil {
 					return err
 				}
@@ -90,10 +90,6 @@ func buildMigrations() []*gormigrate.Migration {
 		{
 			ID: "2023122700",
 			Migrate: func(db *gorm.DB) error {
-				_ = db.Exec("UPDATE workflow SET queue_name='default' WHERE 1=1;")
-				_ = db.Exec("UPDATE workflow SET executor='local' WHERE 1=1;")
-				_ = db.Exec("UPDATE workflow_job SET queue_name='default' WHERE 1=1;")
-				_ = db.Exec("UPDATE workflow_job SET executor='local' WHERE 1=1;")
 				return nil
 			},
 			Rollback: func(db *gorm.DB) error {
@@ -104,7 +100,7 @@ func buildMigrations() []*gormigrate.Migration {
 			ID: "2024033000",
 			Migrate: func(db *gorm.DB) error {
 				err := db.AutoMigrate(
-					&Object{},
+					&Entry{},
 					&Label{},
 					&Notification{},
 					&Workflow{},
@@ -155,7 +151,7 @@ func buildMigrations() []*gormigrate.Migration {
 			Migrate: func(db *gorm.DB) error {
 				err := db.AutoMigrate(
 					&ScheduledTask{},
-					&ObjectProperty{},
+					&EntryProperty{},
 				)
 				if err != nil {
 					return err
@@ -174,7 +170,7 @@ func buildMigrations() []*gormigrate.Migration {
 			ID: "2024052500",
 			Migrate: func(db *gorm.DB) error {
 				err := db.AutoMigrate(
-					&ObjectURI{},
+					&EntryURI{},
 				)
 				if err != nil {
 					return err
@@ -183,6 +179,18 @@ func buildMigrations() []*gormigrate.Migration {
 				// rebuild uri cache
 				_ = db.Exec(`DELETE FROM object_uri WHERE 1=1;`)
 				return nil
+			},
+			Rollback: func(db *gorm.DB) error {
+				return nil
+			},
+		},
+		{
+			ID: "2024121300",
+			Migrate: func(db *gorm.DB) error {
+				return db.AutoMigrate(
+					&Workflow{},
+					&WorkflowJob{},
+				)
 			},
 			Rollback: func(db *gorm.DB) error {
 				return nil

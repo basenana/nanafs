@@ -114,7 +114,7 @@ func (i instrumentalStore) SetConfigValue(ctx context.Context, group, name, valu
 	return err
 }
 
-func (i instrumentalStore) GetEntry(ctx context.Context, id int64) (*types.Metadata, error) {
+func (i instrumentalStore) GetEntry(ctx context.Context, id int64) (*types.Entry, error) {
 	const operation = "get_entry"
 	defer logOperationLatency(operation, time.Now())
 	en, err := i.store.GetEntry(ctx, id)
@@ -122,7 +122,7 @@ func (i instrumentalStore) GetEntry(ctx context.Context, id int64) (*types.Metad
 	return en, err
 }
 
-func (i instrumentalStore) FindEntry(ctx context.Context, parentID int64, name string) (*types.Metadata, error) {
+func (i instrumentalStore) FindEntry(ctx context.Context, parentID int64, name string) (*types.Entry, error) {
 	const operation = "find_entry"
 	defer logOperationLatency(operation, time.Now())
 	en, err := i.store.FindEntry(ctx, parentID, name)
@@ -130,7 +130,7 @@ func (i instrumentalStore) FindEntry(ctx context.Context, parentID int64, name s
 	return en, err
 }
 
-func (i instrumentalStore) CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata, ed *types.ExtendData) error {
+func (i instrumentalStore) CreateEntry(ctx context.Context, parentID int64, newEntry *types.Entry, ed *types.ExtendData) error {
 	const operation = "create_entry"
 	defer logOperationLatency(operation, time.Now())
 	err := i.store.CreateEntry(ctx, parentID, newEntry, ed)
@@ -154,7 +154,7 @@ func (i instrumentalStore) DeleteRemovedEntry(ctx context.Context, entryID int64
 	return err
 }
 
-func (i instrumentalStore) UpdateEntryMetadata(ctx context.Context, entry *types.Metadata) error {
+func (i instrumentalStore) UpdateEntryMetadata(ctx context.Context, entry *types.Entry) error {
 	const operation = "update_entry_metadata"
 	defer logOperationLatency(operation, time.Now())
 	err := i.store.UpdateEntryMetadata(ctx, entry)
@@ -178,7 +178,7 @@ func (i instrumentalStore) FilterEntries(ctx context.Context, filter types.Filte
 	return it, err
 }
 
-func (i instrumentalStore) Open(ctx context.Context, id int64, attr types.OpenAttr) (*types.Metadata, error) {
+func (i instrumentalStore) Open(ctx context.Context, id int64, attr types.OpenAttr) (*types.Entry, error) {
 	const operation = "open"
 	defer logOperationLatency(operation, time.Now())
 	en, err := i.store.Open(ctx, id, attr)
@@ -194,7 +194,7 @@ func (i instrumentalStore) Flush(ctx context.Context, id int64, size int64) erro
 	return err
 }
 
-func (i instrumentalStore) MirrorEntry(ctx context.Context, newEntry *types.Metadata) error {
+func (i instrumentalStore) MirrorEntry(ctx context.Context, newEntry *types.Entry) error {
 	const operation = "mirror_entry"
 	defer logOperationLatency(operation, time.Now())
 	err := i.store.MirrorEntry(ctx, newEntry)
@@ -314,7 +314,7 @@ func (i instrumentalStore) ListSegments(ctx context.Context, oid, chunkID int64,
 	return segList, err
 }
 
-func (i instrumentalStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Metadata, error) {
+func (i instrumentalStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Entry, error) {
 	const operation = "append_segments"
 	defer logOperationLatency(operation, time.Now())
 	en, err := i.store.AppendSegments(ctx, seg)
@@ -370,14 +370,6 @@ func (i instrumentalStore) ListEvents(ctx context.Context, filter types.EventFil
 	return result, err
 }
 
-func (i instrumentalStore) DeviceSync(ctx context.Context, deviceID string, syncedSequence int64) error {
-	const operation = "device_sync"
-	defer logOperationLatency(operation, time.Now())
-	err := i.store.DeviceSync(ctx, deviceID, syncedSequence)
-	logOperationError(operation, err)
-	return err
-}
-
 func (i instrumentalStore) ListTask(ctx context.Context, taskID string, filter types.ScheduledTaskFilter) ([]*types.ScheduledTask, error) {
 	const operation = "list_task"
 	defer logOperationLatency(operation, time.Now())
@@ -402,74 +394,82 @@ func (i instrumentalStore) DeleteFinishedTask(ctx context.Context, aliveTime tim
 	return err
 }
 
-func (i instrumentalStore) GetWorkflow(ctx context.Context, wfID string) (*types.Workflow, error) {
+func (i instrumentalStore) GetWorkflow(ctx context.Context, namespace string, wfID string) (*types.Workflow, error) {
 	const operation = "get_workflow"
 	defer logOperationLatency(operation, time.Now())
-	spec, err := i.store.GetWorkflow(ctx, wfID)
+	spec, err := i.store.GetWorkflow(ctx, namespace, wfID)
 	logOperationError(operation, err)
 	return spec, err
 }
 
-func (i instrumentalStore) ListGlobalWorkflow(ctx context.Context) ([]*types.Workflow, error) {
-	const operation = "list_global_workflow"
+func (i instrumentalStore) ListAllNamespaceWorkflows(ctx context.Context) ([]*types.Workflow, error) {
+	const operation = "list_all_workflow"
 	defer logOperationLatency(operation, time.Now())
-	specList, err := i.store.ListGlobalWorkflow(ctx)
+	specList, err := i.store.ListAllNamespaceWorkflows(ctx)
 	logOperationError(operation, err)
 	return specList, err
 }
 
-func (i instrumentalStore) ListWorkflow(ctx context.Context) ([]*types.Workflow, error) {
+func (i instrumentalStore) ListAllNamespaceWorkflowJobs(ctx context.Context, filter types.JobFilter) ([]*types.WorkflowJob, error) {
+	const operation = "list_all_workflow_jobs"
+	defer logOperationLatency(operation, time.Now())
+	specList, err := i.store.ListAllNamespaceWorkflowJobs(ctx, filter)
+	logOperationError(operation, err)
+	return specList, err
+}
+
+func (i instrumentalStore) ListWorkflows(ctx context.Context, namespace string) ([]*types.Workflow, error) {
 	const operation = "list_workflow"
 	defer logOperationLatency(operation, time.Now())
-	specList, err := i.store.ListWorkflow(ctx)
+	specList, err := i.store.ListWorkflows(ctx, namespace)
 	logOperationError(operation, err)
 	return specList, err
 }
 
-func (i instrumentalStore) DeleteWorkflow(ctx context.Context, wfID string) error {
+func (i instrumentalStore) DeleteWorkflow(ctx context.Context, namespace string, wfID string) error {
 	const operation = "delete_workflow"
 	defer logOperationLatency(operation, time.Now())
-	err := i.store.DeleteWorkflow(ctx, wfID)
+	err := i.store.DeleteWorkflow(ctx, namespace, wfID)
 	logOperationError(operation, err)
 	return err
 }
 
-func (i instrumentalStore) GetWorkflowJob(ctx context.Context, jobID string) (*types.WorkflowJob, error) {
+func (i instrumentalStore) GetWorkflowJob(ctx context.Context, namespace string, jobID string) (*types.WorkflowJob, error) {
 	const operation = "get_workflow_job"
 	defer logOperationLatency(operation, time.Now())
-	jobList, err := i.store.GetWorkflowJob(ctx, jobID)
+	jobList, err := i.store.GetWorkflowJob(ctx, namespace, jobID)
 	logOperationError(operation, err)
 	return jobList, err
 }
 
-func (i instrumentalStore) ListWorkflowJob(ctx context.Context, filter types.JobFilter) ([]*types.WorkflowJob, error) {
+func (i instrumentalStore) ListWorkflowJobs(ctx context.Context, namespace string, filter types.JobFilter) ([]*types.WorkflowJob, error) {
 	const operation = "list_workflow_job"
 	defer logOperationLatency(operation, time.Now())
-	jobList, err := i.store.ListWorkflowJob(ctx, filter)
+	jobList, err := i.store.ListWorkflowJobs(ctx, namespace, filter)
 	logOperationError(operation, err)
 	return jobList, err
 }
 
-func (i instrumentalStore) SaveWorkflow(ctx context.Context, wf *types.Workflow) error {
+func (i instrumentalStore) SaveWorkflow(ctx context.Context, namespace string, wf *types.Workflow) error {
 	const operation = "save_workflow"
 	defer logOperationLatency(operation, time.Now())
-	err := i.store.SaveWorkflow(ctx, wf)
+	err := i.store.SaveWorkflow(ctx, namespace, wf)
 	logOperationError(operation, err)
 	return err
 }
 
-func (i instrumentalStore) SaveWorkflowJob(ctx context.Context, wf *types.WorkflowJob) error {
+func (i instrumentalStore) SaveWorkflowJob(ctx context.Context, namespace string, wf *types.WorkflowJob) error {
 	const operation = "save_workflow_job"
 	defer logOperationLatency(operation, time.Now())
-	err := i.store.SaveWorkflowJob(ctx, wf)
+	err := i.store.SaveWorkflowJob(ctx, namespace, wf)
 	logOperationError(operation, err)
 	return err
 }
 
-func (i instrumentalStore) DeleteWorkflowJob(ctx context.Context, wfJobID ...string) error {
+func (i instrumentalStore) DeleteWorkflowJobs(ctx context.Context, wfJobID ...string) error {
 	const operation = "delete_workflow_job"
 	defer logOperationLatency(operation, time.Now())
-	err := i.store.DeleteWorkflowJob(ctx, wfJobID...)
+	err := i.store.DeleteWorkflowJobs(ctx, wfJobID...)
 	logOperationError(operation, err)
 	return err
 }

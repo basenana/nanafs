@@ -42,7 +42,7 @@ func fsMountOptions(displayName string, ops []string) []string {
 	return options
 }
 
-func nanaNode2Stat(entry *types.Metadata) *syscall.Stat_t {
+func nanaNode2Stat(entry *types.Entry) *syscall.Stat_t {
 	aTime, _ := unix.TimeToTimespec(entry.AccessAt)
 	mTime, _ := unix.TimeToTimespec(entry.ModifiedAt)
 	cTime, _ := unix.TimeToTimespec(entry.ChangedAt)

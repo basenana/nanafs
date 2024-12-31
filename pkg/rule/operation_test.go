@@ -42,61 +42,61 @@ func TestRule_Apply(t *testing.T) {
 		{
 			name:   "test-equal",
 			fields: fields{Operation: types.RuleOpEqual, Column: "name", Value: "abc"},
-			args:   args{value: &object{Metadata: &types.Metadata{ID: 1024, Name: "abc"}}},
+			args:   args{value: &object{Entry: &types.Entry{ID: 1024, Name: "abc"}}},
 			want:   true,
 		},
 		{
 			name:   "test-not-equal",
 			fields: fields{Operation: types.RuleOpEqual, Column: "name", Value: "abc"},
-			args:   args{value: &object{Metadata: &types.Metadata{Name: "aaa"}}},
+			args:   args{value: &object{Entry: &types.Entry{Name: "aaa"}}},
 			want:   false,
 		},
 		{
 			name:   "test-pattern",
 			fields: fields{Operation: types.RuleOpPattern, Column: "name", Value: "[a-z]+"},
-			args:   args{value: &object{Metadata: &types.Metadata{Name: "aaa"}}},
+			args:   args{value: &object{Entry: &types.Entry{Name: "aaa"}}},
 			want:   true,
 		},
 		{
 			name:   "test-not-pattern",
 			fields: fields{Operation: types.RuleOpPattern, Column: "name", Value: "[a-z]+"},
-			args:   args{value: &object{Metadata: &types.Metadata{Name: "AAA"}}},
+			args:   args{value: &object{Entry: &types.Entry{Name: "AAA"}}},
 			want:   false,
 		},
 		{
 			name:   "test-in",
 			fields: fields{Operation: types.RuleOpIn, Column: "name", Value: "aaa,bbb"},
-			args:   args{value: &object{Metadata: &types.Metadata{Name: "aaa"}}},
+			args:   args{value: &object{Entry: &types.Entry{Name: "aaa"}}},
 			want:   true,
 		},
 		{
 			name:   "test-not-in",
 			fields: fields{Operation: types.RuleOpIn, Column: "name", Value: "aaa,bbb"},
-			args:   args{value: &object{Metadata: &types.Metadata{Name: "abc"}}},
+			args:   args{value: &object{Entry: &types.Entry{Name: "abc"}}},
 			want:   false,
 		},
 		{
 			name:   "test-before",
 			fields: fields{Operation: types.RuleOpBefore, Column: "created_at", Value: time.Now().AddDate(1, 1, 1).Format(timeOpFmt)},
-			args:   args{value: &object{Metadata: &types.Metadata{CreatedAt: time.Now()}}},
+			args:   args{value: &object{Entry: &types.Entry{CreatedAt: time.Now()}}},
 			want:   true,
 		},
 		{
 			name:   "test-not-before",
 			fields: fields{Operation: types.RuleOpBefore, Column: "created_at", Value: time.Now().Format(timeOpFmt)},
-			args:   args{value: &object{Metadata: &types.Metadata{CreatedAt: time.Now().AddDate(1, 1, 1)}}},
+			args:   args{value: &object{Entry: &types.Entry{CreatedAt: time.Now().AddDate(1, 1, 1)}}},
 			want:   false,
 		},
 		{
 			name:   "test-after",
 			fields: fields{Operation: types.RuleOpAfter, Column: "created_at", Value: time.Now().Format(timeOpFmt)},
-			args:   args{value: &object{Metadata: &types.Metadata{CreatedAt: time.Now().AddDate(1, 1, 1)}}},
+			args:   args{value: &object{Entry: &types.Entry{CreatedAt: time.Now().AddDate(1, 1, 1)}}},
 			want:   true,
 		},
 		{
 			name:   "test-not-after",
 			fields: fields{Operation: types.RuleOpAfter, Column: "created_at", Value: time.Now().AddDate(1, 1, 1).Format(timeOpFmt)},
-			args:   args{value: &object{Metadata: &types.Metadata{CreatedAt: time.Now()}}},
+			args:   args{value: &object{Entry: &types.Entry{CreatedAt: time.Now()}}},
 			want:   false,
 		},
 	}
@@ -110,7 +110,7 @@ func TestRule_Apply(t *testing.T) {
 				Value:     tt.fields.Value,
 			}
 			if got := NewRuleOperation(r.Operation, r.Column, r.Value).
-				Apply(entryToMap(tt.args.value.Metadata, tt.args.value.Properties)); got != tt.want {
+				Apply(entryToMap(tt.args.value.Entry, tt.args.value.Properties)); got != tt.want {
 				t.Errorf("Apply() = %v, want %v", got, tt.want)
 			}
 		})

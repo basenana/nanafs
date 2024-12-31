@@ -78,7 +78,7 @@ func (c *CertTool) GenerateCAPair() (certContent []byte, keyContent []byte, err 
 	return c.CaCertPEM, c.CaKeyPEM, nil
 }
 
-func (c *CertTool) GenerateCertPair(o, ou, cn string) (certContent []byte, keyContent []byte, err error) {
+func (c *CertTool) GenerateCertPair(o, ou, cn string, sans ...string) (certContent []byte, keyContent []byte, err error) {
 	caCertBlock, _ := pem.Decode(c.CaCertPEM)
 	caCert, err := x509.ParseCertificate(caCertBlock.Bytes)
 	if err != nil {
@@ -104,6 +104,11 @@ func (c *CertTool) GenerateCertPair(o, ou, cn string) (certContent []byte, keyCo
 		NotAfter:    time.Now().AddDate(1, 0, 0),
 		KeyUsage:    x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment | x509.KeyUsageDataEncipherment,
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+	}
+
+	if len(sans) > 0 {
+		cert.ExtKeyUsage = append(cert.ExtKeyUsage, x509.ExtKeyUsageServerAuth)
+		cert.DNSNames = append(cert.DNSNames, sans...)
 	}
 
 	certBytes, err := x509.CreateCertificate(rand.Reader, cert, caCert, &privateKey.PublicKey, caKey)

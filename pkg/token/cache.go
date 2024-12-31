@@ -69,7 +69,7 @@ func (c *cache) SetToken(ak string, token *types.AccessToken) {
 }
 
 func (c *cache) gc() {
-	gcTimer := time.NewTimer(defaultGCTime)
+	gcTimer := time.NewTicker(defaultGCTime)
 	for {
 		select {
 		case <-gcTimer.C:

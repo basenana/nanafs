@@ -43,7 +43,7 @@ type Manager interface {
 	GetDocument(ctx context.Context, id int64) (*types.Document, error)
 	GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error)
 	DeleteDocument(ctx context.Context, id int64) error
-	ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) ([]*types.Metadata, error)
+	ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) ([]*types.Entry, error)
 }
 
 type manager struct {
@@ -104,7 +104,7 @@ func (m *manager) DeleteDocument(ctx context.Context, id int64) error {
 	return m.friday.DeleteDocument(ctx, id)
 }
 
-func (m *manager) ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) ([]*types.Metadata, error) {
+func (m *manager) ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) ([]*types.Entry, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.ListDocumentGroups").End()
 	entryFilter := types.Filter{
 		ID:              parentId,
@@ -121,8 +121,8 @@ func (m *manager) ListDocumentGroups(ctx context.Context, parentId int64, filter
 		return nil, err
 	}
 	var (
-		result = make([]*types.Metadata, 0)
-		next   *types.Metadata
+		result = make([]*types.Entry, 0)
+		next   *types.Entry
 	)
 	for it.HasNext() {
 		next = it.Next()

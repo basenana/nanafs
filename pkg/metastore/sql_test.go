@@ -148,7 +148,7 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 			chIt, err := sqlite.ListEntryChildren(context.TODO(), group1.ID, nil, types.Filter{})
 			Expect(err).Should(BeNil())
 
-			chList := make([]*types.Metadata, 0)
+			chList := make([]*types.Entry, 0)
 			for chIt.HasNext() {
 				chList = append(chList, chIt.Next())
 			}
@@ -158,12 +158,12 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 	})
 
 	Context("change a exist file object parent group", func() {
-		var targetEn *types.Metadata
+		var targetEn *types.Entry
 		It("get target file object should be succeed", func() {
 			chIt, err := sqlite.FilterEntries(context.TODO(), types.Filter{ParentID: group1.ID, Kind: types.BlkDevKind})
 			Expect(err).Should(BeNil())
 
-			chList := make([]*types.Metadata, 0)
+			chList := make([]*types.Entry, 0)
 			for chIt.HasNext() {
 				chList = append(chList, chIt.Next())
 			}
@@ -178,7 +178,7 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 			chIt, err := sqlite.ListEntryChildren(context.TODO(), group2.ID, nil, types.Filter{})
 			Expect(err).Should(BeNil())
 
-			chList := make([]*types.Metadata, 0)
+			chList := make([]*types.Entry, 0)
 			for chIt.HasNext() {
 				chList = append(chList, chIt.Next())
 			}
@@ -190,7 +190,7 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 			chIt, err := sqlite.FilterEntries(context.TODO(), types.Filter{ParentID: group1.ID, Kind: types.BlkDevKind})
 			Expect(err).Should(BeNil())
 
-			chList := make([]*types.Metadata, 0)
+			chList := make([]*types.Entry, 0)
 			for chIt.HasNext() {
 				chList = append(chList, chIt.Next())
 			}
@@ -199,7 +199,7 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 			chIt, err = sqlite.ListEntryChildren(context.TODO(), group1.ID, nil, types.Filter{})
 			Expect(err).Should(BeNil())
 
-			chList = make([]*types.Metadata, 0)
+			chList = make([]*types.Entry, 0)
 			for chIt.HasNext() {
 				chList = append(chList, chIt.Next())
 			}
@@ -222,7 +222,7 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 		Expect(err).Should(BeNil())
 		Expect(sqlite.CreateEntry(context.TODO(), rootEn.ID, group4, nil)).Should(BeNil())
 
-		var srcEN *types.Metadata
+		var srcEN *types.Entry
 		It("create new file be succeed", func() {
 			srcEN, err = types.InitNewEntry(group1, types.EntryAttr{Name: "test-src-raw-obj-1", Kind: types.RawKind})
 			Expect(err).Should(BeNil())
@@ -240,7 +240,7 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 			chIt, err := sqlite.FilterEntries(context.TODO(), types.Filter{RefID: srcEN.ID})
 			Expect(err).Should(BeNil())
 
-			chList := make([]*types.Metadata, 0)
+			chList := make([]*types.Entry, 0)
 			for chIt.HasNext() {
 				chList = append(chList, chIt.Next())
 			}
@@ -328,7 +328,7 @@ var _ = Describe("TestSqliteLabelOperation", func() {
 			})
 			Expect(err).Should(BeNil())
 
-			chList := make([]*types.Metadata, 0)
+			chList := make([]*types.Entry, 0)
 			for enIt.HasNext() {
 				chList = append(chList, enIt.Next())
 			}
@@ -342,7 +342,7 @@ var _ = Describe("TestSqliteLabelOperation", func() {
 			})
 			Expect(err).Should(BeNil())
 
-			chList := make([]*types.Metadata, 0)
+			chList := make([]*types.Entry, 0)
 			for enIt.HasNext() {
 				chList = append(chList, enIt.Next())
 			}
@@ -357,7 +357,7 @@ var _ = Describe("TestSqliteLabelOperation", func() {
 			})
 			Expect(err).Should(BeNil())
 
-			chList := make([]*types.Metadata, 0)
+			chList := make([]*types.Entry, 0)
 			for enIt.HasNext() {
 				chList = append(chList, enIt.Next())
 			}
@@ -366,7 +366,7 @@ var _ = Describe("TestSqliteLabelOperation", func() {
 	})
 })
 
-func InitRootEntry() *types.Metadata {
+func InitRootEntry() *types.Entry {
 	acc := &types.Access{
 		Permissions: []types.Permission{
 			types.PermOwnerRead,
@@ -380,7 +380,7 @@ func InitRootEntry() *types.Metadata {
 	root, _ := types.InitNewEntry(nil, types.EntryAttr{Name: "root", Kind: types.GroupKind, Access: acc})
 	root.ID = 1
 	root.ParentID = root.ID
-	root.Namespace = types.GlobalNamespaceValue
+	root.Namespace = types.DefaultNamespace
 	return root
 }
 

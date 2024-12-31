@@ -122,7 +122,7 @@ func (n *NanaFS) SetDebug(debug bool) {
 	n.debug = debug
 }
 
-func (n *NanaFS) newFsNode(ctx context.Context, parent *NanaNode, entry *types.Metadata) (*NanaNode, error) {
+func (n *NanaFS) newFsNode(ctx context.Context, parent *NanaNode, entry *types.Entry) (*NanaNode, error) {
 	if parent == nil {
 		var err error
 		entry, err = n.LoadRootEntry(ctx)
@@ -165,13 +165,13 @@ func (n *NanaFS) umount(server *fuse.Server) {
 	n.logger.Info("umount finish")
 }
 
-func (n *NanaFS) GetEntry(ctx context.Context, id int64) (*types.Metadata, error) {
+func (n *NanaFS) GetEntry(ctx context.Context, id int64) (*types.Entry, error) {
 	return n.Controller.GetEntry(ctx, id)
 }
 
-func (n *NanaFS) GetSourceEntry(ctx context.Context, id int64) (*types.Metadata, error) {
+func (n *NanaFS) GetSourceEntry(ctx context.Context, id int64) (*types.Entry, error) {
 	var (
-		entry   *types.Metadata
+		entry   *types.Entry
 		err     error
 		entryId = id
 	)

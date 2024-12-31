@@ -52,7 +52,7 @@ func (m *manager) entryActionEventHandler() {
 	}
 }
 
-func BuildEntryEvent(actionType string, entry *types.Metadata) *types.Event {
+func BuildEntryEvent(actionType string, entry *types.Entry) *types.Event {
 	return &types.Event{
 		Id:              uuid.New().String(),
 		Namespace:       entry.Namespace,

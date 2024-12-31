@@ -18,12 +18,15 @@ package plugin
 
 import (
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"github.com/basenana/nanafs/utils/logger"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+)
+
+var (
+	mgr *Manager
 )
 
 func TestPlugin(t *testing.T) {
@@ -35,6 +38,8 @@ func TestPlugin(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	// init plugin registry
+	var err error
 	cfgLoader := config.NewFakeConfigLoader(config.Bootstrap{})
-	Expect(Init(buildin.Services{}, cfgLoader)).Should(BeNil())
+	mgr, err = Init(cfgLoader)
+	Expect(err).Should(BeNil())
 })

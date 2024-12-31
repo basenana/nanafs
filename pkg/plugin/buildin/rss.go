@@ -48,22 +48,31 @@ const (
 	archiveFileTypeRawHtml    = "rawhtml"
 	archiveFileTypeWebArchive = "webarchive"
 
+	rssParameterFeed        = "feed"
+	rssParameterFileType    = "file_type"
+	rssParameterTimeout     = "timeout"
+	rssParameterClutterFree = "clutter_free"
+
 	rssPostMaxCollect = 50
 )
 
-type rssSource struct {
-	EntryId     int64             `json:"entry_id"`
-	FeedUrl     string            `json:"feed_url"`
-	FileType    string            `json:"file_type"`
-	ClutterFree bool              `json:"clutter_free"`
-	Timeout     int               `json:"timeout"`
-	Parameters  map[string]string `json:"parameters"`
+var RssSourcePluginSpec = types.PluginSpec{
+	Name:       RssSourcePluginName,
+	Version:    RssSourcePluginVersion,
+	Type:       types.TypeSource,
+	Parameters: make(map[string]string),
+	Customization: []types.PluginConfig{
+		{Key: rssParameterFeed, Default: ""},
+		{Key: rssParameterFileType, Default: "webarchive"},
+		{Key: rssParameterTimeout, Default: "120"},
+		{Key: rssParameterClutterFree, Default: "true"},
+	},
 }
 
 type RssSourcePlugin struct {
-	spec  types.PluginSpec
-	scope types.PlugScope
-	l     *zap.SugaredLogger
+	job    *types.WorkflowJob
+	scope  types.PlugScope
+	logger *zap.SugaredLogger
 }
 
 func (r *RssSourcePlugin) Name() string {
@@ -78,39 +87,32 @@ func (r *RssSourcePlugin) Version() string {
 	return RssSourcePluginVersion
 }
 
-func (r *RssSourcePlugin) SourceInfo() (string, error) {
-	source, err := r.rssSources(r.scope.Parameters)
-	if err != nil {
-		r.l.Errorw("get source info from rss plugin params failed", "err", err)
-		return "", err
-	}
-	return source.FeedUrl, nil
-}
-
 func (r *RssSourcePlugin) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
 	if request.ParentEntryId <= 0 {
 		return nil, fmt.Errorf("invalid parent entry id: %d", request.ParentEntryId)
 	}
-	source, err := r.rssSources(r.scope.Parameters)
+	source, err := r.rssSources(request)
 	if err != nil {
-		r.l.Errorw("get rss source failed", "err", err)
+		r.logger.Errorw("get rss source failed", "err", err)
 		return nil, err
 	}
 	source.EntryId = request.ParentEntryId
 
 	entries, err := r.syncRssSource(ctx, source, request)
 	if err != nil {
-		r.l.Warnw("sync rss failed", "source", source.FeedUrl, "err", err)
+		r.logger.Warnw("sync rss failed", "source", source.FeedUrl, "err", err)
 		return pluginapi.NewFailedResponse(fmt.Sprintf("sync rss failed: %s", err)), nil
 	}
 	results := []pluginapi.CollectManifest{{BaseEntry: source.EntryId, NewFiles: entries}}
-	r.l.Infow("sync rss finish", "baseEntry", source.EntryId, "entries", len(entries))
+	r.logger.Infow("sync rss finish", "baseEntry", source.EntryId, "entries", len(entries))
 
-	return pluginapi.NewResponseWithResult(map[string]any{pluginapi.ResCollectManifests: results}), nil
+	resp := pluginapi.NewResponse()
+	resp.NewEntries = results
+	return resp, nil
 }
 
-func (r *RssSourcePlugin) rssSources(pluginParams map[string]string) (src rssSource, err error) {
-	src.FeedUrl = pluginParams["feed"]
+func (r *RssSourcePlugin) rssSources(request *pluginapi.Request) (src rssSource, err error) {
+	src.FeedUrl = pluginapi.GetParameter(rssParameterFeed, request, RssSourcePluginSpec, r.scope)
 	if src.FeedUrl == "" {
 		err = fmt.Errorf("feed url is empty")
 		return
@@ -122,28 +124,37 @@ func (r *RssSourcePlugin) rssSources(pluginParams map[string]string) (src rssSou
 		return
 	}
 
-	src.FileType = pluginParams["file_type"]
+	src.FileType = pluginapi.GetParameter(rssParameterFileType, request, RssSourcePluginSpec, r.scope)
 	if src.FileType == "" {
 		src.FileType = archiveFileTypeHtml
 	}
 
-	src.Timeout = 120
-	if timeoutStr, ok := pluginParams["timeout"]; ok {
-		src.Timeout, err = strconv.Atoi(timeoutStr)
-		if err != nil {
-			return src, fmt.Errorf("parse timeout error: %s", err)
-		}
-	}
-	if clutterFreeStr, ok := pluginParams["clutter_free"]; ok {
-		switch clutterFreeStr {
-		case "yes", "true":
-			src.ClutterFree = true
-		default:
-			src.ClutterFree = false
-		}
+	timeoutStr := pluginapi.GetParameter(rssParameterTimeout, request, RssSourcePluginSpec, r.scope)
+	src.Timeout, err = strconv.Atoi(timeoutStr)
+	if err != nil {
+		r.logger.Warnf("parse timeout error: %s", err)
+		src.Timeout = 120
 	}
 
-	src.Parameters = pluginParams
+	src.ClutterFree = pluginapi.GetParameter(rssParameterClutterFree, request, RssSourcePluginSpec, r.scope) == "true"
+	src.Headers = make(map[string]string)
+
+	for k, v := range r.scope.Parameters {
+		if strings.HasPrefix(k, "header_") || strings.HasPrefix(k, "HEADER_") {
+			headerKey := strings.TrimPrefix(k, "header_")
+			headerKey = strings.TrimPrefix(headerKey, "HEADER_")
+			src.Headers[k] = v
+		}
+	}
+	for k, v := range request.Parameter {
+		if vstr, ok := v.(string); ok {
+			if strings.HasPrefix(k, "header_") || strings.HasPrefix(k, "HEADER_") {
+				headerKey := strings.TrimPrefix(k, "header_")
+				headerKey = strings.TrimPrefix(headerKey, "HEADER_")
+				src.Headers[k] = vstr
+			}
+		}
+	}
 	return
 }
 
@@ -158,10 +169,10 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 		return nil, fmt.Errorf("cached data is nil")
 	}
 
-	r.logger(ctx).Infow("parse rss source", "feed", source.FeedUrl)
+	r.logger.Infow("parse rss source", "feed", source.FeedUrl)
 	siteURL, err := parseSiteURL(source.FeedUrl)
 	if err != nil {
-		r.logger(ctx).Errorw("parse rss site url failed", "feed", source.FeedUrl, "err", err)
+		r.logger.Errorw("parse rss site url failed", "feed", source.FeedUrl, "err", err)
 		return nil, err
 	}
 
@@ -174,24 +185,15 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 	// using html file when using RSSHub
 	// https://github.com/DIYgod/RSSHub
 	if feed.Generator == "RSSHub" {
-		r.logger(ctx).Infow("using html file for RSSHub source")
+		r.logger.Infow("using html file for RSSHub source")
 		source.FileType = archiveFileTypeHtml
-	}
-
-	headers := make(map[string]string)
-	for k, v := range source.Parameters {
-		if strings.HasPrefix(k, "header_") || strings.HasPrefix(k, "HEADER_") {
-			headerKey := strings.TrimPrefix(k, "header_")
-			headerKey = strings.TrimPrefix(headerKey, "HEADER_")
-			headers[k] = v
-		}
 	}
 
 	syncCachedRecords := listCachedSyncRecords(cachedData)
 	newEntries := make([]pluginapi.Entry, 0)
 	for i, item := range feed.Items {
 		if i > rssPostMaxCollect {
-			r.logger(ctx).Infow("soo many post need to collect, skip", "collectLimit", rssPostMaxCollect)
+			r.logger.Infow("soo many post need to collect, skip", "collectLimit", rssPostMaxCollect)
 			break
 		}
 
@@ -207,7 +209,7 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 			item.Content = item.Description
 		}
 
-		r.logger(ctx).Infow("parse rss post", "link", item.Link)
+		r.logger.Infow("parse rss post", "link", item.Link)
 
 		fileName := item.Title
 		switch source.FileType {
@@ -239,11 +241,11 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 				FilePath:         utils.SafetyFilePathJoin(workdir, fileName),
 				Timeout:          source.Timeout,
 				ClutterFree:      source.ClutterFree,
-				Headers:          headers,
+				Headers:          source.Headers,
 				EnablePrivateNet: enablePrivateNet,
 			})
 			if err != nil {
-				r.logger(ctx).Warnw("pack to raw html file failed", "link", item.Link, "err", err)
+				r.logger.Warnw("pack to raw html file failed", "link", item.Link, "err", err)
 				continue
 			}
 
@@ -255,11 +257,11 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 				FilePath:         utils.SafetyFilePathJoin(workdir, fileName),
 				Timeout:          source.Timeout,
 				ClutterFree:      source.ClutterFree,
-				Headers:          headers,
+				Headers:          source.Headers,
 				EnablePrivateNet: enablePrivateNet,
 			})
 			if err != nil {
-				r.logger(ctx).Warnw("pack to webarchive failed", "link", item.Link, "err", err)
+				r.logger.Warnw("pack to webarchive failed", "link", item.Link, "err", err)
 				continue
 			}
 
@@ -295,10 +297,6 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 		setCachedSyncRecord(cachedData, basicID)
 	}
 	return newEntries, nil
-}
-
-func (r *RssSourcePlugin) logger(ctx context.Context) *zap.SugaredLogger {
-	return utils.WorkflowJobLogger(ctx, r.l)
 }
 
 type rssSyncRecord struct {
@@ -345,6 +343,16 @@ func absoluteURL(sitURL, link string) string {
 	return link
 }
 
-func BuildRssSourcePlugin(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) *RssSourcePlugin {
-	return &RssSourcePlugin{spec: spec, scope: scope, l: logger.NewLogger("rssPlugin")}
+func BuildRssSourcePlugin(job *types.WorkflowJob, scope types.PlugScope) *RssSourcePlugin {
+	return &RssSourcePlugin{job: job, scope: scope,
+		logger: logger.NewLogger("rssPlugin").With(zap.String("job", job.Id))}
+}
+
+type rssSource struct {
+	EntryId     int64             `json:"entry_id"`
+	FeedUrl     string            `json:"feed_url"`
+	FileType    string            `json:"file_type"`
+	ClutterFree bool              `json:"clutter_free"`
+	Timeout     int               `json:"timeout"`
+	Headers     map[string]string `json:"headers"`
 }

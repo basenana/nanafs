@@ -51,11 +51,11 @@ func (m *PathManager) Access(ctx context.Context, entryPath string, callerUid, c
 	return dentry.IsAccess(entry.Access, callerUid, callGid, uint32(perm))
 }
 
-func (m *PathManager) GetEntry(ctx context.Context, entryID int64) (*types.Metadata, error) {
+func (m *PathManager) GetEntry(ctx context.Context, entryID int64) (*types.Entry, error) {
 	return m.ctrl.GetEntry(ctx, entryID)
 }
 
-func (m *PathManager) FindEntry(ctx context.Context, entryPath string) (*types.Metadata, error) {
+func (m *PathManager) FindEntry(ctx context.Context, entryPath string) (*types.Entry, error) {
 	var err error
 	entryPath, err = m.getPath(ctx, entryPath)
 	if err != nil {
@@ -64,7 +64,7 @@ func (m *PathManager) FindEntry(ctx context.Context, entryPath string) (*types.M
 	return m.getPathEntry(ctx, entryPath)
 }
 
-func (m *PathManager) ListEntry(ctx context.Context, dirPath string) ([]*types.Metadata, error) {
+func (m *PathManager) ListEntry(ctx context.Context, dirPath string) ([]*types.Entry, error) {
 	var err error
 	dirPath, err = m.getPath(ctx, dirPath)
 	if err != nil {
@@ -80,7 +80,7 @@ func (m *PathManager) ListEntry(ctx context.Context, dirPath string) ([]*types.M
 	return m.ctrl.ListEntryChildren(ctx, en.ID, nil, types.Filter{})
 }
 
-func (m *PathManager) FindParentEntry(ctx context.Context, entryPath string) (*types.Metadata, error) {
+func (m *PathManager) FindParentEntry(ctx context.Context, entryPath string) (*types.Entry, error) {
 	var err error
 	entryPath, err = m.getPath(ctx, entryPath)
 	if err != nil {
@@ -93,10 +93,10 @@ func (m *PathManager) Open(ctx context.Context, enId int64, attr types.OpenAttr)
 	return m.ctrl.OpenFile(ctx, enId, attr)
 }
 
-func (m *PathManager) CreateFile(ctx context.Context, parentDir string, attr types.EntryAttr) (*types.Metadata, error) {
+func (m *PathManager) CreateFile(ctx context.Context, parentDir string, attr types.EntryAttr) (*types.Entry, error) {
 	var (
 		err       error
-		result    *types.Metadata
+		result    *types.Entry
 		entryPath = path.Join(parentDir, attr.Name)
 	)
 	if attr.Name == "" {
@@ -117,7 +117,7 @@ func (m *PathManager) CreateFile(ctx context.Context, parentDir string, attr typ
 		return nil, err
 	}
 
-	var en, parent *types.Metadata
+	var en, parent *types.Entry
 	parent, err = m.FindEntry(ctx, parentDir)
 	if err != nil {
 		return nil, err
@@ -135,9 +135,9 @@ func (m *PathManager) CreateFile(ctx context.Context, parentDir string, attr typ
 	return en, nil
 }
 
-func (m *PathManager) CreateAll(ctx context.Context, entryPath string, attr types.EntryAttr) (*types.Metadata, error) {
+func (m *PathManager) CreateAll(ctx context.Context, entryPath string, attr types.EntryAttr) (*types.Entry, error) {
 	var (
-		en, parent *types.Metadata
+		en, parent *types.Entry
 		err        error
 	)
 	parent, err = m.ctrl.LoadRootEntry(ctx)
@@ -254,7 +254,7 @@ func (m *PathManager) Rename(ctx context.Context, oldPath, entryPath string) err
 	return nil
 }
 
-func (m *PathManager) getPathEntry(ctx context.Context, entryPath string) (*types.Metadata, error) {
+func (m *PathManager) getPathEntry(ctx context.Context, entryPath string) (*types.Entry, error) {
 	return m.ctrl.GetEntryByURI(ctx, entryPath)
 }
 

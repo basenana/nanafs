@@ -37,9 +37,10 @@ func minOff(off1, off2 int64) int64 {
 	return off2
 }
 
-func buildCompactEvent(entry *types.Metadata) *types.Event {
+func buildCompactEvent(entry *types.Entry) *types.Event {
 	return &types.Event{
 		Id:              uuid.New().String(),
+		Namespace:       entry.Namespace,
 		Type:            events.ActionTypeCompact,
 		Source:          "bio",
 		SpecVersion:     "1.0",

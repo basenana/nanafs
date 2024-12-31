@@ -20,17 +20,21 @@ import (
 	"time"
 )
 
+const (
+	WorkflowQueueFile = "file"
+	WorkflowQueuePipe = "pipe"
+)
+
 type Workflow struct {
 	Id              string             `json:"id"`
 	Name            string             `json:"name"`
 	Namespace       string             `json:"namespace"`
-	Rule            Rule               `json:"rule,omitempty"`
+	Rule            *Rule              `json:"rule,omitempty"`
 	Cron            string             `json:"cron,omitempty"`
 	Steps           []WorkflowStepSpec `json:"steps,omitempty"`
 	Enable          bool               `json:"enable"`
-	Executor        string             `json:"executor"`
+	System          bool               `json:"system"`
 	QueueName       string             `json:"queue_name"`
-	HealthScore     int                `json:"health_score,omitempty"`
 	CreatedAt       time.Time          `json:"created_at,omitempty"`
 	UpdatedAt       time.Time          `json:"updated_at,omitempty"`
 	LastTriggeredAt time.Time          `json:"last_triggered_at,omitempty"`
@@ -83,8 +87,8 @@ type WorkflowJobStep struct {
 }
 
 type WorkflowTarget struct {
-	EntryID       int64 `json:"entry_id,omitempty"`
-	ParentEntryID int64 `json:"parent_entry_id,omitempty"`
+	Entries       []int64 `json:"entries,omitempty"`
+	ParentEntryID int64   `json:"parent_entry_id,omitempty"`
 }
 
 type WorkflowEntryResult struct {

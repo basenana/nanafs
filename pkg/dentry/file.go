@@ -130,7 +130,7 @@ func (f *file) Close(ctx context.Context) (err error) {
 	return nil
 }
 
-func openFile(en *types.Metadata, attr types.OpenAttr, chunkStore metastore.ChunkStore, fileStorage storage.Storage) (File, error) {
+func openFile(en *types.Entry, attr types.OpenAttr, chunkStore metastore.ChunkStore, fileStorage storage.Storage) (File, error) {
 	f := &file{entryID: en.ID, size: en.Size, attr: attr}
 	if fileStorage == nil {
 		return nil, logOperationError(fileOperationErrorCounter, "init", fmt.Errorf("storage %s not found", en.Storage))
@@ -211,7 +211,7 @@ func (s *symlink) Close(ctx context.Context) error {
 	return s.Flush(ctx)
 }
 
-func openSymlink(mgr *manager, en *types.Metadata, attr types.OpenAttr) (File, error) {
+func openSymlink(mgr *manager, en *types.Entry, attr types.OpenAttr) (File, error) {
 	if en.Kind != types.SymLinkKind {
 		return nil, fmt.Errorf("not symlink")
 	}

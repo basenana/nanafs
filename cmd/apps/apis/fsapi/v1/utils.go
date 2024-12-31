@@ -44,7 +44,7 @@ func pdKind2EntryKind(k string) types.Kind {
 	return types.Kind(k)
 }
 
-func entryInfo(en *types.Metadata) *EntryInfo {
+func entryInfo(en *types.Entry) *EntryInfo {
 	return &EntryInfo{
 		Id:         en.ID,
 		Name:       en.Name,
@@ -59,7 +59,7 @@ func entryInfo(en *types.Metadata) *EntryInfo {
 	}
 }
 
-func entryDetail(en, parent *types.Metadata) *EntryDetail {
+func entryDetail(en, parent *types.Entry) *EntryDetail {
 	access := &EntryDetail_Access{Uid: en.Access.UID, Gid: en.Access.GID}
 	for _, perm := range en.Access.Permissions {
 		access.Permissions = append(access.Permissions, string(perm))
@@ -118,7 +118,7 @@ func jobDetail(j *types.WorkflowJob) *WorkflowJobDetail {
 		Executor:      j.Executor,
 		QueueName:     j.QueueName,
 		Target: &WorkflowJobDetail_JobTarget{
-			EntryID:       j.Target.EntryID,
+			Entries:       j.Target.Entries,
 			ParentEntryID: j.Target.ParentEntryID,
 		},
 		Steps:     nil,
@@ -232,9 +232,7 @@ func buildWorkflow(w *types.Workflow) *WorkflowInfo {
 	return &WorkflowInfo{
 		Id:              w.Id,
 		Name:            w.Name,
-		Executor:        w.Executor,
 		QueueName:       w.QueueName,
-		HealthScore:     int32(w.HealthScore),
 		CreatedAt:       timestamppb.New(w.CreatedAt),
 		UpdatedAt:       timestamppb.New(w.UpdatedAt),
 		LastTriggeredAt: timestamppb.New(w.LastTriggeredAt),

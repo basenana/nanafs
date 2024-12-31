@@ -72,6 +72,7 @@ func (n *Notify) MarkRead(ctx context.Context, nid string) error {
 
 func NewNotify(s metastore.NotificationRecorder) *Notify {
 	n := &Notify{store: s}
-	registerEventHandle(n)
+	// FIXME: event duplicate
+	//registerEventHandle(n)
 	return n
 }

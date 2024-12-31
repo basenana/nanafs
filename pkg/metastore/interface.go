@@ -45,12 +45,12 @@ type SysConfig interface {
 }
 
 type DEntry interface {
-	GetEntry(ctx context.Context, id int64) (*types.Metadata, error)
-	FindEntry(ctx context.Context, parentID int64, name string) (*types.Metadata, error)
-	CreateEntry(ctx context.Context, parentID int64, newEntry *types.Metadata, ed *types.ExtendData) error
+	GetEntry(ctx context.Context, id int64) (*types.Entry, error)
+	FindEntry(ctx context.Context, parentID int64, name string) (*types.Entry, error)
+	CreateEntry(ctx context.Context, parentID int64, newEntry *types.Entry, ed *types.ExtendData) error
 	RemoveEntry(ctx context.Context, parentID, entryID int64) error
 	DeleteRemovedEntry(ctx context.Context, entryID int64) error
-	UpdateEntryMetadata(ctx context.Context, entry *types.Metadata) error
+	UpdateEntryMetadata(ctx context.Context, entry *types.Entry) error
 
 	SaveEntryUri(ctx context.Context, entryUri *types.EntryUri) error
 	GetEntryUri(ctx context.Context, uri string) (*types.EntryUri, error)
@@ -58,9 +58,9 @@ type DEntry interface {
 	ListEntryChildren(ctx context.Context, parentId int64, order *types.EntryOrder, filters ...types.Filter) (EntryIterator, error)
 	FilterEntries(ctx context.Context, filter types.Filter) (EntryIterator, error)
 
-	Open(ctx context.Context, id int64, attr types.OpenAttr) (*types.Metadata, error)
+	Open(ctx context.Context, id int64, attr types.OpenAttr) (*types.Entry, error)
 	Flush(ctx context.Context, id int64, size int64) error
-	MirrorEntry(ctx context.Context, newEntry *types.Metadata) error
+	MirrorEntry(ctx context.Context, newEntry *types.Entry) error
 	ChangeEntryParent(ctx context.Context, targetEntryId int64, newParentId int64, newName string, opt types.ChangeParentAttr) error
 
 	GetEntryExtendData(ctx context.Context, id int64) (types.ExtendData, error)
@@ -88,7 +88,7 @@ type DEntry interface {
 type ChunkStore interface {
 	NextSegmentID(ctx context.Context) (int64, error)
 	ListSegments(ctx context.Context, oid, chunkID int64, allChunk bool) ([]types.ChunkSeg, error)
-	AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Metadata, error)
+	AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Entry, error)
 	DeleteSegment(ctx context.Context, segID int64) error
 }
 
@@ -97,15 +97,17 @@ type ScheduledTaskRecorder interface {
 	SaveTask(ctx context.Context, task *types.ScheduledTask) error
 	DeleteFinishedTask(ctx context.Context, aliveTime time.Duration) error
 
-	GetWorkflow(ctx context.Context, wfID string) (*types.Workflow, error)
-	ListGlobalWorkflow(ctx context.Context) ([]*types.Workflow, error)
-	ListWorkflow(ctx context.Context) ([]*types.Workflow, error)
-	DeleteWorkflow(ctx context.Context, wfID string) error
-	GetWorkflowJob(ctx context.Context, jobID string) (*types.WorkflowJob, error)
-	ListWorkflowJob(ctx context.Context, filter types.JobFilter) ([]*types.WorkflowJob, error)
-	SaveWorkflow(ctx context.Context, wf *types.Workflow) error
-	SaveWorkflowJob(ctx context.Context, wf *types.WorkflowJob) error
-	DeleteWorkflowJob(ctx context.Context, wfJobID ...string) error
+	ListAllNamespaceWorkflows(ctx context.Context) ([]*types.Workflow, error)
+	ListAllNamespaceWorkflowJobs(ctx context.Context, filter types.JobFilter) ([]*types.WorkflowJob, error)
+
+	GetWorkflow(ctx context.Context, namespace string, wfID string) (*types.Workflow, error)
+	ListWorkflows(ctx context.Context, namespace string) ([]*types.Workflow, error)
+	DeleteWorkflow(ctx context.Context, namespace string, wfID string) error
+	GetWorkflowJob(ctx context.Context, namespace string, jobID string) (*types.WorkflowJob, error)
+	ListWorkflowJobs(ctx context.Context, namespace string, filter types.JobFilter) ([]*types.WorkflowJob, error)
+	SaveWorkflow(ctx context.Context, namespace string, wf *types.Workflow) error
+	SaveWorkflowJob(ctx context.Context, namespace string, wf *types.WorkflowJob) error
+	DeleteWorkflowJobs(ctx context.Context, wfJobID ...string) error
 }
 
 type NotificationRecorder interface {
@@ -115,5 +117,4 @@ type NotificationRecorder interface {
 
 	RecordEvents(ctx context.Context, events []types.Event) error
 	ListEvents(ctx context.Context, filter types.EventFilter) ([]types.Event, error)
-	DeviceSync(ctx context.Context, deviceID string, syncedSequence int64) error
 }

@@ -162,7 +162,7 @@ func (d *Dir) Close() error {
 	return nil
 }
 
-func openFile(ctx context.Context, enPath string, entry *types.Metadata, mgr *pathmgr.PathManager, attr types.OpenAttr) (webdav.File, error) {
+func openFile(ctx context.Context, enPath string, entry *types.Entry, mgr *pathmgr.PathManager, attr types.OpenAttr) (webdav.File, error) {
 	if entry.IsGroup {
 		return &Dir{ctx: ctx, path: enPath, mgr: mgr, entryID: entry.ID, kind: entry.Kind}, nil
 	}

@@ -22,14 +22,14 @@ import (
 )
 
 type object struct {
-	*types.Metadata
+	*types.Entry
 	*types.Properties
 	*types.Labels
 }
 
 func TestObjectFilter(t *testing.T) {
 	obj := &object{
-		Metadata: &types.Metadata{ID: 1024, Name: "test_file_1.txt"},
+		Entry: &types.Entry{ID: 1024, Name: "test_file_1.txt"},
 		Labels: &types.Labels{Labels: []types.Label{
 			{Key: "test-key-1", Value: "test-val-1"},
 			{Key: "test-key-2", Value: "test-val-2"},
@@ -39,12 +39,12 @@ func TestObjectFilter(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		filter types.Rule
+		filter *types.Rule
 		want   bool
 	}{
 		{
 			name: "test-all-need-true",
-			filter: types.Rule{
+			filter: &types.Rule{
 				Logic: types.RuleLogicAll,
 				Rules: []types.Rule{
 					{
@@ -73,7 +73,7 @@ func TestObjectFilter(t *testing.T) {
 		},
 		{
 			name: "test-all-need-false",
-			filter: types.Rule{
+			filter: &types.Rule{
 				Logic: types.RuleLogicAll,
 				Rules: []types.Rule{
 					{
@@ -97,7 +97,7 @@ func TestObjectFilter(t *testing.T) {
 		},
 		{
 			name: "test-or-need-true",
-			filter: types.Rule{
+			filter: &types.Rule{
 				Logic: types.RuleLogicAny,
 				Rules: []types.Rule{
 					{
@@ -121,7 +121,7 @@ func TestObjectFilter(t *testing.T) {
 		},
 		{
 			name: "test-or-need-false",
-			filter: types.Rule{
+			filter: &types.Rule{
 				Logic: types.RuleLogicAny,
 				Rules: []types.Rule{
 					{
@@ -145,7 +145,7 @@ func TestObjectFilter(t *testing.T) {
 		},
 		{
 			name: "test-not-need-true",
-			filter: types.Rule{
+			filter: &types.Rule{
 				Logic: types.RuleLogicNot,
 				Rules: []types.Rule{
 					{
@@ -169,7 +169,7 @@ func TestObjectFilter(t *testing.T) {
 		},
 		{
 			name: "test-not-need-false",
-			filter: types.Rule{
+			filter: &types.Rule{
 				Logic: types.RuleLogicNot,
 				Rules: []types.Rule{
 					{
@@ -194,7 +194,7 @@ func TestObjectFilter(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := Filter(tt.filter, obj.Metadata, obj.Properties, obj.Labels); got != tt.want {
+			if got := Filter(tt.filter, obj.Entry, obj.Properties, obj.Labels); got != tt.want {
 				t.Errorf("Filter() = %v, want %v", got, tt.want)
 			}
 		})

@@ -22,35 +22,13 @@ import (
 	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
-	"io/ioutil"
+	"os"
 	"path"
 	"time"
 )
 
 type SourcePlugin interface {
 	ProcessPlugin
-	SourceInfo() (string, error)
-}
-
-func SourceInfo(ctx context.Context, ps types.PlugScope) (info string, err error) {
-	defer func() {
-		if rErr := utils.Recover(); rErr != nil {
-			err = rErr
-		}
-	}()
-	var plugin Plugin
-	plugin, err = BuildPlugin(ctx, ps)
-	if err != nil {
-		return info, err
-	}
-
-	srcPlugin, ok := plugin.(SourcePlugin)
-	if !ok {
-		return info, fmt.Errorf("not process plugin")
-	}
-
-	return srcPlugin.SourceInfo()
 }
 
 const (
@@ -79,20 +57,22 @@ func (d *ThreeBodyPlugin) SourceInfo() (string, error) {
 }
 
 func (d *ThreeBodyPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
-	if request.EntryId == 0 {
-		return nil, fmt.Errorf("entry id is empty")
+	if request.ParentEntryId == 0 {
+		return nil, fmt.Errorf("parent id is empty")
 	}
 	if request.WorkPath == "" {
 		return nil, fmt.Errorf("workdir is empty")
 	}
 
-	result, err := d.fileGenerate(request.EntryId, request.WorkPath)
+	result, err := d.fileGenerate(request.ParentEntryId, request.WorkPath)
 	if err != nil {
 		resp := pluginapi.NewFailedResponse(fmt.Sprintf("file generate failed: %s", err))
 		return resp, nil
 	}
 	results := []pluginapi.CollectManifest{result}
-	return pluginapi.NewResponseWithResult(map[string]any{pluginapi.ResCollectManifests: results}), nil
+	resp := pluginapi.NewResponse()
+	resp.NewEntries = results
+	return resp, nil
 }
 
 func (d *ThreeBodyPlugin) fileGenerate(baseEntry int64, workdir string) (pluginapi.CollectManifest, error) {
@@ -101,7 +81,7 @@ func (d *ThreeBodyPlugin) fileGenerate(baseEntry int64, workdir string) (plugina
 		filePath = path.Join(workdir, fmt.Sprintf("3_body_%d.txt", crtAt))
 		fileData = []byte(fmt.Sprintf("%d - Do not answer!\n", crtAt))
 	)
-	err := ioutil.WriteFile(filePath, fileData, 0655)
+	err := os.WriteFile(filePath, fileData, 0655)
 	if err != nil {
 		return pluginapi.CollectManifest{}, err
 	}
@@ -115,7 +95,7 @@ func (d *ThreeBodyPlugin) fileGenerate(baseEntry int64, workdir string) (plugina
 	}, nil
 }
 
-func threeBodyBuilder(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
+func threeBodyBuilder(job *types.WorkflowJob, scope types.PlugScope) (Plugin, error) {
 	return &ThreeBodyPlugin{}, nil
 }
 
@@ -124,8 +104,8 @@ func registerBuildInSourcePlugin(r *registry) {
 		Type: types.TypeSource, Parameters: map[string]string{}}, threeBodyBuilder)
 
 	r.Register(buildin.RssSourcePluginName,
-		types.PluginSpec{Name: buildin.RssSourcePluginName, Version: buildin.RssSourcePluginVersion, Type: types.TypeSource, Parameters: map[string]string{}},
-		func(ctx context.Context, spec types.PluginSpec, scope types.PlugScope) (Plugin, error) {
-			return buildin.BuildRssSourcePlugin(ctx, spec, scope), nil
+		buildin.RssSourcePluginSpec,
+		func(job *types.WorkflowJob, scope types.PlugScope) (Plugin, error) {
+			return buildin.BuildRssSourcePlugin(job, scope), nil
 		})
 }

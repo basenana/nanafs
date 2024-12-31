@@ -52,7 +52,7 @@ func (e EventData) String() string {
 	return "{}"
 }
 
-func NewEventDataFromEntry(entry *Metadata) EventData {
+func NewEventDataFromEntry(entry *Entry) EventData {
 	return EventData{
 		ID:        entry.ID,
 		ParentID:  entry.ParentID,

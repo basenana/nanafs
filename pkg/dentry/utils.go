@@ -23,7 +23,7 @@ const (
 	RootEntryName = "root"
 )
 
-func initRootEntry() *types.Metadata {
+func initRootEntry() *types.Entry {
 	acc := &types.Access{
 		Permissions: []types.Permission{
 			types.PermOwnerRead,
@@ -37,11 +37,11 @@ func initRootEntry() *types.Metadata {
 	root, _ := types.InitNewEntry(nil, types.EntryAttr{Name: RootEntryName, Kind: types.GroupKind, Access: acc})
 	root.ID = RootEntryID
 	root.ParentID = root.ID
-	root.Namespace = types.GlobalNamespaceValue
+	root.Namespace = types.DefaultNamespace
 	return root
 }
 
-func initNamespaceRootEntry(root *types.Metadata, ns *types.Namespace) *types.Metadata {
+func initNamespaceRootEntry(root *types.Entry, ns *types.Namespace) *types.Entry {
 	acc := &types.Access{
 		Permissions: []types.Permission{
 			types.PermOwnerRead,
@@ -58,7 +58,7 @@ func initNamespaceRootEntry(root *types.Metadata, ns *types.Namespace) *types.Me
 	return nsRoot
 }
 
-func initMirrorEntry(src, newParent *types.Metadata, attr types.EntryAttr) (*types.Metadata, error) {
+func initMirrorEntry(src, newParent *types.Entry, attr types.EntryAttr) (*types.Entry, error) {
 	result, err := types.InitNewEntry(newParent, attr)
 	if err != nil {
 		return nil, err

@@ -30,26 +30,26 @@ import (
 )
 
 type Group interface {
-	FindEntry(ctx context.Context, name string) (*types.Metadata, error)
-	CreateEntry(ctx context.Context, attr types.EntryAttr) (*types.Metadata, error)
-	UpdateEntry(ctx context.Context, entry *types.Metadata) error
+	FindEntry(ctx context.Context, name string) (*types.Entry, error)
+	CreateEntry(ctx context.Context, attr types.EntryAttr) (*types.Entry, error)
+	UpdateEntry(ctx context.Context, entry *types.Entry) error
 	RemoveEntry(ctx context.Context, entryID int64) error
-	ListChildren(ctx context.Context, order *types.EntryOrder, filters ...types.Filter) ([]*types.Metadata, error)
+	ListChildren(ctx context.Context, order *types.EntryOrder, filters ...types.Filter) ([]*types.Entry, error)
 }
 
 type emptyGroup struct{}
 
 var _ Group = emptyGroup{}
 
-func (e emptyGroup) FindEntry(ctx context.Context, name string) (*types.Metadata, error) {
+func (e emptyGroup) FindEntry(ctx context.Context, name string) (*types.Entry, error) {
 	return nil, types.ErrNotFound
 }
 
-func (e emptyGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*types.Metadata, error) {
+func (e emptyGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*types.Entry, error) {
 	return nil, types.ErrNoAccess
 }
 
-func (e emptyGroup) UpdateEntry(ctx context.Context, entry *types.Metadata) error {
+func (e emptyGroup) UpdateEntry(ctx context.Context, entry *types.Entry) error {
 	return types.ErrNoAccess
 }
 
@@ -57,8 +57,8 @@ func (e emptyGroup) RemoveEntry(ctx context.Context, enId int64) error {
 	return types.ErrNoAccess
 }
 
-func (e emptyGroup) ListChildren(ctx context.Context, order *types.EntryOrder, filters ...types.Filter) ([]*types.Metadata, error) {
-	return make([]*types.Metadata, 0), nil
+func (e emptyGroup) ListChildren(ctx context.Context, order *types.EntryOrder, filters ...types.Filter) ([]*types.Entry, error) {
+	return make([]*types.Entry, 0), nil
 }
 
 type stdGroup struct {
@@ -70,7 +70,7 @@ type stdGroup struct {
 
 var _ Group = &stdGroup{}
 
-func (g *stdGroup) GetEntry(ctx context.Context, entryID int64) (*types.Metadata, error) {
+func (g *stdGroup) GetEntry(ctx context.Context, entryID int64) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.GetEntry").End()
 	entry, err := g.store.GetEntry(ctx, entryID)
 	if err != nil {
@@ -82,7 +82,7 @@ func (g *stdGroup) GetEntry(ctx context.Context, entryID int64) (*types.Metadata
 	return entry, nil
 }
 
-func (g *stdGroup) FindEntry(ctx context.Context, name string) (*types.Metadata, error) {
+func (g *stdGroup) FindEntry(ctx context.Context, name string) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.FindEntry").End()
 	entry, err := g.store.FindEntry(ctx, g.entryID, name)
 	if err != nil {
@@ -91,7 +91,7 @@ func (g *stdGroup) FindEntry(ctx context.Context, name string) (*types.Metadata,
 	return entry, nil
 }
 
-func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*types.Metadata, error) {
+func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.CreateEntry").End()
 	existed, err := g.store.FindEntry(ctx, g.entryID, attr.Name)
 	if err != nil && err != types.ErrNotFound {
@@ -134,7 +134,7 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*type
 	return entry, nil
 }
 
-func (g *stdGroup) UpdateEntry(ctx context.Context, entry *types.Metadata) error {
+func (g *stdGroup) UpdateEntry(ctx context.Context, entry *types.Entry) error {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.UpdateEntry").End()
 	err := g.store.UpdateEntryMetadata(ctx, entry)
 	if err != nil {
@@ -161,15 +161,15 @@ func (g *stdGroup) RemoveEntry(ctx context.Context, entryId int64) error {
 	return nil
 }
 
-func (g *stdGroup) ListChildren(ctx context.Context, order *types.EntryOrder, filters ...types.Filter) ([]*types.Metadata, error) {
+func (g *stdGroup) ListChildren(ctx context.Context, order *types.EntryOrder, filters ...types.Filter) ([]*types.Entry, error) {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.ListChildren").End()
 	it, err := g.store.ListEntryChildren(ctx, g.entryID, order, filters...)
 	if err != nil {
 		return nil, err
 	}
 	var (
-		result = make([]*types.Metadata, 0)
-		next   *types.Metadata
+		result = make([]*types.Entry, 0)
+		next   *types.Entry
 	)
 	for it.HasNext() {
 		next = it.Next()
@@ -188,7 +188,7 @@ type dynamicGroup struct {
 	logger    *zap.SugaredLogger
 }
 
-func (d *dynamicGroup) FindEntry(ctx context.Context, name string) (*types.Metadata, error) {
+func (d *dynamicGroup) FindEntry(ctx context.Context, name string) (*types.Entry, error) {
 	children, err := d.ListChildren(ctx, nil, types.Filter{})
 	if err != nil {
 		return nil, err
@@ -201,11 +201,11 @@ func (d *dynamicGroup) FindEntry(ctx context.Context, name string) (*types.Metad
 	return nil, types.ErrNotFound
 }
 
-func (d *dynamicGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*types.Metadata, error) {
+func (d *dynamicGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*types.Entry, error) {
 	return d.std.CreateEntry(ctx, attr)
 }
 
-func (d *dynamicGroup) UpdateEntry(ctx context.Context, entry *types.Metadata) error {
+func (d *dynamicGroup) UpdateEntry(ctx context.Context, entry *types.Entry) error {
 	return d.std.UpdateEntry(ctx, entry)
 }
 
@@ -220,7 +220,7 @@ func (d *dynamicGroup) RemoveEntry(ctx context.Context, entryID int64) error {
 	return d.std.RemoveEntry(ctx, entryID)
 }
 
-func (d *dynamicGroup) ListChildren(ctx context.Context, order *types.EntryOrder, filters ...types.Filter) ([]*types.Metadata, error) {
+func (d *dynamicGroup) ListChildren(ctx context.Context, order *types.EntryOrder, filters ...types.Filter) ([]*types.Entry, error) {
 	children, err := d.std.ListChildren(ctx, order, filters...)
 	if err != nil {
 		d.logger.Errorw("list static children failed", "err", err)

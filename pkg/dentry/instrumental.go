@@ -131,21 +131,21 @@ type instrumentalGroup struct {
 	grp Group
 }
 
-func (i instrumentalGroup) FindEntry(ctx context.Context, name string) (*types.Metadata, error) {
+func (i instrumentalGroup) FindEntry(ctx context.Context, name string) (*types.Entry, error) {
 	const operation = "find_entry"
 	defer logOperationLatency(groupOperationLatency, operation, time.Now())
 	en, err := i.grp.FindEntry(ctx, name)
 	return en, logOperationError(groupOperationErrorCounter, operation, err)
 }
 
-func (i instrumentalGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*types.Metadata, error) {
+func (i instrumentalGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*types.Entry, error) {
 	const operation = "create_entry"
 	defer logOperationLatency(groupOperationLatency, operation, time.Now())
 	en, err := i.grp.CreateEntry(ctx, attr)
 	return en, logOperationError(groupOperationErrorCounter, operation, err)
 }
 
-func (i instrumentalGroup) UpdateEntry(ctx context.Context, entry *types.Metadata) error {
+func (i instrumentalGroup) UpdateEntry(ctx context.Context, entry *types.Entry) error {
 	const operation = "patch_entry"
 	defer logOperationLatency(groupOperationLatency, operation, time.Now())
 	err := i.grp.UpdateEntry(ctx, entry)
@@ -159,7 +159,7 @@ func (i instrumentalGroup) RemoveEntry(ctx context.Context, entryId int64) error
 	return logOperationError(groupOperationErrorCounter, operation, err)
 }
 
-func (i instrumentalGroup) ListChildren(ctx context.Context, order *types.EntryOrder, filters ...types.Filter) ([]*types.Metadata, error) {
+func (i instrumentalGroup) ListChildren(ctx context.Context, order *types.EntryOrder, filters ...types.Filter) ([]*types.Entry, error) {
 	const operation = "list_children"
 	defer logOperationLatency(groupOperationLatency, operation, time.Now())
 	enList, err := i.grp.ListChildren(ctx, order, filters...)

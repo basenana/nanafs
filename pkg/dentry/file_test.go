@@ -46,7 +46,7 @@ func resetFileChunk() {
 	copy(fileChunk4, []byte(""))
 }
 
-func newMockFileEntry(name string) *types.Metadata {
+func newMockFileEntry(name string) *types.Entry {
 	grp, err := entryManager.OpenGroup(context.TODO(), root.ID)
 	Expect(err).Should(BeNil())
 	en, err := grp.FindEntry(context.TODO(), name)

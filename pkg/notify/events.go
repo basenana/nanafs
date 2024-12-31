@@ -18,40 +18,12 @@ package notify
 
 import (
 	"context"
-	"fmt"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/types"
 )
 
 func registerEventHandle(n *Notify) {
 	_, _ = events.Subscribe(events.NamespacedTopic(events.TopicNamespaceEntry, "*"), n.handleEvent)
-	_, _ = events.Subscribe(events.NamespacedTopic(events.TopicNamespaceDocument, "*"), n.handleEvent)
-}
-
-func (n *Notify) GetLatestSequence(ctx context.Context) (int64, error) {
-	evtList, err := n.store.ListEvents(ctx, types.EventFilter{Limit: 1, DESC: true})
-	if err != nil {
-		return 0, err
-	}
-	if len(evtList) == 0 {
-		return 0, nil
-	}
-	return evtList[0].Sequence, nil
-}
-
-func (n *Notify) ListUnSyncedEvent(ctx context.Context, sequence int64) ([]types.Event, error) {
-	evtList, err := n.store.ListEvents(ctx, types.EventFilter{StartSequence: sequence})
-	if err != nil {
-		return nil, err
-	}
-	return evtList, nil
-}
-
-func (n *Notify) CommitSyncedEvent(ctx context.Context, deviceID string, sequence int64) error {
-	if deviceID == "" {
-		return fmt.Errorf("device id is empty")
-	}
-	return n.store.DeviceSync(ctx, deviceID, sequence)
 }
 
 func (n *Notify) handleEvent(evt *types.Event) error {

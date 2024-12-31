@@ -18,8 +18,11 @@ package rule
 
 import "github.com/basenana/nanafs/pkg/types"
 
-func Filter(filter types.Rule, entry *types.Metadata, properties *types.Properties, label *types.Labels) bool {
-	return entryColumnFilter(filter, entryToMap(entry, properties), label)
+func Filter(filter *types.Rule, entry *types.Entry, properties *types.Properties, label *types.Labels) bool {
+	if filter == nil {
+		return false
+	}
+	return entryColumnFilter(*filter, entryToMap(entry, properties), label)
 }
 
 func entryColumnFilter(filter types.Rule, obj map[string]interface{}, labels *types.Labels) bool {
