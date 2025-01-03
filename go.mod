@@ -4,7 +4,7 @@ go 1.23
 
 require (
 	github.com/PuerkitoBio/goquery v1.10.0
-	github.com/aliyun/aliyun-oss-go-sdk v2.2.7+incompatible
+	github.com/aliyun/aliyun-oss-go-sdk v3.0.2+incompatible
 	github.com/aws/aws-sdk-go-v2 v1.18.1
 	github.com/aws/aws-sdk-go-v2/config v1.18.27
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.26
@@ -16,7 +16,7 @@ require (
 	github.com/go-gormigrate/gormigrate/v2 v2.1.1
 	github.com/google/uuid v1.6.0
 	github.com/hanwen/go-fuse/v2 v2.3.0
-	github.com/hyponet/eventbus v1.0.1
+	github.com/hyponet/eventbus v1.1.0
 	github.com/hyponet/webpage-packer v1.0.5
 	github.com/ledongthuc/pdf v0.0.0-20220302134840-0c2507a12d80
 	github.com/minio/minio-go/v7 v7.0.52
@@ -29,7 +29,7 @@ require (
 	github.com/slok/go-http-metrics v0.10.0
 	github.com/studio-b12/gowebdav v0.9.0
 	go.uber.org/zap v1.24.0
-	golang.org/x/net v0.32.0
+	golang.org/x/net v0.33.0
 	golang.org/x/sys v0.28.0
 	google.golang.org/grpc v1.68.1
 	google.golang.org/protobuf v1.35.2
@@ -107,7 +107,7 @@ require (
 	golang.org/x/exp v0.0.0-20241204233417-43b7b7cde48d // indirect
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
-	golang.org/x/time v0.4.0 // indirect
+	golang.org/x/time v0.8.0 // indirect
 	golang.org/x/tools v0.28.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241206012308-a4fef0638583 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
@@ -134,6 +134,6 @@ require (
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/arch v0.3.0 // indirect
-	golang.org/x/crypto v0.30.0 // indirect
+	golang.org/x/crypto v0.31.0 // indirect
 	gorm.io/gorm v1.25.4
 )

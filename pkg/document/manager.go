@@ -18,7 +18,7 @@ package document
 
 import (
 	"context"
-	"fmt"
+	"github.com/hyponet/eventbus"
 	"runtime/trace"
 	"time"
 
@@ -202,9 +202,7 @@ func registerDocExecutor(docMgr *manager) error {
 	}
 
 	for _, mapping := range eventMappings {
-		if _, err := events.Subscribe(events.NamespacedTopic(mapping.topic, mapping.action), mapping.handler); err != nil {
-			return fmt.Errorf("register doc event executor failed: %w", err)
-		}
+		eventbus.Subscribe(events.NamespacedTopic(mapping.topic, mapping.action), mapping.handler)
 	}
 
 	return nil

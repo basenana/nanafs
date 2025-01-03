@@ -20,10 +20,11 @@ import (
 	"context"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/hyponet/eventbus"
 )
 
 func registerEventHandle(n *Notify) {
-	_, _ = events.Subscribe(events.NamespacedTopic(events.TopicNamespaceEntry, "*"), n.handleEvent)
+	eventbus.Subscribe(events.NamespacedTopic(events.TopicNamespaceEntry, "*"), n.handleEvent)
 }
 
 func (n *Notify) handleEvent(evt *types.Event) error {

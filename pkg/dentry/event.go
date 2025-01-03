@@ -18,6 +18,7 @@ package dentry
 
 import (
 	"context"
+	"github.com/hyponet/eventbus"
 	"time"
 
 	"github.com/google/uuid"
@@ -48,7 +49,7 @@ func (m *manager) entryActionEventHandler() {
 			m.logger.Errorw("encounter error when handle entry event", "entry", evt.entryID, "action", evt.actionType, "err", err)
 			continue
 		}
-		events.Publish(events.NamespacedTopic(evt.topicNS, evt.actionType), BuildEntryEvent(evt.actionType, en))
+		eventbus.Publish(events.NamespacedTopic(evt.topicNS, evt.actionType), BuildEntryEvent(evt.actionType, en))
 	}
 }
 

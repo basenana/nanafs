@@ -26,6 +26,7 @@ import (
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/getsentry/sentry-go"
+	"github.com/hyponet/eventbus"
 	"go.uber.org/zap"
 	"io"
 	"runtime/trace"
@@ -172,7 +173,7 @@ func (c *chunkReader) Close() {
 		delete(fileChunkReaders, c.entry.ID)
 		fileChunkMux.Unlock()
 		if c.needCompact {
-			events.Publish(events.NamespacedTopic(events.TopicNamespaceFile, events.ActionTypeCompact),
+			eventbus.Publish(events.NamespacedTopic(events.TopicNamespaceFile, events.ActionTypeCompact),
 				buildCompactEvent(c.entry))
 		}
 		c.page.close()

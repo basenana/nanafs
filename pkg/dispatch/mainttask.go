@@ -18,6 +18,7 @@ package dispatch
 
 import (
 	"context"
+	"github.com/hyponet/eventbus"
 	"time"
 
 	"go.uber.org/zap"
@@ -174,11 +175,7 @@ func registerMaintainExecutor(
 
 	d.registerExecutor(maintainTaskIDChunkCompact, ce)
 	d.registerExecutor(maintainTaskIDEntryCleanup, ee)
-	if _, err := events.Subscribe(events.NamespacedTopic(events.TopicNamespaceFile, events.ActionTypeCompact), ce.handleEvent); err != nil {
-		return err
-	}
-	if _, err := events.Subscribe(events.NamespacedTopic(events.TopicNamespaceEntry, events.ActionTypeDestroy), ee.handleEvent); err != nil {
-		return err
-	}
+	eventbus.Subscribe(events.NamespacedTopic(events.TopicNamespaceFile, events.ActionTypeCompact), ce.handleEvent)
+	eventbus.Subscribe(events.NamespacedTopic(events.TopicNamespaceEntry, events.ActionTypeDestroy), ee.handleEvent)
 	return nil
 }

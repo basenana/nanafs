@@ -26,6 +26,7 @@ import (
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/basenana/nanafs/workflow/jobrun"
+	"github.com/hyponet/eventbus"
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 	"sync"
@@ -61,7 +62,7 @@ func initHooks(mgr *manager) *hooks {
 }
 
 func (h *hooks) setupHooks() {
-	_, _ = events.Subscribe(events.NamespacedTopic(events.TopicNamespaceEntry, events.ActionTypeCreate), h.handleEntryCreate)
+	eventbus.Subscribe(events.NamespacedTopic(events.TopicNamespaceEntry, events.ActionTypeCreate), h.handleEntryCreate)
 }
 
 func (h *hooks) start(ctx context.Context) {
