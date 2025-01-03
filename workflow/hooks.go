@@ -221,6 +221,13 @@ func (h *hooks) handleEntryCreate(evt *types.Event) {
 			continue
 		}
 
+		if en.IsGroup {
+			if err = h.triggerGroupWorkflow(ctx, evt.Namespace, wfID, en.ID, "group created"); err != nil {
+				h.logger.Errorw("[handleEntryCreate] trigger group workflow failed", "entry", evt.RefID, "err", err)
+			}
+			continue
+		}
+
 		h.workflowJobDelay(ctx, evt.Namespace, wfID, en, "entry created")
 	}
 	return

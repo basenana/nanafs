@@ -196,6 +196,11 @@ func (m *manager) TriggerWorkflow(ctx context.Context, namespace string, wfId st
 			m.logger.Errorw("query entry failed", "workflow", workflow.Name, "entryID", tgt, "err", err)
 			return nil, err
 		}
+
+		if en.IsGroup {
+			return nil, types.ErrIsGroup
+		}
+
 		if tgt.ParentEntryID == 0 {
 			tgt.ParentEntryID = en.ParentID
 		}
