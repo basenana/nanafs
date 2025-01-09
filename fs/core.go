@@ -18,6 +18,7 @@ package fs
 
 import (
 	"context"
+	"fmt"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/dialogue"
@@ -30,14 +31,40 @@ import (
 	"github.com/basenana/nanafs/workflow"
 )
 
+type Core struct {
+	Commander
+	Query
+}
+
+func newFSCore(depends Depends) (*Core, error) {
+	var (
+		fs  = &Core{}
+		err error
+	)
+
+	fs.Query, err = newQuery(depends)
+	if err != nil {
+		return nil, fmt.Errorf("init fs query service error: %w", err)
+	}
+
+	fs.Commander, err = newCommander(depends, fs.Query)
+	if err != nil {
+		return nil, fmt.Errorf("init fs commander error: %w", err)
+	}
+
+	return fs, nil
+}
+
 type Depends struct {
-	Workflow   workflow.Workflow
-	Dispatcher *dispatch.Dispatcher
-	Entry      dentry.Manager
-	Notify     *notify.Notify
-	Document   document.Manager
-	Dialogue   dialogue.Manager
-	Token      *token.Manager
+	Meta         metastore.Meta
+	Workflow     workflow.Workflow
+	Dispatcher   *dispatch.Dispatcher
+	Entry        dentry.Manager
+	Notify       *notify.Notify
+	Document     document.Manager
+	Dialogue     dialogue.Manager
+	Token        *token.Manager
+	ConfigLoader config.Loader
 }
 
 func InitDepends(loader config.Loader, meta metastore.Meta, fridayClient friday.Friday) (*Depends, error) {
@@ -46,7 +73,7 @@ func InitDepends(loader config.Loader, meta metastore.Meta, fridayClient friday.
 		return nil, err
 	}
 
-	dep := &Depends{}
+	dep := &Depends{Meta: meta, ConfigLoader: loader}
 	dep.Token = token.NewTokenManager(meta, loader)
 	if tokenErr := dep.Token.InitBuildinCA(context.Background()); tokenErr != nil {
 		return nil, tokenErr

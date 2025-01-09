@@ -37,7 +37,7 @@ import (
 
 type Manager interface {
 	Root(ctx context.Context) (*types.Entry, error)
-	CreateNamespace(ctx context.Context, namespace *types.Namespace) error
+	CreateNamespace(ctx context.Context, namespace string) error
 
 	GetEntry(ctx context.Context, id int64) (*types.Entry, error)
 	GetEntryByUri(ctx context.Context, uri string) (*types.Entry, error)
@@ -153,7 +153,7 @@ func (m *manager) Root(ctx context.Context) (*types.Entry, error) {
 	return root, nil
 }
 
-func (m *manager) CreateNamespace(ctx context.Context, namespace *types.Namespace) error {
+func (m *manager) CreateNamespace(ctx context.Context, namespace string) error {
 	defer trace.StartRegion(ctx, "dentry.manager.CreateNamespace").End()
 	root, err := m.Root(ctx)
 	if err != nil {
@@ -171,6 +171,21 @@ func (m *manager) CreateNamespace(ctx context.Context, namespace *types.Namespac
 		m.logger.Errorw("create root entry failed", "err", err)
 		return err
 	}
+
+	buildInGroups := []string{
+		".inbox",
+	}
+
+	for _, buildInGroupName := range buildInGroups {
+		_, err = m.CreateEntry(ctx, nsRoot.ID, types.EntryAttr{
+			Name: buildInGroupName,
+			Kind: types.GroupKind,
+		})
+		if err != nil {
+			return fmt.Errorf("init build-in ns group %s failed: %w", buildInGroupName, err)
+		}
+	}
+
 	return nil
 }
 

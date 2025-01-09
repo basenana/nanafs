@@ -14,4 +14,7 @@
  limitations under the License.
 */
 
-package controller
+package fs
+
+type File interface {
+}

@@ -21,16 +21,12 @@ import (
 	"time"
 )
 
-type Entry struct {
-	*types.Entry
-	Properties map[string]string
-}
-
-type BasicEntry struct {
+type EntryInfo struct {
 	ID         int64
 	Name       string
+	ParentID   int64
 	RefCount   int
-	Mode       uint32
+	Kind       types.Kind
 	IsGroup    bool
 	Size       int64
 	Dev        int64
@@ -40,11 +36,38 @@ type BasicEntry struct {
 	ChangedAt  time.Time
 	ModifiedAt time.Time
 	AccessAt   time.Time
+	Access     types.Access
 }
 
-type GroupEntry struct {
-	Entry    *Entry        `json:"entry"`
-	Children []*GroupEntry `json:"children"`
+type Entry struct {
+	ID         int64
+	Name       string
+	Aliases    string
+	ParentID   int64
+	RefID      int64
+	RefCount   int
+	Kind       types.Kind
+	KindMap    int64
+	IsGroup    bool
+	Size       int64
+	Version    int64
+	Dev        int64
+	Namespace  string
+	Storage    string
+	CreatedAt  time.Time
+	ChangedAt  time.Time
+	ModifiedAt time.Time
+	AccessAt   time.Time
+	Access     types.Access
+
+	Properties *types.Properties
+	Labels     *types.Labels
+}
+
+type GroupTree struct {
+	ID       int64
+	Name     string
+	Children []*GroupTree
 }
 
 type GroupChildren struct {

@@ -14,13 +14,12 @@
  limitations under the License.
 */
 
-package dentry
+package fs
 
-import "github.com/basenana/nanafs/pkg/types"
-
-const (
-	RootEntryID   = 1
-	RootEntryName = "root"
+import (
+	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/jinzhu/copier"
 )
 
 func initRootEntry() *types.Entry {
@@ -34,8 +33,8 @@ func initRootEntry() *types.Entry {
 			types.PermOthersRead,
 		},
 	}
-	root, _ := types.InitNewEntry(nil, types.EntryAttr{Name: RootEntryName, Kind: types.GroupKind, Access: acc})
-	root.ID = RootEntryID
+	root, _ := types.InitNewEntry(nil, types.EntryAttr{Name: dentry.RootEntryName, Kind: types.GroupKind, Access: acc})
+	root.ID = dentry.RootEntryID
 	root.ParentID = root.ID
 	root.Namespace = types.DefaultNamespace
 	return root
@@ -58,14 +57,7 @@ func initNamespaceRootEntry(root *types.Entry, ns string) *types.Entry {
 	return nsRoot
 }
 
-func initMirrorEntry(src, newParent *types.Entry, attr types.EntryAttr) (*types.Entry, error) {
-	result, err := types.InitNewEntry(newParent, attr)
-	if err != nil {
-		return nil, err
-	}
-
-	result.Kind = src.Kind
-	result.Namespace = src.Namespace
-	result.RefID = src.ID
-	return result, nil
+func entryInfo(entry *types.Entry) (*EntryInfo, error) {
+	result := &EntryInfo{}
+	return result, copier.Copy(result, entry)
 }

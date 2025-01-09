@@ -21,7 +21,30 @@ import (
 	"golang.org/x/sys/unix"
 	"os/user"
 	"strconv"
+	"time"
 )
+
+type DEntry struct {
+	ID         int64
+	Name       string
+	ParentID   int64
+	RefCount   int
+	Kind       types.Kind
+	IsGroup    bool
+	Size       int64
+	Dev        int64
+	UID        int64
+	GID        int64
+	CreatedAt  time.Time
+	ChangedAt  time.Time
+	ModifiedAt time.Time
+	AccessAt   time.Time
+	Access     types.Access
+
+	parent   *DEntry
+	children *DEntry
+	next     *DEntry
+}
 
 var (
 	perm2Mode = map[types.Permission]uint32{
