@@ -19,7 +19,6 @@ package v1
 import (
 	"context"
 	"errors"
-	"github.com/basenana/nanafs/fs"
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/core"
 	"io"
@@ -48,7 +47,7 @@ type Services interface {
 	WorkflowServer
 }
 
-func InitServices(server *grpc.Server, fsSvc *fs.Service, ctrl controller.Controller, depends *fs.Depends) (Services, error) {
+func InitServices(server *grpc.Server, fsSvc *services.Service, ctrl controller.Controller, depends *services.Depends) (Services, error) {
 	s := &services{
 		fs:       fsSvc,
 		ctrl:     ctrl,
@@ -68,7 +67,7 @@ func InitServices(server *grpc.Server, fsSvc *fs.Service, ctrl controller.Contro
 }
 
 type services struct {
-	fs       *fs.Service
+	fs       *services.Service
 	ctrl     controller.Controller
 	workflow workflow.Workflow
 	caller   common.CallerAuthGetter
@@ -487,7 +486,7 @@ func (s *services) GroupTree(ctx context.Context, request *GetGroupTreeRequest) 
 
 func (s *services) FindEntryDetail(ctx context.Context, request *FindEntryDetailRequest) (*GetEntryDetailResponse, error) {
 	var (
-		en  *fs.Entry
+		en  *services.Entry
 		err error
 	)
 
@@ -523,7 +522,7 @@ func (s *services) GetEntryDetail(ctx context.Context, request *GetEntryDetailRe
 		return nil, status.Error(common.FsApiError(err), "has no permission")
 	}
 
-	var p *fs.Entry
+	var p *services.Entry
 	if en.ParentID != core.RootEntryID {
 		p, err = s.fs.GetEntry(ctx, caller.Namespace, en.ParentID)
 		if err != nil {
@@ -575,7 +574,7 @@ func (s *services) CreateEntry(ctx context.Context, request *CreateEntryRequest)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "create entry failed")
 	}
-	return &CreateEntryResponse{Entry: entryInfo(en)}, nil
+	return &CreateEntryResponse{Entry: coreEntryInfo(parent.ID, request.Name, en)}, nil
 }
 
 func (s *services) UpdateEntry(ctx context.Context, request *UpdateEntryRequest) (*UpdateEntryResponse, error) {
@@ -603,7 +602,7 @@ func (s *services) UpdateEntry(ctx context.Context, request *UpdateEntryRequest)
 		return nil, status.Error(common.FsApiError(err), "query entry parent failed")
 	}
 
-	update := &fs.UpdateEntry{}
+	update := types.UpdateEntry{}
 	if request.Name != "" {
 		update.Name = &request.Name
 	}
@@ -631,7 +630,7 @@ func (s *services) DeleteEntry(ctx context.Context, request *DeleteEntryRequest)
 	return &DeleteEntryResponse{Entry: toEntryInfo(en)}, nil
 }
 
-func (s *services) deleteEntry(ctx context.Context, namespace string, uid, entryId int64) (en *fs.Entry, err error) {
+func (s *services) deleteEntry(ctx context.Context, namespace string, uid, entryId int64) (en *services.Entry, err error) {
 	en, err = s.fs.GetEntry(ctx, namespace, entryId)
 	if err != nil {
 		err = status.Error(common.FsApiError(err), "query entry failed")
@@ -655,7 +654,7 @@ func (s *services) deleteEntry(ctx context.Context, namespace string, uid, entry
 	}
 
 	// TODO: fix uid and gid
-	err = s.fs.DestroyEntry(ctx, namespace, parent.ID, en.ID, types.DestroyObjectAttr{Uid: 0, Gid: 0})
+	err = s.fs.DestroyEntry(ctx, namespace, parent.ID, en.ID, types.DestroyEntryAttr{Uid: 0, Gid: 0})
 	if err != nil {
 		err = status.Error(common.FsApiError(err), "delete entry failed")
 		return

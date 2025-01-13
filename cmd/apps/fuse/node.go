@@ -17,7 +17,11 @@
 package fuse
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"github.com/basenana/nanafs/pkg/core"
+	"io"
 	"runtime/trace"
 	"syscall"
 	"time"
@@ -60,8 +64,8 @@ type NanaNode struct {
 	fs.Inode
 	R *NanaFS
 
-	entryID int64
-	logger  *zap.SugaredLogger
+	entry  *core.Entry
+	logger *zap.SugaredLogger
 }
 
 var _ nodeOperation = &NanaNode{}
@@ -75,12 +79,7 @@ func (n *NanaNode) Access(ctx context.Context, mask uint32) syscall.Errno {
 		uid, gid = fuseCtx.Uid, fuseCtx.Gid
 	}
 
-	entry, err := n.R.GetEntry(ctx, n.entryID)
-	if err != nil {
-		return Error2FuseSysError("entry_access", err)
-	}
-
-	return Error2FuseSysError("entry_access", dentry.IsAccess(entry.Access, int64(uid), int64(gid), mask))
+	return Error2FuseSysError("entry_access", dentry.IsAccess(n.entry.Access, int64(uid), int64(gid), mask))
 }
 
 func (n *NanaNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut) syscall.Errno {
@@ -91,12 +90,7 @@ func (n *NanaNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrO
 		return file.Getattr(ctx, out)
 	}
 
-	entry, err := n.R.GetSourceEntry(ctx, n.entryID)
-	if err != nil {
-		return Error2FuseSysError("entry_get_attr", err)
-	}
-
-	st := nanaNode2Stat(entry)
+	st := nanaNode2Stat(n.entry)
 	updateAttrOut(st, &out.Attr)
 	return NoErr
 }
@@ -112,17 +106,14 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 	var attr types.OpenAttr
 	nanaFile, ok := f.(*File)
 	if ok {
-		attr = nanaFile.file.GetAttr()
+		attr = nanaFile.attr
 	}
 
-	entry, err := n.R.GetEntry(ctx, n.entryID)
-	if err != nil {
+	update := types.UpdateEntry{}
+	if err := updateNanaNodeWithAttr(in, n.entry, &update, int64(uid), int64(gid), attr); err != nil {
 		return Error2FuseSysError("entry_set_attr", err)
 	}
-	if err = updateNanaNodeWithAttr(in, entry, int64(uid), int64(gid), attr); err != nil {
-		return Error2FuseSysError("entry_set_attr", err)
-	}
-	if err = n.R.UpdateEntry(ctx, entry); err != nil {
+	if _, err := n.R.UpdateEntry(ctx, n.R.Namespace, n.entry.ID, update); err != nil {
 		return Error2FuseSysError("entry_set_attr", err)
 	}
 	return n.Getattr(ctx, f, out)
@@ -131,7 +122,7 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 func (n *NanaNode) Getxattr(ctx context.Context, attr string, dest []byte) (uint32, syscall.Errno) {
 	defer trace.StartRegion(ctx, "fuse.node.Getxattr").End()
 	defer logOperationLatency("entry_get_xattr", time.Now())
-	data, err := n.R.GetEntryProperty(ctx, n.entryID, attr)
+	data, err := n.R.GetXAttr(ctx, n.R.Namespace, n.entry.ID, attr)
 	if err != nil {
 		return 0, ENODATA
 	}
@@ -149,7 +140,7 @@ func (n *NanaNode) Getxattr(ctx context.Context, attr string, dest []byte) (uint
 func (n *NanaNode) Setxattr(ctx context.Context, attr string, data []byte, flags uint32) syscall.Errno {
 	defer trace.StartRegion(ctx, "fuse.node.Setxattr").End()
 	defer logOperationLatency("entry_set_xattr", time.Now())
-	if err := n.R.SetEntryEncodedProperty(ctx, n.entryID, attr, data); err != nil {
+	if err := n.R.SetXAttr(ctx, n.R.Namespace, n.entry.ID, attr, data); err != nil {
 		return Error2FuseSysError("entry_set_xattr", err)
 	}
 	return NoErr
@@ -158,7 +149,7 @@ func (n *NanaNode) Setxattr(ctx context.Context, attr string, data []byte, flags
 func (n *NanaNode) Removexattr(ctx context.Context, attr string) syscall.Errno {
 	defer trace.StartRegion(ctx, "fuse.node.Removexattr").End()
 	defer logOperationLatency("entry_remove_xattr", time.Now())
-	if err := n.R.RemoveEntryProperty(ctx, n.entryID, attr); err != nil {
+	if err := n.R.RemoveXAttr(ctx, n.R.Namespace, n.entry.ID, attr); err != nil {
 		return syscall.Errno(0x5d)
 	}
 	return NoErr
@@ -167,23 +158,20 @@ func (n *NanaNode) Removexattr(ctx context.Context, attr string) syscall.Errno {
 func (n *NanaNode) Open(ctx context.Context, flags uint32) (fh fs.FileHandle, fuseFlags uint32, errno syscall.Errno) {
 	defer trace.StartRegion(ctx, "fuse.node.Open").End()
 	defer logOperationLatency("entry_open", time.Now())
-	entry, err := n.R.GetSourceEntry(ctx, n.entryID)
+	openAttr := openFileAttr(flags)
+	file, err := n.R.Open(ctx, n.R.Namespace, n.entry.ID, openAttr)
 	if err != nil {
 		return nil, 0, Error2FuseSysError("entry_open", err)
 	}
-	if entry.IsGroup {
-		return nil, 0, Error2FuseSysError("entry_open", types.ErrIsGroup)
-	}
-	f, err := n.R.Controller.OpenFile(ctx, n.entryID, openFileAttr(flags))
-	return &File{node: n, entry: entry, file: f}, flags, Error2FuseSysError("entry_open", err)
+	return &File{node: n, file: file.Inter(), attr: openAttr}, flags, Error2FuseSysError("entry_open", err)
 }
 
 func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode uint32, out *fuse.EntryOut) (*fs.Inode, fs.FileHandle, uint32, syscall.Errno) {
 	defer trace.StartRegion(ctx, "fuse.node.Create").End()
 	defer logOperationLatency("entry_create", time.Now())
 
-	ch, err := n.R.FindEntry(ctx, n.entryID, name)
-	if err != nil && err != types.ErrNotFound {
+	ch, err := n.R.LookUpEntry(ctx, n.R.Namespace, n.entry.ID, name)
+	if err != nil && !errors.Is(err, types.ErrNotFound) {
 		return nil, nil, 0, Error2FuseSysError("entry_create", err)
 	}
 	if ch != nil && flags|syscall.O_EXCL > 0 {
@@ -195,7 +183,7 @@ func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode u
 	if fuseCtx, ok := ctx.(*fuse.Context); ok {
 		dentry.UpdateAccessWithOwnID(acc, int64(fuseCtx.Uid), int64(fuseCtx.Gid))
 	}
-	newCh, err := n.R.CreateEntry(ctx, n.entryID, types.EntryAttr{
+	newCh, err := n.R.CreateEntry(ctx, n.R.Namespace, n.entry.ID, types.EntryAttr{
 		Name:   name,
 		Kind:   fileKindFromMode(mode),
 		Access: acc,
@@ -204,33 +192,28 @@ func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode u
 	if err != nil {
 		return nil, nil, 0, Error2FuseSysError("entry_create", err)
 	}
-	node, err := n.R.newFsNode(ctx, n, newCh)
+
+	node := n.R.newFsNode(newCh)
 	if err != nil {
 		return nil, nil, 0, Error2FuseSysError("entry_create", err)
 	}
 	updateAttrOut(nanaNode2Stat(newCh), &out.Attr)
-	n.AddChild(name, node.EmbeddedInode(), true)
 
-	f, err := n.R.Controller.OpenFile(ctx, newCh.ID, openFileAttr(flags))
-	return node.EmbeddedInode(), &File{node: node, entry: newCh, file: f}, dentry.Access2Mode(newCh.Access), Error2FuseSysError("entry_create", err)
+	openAttr := openFileAttr(flags)
+	f, err := n.R.Open(ctx, n.R.Namespace, newCh.ID, openAttr)
+	return node.EmbeddedInode(), &File{node: node, file: f.Inter(), attr: openAttr}, dentry.Access2Mode(newCh.Access), Error2FuseSysError("entry_create", err)
 }
 
 func (n *NanaNode) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
 	defer trace.StartRegion(ctx, "fuse.node.Lookup").End()
 	defer logOperationLatency("entry_lookup", time.Now())
 
-	ch, err := n.R.FindEntry(ctx, n.entryID, name)
+	ch, err := n.R.LookUpEntry(ctx, n.R.Namespace, n.entry.ID, name)
 	if err != nil {
 		return nil, Error2FuseSysError("entry_lookup", err)
 	}
 
-	ch, err = n.R.GetSourceEntry(ctx, ch.ID)
-	if err != nil {
-		n.logger.Errorw("query source entry failed", "err", err)
-		return nil, Error2FuseSysError("entry_lookup", err)
-	}
-
-	node, err := n.R.newFsNode(ctx, n, ch)
+	node := n.R.newFsNode(ch)
 	if err != nil {
 		return nil, Error2FuseSysError("entry_lookup", err)
 	}
@@ -241,11 +224,7 @@ func (n *NanaNode) Lookup(ctx context.Context, name string, out *fuse.EntryOut) 
 func (n *NanaNode) Opendir(ctx context.Context) syscall.Errno {
 	defer trace.StartRegion(ctx, "fuse.node.Opendir").End()
 	defer logOperationLatency("entry_open_dir", time.Now())
-	entry, err := n.R.GetEntry(ctx, n.entryID)
-	if err != nil {
-		return Error2FuseSysError("entry_open_dir", err)
-	}
-	if entry.IsGroup {
+	if n.entry.IsGroup {
 		return NoErr
 	}
 	return syscall.EISDIR
@@ -255,30 +234,35 @@ func (n *NanaNode) Readdir(ctx context.Context) (fs.DirStream, syscall.Errno) {
 	defer trace.StartRegion(ctx, "fuse.node.Readdir").End()
 	defer logOperationLatency("entry_read_dir", time.Now())
 	result := make([]fuse.DirEntry, 0)
-	children, err := n.R.ListEntryChildren(ctx, n.entryID, nil, types.Filter{})
+	group, err := n.R.OpenDir(ctx, n.R.Namespace, n.entry.ID)
 	if err != nil {
 		return nil, Error2FuseSysError("entry_read_dir", types.ErrNoGroup)
 	}
 
-	for i := range children {
-		ch := children[i]
-		node, _ := n.R.newFsNode(ctx, n, ch)
-		n.AddChild(ch.Name, node.EmbeddedInode(), false)
+	for {
+		children, err := group.Readdir(-1)
+		if errors.Is(err, io.EOF) {
+			break
+		}
 
-		result = append(result, fuse.DirEntry{
-			Mode: node.Mode(),
-			Name: ch.Name,
-			Ino:  node.StableAttr().Ino,
-		})
+		for i := range children {
+			ch := children[i]
+			result = append(result, fuse.DirEntry{
+				Mode: uint32(ch.Mode()),
+				Name: ch.Name(),
+				Ino:  uint64(ch.ID()),
+			})
+		}
 	}
+
 	return fs.NewListDirStream(result), NoErr
 }
 
 func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
 	defer trace.StartRegion(ctx, "fuse.node.Mkdir").End()
 	defer logOperationLatency("entry_mkdir", time.Now())
-	ch, err := n.R.FindEntry(ctx, n.entryID, name)
-	if err != nil && err != types.ErrNotFound {
+	ch, err := n.R.LookUpEntry(ctx, n.R.Namespace, n.entry.ID, name)
+	if err != nil && !errors.Is(err, types.ErrNotFound) {
 		return nil, Error2FuseSysError("entry_mkdir", err)
 	}
 	if ch != nil {
@@ -289,7 +273,7 @@ func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fus
 	if fuseCtx, ok := ctx.(*fuse.Context); ok {
 		dentry.UpdateAccessWithOwnID(acc, int64(fuseCtx.Uid), int64(fuseCtx.Gid))
 	}
-	newDir, err := n.R.CreateEntry(ctx, n.entryID, types.EntryAttr{
+	newDir, err := n.R.CreateEntry(ctx, n.R.Namespace, n.entry.ID, types.EntryAttr{
 		Name:   name,
 		Kind:   types.GroupKind,
 		Access: acc,
@@ -299,20 +283,19 @@ func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fus
 		return nil, Error2FuseSysError("entry_mkdir", err)
 	}
 
-	node, err := n.R.newFsNode(ctx, n, newDir)
+	node := n.R.newFsNode(newDir)
 	if err != nil {
 		return nil, Error2FuseSysError("entry_mkdir", err)
 	}
 	updateAttrOut(nanaNode2Stat(newDir), &out.Attr)
-	n.AddChild(name, node.EmbeddedInode(), true)
 	return node.EmbeddedInode(), NoErr
 }
 
 func (n *NanaNode) Mknod(ctx context.Context, name string, mode uint32, dev uint32, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
 	defer trace.StartRegion(ctx, "fuse.node.Mknod").End()
 	defer logOperationLatency("entry_mknod", time.Now())
-	ch, err := n.R.FindEntry(ctx, n.entryID, name)
-	if err != nil && err != types.ErrNotFound {
+	ch, err := n.R.LookUpEntry(ctx, n.R.Namespace, n.entry.ID, name)
+	if err != nil && !errors.Is(err, types.ErrNotFound) {
 		return nil, Error2FuseSysError("entry_mknod", err)
 	}
 	if ch != nil {
@@ -324,7 +307,7 @@ func (n *NanaNode) Mknod(ctx context.Context, name string, mode uint32, dev uint
 	if fuseCtx, ok := ctx.(*fuse.Context); ok {
 		dentry.UpdateAccessWithOwnID(acc, int64(fuseCtx.Uid), int64(fuseCtx.Gid))
 	}
-	newCh, err := n.R.CreateEntry(ctx, n.entryID, types.EntryAttr{
+	newCh, err := n.R.CreateEntry(ctx, n.R.Namespace, n.entry.ID, types.EntryAttr{
 		Name:   name,
 		Kind:   fileKindFromMode(mode),
 		Access: acc,
@@ -333,7 +316,8 @@ func (n *NanaNode) Mknod(ctx context.Context, name string, mode uint32, dev uint
 	if err != nil {
 		return nil, Error2FuseSysError("entry_mknod", err)
 	}
-	node, err := n.R.newFsNode(ctx, n, newCh)
+
+	node := n.R.newFsNode(newCh)
 	if err != nil {
 		return nil, Error2FuseSysError("entry_mknod", err)
 	}
@@ -350,7 +334,7 @@ func (n *NanaNode) Link(ctx context.Context, target fs.InodeEmbedder, name strin
 		return nil, syscall.EIO
 	}
 
-	newEntry, err := n.R.MirrorEntry(ctx, targetNode.entryID, n.entryID, types.EntryAttr{Name: name})
+	newEntry, err := n.R.LinkEntry(ctx, n.R.Namespace, targetNode.entry.ID, n.entry.ID, types.EntryAttr{Name: name})
 	if err != nil {
 		return nil, Error2FuseSysError("entry_link", err)
 	}
@@ -364,16 +348,17 @@ func (n *NanaNode) Link(ctx context.Context, target fs.InodeEmbedder, name strin
 func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.EntryOut) (node *fs.Inode, errno syscall.Errno) {
 	defer trace.StartRegion(ctx, "fuse.node.Symlink").End()
 	defer logOperationLatency("entry_symlink", time.Now())
-	exist, err := n.R.FindEntry(ctx, n.entryID, name)
+	exist, err := n.R.LookUpEntry(ctx, n.R.Namespace, n.entry.ID, name)
 	if err != nil {
-		if err != types.ErrNotFound {
+		if !errors.Is(err, types.ErrNotFound) {
 			return nil, Error2FuseSysError("entry_symlink", err)
 		}
 	}
 	if exist != nil {
 		return nil, Error2FuseSysError("entry_symlink", types.ErrIsExist)
 	}
-	newLink, err := n.R.CreateEntry(ctx, n.entryID, types.EntryAttr{
+
+	newLink, err := n.R.CreateEntry(ctx, n.R.Namespace, n.entry.ID, types.EntryAttr{
 		Name: name,
 		Kind: types.SymLinkKind,
 		Dev:  int64(MountDev),
@@ -383,20 +368,20 @@ func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.E
 	}
 
 	n.logger.Debugw("create new symlink", "target", target)
-	f, err := n.R.OpenFile(ctx, newLink.ID, types.OpenAttr{Write: true, Create: true, Trunc: true})
+	f, err := n.R.Open(ctx, n.R.Namespace, newLink.ID, types.OpenAttr{Write: true, Create: true, Trunc: true})
 	if err != nil {
 		return nil, Error2FuseSysError("entry_symlink", err)
 	}
 
-	_, err = n.R.WriteFile(ctx, f, []byte(target), 0)
+	_, err = f.Write([]byte(target))
 	if err != nil {
 		return nil, Error2FuseSysError("entry_symlink", err)
 	}
-	if err = f.Close(ctx); err != nil {
+	if err = f.Close(); err != nil {
 		return nil, Error2FuseSysError("entry_symlink", err)
 	}
 
-	newNode, err := n.R.newFsNode(ctx, n, newLink)
+	newNode := n.R.newFsNode(newLink)
 	if err != nil {
 		return nil, Error2FuseSysError("entry_symlink", err)
 	}
@@ -408,22 +393,18 @@ func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.E
 func (n *NanaNode) Readlink(ctx context.Context) ([]byte, syscall.Errno) {
 	defer trace.StartRegion(ctx, "fuse.node.Readlink").End()
 	defer logOperationLatency("entry_read_link", time.Now())
-	entry, err := n.R.GetEntry(ctx, n.entryID)
+	f, err := n.R.Open(ctx, n.R.Namespace, n.entry.ID, types.OpenAttr{Read: true})
 	if err != nil {
 		return nil, Error2FuseSysError("entry_read_link", err)
 	}
-	f, err := n.R.OpenFile(ctx, n.entryID, types.OpenAttr{Read: true})
-	if err != nil {
-		return nil, Error2FuseSysError("entry_read_link", err)
-	}
-	defer n.R.CloseFile(ctx, f)
+	defer f.Close()
 
-	buf := make([]byte, entry.Size)
-	_, err = n.R.ReadFile(ctx, f, buf, 0)
+	buf := &bytes.Buffer{}
+	_, err = io.Copy(buf, f)
 	if err != nil {
 		return nil, Error2FuseSysError("entry_read_link", err)
 	}
-	return buf, NoErr
+	return buf.Bytes(), NoErr
 }
 
 func (n *NanaNode) Unlink(ctx context.Context, name string) syscall.Errno {
@@ -434,15 +415,9 @@ func (n *NanaNode) Unlink(ctx context.Context, name string) syscall.Errno {
 		uid, gid = fuseCtx.Uid, fuseCtx.Gid
 	}
 
-	ch, err := n.R.FindEntry(ctx, n.entryID, name)
-	if err != nil {
+	if err := n.R.UnlinkEntry(ctx, n.R.Namespace, n.entry.ID, name, types.DestroyEntryAttr{Uid: int64(uid), Gid: int64(gid)}); err != nil {
 		return Error2FuseSysError("entry_unlink", err)
 	}
-
-	if err = n.R.DestroyEntry(ctx, n.entryID, ch.ID, types.DestroyObjectAttr{Uid: int64(uid), Gid: int64(gid)}); err != nil {
-		return Error2FuseSysError("entry_unlink", err)
-	}
-	n.RmChild(name)
 	return NoErr
 }
 
@@ -458,23 +433,7 @@ func (n *NanaNode) Rmdir(ctx context.Context, name string) syscall.Errno {
 		uid, gid = fuseCtx.Uid, fuseCtx.Gid
 	}
 
-	ch, err := n.R.FindEntry(ctx, n.entryID, name)
-	if err != nil {
-		return Error2FuseSysError("entry_rmdir", err)
-	}
-	if !ch.IsGroup {
-		return Error2FuseSysError("entry_rmdir", types.ErrNoGroup)
-	}
-
-	children, err := n.R.ListEntryChildren(ctx, ch.ID, nil, types.Filter{})
-	if err != nil {
-		return Error2FuseSysError("entry_rmdir", err)
-	}
-	if len(children) > 0 {
-		return Error2FuseSysError("entry_rmdir", types.ErrNotEmpty)
-	}
-
-	if err = n.R.DestroyEntry(ctx, n.entryID, ch.ID, types.DestroyObjectAttr{Uid: int64(uid), Gid: int64(gid)}); err != nil {
+	if err := n.R.RemoveGroup(ctx, n.R.Namespace, n.entry.ID, name, types.DestroyEntryAttr{Uid: int64(uid), Gid: int64(gid)}); err != nil {
 		return Error2FuseSysError("entry_rmdir", err)
 	}
 	n.RmChild(name)
@@ -501,19 +460,14 @@ func (n *NanaNode) Rename(ctx context.Context, name string, newParent fs.InodeEm
 		opt.Replace = false
 	}
 
-	oldEntry, err := n.R.FindEntry(ctx, n.entryID, name)
-	if err != nil {
-		return Error2FuseSysError("entry_rename", err)
-	}
-	newParentEntry, err := n.R.GetEntry(ctx, newNode.entryID)
+	oldEntry, err := n.R.LookUpEntry(ctx, n.R.Namespace, n.entry.ID, name)
 	if err != nil {
 		return Error2FuseSysError("entry_rename", err)
 	}
 
-	if err = n.R.ChangeEntryParent(ctx, oldEntry.ID, n.entryID, newParentEntry.ID, newName, opt); err != nil {
+	if err = n.R.Rename(ctx, n.R.Namespace, oldEntry.ID, n.entry.ID, newNode.entry.ID, newName, opt); err != nil {
 		return Error2FuseSysError("entry_rename", err)
 	}
-	n.RmChild(name)
 	return NoErr
 }
 
@@ -528,7 +482,9 @@ func (n *NanaNode) Release(ctx context.Context, f fs.FileHandle) (err syscall.Er
 		err = closer.Release(ctx)
 	}
 
-	if err != NoErr {
+	n.entry.Close()
+
+	if !errors.Is(err, NoErr) {
 		return err
 	}
 	return NoErr

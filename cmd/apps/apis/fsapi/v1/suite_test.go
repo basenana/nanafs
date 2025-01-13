@@ -21,8 +21,8 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"github.com/basenana/nanafs/fs"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/services"
 	"github.com/basenana/nanafs/utils"
 	"google.golang.org/grpc/credentials"
 	"net"
@@ -45,8 +45,8 @@ import (
 
 var (
 	ctrl          controller.Controller
-	fsSvc         *fs.Service
-	dep           *fs.Depends
+	fsSvc         *services.Service
+	dep           *services.Depends
 	testMeta      metastore.Meta
 	testFriday    friday.Friday
 	testServer    *grpc.Server
@@ -85,10 +85,10 @@ var _ = BeforeSuite(func() {
 	ctrl, err = controller.New(cl, memMeta, testFriday)
 	Expect(err).Should(BeNil())
 
-	dep, err = fs.InitDepends(cl, memMeta, testFriday)
+	dep, err = services.InitDepends(cl, memMeta, testFriday)
 	Expect(err).Should(BeNil())
 
-	fsSvc, err = fs.NewService(dep)
+	fsSvc, err = services.NewService(dep)
 	Expect(err).Should(BeNil())
 
 	_, err = fsSvc.FSRoot(context.TODO())

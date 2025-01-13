@@ -16,11 +16,20 @@
 
 package core
 
-import "github.com/basenana/nanafs/pkg/types"
+import (
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/jinzhu/copier"
+	"time"
+)
 
 const (
 	RootEntryID   = 1
 	RootEntryName = "root"
+)
+
+var (
+	fsInfoCache       *Info
+	fsInfoNextFetchAt time.Time
 )
 
 func initRootEntry() *types.Entry {
@@ -68,4 +77,10 @@ func initMirrorEntry(src, newParent *types.Entry, attr types.EntryAttr) (*types.
 	result.Namespace = src.Namespace
 	result.RefID = src.ID
 	return result, nil
+}
+
+func toCoreEntry(entry *types.Entry) *Entry {
+	result := &Entry{}
+	_ = copier.Copy(result, entry)
+	return result
 }

@@ -27,6 +27,7 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 	"go.uber.org/zap"
 	"io"
+	"io/fs"
 	"runtime/trace"
 	"sync"
 	"time"
@@ -36,13 +37,26 @@ var (
 	fileEntryLogger *zap.SugaredLogger
 )
 
-type File interface {
+type InterFile interface {
 	GetAttr() types.OpenAttr
 	WriteAt(ctx context.Context, data []byte, off int64) (int64, error)
 	ReadAt(ctx context.Context, dest []byte, off int64) (int64, error)
 	Fsync(ctx context.Context) error
 	Flush(ctx context.Context) error
 	Close(ctx context.Context) (err error)
+}
+
+type FileInfo interface {
+	ID() int64
+	fs.FileInfo
+}
+
+type File interface {
+	io.ReadWriteCloser
+	io.Seeker
+	Readdir(count int) ([]FileInfo, error)
+	Stat() (FileInfo, error)
+	Inter() InterFile
 }
 
 type file struct {
@@ -57,7 +71,7 @@ type file struct {
 	mux  sync.Mutex
 }
 
-var _ File = &file{}
+var _ InterFile = &file{}
 
 func (f *file) GetAttr() types.OpenAttr {
 	return f.attr
@@ -130,7 +144,7 @@ func (f *file) Close(ctx context.Context) (err error) {
 	return nil
 }
 
-func openFile(en *types.Entry, attr types.OpenAttr, chunkStore metastore.ChunkStore, fileStorage storage.Storage) (File, error) {
+func openFile(en *types.Entry, attr types.OpenAttr, chunkStore metastore.ChunkStore, fileStorage storage.Storage) (InterFile, error) {
 	f := &file{entryID: en.ID, size: en.Size, attr: attr}
 	if fileStorage == nil {
 		return nil, logOperationError(fileOperationErrorCounter, "init", fmt.Errorf("storage %s not found", en.Storage))
@@ -153,7 +167,7 @@ type symlink struct {
 	attr       types.OpenAttr
 }
 
-var _ File = &symlink{}
+var _ InterFile = &symlink{}
 
 func (s *symlink) GetAttr() types.OpenAttr {
 	return s.attr
@@ -210,7 +224,7 @@ func (s *symlink) Close(ctx context.Context) error {
 	return s.Flush(ctx)
 }
 
-func openSymlink(store metastore.Meta, en *types.Entry, attr types.OpenAttr) (File, error) {
+func openSymlink(store metastore.Meta, en *types.Entry, attr types.OpenAttr) (InterFile, error) {
 	if en.Kind != types.SymLinkKind {
 		return nil, fmt.Errorf("not symlink")
 	}

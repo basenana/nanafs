@@ -19,6 +19,7 @@ package pathmgr
 import (
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/pkg/core"
 	"os"
 	"path"
 	"strings"
@@ -28,18 +29,13 @@ import (
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 )
 
 type PathManager struct {
-	ctrl    controller.Controller
-	entries *utils.LFUPool
-	logger  *zap.SugaredLogger
-}
-
-func (m *PathManager) Controller() controller.Controller {
-	return m.ctrl
+	fs        core.FS
+	namespace string
+	logger    *zap.SugaredLogger
 }
 
 func (m *PathManager) Access(ctx context.Context, entryPath string, callerUid, callGid int64, perm os.FileMode) error {
@@ -51,8 +47,8 @@ func (m *PathManager) Access(ctx context.Context, entryPath string, callerUid, c
 	return dentry.IsAccess(entry.Access, callerUid, callGid, uint32(perm))
 }
 
-func (m *PathManager) GetEntry(ctx context.Context, entryID int64) (*types.Entry, error) {
-	return m.ctrl.GetEntry(ctx, entryID)
+func (m *PathManager) GetEntry(ctx context.Context, entryID int64) (*core.Entry, error) {
+	return m.fs.GetEntry(ctx, m.namespace, entryID)
 }
 
 func (m *PathManager) FindEntry(ctx context.Context, entryPath string) (*types.Entry, error) {
@@ -64,7 +60,7 @@ func (m *PathManager) FindEntry(ctx context.Context, entryPath string) (*types.E
 	return m.getPathEntry(ctx, entryPath)
 }
 
-func (m *PathManager) ListEntry(ctx context.Context, dirPath string) ([]*types.Entry, error) {
+func (m *PathManager) ListEntry(ctx context.Context, dirPath string) ([]*core.Entry, error) {
 	var err error
 	dirPath, err = m.getPath(ctx, dirPath)
 	if err != nil {
@@ -77,7 +73,7 @@ func (m *PathManager) ListEntry(ctx context.Context, dirPath string) ([]*types.E
 	if !en.IsGroup {
 		return nil, types.ErrNoGroup
 	}
-	return m.ctrl.ListEntryChildren(ctx, en.ID, nil, types.Filter{})
+	return m.fs.OpenDir(ctx, en.ID, nil, types.Filter{})
 }
 
 func (m *PathManager) FindParentEntry(ctx context.Context, entryPath string) (*types.Entry, error) {
@@ -187,7 +183,7 @@ func (m *PathManager) RemoveAll(ctx context.Context, entryPath string, recursion
 	}
 
 	m.logger.Infow("delete entry", "path", targetPath, "entry", en.ID)
-	if err = m.ctrl.DestroyEntry(ctx, parentEn.ID, en.ID, types.DestroyObjectAttr{}); err != nil {
+	if err = m.ctrl.DestroyEntry(ctx, parentEn.ID, en.ID, types.DestroyEntryAttr{}); err != nil {
 		return err
 	}
 
@@ -218,7 +214,7 @@ func (m *PathManager) RemoveAll(ctx context.Context, entryPath string, recursion
 		}
 
 		m.logger.Infow("delete entry", "path", targetPath, "entry", en.ID)
-		if err = m.ctrl.DestroyEntry(ctx, parentEn.ID, en.ID, types.DestroyObjectAttr{}); err != nil {
+		if err = m.ctrl.DestroyEntry(ctx, parentEn.ID, en.ID, types.DestroyEntryAttr{}); err != nil {
 			return err
 		}
 	}

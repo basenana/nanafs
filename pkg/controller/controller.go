@@ -47,7 +47,7 @@ type Controller interface {
 
 	CreateEntry(ctx context.Context, parentId int64, attr types.EntryAttr) (*types.Entry, error)
 	UpdateEntry(ctx context.Context, entry *types.Entry) error
-	DestroyEntry(ctx context.Context, parentId, entryId int64, attr types.DestroyObjectAttr) error
+	DestroyEntry(ctx context.Context, parentId, entryId int64, attr types.DestroyEntryAttr) error
 	MirrorEntry(ctx context.Context, srcEntryId, dstParentId int64, attr types.EntryAttr) (*types.Entry, error)
 	ChangeEntryParent(ctx context.Context, targetId, oldParentId, newParentId int64, newName string, opt types.ChangeParentAttr) error
 	SetEntryEncodedProperty(ctx context.Context, id int64, fKey string, fVal []byte) error
@@ -148,18 +148,6 @@ func (c *controller) GetEntry(ctx context.Context, id int64) (*types.Entry, erro
 	if err != nil {
 		if err != types.ErrNotFound {
 			c.logger.Errorw("get entry error", "entry", id, "err", err.Error())
-		}
-		return nil, err
-	}
-	return result, nil
-}
-
-func (c *controller) GetEntryByURI(ctx context.Context, uri string) (*types.Entry, error) {
-	defer trace.StartRegion(ctx, "controller.GetEntryByURI").End()
-	result, err := c.entry.GetEntryByUri(ctx, uri)
-	if err != nil {
-		if err != types.ErrNotFound {
-			c.logger.Errorw("get entry error", "entryURI", uri, "err", err)
 		}
 		return nil, err
 	}

@@ -17,7 +17,7 @@
 package v1
 
 import (
-	"github.com/basenana/nanafs/fs"
+	"github.com/basenana/nanafs/pkg/core"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/basenana/nanafs/pkg/types"
@@ -60,7 +60,22 @@ func entryInfo(en *types.Entry) *EntryInfo {
 	}
 }
 
-func toEntryInfo(en *fs.Entry) *EntryInfo {
+func coreEntryInfo(parentID int64, name string, en *core.Entry) *EntryInfo {
+	return &EntryInfo{
+		Id:         en.ID,
+		Name:       name,
+		Kind:       string(en.Kind),
+		ParentID:   parentID,
+		IsGroup:    en.IsGroup,
+		Size:       en.Size,
+		CreatedAt:  timestamppb.New(en.CreatedAt),
+		ChangedAt:  timestamppb.New(en.ChangedAt),
+		ModifiedAt: timestamppb.New(en.ModifiedAt),
+		AccessAt:   timestamppb.New(en.AccessAt),
+	}
+}
+
+func toEntryInfo(en *services.Entry) *EntryInfo {
 	return &EntryInfo{
 		Id:         en.ID,
 		Name:       en.Name,
@@ -75,7 +90,7 @@ func toEntryInfo(en *fs.Entry) *EntryInfo {
 	}
 }
 
-func toEntryDetail(en, parent *fs.Entry) (*EntryDetail, []*Property) {
+func toEntryDetail(en, parent *services.Entry) (*EntryDetail, []*Property) {
 	access := &EntryDetail_Access{Uid: en.Access.UID, Gid: en.Access.GID}
 	for _, perm := range en.Access.Permissions {
 		access.Permissions = append(access.Permissions, string(perm))
@@ -223,7 +238,7 @@ func documentInfo(doc *types.Document) *DocumentInfo {
 	}
 }
 
-func buildRootGroup(tree *fs.GroupTree) *GetGroupTreeResponse_GroupEntry {
+func buildRootGroup(tree *services.GroupTree) *GetGroupTreeResponse_GroupEntry {
 	result := &GetGroupTreeResponse_GroupEntry{
 		Name:     tree.Name,
 		Children: make([]*GetGroupTreeResponse_GroupEntry, 0),

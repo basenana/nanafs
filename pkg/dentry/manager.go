@@ -37,30 +37,16 @@ import (
 
 type Manager interface {
 	Root(ctx context.Context) (*types.Entry, error)
-	CreateNamespace(ctx context.Context, namespace string) error
 
 	GetEntry(ctx context.Context, id int64) (*types.Entry, error)
 	GetEntryByUri(ctx context.Context, uri string) (*types.Entry, error)
 	CreateEntry(ctx context.Context, parentId int64, attr types.EntryAttr) (*types.Entry, error)
 	RemoveEntry(ctx context.Context, parentId, entryId int64) error
-	DestroyEntry(ctx context.Context, entryId int64) error
-	CleanEntryData(ctx context.Context, entryId int64) error
 	MirrorEntry(ctx context.Context, srcId, dstParentId int64, attr types.EntryAttr) (*types.Entry, error)
 	ChangeEntryParent(ctx context.Context, targetEntryId int64, overwriteEntryId *int64, oldParentId, newParentId int64, newName string, opt types.ChangeParentAttr) error
 
-	GetEntryExtendData(ctx context.Context, id int64) (types.ExtendData, error)
-	UpdateEntryExtendData(ctx context.Context, id int64, ed types.ExtendData) error
-
-	ListEntryProperty(ctx context.Context, id int64) (types.Properties, error)
-	GetEntryProperty(ctx context.Context, id int64, fKey string) (*string, bool, error)
-	SetEntryProperty(ctx context.Context, id int64, fKey, fVal string, encoded bool) error
-	RemoveEntryProperty(ctx context.Context, id int64, fKey string) error
-	GetEntryLabels(ctx context.Context, id int64) (types.Labels, error)
-	UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error
-
 	Open(ctx context.Context, entryId int64, attr types.OpenAttr) (File, error)
 	OpenGroup(ctx context.Context, entryID int64) (Group, error)
-	ChunkCompact(ctx context.Context, entryId int64) error
 
 	MustCloseAll()
 }

@@ -104,7 +104,7 @@ var _ = Describe("TestFileIO", func() {
 
 	Describe("test file read", func() {
 		var (
-			f   File
+			f   InterFile
 			err error
 		)
 		BeforeEach(func() {
@@ -147,7 +147,7 @@ var _ = Describe("TestFileIO", func() {
 	Describe("test file write", func() {
 		var (
 			data = []byte("testdata-3")
-			f    File
+			f    InterFile
 			err  error
 		)
 		Context("write new content to file", func() {
@@ -177,7 +177,7 @@ var _ = Describe("TestFileIO", func() {
 	Describe("test create new file", func() {
 		var (
 			data = []byte("testdata-2")
-			f    File
+			f    InterFile
 			err  error
 		)
 

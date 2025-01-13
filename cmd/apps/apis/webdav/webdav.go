@@ -21,8 +21,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/basenana/nanafs/cmd/apps/apis/apitool"
-	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/controller"
+	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
@@ -34,7 +35,10 @@ import (
 	"time"
 )
 
-var log *zap.SugaredLogger
+var (
+	log       *zap.SugaredLogger
+	namespace = types.DefaultNamespace
+)
 
 type Webdav struct {
 	handler http.Handler
@@ -81,94 +85,185 @@ func (w *Webdav) Run(stopCh chan struct{}) {
 }
 
 type FsOperator struct {
-	mgr    *pathmgr.PathManager
-	cfg    config.Loader
-	logger *zap.SugaredLogger
+	fs        *core.FS
+	namespace string
+	root      *core.Entry
+	cfg       config.Loader
+	logger    *zap.SugaredLogger
 }
 
-func (o FsOperator) Mkdir(ctx context.Context, name string, perm os.FileMode) error {
+func (o FsOperator) Mkdir(ctx context.Context, path string, perm os.FileMode) error {
 	defer trace.StartRegion(ctx, "apis.webdav.Mkdir").End()
-	_, err := o.mgr.CreateAll(ctx, name, mode2EntryAttr(perm))
-	return error2FsError(err)
+
+	var (
+		attr  = mode2EntryAttr(perm)
+		crtID = o.root.ID
+	)
+
+	for _, ename := range splitPath(path) {
+		en, err := o.fs.LookUpEntry(ctx, namespace, crtID, ename)
+		if err != nil && !errors.Is(err, types.ErrNotFound) {
+			return error2FsError(err)
+		}
+		en.Close()
+
+		if en == nil {
+			// create
+			attr.Name = ename
+			en, err = o.fs.CreateEntry(ctx, namespace, crtID, attr)
+			if err != nil {
+				return error2FsError(err)
+			}
+		}
+		crtID = en.ID
+		en.Close()
+	}
+
+	return nil
 }
 
-func (o FsOperator) OpenFile(ctx context.Context, name string, flag int, perm os.FileMode) (webdav.File, error) {
+func (o FsOperator) OpenFile(ctx context.Context, entryPath string, flag int, perm os.FileMode) (webdav.File, error) {
 	defer trace.StartRegion(ctx, "apis.webdav.OpenFile").End()
 	userInfo := apitool.GetUserInfo(ctx)
 	if userInfo == nil {
 		return nil, error2FsError(types.ErrNoAccess)
 	}
 
-	openAttr := flag2EntryOpenAttr(flag)
-	err := o.mgr.Access(ctx, name, userInfo.UID, userInfo.GID, perm)
-	if err == nil {
-		en, err := o.mgr.FindEntry(ctx, name)
-		if err != nil {
-			return nil, error2FsError(err)
-		}
-		f, err := openFile(ctx, name, en, o.mgr, openAttr)
-		if err != nil {
-			return nil, error2FsError(err)
-		}
-		return f, err
-	} else if err != nil && err != types.ErrNotFound {
+	var err error
+	parent, entry, err := o.fs.GetEntryByPath(ctx, namespace, entryPath)
+	if err != nil && !errors.Is(err, types.ErrNotFound) {
 		return nil, error2FsError(err)
 	}
 
-	if err == types.ErrNotFound {
+	openAttr := flag2EntryOpenAttr(flag)
+	if errors.Is(err, types.ErrNotFound) {
 		if !openAttr.Create {
 			return nil, error2FsError(err)
 		}
-		_, err = o.mgr.CreateAll(ctx, path.Dir(name), mode2EntryAttr(perm))
+
+		var pparent *core.Entry
+		parentDir, filename := path.Split(entryPath)
+		pparent, parent, err = o.fs.GetEntryByPath(ctx, namespace, parentDir)
+		if err != nil {
+			return nil, error2FsError(err)
+		}
+		defer pparent.Close()
+
+		if err = core.IsHasPermissions(parent.Access, userInfo.UID, userInfo.GID,
+			types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite); err != nil {
+			return nil, err
+		}
+
+		attr := mode2EntryAttr(perm)
+		attr.Name = filename
+		entry, err = o.fs.CreateEntry(ctx, namespace, parent.ID, attr)
 		if err != nil {
 			return nil, error2FsError(err)
 		}
 	}
-	parentDir, filename := path.Split(name)
-	en, err := o.mgr.CreateFile(ctx, parentDir, types.EntryAttr{
-		Name:   filename,
-		Kind:   types.RawKind,
-		Access: mode2EntryAttr(perm).Access,
-	})
+
+	defer parent.Close()
+	if err = core.IsAccess(entry.Access, userInfo.UID, userInfo.GID, uint32(perm)); err != nil {
+		return nil, err
+	}
+
+	f, err := openFile(ctx, entry, o.fs, openAttr)
 	if err != nil {
 		return nil, error2FsError(err)
 	}
-	f, err := openFile(ctx, name, en, o.mgr, openAttr)
-	if err != nil {
-		return nil, error2FsError(err)
-	}
-	return f, nil
+	return f, err
 }
 
-func (o FsOperator) RemoveAll(ctx context.Context, name string) error {
+func (o FsOperator) RemoveAll(ctx context.Context, path string) error {
 	defer trace.StartRegion(ctx, "apis.webdav.RemoveAll").End()
-	return error2FsError(o.mgr.RemoveAll(ctx, name, false))
+
+	parent, en, err := o.fs.GetEntryByPath(ctx, o.namespace, path)
+	if err != nil {
+		return error2FsError(err)
+	}
+	defer parent.Close()
+	defer en.Close()
+
+	if !en.IsGroup {
+		err := o.fs.UnlinkEntry(ctx, namespace, parent.ID, en.Name, types.DestroyEntryAttr{})
+		if err != nil {
+			return error2FsError(err)
+		}
+		return nil
+	}
+
+	err = o.fs.RemoveGroup(ctx, namespace, parent.ID, en.Name, types.DestroyEntryAttr{Recursion: true})
+	if err != nil {
+		return error2FsError(types.ErrNotEmpty)
+	}
+
+	return nil
 }
 
-func (o FsOperator) Rename(ctx context.Context, oldName, newName string) error {
+func (o FsOperator) Rename(ctx context.Context, oldPath, newPath string) error {
 	defer trace.StartRegion(ctx, "apis.webdav.Rename").End()
-	return error2FsError(o.mgr.Rename(ctx, oldName, newName))
+	oldParent, target, err := o.fs.GetEntryByPath(ctx, o.namespace, oldPath)
+	if err != nil {
+		return error2FsError(err)
+	}
+	defer oldParent.Close()
+	defer target.Close()
+
+	newParent := path.Dir(newPath)
+	newName := path.Base(newPath)
+	pparent, parent, err := o.fs.GetEntryByPath(ctx, o.namespace, newParent)
+	if err != nil {
+		return error2FsError(err)
+	}
+	defer pparent.Close()
+	defer parent.Close()
+
+	err = o.fs.Rename(ctx, o.namespace, target.ID, oldParent.ID, parent.ID, newName, types.ChangeParentAttr{})
+	if err != nil {
+		return error2FsError(err)
+	}
+
+	return nil
 }
 
-func (o FsOperator) Stat(ctx context.Context, name string) (os.FileInfo, error) {
+func (o FsOperator) Stat(ctx context.Context, path string) (os.FileInfo, error) {
 	defer trace.StartRegion(ctx, "apis.webdav.Stat").End()
-	en, err := o.mgr.FindEntry(ctx, name)
+
+	parent, en, err := o.fs.GetEntryByPath(ctx, o.namespace, path)
 	if err != nil {
 		return nil, error2FsError(err)
 	}
+	defer parent.Close()
+	defer en.Close()
 	return Stat(en), nil
 }
 
-func NewWebdavServer(mgr *pathmgr.PathManager, cfg config.Loader) (*Webdav, error) {
+func (o FsOperator) closeEntries(entries []*core.Entry) {
+	for _, en := range entries {
+		if en.ID == o.root.ID {
+			continue
+		}
+		en.Close()
+	}
+}
+
+func NewWebdavServer(fs *core.FS, ctrl controller.Controller, cfg config.Loader) (*Webdav, error) {
 	log = logger.NewLogger("webdav")
-	w := FsOperator{mgr: mgr, cfg: cfg, logger: log}
+	w := FsOperator{fs: fs, cfg: cfg, logger: log}
+
+	root, err := fs.GetNamespaceRoot(context.Background(), namespace)
+	if err != nil {
+		return nil, fmt.Errorf("load namespace root failed")
+	}
+	w.root = root
+
 	handler := &webdav.Handler{
 		FileSystem: w,
 		LockSystem: webdav.NewMemLS(), // TODO:need flock
 		Logger:     logger.InitWebdavLogger().Handle,
 	}
 	return &Webdav{
-		handler: apitool.BasicAuthHandler(handler, mgr.Controller()),
+		handler: apitool.BasicAuthHandler(handler, ctrl),
 		cfg:     cfg, logger: log,
 	}, nil
 }

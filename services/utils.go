@@ -14,4 +14,15 @@
  limitations under the License.
 */
 
-package fs
+package services
+
+import (
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/jinzhu/copier"
+)
+
+func toEntry(en *types.Entry) *Entry {
+	result := &Entry{}
+	_ = copier.Copy(result, en)
+	return result
+}

@@ -17,14 +17,17 @@
 package webdav
 
 import (
+	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 	"io/fs"
 	"os"
+	"strings"
 	"syscall"
 )
 
-func Stat(entry *types.Entry) Info {
+func Stat(entry *core.Entry) Info {
 	return Info{
 		name:  entry.Name,
 		size:  entry.Size,
@@ -110,6 +113,8 @@ func error2FsError(err error) error {
 		return fs.ErrNotExist
 	case types.ErrIsExist:
 		return fs.ErrExist
+	case types.ErrNotEmpty:
+		return fs.ErrInvalid
 	case types.ErrNoAccess, types.ErrNoPerm:
 		return fs.ErrPermission
 	case types.ErrNameTooLong:
@@ -117,4 +122,8 @@ func error2FsError(err error) error {
 	default:
 		return err
 	}
+}
+
+func splitPath(path string) []string {
+	return strings.Split(path, utils.PathSeparator)
 }

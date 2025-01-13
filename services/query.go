@@ -14,7 +14,7 @@
  limitations under the License.
 */
 
-package fs
+package services
 
 import (
 	"context"
@@ -28,7 +28,6 @@ import (
 type Query interface {
 	NamespaceRoot(ctx context.Context, namespace string) (*Entry, error)
 	GetGroupTree(ctx context.Context, namespace string) (*GroupTree, error)
-	FindEntry(ctx context.Context, namespace string, parentId int64, name string) (*Entry, error)
 	GetEntry(ctx context.Context, namespace string, id int64) (*Entry, error)
 	ListEntryChildren(ctx context.Context, namespace string, entryId int64, order *types.EntryOrder, filters ...types.Filter) ([]*Entry, error)
 }
@@ -48,26 +47,36 @@ func newQuery(depends *Depends) (Query, error) {
 }
 
 func (q *queryService) NamespaceRoot(ctx context.Context, namespace string) (*Entry, error) {
-	//TODO implement me
-	panic("implement me")
+	en, err := q.meta.FindEntry(ctx, core.RootEntryID, namespace)
+	if err != nil {
+		return nil, err
+	}
+	return toEntry(en), nil
 }
 
 func (q *queryService) GetGroupTree(ctx context.Context, namespace string) (*GroupTree, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (q *queryService) FindEntry(ctx context.Context, namespace string, parentId int64, name string) (*Entry, error) {
-	//TODO implement me
-	panic("implement me")
+	// TODO
+	return nil, nil
 }
 
 func (q *queryService) GetEntry(ctx context.Context, namespace string, id int64) (*Entry, error) {
-	//TODO implement me
-	panic("implement me")
+	en, err := q.meta.GetEntry(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return toEntry(en), nil
 }
 
 func (q *queryService) ListEntryChildren(ctx context.Context, namespace string, entryId int64, order *types.EntryOrder, filters ...types.Filter) ([]*Entry, error) {
-	//TODO implement me
-	panic("implement me")
+	children, err := q.meta.ListEntryChildren(ctx, entryId, order, filters...)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*Entry, 0)
+	for children.HasNext() {
+		en := children.Next()
+		result = append(result, toEntry(en))
+	}
+	return result, nil
 }

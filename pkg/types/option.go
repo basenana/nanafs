@@ -16,6 +16,8 @@
 
 package types
 
+import "time"
+
 type EntryAttr struct {
 	Name       string
 	Kind       Kind
@@ -37,9 +39,10 @@ type OpenAttr struct {
 	FsWriteback bool
 }
 
-type DestroyObjectAttr struct {
-	Uid int64
-	Gid int64
+type DestroyEntryAttr struct {
+	Uid       int64
+	Gid       int64
+	Recursion bool
 }
 
 type ChangeParentAttr struct {
@@ -47,4 +50,18 @@ type ChangeParentAttr struct {
 	Gid      int64
 	Replace  bool
 	Exchange bool
+}
+
+type UpdateEntry struct {
+	Name    *string
+	Aliases *string
+
+	Size       *int64
+	ModifiedAt *time.Time
+	AccessAt   *time.Time
+	ChangedAt  *time.Time
+
+	Permissions []Permission
+	UID         *int64
+	GID         *int64
 }

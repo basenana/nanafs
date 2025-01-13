@@ -20,7 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/basenana/nanafs/fs"
+	"github.com/basenana/nanafs/services"
 	"net/http"
 	"time"
 
@@ -125,7 +125,7 @@ func NewHttpApiServer(ctrl controller.Controller, mgr *pathmgr.PathManager, apiC
 	return s, nil
 }
 
-func Setup(ctrl controller.Controller, fsSvc *fs.Service, depends *fs.Depends, pathEntryMgr *pathmgr.PathManager, cfg config.Loader, stopCh chan struct{}) error {
+func Setup(ctrl controller.Controller, fsSvc *services.Service, depends *services.Depends, pathEntryMgr *pathmgr.PathManager, cfg config.Loader, stopCh chan struct{}) error {
 	var ctx = context.Background()
 
 	fsAPIEnable, err := cfg.GetSystemConfig(ctx, config.FsAPIConfigGroup, "enable").Bool()
@@ -157,7 +157,7 @@ func Setup(ctrl controller.Controller, fsSvc *fs.Service, depends *fs.Depends, p
 		return fmt.Errorf("get webdav api enable config failed: %w", err)
 	}
 	if webdavEnable {
-		w, err := webdav.NewWebdavServer(pathEntryMgr, cfg)
+		w, err := webdav.NewWebdavServer(pathEntryMgr, ctrl, cfg)
 		if err != nil {
 			return fmt.Errorf("init webdav server failed: %w", err)
 		}

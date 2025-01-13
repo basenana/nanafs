@@ -14,7 +14,7 @@
  limitations under the License.
 */
 
-package fs
+package services
 
 import (
 	"context"
@@ -35,16 +35,16 @@ const (
 )
 
 type Commander interface {
-	FSRoot(ctx context.Context) (*types.Entry, error)
+	FSRoot(ctx context.Context) (*core.Entry, error)
 	InitNamespace(ctx context.Context, namespace string) error
-	CreateEntry(ctx context.Context, namespace string, parentId int64, attr types.EntryAttr) (*types.Entry, error)
-	UpdateEntry(ctx context.Context, namespace string, entryID int64, update *UpdateEntry) error
-	DestroyEntry(ctx context.Context, namespace string, parentId, entryId int64, attr types.DestroyObjectAttr) error
-	MirrorEntry(ctx context.Context, namespace string, srcEntryId, dstParentId int64, attr types.EntryAttr) (*types.Entry, error)
+	CreateEntry(ctx context.Context, namespace string, parentId int64, attr types.EntryAttr) (*core.Entry, error)
+	UpdateEntry(ctx context.Context, namespace string, entryID int64, update types.UpdateEntry) error
+	DestroyEntry(ctx context.Context, namespace string, parentId, entryId int64, attr types.DestroyEntryAttr) error
+	MirrorEntry(ctx context.Context, namespace string, srcEntryId, dstParentId int64, attr types.EntryAttr) (*core.Entry, error)
 	ChangeEntryParent(ctx context.Context, namespace string, targetId, oldParentId, newParentId int64, newName string, opt types.ChangeParentAttr) error
 	SetEntryProperty(ctx context.Context, namespace string, id int64, fKey, fVal string) error
 	RemoveEntryProperty(ctx context.Context, namespace string, id int64, fKey string) error
-	OpenFile(ctx context.Context, namespace string, id int64, attr types.OpenAttr) (core.File, error)
+	OpenFile(ctx context.Context, namespace string, id int64, attr types.OpenAttr) (core.InterFile, error)
 }
 
 type commandService struct {
@@ -64,7 +64,7 @@ func newCommander(depends *Depends) (Commander, error) {
 	}, nil
 }
 
-func (c *commandService) FSRoot(ctx context.Context) (*types.Entry, error) {
+func (c *commandService) FSRoot(ctx context.Context) (*core.Entry, error) {
 	defer trace.StartRegion(ctx, "fs.commander.FSRoot").End()
 	c.logger.Info("get root entry")
 
@@ -82,7 +82,7 @@ func (c *commandService) InitNamespace(ctx context.Context, namespace string) er
 	return c.core.CreateNamespace(ctx, namespace)
 }
 
-func (c *commandService) CreateEntry(ctx context.Context, namespace string, parentId int64, attr types.EntryAttr) (*types.Entry, error) {
+func (c *commandService) CreateEntry(ctx context.Context, namespace string, parentId int64, attr types.EntryAttr) (*core.Entry, error) {
 	defer trace.StartRegion(ctx, "fs.commander.CreateEntry").End()
 
 	if len(attr.Name) > entryNameMaxLength {
@@ -97,7 +97,7 @@ func (c *commandService) CreateEntry(ctx context.Context, namespace string, pare
 	return en, nil
 }
 
-func (c *commandService) UpdateEntry(ctx context.Context, namespace string, entryID int64, update *UpdateEntry) error {
+func (c *commandService) UpdateEntry(ctx context.Context, namespace string, entryID int64, update types.UpdateEntry) error {
 	defer trace.StartRegion(ctx, "fs.commander.UpdateEntry").End()
 	en, err := c.meta.GetEntry(ctx, entryID)
 	if err != nil {
@@ -125,7 +125,7 @@ func (c *commandService) UpdateEntry(ctx context.Context, namespace string, entr
 	return nil
 }
 
-func (c *commandService) DestroyEntry(ctx context.Context, namespace string, parentId, entryId int64, attr types.DestroyObjectAttr) error {
+func (c *commandService) DestroyEntry(ctx context.Context, namespace string, parentId, entryId int64, attr types.DestroyEntryAttr) error {
 	defer trace.StartRegion(ctx, "fs.commander.DestroyEntry").End()
 	parent, err := c.meta.GetEntry(ctx, parentId)
 	if err != nil {
@@ -147,7 +147,7 @@ func (c *commandService) DestroyEntry(ctx context.Context, namespace string, par
 	return c.core.RemoveEntry(ctx, namespace, parentId, entryId)
 }
 
-func (c *commandService) MirrorEntry(ctx context.Context, namespace string, srcEntryId, dstParentId int64, attr types.EntryAttr) (*types.Entry, error) {
+func (c *commandService) MirrorEntry(ctx context.Context, namespace string, srcEntryId, dstParentId int64, attr types.EntryAttr) (*core.Entry, error) {
 	defer trace.StartRegion(ctx, "fs.commander.MirrorEntry").End()
 	if len(attr.Name) > entryNameMaxLength {
 		return nil, types.ErrNameTooLong
@@ -248,7 +248,7 @@ func (c *commandService) RemoveEntryProperty(ctx context.Context, namespace stri
 	return nil
 }
 
-func (c *commandService) OpenFile(ctx context.Context, namespace string, id int64, attr types.OpenAttr) (core.File, error) {
+func (c *commandService) OpenFile(ctx context.Context, namespace string, id int64, attr types.OpenAttr) (core.InterFile, error) {
 	defer trace.StartRegion(ctx, "fs.commander.OpenFile").End()
 	return c.core.Open(ctx, namespace, id, attr)
 }

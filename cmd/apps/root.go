@@ -19,7 +19,7 @@ package apps
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/fs"
+	"github.com/basenana/nanafs/services"
 	"path"
 	"time"
 
@@ -97,7 +97,7 @@ var daemonCmd = &cobra.Command{
 		rule.InitQuery(meta)
 
 		fridayClient := friday.NewFridayClient(cfg.FridayConfig)
-		depends, err := fs.InitDepends(loader, meta, fridayClient)
+		depends, err := services.InitDepends(loader, meta, fridayClient)
 		if err != nil {
 			panic(err)
 		}
@@ -107,7 +107,7 @@ var daemonCmd = &cobra.Command{
 			panic(err)
 		}
 
-		fsSvc, err := fs.NewService(depends)
+		fsSvc, err := services.NewService(depends)
 		if err != nil {
 			panic(err)
 		}
@@ -117,7 +117,7 @@ var daemonCmd = &cobra.Command{
 	},
 }
 
-func run(ctrl controller.Controller, fsSvc *fs.Service, depends *fs.Depends, cfgLoader config.Loader, cfg config.Bootstrap, stopCh chan struct{}) {
+func run(ctrl controller.Controller, fsSvc *services.Service, depends *services.Depends, cfgLoader config.Loader, cfg config.Bootstrap, stopCh chan struct{}) {
 	log := logger.NewLogger("nanafs")
 	log.Infow("starting", "version", config.VersionInfo().Version())
 	ctrl.StartBackendTask(stopCh)

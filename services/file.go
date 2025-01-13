@@ -14,7 +14,7 @@
  limitations under the License.
 */
 
-package fs
+package services
 
 import (
 	"github.com/basenana/nanafs/pkg/core"
@@ -23,15 +23,20 @@ import (
 	"io/fs"
 )
 
+type FileInfo interface {
+	ID() int64
+	fs.FileInfo
+}
+
 type File interface {
 	io.ReadWriteCloser
 	io.Seeker
-	Readdir(count int) ([]fs.FileInfo, error)
-	Stat() (fs.FileInfo, error)
+	Readdir(count int) ([]FileInfo, error)
+	Stat() (FileInfo, error)
 }
 
 type file struct {
-	f        core.File
+	f        core.InterFile
 	entry    *types.Entry
 	children []*types.Entry
 }

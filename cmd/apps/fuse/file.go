@@ -18,7 +18,7 @@ package fuse
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
@@ -38,9 +38,9 @@ type fileOperation interface {
 }
 
 type File struct {
-	node  *NanaNode
-	entry *types.Entry
-	file  dentry.File
+	node *NanaNode
+	file core.InterFile
+	attr types.OpenAttr
 }
 
 var _ fileOperation = &File{}
@@ -48,26 +48,17 @@ var _ fileOperation = &File{}
 func (f *File) Getattr(ctx context.Context, out *fuse.AttrOut) syscall.Errno {
 	defer trace.StartRegion(ctx, "fuse.file.Getattr").End()
 	defer logOperationLatency("file_get_attr", time.Now())
-	entry, err := f.node.R.GetEntry(ctx, f.entry.ID)
-	if err != nil {
-		if err == types.ErrNotFound && f.file != nil {
-			f.entry.RefCount = 0
-			st := nanaNode2Stat(f.entry)
-			updateAttrOut(st, &out.Attr)
-			return NoErr
-		}
-		return Error2FuseSysError("file_get_attr", err)
-	}
 
-	st := nanaNode2Stat(entry)
+	st := nanaNode2Stat(f.node.entry)
 	updateAttrOut(st, &out.Attr)
+
 	return NoErr
 }
 
 func (f *File) Read(ctx context.Context, dest []byte, off int64) (fuse.ReadResult, syscall.Errno) {
 	defer trace.StartRegion(ctx, "fuse.file.Read").End()
 	defer logOperationLatency("file_read", time.Now())
-	n, err := f.node.R.ReadFile(ctx, f.file, dest, off)
+	n, err := f.file.ReadAt(ctx, dest, off)
 	if err != nil && err != io.EOF {
 		return fuse.ReadResultData(dest), Error2FuseSysError("file_read", err)
 	}
@@ -77,7 +68,7 @@ func (f *File) Read(ctx context.Context, dest []byte, off int64) (fuse.ReadResul
 func (f *File) Write(ctx context.Context, data []byte, off int64) (written uint32, errno syscall.Errno) {
 	defer trace.StartRegion(ctx, "fuse.file.Write").End()
 	defer logOperationLatency("file_write", time.Now())
-	cnt, err := f.node.R.WriteFile(ctx, f.file, data, off)
+	cnt, err := f.file.WriteAt(ctx, data, off)
 	return uint32(cnt), Error2FuseSysError("file_write", err)
 }
 
@@ -96,5 +87,5 @@ func (f *File) Fsync(ctx context.Context, flags uint32) syscall.Errno {
 func (f *File) Release(ctx context.Context) syscall.Errno {
 	defer trace.StartRegion(ctx, "fuse.file.Release").End()
 	defer logOperationLatency("file_release", time.Now())
-	return Error2FuseSysError("file_release", f.node.R.CloseFile(ctx, f.file))
+	return Error2FuseSysError("file_release", f.file.Close(ctx))
 }

@@ -85,7 +85,7 @@ func init() {
 }
 
 type instrumentalFile struct {
-	file File
+	file InterFile
 }
 
 func (i instrumentalFile) GetAttr() types.OpenAttr {

@@ -17,7 +17,11 @@
 package fuse
 
 import (
+	"github.com/basenana/nanafs/pkg/core"
+	nfs "github.com/basenana/nanafs/services"
+	"github.com/basenana/nanafs/utils"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sys/unix"
 	"os"
 	"syscall"
 	"time"
@@ -25,7 +29,6 @@ import (
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
 
-	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
 )
@@ -104,7 +107,7 @@ func idFromStat(st *syscall.Stat_t) fs.StableAttr {
 	}
 }
 
-func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, entry *types.Entry, crtUid, crtGid int64, fileOpenAttr types.OpenAttr) error {
+func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, entry *core.Entry, update *types.UpdateEntry, crtUid, crtGid int64, fileOpenAttr types.OpenAttr) error {
 	// do check
 	if _, ok := attr.GetMode(); ok {
 		if crtUid != 0 && crtUid != entry.Access.UID {
@@ -148,17 +151,17 @@ func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, entry *types.Entry, crtUid, cr
 		if mode&syscall.S_ISGID > 0 && crtUid != 0 && crtGid != entry.Access.GID {
 			mode ^= syscall.S_ISGID
 		}
-		dentry.UpdateAccessWithMode(&entry.Access, mode)
+		update.Permissions = Mode2Permissions(mode)
 	}
 
 	ownerUpdated := false
 	if uid, ok := attr.GetUID(); ok {
 		ownerUpdated = true
-		dentry.UpdateAccessWithOwnID(&entry.Access, int64(uid), entry.Access.GID)
+		update.UID = utils.ToPtr(int64(uid))
 	}
 	if gid, ok := attr.GetGID(); ok {
 		ownerUpdated = true
-		dentry.UpdateAccessWithOwnID(&entry.Access, entry.Access.UID, int64(gid))
+		update.GID = utils.ToPtr(int64(gid))
 	}
 	if ownerUpdated {
 		/*
@@ -171,28 +174,27 @@ func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, entry *types.Entry, crtUid, cr
 		   which the S_IXGRP bit is not set) the S_ISGID bit indicates
 		   mandatory locking, and is not cleared by a chown().
 		*/
-		(&entry.Access).RemovePerm(types.PermSetUid)
-		(&entry.Access).RemovePerm(types.PermSetGid)
+		update.Permissions = RemovePerm(update.Permissions, types.PermSetUid, types.PermSetGid)
 	}
 
 	if size, ok := attr.GetSize(); ok {
-		entry.Size = int64(size)
+		update.Size = utils.ToPtr(int64(size))
 	}
 
 	if mtime, ok := attr.GetMTime(); ok {
-		entry.ModifiedAt = mtime
+		update.ModifiedAt = utils.ToPtr(mtime)
 	}
 	if atime, ok := attr.GetATime(); ok {
-		entry.AccessAt = atime
+		update.AccessAt = utils.ToPtr(atime)
 	}
 	if ctime, ok := attr.GetCTime(); ok {
-		entry.ChangedAt = ctime
+		update.ChangedAt = utils.ToPtr(ctime)
 	}
 
 	return nil
 }
 
-func fsInfo2StatFs(info controller.Info, out *fuse.StatfsOut) {
+func fsInfo2StatFs(info nfs.Info, out *fuse.StatfsOut) {
 	out.Blocks = info.MaxSize / fileBlockSize
 	out.Bfree = (info.MaxSize - info.UsageSize) / fileBlockSize
 	out.Bavail = out.Bfree
@@ -262,4 +264,50 @@ func openFileAttr(flags uint32) types.OpenAttr {
 
 func logOperationLatency(operation string, startAt time.Time) {
 	operationLatency.WithLabelValues(operation).Observe(time.Since(startAt).Seconds())
+}
+
+var (
+	perm2Mode = map[types.Permission]uint32{
+		types.PermOwnerRead:   unix.S_IRUSR,
+		types.PermOwnerWrite:  unix.S_IWUSR,
+		types.PermOwnerExec:   unix.S_IXUSR,
+		types.PermGroupRead:   unix.S_IRGRP,
+		types.PermGroupWrite:  unix.S_IWGRP,
+		types.PermGroupExec:   unix.S_IXGRP,
+		types.PermOthersRead:  unix.S_IROTH,
+		types.PermOthersWrite: unix.S_IWOTH,
+		types.PermOthersExec:  unix.S_IXOTH,
+		types.PermSetUid:      unix.S_ISUID,
+		types.PermSetGid:      unix.S_ISGID,
+		types.PermSticky:      unix.S_ISVTX,
+	}
+)
+
+func Mode2Permissions(mode uint32) []types.Permission {
+	var permissions []types.Permission
+	for perm, m := range perm2Mode {
+		if m&mode > 0 {
+			permissions = append(permissions, perm)
+		}
+	}
+	return permissions
+}
+
+func RemovePerm(p []types.Permission, remove ...types.Permission) []types.Permission {
+	var (
+		result     = make([]types.Permission, 0, len(p)-len(remove))
+		needDelete = make(map[types.Permission]struct{})
+	)
+
+	for _, r := range remove {
+		needDelete[r] = struct{}{}
+	}
+
+	for _, old := range p {
+		if _, ok := needDelete[old]; ok {
+			continue
+		}
+		result = append(result, old)
+	}
+	return result
 }

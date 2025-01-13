@@ -20,7 +20,7 @@ import (
 	"context"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
-	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
@@ -36,7 +36,10 @@ const (
 )
 
 type NanaFS struct {
-	controller.Controller
+	*core.FS
+
+	Namespace string
+	Root      *core.Entry
 
 	Path      string
 	Display   string
@@ -50,7 +53,7 @@ type NanaFS struct {
 }
 
 func (n *NanaFS) Start(stopCh chan struct{}) error {
-	root, err := n.newFsNode(context.Background(), nil, nil)
+	root, err := n.GetNamespaceRoot(context.Background(), n.Namespace)
 	if err != nil {
 		return err
 	}
@@ -75,7 +78,7 @@ func (n *NanaFS) Start(stopCh chan struct{}) error {
 		opt.EntryTimeout = &attrTimeout
 	}
 
-	rawFs := fs.NewNodeFS(root, opt)
+	rawFs := fs.NewNodeFS(n.newFsNode(root), opt)
 	server, err := fuse.NewServer(rawFs, n.Path, &opt.MountOptions)
 	if err != nil {
 		return err
@@ -122,25 +125,13 @@ func (n *NanaFS) SetDebug(debug bool) {
 	n.debug = debug
 }
 
-func (n *NanaFS) newFsNode(ctx context.Context, parent *NanaNode, entry *types.Entry) (*NanaNode, error) {
-	if parent == nil {
-		var err error
-		entry, err = n.LoadRootEntry(ctx)
-		if err != nil {
-			return nil, err
-		}
-	}
-
+func (n *NanaFS) newFsNode(entry *core.Entry) *NanaNode {
 	node := &NanaNode{
-		entryID: entry.ID,
-		R:       n,
-		logger:  n.logger.With(zap.Int64("entry", entry.ID)),
+		entry:  entry,
+		R:      n,
+		logger: n.logger.With(zap.Int64("entry", entry.ID)),
 	}
-	if parent != nil {
-		parent.NewInode(ctx, node, idFromStat(nanaNode2Stat(entry)))
-	}
-
-	return node, nil
+	return node
 }
 
 func (n *NanaFS) umount(server *fuse.Server) {
@@ -165,31 +156,6 @@ func (n *NanaFS) umount(server *fuse.Server) {
 	n.logger.Info("umount finish")
 }
 
-func (n *NanaFS) GetEntry(ctx context.Context, id int64) (*types.Entry, error) {
-	return n.Controller.GetEntry(ctx, id)
-}
-
-func (n *NanaFS) GetSourceEntry(ctx context.Context, id int64) (*types.Entry, error) {
-	var (
-		entry   *types.Entry
-		err     error
-		entryId = id
-	)
-	for {
-		entry, err = n.Controller.GetEntry(ctx, entryId)
-		if err != nil {
-			return nil, err
-		}
-		if entry.RefID == 0 || entry.RefID == entry.ID {
-			return entry, nil
-		}
-		entryId = entry.RefID
-	}
-}
-
-func (n *NanaFS) releaseFsNode(ctx context.Context, entryId int64) {
-}
-
 func NewNanaFsRoot(cfg config.FUSE, controller controller.Controller) (*NanaFS, error) {
 	var st syscall.Stat_t
 	err := syscall.Stat(cfg.RootPath, &st)
@@ -203,12 +169,11 @@ func NewNanaFsRoot(cfg config.FUSE, controller controller.Controller) (*NanaFS, 
 
 	MountDev = uint64(st.Dev)
 	root := &NanaFS{
-		Controller: controller,
-		Path:       cfg.RootPath,
-		Display:    cfg.DisplayName,
-		MountOpts:  cfg.MountOptions,
-		cfg:        cfg,
-		logger:     logger.NewLogger("fuse"),
+		Path:      cfg.RootPath,
+		Display:   cfg.DisplayName,
+		MountOpts: cfg.MountOptions,
+		cfg:       cfg,
+		logger:    logger.NewLogger("fuse"),
 	}
 
 	return root, nil

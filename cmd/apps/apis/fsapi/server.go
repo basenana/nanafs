@@ -23,8 +23,8 @@ import (
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
 	v1 "github.com/basenana/nanafs/cmd/apps/apis/fsapi/v1"
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/fs"
 	"github.com/basenana/nanafs/pkg/controller"
+	"github.com/basenana/nanafs/services"
 	"github.com/basenana/nanafs/utils/logger"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -53,7 +53,7 @@ func (s *Server) Run(stopCh chan struct{}) {
 	}
 }
 
-func New(fsSvc *fs.Service, ctrl controller.Controller, depends *fs.Depends, cfg config.Loader) (*Server, error) {
+func New(fsSvc *services.Service, ctrl controller.Controller, depends *services.Depends, cfg config.Loader) (*Server, error) {
 	rootCaPool, err := common.ReadRootCAs(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("load root ca error: %w", err)
