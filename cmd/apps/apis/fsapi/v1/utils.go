@@ -149,6 +149,7 @@ func documentInfo(doc *types.Document) *DocumentInfo {
 		Unread:        *doc.Unread,
 		Namespace:     doc.Namespace,
 		SubContent:    doc.SubContent,
+		SearchContent: doc.SearchContext,
 		HeaderImage:   doc.HeaderImage,
 		CreatedAt:     timestamppb.New(doc.CreatedAt),
 		ChangedAt:     timestamppb.New(doc.ChangedAt),

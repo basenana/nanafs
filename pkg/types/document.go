@@ -29,6 +29,7 @@ type Document struct {
 	WebUrl        string    `json:"web_url,omitempty"`
 	HeaderImage   string    `json:"header_image,omitempty"`
 	SubContent    string    `json:"sub_content,omitempty"`
+	SearchContext []string  `json:"search_context,omitempty"`
 	Marked        *bool     `json:"marked,omitempty"`
 	Unread        *bool     `json:"unread,omitempty"`
 	CreatedAt     time.Time `json:"created_at"`

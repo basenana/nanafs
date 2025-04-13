@@ -34,6 +34,7 @@ type Document struct {
 	WebUrl        string    `json:"web_url,omitempty"`
 	HeaderImage   string    `json:"header_image,omitempty"`
 	SubContent    string    `json:"sub_content,omitempty"`
+	SearchContext []string  `json:"search_context,omitempty"`
 	Marked        *bool     `json:"marked,omitempty"`
 	Unread        *bool     `json:"unread,omitempty"`
 	CreatedAt     time.Time `json:"created_at"`
@@ -60,19 +61,20 @@ func (d *Document) FromType(doc *types.Document) *Document {
 
 func (d *Document) ToType() *types.Document {
 	doc := &types.Document{
-		EntryId:     d.EntryId,
-		Name:        d.Name,
-		Namespace:   d.Namespace,
-		Source:      d.Source,
-		Content:     d.Content,
-		Summary:     d.Summary,
-		WebUrl:      d.WebUrl,
-		HeaderImage: d.HeaderImage,
-		SubContent:  d.SubContent,
-		Marked:      d.Marked,
-		Unread:      d.Unread,
-		CreatedAt:   d.CreatedAt,
-		ChangedAt:   d.ChangedAt,
+		EntryId:       d.EntryId,
+		Name:          d.Name,
+		Namespace:     d.Namespace,
+		Source:        d.Source,
+		Content:       d.Content,
+		Summary:       d.Summary,
+		WebUrl:        d.WebUrl,
+		HeaderImage:   d.HeaderImage,
+		SubContent:    d.SubContent,
+		SearchContext: d.SearchContext,
+		Marked:        d.Marked,
+		Unread:        d.Unread,
+		CreatedAt:     d.CreatedAt,
+		ChangedAt:     d.ChangedAt,
 	}
 	if d.ParentEntryID != nil {
 		doc.ParentEntryID = *d.ParentEntryID

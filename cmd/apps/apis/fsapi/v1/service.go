@@ -20,9 +20,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/basenana/nanafs/fs"
 	"io"
 	"time"
+
+	"github.com/basenana/nanafs/fs"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -261,6 +262,9 @@ func (s *services) ListDocuments(ctx context.Context, request *ListDocumentsRequ
 		}
 		if request.Filter.Unread {
 			filter.Unread = &request.Filter.Unread
+		}
+		if request.Filter.Search != "" {
+			filter.Search = request.Filter.Search
 		}
 		if request.Filter.CreatedAtStart != nil {
 			createdStart := request.Filter.CreatedAtStart.AsTime()
