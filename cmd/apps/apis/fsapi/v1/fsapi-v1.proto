@@ -252,6 +252,7 @@ message DocumentFilter {
   google.protobuf.Timestamp createdAtEnd = 7;
   google.protobuf.Timestamp changedAtStart = 8;
   google.protobuf.Timestamp changedAtEnd = 9;
+  string search = 10;
 }
 
 message ListDocumentsRequest {
@@ -525,6 +526,7 @@ message DocumentInfo {
   string namespace = 8;
   string subContent = 9;
   string headerImage = 10;
+  repeated string searchContent = 11;
   repeated Property properties = 20;
   EntryInfo parent = 21;
   google.protobuf.Timestamp createdAt = 30;
