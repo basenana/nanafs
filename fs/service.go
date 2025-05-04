@@ -31,14 +31,14 @@ import (
 	"github.com/basenana/nanafs/workflow"
 )
 
-type Core struct {
+type Service struct {
 	Commander
 	Query
 }
 
-func newFSCore(depends Depends) (*Core, error) {
+func NewService(depends *Depends) (*Service, error) {
 	var (
-		fs  = &Core{}
+		fs  = &Service{}
 		err error
 	)
 
@@ -47,7 +47,7 @@ func newFSCore(depends Depends) (*Core, error) {
 		return nil, fmt.Errorf("init fs query service error: %w", err)
 	}
 
-	fs.Commander, err = newCommander(depends, fs.Query)
+	fs.Commander, err = newCommander(depends)
 	if err != nil {
 		return nil, fmt.Errorf("init fs commander error: %w", err)
 	}

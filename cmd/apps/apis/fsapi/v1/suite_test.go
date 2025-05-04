@@ -35,7 +35,6 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
-	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/friday"
@@ -46,6 +45,7 @@ import (
 
 var (
 	ctrl          controller.Controller
+	fsSvc         *fs.Service
 	dep           *fs.Depends
 	testMeta      metastore.Meta
 	testFriday    friday.Friday
@@ -83,13 +83,15 @@ var _ = BeforeSuite(func() {
 	_ = cl.SetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "job_workdir", workdir)
 
 	ctrl, err = controller.New(cl, memMeta, testFriday)
+	Expect(err).Should(BeNil())
+
 	dep, err = fs.InitDepends(cl, memMeta, testFriday)
 	Expect(err).Should(BeNil())
 
-	_, err = ctrl.LoadRootEntry(context.TODO())
+	fsSvc, err = fs.NewService(dep)
 	Expect(err).Should(BeNil())
 
-	pm, err := pathmgr.New(ctrl)
+	_, err = fsSvc.FSRoot(context.TODO())
 	Expect(err).Should(BeNil())
 
 	buffer := 1024 * 1024
@@ -105,7 +107,7 @@ var _ = BeforeSuite(func() {
 		common.WithStreamInterceptors(),
 	}
 	testServer = grpc.NewServer(opts...)
-	_, err = InitServices(testServer, ctrl, dep, pm)
+	_, err = InitServices(testServer, fsSvc, ctrl, dep)
 	Expect(err).Should(BeNil())
 
 	go func() {

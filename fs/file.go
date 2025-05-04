@@ -16,5 +16,52 @@
 
 package fs
 
+import (
+	"github.com/basenana/nanafs/pkg/core"
+	"github.com/basenana/nanafs/pkg/types"
+	"io"
+	"io/fs"
+)
+
 type File interface {
+	io.ReadWriteCloser
+	io.Seeker
+	Readdir(count int) ([]fs.FileInfo, error)
+	Stat() (fs.FileInfo, error)
+}
+
+type file struct {
+	f        core.File
+	entry    *types.Entry
+	children []*types.Entry
+}
+
+func (f file) Read(p []byte) (n int, err error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (f file) Write(p []byte) (n int, err error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (f file) Close() error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (f file) Seek(offset int64, whence int) (int64, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (f file) Readdir(count int) ([]fs.FileInfo, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (f file) Stat() (fs.FileInfo, error) {
+	//TODO implement me
+	panic("implement me")
 }

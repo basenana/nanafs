@@ -14,7 +14,7 @@
  limitations under the License.
 */
 
-package fs
+package fuse
 
 import (
 	"github.com/prometheus/client_golang/prometheus"

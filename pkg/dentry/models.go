@@ -44,6 +44,7 @@ type DEntry struct {
 	parent   *DEntry
 	children *DEntry
 	next     *DEntry
+	refCount uint32
 }
 
 var (

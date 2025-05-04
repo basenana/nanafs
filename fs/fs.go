@@ -16,9 +16,30 @@
 
 package fs
 
-import "github.com/basenana/nanafs/pkg/dentry"
+import (
+	"context"
+	"github.com/basenana/nanafs/pkg/core"
+	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
+	"go.uber.org/zap"
+	"runtime/trace"
+)
 
 type FS struct {
-	*Core
-	dentry dentry.Manager
+	core   core.Core
+	store  metastore.EntryStore
+	dentry dentry.Cache
+	logger *zap.SugaredLogger
+}
+
+func (f *FS) SetXAttr(ctx context.Context, namespace string, id int64, fKey string, fVal []byte) error {
+	defer trace.StartRegion(ctx, "fs.commander.SetEntryEncodedProperty").End()
+	f.logger.Debugw("set entry extend filed", "entry", id, "key", fKey)
+
+	if err := f.store.AddEntryProperty(ctx, id, fKey, types.PropertyItem{Value: utils.EncodeBase64(fVal), Encoded: true}); err != nil {
+		return err
+	}
+	return nil
 }

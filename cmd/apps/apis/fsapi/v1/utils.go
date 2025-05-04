@@ -17,6 +17,7 @@
 package v1
 
 import (
+	"github.com/basenana/nanafs/fs"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/basenana/nanafs/pkg/types"
@@ -57,6 +58,72 @@ func entryInfo(en *types.Entry) *EntryInfo {
 		ModifiedAt: timestamppb.New(en.ModifiedAt),
 		AccessAt:   timestamppb.New(en.AccessAt),
 	}
+}
+
+func toEntryInfo(en *fs.Entry) *EntryInfo {
+	return &EntryInfo{
+		Id:         en.ID,
+		Name:       en.Name,
+		Kind:       string(en.Kind),
+		ParentID:   en.ParentID,
+		IsGroup:    en.IsGroup,
+		Size:       en.Size,
+		CreatedAt:  timestamppb.New(en.CreatedAt),
+		ChangedAt:  timestamppb.New(en.ChangedAt),
+		ModifiedAt: timestamppb.New(en.ModifiedAt),
+		AccessAt:   timestamppb.New(en.AccessAt),
+	}
+}
+
+func toEntryDetail(en, parent *fs.Entry) (*EntryDetail, []*Property) {
+	access := &EntryDetail_Access{Uid: en.Access.UID, Gid: en.Access.GID}
+	for _, perm := range en.Access.Permissions {
+		access.Permissions = append(access.Permissions, string(perm))
+	}
+
+	properties := make(map[string]types.PropertyItem)
+	ed := &EntryDetail{
+		Id:         en.ID,
+		Name:       en.Name,
+		Aliases:    en.Aliases,
+		Kind:       string(en.Kind),
+		IsGroup:    en.IsGroup,
+		Size:       en.Size,
+		Version:    en.Version,
+		Namespace:  en.Namespace,
+		Storage:    en.Storage,
+		Access:     access,
+		CreatedAt:  timestamppb.New(en.CreatedAt),
+		ChangedAt:  timestamppb.New(en.ChangedAt),
+		ModifiedAt: timestamppb.New(en.ModifiedAt),
+		AccessAt:   timestamppb.New(en.AccessAt),
+	}
+
+	if parent != nil {
+		ed.Parent = toEntryInfo(parent)
+
+		if parent.Properties != nil {
+			for k, v := range en.Properties.Fields {
+				properties[k] = v
+			}
+		}
+	}
+
+	if en.Properties != nil {
+		for k, v := range en.Properties.Fields {
+			properties[k] = v
+		}
+	}
+
+	pl := make([]*Property, 0)
+	for k, item := range properties {
+		pl = append(pl, &Property{
+			Key:     k,
+			Value:   item.Value,
+			Encoded: item.Encoded,
+		})
+	}
+	return ed, pl
 }
 
 func entryDetail(en, parent *types.Entry) *EntryDetail {
@@ -156,13 +223,13 @@ func documentInfo(doc *types.Document) *DocumentInfo {
 	}
 }
 
-func buildRootGroup(entry *types.GroupEntry) *GetGroupTreeResponse_GroupEntry {
+func buildRootGroup(tree *fs.GroupTree) *GetGroupTreeResponse_GroupEntry {
 	result := &GetGroupTreeResponse_GroupEntry{
-		Entry:    entryInfo(entry.Entry),
+		Name:     tree.Name,
 		Children: make([]*GetGroupTreeResponse_GroupEntry, 0),
 	}
 
-	for _, ch := range entry.Children {
+	for _, ch := range tree.Children {
 		result.Children = append(result.Children, buildRootGroup(ch))
 	}
 	return result

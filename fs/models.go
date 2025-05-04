@@ -21,24 +21,6 @@ import (
 	"time"
 )
 
-type EntryInfo struct {
-	ID         int64
-	Name       string
-	ParentID   int64
-	RefCount   int
-	Kind       types.Kind
-	IsGroup    bool
-	Size       int64
-	Dev        int64
-	UID        int64
-	GID        int64
-	CreatedAt  time.Time
-	ChangedAt  time.Time
-	ModifiedAt time.Time
-	AccessAt   time.Time
-	Access     types.Access
-}
-
 type Entry struct {
 	ID         int64
 	Name       string
@@ -72,4 +54,9 @@ type GroupTree struct {
 
 type GroupChildren struct {
 	Entries []Entry
+}
+
+type UpdateEntry struct {
+	Name    *string
+	Aliases *string
 }

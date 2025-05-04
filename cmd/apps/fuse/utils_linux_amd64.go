@@ -1,4 +1,4 @@
-//go:build darwin
+//go:build linux || amd64
 
 /*
  Copyright 2023 NanaFS Authors.
@@ -16,10 +16,9 @@
  limitations under the License.
 */
 
-package fs
+package fuse
 
 import (
-	"fmt"
 	"syscall"
 
 	"github.com/hanwen/go-fuse/v2/fuse"
@@ -30,12 +29,12 @@ import (
 )
 
 const (
-	ENOAttr = syscall.ENOATTR
+	ENOAttr = syscall.ENODATA
 	ENODATA = syscall.ENODATA
 )
 
 func fsMountOptions(displayName string, ops []string) []string {
-	options := []string{fmt.Sprintf("volname=%s", displayName)}
+	options := make([]string, 0)
 	if ops != nil {
 		options = append(options, ops...)
 	}
@@ -48,34 +47,31 @@ func nanaNode2Stat(entry *types.Entry) *syscall.Stat_t {
 	cTime, _ := unix.TimeToTimespec(entry.ChangedAt)
 
 	mode := modeFromFileKind(entry.Kind)
+
 	accMod := dentry.Access2Mode(entry.Access)
 	mode |= accMod
 
-	rdev := int32(MountDev)
+	rdev := MountDev
 	if entry.Dev != 0 {
-		rdev = int32(entry.Dev)
+		rdev = uint64(entry.Dev)
 	}
 
 	return &syscall.Stat_t{
-		Size:      entry.Size,
-		Blocks:    entry.Size/fileBlockSize + 1,
-		Blksize:   fileBlockSize,
-		Atimespec: syscall.Timespec{Sec: aTime.Sec, Nsec: aTime.Nsec},
-		Mtimespec: syscall.Timespec{Sec: mTime.Sec, Nsec: mTime.Nsec},
-		Ctimespec: syscall.Timespec{Sec: cTime.Sec, Nsec: cTime.Nsec},
-		Mode:      uint16(mode),
-		Ino:       uint64(entry.ID),
-		Nlink:     uint16(entry.RefCount),
-		Uid:       uint32(entry.Access.UID),
-		Gid:       uint32(entry.Access.GID),
-		Rdev:      rdev,
+		Size:    entry.Size,
+		Blocks:  entry.Size/fileBlockSize + 1,
+		Blksize: fileBlockSize,
+		Atim:    syscall.Timespec{Sec: aTime.Sec, Nsec: aTime.Nsec},
+		Mtim:    syscall.Timespec{Sec: mTime.Sec, Nsec: mTime.Nsec},
+		Ctim:    syscall.Timespec{Sec: cTime.Sec, Nsec: cTime.Nsec},
+		Mode:    mode,
+		Ino:     uint64(entry.ID),
+		Nlink:   uint64(entry.RefCount),
+		Uid:     uint32(entry.Access.UID),
+		Gid:     uint32(entry.Access.GID),
+		Rdev:    rdev,
 	}
 }
 
 func updateAttrOut(st *syscall.Stat_t, out *fuse.Attr) {
 	out.FromStat(st)
-
-	// macos
-	out.Crtime_ = uint64(st.Ctimespec.Sec)
-	out.Crtimensec_ = uint32(st.Ctimespec.Nsec)
 }

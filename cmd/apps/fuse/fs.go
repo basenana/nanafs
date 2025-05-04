@@ -14,7 +14,7 @@
  limitations under the License.
 */
 
-package fs
+package fuse
 
 import (
 	"context"
@@ -104,7 +104,7 @@ func (n *NanaFS) Start(stopCh chan struct{}) error {
 				}
 				n.logger.Panicw("wait mount timeout")
 			case <-finish:
-				n.logger.Infow("fs mounted")
+				n.logger.Infow("fuse mounted")
 				return
 			}
 		}()
@@ -208,7 +208,7 @@ func NewNanaFsRoot(cfg config.FUSE, controller controller.Controller) (*NanaFS, 
 		Display:    cfg.DisplayName,
 		MountOpts:  cfg.MountOptions,
 		cfg:        cfg,
-		logger:     logger.NewLogger("fs"),
+		logger:     logger.NewLogger("fuse"),
 	}
 
 	return root, nil

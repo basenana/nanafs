@@ -30,7 +30,7 @@ import (
 
 	"github.com/basenana/nanafs/cmd/apps/apis"
 	configapp "github.com/basenana/nanafs/cmd/apps/config"
-	fsapi "github.com/basenana/nanafs/cmd/apps/fs"
+	fsapi "github.com/basenana/nanafs/cmd/apps/fuse"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/bio"
 	"github.com/basenana/nanafs/pkg/controller"
@@ -106,13 +106,18 @@ var daemonCmd = &cobra.Command{
 		if err != nil {
 			panic(err)
 		}
+
+		fsSvc, err := fs.NewService(depends)
+		if err != nil {
+			panic(err)
+		}
 		stop := utils.HandleTerminalSignal()
 
-		run(ctrl, depends, loader, cfg, stop)
+		run(ctrl, fsSvc, depends, loader, cfg, stop)
 	},
 }
 
-func run(ctrl controller.Controller, depends *fs.Depends, cfgLoader config.Loader, cfg config.Bootstrap, stopCh chan struct{}) {
+func run(ctrl controller.Controller, fsSvc *fs.Service, depends *fs.Depends, cfgLoader config.Loader, cfg config.Bootstrap, stopCh chan struct{}) {
 	log := logger.NewLogger("nanafs")
 	log.Infow("starting", "version", config.VersionInfo().Version())
 	ctrl.StartBackendTask(stopCh)
@@ -127,7 +132,7 @@ func run(ctrl controller.Controller, depends *fs.Depends, cfgLoader config.Loade
 	if err != nil {
 		log.Panicf("init api path entry manager error: %s", err)
 	}
-	err = apis.Setup(ctrl, depends, pathEntryMgr, cfgLoader, stopCh)
+	err = apis.Setup(ctrl, fsSvc, depends, pathEntryMgr, cfgLoader, stopCh)
 	if err != nil {
 		log.Panicw("setup api servers failed", "err", err.Error())
 	}

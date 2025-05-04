@@ -159,6 +159,20 @@ func (c *core) CreateNamespace(ctx context.Context, namespace string) error {
 		c.logger.Errorw("create root entry failed", "err", err)
 		return err
 	}
+
+	buildInGroups := []string{
+		".inbox",
+	}
+
+	for _, buildInGroupName := range buildInGroups {
+		_, err = c.CreateEntry(ctx, namespace, nsRoot.ID, types.EntryAttr{
+			Name: buildInGroupName,
+			Kind: types.GroupKind,
+		})
+		if err != nil {
+			return fmt.Errorf("init build-in ns group %s failed: %w", buildInGroupName, err)
+		}
+	}
 	return nil
 }
 

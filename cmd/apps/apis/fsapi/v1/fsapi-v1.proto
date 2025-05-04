@@ -55,7 +55,7 @@ message GetGroupTreeRequest {}
 
 message GetGroupTreeResponse {
   message GroupEntry {
-    EntryInfo entry = 1;
+    string name = 1;
     repeated GroupEntry children = 2;
   }
   GroupEntry root = 1;
@@ -63,8 +63,6 @@ message GetGroupTreeResponse {
 
 message FindEntryDetailRequest {
   bool root = 1;
-  int64 parentID = 2;
-  string name = 3;
 }
 
 message GetEntryDetailRequest {
@@ -95,8 +93,11 @@ message CreateEntryResponse {
 }
 
 message UpdateEntryRequest {
-  EntryDetail entry = 1;
+  int64 entryID = 1;
+  string  name = 2;
+  string  aliases = 3;
 }
+
 message UpdateEntryResponse {
   EntryDetail entry = 1;
 }
@@ -105,7 +106,7 @@ message DeleteEntryRequest {
   int64 entryID = 1;
 }
 message DeleteEntryResponse {
-  EntryDetail entry = 1;
+  EntryInfo entry = 1;
 }
 
 message DeleteEntriesRequest {

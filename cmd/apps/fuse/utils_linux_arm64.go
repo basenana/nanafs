@@ -16,7 +16,7 @@
  limitations under the License.
 */
 
-package fs
+package fuse
 
 import (
 	"syscall"
@@ -65,7 +65,7 @@ func nanaNode2Stat(entry *types.Entry) *syscall.Stat_t {
 		Ctim:    syscall.Timespec{Sec: cTime.Sec, Nsec: cTime.Nsec},
 		Mode:    mode,
 		Ino:     uint64(entry.ID),
-		Nlink:   uint64(entry.RefCount),
+		Nlink:   uint32(entry.RefCount),
 		Uid:     uint32(entry.Access.UID),
 		Gid:     uint32(entry.Access.GID),
 		Rdev:    rdev,

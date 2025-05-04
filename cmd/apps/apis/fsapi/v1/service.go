@@ -19,11 +19,11 @@ package v1
 import (
 	"context"
 	"errors"
-	"fmt"
+	"github.com/basenana/nanafs/fs"
+	"github.com/basenana/nanafs/pkg/controller"
+	"github.com/basenana/nanafs/pkg/core"
 	"io"
 	"time"
-
-	"github.com/basenana/nanafs/fs"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -34,8 +34,6 @@ import (
 	"github.com/basenana/nanafs/workflow"
 
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
-	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
-	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
@@ -50,13 +48,13 @@ type Services interface {
 	WorkflowServer
 }
 
-func InitServices(server *grpc.Server, ctrl controller.Controller, depends *fs.Depends, pathEntryMgr *pathmgr.PathManager) (Services, error) {
+func InitServices(server *grpc.Server, fsSvc *fs.Service, ctrl controller.Controller, depends *fs.Depends) (Services, error) {
 	s := &services{
-		ctrl:         ctrl,
-		workflow:     depends.Workflow,
-		pathEntryMgr: pathEntryMgr,
-		caller:       common.CallerAuth,
-		logger:       logger.NewLogger("fsapi"),
+		fs:       fsSvc,
+		ctrl:     ctrl,
+		workflow: depends.Workflow,
+		caller:   common.CallerAuth,
+		logger:   logger.NewLogger("fsapi"),
 	}
 
 	RegisterAuthServer(server, s)
@@ -70,11 +68,11 @@ func InitServices(server *grpc.Server, ctrl controller.Controller, depends *fs.D
 }
 
 type services struct {
-	ctrl         controller.Controller
-	workflow     workflow.Workflow
-	pathEntryMgr *pathmgr.PathManager
-	caller       common.CallerAuthGetter
-	logger       *zap.SugaredLogger
+	fs       *fs.Service
+	ctrl     controller.Controller
+	workflow workflow.Workflow
+	caller   common.CallerAuthGetter
+	logger   *zap.SugaredLogger
 }
 
 func (s *services) ListRooms(ctx context.Context, request *ListRoomsRequest) (*ListRoomsResponse, error) {
@@ -473,7 +471,12 @@ func (s *services) SearchDocuments(ctx context.Context, request *SearchDocuments
 }
 
 func (s *services) GroupTree(ctx context.Context, request *GetGroupTreeRequest) (*GetGroupTreeResponse, error) {
-	root, err := s.ctrl.GetGroupTree(ctx)
+	caller := s.caller(ctx)
+	if !caller.Authenticated {
+		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+
+	root, err := s.fs.GetGroupTree(ctx, caller.Namespace)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query root entry failed")
 	}
@@ -484,32 +487,26 @@ func (s *services) GroupTree(ctx context.Context, request *GetGroupTreeRequest) 
 
 func (s *services) FindEntryDetail(ctx context.Context, request *FindEntryDetailRequest) (*GetEntryDetailResponse, error) {
 	var (
-		en, par *types.Entry
-		err     error
+		en  *fs.Entry
+		err error
 	)
 
-	if request.Root {
-		en, err = s.ctrl.LoadRootEntry(ctx)
-		if err != nil {
-			return nil, status.Error(common.FsApiError(err), "query root entry failed")
-		}
-	} else {
-		par, err = s.ctrl.GetEntry(ctx, request.ParentID)
-		if err != nil {
-			return nil, status.Error(common.FsApiError(err), fmt.Sprintf("query parent entry %d failed", request.ParentID))
-		}
-
-		en, err = s.ctrl.FindEntry(ctx, request.ParentID, request.Name)
-		if err != nil {
-			return nil, status.Error(common.FsApiError(err), fmt.Sprintf("find child entry %s failed", request.Name))
-		}
+	caller := s.caller(ctx)
+	if !caller.Authenticated {
+		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
 	}
 
-	properties, err := s.queryEntryProperties(ctx, en.ID, en.ParentID)
+	if !request.Root {
+		return nil, status.Errorf(codes.InvalidArgument, "root entry only")
+	}
+
+	en, err = s.fs.NamespaceRoot(ctx, caller.Namespace)
 	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query entry properties failed")
+		return nil, status.Error(common.FsApiError(err), "query root entry failed")
 	}
-	return &GetEntryDetailResponse{Entry: entryDetail(en, par), Properties: properties}, nil
+
+	details, properties := toEntryDetail(en, nil)
+	return &GetEntryDetailResponse{Entry: details, Properties: properties}, nil
 }
 
 func (s *services) GetEntryDetail(ctx context.Context, request *GetEntryDetailRequest) (*GetEntryDetailResponse, error) {
@@ -517,7 +514,7 @@ func (s *services) GetEntryDetail(ctx context.Context, request *GetEntryDetailRe
 	if !caller.Authenticated {
 		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
 	}
-	en, err := s.ctrl.GetEntry(ctx, request.EntryID)
+	en, err := s.fs.GetEntry(ctx, caller.Namespace, request.EntryID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
@@ -526,19 +523,16 @@ func (s *services) GetEntryDetail(ctx context.Context, request *GetEntryDetailRe
 		return nil, status.Error(common.FsApiError(err), "has no permission")
 	}
 
-	var p *types.Entry
-	if en.ParentID != dentry.RootEntryID {
-		p, err = s.ctrl.GetEntry(ctx, en.ParentID)
+	var p *fs.Entry
+	if en.ParentID != core.RootEntryID {
+		p, err = s.fs.GetEntry(ctx, caller.Namespace, en.ParentID)
 		if err != nil {
 			return nil, status.Error(common.FsApiError(err), "query entry parent failed")
 		}
 	}
 
-	properties, err := s.queryEntryProperties(ctx, en.ID, en.ParentID)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query entry properties failed")
-	}
-	return &GetEntryDetailResponse{Entry: entryDetail(en, p), Properties: properties}, nil
+	detail, properties := toEntryDetail(en, p)
+	return &GetEntryDetailResponse{Entry: detail, Properties: properties}, nil
 }
 
 func (s *services) CreateEntry(ctx context.Context, request *CreateEntryRequest) (*CreateEntryResponse, error) {
@@ -557,7 +551,7 @@ func (s *services) CreateEntry(ctx context.Context, request *CreateEntryRequest)
 		return nil, status.Error(codes.InvalidArgument, "entry has unknown kind")
 	}
 
-	parent, err := s.ctrl.GetEntry(ctx, request.ParentID)
+	parent, err := s.fs.GetEntry(ctx, caller.Namespace, request.ParentID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry parent failed")
 	}
@@ -577,7 +571,7 @@ func (s *services) CreateEntry(ctx context.Context, request *CreateEntryRequest)
 		s.logger.Infow("setup rss feed to dir", "feed", request.Rss.Feed, "siteName", request.Rss.SiteName)
 		setupRssConfig(request.Rss, &attr)
 	}
-	en, err := s.ctrl.CreateEntry(ctx, request.ParentID, attr)
+	en, err := s.fs.CreateEntry(ctx, caller.Namespace, request.ParentID, attr)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "create entry failed")
 	}
@@ -590,12 +584,11 @@ func (s *services) UpdateEntry(ctx context.Context, request *UpdateEntryRequest)
 		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
 	}
 
-	if request.Entry.Id == 0 {
+	if request.EntryID == 0 {
 		return nil, status.Error(codes.InvalidArgument, "entry id is 0")
 	}
-	newEn := request.Entry
 
-	en, err := s.ctrl.GetEntry(ctx, request.Entry.Id)
+	en, err := s.fs.GetEntry(ctx, caller.Namespace, request.EntryID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
@@ -605,19 +598,25 @@ func (s *services) UpdateEntry(ctx context.Context, request *UpdateEntryRequest)
 		return nil, status.Error(common.FsApiError(err), "has no permission")
 	}
 
-	parent, err := s.ctrl.GetEntry(ctx, en.ParentID)
+	parent, err := s.fs.GetEntry(ctx, caller.Namespace, en.ParentID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry parent failed")
 	}
 
-	// TODO: do update
-	en.Aliases = newEn.Aliases
-
-	err = s.ctrl.UpdateEntry(ctx, en)
+	update := &fs.UpdateEntry{}
+	if request.Name != "" {
+		update.Name = &request.Name
+	}
+	if request.Aliases != "" {
+		update.Aliases = &request.Aliases
+	}
+	err = s.fs.UpdateEntry(ctx, caller.Namespace, en.ID, update)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "update entry failed")
 	}
-	return &UpdateEntryResponse{Entry: entryDetail(en, parent)}, nil
+
+	detail, _ := toEntryDetail(en, parent)
+	return &UpdateEntryResponse{Entry: detail}, nil
 }
 
 func (s *services) DeleteEntry(ctx context.Context, request *DeleteEntryRequest) (*DeleteEntryResponse, error) {
@@ -625,15 +624,15 @@ func (s *services) DeleteEntry(ctx context.Context, request *DeleteEntryRequest)
 	if !caller.Authenticated {
 		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
 	}
-	en, parent, err := s.deleteEntry(ctx, caller.UID, request.EntryID)
+	en, err := s.deleteEntry(ctx, caller.Namespace, caller.UID, request.EntryID)
 	if err != nil {
 		return nil, err
 	}
-	return &DeleteEntryResponse{Entry: entryDetail(en, parent)}, nil
+	return &DeleteEntryResponse{Entry: toEntryInfo(en)}, nil
 }
 
-func (s *services) deleteEntry(ctx context.Context, uid, entryId int64) (en, parent *types.Entry, err error) {
-	en, err = s.ctrl.GetEntry(ctx, entryId)
+func (s *services) deleteEntry(ctx context.Context, namespace string, uid, entryId int64) (en *fs.Entry, err error) {
+	en, err = s.fs.GetEntry(ctx, namespace, entryId)
 	if err != nil {
 		err = status.Error(common.FsApiError(err), "query entry failed")
 		return
@@ -644,7 +643,7 @@ func (s *services) deleteEntry(ctx context.Context, uid, entryId int64) (en, par
 		return
 	}
 
-	parent, err = s.ctrl.GetEntry(ctx, en.ParentID)
+	parent, err := s.fs.GetEntry(ctx, namespace, en.ParentID)
 	if err != nil {
 		err = status.Error(common.FsApiError(err), "query entry parent failed")
 		return
@@ -655,7 +654,8 @@ func (s *services) deleteEntry(ctx context.Context, uid, entryId int64) (en, par
 		return
 	}
 
-	err = s.ctrl.DestroyEntry(ctx, parent.ID, en.ID, types.DestroyObjectAttr{Uid: 0, Gid: 0})
+	// TODO: fix uid and gid
+	err = s.fs.DestroyEntry(ctx, namespace, parent.ID, en.ID, types.DestroyObjectAttr{Uid: 0, Gid: 0})
 	if err != nil {
 		err = status.Error(common.FsApiError(err), "delete entry failed")
 		return
@@ -671,7 +671,7 @@ func (s *services) DeleteEntries(ctx context.Context, request *DeleteEntriesRequ
 
 	entryIds := make([]int64, 0, len(request.EntryIDs))
 	for _, entryId := range request.EntryIDs {
-		en, _, err := s.deleteEntry(ctx, caller.UID, entryId)
+		en, err := s.deleteEntry(ctx, caller.Namespace, caller.UID, entryId)
 		if err != nil {
 			return nil, err
 		}
@@ -681,6 +681,11 @@ func (s *services) DeleteEntries(ctx context.Context, request *DeleteEntriesRequ
 }
 
 func (s *services) ListGroupChildren(ctx context.Context, request *ListGroupChildrenRequest) (*ListGroupChildrenResponse, error) {
+	caller := s.caller(ctx)
+	if !caller.Authenticated {
+		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+
 	if request.Pagination != nil {
 		ctx = types.WithPagination(ctx, types.NewPagination(request.Pagination.Page, request.Pagination.PageSize))
 	}
@@ -719,14 +724,14 @@ func (s *services) ListGroupChildren(ctx context.Context, request *ListGroupChil
 		Order: types.EnOrder(request.Order),
 		Desc:  request.OrderDesc,
 	}
-	children, err := s.ctrl.ListEntryChildren(ctx, request.ParentID, &order, filter)
+	children, err := s.fs.ListEntryChildren(ctx, caller.Namespace, request.ParentID, &order, filter)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "list children failed")
 	}
 
 	resp := &ListGroupChildrenResponse{}
 	for _, en := range children {
-		resp.Entries = append(resp.Entries, entryInfo(en))
+		resp.Entries = append(resp.Entries, toEntryInfo(en))
 	}
 	return resp, nil
 }
@@ -737,7 +742,7 @@ func (s *services) ChangeParent(ctx context.Context, request *ChangeParentReques
 		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
 	}
 
-	en, err := s.ctrl.GetEntry(ctx, request.EntryID)
+	en, err := s.fs.GetEntry(ctx, caller.Namespace, request.EntryID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
@@ -746,7 +751,7 @@ func (s *services) ChangeParent(ctx context.Context, request *ChangeParentReques
 		return nil, status.Error(common.FsApiError(err), "has no permission")
 	}
 
-	newParent, err := s.ctrl.GetEntry(ctx, request.NewParentID)
+	newParent, err := s.fs.GetEntry(ctx, caller.Namespace, request.NewParentID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
@@ -758,7 +763,7 @@ func (s *services) ChangeParent(ctx context.Context, request *ChangeParentReques
 	if request.Option == nil {
 		request.Option = &ChangeParentRequest_Option{}
 	}
-	err = s.ctrl.ChangeEntryParent(ctx, request.EntryID, en.ParentID, request.NewParentID, request.NewName, types.ChangeParentAttr{
+	err = s.fs.ChangeEntryParent(ctx, caller.Namespace, request.EntryID, en.ParentID, request.NewParentID, request.NewName, types.ChangeParentAttr{
 		Uid:      caller.UID,
 		Gid:      caller.GID,
 		Replace:  request.Option.Replace,
@@ -768,11 +773,11 @@ func (s *services) ChangeParent(ctx context.Context, request *ChangeParentReques
 		return nil, status.Error(common.FsApiError(err), "change entry parent failed")
 	}
 
-	en, err = s.ctrl.GetEntry(ctx, request.EntryID)
+	en, err = s.fs.GetEntry(ctx, caller.Namespace, request.EntryID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
-	return &ChangeParentResponse{Entry: entryInfo(en)}, nil
+	return &ChangeParentResponse{Entry: toEntryInfo(en)}, nil
 }
 
 func (s *services) WriteFile(reader Entries_WriteFileServer) error {
@@ -811,7 +816,7 @@ func (s *services) WriteFile(reader Entries_WriteFileServer) error {
 
 		if writeRequest.EntryID != accessEn {
 			s.logger.Debugw("handle write data to file", "entry", writeRequest.EntryID)
-			en, err := s.ctrl.GetEntry(ctx, writeRequest.EntryID)
+			en, err := s.fs.GetEntry(ctx, caller.Namespace, writeRequest.EntryID)
 			if err != nil {
 				return status.Error(common.FsApiError(err), "query entry failed")
 			}
@@ -825,7 +830,7 @@ func (s *services) WriteFile(reader Entries_WriteFileServer) error {
 		}
 
 		if file == nil {
-			file, err = s.ctrl.OpenFile(ctx, accessEn, types.OpenAttr{Write: true})
+			file, err = s.fs.OpenFile(ctx, caller.Namespace, accessEn, types.OpenAttr{Write: true})
 			if err != nil {
 				s.logger.Errorw("open file error", "entry", accessEn, "err", err)
 				return status.Error(common.FsApiError(err), "open file failed")
@@ -860,7 +865,7 @@ func (s *services) ReadFile(request *ReadFileRequest, writer Entries_ReadFileSer
 		return status.Error(codes.Unauthenticated, "unauthenticated")
 	}
 
-	en, err := s.ctrl.GetEntry(ctx, request.EntryID)
+	en, err := s.fs.GetEntry(ctx, caller.Namespace, request.EntryID)
 	if err != nil {
 		return status.Error(common.FsApiError(err), "query entry failed")
 	}
@@ -870,7 +875,7 @@ func (s *services) ReadFile(request *ReadFileRequest, writer Entries_ReadFileSer
 		return status.Error(common.FsApiError(err), "has no permission")
 	}
 
-	file, err := s.ctrl.OpenFile(ctx, request.EntryID, types.OpenAttr{Read: true})
+	file, err := s.fs.OpenFile(ctx, caller.Namespace, request.EntryID, types.OpenAttr{Read: true})
 	if err != nil {
 		return status.Error(common.FsApiError(err), "open file failed")
 	}
@@ -900,64 +905,113 @@ func (s *services) ReadFile(request *ReadFileRequest, writer Entries_ReadFileSer
 }
 
 func (s *services) AddProperty(ctx context.Context, request *AddPropertyRequest) (*AddPropertyResponse, error) {
-	en, err := s.ctrl.GetEntry(ctx, request.EntryID)
+	caller := s.caller(ctx)
+	if !caller.Authenticated {
+		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+
+	en, err := s.fs.GetEntry(ctx, caller.Namespace, request.EntryID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
-	err = s.ctrl.SetEntryProperty(ctx, en.ID, request.Key, request.Value)
+	err = s.fs.SetEntryProperty(ctx, caller.Namespace, en.ID, request.Key, request.Value)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "add entry extend field failed")
 	}
-	properties, err := s.queryEntryProperties(ctx, en.ID, en.ParentID)
+
+	en, err = s.fs.GetEntry(ctx, caller.Namespace, request.EntryID)
 	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query entry properties failed")
+		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
+	properties := make([]*Property, 0)
+	if en.Properties != nil {
+		for k, v := range en.Properties.Fields {
+			properties = append(properties, &Property{
+				Key:     k,
+				Value:   v.Value,
+				Encoded: v.Encoded,
+			})
+
+		}
+	}
+
 	return &AddPropertyResponse{
-		Entry:      entryInfo(en),
+		Entry:      toEntryInfo(en),
 		Properties: properties,
 	}, nil
 }
 
 func (s *services) UpdateProperty(ctx context.Context, request *UpdatePropertyRequest) (*UpdatePropertyResponse, error) {
-	en, err := s.ctrl.GetEntry(ctx, request.EntryID)
+	caller := s.caller(ctx)
+	if !caller.Authenticated {
+		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+
+	en, err := s.fs.GetEntry(ctx, caller.Namespace, request.EntryID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
 
-	_, err = s.ctrl.GetEntryProperty(ctx, en.ID, request.Key)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "fetch entry exist extend field failed")
-	}
-
-	err = s.ctrl.SetEntryProperty(ctx, en.ID, request.Key, request.Value)
+	err = s.fs.SetEntryProperty(ctx, caller.Namespace, en.ID, request.Key, request.Value)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "set entry extend field failed")
 	}
-	properties, err := s.queryEntryProperties(ctx, en.ID, en.ParentID)
+
+	en, err = s.fs.GetEntry(ctx, caller.Namespace, request.EntryID)
 	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query entry properties failed")
+		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
+	properties := make([]*Property, 0)
+	if en.Properties != nil {
+		for k, v := range en.Properties.Fields {
+			properties = append(properties, &Property{
+				Key:     k,
+				Value:   v.Value,
+				Encoded: v.Encoded,
+			})
+
+		}
+	}
+
 	return &UpdatePropertyResponse{
-		Entry:      entryInfo(en),
+		Entry:      toEntryInfo(en),
 		Properties: properties,
 	}, nil
 }
 
 func (s *services) DeleteProperty(ctx context.Context, request *DeletePropertyRequest) (*DeletePropertyResponse, error) {
-	en, err := s.ctrl.GetEntry(ctx, request.EntryID)
+	caller := s.caller(ctx)
+	if !caller.Authenticated {
+		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+
+	en, err := s.fs.GetEntry(ctx, caller.Namespace, request.EntryID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
-	err = s.ctrl.RemoveEntryProperty(ctx, en.ID, request.Key)
+	err = s.fs.RemoveEntryProperty(ctx, caller.Namespace, en.ID, request.Key)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "set entry extend field failed")
 	}
-	properties, err := s.queryEntryProperties(ctx, en.ID, en.ParentID)
+
+	en, err = s.fs.GetEntry(ctx, caller.Namespace, request.EntryID)
 	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query entry properties failed")
+		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
+	properties := make([]*Property, 0)
+	if en.Properties != nil {
+		for k, v := range en.Properties.Fields {
+			properties = append(properties, &Property{
+				Key:     k,
+				Value:   v.Value,
+				Encoded: v.Encoded,
+			})
+
+		}
+	}
+
 	return &DeletePropertyResponse{
-		Entry:      entryInfo(en),
+		Entry:      toEntryInfo(en),
 		Properties: properties,
 	}, nil
 }

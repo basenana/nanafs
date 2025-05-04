@@ -14,7 +14,7 @@
  limitations under the License.
 */
 
-package fs
+package fuse
 
 import (
 	"context"
@@ -50,7 +50,7 @@ func NewMockController() controller.Controller {
 }
 
 func initFsBridge(nfs *NanaFS) *NanaNode {
-	nfs.logger = logger.NewLogger("test-fs")
+	nfs.logger = logger.NewLogger("test-fuse")
 	root, _ := nfs.newFsNode(context.Background(), nil, nil)
 	oneSecond := time.Second
 	_ = fs.NewNodeFS(root, &fs.Options{

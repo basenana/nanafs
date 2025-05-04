@@ -18,7 +18,7 @@ package fs
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
@@ -31,23 +31,18 @@ type Query interface {
 	FindEntry(ctx context.Context, namespace string, parentId int64, name string) (*Entry, error)
 	GetEntry(ctx context.Context, namespace string, id int64) (*Entry, error)
 	ListEntryChildren(ctx context.Context, namespace string, entryId int64, order *types.EntryOrder, filters ...types.Filter) ([]*Entry, error)
-
-	GetEntryInfoByURI(ctx context.Context, namespace string, uri string) (*EntryInfo, error)
-	FindEntryInfo(ctx context.Context, namespace string, parentId int64, name string) (*EntryInfo, error)
-	GetEntryInfo(ctx context.Context, namespace string, id int64) (*EntryInfo, error)
-	GetEntryChildrenReader(ctx context.Context, namespace string, entryId int64) ([]*EntryInfo, error)
 }
 
 type queryService struct {
 	meta   metastore.Meta
-	entry  dentry.Manager
+	core   core.Core
 	logger *zap.SugaredLogger
 }
 
-func newQuery(depends Depends) (Query, error) {
+func newQuery(depends *Depends) (Query, error) {
 	return &queryService{
 		meta:   depends.Meta,
-		entry:  depends.Entry,
+		core:   depends.Core,
 		logger: logger.NewLogger("fsQuery"),
 	}, nil
 }
@@ -73,26 +68,6 @@ func (q *queryService) GetEntry(ctx context.Context, namespace string, id int64)
 }
 
 func (q *queryService) ListEntryChildren(ctx context.Context, namespace string, entryId int64, order *types.EntryOrder, filters ...types.Filter) ([]*Entry, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (q *queryService) GetEntryInfoByURI(ctx context.Context, namespace string, uri string) (*EntryInfo, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (q *queryService) FindEntryInfo(ctx context.Context, namespace string, parentId int64, name string) (*EntryInfo, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (q *queryService) GetEntryInfo(ctx context.Context, namespace string, id int64) (*EntryInfo, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (q *queryService) GetEntryChildrenReader(ctx context.Context, namespace string, entryId int64) ([]*EntryInfo, error) {
 	//TODO implement me
 	panic("implement me")
 }

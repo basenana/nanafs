@@ -14,7 +14,7 @@
  limitations under the License.
 */
 
-package fs
+package fuse
 
 import (
 	"context"
@@ -67,7 +67,7 @@ type NanaNode struct {
 var _ nodeOperation = &NanaNode{}
 
 func (n *NanaNode) Access(ctx context.Context, mask uint32) syscall.Errno {
-	defer trace.StartRegion(ctx, "fs.node.Access").End()
+	defer trace.StartRegion(ctx, "fuse.node.Access").End()
 	defer logOperationLatency("entry_access", time.Now())
 
 	var uid, gid uint32
@@ -84,7 +84,7 @@ func (n *NanaNode) Access(ctx context.Context, mask uint32) syscall.Errno {
 }
 
 func (n *NanaNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut) syscall.Errno {
-	defer trace.StartRegion(ctx, "fs.node.Getattr").End()
+	defer trace.StartRegion(ctx, "fuse.node.Getattr").End()
 	defer logOperationLatency("entry_get_attr", time.Now())
 	file, ok := f.(fs.FileGetattrer)
 	if ok {
@@ -102,7 +102,7 @@ func (n *NanaNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrO
 }
 
 func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAttrIn, out *fuse.AttrOut) syscall.Errno {
-	defer trace.StartRegion(ctx, "fs.node.Setattr").End()
+	defer trace.StartRegion(ctx, "fuse.node.Setattr").End()
 	defer logOperationLatency("entry_set_attr", time.Now())
 	var uid, gid uint32
 	if fuseCtx, ok := ctx.(*fuse.Context); ok {
@@ -129,7 +129,7 @@ func (n *NanaNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAtt
 }
 
 func (n *NanaNode) Getxattr(ctx context.Context, attr string, dest []byte) (uint32, syscall.Errno) {
-	defer trace.StartRegion(ctx, "fs.node.Getxattr").End()
+	defer trace.StartRegion(ctx, "fuse.node.Getxattr").End()
 	defer logOperationLatency("entry_get_xattr", time.Now())
 	data, err := n.R.GetEntryProperty(ctx, n.entryID, attr)
 	if err != nil {
@@ -147,7 +147,7 @@ func (n *NanaNode) Getxattr(ctx context.Context, attr string, dest []byte) (uint
 }
 
 func (n *NanaNode) Setxattr(ctx context.Context, attr string, data []byte, flags uint32) syscall.Errno {
-	defer trace.StartRegion(ctx, "fs.node.Setxattr").End()
+	defer trace.StartRegion(ctx, "fuse.node.Setxattr").End()
 	defer logOperationLatency("entry_set_xattr", time.Now())
 	if err := n.R.SetEntryEncodedProperty(ctx, n.entryID, attr, data); err != nil {
 		return Error2FuseSysError("entry_set_xattr", err)
@@ -156,7 +156,7 @@ func (n *NanaNode) Setxattr(ctx context.Context, attr string, data []byte, flags
 }
 
 func (n *NanaNode) Removexattr(ctx context.Context, attr string) syscall.Errno {
-	defer trace.StartRegion(ctx, "fs.node.Removexattr").End()
+	defer trace.StartRegion(ctx, "fuse.node.Removexattr").End()
 	defer logOperationLatency("entry_remove_xattr", time.Now())
 	if err := n.R.RemoveEntryProperty(ctx, n.entryID, attr); err != nil {
 		return syscall.Errno(0x5d)
@@ -165,7 +165,7 @@ func (n *NanaNode) Removexattr(ctx context.Context, attr string) syscall.Errno {
 }
 
 func (n *NanaNode) Open(ctx context.Context, flags uint32) (fh fs.FileHandle, fuseFlags uint32, errno syscall.Errno) {
-	defer trace.StartRegion(ctx, "fs.node.Open").End()
+	defer trace.StartRegion(ctx, "fuse.node.Open").End()
 	defer logOperationLatency("entry_open", time.Now())
 	entry, err := n.R.GetSourceEntry(ctx, n.entryID)
 	if err != nil {
@@ -179,7 +179,7 @@ func (n *NanaNode) Open(ctx context.Context, flags uint32) (fh fs.FileHandle, fu
 }
 
 func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode uint32, out *fuse.EntryOut) (*fs.Inode, fs.FileHandle, uint32, syscall.Errno) {
-	defer trace.StartRegion(ctx, "fs.node.Create").End()
+	defer trace.StartRegion(ctx, "fuse.node.Create").End()
 	defer logOperationLatency("entry_create", time.Now())
 
 	ch, err := n.R.FindEntry(ctx, n.entryID, name)
@@ -216,7 +216,7 @@ func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode u
 }
 
 func (n *NanaNode) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
-	defer trace.StartRegion(ctx, "fs.node.Lookup").End()
+	defer trace.StartRegion(ctx, "fuse.node.Lookup").End()
 	defer logOperationLatency("entry_lookup", time.Now())
 
 	ch, err := n.R.FindEntry(ctx, n.entryID, name)
@@ -239,7 +239,7 @@ func (n *NanaNode) Lookup(ctx context.Context, name string, out *fuse.EntryOut) 
 }
 
 func (n *NanaNode) Opendir(ctx context.Context) syscall.Errno {
-	defer trace.StartRegion(ctx, "fs.node.Opendir").End()
+	defer trace.StartRegion(ctx, "fuse.node.Opendir").End()
 	defer logOperationLatency("entry_open_dir", time.Now())
 	entry, err := n.R.GetEntry(ctx, n.entryID)
 	if err != nil {
@@ -252,7 +252,7 @@ func (n *NanaNode) Opendir(ctx context.Context) syscall.Errno {
 }
 
 func (n *NanaNode) Readdir(ctx context.Context) (fs.DirStream, syscall.Errno) {
-	defer trace.StartRegion(ctx, "fs.node.Readdir").End()
+	defer trace.StartRegion(ctx, "fuse.node.Readdir").End()
 	defer logOperationLatency("entry_read_dir", time.Now())
 	result := make([]fuse.DirEntry, 0)
 	children, err := n.R.ListEntryChildren(ctx, n.entryID, nil, types.Filter{})
@@ -275,7 +275,7 @@ func (n *NanaNode) Readdir(ctx context.Context) (fs.DirStream, syscall.Errno) {
 }
 
 func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
-	defer trace.StartRegion(ctx, "fs.node.Mkdir").End()
+	defer trace.StartRegion(ctx, "fuse.node.Mkdir").End()
 	defer logOperationLatency("entry_mkdir", time.Now())
 	ch, err := n.R.FindEntry(ctx, n.entryID, name)
 	if err != nil && err != types.ErrNotFound {
@@ -309,7 +309,7 @@ func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fus
 }
 
 func (n *NanaNode) Mknod(ctx context.Context, name string, mode uint32, dev uint32, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
-	defer trace.StartRegion(ctx, "fs.node.Mknod").End()
+	defer trace.StartRegion(ctx, "fuse.node.Mknod").End()
 	defer logOperationLatency("entry_mknod", time.Now())
 	ch, err := n.R.FindEntry(ctx, n.entryID, name)
 	if err != nil && err != types.ErrNotFound {
@@ -343,7 +343,7 @@ func (n *NanaNode) Mknod(ctx context.Context, name string, mode uint32, dev uint
 }
 
 func (n *NanaNode) Link(ctx context.Context, target fs.InodeEmbedder, name string, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
-	defer trace.StartRegion(ctx, "fs.node.Link").End()
+	defer trace.StartRegion(ctx, "fuse.node.Link").End()
 	defer logOperationLatency("entry_link", time.Now())
 	targetNode, ok := target.(*NanaNode)
 	if !ok {
@@ -362,7 +362,7 @@ func (n *NanaNode) Link(ctx context.Context, target fs.InodeEmbedder, name strin
 
 // TODO: improve symlink operation
 func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.EntryOut) (node *fs.Inode, errno syscall.Errno) {
-	defer trace.StartRegion(ctx, "fs.node.Symlink").End()
+	defer trace.StartRegion(ctx, "fuse.node.Symlink").End()
 	defer logOperationLatency("entry_symlink", time.Now())
 	exist, err := n.R.FindEntry(ctx, n.entryID, name)
 	if err != nil {
@@ -406,7 +406,7 @@ func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.E
 }
 
 func (n *NanaNode) Readlink(ctx context.Context) ([]byte, syscall.Errno) {
-	defer trace.StartRegion(ctx, "fs.node.Readlink").End()
+	defer trace.StartRegion(ctx, "fuse.node.Readlink").End()
 	defer logOperationLatency("entry_read_link", time.Now())
 	entry, err := n.R.GetEntry(ctx, n.entryID)
 	if err != nil {
@@ -427,7 +427,7 @@ func (n *NanaNode) Readlink(ctx context.Context) ([]byte, syscall.Errno) {
 }
 
 func (n *NanaNode) Unlink(ctx context.Context, name string) syscall.Errno {
-	defer trace.StartRegion(ctx, "fs.node.Unlink").End()
+	defer trace.StartRegion(ctx, "fuse.node.Unlink").End()
 	defer logOperationLatency("entry_unlink", time.Now())
 	var uid, gid uint32
 	if fuseCtx, ok := ctx.(*fuse.Context); ok {
@@ -447,7 +447,7 @@ func (n *NanaNode) Unlink(ctx context.Context, name string) syscall.Errno {
 }
 
 func (n *NanaNode) Rmdir(ctx context.Context, name string) syscall.Errno {
-	defer trace.StartRegion(ctx, "fs.node.Rmdir").End()
+	defer trace.StartRegion(ctx, "fuse.node.Rmdir").End()
 	defer logOperationLatency("entry_rmdir", time.Now())
 	if name == ".." {
 		return Error2FuseSysError("entry_rmdir", types.ErrIsExist)
@@ -482,7 +482,7 @@ func (n *NanaNode) Rmdir(ctx context.Context, name string) syscall.Errno {
 }
 
 func (n *NanaNode) Rename(ctx context.Context, name string, newParent fs.InodeEmbedder, newName string, flags uint32) syscall.Errno {
-	defer trace.StartRegion(ctx, "fs.node.Rename").End()
+	defer trace.StartRegion(ctx, "fuse.node.Rename").End()
 	defer logOperationLatency("entry_rename", time.Now())
 	newNode, ok := newParent.(*NanaNode)
 	if !ok {
@@ -518,11 +518,11 @@ func (n *NanaNode) Rename(ctx context.Context, name string, newParent fs.InodeEm
 }
 
 func (n *NanaNode) OnAdd(ctx context.Context) {
-	defer trace.StartRegion(ctx, "fs.node.OnAdd").End()
+	defer trace.StartRegion(ctx, "fuse.node.OnAdd").End()
 }
 
 func (n *NanaNode) Release(ctx context.Context, f fs.FileHandle) (err syscall.Errno) {
-	defer trace.StartRegion(ctx, "fs.node.Release").End()
+	defer trace.StartRegion(ctx, "fuse.node.Release").End()
 	closer, ok := f.(fs.FileReleaser)
 	if ok {
 		err = closer.Release(ctx)
@@ -535,7 +535,7 @@ func (n *NanaNode) Release(ctx context.Context, f fs.FileHandle) (err syscall.Er
 }
 
 func (n *NanaNode) Statfs(ctx context.Context, out *fuse.StatfsOut) syscall.Errno {
-	defer trace.StartRegion(ctx, "fs.node.Statfs").End()
+	defer trace.StartRegion(ctx, "fuse.node.Statfs").End()
 	defer logOperationLatency("entry_statfs", time.Now())
 	info := n.R.FsInfo(ctx)
 	fsInfo2StatFs(info, out)
