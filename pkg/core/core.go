@@ -18,7 +18,6 @@ package core
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"github.com/basenana/nanafs/config"
@@ -27,7 +26,6 @@ import (
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/bluele/gcache"
 	"go.uber.org/zap"
@@ -45,13 +43,6 @@ type Core interface {
 	RemoveEntry(ctx context.Context, namespace string, parentId, entryId int64) error
 	MirrorEntry(ctx context.Context, namespace string, srcId, dstParentId int64, attr types.EntryAttr) (*types.Entry, error)
 	ChangeEntryParent(ctx context.Context, namespace string, targetEntryId int64, overwriteEntryId *int64, oldParentId, newParentId int64, newName string, opt types.ChangeParentAttr) error
-
-	GetXAttr(ctx context.Context, namespace string, id int64, fKey string) ([]byte, error)
-	SetXAttr(ctx context.Context, namespace string, id int64, fKey string, fVal []byte) error
-	RemoveXAttr(ctx context.Context, namespace string, id int64, fKey string) error
-	ListProperties(ctx context.Context, namespace string, id int64) (types.Properties, error)
-	SetProperty(ctx context.Context, namespace string, id int64, fKey, fVal string) error
-	RemoveProperty(ctx context.Context, namespace string, id int64, fKey string) error
 
 	FindEntry(ctx context.Context, namespace string, parentId int64, name string) (*types.Entry, error)
 	ListChildren(ctx context.Context, namespace string, parentId int64) ([]*types.Child, error)
@@ -98,7 +89,7 @@ func New(store metastore.Meta, cfg config.Bootstrap) (Core, error) {
 
 	go c.entryActionEventHandler()
 	fileEntryLogger = c.logger.Named("files")
-	return c, err
+	return c, nil
 }
 
 type core struct {
@@ -128,13 +119,11 @@ func (c *core) FSRoot(ctx context.Context) (*types.Entry, error) {
 		err  error
 	)
 	root, err = c.getEntry(ctx, types.DefaultNamespace, RootEntryID)
-	if err != nil {
-		return nil, err
-	}
 	if err == nil {
 		c.root = root
 		return c.root, nil
 	}
+
 	if !errors.Is(err, types.ErrNotFound) {
 		c.logger.Errorw("load root object error", "err", err.Error())
 		return nil, err
@@ -155,11 +144,18 @@ func (c *core) FSRoot(ctx context.Context) (*types.Entry, error) {
 
 func (c *core) NamespaceRoot(ctx context.Context, namespace string) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "fs.core.NamespaceRoot").End()
-	var (
-		nsRoot *types.Entry
-		err    error
-	)
-	nsRoot, err = c.store.FindEntry(ctx, types.DefaultNamespace, RootEntryID, namespace)
+
+	root, err := c.FSRoot(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if namespace == types.DefaultNamespace {
+		return root, nil
+	}
+
+	var nsRoot *types.Entry
+	nsRoot, err = c.store.FindEntry(ctx, types.DefaultNamespace, root.ID, namespace)
 	if err != nil {
 		c.logger.Errorw("load ns root object error", "namespace", namespace, "err", err)
 		return nil, err
@@ -468,56 +464,6 @@ func (c *core) ChangeEntryParent(ctx context.Context, namespace string, targetEn
 	c.cache.Remove(ik{namespace: namespace, id: targetEntryId})
 	c.cache.Remove(ik{namespace: namespace, id: newParentId})
 	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeChangeParent, target.Namespace, target.ID)
-	return nil
-}
-
-// MARK: xattr
-
-func (c *core) GetXAttr(ctx context.Context, namespace string, id int64, fKey string) ([]byte, error) {
-	p, err := c.store.GetEntryProperty(ctx, namespace, id, fKey)
-	if err != nil {
-		return nil, err
-	}
-
-	val := []byte(p.Value)
-	if p.Encoded {
-		val, err = base64.StdEncoding.DecodeString(p.Value)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return val, nil
-}
-
-func (c *core) SetXAttr(ctx context.Context, namespace string, id int64, fKey string, fVal []byte) error {
-	if err := c.store.AddEntryProperty(ctx, namespace, id, fKey, types.PropertyItem{Value: utils.EncodeBase64(fVal), Encoded: true}); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *core) RemoveXAttr(ctx context.Context, namespace string, id int64, fKey string) error {
-	if err := c.store.RemoveEntryProperty(ctx, namespace, id, fKey); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *core) ListProperties(ctx context.Context, namespace string, id int64) (types.Properties, error) {
-	return types.Properties{}, nil
-}
-
-func (c *core) SetProperty(ctx context.Context, namespace string, id int64, fKey, fVal string) error {
-	if err := c.metastore.AddEntryProperty(ctx, namespace, id, fKey, types.PropertyItem{Value: fVal, Encoded: false}); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *core) RemoveProperty(ctx context.Context, namespace string, id int64, fKey string) error {
-	if err := c.metastore.RemoveEntryProperty(ctx, namespace, id, fKey); err != nil {
-		return err
-	}
 	return nil
 }
 

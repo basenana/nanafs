@@ -77,7 +77,9 @@ var _ = Describe("TestManageGroupEntry", func() {
 			file2, err := groupHasChildEntry(grp, "test_group_manage_file2")
 			Expect(err).Should(BeNil())
 
-			file2, err = fsCore.UpdateEntry(ctx, namespace, file2.ID, types.UpdateEntry{Name: "test_group_manage_file3"})
+			newName := "test_group_manage_file3"
+			update := types.UpdateEntry{Name: &newName}
+			file2, err = fsCore.UpdateEntry(ctx, namespace, file2.ID, update)
 			Expect(err).Should(BeNil())
 
 			_, err = groupHasChildEntry(grp, "test_group_manage_file2")

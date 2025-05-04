@@ -94,11 +94,6 @@ func NewEntry(name string, kind Kind) Entry {
 	return result
 }
 
-type GroupEntry struct {
-	Entry    *Entry        `json:"entry"`
-	Children []*GroupEntry `json:"children"`
-}
-
 type EntryOrder struct {
 	Order EnOrder
 	Desc  bool

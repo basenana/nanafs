@@ -75,7 +75,8 @@ var _ = BeforeSuite(func() {
 
 	rule.InitQuery(memMeta)
 
-	storage.InitLocalCache(config.Bootstrap{CacheDir: tempDir, CacheSize: 1})
+	bootCfg.CacheDir = tempDir
+	bootCfg.CacheSize = 0
 
 	fsCore, err = core.New(memMeta, bootCfg)
 	Expect(err).Should(BeNil())

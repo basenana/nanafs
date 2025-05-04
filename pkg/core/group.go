@@ -114,7 +114,7 @@ func (d *dynamicGroup) ListChildren(ctx context.Context, order *types.EntryOrder
 		childrenMap[ch.Name] = struct{}{}
 	}
 
-	dynamicChildren, err := rule.Q().Rule(d.rule).Results(ctx)
+	dynamicChildren, err := rule.Q(d.std.namespace).Rule(d.rule).Results(ctx)
 	if err != nil {
 		d.logger.Errorw("list children with rule failed", "err", err)
 		return nil, err

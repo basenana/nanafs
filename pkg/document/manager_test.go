@@ -35,7 +35,7 @@ var _ = Describe("testDocumentManage", func() {
 	)
 	Context("document", func() {
 		It("create should be succeed", func() {
-			entry, err = entryMgr.CreateEntry(context.TODO(), root.ID, types.EntryAttr{
+			entry, err = coreMgr.CreateEntry(context.TODO(), namespace, root.ID, types.EntryAttr{
 				Name: "test_doc",
 				Kind: types.RawKind,
 			})
@@ -105,7 +105,7 @@ var _ = Describe("testDocumentManage", func() {
 			grp *types.Entry
 		)
 		It("create group and document should succeed", func() {
-			grp, err = entryMgr.CreateEntry(context.TODO(), root.ID, types.EntryAttr{
+			grp, err = coreMgr.CreateEntry(context.TODO(), namespace, root.ID, types.EntryAttr{
 				Name:   "test_list_grp",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
@@ -143,13 +143,13 @@ var _ = Describe("TestHandleEvent", func() {
 	Context("create grp and files", func() {
 		It("create grp and files should be succeed", func() {
 			var err error
-			grp1, err = entryMgr.CreateEntry(context.TODO(), root.ID, types.EntryAttr{
+			grp1, err = coreMgr.CreateEntry(context.TODO(), namespace, root.ID, types.EntryAttr{
 				Name:   "test_doc_grp1",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
-			grp1File1, err = entryMgr.CreateEntry(context.TODO(), grp1.ID, types.EntryAttr{
+			grp1File1, err = coreMgr.CreateEntry(context.TODO(), namespace, grp1.ID, types.EntryAttr{
 				Name:   "test_doc_grp1_file1",
 				Kind:   types.RawKind,
 				Access: accessPermissions,
@@ -162,7 +162,7 @@ var _ = Describe("TestHandleEvent", func() {
 			})
 			Expect(err).Should(BeNil())
 
-			grp1File2, err = entryMgr.CreateEntry(context.TODO(), grp1.ID, types.EntryAttr{
+			grp1File2, err = coreMgr.CreateEntry(context.TODO(), namespace, grp1.ID, types.EntryAttr{
 				Name:   "test_doc_grp1_file2",
 				Kind:   types.RawKind,
 				Access: accessPermissions,
@@ -175,7 +175,7 @@ var _ = Describe("TestHandleEvent", func() {
 			})
 			Expect(err).Should(BeNil())
 
-			grp1File3, err = entryMgr.CreateEntry(context.TODO(), grp1.ID, types.EntryAttr{
+			grp1File3, err = coreMgr.CreateEntry(context.TODO(), namespace, grp1.ID, types.EntryAttr{
 				Name:   "test_doc_grp1_file3",
 				Kind:   types.RawKind,
 				Access: accessPermissions,
@@ -188,7 +188,7 @@ var _ = Describe("TestHandleEvent", func() {
 			})
 			Expect(err).Should(BeNil())
 
-			grp1File4, err = entryMgr.CreateEntry(context.TODO(), grp1.ID, types.EntryAttr{
+			grp1File4, err = coreMgr.CreateEntry(context.TODO(), namespace, grp1.ID, types.EntryAttr{
 				Name:   "test_doc_grp1_file4",
 				Kind:   types.RawKind,
 				Access: accessPermissions,
@@ -217,7 +217,7 @@ var _ = Describe("TestHandleEvent", func() {
 			Expect(err).Should(Equal(types.ErrNotFound))
 		})
 		It("change parent should be succeed", func() {
-			err := entryMgr.ChangeEntryParent(context.TODO(), grp1File2.ID, nil, grp1.ID, root.ID, grp1File2.Name, types.ChangeParentAttr{})
+			err := coreMgr.ChangeEntryParent(context.TODO(), namespace, grp1File2.ID, nil, grp1.ID, root.ID, grp1File2.Name, types.ChangeParentAttr{})
 			Expect(err).Should(BeNil())
 
 			err = docManager.handleEntryEvent(&types.Event{
@@ -234,7 +234,7 @@ var _ = Describe("TestHandleEvent", func() {
 			Expect(doc.ParentEntryID).Should(Equal(root.ID))
 		})
 		It("update name should be succeed", func() {
-			err := entryMgr.ChangeEntryParent(context.TODO(), grp1File3.ID, nil, grp1.ID, grp1.ID, "test3", types.ChangeParentAttr{})
+			err := coreMgr.ChangeEntryParent(context.TODO(), namespace, grp1File3.ID, nil, grp1.ID, grp1.ID, "test3", types.ChangeParentAttr{})
 			Expect(err).Should(BeNil())
 
 			err = docManager.handleEntryEvent(&types.Event{

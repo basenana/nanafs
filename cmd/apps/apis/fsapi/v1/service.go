@@ -371,7 +371,10 @@ func (s *servicesV1) FindEntryDetail(ctx context.Context, request *FindEntryDeta
 		return nil, status.Error(common.FsApiError(err), "query root entry failed")
 	}
 
-	details, properties := toEntryDetail(en, nil)
+	details, properties, err := s.getEntryDetails(ctx, caller.Namespace, en.ID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "query entry details failed")
+	}
 	return &GetEntryDetailResponse{Entry: details, Properties: properties}, nil
 }
 
@@ -389,15 +392,17 @@ func (s *servicesV1) GetEntryDetail(ctx context.Context, request *GetEntryDetail
 		return nil, status.Error(common.FsApiError(err), "has no permission")
 	}
 
-	var p *types.Entry
 	if en.ParentID != core.RootEntryID {
-		p, err = s.core.GetEntry(ctx, caller.Namespace, en.ParentID)
+		_, err = s.core.GetEntry(ctx, caller.Namespace, en.ParentID)
 		if err != nil {
 			return nil, status.Error(common.FsApiError(err), "query entry parent failed")
 		}
 	}
 
-	detail, properties := toEntryDetail(en, p)
+	detail, properties, err := s.getEntryDetails(ctx, caller.Namespace, en.ID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "query entry details failed")
+	}
 	return &GetEntryDetailResponse{Entry: detail, Properties: properties}, nil
 }
 
@@ -464,7 +469,7 @@ func (s *servicesV1) UpdateEntry(ctx context.Context, request *UpdateEntryReques
 		return nil, status.Error(common.FsApiError(err), "has no permission")
 	}
 
-	parent, err := s.core.GetEntry(ctx, caller.Namespace, en.ParentID)
+	_, err = s.core.GetEntry(ctx, caller.Namespace, en.ParentID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry parent failed")
 	}
@@ -481,7 +486,10 @@ func (s *servicesV1) UpdateEntry(ctx context.Context, request *UpdateEntryReques
 		return nil, status.Error(common.FsApiError(err), "update entry failed")
 	}
 
-	detail, _ := toEntryDetail(en, parent)
+	detail, _, err := s.getEntryDetails(ctx, caller.Namespace, en.ID)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "query entry detail failed")
+	}
 	return &UpdateEntryResponse{Entry: detail}, nil
 }
 
@@ -595,7 +603,7 @@ func (s *servicesV1) ListGroupChildren(ctx context.Context, request *ListGroupCh
 		Order: types.EnOrder(request.Order),
 		Desc:  request.OrderDesc,
 	}
-	children, err := s.ListEntryChildren(ctx, caller.Namespace, request.ParentID, &order, filter)
+	children, err := s.listEntryChildren(ctx, caller.Namespace, request.ParentID, &order, filter)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "list children failed")
 	}
@@ -802,7 +810,7 @@ func (s *servicesV1) AddProperty(ctx context.Context, request *AddPropertyReques
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
-	err = s.core.SetProperty(ctx, caller.Namespace, en.ID, request.Key, request.Value)
+	err = s.meta.AddEntryProperty(ctx, caller.Namespace, en.ID, request.Key, types.PropertyItem{Value: request.Value, Encoded: false})
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "add entry extend field failed")
 	}
@@ -833,7 +841,7 @@ func (s *servicesV1) UpdateProperty(ctx context.Context, request *UpdateProperty
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
 
-	err = s.core.SetProperty(ctx, caller.Namespace, en.ID, request.Key, request.Value)
+	err = s.meta.AddEntryProperty(ctx, caller.Namespace, en.ID, request.Key, types.PropertyItem{Value: request.Value, Encoded: false})
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "set entry extend field failed")
 	}
@@ -863,7 +871,7 @@ func (s *servicesV1) DeleteProperty(ctx context.Context, request *DeleteProperty
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
-	err = s.core.RemoveProperty(ctx, caller.Namespace, en.ID, request.Key)
+	err = s.meta.RemoveEntryProperty(ctx, caller.Namespace, en.ID, request.Key)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "set entry extend field failed")
 	}
@@ -968,39 +976,4 @@ func (s *servicesV1) TriggerWorkflow(ctx context.Context, request *TriggerWorkfl
 		return nil, status.Error(common.FsApiError(err), "trigger workflow failed")
 	}
 	return &TriggerWorkflowResponse{JobID: job.Id}, nil
-}
-
-func (s *servicesV1) queryEntryProperties(ctx context.Context, namespace string, entryID, parentID int64) ([]*Property, error) {
-	var (
-		properties types.Properties
-		err        error
-	)
-	if parentID != core.RootEntryID {
-		properties, err = s.core.ListProperties(ctx, namespace, parentID)
-		if err != nil {
-			return nil, err
-		}
-		s.logger.Infow("list entry properties", "entry", entryID, "parentID", parentID, "got", len(properties.Fields))
-	}
-	entryProperties, err := s.core.ListProperties(ctx, namespace, entryID)
-	if err != nil {
-		return nil, err
-	}
-
-	if properties.Fields == nil {
-		properties.Fields = make(map[string]types.PropertyItem)
-	}
-	for k, p := range entryProperties.Fields {
-		properties.Fields[k] = p
-	}
-	result := make([]*Property, 0, len(properties.Fields))
-	for key, p := range properties.Fields {
-		result = append(result, &Property{
-			Key:     key,
-			Value:   p.Value,
-			Encoded: p.Encoded,
-		})
-	}
-
-	return result, nil
 }

@@ -18,6 +18,7 @@ package v1
 
 import (
 	"context"
+	"github.com/basenana/nanafs/pkg/core"
 	"io"
 	"time"
 
@@ -31,7 +32,6 @@ import (
 	"google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/status"
 
-	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
 )
 
@@ -99,7 +99,7 @@ var _ = Describe("testEntriesService-CRUD", func() {
 	Context("test create entry", func() {
 		It("create group should be succeed", func() {
 			resp, err := serviceClient.CreateEntry(ctx, &CreateEntryRequest{
-				ParentID: dentry.RootEntryID,
+				ParentID: core.RootEntryID,
 				Name:     "test-group-1",
 				Kind:     types.GroupKind,
 			}, grpc.UseCompressor(gzip.Name))
@@ -108,7 +108,7 @@ var _ = Describe("testEntriesService-CRUD", func() {
 			groupID = resp.Entry.Id
 
 			resp, err = serviceClient.CreateEntry(ctx, &CreateEntryRequest{
-				ParentID: dentry.RootEntryID,
+				ParentID: core.RootEntryID,
 				Name:     "test-group-2",
 				Kind:     types.GroupKind,
 			}, grpc.UseCompressor(gzip.Name))
@@ -157,7 +157,8 @@ var _ = Describe("testEntriesService-CRUD", func() {
 	Context("test update entry", func() {
 		It("update should be succeed", func() {
 			_, err := serviceClient.UpdateEntry(ctx, &UpdateEntryRequest{
-				Entry: &EntryDetail{Id: fileID, Aliases: "test aliases"},
+				EntryID: fileID,
+				Aliases: "test aliases",
 			}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
 		})
@@ -195,7 +196,7 @@ var _ = Describe("testEntriesService-FileIO", func() {
 	Context("write new file", func() {
 		It("create new file should be succeed", func() {
 			resp, err := serviceClient.CreateEntry(ctx, &CreateEntryRequest{
-				ParentID: dentry.RootEntryID,
+				ParentID: core.RootEntryID,
 				Name:     "test-bio-file-1",
 				Kind:     types.RawKind,
 			}, grpc.UseCompressor(gzip.Name))
@@ -297,7 +298,7 @@ var _ = Describe("testEntryPropertiesService", func() {
 	Context("test add property", func() {
 		It("init entry should be succeed", func() {
 			resp, err := serviceClient.CreateEntry(ctx, &CreateEntryRequest{
-				ParentID: dentry.RootEntryID,
+				ParentID: core.RootEntryID,
 				Name:     "test-file-property-1",
 				Kind:     types.RawKind,
 			}, grpc.UseCompressor(gzip.Name))
@@ -365,7 +366,7 @@ var _ = Describe("testDocumentsService-ReadView", func() {
 				f   = false
 			)
 			resp, err := serviceClient.CreateEntry(ctx, &CreateEntryRequest{
-				ParentID: dentry.RootEntryID,
+				ParentID: core.RootEntryID,
 				Name:     "test-doc-group-1",
 				Kind:     types.GroupKind,
 			}, grpc.UseCompressor(gzip.Name))
@@ -373,7 +374,7 @@ var _ = Describe("testDocumentsService-ReadView", func() {
 			Expect(resp.Entry.Name).Should(Equal("test-doc-group-1"))
 			groupID1 = resp.Entry.Id
 			resp, err = serviceClient.CreateEntry(ctx, &CreateEntryRequest{
-				ParentID: dentry.RootEntryID,
+				ParentID: core.RootEntryID,
 				Name:     "test-doc-group-2",
 				Kind:     types.GroupKind,
 			}, grpc.UseCompressor(gzip.Name))

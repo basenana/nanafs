@@ -37,9 +37,9 @@ var (
 		},
 	}
 
-	fs   *core.FileSystem
-	nfs  *NanaFS
-	root *NanaNode
+	corefs *core.FileSystem
+	nfs    *NanaFS
+	root   *NanaNode
 )
 
 func newCoreFileSystem() *core.FileSystem {
@@ -62,8 +62,8 @@ func newMockNanaFS(fs *core.FileSystem) *NanaFS {
 
 var _ = BeforeSuite(func() {
 	var err error
-	fs = newCoreFileSystem()
-	nfs = newMockNanaFS(fs)
+	corefs = newCoreFileSystem()
+	nfs = newMockNanaFS(corefs)
 
 	root, err = nfs.rootNode()
 	Expect(err).Should(BeNil())

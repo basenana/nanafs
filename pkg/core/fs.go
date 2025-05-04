@@ -18,9 +18,11 @@ package core
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"io"
@@ -272,15 +274,33 @@ func (f *FileSystem) Rename(ctx context.Context, targetId, oldParentId, newParen
 // MARK: xattr
 
 func (f *FileSystem) GetXAttr(ctx context.Context, id int64, fKey string) ([]byte, error) {
-	return f.core.GetXAttr(ctx, f.namespace, id, fKey)
+	p, err := f.store.GetEntryProperty(ctx, f.namespace, id, fKey)
+	if err != nil {
+		return nil, err
+	}
+
+	val := []byte(p.Value)
+	if p.Encoded {
+		val, err = base64.StdEncoding.DecodeString(p.Value)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return val, nil
 }
 
 func (f *FileSystem) SetXAttr(ctx context.Context, id int64, fKey string, fVal []byte) error {
-	return f.core.SetXAttr(ctx, f.namespace, id, fKey, fVal)
+	if err := f.store.AddEntryProperty(ctx, f.namespace, id, fKey, types.PropertyItem{Value: utils.EncodeBase64(fVal), Encoded: true}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (f *FileSystem) RemoveXAttr(ctx context.Context, id int64, fKey string) error {
-	return f.core.RemoveXAttr(ctx, f.namespace, id, fKey)
+	if err := f.store.RemoveEntryProperty(ctx, f.namespace, id, fKey); err != nil {
+		return err
+	}
+	return nil
 }
 
 // MARK: file

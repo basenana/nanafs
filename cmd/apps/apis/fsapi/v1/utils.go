@@ -89,57 +89,6 @@ func toEntryInfo(en *types.Entry) *EntryInfo {
 	}
 }
 
-func toEntryDetail(en, parent *types.Entry) (*EntryDetail, []*Property) {
-	access := &EntryDetail_Access{Uid: en.Access.UID, Gid: en.Access.GID}
-	for _, perm := range en.Access.Permissions {
-		access.Permissions = append(access.Permissions, string(perm))
-	}
-
-	properties := make(map[string]types.PropertyItem)
-	ed := &EntryDetail{
-		Id:         en.ID,
-		Name:       en.Name,
-		Aliases:    en.Aliases,
-		Kind:       string(en.Kind),
-		IsGroup:    en.IsGroup,
-		Size:       en.Size,
-		Version:    en.Version,
-		Namespace:  en.Namespace,
-		Storage:    en.Storage,
-		Access:     access,
-		CreatedAt:  timestamppb.New(en.CreatedAt),
-		ChangedAt:  timestamppb.New(en.ChangedAt),
-		ModifiedAt: timestamppb.New(en.ModifiedAt),
-		AccessAt:   timestamppb.New(en.AccessAt),
-	}
-
-	if parent != nil {
-		ed.Parent = toEntryInfo(parent)
-
-		if parent.Properties != nil {
-			for k, v := range en.Properties.Fields {
-				properties[k] = v
-			}
-		}
-	}
-
-	if en.Properties != nil {
-		for k, v := range en.Properties.Fields {
-			properties[k] = v
-		}
-	}
-
-	pl := make([]*Property, 0)
-	for k, item := range properties {
-		pl = append(pl, &Property{
-			Key:     k,
-			Value:   item.Value,
-			Encoded: item.Encoded,
-		})
-	}
-	return ed, pl
-}
-
 func entryDetail(en, parent *types.Entry) *EntryDetail {
 	access := &EntryDetail_Access{Uid: en.Access.UID, Gid: en.Access.GID}
 	for _, perm := range en.Access.Permissions {
@@ -235,18 +184,6 @@ func documentInfo(doc *types.Document) *DocumentInfo {
 		CreatedAt:     timestamppb.New(doc.CreatedAt),
 		ChangedAt:     timestamppb.New(doc.ChangedAt),
 	}
-}
-
-func buildRootGroup(tree *types.GroupTree) *GetGroupTreeResponse_GroupEntry {
-	result := &GetGroupTreeResponse_GroupEntry{
-		Name:     tree.Name,
-		Children: make([]*GetGroupTreeResponse_GroupEntry, 0),
-	}
-
-	for _, ch := range tree.Children {
-		result.Children = append(result.Children, buildRootGroup(ch))
-	}
-	return result
 }
 
 func setupRssConfig(config *CreateEntryRequest_RssConfig, attr *types.EntryAttr) {

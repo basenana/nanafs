@@ -147,7 +147,7 @@ var _ = Describe("TestCreate", func() {
 				_, _, _, errNo := root.Create(ctx, newFileName, 0, 0755, out)
 				Expect(errNo).To(Equal(syscall.Errno(0)))
 
-				children, err := fs.ListChildren(ctx, root.entry.ID)
+				children, err := nfs.ListChildren(ctx, root.entry.ID)
 				Expect(err).To(BeNil())
 
 				found := false

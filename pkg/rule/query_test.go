@@ -40,7 +40,7 @@ var _ = Describe("TestQuery", func() {
 	gomega.Expect(err).Should(gomega.BeNil())
 
 	doQuery := func(rules []types.Rule, labelMatches []types.LabelMatch) []*types.Entry {
-		q := Q()
+		q := Q(types.DefaultNamespace)
 		for i := range rules {
 			q = q.Rule(rules[i])
 		}

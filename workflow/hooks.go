@@ -255,7 +255,7 @@ func (h *hooks) filterAndRunCronWorkflow(ctx context.Context, wf *types.Workflow
 		entries []*types.Entry
 		err     error
 	)
-	entries, err = rule.Q().Rule(*wf.Rule).Results(ctx)
+	entries, err = rule.Q(wf.Namespace).Rule(*wf.Rule).Results(ctx)
 	if err != nil {
 		h.logger.Errorw("[filterAndRunCronWorkflow] query entries with wf rule failed", "workflow", wf.Id, "rule", wf.Rule, "err", err)
 		return err

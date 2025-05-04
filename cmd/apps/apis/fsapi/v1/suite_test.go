@@ -73,7 +73,8 @@ var _ = BeforeSuite(func() {
 	workdir, err := os.MkdirTemp(os.TempDir(), "ut-nanafs-fsapi-")
 	Expect(err).Should(BeNil())
 
-	storage.InitLocalCache(config.Bootstrap{CacheDir: workdir, CacheSize: 0})
+	mockConfig.CacheDir = workdir
+	mockConfig.CacheSize = 0
 
 	cl := config.NewMockConfigLoader(mockConfig)
 	_ = cl.SetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "job_workdir", workdir)

@@ -1080,7 +1080,15 @@ func (s *sqlMetaStore) UpdateEntryLabels(ctx context.Context, namespace string, 
 		}
 
 		for k, v := range labelsMap {
-			needCreateLabelModels = append(needCreateLabelModels, db.Label{RefType: "object", RefID: id, Key: k, Value: v, SearchKey: labelSearchKey(k, v)})
+			needCreateLabelModels = append(needCreateLabelModels,
+				db.Label{
+					RefID:     id,
+					RefType:   "object",
+					Namespace: namespace,
+					Key:       k,
+					Value:     v,
+					SearchKey: labelSearchKey(k, v),
+				})
 		}
 
 		if len(needCreateLabelModels) > 0 {
@@ -1799,20 +1807,20 @@ func updateEntryWithVersion(tx *gorm.DB, entryMod *db.Entry) error {
 }
 
 func listEntryIdsWithLabelMatcher(ctx context.Context, namespace string, tx *gorm.DB, labelMatch types.LabelMatch) ([]int64, error) {
-	tx = namespaceQuery(tx.WithContext(ctx), namespace)
+	tx = tx.WithContext(ctx)
 	includeSearchKeys := make([]string, len(labelMatch.Include))
 	for i, inKey := range labelMatch.Include {
 		includeSearchKeys[i] = labelSearchKey(inKey.Key, inKey.Value)
 	}
 
 	var includeLabels []db.Label
-	res := tx.Where("ref_type = ? AND search_key IN ?", "object", includeSearchKeys).Find(&includeLabels)
+	res := namespaceQuery(tx, namespace).Where("ref_type = ? AND search_key IN ?", "object", includeSearchKeys).Find(&includeLabels)
 	if res.Error != nil {
 		return nil, res.Error
 	}
 
 	var excludeLabels []db.Label
-	res = tx.Select("ref_id").Where("ref_type = ? AND key IN ?", "object", labelMatch.Exclude).Find(&excludeLabels)
+	res = namespaceQuery(tx, namespace).Select("ref_id").Where("ref_type = ? AND key IN ?", "object", labelMatch.Exclude).Find(&excludeLabels)
 	if res.Error != nil {
 		return nil, res.Error
 	}

@@ -17,6 +17,7 @@
 package metastore
 
 import (
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"os"
 	"testing"
@@ -25,7 +26,10 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var workdir string
+var (
+	workdir   string
+	namespace = types.DefaultNamespace
+)
 
 func TestMetaStore(t *testing.T) {
 	RegisterFailHandler(Fail)

@@ -35,8 +35,10 @@ import (
 
 var (
 	docManager *manager
+	coreMgr    core.Core
 	workdir    string
 	root       *types.Entry
+	namespace  = types.DefaultNamespace
 	bootCfg    = config.Bootstrap{
 		FS: &config.FS{},
 		Storages: []config.Storage{{
@@ -55,7 +57,8 @@ func TestDocument(t *testing.T) {
 	workdir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-doc-")
 	Expect(err).Should(BeNil())
 	t.Logf("unit test workdir on: %s", workdir)
-	storage.InitLocalCache(config.Bootstrap{CacheDir: workdir, CacheSize: 1})
+	bootCfg.CacheDir = workdir
+	bootCfg.CacheSize = 0
 
 	RunSpecs(t, "Document Suite")
 }
@@ -72,6 +75,7 @@ var _ = BeforeSuite(func() {
 		friday:   friday.NewMockFriday(),
 		logger:   logger.NewLogger("doc"),
 	}
+	coreMgr = c
 
 	// init root
 	root, err = c.FSRoot(context.TODO())

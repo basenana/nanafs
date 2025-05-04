@@ -31,29 +31,30 @@ var defaultQuery Query
 
 func InitQuery(entryStore metastore.EntryStore) {
 	defaultQuery = &query{
-		entry:  entryStore,
+		store:  entryStore,
 		logger: logger.NewLogger("ruleQuery"),
 	}
 }
 
 type Query interface {
-	Reset() Query
+	Reset(namesapce string) Query
 	Rule(rule types.Rule) Query
 	Label(label types.LabelMatch) Query
 	Results(ctx context.Context) ([]*types.Entry, error)
 }
 
 type query struct {
-	rules  []types.Rule
-	labels []types.LabelMatch
-	entry  metastore.EntryStore
-	logger *zap.SugaredLogger
+	rules     []types.Rule
+	labels    []types.LabelMatch
+	namespace string
+	store     metastore.EntryStore
+	logger    *zap.SugaredLogger
 }
 
-func (q *query) Reset() Query {
+func (q *query) Reset(namespace string) Query {
 	q.rules = nil
 	q.labels = nil
-	return &query{entry: q.entry, logger: q.logger}
+	return &query{store: q.store, namespace: namespace, logger: q.logger}
 }
 
 func (q *query) Rule(rule types.Rule) Query {
@@ -86,7 +87,7 @@ func (q *query) Results(ctx context.Context) ([]*types.Entry, error) {
 	}
 
 	var entriesIt metastore.EntryIterator
-	entriesIt, err = q.entry.FilterEntries(ctx, "", types.Filter{Label: mergeLabelMatch(q.labels)})
+	entriesIt, err = q.store.FilterEntries(ctx, q.namespace, types.Filter{Label: mergeLabelMatch(q.labels)})
 	if err != nil {
 		q.logger.Errorw("list entries from store with label match failed", "err", err)
 		return nil, err
@@ -103,13 +104,13 @@ func (q *query) Results(ctx context.Context) ([]*types.Entry, error) {
 	// filter in memory
 	for entriesIt.HasNext() {
 		en := entriesIt.Next()
-		properties, err := q.entry.ListEntryProperties(ctx, en.Namespace, en.ID)
+		properties, err := q.store.ListEntryProperties(ctx, en.Namespace, en.ID)
 		if err != nil {
 			q.logger.Errorw("get entry extend data failed", "entry", en.ID, "err", err)
 			return nil, err
 		}
 
-		labels, err := q.entry.GetEntryLabels(ctx, en.Namespace, en.ID)
+		labels, err := q.store.GetEntryLabels(ctx, en.Namespace, en.ID)
 		if err != nil {
 			q.logger.Errorw("get entry labels failed", "entry", en.ID, "err", err)
 			return nil, err
@@ -122,6 +123,6 @@ func (q *query) Results(ctx context.Context) ([]*types.Entry, error) {
 	return entries, nil
 }
 
-func Q() Query {
-	return defaultQuery.Reset()
+func Q(namespace string) Query {
+	return defaultQuery.Reset(namespace)
 }
