@@ -35,57 +35,6 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 )
 
-var _ = Describe("testRoomService", func() {
-	var (
-		ctx    = context.TODO()
-		roomId int64
-	)
-
-	Context("test room", func() {
-		It("create should be succeed", func() {
-			resp, err := serviceClient.OpenRoom(ctx, &OpenRoomRequest{
-				EntryID: 1,
-				Option: &OpenRoomRequest_Option{
-					Prompt: "test prompt",
-				},
-			}, grpc.UseCompressor(gzip.Name))
-			Expect(err).Should(BeNil())
-			roomId = resp.Room.Id
-		})
-		It("open should be succeed", func() {
-			resp, err := serviceClient.OpenRoom(ctx, &OpenRoomRequest{
-				EntryID: 1,
-				RoomID:  roomId,
-			}, grpc.UseCompressor(gzip.Name))
-			Expect(err).Should(BeNil())
-			Expect(resp.Room.Prompt).Should(Equal("test prompt"))
-		})
-		It("update should be succeed", func() {
-			_, err := serviceClient.UpdateRoom(ctx, &UpdateRoomRequest{
-				RoomID: roomId,
-				Prompt: "update prompt",
-			}, grpc.UseCompressor(gzip.Name))
-			Expect(err).Should(BeNil())
-			res, err := serviceClient.OpenRoom(ctx, &OpenRoomRequest{
-				EntryID: 1,
-				RoomID:  roomId,
-			}, grpc.UseCompressor(gzip.Name))
-			Expect(err).Should(BeNil())
-			Expect(res.Room.Prompt).Should(Equal("update prompt"))
-		})
-		It("list should be succeed", func() {
-			resp, err := serviceClient.ListRooms(ctx, &ListRoomsRequest{EntryID: 1}, grpc.UseCompressor(gzip.Name))
-			Expect(err).Should(BeNil())
-			Expect(len(resp.Rooms)).Should(Equal(1))
-		})
-
-		It("delete should be succeed", func() {
-			_, err := serviceClient.DeleteRoom(ctx, &DeleteRoomRequest{RoomID: roomId}, grpc.UseCompressor(gzip.Name))
-			Expect(err).Should(BeNil())
-		})
-	})
-})
-
 var _ = Describe("testEntriesService-CRUD", func() {
 	var (
 		ctx     = context.TODO()

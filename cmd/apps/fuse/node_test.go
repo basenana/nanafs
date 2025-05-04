@@ -22,7 +22,6 @@ import (
 	"os"
 	"syscall"
 
-	fusefs "github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -303,10 +302,8 @@ var _ = Describe("TestMkdir", func() {
 			Context("make a dir", func() {
 				out = &fuse.EntryOut{}
 
-				var newDir *fusefs.Inode
-				newDir, err = root.Mkdir(ctx, dirName, 0, out)
+				_, err = root.Mkdir(ctx, dirName, 0, out)
 				Expect(err).To(Equal(syscall.Errno(0)))
-				root.AddChild(dirName, newDir, false)
 			})
 			When("dir already existed", func() {
 				Context("make a dir again", func() {
@@ -431,15 +428,15 @@ var _ = Describe("TestRename", func() {
 		Context("rename a file", func() {
 			It("should be ok", func() {
 				eno := root.Rename(ctx, filename, root, filenamenew, 0)
-				Expect(eno).To(Equal(syscall.ENOENT))
+				Expect(eno).To(Equal(NoErr))
 			})
 			It("should be using new name", func() {
 				isFound := false
 				dir, eno := root.Readdir(ctx)
-				Expect(eno).To(Equal(syscall.ENOENT))
+				Expect(eno).To(Equal(NoErr))
 				for dir.HasNext() {
 					ch, eno := dir.Next()
-					Expect(eno).To(Equal(syscall.ENOENT))
+					Expect(eno).To(Equal(NoErr))
 					if ch.Name == filenamenew {
 						isFound = true
 					}
@@ -450,15 +447,15 @@ var _ = Describe("TestRename", func() {
 		Context("move a file", func() {
 			It("should be ok", func() {
 				eno := root.Rename(ctx, filenamenew, dirNode, filename, 0)
-				Expect(eno).To(Equal(syscall.ENOENT))
+				Expect(eno).To(Equal(NoErr))
 			})
 			It("should be found in new dir", func() {
 				isFound := false
 				dir, eno := dirNode.Readdir(ctx)
-				Expect(eno).To(Equal(syscall.ENOENT))
+				Expect(eno).To(Equal(NoErr))
 				for dir.HasNext() {
 					ch, eno := dir.Next()
-					Expect(eno).To(Equal(syscall.ENOENT))
+					Expect(eno).To(Equal(NoErr))
 					if ch.Name == filename {
 						isFound = true
 					}

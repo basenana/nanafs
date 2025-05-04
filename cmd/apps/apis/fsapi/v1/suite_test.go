@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"google.golang.org/grpc/credentials"
@@ -82,6 +83,14 @@ var _ = BeforeSuite(func() {
 	dep, err = common.InitDepends(cl, memMeta)
 	Expect(err).Should(BeNil())
 
+	// mock friday
+	dep.FridayClient = friday.NewMockFriday()
+	dep.Document, err = document.NewManager(dep.Meta, dep.Core, dep.ConfigLoader, dep.FridayClient)
+
+	// init root
+	_, err = dep.Core.FSRoot(context.TODO())
+	Expect(err).Should(BeNil())
+
 	buffer := 1024 * 1024
 	mockListen = bufconn.Listen(buffer)
 
@@ -114,7 +123,6 @@ var _ = BeforeSuite(func() {
 
 	serviceClient = &Client{
 		DocumentClient:   NewDocumentClient(conn),
-		RoomClient:       NewRoomClient(conn),
 		EntriesClient:    NewEntriesClient(conn),
 		PropertiesClient: NewPropertiesClient(conn),
 		WorkflowClient:   NewWorkflowClient(conn),
@@ -134,7 +142,6 @@ var _ = AfterSuite(func() {
 
 type Client struct {
 	DocumentClient
-	RoomClient
 	EntriesClient
 	PropertiesClient
 	WorkflowClient

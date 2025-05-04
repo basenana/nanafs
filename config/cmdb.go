@@ -37,7 +37,7 @@ func (f *memCmdb) GetConfigValue(ctx context.Context, namespace, group, name str
 	f.mux.Lock()
 	defer f.mux.Unlock()
 
-	data, ok := f.db[cacheConfigKey{namespace: namespace, group: group, name: namespace}]
+	data, ok := f.db[cacheConfigKey{namespace: namespace, group: group, name: name}]
 	if !ok {
 		return "", fmt.Errorf("cmdb: no record")
 	}
@@ -47,7 +47,7 @@ func (f *memCmdb) GetConfigValue(ctx context.Context, namespace, group, name str
 func (f *memCmdb) SetConfigValue(ctx context.Context, namespace, group, name, value string) error {
 	f.mux.Lock()
 	defer f.mux.Unlock()
-	f.db[cacheConfigKey{namespace: namespace, group: group, name: namespace}] = value
+	f.db[cacheConfigKey{namespace: namespace, group: group, name: name}] = value
 	return nil
 }
 

@@ -20,6 +20,7 @@ import (
 	"github.com/basenana/nanafs/pkg/core"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"os"
 	"testing"
 
 	"github.com/basenana/nanafs/config"
@@ -43,9 +44,19 @@ var (
 )
 
 func newCoreFileSystem() *core.FileSystem {
-	m, _ := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
-	c, _ := core.New(m, config.Bootstrap{})
-	fs, _ := core.NewFileSystem(c, m, types.DefaultNamespace)
+	m, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
+	Expect(err).Should(BeNil())
+
+	tempDir, err := os.MkdirTemp(os.TempDir(), "ut-nanafs-fuse-")
+	Expect(err).Should(BeNil())
+	cfg.CacheDir = tempDir
+	cfg.CacheSize = 0
+
+	c, err := core.New(m, cfg)
+	Expect(err).Should(BeNil())
+	fs, err := core.NewFileSystem(c, m, types.DefaultNamespace)
+	Expect(err).Should(BeNil())
+
 	return fs
 }
 

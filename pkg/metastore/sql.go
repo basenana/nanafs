@@ -830,6 +830,9 @@ func (s *sqlMetaStore) Open(ctx context.Context, namespace string, id int64, att
 		if res.Error != nil {
 			return res.Error
 		}
+		if enMod.IsGroup {
+			return types.ErrIsGroup
+		}
 		// do not update ctime
 		enMod.AccessAt = nowTime
 		if attr.Write {
@@ -874,7 +877,7 @@ func (s *sqlMetaStore) Flush(ctx context.Context, namespace string, id int64, si
 func (s *sqlMetaStore) GetEntryExtendData(ctx context.Context, namespace string, id int64) (types.ExtendData, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.GetEntryExtendData").End()
 	var ext = &db.EntryExtend{}
-	res := s.WithNamespace(ctx, namespace).Where("id = ?", id).First(ext)
+	res := s.WithContext(ctx).Where("id = ?", id).First(ext)
 	if res.Error != nil {
 		err := db.SqlError2Error(res.Error)
 		if errors.Is(err, types.ErrNotFound) {
@@ -893,7 +896,7 @@ func (s *sqlMetaStore) UpdateEntryExtendData(ctx context.Context, namespace stri
 	)
 
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQuery(tx, namespace).Where("id = ?", id).First(entryModel)
+		res := tx.Where("id = ?", id).First(entryModel)
 		if res.Error != nil {
 			return res.Error
 		}

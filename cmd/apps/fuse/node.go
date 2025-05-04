@@ -323,7 +323,6 @@ func (n *NanaNode) Mknod(ctx context.Context, name string, mode uint32, dev uint
 		return nil, Error2FuseSysError("entry_mknod", err)
 	}
 	updateAttrOut(nanaNode2Stat(newCh), &out.Attr)
-	n.AddChild(name, node.EmbeddedInode(), true)
 	return node.EmbeddedInode(), NoErr
 }
 
@@ -341,7 +340,6 @@ func (n *NanaNode) Link(ctx context.Context, target fs.InodeEmbedder, name strin
 	}
 
 	updateAttrOut(nanaNode2Stat(newEntry), &out.Attr)
-	n.AddChild(name, target.EmbeddedInode(), true)
 	return target.EmbeddedInode(), NoErr
 }
 

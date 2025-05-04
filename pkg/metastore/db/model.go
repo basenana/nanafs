@@ -323,7 +323,7 @@ func (o *Event) From(event types.Event) {
 	o.DataContentType = event.DataContentType
 	o.Data = event.Data.String()
 	o.Sequence = event.Sequence
-	o.Namespace = event.Data.Namespace
+	o.Namespace = event.Namespace
 	o.Time = event.Time
 }
 

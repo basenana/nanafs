@@ -68,6 +68,9 @@ func New(store metastore.Meta, cfg config.Bootstrap) (Core, error) {
 			return nil, err
 		}
 	}
+	if len(storages) == 0 {
+		return nil, errors.New("no storage configed")
+	}
 	defaultStorage = storages[cfg.Storages[0].ID]
 
 	c := &core{
@@ -293,6 +296,14 @@ func (c *core) UpdateEntry(ctx context.Context, namespace string, id int64, upda
 		return nil, err
 	}
 
+	if update.Name != nil {
+		en.Name = *update.Name
+	}
+
+	if update.Aliases != nil {
+		en.Aliases = *update.Aliases
+	}
+
 	if err = c.store.UpdateEntry(ctx, namespace, en); err != nil {
 		return nil, err
 	}
@@ -330,7 +341,7 @@ func (c *core) RemoveEntry(ctx context.Context, namespace string, parentId, entr
 		return err
 	}
 	c.cache.Remove(ik{namespace: namespace, id: entryId})
-	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeDestroy, "", entryId)
+	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeDestroy, namespace, entryId)
 	return nil
 }
 
@@ -401,7 +412,7 @@ func (c *core) MirrorEntry(ctx context.Context, namespace string, srcId, dstPare
 		return nil, err
 	}
 
-	if err = c.store.MirrorEntry(ctx, "", en); err != nil {
+	if err = c.store.MirrorEntry(ctx, namespace, en); err != nil {
 		c.logger.Errorw("update dst parent object ref count error", "srcEntry", srcId, "dstParent", dstParentId, "err", err.Error())
 		return nil, err
 	}
@@ -456,7 +467,7 @@ func (c *core) ChangeEntryParent(ctx context.Context, namespace string, targetEn
 		publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeDestroy, overwriteEntry.Namespace, overwriteEntry.ID)
 	}
 
-	err = c.store.ChangeEntryParent(ctx, "", targetEntryId, newParentId, newName, opt)
+	err = c.store.ChangeEntryParent(ctx, namespace, targetEntryId, newParentId, newName, opt)
 	if err != nil {
 		c.logger.Errorw("change object parent failed", "entry", target.ID, "newParent", newParentId, "newName", newName, "err", err)
 		return err
@@ -479,7 +490,7 @@ func (c *core) Open(ctx context.Context, namespace string, entryId int64, attr t
 		if err := c.CleanEntryData(ctx, namespace, entryId); err != nil {
 			c.logger.Errorw("clean entry with trunc error", "entry", entryId, "err", err)
 		}
-		publicEntryActionEvent(events.TopicNamespaceFile, events.ActionTypeTrunc, "", entryId)
+		publicEntryActionEvent(events.TopicNamespaceFile, events.ActionTypeTrunc, namespace, entryId)
 	}
 	c.cache.Set(ik{namespace: namespace, id: entryId}, entry)
 
@@ -503,7 +514,7 @@ func (c *core) FindEntry(ctx context.Context, namespace string, parentId int64, 
 	if err != nil {
 		return nil, err
 	}
-	return grp.FindEntry(ctx, namespace)
+	return grp.FindEntry(ctx, name)
 }
 
 func (c *core) ListChildren(ctx context.Context, namespace string, parentId int64) ([]*types.Child, error) {

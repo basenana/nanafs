@@ -63,17 +63,21 @@ func (s *servicesV1) listGroupEntry(ctx context.Context, namespace string, name 
 	}
 	result := &GetGroupTreeResponse_GroupEntry{
 		Name:     name,
-		Children: make([]*GetGroupTreeResponse_GroupEntry, 0, len(children)),
+		Children: nil,
 	}
-	for _, child := range children {
-		if child.IsGroup {
-			continue
+
+	if len(children) > 0 {
+		result.Children = make([]*GetGroupTreeResponse_GroupEntry, 0, len(children))
+		for _, child := range children {
+			if !child.IsGroup {
+				continue
+			}
+			grp, err := s.listGroupEntry(ctx, namespace, child.Name, child.ID)
+			if err != nil {
+				return nil, err
+			}
+			result.Children = append(result.Children, grp)
 		}
-		grp, err := s.listGroupEntry(ctx, namespace, child.Name, child.ID)
-		if err != nil {
-			return nil, err
-		}
-		result.Children = append(result.Children, grp)
 	}
 	return result, nil
 }

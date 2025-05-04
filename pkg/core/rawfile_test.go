@@ -51,9 +51,10 @@ func newMockFileEntry(name string) *types.Entry {
 	if err == nil {
 		return en
 	}
-	en, err = fsCore.CreateEntry(ctx, namespace, root.ID, types.EntryAttr{Name: name, Kind: types.RawKind})
-	if err != nil {
-		panic(fmt.Errorf("init file entry failed: %s", err))
+	var createErr error
+	en, createErr = fsCore.CreateEntry(ctx, namespace, root.ID, types.EntryAttr{Name: name, Kind: types.RawKind})
+	if createErr != nil {
+		panic(fmt.Errorf("init file entry failed: %s", createErr))
 	}
 	size := int64(fileChunkSize * 4)
 	_, err = fsCore.UpdateEntry(context.TODO(), namespace, en.ID, types.UpdateEntry{Size: &size})

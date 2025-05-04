@@ -147,7 +147,7 @@ func (s *servicesV1) ListDocuments(ctx context.Context, request *ListDocumentsRe
 		Desc:  request.OrderDesc,
 	}
 
-	docList, err := s.doc.ListDocuments(ctx, filter, &order)
+	docList, err := s.doc.ListDocuments(ctx, caller.Namespace, filter, &order)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "filter document failed")
 	}
@@ -201,7 +201,7 @@ func (s *servicesV1) GetDocumentParents(ctx context.Context, request *GetDocumen
 			filter.ChangedAtEnd = &t
 		}
 	}
-	entries, err := s.doc.ListDocumentGroups(ctx, request.ParentId, filter)
+	entries, err := s.doc.ListDocumentGroups(ctx, caller.Namespace, request.ParentId, filter)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query groups of documents parent failed")
 	}
@@ -229,13 +229,13 @@ func (s *servicesV1) GetDocumentDetail(ctx context.Context, request *GetDocument
 		err        error
 	)
 	if request.DocumentID != 0 {
-		doc, err = s.doc.GetDocument(ctx, request.DocumentID)
+		doc, err = s.doc.GetDocument(ctx, caller.Namespace, request.DocumentID)
 		if err != nil {
 			return nil, status.Error(common.FsApiError(err), "query document with document id failed")
 		}
 	}
 	if request.EntryID != 0 {
-		doc, err = s.doc.GetDocumentByEntryId(ctx, request.EntryID)
+		doc, err = s.doc.GetDocumentByEntryId(ctx, caller.Namespace, request.EntryID)
 		if err != nil {
 			return nil, status.Error(common.FsApiError(err), "query document with entry id failed")
 		}
@@ -309,10 +309,15 @@ func (s *servicesV1) UpdateDocument(ctx context.Context, request *UpdateDocument
 }
 
 func (s *servicesV1) SearchDocuments(ctx context.Context, request *SearchDocumentsRequest) (*SearchDocumentsResponse, error) {
+	caller := s.caller(ctx)
+	if !caller.Authenticated {
+		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+
 	if len(request.Query) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "query is empty")
 	}
-	docList, err := s.doc.QueryDocuments(ctx, request.Query)
+	docList, err := s.doc.QueryDocuments(ctx, caller.Namespace, request.Query)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "search document failed")
 	}
@@ -701,9 +706,8 @@ func (s *servicesV1) WriteFile(reader Entries_WriteFileServer) error {
 			if err == io.EOF {
 				break
 			}
-			if err != nil {
-				return err
-			}
+			s.logger.Errorw("read entry failed", "error", err)
+			return err
 		}
 
 		if len(writeRequest.Data) == 0 || writeRequest.Len == 0 {

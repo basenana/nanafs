@@ -36,14 +36,14 @@ import (
 )
 
 type Manager interface {
-	ListDocuments(ctx context.Context, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error)
-	QueryDocuments(ctx context.Context, query string) ([]*types.Document, error)
-	CreateDocument(ctx context.Context, doc *types.Document) error
+	ListDocuments(ctx context.Context, namespace string, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error)
+	QueryDocuments(ctx context.Context, namespace string, query string) ([]*types.Document, error)
+	CreateDocument(ctx context.Context, namespace string, doc *types.Document) error
 	UpdateDocument(ctx context.Context, doc *types.Document) error
-	GetDocument(ctx context.Context, id int64) (*types.Document, error)
-	GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error)
-	DeleteDocument(ctx context.Context, id int64) error
-	ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) ([]*types.Entry, error)
+	GetDocument(ctx context.Context, namespace string, id int64) (*types.Document, error)
+	GetDocumentByEntryId(ctx context.Context, namespace string, oid int64) (*types.Document, error)
+	DeleteDocument(ctx context.Context, namespace string, id int64) error
+	ListDocumentGroups(ctx context.Context, namespace string, parentId int64, filter types.DocFilter) ([]*types.Entry, error)
 }
 
 type manager struct {
@@ -73,11 +73,11 @@ func NewManager(recorder metastore.EntryStore, fsCore core.Core, cfg config.Conf
 	return docMgr, nil
 }
 
-func (m *manager) ListDocuments(ctx context.Context, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error) {
+func (m *manager) ListDocuments(ctx context.Context, namespace string, filter types.DocFilter, order *types.DocumentOrder) ([]*types.Document, error) {
 	return m.friday.FilterDocuments(ctx, &filter, order)
 }
 
-func (m *manager) QueryDocuments(ctx context.Context, query string) ([]*types.Document, error) {
+func (m *manager) QueryDocuments(ctx context.Context, namespace string, query string) ([]*types.Document, error) {
 	filter := &types.DocFilter{
 		Search: query,
 	}
@@ -88,23 +88,23 @@ func (m *manager) UpdateDocument(ctx context.Context, doc *types.Document) error
 	return m.friday.UpdateDocument(ctx, doc)
 }
 
-func (m *manager) CreateDocument(ctx context.Context, doc *types.Document) error {
+func (m *manager) CreateDocument(ctx context.Context, namespace string, doc *types.Document) error {
 	return m.friday.CreateDocument(ctx, doc)
 }
 
-func (m *manager) GetDocument(ctx context.Context, id int64) (*types.Document, error) {
+func (m *manager) GetDocument(ctx context.Context, namespace string, id int64) (*types.Document, error) {
 	return m.friday.GetDocument(ctx, id)
 }
 
-func (m *manager) GetDocumentByEntryId(ctx context.Context, oid int64) (*types.Document, error) {
+func (m *manager) GetDocumentByEntryId(ctx context.Context, namespace string, oid int64) (*types.Document, error) {
 	return m.friday.GetDocument(ctx, oid)
 }
 
-func (m *manager) DeleteDocument(ctx context.Context, id int64) error {
+func (m *manager) DeleteDocument(ctx context.Context, namespace string, id int64) error {
 	return m.friday.DeleteDocument(ctx, id)
 }
 
-func (m *manager) ListDocumentGroups(ctx context.Context, parentId int64, filter types.DocFilter) ([]*types.Entry, error) {
+func (m *manager) ListDocumentGroups(ctx context.Context, namespace string, parentId int64, filter types.DocFilter) ([]*types.Entry, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.ListDocumentGroups").End()
 	entryFilter := types.Filter{
 		ID:              parentId,
@@ -116,7 +116,7 @@ func (m *manager) ListDocumentGroups(ctx context.Context, parentId int64, filter
 		ModifiedAtStart: filter.ChangedAtStart,
 		ModifiedAtEnd:   filter.ChangedAtEnd,
 	}
-	it, err := m.recorder.FilterEntries(ctx, "", entryFilter)
+	it, err := m.recorder.FilterEntries(ctx, namespace, entryFilter)
 	if err != nil {
 		return nil, err
 	}
@@ -138,12 +138,10 @@ func (m *manager) handleEntryEvent(evt *types.Event) error {
 	ctx, cancel := context.WithTimeout(context.TODO(), time.Hour)
 	defer cancel()
 
-	ctx = types.WithNamespace(ctx, types.NewNamespace(evt.Namespace))
 	entry := evt.Data
-
 	switch evt.Type {
 	case events.ActionTypeDestroy:
-		en, err := m.GetDocumentByEntryId(ctx, entry.ID)
+		en, err := m.GetDocumentByEntryId(ctx, evt.Namespace, entry.ID)
 		if err != nil {
 			if err == types.ErrNotFound {
 				return nil
@@ -152,17 +150,17 @@ func (m *manager) handleEntryEvent(evt *types.Event) error {
 			return err
 		}
 
-		return m.DeleteDocument(ctx, en.EntryId)
+		return m.DeleteDocument(ctx, evt.Namespace, en.EntryId)
 	case events.ActionTypeChangeParent:
 		fallthrough
 	case events.ActionTypeUpdate:
-		en, err := m.core.GetEntry(ctx, entry.Namespace, entry.ID)
+		en, err := m.core.GetEntry(ctx, evt.Namespace, entry.ID)
 		if err != nil {
 			m.logger.Errorw("[docUpdateExecutor] get entry failed", "entry", entry.ID, "err", err)
 			return err
 		}
 
-		doc, err := m.GetDocumentByEntryId(ctx, en.ID)
+		doc, err := m.GetDocumentByEntryId(ctx, evt.Namespace, en.ID)
 		if err != nil {
 			if err == types.ErrNotFound {
 				return nil

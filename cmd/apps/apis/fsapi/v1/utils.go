@@ -129,7 +129,7 @@ func eventInfo(evt *types.Event) *Event {
 			ParentID:  evt.Data.ParentID,
 			Kind:      string(evt.Data.Kind),
 			IsGroup:   evt.Data.IsGroup,
-			Namespace: evt.Data.Namespace,
+			Namespace: evt.Namespace,
 		},
 		Time:     timestamppb.New(evt.Time),
 		RefID:    evt.RefID,

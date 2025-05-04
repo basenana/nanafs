@@ -504,6 +504,10 @@ func (f *fsDIR) Readdir(count int) ([]FileInfo, error) {
 		result = append(result, &fInfo{Entry: child[i]})
 	}
 
+	if count == -1 || count >= len(result) {
+		return result, io.EOF
+	}
+
 	return result, nil
 }
 

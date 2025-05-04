@@ -25,7 +25,6 @@ import (
 
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 )
 
@@ -36,10 +35,8 @@ var _ = Describe("TestRootEntryInit", func() {
 	Context("query root entry first time", func() {
 		var mgr Core
 		It("init core should be succeed", func() {
-			mgr, _ = New(emptyObjectStore, config.Bootstrap{FS: &config.FS{}, Storages: []config.Storage{{
-				ID:   storage.MemoryStorage,
-				Type: storage.MemoryStorage,
-			}}})
+			mgr, err = New(emptyObjectStore, bootCfg)
+			Expect(err).Should(BeNil())
 		})
 		It("feat root should be succeed", func() {
 			_, err := mgr.FSRoot(context.TODO())
@@ -54,10 +51,8 @@ var _ = Describe("TestRootEntryInit", func() {
 
 		var mgr Core
 		It("init core should be succeed", func() {
-			mgr, _ = New(emptyObjectStore, config.Bootstrap{FS: &config.FS{}, Storages: []config.Storage{{
-				ID:   storage.MemoryStorage,
-				Type: storage.MemoryStorage,
-			}}})
+			mgr, err = New(emptyObjectStore, bootCfg)
+			Expect(err).Should(BeNil())
 		})
 		It("fetch root should be succeed", func() {
 			r, err := mgr.FSRoot(context.TODO())

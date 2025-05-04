@@ -40,9 +40,13 @@ var (
 	namespace    = types.DefaultNamespace
 
 	workdir string
+	bootCfg = config.Bootstrap{
+		FS:       &config.FS{},
+		Storages: []config.Storage{{ID: storage.MemoryStorage, Type: storage.MemoryStorage}},
+	}
 )
 
-func TestDEntry(t *testing.T) {
+func TestCore(t *testing.T) {
 	logger.InitLogger()
 	defer logger.Sync()
 	RegisterFailHandler(Fail)
@@ -51,7 +55,9 @@ func TestDEntry(t *testing.T) {
 	workdir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-core-")
 	Expect(err).Should(BeNil())
 	t.Logf("unit test workdir on: %s", workdir)
-	storage.InitLocalCache(config.Bootstrap{CacheDir: workdir, CacheSize: 1})
+
+	bootCfg.CacheDir = workdir
+	bootCfg.CacheSize = 0
 
 	RunSpecs(t, "Core Suite")
 }
@@ -60,16 +66,7 @@ var _ = BeforeSuite(func() {
 	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())
 	metaStoreObj = memMeta
-	fsCore, _ = New(metaStoreObj, config.Bootstrap{FS: &config.FS{}, Storages: []config.Storage{{
-		ID:   storage.MemoryStorage,
-		Type: storage.MemoryStorage,
-	}}})
-	storages := make(map[string]storage.Storage)
-	storages[storage.MemoryStorage], err = storage.NewStorage(
-		storage.MemoryStorage,
-		storage.MemoryStorage,
-		config.Storage{ID: storage.MemoryStorage, Type: storage.MemoryStorage},
-	)
+	fsCore, err = New(metaStoreObj, bootCfg)
 	Expect(err).Should(BeNil())
 
 	// init rule based query

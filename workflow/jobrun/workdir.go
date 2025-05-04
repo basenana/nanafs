@@ -202,7 +202,7 @@ func collectFile2Document(ctx context.Context, docMgr document.Manager, baseEn *
 		doc.CreatedAt = document.PublicAt
 		doc.ChangedAt = document.PublicAt
 	}
-	err := docMgr.CreateDocument(ctx, doc)
+	err := docMgr.CreateDocument(ctx, baseEn.Namespace, doc)
 	if err != nil {
 		return fmt.Errorf("create new entry failed: %s", err)
 	}

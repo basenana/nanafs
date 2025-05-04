@@ -35,7 +35,6 @@ import (
 
 var (
 	docManager *manager
-	coreMgr    core.Core
 	workdir    string
 	root       *types.Entry
 	namespace  = types.DefaultNamespace
@@ -75,7 +74,6 @@ var _ = BeforeSuite(func() {
 		friday:   friday.NewMockFriday(),
 		logger:   logger.NewLogger("doc"),
 	}
-	coreMgr = c
 
 	// init root
 	root, err = c.FSRoot(context.TODO())

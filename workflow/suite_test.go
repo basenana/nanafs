@@ -69,14 +69,13 @@ var _ = BeforeSuite(func() {
 	var err error
 	tempDir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-wf-")
 	Expect(err).Should(BeNil())
+	bootCfg.CacheDir = tempDir
+	bootCfg.CacheSize = 0
 
 	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())
 
 	rule.InitQuery(memMeta)
-
-	bootCfg.CacheDir = tempDir
-	bootCfg.CacheSize = 0
 
 	fsCore, err = core.New(memMeta, bootCfg)
 	Expect(err).Should(BeNil())
