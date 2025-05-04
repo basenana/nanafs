@@ -19,7 +19,6 @@ package core
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -48,9 +47,7 @@ func resetFileChunk() {
 
 func newMockFileEntry(name string) *types.Entry {
 	ctx := context.TODO()
-	grp, err := fsCore.OpenGroup(ctx, namespace, root.ID)
-	Expect(err).Should(BeNil())
-	en, err := grp.FindEntry(context.TODO(), name)
+	en, err := fsCore.FindEntry(context.TODO(), namespace, root.ID, name)
 	if err == nil {
 		return en
 	}
@@ -58,9 +55,8 @@ func newMockFileEntry(name string) *types.Entry {
 	if err != nil {
 		panic(fmt.Errorf("init file entry failed: %s", err))
 	}
-	en.Size = fileChunkSize * 4
-	en.Storage = storage.MemoryStorage
-	err = grp.UpdateEntry(context.TODO(), en)
+	size := int64(fileChunkSize * 4)
+	_, err = fsCore.UpdateEntry(context.TODO(), namespace, en.ID, types.UpdateEntry{Size: &size})
 	if err != nil {
 		panic(fmt.Errorf("update file entry failed: %s", err))
 	}
@@ -104,7 +100,7 @@ var _ = Describe("TestFileIO", func() {
 
 	Describe("test file read", func() {
 		var (
-			f   InterFile
+			f   RawFile
 			err error
 		)
 		BeforeEach(func() {
@@ -147,7 +143,7 @@ var _ = Describe("TestFileIO", func() {
 	Describe("test file write", func() {
 		var (
 			data = []byte("testdata-3")
-			f    InterFile
+			f    RawFile
 			err  error
 		)
 		Context("write new content to file", func() {
@@ -177,7 +173,7 @@ var _ = Describe("TestFileIO", func() {
 	Describe("test create new file", func() {
 		var (
 			data = []byte("testdata-2")
-			f    InterFile
+			f    RawFile
 			err  error
 		)
 

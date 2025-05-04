@@ -191,7 +191,7 @@ func (s *symlink) Fsync(ctx context.Context) error {
 
 func (s *symlink) Flush(ctx context.Context) (err error) {
 	defer trace.StartRegion(ctx, "dentry.symlink.Flush").End()
-	err = s.mgr.store.Flush(ctx, s.entryID, s.size)
+	err = s.mgr.store.Flush(ctx, "", s.entryID, s.size)
 	if err != nil {
 		return err
 	}

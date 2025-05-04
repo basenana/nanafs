@@ -27,7 +27,6 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 	"go.uber.org/zap"
 	"io"
-	"io/fs"
 	"runtime/trace"
 	"sync"
 	"time"
@@ -37,7 +36,7 @@ var (
 	fileEntryLogger *zap.SugaredLogger
 )
 
-type InterFile interface {
+type RawFile interface {
 	GetAttr() types.OpenAttr
 	WriteAt(ctx context.Context, data []byte, off int64) (int64, error)
 	ReadAt(ctx context.Context, dest []byte, off int64) (int64, error)
@@ -46,22 +45,10 @@ type InterFile interface {
 	Close(ctx context.Context) (err error)
 }
 
-type FileInfo interface {
-	ID() int64
-	fs.FileInfo
-}
-
-type File interface {
-	io.ReadWriteCloser
-	io.Seeker
-	Readdir(count int) ([]FileInfo, error)
-	Stat() (FileInfo, error)
-	Inter() InterFile
-}
-
-type file struct {
-	entryID int64
-	size    int64
+type rawFile struct {
+	namespace string
+	entryID   int64
+	size      int64
 
 	reader bio.Reader
 	writer bio.Writer
@@ -71,13 +58,13 @@ type file struct {
 	mux  sync.Mutex
 }
 
-var _ InterFile = &file{}
+var _ RawFile = &rawFile{}
 
-func (f *file) GetAttr() types.OpenAttr {
+func (f *rawFile) GetAttr() types.OpenAttr {
 	return f.attr
 }
 
-func (f *file) WriteAt(ctx context.Context, data []byte, off int64) (int64, error) {
+func (f *rawFile) WriteAt(ctx context.Context, data []byte, off int64) (int64, error) {
 	defer trace.StartRegion(ctx, "fs.core.file.WriteAt").End()
 	if !f.attr.Write || f.writer == nil {
 		return 0, types.ErrUnsupported
@@ -92,7 +79,7 @@ func (f *file) WriteAt(ctx context.Context, data []byte, off int64) (int64, erro
 	return n, err
 }
 
-func (f *file) Flush(ctx context.Context) error {
+func (f *rawFile) Flush(ctx context.Context) error {
 	defer trace.StartRegion(ctx, "fs.core.file.Flush").End()
 	if !f.attr.Write {
 		return nil
@@ -104,7 +91,7 @@ func (f *file) Flush(ctx context.Context) error {
 	return err
 }
 
-func (f *file) Fsync(ctx context.Context) error {
+func (f *rawFile) Fsync(ctx context.Context) error {
 	defer trace.StartRegion(ctx, "fs.core.file.Fsync").End()
 	if !f.attr.Write {
 		return types.ErrUnsupported
@@ -116,7 +103,7 @@ func (f *file) Fsync(ctx context.Context) error {
 	return err
 }
 
-func (f *file) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error) {
+func (f *rawFile) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error) {
 	defer trace.StartRegion(ctx, "fs.core.file.ReadAt").End()
 	if !f.attr.Read || f.reader == nil {
 		return 0, types.ErrUnsupported
@@ -128,10 +115,9 @@ func (f *file) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error
 	return n, err
 }
 
-func (f *file) Close(ctx context.Context) (err error) {
+func (f *rawFile) Close(ctx context.Context) (err error) {
 	defer trace.StartRegion(ctx, "fs.core.file.Close").End()
-	// TODO: fix close file event
-	//defer PublicFileActionEvent(events.ActionTypeClose, f.entry)
+	defer publicEntryActionEvent(events.TopicNamespaceFile, events.ActionTypeClose, f.namespace, f.entryID)
 	defer decreaseOpenedFile(f.entryID)
 	defer f.reader.Close()
 	if f.attr.Write {
@@ -144,8 +130,8 @@ func (f *file) Close(ctx context.Context) (err error) {
 	return nil
 }
 
-func openFile(en *types.Entry, attr types.OpenAttr, chunkStore metastore.ChunkStore, fileStorage storage.Storage) (InterFile, error) {
-	f := &file{entryID: en.ID, size: en.Size, attr: attr}
+func openFile(en *types.Entry, attr types.OpenAttr, chunkStore metastore.ChunkStore, fileStorage storage.Storage) (RawFile, error) {
+	f := &rawFile{namespace: en.Namespace, entryID: en.ID, size: en.Size, attr: attr}
 	if fileStorage == nil {
 		return nil, logOperationError(fileOperationErrorCounter, "init", fmt.Errorf("storage %s not found", en.Storage))
 	}
@@ -158,8 +144,9 @@ func openFile(en *types.Entry, attr types.OpenAttr, chunkStore metastore.ChunkSt
 }
 
 type symlink struct {
-	entryID int64
-	store   metastore.EntryStore
+	namespace string
+	entryID   int64
+	store     metastore.EntryStore
 
 	size       int64
 	modifiedAt time.Time
@@ -167,7 +154,7 @@ type symlink struct {
 	attr       types.OpenAttr
 }
 
-var _ InterFile = &symlink{}
+var _ RawFile = &symlink{}
 
 func (s *symlink) GetAttr() types.OpenAttr {
 	return s.attr
@@ -204,27 +191,27 @@ func (s *symlink) Fsync(ctx context.Context) error {
 
 func (s *symlink) Flush(ctx context.Context) (err error) {
 	defer trace.StartRegion(ctx, "fs.core.symlink.Flush").End()
-	err = s.store.Flush(ctx, s.entryID, s.size)
+	err = s.store.Flush(ctx, "", s.entryID, s.size)
 	if err != nil {
 		return err
 	}
 
-	eData, err := s.store.GetEntryExtendData(ctx, s.entryID)
+	eData, err := s.store.GetEntryExtendData(ctx, s.namespace, s.entryID)
 	if err != nil {
 		return err
 	}
 	eData.Symlink = string(s.data[:s.size])
-	return s.store.UpdateEntryExtendData(ctx, s.entryID, eData)
+	return s.store.UpdateEntryExtendData(ctx, s.namespace, s.entryID, eData)
 }
 
 func (s *symlink) Close(ctx context.Context) error {
 	defer trace.StartRegion(ctx, "fs.core.symlink.Close").End()
-	defer publicEntryActionEvent(events.TopicNamespaceFile, events.ActionTypeClose, s.entryID)
+	defer publicEntryActionEvent(events.TopicNamespaceFile, events.ActionTypeClose, "", s.entryID)
 	defer decreaseOpenedFile(s.entryID)
 	return s.Flush(ctx)
 }
 
-func openSymlink(store metastore.Meta, en *types.Entry, attr types.OpenAttr) (InterFile, error) {
+func openSymlink(store metastore.Meta, en *types.Entry, attr types.OpenAttr) (RawFile, error) {
 	if en.Kind != types.SymLinkKind {
 		return nil, fmt.Errorf("not symlink")
 	}
@@ -233,7 +220,7 @@ func openSymlink(store metastore.Meta, en *types.Entry, attr types.OpenAttr) (In
 		raw  []byte
 		size int64
 	)
-	eData, err := store.GetEntryExtendData(context.TODO(), en.ID)
+	eData, err := store.GetEntryExtendData(context.TODO(), en.Namespace, en.ID)
 	if err != nil {
 		return nil, logOperationError(fileOperationErrorCounter, "init", err)
 	}
@@ -247,7 +234,7 @@ func openSymlink(store metastore.Meta, en *types.Entry, attr types.OpenAttr) (In
 	}
 
 	increaseOpenedFile(en.ID)
-	return &symlink{entryID: en.ID, size: size, modifiedAt: en.ModifiedAt, store: store, data: raw, attr: attr}, nil
+	return &symlink{namespace: en.Namespace, entryID: en.ID, size: size, modifiedAt: en.ModifiedAt, store: store, data: raw, attr: attr}, nil
 }
 
 var (

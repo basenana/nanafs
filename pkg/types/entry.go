@@ -65,6 +65,13 @@ type Entry struct {
 	Access     Access    `json:"access"`
 }
 
+type Child struct {
+	ParentID  int64  `json:"parent_id"`
+	ChildID   int64  `json:"child_id"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+}
+
 func NewEntry(name string, kind Kind) Entry {
 	result := Entry{
 		ID:         utils.GenerateNewID(),

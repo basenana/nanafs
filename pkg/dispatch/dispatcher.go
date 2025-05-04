@@ -123,7 +123,7 @@ func (d *Dispatcher) dispatch(ctx context.Context, taskID string, exec executor,
 		taskFinishStatusCounter.WithLabelValues(taskID, types.ScheduledTaskFailed)
 		sentry.CaptureException(err)
 		d.logger.Errorw("execute task error", "recordID", task.ID, "taskID", task.TaskID, "err", err,
-			"recordNotificationErr", d.notify.RecordWarn(ctx, fmt.Sprintf("Scheduled task %s failed", task.TaskID), task.Result, "Dispatcher"))
+			"recordNotificationErr", d.notify.RecordWarn(ctx, task.Namespace, fmt.Sprintf("Scheduled task %s failed", task.TaskID), task.Result, "Dispatcher"))
 	} else {
 		task.Result = "succeed"
 		task.Status = types.ScheduledTaskSucceed

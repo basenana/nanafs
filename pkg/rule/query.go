@@ -86,7 +86,7 @@ func (q *query) Results(ctx context.Context) ([]*types.Entry, error) {
 	}
 
 	var entriesIt metastore.EntryIterator
-	entriesIt, err = q.entry.FilterEntries(ctx, types.Filter{Label: mergeLabelMatch(q.labels)})
+	entriesIt, err = q.entry.FilterEntries(ctx, "", types.Filter{Label: mergeLabelMatch(q.labels)})
 	if err != nil {
 		q.logger.Errorw("list entries from store with label match failed", "err", err)
 		return nil, err
@@ -103,13 +103,13 @@ func (q *query) Results(ctx context.Context) ([]*types.Entry, error) {
 	// filter in memory
 	for entriesIt.HasNext() {
 		en := entriesIt.Next()
-		properties, err := q.entry.ListEntryProperties(ctx, en.ID)
+		properties, err := q.entry.ListEntryProperties(ctx, en.Namespace, en.ID)
 		if err != nil {
 			q.logger.Errorw("get entry extend data failed", "entry", en.ID, "err", err)
 			return nil, err
 		}
 
-		labels, err := q.entry.GetEntryLabels(ctx, en.ID)
+		labels, err := q.entry.GetEntryLabels(ctx, en.Namespace, en.ID)
 		if err != nil {
 			q.logger.Errorw("get entry labels failed", "entry", en.ID, "err", err)
 			return nil, err

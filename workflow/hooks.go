@@ -206,12 +206,12 @@ func (h *hooks) handleEntryCreate(evt *types.Event) {
 		h.logger.Errorw("[handleEntryCreate] get entry failed", "entry", evt.RefID, "err", err)
 		return
 	}
-	properties, err := h.mgr.meta.ListEntryProperties(ctx, en.ID)
+	properties, err := h.mgr.meta.ListEntryProperties(ctx, en.Namespace, en.ID)
 	if err != nil {
 		h.logger.Errorw("[handleEntryCreate] get entry properties failed", "entry", evt.RefID, "err", err)
 		return
 	}
-	labels, err := h.mgr.meta.GetEntryLabels(ctx, en.ID)
+	labels, err := h.mgr.meta.GetEntryLabels(ctx, en.Namespace, en.ID)
 	if err != nil {
 		h.logger.Errorw("[handleEntryCreate] get entry labels failed", "entry", evt.RefID, "err", err)
 		return

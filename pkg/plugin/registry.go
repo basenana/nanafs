@@ -78,7 +78,7 @@ type Plugin interface {
 
 type Builder func(job *types.WorkflowJob, scope types.PlugScope) (Plugin, error)
 
-func Init(cfg config.Loader) (*Manager, error) {
+func Init(cfg config.Config) (*Manager, error) {
 	r := &registry{
 		cfg:     cfg,
 		plugins: map[string]*pluginInfo{},
@@ -94,7 +94,7 @@ func Init(cfg config.Loader) (*Manager, error) {
 
 type registry struct {
 	plugins map[string]*pluginInfo
-	cfg     config.Loader
+	cfg     config.Config
 	mux     sync.RWMutex
 	logger  *zap.SugaredLogger
 }

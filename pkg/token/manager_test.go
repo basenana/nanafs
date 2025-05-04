@@ -40,6 +40,7 @@ var _ = Describe("testAccessToken", func() {
 		const (
 			ak = "ak-mocked-1"
 			sk = "sk-mocked-1"
+			ns = "test-ns"
 		)
 		It("insert access token should be succeed", func() {
 			token := &types.AccessToken{
@@ -47,7 +48,7 @@ var _ = Describe("testAccessToken", func() {
 				SecretToken: sk,
 				Namespace:   "personal",
 			}
-			err := testMeta.CreateAccessToken(ctx, token)
+			err := testMeta.CreateAccessToken(ctx, ns, token)
 			Expect(err).Should(BeNil())
 		})
 		It("access token should be failed", func() {

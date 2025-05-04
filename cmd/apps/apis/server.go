@@ -18,9 +18,10 @@ package apis
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"github.com/basenana/nanafs/services"
+	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
+	"github.com/basenana/nanafs/pkg/core"
+	"github.com/basenana/nanafs/pkg/token"
 	"net/http"
 	"time"
 
@@ -31,10 +32,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 
-	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
 	"github.com/basenana/nanafs/cmd/apps/apis/webdav"
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/utils/logger"
 )
 
@@ -44,7 +43,7 @@ const (
 
 type Server struct {
 	engine    *gin.Engine
-	apiConfig config.Loader
+	apiConfig config.Config
 	logger    *zap.SugaredLogger
 }
 
@@ -92,11 +91,7 @@ func (s *Server) Ping(gCtx *gin.Context) {
 	})
 }
 
-func NewPathEntryManager(ctrl controller.Controller) (*pathmgr.PathManager, error) {
-	return pathmgr.New(ctrl)
-}
-
-func NewHttpApiServer(ctrl controller.Controller, mgr *pathmgr.PathManager, apiConfig config.Loader) (*Server, error) {
+func NewHttpApiServer(apiConfig config.Config) (*Server, error) {
 	s := &Server{
 		engine:    gin.New(),
 		apiConfig: apiConfig,
@@ -125,44 +120,23 @@ func NewHttpApiServer(ctrl controller.Controller, mgr *pathmgr.PathManager, apiC
 	return s, nil
 }
 
-func Setup(ctrl controller.Controller, fsSvc *services.Service, depends *services.Depends, pathEntryMgr *pathmgr.PathManager, cfg config.Loader, stopCh chan struct{}) error {
-	var ctx = context.Background()
+func RunFSAPI(depends *common.Depends, cfg config.Config, stopCh chan struct{}) error {
+	s, err := fsapi.New(depends, cfg)
+	if err != nil {
+		return fmt.Errorf("init fsapi server failed: %w", err)
+	}
+	go s.Run(stopCh)
+	return nil
+}
 
-	fsAPIEnable, err := cfg.GetSystemConfig(ctx, config.FsAPIConfigGroup, "enable").Bool()
-	if err != nil && !errors.Is(err, config.ErrNotConfigured) {
-		return fmt.Errorf("get fs api enable config failed: %w", err)
+func RunWebdav(fs *core.FileSystem, tokenMgr *token.Manager, cfg config.Webdav, stopCh chan struct{}) error {
+	if !cfg.Enable {
+		return nil
 	}
-	if fsAPIEnable {
-		s, err := fsapi.New(fsSvc, ctrl, depends, cfg)
-		if err != nil {
-			return fmt.Errorf("init fsapi server failed: %w", err)
-		}
-		go s.Run(stopCh)
+	w, err := webdav.NewWebdavServer(fs, tokenMgr, cfg)
+	if err != nil {
+		return fmt.Errorf("init webdav server failed: %w", err)
 	}
-
-	adminAPIEnable, err := cfg.GetSystemConfig(ctx, config.AdminApiConfigGroup, "enable").Bool()
-	if err != nil && !errors.Is(err, config.ErrNotConfigured) {
-		return fmt.Errorf("get admin api enable config failed: %w", err)
-	}
-	if adminAPIEnable {
-		s, err := NewHttpApiServer(ctrl, pathEntryMgr, cfg)
-		if err != nil {
-			return fmt.Errorf("init http server failed: %w", err)
-		}
-		go s.Run(stopCh)
-	}
-
-	webdavEnable, err := cfg.GetSystemConfig(ctx, config.WebdavConfigGroup, "enable").Bool()
-	if err != nil && !errors.Is(err, config.ErrNotConfigured) {
-		return fmt.Errorf("get webdav api enable config failed: %w", err)
-	}
-	if webdavEnable {
-		w, err := webdav.NewWebdavServer(pathEntryMgr, ctrl, cfg)
-		if err != nil {
-			return fmt.Errorf("init webdav server failed: %w", err)
-		}
-		go w.Run(stopCh)
-	}
-
+	go w.Run(stopCh)
 	return nil
 }

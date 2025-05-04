@@ -28,25 +28,25 @@ const (
 type LFUPool struct {
 	cache gcache.Cache
 
-	HandlerRemove func(k string, v interface{})
+	HandlerRemove func(k interface{}, v interface{})
 }
 
-func (c *LFUPool) Put(key string, val interface{}) {
+func (c *LFUPool) Put(key interface{}, val interface{}) {
 	if err := c.cache.SetWithExpire(key, val, defaultLFUExpire); err != nil {
 		c.cache.Remove(key)
 	}
 }
 
-func (c *LFUPool) Get(key string) interface{} {
+func (c *LFUPool) Get(key interface{}) interface{} {
 	val, _ := c.cache.Get(key)
 	return val
 }
 
-func (c *LFUPool) Remove(key string) {
+func (c *LFUPool) Remove(key interface{}) {
 	c.cache.Remove(key)
 }
 
-func (c *LFUPool) Visit(fn func(k string, v interface{})) {
+func (c *LFUPool) Visit(fn func(k interface{}, v interface{})) {
 	allItems := c.cache.GetALL(false)
 	for k, v := range allItems {
 		fn(k.(string), v)
@@ -57,7 +57,7 @@ func (c *LFUPool) evictedFunc(key interface{}, val interface{}) {
 	if c.HandlerRemove == nil {
 		return
 	}
-	c.HandlerRemove(key.(string), val)
+	c.HandlerRemove(key, val)
 }
 
 func NewLFUPool(size int) *LFUPool {

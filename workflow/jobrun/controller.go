@@ -137,7 +137,7 @@ func (c *Controller) handleNextJob(namespace, jobID string) {
 
 	f := workflowJob2Flow(c, job)
 	ctx = types.WithNamespace(ctx, types.NewNamespace(job.Namespace))
-	c.logger.Infow("ns in ctx before start", "ns", types.GetNamespace(ctx).String())
+	c.logger.Infow("ns in ctx before start", "namespace", job.Namespace, "job", jobID)
 	ctx = utils.NewWorkflowJobContext(ctx, job.Id)
 
 	c.mux.Lock()
@@ -169,7 +169,7 @@ func (c *Controller) handleNextJob(namespace, jobID string) {
 	err = r.runner.Start(jobCtx)
 	if err != nil {
 		c.logger.Errorw("start runner failed: job failed", "job", jobID, "err", err)
-		_ = c.notify.RecordWarn(jobCtx, fmt.Sprintf("Workflow %s failed", job.Workflow),
+		_ = c.notify.RecordWarn(jobCtx, job.Namespace, fmt.Sprintf("Workflow %s failed", job.Workflow),
 			fmt.Sprintf("trigger job %s failed: %s", jobID, err), "JobController")
 	}
 }

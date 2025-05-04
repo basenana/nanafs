@@ -17,7 +17,6 @@
 package v1
 
 import (
-	"github.com/basenana/nanafs/pkg/core"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/basenana/nanafs/pkg/types"
@@ -60,7 +59,7 @@ func entryInfo(en *types.Entry) *EntryInfo {
 	}
 }
 
-func coreEntryInfo(parentID int64, name string, en *core.Entry) *EntryInfo {
+func coreEntryInfo(parentID int64, name string, en *types.Entry) *EntryInfo {
 	return &EntryInfo{
 		Id:         en.ID,
 		Name:       name,
@@ -75,7 +74,7 @@ func coreEntryInfo(parentID int64, name string, en *core.Entry) *EntryInfo {
 	}
 }
 
-func toEntryInfo(en *services.Entry) *EntryInfo {
+func toEntryInfo(en *types.Entry) *EntryInfo {
 	return &EntryInfo{
 		Id:         en.ID,
 		Name:       en.Name,
@@ -90,7 +89,7 @@ func toEntryInfo(en *services.Entry) *EntryInfo {
 	}
 }
 
-func toEntryDetail(en, parent *services.Entry) (*EntryDetail, []*Property) {
+func toEntryDetail(en, parent *types.Entry) (*EntryDetail, []*Property) {
 	access := &EntryDetail_Access{Uid: en.Access.UID, Gid: en.Access.GID}
 	for _, perm := range en.Access.Permissions {
 		access.Permissions = append(access.Permissions, string(perm))
@@ -238,7 +237,7 @@ func documentInfo(doc *types.Document) *DocumentInfo {
 	}
 }
 
-func buildRootGroup(tree *services.GroupTree) *GetGroupTreeResponse_GroupEntry {
+func buildRootGroup(tree *types.GroupTree) *GetGroupTreeResponse_GroupEntry {
 	result := &GetGroupTreeResponse_GroupEntry{
 		Name:     tree.Name,
 		Children: make([]*GetGroupTreeResponse_GroupEntry, 0),
@@ -320,4 +319,10 @@ func buildWorkflow(w *types.Workflow) *WorkflowInfo {
 		UpdatedAt:       timestamppb.New(w.UpdatedAt),
 		LastTriggeredAt: timestamppb.New(w.LastTriggeredAt),
 	}
+}
+
+type GroupTree struct {
+	ID       int64
+	Name     string
+	Children []*GroupTree
 }

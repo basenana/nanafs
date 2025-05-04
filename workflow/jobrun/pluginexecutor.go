@@ -305,7 +305,7 @@ func (b *fileExecutor) Teardown(ctx context.Context) error {
 func callPlugin(ctx context.Context, job *types.WorkflowJob, ps types.PlugScope, mgr *plugin.Manager,
 	store metastore.EntryStore, req *pluginapi.Request, logger *zap.SugaredLogger) (*pluginapi.Response, error) {
 	if job.Target.ParentEntryID != 0 {
-		ed, err := store.GetEntryExtendData(ctx, job.Target.ParentEntryID)
+		ed, err := store.GetEntryExtendData(ctx, job.Namespace, job.Target.ParentEntryID)
 		if err != nil {
 			err = fmt.Errorf("get parent entry extend data error: %s", err)
 			return nil, err
@@ -314,7 +314,7 @@ func callPlugin(ctx context.Context, job *types.WorkflowJob, ps types.PlugScope,
 			ps = mergeParentEntryPlugScope(ps, *ed.PlugScope)
 		}
 
-		properties, err := store.ListEntryProperties(ctx, job.Target.ParentEntryID)
+		properties, err := store.ListEntryProperties(ctx, job.Namespace, job.Target.ParentEntryID)
 		if err != nil {
 			err = fmt.Errorf("get parent entry properties error: %w", err)
 			return nil, err

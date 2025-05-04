@@ -18,7 +18,6 @@ package fuse
 
 import (
 	"github.com/basenana/nanafs/pkg/core"
-	nfs "github.com/basenana/nanafs/services"
 	"github.com/basenana/nanafs/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sys/unix"
@@ -29,7 +28,6 @@ import (
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
 
-	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
 )
 
@@ -107,7 +105,7 @@ func idFromStat(st *syscall.Stat_t) fs.StableAttr {
 	}
 }
 
-func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, entry *core.Entry, update *types.UpdateEntry, crtUid, crtGid int64, fileOpenAttr types.OpenAttr) error {
+func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, entry *types.Entry, update *types.UpdateEntry, crtUid, crtGid int64, fileOpenAttr types.OpenAttr) error {
 	// do check
 	if _, ok := attr.GetMode(); ok {
 		if crtUid != 0 && crtUid != entry.Access.UID {
@@ -130,14 +128,14 @@ func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, entry *core.Entry, update *typ
 		if crtUid != 0 && crtUid != entry.Access.UID {
 			return types.ErrNoPerm
 		}
-		if crtUid != 0 && int64(gid) != crtGid && !dentry.MatchUserGroup(crtUid, int64(gid)) {
+		if crtUid != 0 && int64(gid) != crtGid && !core.MatchUserGroup(crtUid, int64(gid)) {
 			// types.ErrNoPerm or types.ErrNoAccess
 			return types.ErrNoPerm
 		}
 	}
 	if _, ok := attr.GetSize(); ok {
 		if !fileOpenAttr.Create {
-			if err := dentry.IsAccess(entry.Access, crtUid, crtGid, 0x2); err != nil {
+			if err := core.IsAccess(entry.Access, crtUid, crtGid, 0x2); err != nil {
 				return err
 			}
 		}
@@ -194,7 +192,7 @@ func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, entry *core.Entry, update *typ
 	return nil
 }
 
-func fsInfo2StatFs(info nfs.Info, out *fuse.StatfsOut) {
+func fsInfo2StatFs(info core.Info, out *fuse.StatfsOut) {
 	out.Blocks = info.MaxSize / fileBlockSize
 	out.Bfree = (info.MaxSize - info.UsageSize) / fileBlockSize
 	out.Bavail = out.Bfree

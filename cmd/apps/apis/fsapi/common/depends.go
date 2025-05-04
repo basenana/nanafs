@@ -1,5 +1,5 @@
 /*
- Copyright 2024 NanaFS Authors.
+ Copyright 2023 NanaFS Authors.
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -14,46 +14,21 @@
  limitations under the License.
 */
 
-package services
+package common
 
 import (
 	"context"
-	"fmt"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/core"
-	"github.com/basenana/nanafs/pkg/dialogue"
 	"github.com/basenana/nanafs/pkg/dispatch"
 	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
+	"github.com/basenana/nanafs/pkg/rule"
 	"github.com/basenana/nanafs/pkg/token"
 	"github.com/basenana/nanafs/workflow"
 )
-
-type Service struct {
-	Commander
-	Query
-}
-
-func NewService(depends *Depends) (*Service, error) {
-	var (
-		fs  = &Service{}
-		err error
-	)
-
-	fs.Query, err = newQuery(depends)
-	if err != nil {
-		return nil, fmt.Errorf("init fs query service error: %w", err)
-	}
-
-	fs.Commander, err = newCommander(depends)
-	if err != nil {
-		return nil, fmt.Errorf("init fs commander error: %w", err)
-	}
-
-	return fs, nil
-}
 
 type Depends struct {
 	Meta         metastore.Meta
@@ -61,17 +36,17 @@ type Depends struct {
 	Dispatcher   *dispatch.Dispatcher
 	Notify       *notify.Notify
 	Document     document.Manager
-	Dialogue     dialogue.Manager
+	FridayClient friday.Friday
 	Token        *token.Manager
-	ConfigLoader config.Loader
+	ConfigLoader config.Config
 	Core         core.Core
 }
 
-func InitDepends(loader config.Loader, meta metastore.Meta, fridayClient friday.Friday) (*Depends, error) {
-	bCfg, err := loader.GetBootstrapConfig()
-	if err != nil {
-		return nil, err
-	}
+func InitDepends(loader config.Config, meta metastore.Meta) (*Depends, error) {
+	var (
+		bCfg = loader.GetBootstrapConfig()
+		err  error
+	)
 
 	dep := &Depends{Meta: meta, ConfigLoader: loader}
 	dep.Token = token.NewTokenManager(meta, loader)
@@ -86,12 +61,8 @@ func InitDepends(loader config.Loader, meta metastore.Meta, fridayClient friday.
 		return nil, err
 	}
 
-	dep.Document, err = document.NewManager(meta, dep.Core, loader, fridayClient)
-	if err != nil {
-		return nil, err
-	}
-
-	dep.Dialogue, err = dialogue.NewManager(meta)
+	dep.FridayClient = friday.NewFridayClient(bCfg.FridayConfig)
+	dep.Document, err = document.NewManager(meta, dep.Core, loader, dep.FridayClient)
 	if err != nil {
 		return nil, err
 	}
@@ -105,5 +76,7 @@ func InitDepends(loader config.Loader, meta metastore.Meta, fridayClient friday.
 	if err != nil {
 		return nil, err
 	}
+
+	rule.InitQuery(meta)
 	return dep, nil
 }

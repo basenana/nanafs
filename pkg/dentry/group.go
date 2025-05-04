@@ -72,7 +72,7 @@ var _ Group = &stdGroup{}
 
 func (g *stdGroup) GetEntry(ctx context.Context, entryID int64) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.GetEntry").End()
-	entry, err := g.store.GetEntry(ctx, entryID)
+	entry, err := g.store.GetEntry(ctx, "", entryID)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func (g *stdGroup) GetEntry(ctx context.Context, entryID int64) (*types.Entry, e
 
 func (g *stdGroup) FindEntry(ctx context.Context, name string) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.FindEntry").End()
-	entry, err := g.store.FindEntry(ctx, g.entryID, name)
+	entry, err := g.store.FindEntry(ctx, "", g.entryID, name)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func (g *stdGroup) FindEntry(ctx context.Context, name string) (*types.Entry, er
 
 func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.CreateEntry").End()
-	existed, err := g.store.FindEntry(ctx, g.entryID, attr.Name)
+	existed, err := g.store.FindEntry(ctx, "", g.entryID, attr.Name)
 	if err != nil && err != types.ErrNotFound {
 		return nil, err
 	}
@@ -101,7 +101,7 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*type
 		return nil, types.ErrIsExist
 	}
 
-	group, err := g.store.GetEntry(ctx, g.entryID)
+	group, err := g.store.GetEntry(ctx, "", g.entryID)
 	if err != nil {
 		return nil, err
 	}
@@ -111,21 +111,21 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*type
 		return nil, err
 	}
 
-	err = g.store.CreateEntry(ctx, g.entryID, entry, attr.ExtendData)
+	err = g.store.CreateEntry(ctx, "", g.entryID, entry, attr.ExtendData)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(attr.Labels.Labels) > 0 {
-		if err = g.store.UpdateEntryLabels(ctx, entry.ID, attr.Labels); err != nil {
-			_ = g.store.RemoveEntry(ctx, entry.ParentID, entry.ID)
+		if err = g.store.UpdateEntryLabels(ctx, "", entry.ID, attr.Labels); err != nil {
+			_ = g.store.RemoveEntry(ctx, "", entry.ParentID, entry.ID)
 			return nil, err
 		}
 	}
 
 	if len(attr.Properties.Fields) > 0 {
-		if err = g.store.UpdateEntryProperties(ctx, entry.ID, attr.Properties); err != nil {
-			_ = g.store.RemoveEntry(ctx, entry.ParentID, entry.ID)
+		if err = g.store.UpdateEntryProperties(ctx, "", entry.ID, attr.Properties); err != nil {
+			_ = g.store.RemoveEntry(ctx, "", entry.ParentID, entry.ID)
 			return nil, err
 		}
 	}
@@ -136,7 +136,7 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*type
 
 func (g *stdGroup) UpdateEntry(ctx context.Context, entry *types.Entry) error {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.UpdateEntry").End()
-	err := g.store.UpdateEntryMetadata(ctx, entry)
+	err := g.store.UpdateEntry(ctx, "", entry)
 	if err != nil {
 		return err
 	}
@@ -146,14 +146,14 @@ func (g *stdGroup) UpdateEntry(ctx context.Context, entry *types.Entry) error {
 
 func (g *stdGroup) RemoveEntry(ctx context.Context, entryId int64) error {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.RemoveEntry").End()
-	en, err := g.store.GetEntry(ctx, entryId)
+	en, err := g.store.GetEntry(ctx, "", entryId)
 	if err != nil {
 		return err
 	}
 	if en.ParentID != g.entryID {
 		return types.ErrNotFound
 	}
-	err = g.store.RemoveEntry(ctx, g.entryID, entryId)
+	err = g.store.RemoveEntry(ctx, "", g.entryID, entryId)
 	if err != nil {
 		return err
 	}
@@ -163,7 +163,7 @@ func (g *stdGroup) RemoveEntry(ctx context.Context, entryId int64) error {
 
 func (g *stdGroup) ListChildren(ctx context.Context, order *types.EntryOrder, filters ...types.Filter) ([]*types.Entry, error) {
 	defer trace.StartRegion(ctx, "dentry.stdGroup.ListChildren").End()
-	it, err := g.store.ListEntryChildren(ctx, g.entryID, order, filters...)
+	it, err := g.store.ListChildren(ctx, "", g.entryID, order, filters...)
 	if err != nil {
 		return nil, err
 	}

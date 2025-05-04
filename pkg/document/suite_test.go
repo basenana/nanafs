@@ -18,11 +18,11 @@ package document
 
 import (
 	"context"
+	"github.com/basenana/nanafs/pkg/core"
 	"os"
 	"testing"
 
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
@@ -35,10 +35,15 @@ import (
 
 var (
 	docManager *manager
-	entryMgr   dentry.Manager
-
-	workdir string
-	root    *types.Entry
+	workdir    string
+	root       *types.Entry
+	bootCfg    = config.Bootstrap{
+		FS: &config.FS{},
+		Storages: []config.Storage{{
+			ID:   storage.MemoryStorage,
+			Type: storage.MemoryStorage,
+		}},
+	}
 )
 
 func TestDocument(t *testing.T) {
@@ -58,22 +63,17 @@ func TestDocument(t *testing.T) {
 var _ = BeforeSuite(func() {
 	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())
-	entryMgr, err = dentry.NewManager(memMeta, config.Bootstrap{
-		FS: &config.FS{},
-		Storages: []config.Storage{{
-			ID:   storage.MemoryStorage,
-			Type: storage.MemoryStorage,
-		}},
-	})
+
+	c, err := core.New(memMeta, bootCfg)
 	Expect(err).Should(BeNil())
 	docManager = &manager{
-		logger:   logger.NewLogger("doc"),
 		recorder: memMeta,
-		core:     entryMgr,
+		core:     c,
 		friday:   friday.NewMockFriday(),
+		logger:   logger.NewLogger("doc"),
 	}
 
 	// init root
-	root, err = entryMgr.Root(context.TODO())
+	root, err = c.FSRoot(context.TODO())
 	Expect(err).Should(BeNil())
 })

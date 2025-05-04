@@ -39,7 +39,7 @@ type fileOperation interface {
 
 type File struct {
 	node *NanaNode
-	file core.InterFile
+	file core.RawFile
 	attr types.OpenAttr
 }
 

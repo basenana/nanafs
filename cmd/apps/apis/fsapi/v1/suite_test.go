@@ -22,7 +22,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/services"
 	"github.com/basenana/nanafs/utils"
 	"google.golang.org/grpc/credentials"
 	"net"
@@ -36,7 +35,6 @@ import (
 
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
@@ -44,9 +42,7 @@ import (
 )
 
 var (
-	ctrl          controller.Controller
-	fsSvc         *services.Service
-	dep           *services.Depends
+	dep           *common.Depends
 	testMeta      metastore.Meta
 	testFriday    friday.Friday
 	testServer    *grpc.Server
@@ -79,19 +75,10 @@ var _ = BeforeSuite(func() {
 
 	storage.InitLocalCache(config.Bootstrap{CacheDir: workdir, CacheSize: 0})
 
-	cl := config.NewFakeConfigLoader(mockConfig)
+	cl := config.NewMockConfigLoader(mockConfig)
 	_ = cl.SetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "job_workdir", workdir)
 
-	ctrl, err = controller.New(cl, memMeta, testFriday)
-	Expect(err).Should(BeNil())
-
-	dep, err = services.InitDepends(cl, memMeta, testFriday)
-	Expect(err).Should(BeNil())
-
-	fsSvc, err = services.NewService(dep)
-	Expect(err).Should(BeNil())
-
-	_, err = fsSvc.FSRoot(context.TODO())
+	dep, err = common.InitDepends(cl, memMeta)
 	Expect(err).Should(BeNil())
 
 	buffer := 1024 * 1024
@@ -107,7 +94,7 @@ var _ = BeforeSuite(func() {
 		common.WithStreamInterceptors(),
 	}
 	testServer = grpc.NewServer(opts...)
-	_, err = InitServices(testServer, fsSvc, ctrl, dep)
+	_, err = InitServicesV1(testServer, dep)
 	Expect(err).Should(BeNil())
 
 	go func() {
@@ -157,7 +144,7 @@ func dialer(context.Context, string) (net.Conn, error) {
 	return mockListen.Dial()
 }
 
-func setupCerts(cfg config.Loader) (credentials.TransportCredentials, credentials.TransportCredentials, error) {
+func setupCerts(cfg config.Config) (credentials.TransportCredentials, credentials.TransportCredentials, error) {
 	ct := &utils.CertTool{}
 	caCert, _, err := ct.GenerateCAPair()
 	if err != nil {

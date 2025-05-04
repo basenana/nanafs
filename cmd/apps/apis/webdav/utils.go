@@ -18,20 +18,54 @@ package webdav
 
 import (
 	"github.com/basenana/nanafs/pkg/core"
-	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"io/fs"
 	"os"
 	"strings"
 	"syscall"
+	"time"
 )
 
-func Stat(entry *core.Entry) Info {
-	return Info{
+type Info struct {
+	name  string
+	size  int64
+	mode  uint32
+	mTime time.Time
+	isDir bool
+}
+
+var _ os.FileInfo = &Info{}
+
+func (i *Info) Name() string {
+	return i.name
+}
+
+func (i *Info) Size() int64 {
+	return i.size
+}
+
+func (i *Info) Mode() fs.FileMode {
+	return fs.FileMode(i.mode)
+}
+
+func (i *Info) ModTime() time.Time {
+	return i.mTime
+}
+
+func (i *Info) IsDir() bool {
+	return i.isDir
+}
+
+func (i *Info) Sys() any {
+	return nil
+}
+
+func Stat(entry *types.Entry) *Info {
+	return &Info{
 		name:  entry.Name,
 		size:  entry.Size,
-		mode:  modeFromFileKind(entry.Kind) | dentry.Access2Mode(entry.Access),
+		mode:  modeFromFileKind(entry.Kind) | core.Access2Mode(entry.Access),
 		mTime: entry.ModifiedAt,
 		isDir: entry.IsGroup,
 	}
@@ -42,7 +76,7 @@ func mode2EntryAttr(mode os.FileMode) types.EntryAttr {
 		Kind:   fileKindFromMode(uint32(mode)),
 		Access: &types.Access{},
 	}
-	dentry.UpdateAccessWithMode(attr.Access, uint32(mode))
+	core.UpdateAccessWithMode(attr.Access, uint32(mode))
 	return attr
 }
 

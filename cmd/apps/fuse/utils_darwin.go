@@ -21,12 +21,11 @@ package fuse
 import (
 	"fmt"
 	"github.com/basenana/nanafs/pkg/core"
+	"github.com/basenana/nanafs/pkg/types"
 	"syscall"
 
 	"github.com/hanwen/go-fuse/v2/fuse"
 	"golang.org/x/sys/unix"
-
-	"github.com/basenana/nanafs/pkg/dentry"
 )
 
 const (
@@ -42,13 +41,13 @@ func fsMountOptions(displayName string, ops []string) []string {
 	return options
 }
 
-func nanaNode2Stat(entry *core.Entry) *syscall.Stat_t {
+func nanaNode2Stat(entry *types.Entry) *syscall.Stat_t {
 	aTime, _ := unix.TimeToTimespec(entry.AccessAt)
 	mTime, _ := unix.TimeToTimespec(entry.ModifiedAt)
 	cTime, _ := unix.TimeToTimespec(entry.ChangedAt)
 
 	mode := modeFromFileKind(entry.Kind)
-	accMod := dentry.Access2Mode(entry.Access)
+	accMod := core.Access2Mode(entry.Access)
 	mode |= accMod
 
 	rdev := int32(MountDev)

@@ -17,17 +17,12 @@
 package fuse
 
 import (
-	"context"
-	"testing"
-	"time"
-
-	"github.com/hanwen/go-fuse/v2/fs"
+	"github.com/basenana/nanafs/pkg/core"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"testing"
 
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/controller"
-	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
@@ -41,32 +36,42 @@ var (
 			{ID: storage.MemoryStorage, Type: storage.MemoryStorage},
 		},
 	}
+
+	fs   *core.FileSystem
+	nfs  *NanaFS
+	root *NanaNode
 )
 
-func NewMockController() controller.Controller {
+func newCoreFileSystem() *core.FileSystem {
 	m, _ := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
-	ctrl, _ := controller.New(config.NewFakeConfigLoader(cfg), m, friday.NewMockFriday())
-	return ctrl
+	c, _ := core.New(m, config.Bootstrap{})
+	fs, _ := core.NewFileSystem(c, m, types.DefaultNamespace)
+	return fs
 }
 
-func initFsBridge(nfs *NanaFS) *NanaNode {
-	nfs.logger = logger.NewLogger("test-fuse")
-	root, _ := nfs.newFsNode(context.Background(), nil, nil)
-	oneSecond := time.Second
-	_ = fs.NewNodeFS(root, &fs.Options{
-		EntryTimeout: &oneSecond,
-		AttrTimeout:  &oneSecond,
-	})
-	return root
-}
-
-func mustGetNanaEntry(node *NanaNode, ctrl controller.Controller) *types.Entry {
-	result, err := ctrl.GetEntry(context.Background(), node.entryID)
-	if err != nil {
-		panic(err)
+func newMockNanaFS(fs *core.FileSystem) *NanaFS {
+	nfs := &NanaFS{
+		FileSystem: fs,
+		Path:       "/tmp/test",
+		Display:    "NanaFSTest",
+		cfg:        cfg.FUSE,
+		logger:     logger.NewLogger("fuse.test"),
 	}
-	return result
+	return nfs
 }
+
+var _ = BeforeSuite(func() {
+	var err error
+	fs = newCoreFileSystem()
+	nfs = newMockNanaFS(fs)
+
+	root, err = nfs.rootNode()
+	Expect(err).Should(BeNil())
+})
+
+var _ = AfterSuite(func() {
+
+})
 
 func TestFs(t *testing.T) {
 	logger.InitLogger()

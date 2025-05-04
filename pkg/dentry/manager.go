@@ -20,11 +20,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path"
-	"runtime/trace"
-	"strings"
-
 	"go.uber.org/zap"
+	"runtime/trace"
 
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/bio"
@@ -88,7 +85,7 @@ type manager struct {
 	defaultStorage storage.Storage
 	storages       map[string]storage.Storage
 	eventQ         chan *entryEvent
-	cfgLoader      config.Loader
+	cfgLoader      config.Config
 	fsOwnerUid     int64
 	fsOwnerGid     int64
 	fsWriteback    bool
@@ -106,7 +103,7 @@ func (m *manager) Root(ctx context.Context) (*types.Entry, error) {
 	)
 	ns := types.GetNamespace(ctx)
 	if ns.String() != types.DefaultNamespace {
-		nsRoot, err = m.store.FindEntry(ctx, RootEntryID, ns.String())
+		nsRoot, err = m.store.FindEntry(ctx, "", RootEntryID, ns.String())
 		if err != nil {
 			m.logger.Errorw("load ns root object error", "namespace", ns.String(), "err", err)
 			return nsRoot, err
@@ -131,7 +128,7 @@ func (m *manager) Root(ctx context.Context) (*types.Entry, error) {
 	root.Access.GID = m.fsOwnerGid
 	root.Storage = m.defaultStorage.ID()
 
-	err = m.store.CreateEntry(ctx, 0, root, nil)
+	err = m.store.CreateEntry(ctx, "", 0, root, nil)
 	if err != nil {
 		m.logger.Errorw("create root entry failed", "err", err)
 		return nil, err
@@ -152,7 +149,7 @@ func (m *manager) CreateNamespace(ctx context.Context, namespace string) error {
 	nsRoot.Access.GID = m.fsOwnerGid
 	nsRoot.Storage = m.defaultStorage.ID()
 
-	err = m.store.CreateEntry(ctx, RootEntryID, nsRoot, nil)
+	err = m.store.CreateEntry(ctx, "", RootEntryID, nsRoot, nil)
 	if err != nil {
 		m.logger.Errorw("create root entry failed", "err", err)
 		return err
@@ -178,7 +175,7 @@ func (m *manager) CreateNamespace(ctx context.Context, namespace string) error {
 func (m *manager) GetEntry(ctx context.Context, id int64) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.GetEntryMetadata").End()
 
-	en, err := m.store.GetEntry(ctx, id)
+	en, err := m.store.GetEntry(ctx, "", id)
 	if err != nil {
 		return nil, err
 	}
@@ -186,59 +183,24 @@ func (m *manager) GetEntry(ctx context.Context, id int64) (*types.Entry, error) 
 	return en, nil
 }
 
-func (m *manager) GetEntryByUri(ctx context.Context, uri string) (*types.Entry, error) {
-	defer trace.StartRegion(ctx, "dentry.manager.GetEntryUri").End()
-	if uri == "/" {
-		return m.Root(ctx)
-	}
-	uri = strings.TrimSuffix(uri, "/")
-	entryUri, err := m.store.GetEntryUri(ctx, uri)
-	if err != nil {
-		if !errors.Is(err, types.ErrNotFound) {
-			return nil, err
-		}
-		parent, base := path.Split(uri)
-		parentEntry, err := m.GetEntryByUri(ctx, parent)
-		if err != nil {
-			return nil, err
-		}
-
-		grp, err := m.OpenGroup(ctx, parentEntry.ID)
-		if err != nil {
-			return nil, err
-		}
-
-		entry, err := grp.FindEntry(ctx, base)
-		if err != nil {
-			return nil, err
-		}
-
-		entryUri = &types.EntryUri{ID: entry.ID, Namespace: entry.Namespace, Uri: uri}
-		if err = m.store.SaveEntryUri(ctx, entryUri); err != nil {
-			return nil, err
-		}
-	}
-	return m.GetEntry(ctx, entryUri.ID)
-}
-
 func (m *manager) GetEntryExtendData(ctx context.Context, id int64) (types.ExtendData, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.GetEntryExtendData").End()
-	return m.store.GetEntryExtendData(ctx, id)
+	return m.store.GetEntryExtendData(ctx, "", id)
 }
 
 func (m *manager) UpdateEntryExtendData(ctx context.Context, id int64, ed types.ExtendData) error {
 	defer trace.StartRegion(ctx, "dentry.manager.UpdateEntryExtendData").End()
-	return m.store.UpdateEntryExtendData(ctx, id, ed)
+	return m.store.UpdateEntryExtendData(ctx, "", id, ed)
 }
 
 func (m *manager) ListEntryProperty(ctx context.Context, id int64) (types.Properties, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.ListEntryProperty").End()
-	return m.store.ListEntryProperties(ctx, id)
+	return m.store.ListEntryProperties(ctx, "", id)
 }
 
 func (m *manager) GetEntryProperty(ctx context.Context, id int64, fKey string) (*string, bool, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.GetEntryProperty").End()
-	p, err := m.store.GetEntryProperty(ctx, id, fKey)
+	p, err := m.store.GetEntryProperty(ctx, "", id, fKey)
 	if err != nil {
 		return nil, false, err
 	}
@@ -247,7 +209,7 @@ func (m *manager) GetEntryProperty(ctx context.Context, id int64, fKey string) (
 
 func (m *manager) SetEntryProperty(ctx context.Context, id int64, fKey, fVal string, encoded bool) error {
 	defer trace.StartRegion(ctx, "dentry.manager.SetEntryProperty").End()
-	if err := m.store.AddEntryProperty(ctx, id, fKey, types.PropertyItem{Value: fVal, Encoded: encoded}); err != nil {
+	if err := m.store.AddEntryProperty(ctx, "", id, fKey, types.PropertyItem{Value: fVal, Encoded: encoded}); err != nil {
 		return err
 	}
 	m.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeUpdate, id)
@@ -257,7 +219,7 @@ func (m *manager) SetEntryProperty(ctx context.Context, id int64, fKey, fVal str
 func (m *manager) RemoveEntryProperty(ctx context.Context, id int64, fKey string) error {
 	defer trace.StartRegion(ctx, "dentry.manager.RemoveEntryProperty").End()
 
-	if err := m.store.RemoveEntryProperty(ctx, id, fKey); err != nil {
+	if err := m.store.RemoveEntryProperty(ctx, "", id, fKey); err != nil {
 		return err
 	}
 	m.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeUpdate, id)
@@ -266,12 +228,12 @@ func (m *manager) RemoveEntryProperty(ctx context.Context, id int64, fKey string
 
 func (m *manager) GetEntryLabels(ctx context.Context, id int64) (types.Labels, error) {
 	defer trace.StartRegion(ctx, "dentry.manager.GetEntryLabels").End()
-	return m.store.GetEntryLabels(ctx, id)
+	return m.store.GetEntryLabels(ctx, "", id)
 }
 
 func (m *manager) UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error {
 	defer trace.StartRegion(ctx, "dentry.manager.UpdateEntryLabels").End()
-	return m.store.UpdateEntryLabels(ctx, id, labels)
+	return m.store.UpdateEntryLabels(ctx, "", id, labels)
 }
 
 func (m *manager) CreateEntry(ctx context.Context, parentId int64, attr types.EntryAttr) (*types.Entry, error) {
@@ -289,7 +251,7 @@ func (m *manager) CreateEntry(ctx context.Context, parentId int64, attr types.En
 
 func (m *manager) RemoveEntry(ctx context.Context, parentId, entryId int64) error {
 	defer trace.StartRegion(ctx, "dentry.manager.RemoveEntry").End()
-	children, err := m.store.ListEntryChildren(ctx, entryId, nil, types.Filter{})
+	children, err := m.store.ListChildren(ctx, "", entryId, nil, types.Filter{})
 	if err != nil {
 		return err
 	}
@@ -319,7 +281,7 @@ func (m *manager) RemoveEntry(ctx context.Context, parentId, entryId int64) erro
 func (m *manager) DestroyEntry(ctx context.Context, entryID int64) error {
 	defer trace.StartRegion(ctx, "dentry.manager.DestroyEntry").End()
 
-	err := m.store.DeleteRemovedEntry(ctx, entryID)
+	err := m.store.DeleteRemovedEntry(ctx, "", entryID)
 	if err != nil {
 		m.logger.Errorw("destroy entry failed", "err", err)
 		return err
@@ -382,7 +344,7 @@ func (m *manager) MirrorEntry(ctx context.Context, srcId, dstParentId int64, att
 		return nil, err
 	}
 
-	if err = m.store.MirrorEntry(ctx, en); err != nil {
+	if err = m.store.MirrorEntry(ctx, "", en); err != nil {
 		m.logger.Errorw("update dst parent object ref count error", "srcEntry", srcId, "dstParent", dstParentId, "err", err.Error())
 		return nil, err
 	}
@@ -434,7 +396,7 @@ func (m *manager) ChangeEntryParent(ctx context.Context, targetEntryId int64, ov
 		m.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeDestroy, overwriteEntry.ID)
 	}
 
-	err = m.store.ChangeEntryParent(ctx, targetEntryId, newParentId, newName, opt)
+	err = m.store.ChangeEntryParent(ctx, "", targetEntryId, newParentId, newName, opt)
 	if err != nil {
 		m.logger.Errorw("change object parent failed", "entry", target.ID, "newParent", newParentId, "newName", newName, "err", err)
 		return err
@@ -447,7 +409,7 @@ func (m *manager) Open(ctx context.Context, entryId int64, attr types.OpenAttr) 
 	defer trace.StartRegion(ctx, "dentry.manager.Open").End()
 	attr.EntryID = entryId
 
-	entry, err := m.store.Open(ctx, entryId, attr)
+	entry, err := m.store.Open(ctx, "", entryId, attr)
 	if err != nil {
 		return nil, err
 	}

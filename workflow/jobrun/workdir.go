@@ -28,7 +28,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
@@ -114,7 +113,7 @@ func entryWorkdirInit(ctx context.Context, namespace string, entryID int64, fsCo
 	return entryPath, nil
 }
 
-func copyEntryToJobWorkDir(ctx context.Context, entryPath string, entry *types.Entry, file dentry.File) error {
+func copyEntryToJobWorkDir(ctx context.Context, entryPath string, entry *types.Entry, file core.RawFile) error {
 	if entryPath == "" {
 		entryPath = entry.Name
 	}
@@ -136,13 +135,11 @@ func collectFile2BaseEntry(ctx context.Context, namespace string, fsCore core.Co
 		return nil, fmt.Errorf("file %s already exists", entry.Name)
 	}
 
-	grp, err := fsCore.OpenGroup(ctx, namespace, baseEntryId)
-	if err != nil {
-		return nil, fmt.Errorf("open base entry group failed: %s", err)
-	}
-
-	var result *types.Entry
-	result, err = grp.FindEntry(ctx, entry.Name)
+	var (
+		result *types.Entry
+		err    error
+	)
+	result, err = fsCore.FindEntry(ctx, namespace, baseEntryId, entry.Name)
 	if err != nil && !errors.Is(err, types.ErrNotFound) {
 		return nil, fmt.Errorf("check new file existed error: %s", err)
 	}
@@ -167,7 +164,7 @@ func collectFile2BaseEntry(ctx context.Context, namespace string, fsCore core.Co
 	}
 
 	if isNeedCreate {
-		result, err = grp.CreateEntry(ctx, types.EntryAttr{Name: entry.Name, Kind: entry.Kind, Properties: properties})
+		result, err = fsCore.CreateEntry(ctx, namespace, baseEntryId, types.EntryAttr{Name: entry.Name, Kind: entry.Kind, Properties: properties})
 		if err != nil {
 			return nil, fmt.Errorf("create new entry failed: %s", err)
 		}

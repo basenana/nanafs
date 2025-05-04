@@ -24,7 +24,6 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
@@ -83,7 +82,7 @@ func (c *compactExecutor) handleEvent(evt *types.Event) error {
 
 func (c *compactExecutor) execute(ctx context.Context, task *types.ScheduledTask) error {
 	entry := task.Event.Data
-	if dentry.IsFileOpened(entry.ID) {
+	if core.IsFileOpened(entry.ID) {
 		return ErrNeedRetry
 	}
 
@@ -93,7 +92,7 @@ func (c *compactExecutor) execute(ctx context.Context, task *types.ScheduledTask
 		return err
 	}
 	c.logger.Debugw("[compactExecutor] start compact entry segment", "entry", entry.ID)
-	if err = c.core.ChunkCompact(ctx, en.ID); err != nil {
+	if err = c.core.ChunkCompact(ctx, task.Namespace, en.ID); err != nil {
 		c.logger.Errorw("[compactExecutor] compact entry segment error", "entry", entry.ID, "err", err.Error())
 		return err
 	}
@@ -140,7 +139,7 @@ func (c *entryCleanExecutor) handleEvent(evt *types.Event) error {
 
 func (c *entryCleanExecutor) execute(ctx context.Context, task *types.ScheduledTask) error {
 	entry := task.Event.Data
-	if dentry.IsFileOpened(entry.ID) {
+	if core.IsFileOpened(entry.ID) {
 		return ErrNeedRetry
 	}
 
@@ -151,14 +150,14 @@ func (c *entryCleanExecutor) execute(ctx context.Context, task *types.ScheduledT
 	}
 
 	if !en.IsGroup {
-		err = c.core.CleanEntryData(ctx, en.ID)
+		err = c.core.CleanEntryData(ctx, task.Namespace, en.ID)
 		if err != nil {
 			c.logger.Errorw("[entryCleanExecutor] get entry failed", "entry", entry.ID, "task", task.ID, "err", err)
 			return err
 		}
 	}
 
-	err = c.core.DestroyEntry(ctx, en.ID)
+	err = c.core.DestroyEntry(ctx, "", en.ID)
 	if err != nil {
 		c.logger.Errorw("[entryCleanExecutor] get entry failed", "entry", entry.ID, "task", task.ID, "err", err)
 		return err

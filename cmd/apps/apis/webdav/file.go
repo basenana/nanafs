@@ -50,25 +50,23 @@ func (f *File) Close() error {
 	return f.File.Close()
 }
 
-func openFile(ctx context.Context, entry *core.Entry, fs *core.FS, attr types.OpenAttr) (webdav.File, error) {
+func openFile(ctx context.Context, entry *types.Entry, fs *core.FileSystem, attr types.OpenAttr) (webdav.File, error) {
 	var (
 		f   core.File
 		err error
 	)
 
 	if entry.IsGroup {
-		f, err = fs.OpenDir(ctx, entry.Namespace, entry.ID)
+		f, err = fs.OpenDir(ctx, entry.ID)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		f, err = fs.Open(ctx, entry.Namespace, entry.ID, attr)
+		f, err = fs.Open(ctx, entry.ID, attr)
 		if err != nil {
 			return nil, err
 		}
 	}
-
-	entry.Close()
 
 	return &File{
 		File: f,

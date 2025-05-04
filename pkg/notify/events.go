@@ -15,22 +15,3 @@
 */
 
 package notify
-
-import (
-	"context"
-	"github.com/basenana/nanafs/pkg/events"
-	"github.com/basenana/nanafs/pkg/types"
-	"github.com/hyponet/eventbus"
-)
-
-func registerEventHandle(n *Notify) {
-	eventbus.Subscribe(events.NamespacedTopic(events.TopicNamespaceEntry, "*"), n.handleEvent)
-}
-
-func (n *Notify) handleEvent(evt *types.Event) error {
-	if evt == nil {
-		return nil
-	}
-	evt.Sequence = evt.Time.UnixNano()
-	return n.store.RecordEvents(context.Background(), []types.Event{*evt})
-}

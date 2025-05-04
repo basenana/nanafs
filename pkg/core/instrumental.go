@@ -21,8 +21,6 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/basenana/nanafs/pkg/types"
 )
 
 var (
@@ -82,88 +80,6 @@ func init() {
 		groupOperationLatency,
 		groupOperationErrorCounter,
 	)
-}
-
-type instrumentalFile struct {
-	file InterFile
-}
-
-func (i instrumentalFile) GetAttr() types.OpenAttr {
-	return i.file.GetAttr()
-}
-
-func (i instrumentalFile) WriteAt(ctx context.Context, data []byte, off int64) (int64, error) {
-	const operation = "write_at"
-	defer logOperationLatency(fileOperationLatency, operation, time.Now())
-	n, err := i.file.WriteAt(ctx, data, off)
-	return n, logOperationError(fileOperationErrorCounter, operation, err)
-}
-
-func (i instrumentalFile) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error) {
-	const operation = "read_at"
-	defer logOperationLatency(fileOperationLatency, operation, time.Now())
-	n, err := i.file.ReadAt(ctx, dest, off)
-	return n, logOperationError(fileOperationErrorCounter, operation, err)
-}
-
-func (i instrumentalFile) Fsync(ctx context.Context) error {
-	const operation = "fsync"
-	defer logOperationLatency(fileOperationLatency, operation, time.Now())
-	err := i.file.Fsync(ctx)
-	return logOperationError(fileOperationErrorCounter, operation, err)
-}
-
-func (i instrumentalFile) Flush(ctx context.Context) error {
-	const operation = "flush"
-	defer logOperationLatency(fileOperationLatency, operation, time.Now())
-	err := i.file.Flush(ctx)
-	return logOperationError(fileOperationErrorCounter, operation, err)
-}
-
-func (i instrumentalFile) Close(ctx context.Context) error {
-	const operation = "close"
-	defer logOperationLatency(fileOperationLatency, operation, time.Now())
-	err := i.file.Close(ctx)
-	return logOperationError(fileOperationErrorCounter, operation, err)
-}
-
-type instrumentalGroup struct {
-	grp Group
-}
-
-func (i instrumentalGroup) FindEntry(ctx context.Context, name string) (*types.Entry, error) {
-	const operation = "find_entry"
-	defer logOperationLatency(groupOperationLatency, operation, time.Now())
-	en, err := i.grp.FindEntry(ctx, name)
-	return en, logOperationError(groupOperationErrorCounter, operation, err)
-}
-
-func (i instrumentalGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*types.Entry, error) {
-	const operation = "create_entry"
-	defer logOperationLatency(groupOperationLatency, operation, time.Now())
-	en, err := i.grp.CreateEntry(ctx, attr)
-	return en, logOperationError(groupOperationErrorCounter, operation, err)
-}
-
-func (i instrumentalGroup) UpdateEntry(ctx context.Context, entry *types.Entry) error {
-	const operation = "patch_entry"
-	defer logOperationLatency(groupOperationLatency, operation, time.Now())
-	err := i.grp.UpdateEntry(ctx, entry)
-	return logOperationError(groupOperationErrorCounter, operation, err)
-}
-
-func (i instrumentalGroup) RemoveEntry(ctx context.Context, entryId int64) error {
-	const operation = "remove_entry"
-	defer logOperationLatency(groupOperationLatency, operation, time.Now())
-	err := i.grp.RemoveEntry(ctx, entryId)
-	return logOperationError(groupOperationErrorCounter, operation, err)
-}
-
-func (i instrumentalGroup) ListChildren(ctx context.Context, order *types.EntryOrder, filters ...types.Filter) ([]*types.Entry, error) {
-	const operation = "list_children"
-	defer logOperationLatency(groupOperationLatency, operation, time.Now())
-	enList, err := i.grp.ListChildren(ctx, order, filters...)
-	return enList, logOperationError(groupOperationErrorCounter, operation, err)
 }
 
 func logOperationLatency(h *prometheus.HistogramVec, operation string, startAt time.Time) {

@@ -19,8 +19,8 @@ package fuse
 import (
 	"context"
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/core"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
@@ -36,10 +36,7 @@ const (
 )
 
 type NanaFS struct {
-	*core.FS
-
-	Namespace string
-	Root      *core.Entry
+	*core.FileSystem
 
 	Path      string
 	Display   string
@@ -53,11 +50,6 @@ type NanaFS struct {
 }
 
 func (n *NanaFS) Start(stopCh chan struct{}) error {
-	root, err := n.GetNamespaceRoot(context.Background(), n.Namespace)
-	if err != nil {
-		return err
-	}
-
 	opt := &fs.Options{
 		MountOptions: fuse.MountOptions{
 			AllowOther:     true,
@@ -78,7 +70,12 @@ func (n *NanaFS) Start(stopCh chan struct{}) error {
 		opt.EntryTimeout = &attrTimeout
 	}
 
-	rawFs := fs.NewNodeFS(n.newFsNode(root), opt)
+	root, err := n.rootNode()
+	if err != nil {
+		return err
+	}
+
+	rawFs := fs.NewNodeFS(root, opt)
 	server, err := fuse.NewServer(rawFs, n.Path, &opt.MountOptions)
 	if err != nil {
 		return err
@@ -125,7 +122,15 @@ func (n *NanaFS) SetDebug(debug bool) {
 	n.debug = debug
 }
 
-func (n *NanaFS) newFsNode(entry *core.Entry) *NanaNode {
+func (n *NanaFS) rootNode() (*NanaNode, error) {
+	root, err := n.FileSystem.Root(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	return n.newFsNode(root), nil
+}
+
+func (n *NanaFS) newFsNode(entry *types.Entry) *NanaNode {
 	node := &NanaNode{
 		entry:  entry,
 		R:      n,
@@ -156,7 +161,7 @@ func (n *NanaFS) umount(server *fuse.Server) {
 	n.logger.Info("umount finish")
 }
 
-func NewNanaFsRoot(cfg config.FUSE, controller controller.Controller) (*NanaFS, error) {
+func NewNanaFsRoot(fs *core.FileSystem, cfg config.FUSE) (*NanaFS, error) {
 	var st syscall.Stat_t
 	err := syscall.Stat(cfg.RootPath, &st)
 	if err != nil {
@@ -168,13 +173,30 @@ func NewNanaFsRoot(cfg config.FUSE, controller controller.Controller) (*NanaFS, 
 	}
 
 	MountDev = uint64(st.Dev)
-	root := &NanaFS{
-		Path:      cfg.RootPath,
-		Display:   cfg.DisplayName,
-		MountOpts: cfg.MountOptions,
-		cfg:       cfg,
-		logger:    logger.NewLogger("fuse"),
+	nfs := &NanaFS{
+		FileSystem: fs,
+		Path:       cfg.RootPath,
+		Display:    cfg.DisplayName,
+		MountOpts:  cfg.MountOptions,
+		cfg:        cfg,
+		logger:     logger.NewLogger("fuse"),
 	}
 
-	return root, nil
+	return nfs, nil
+}
+
+func Run(stopCh chan struct{}, fs *core.FileSystem, cfg config.FUSE, debug bool) error {
+	if !cfg.Enable {
+		return nil
+	}
+	fsServer, err := NewNanaFsRoot(fs, cfg)
+	if err != nil {
+		panic(err)
+	}
+	fsServer.SetDebug(debug)
+	err = fsServer.Start(stopCh)
+	if err != nil {
+		panic(err)
+	}
+	return nil
 }

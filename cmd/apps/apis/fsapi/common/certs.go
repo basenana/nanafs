@@ -28,7 +28,7 @@ import (
 	"log"
 )
 
-func ReadRootCAs(cfg config.Loader) (*x509.CertPool, error) {
+func ReadRootCAs(cfg config.Config) (*x509.CertPool, error) {
 	var (
 		ctx      = context.TODO()
 		certPool = x509.NewCertPool()
@@ -48,11 +48,11 @@ func ReadRootCAs(cfg config.Loader) (*x509.CertPool, error) {
 	return certPool, nil
 }
 
-func ReadClientCAs(cfg config.Loader) (*x509.CertPool, error) {
+func ReadClientCAs(cfg config.Config) (*x509.CertPool, error) {
 	return ReadRootCAs(cfg)
 }
 
-func EnsureServerX509KeyPair(cfg config.Loader) (*tls.Certificate, error) {
+func EnsureServerX509KeyPair(cfg config.Config) (*tls.Certificate, error) {
 	encodedServerCert, err1 := cfg.GetSystemConfig(context.TODO(), config.FsAPIConfigGroup, "server_cert").String()
 	encodedServerKey, err2 := cfg.GetSystemConfig(context.TODO(), config.FsAPIConfigGroup, "server_key").String()
 	if err1 != nil && !errors.Is(err1, config.ErrNotConfigured) {
@@ -76,7 +76,7 @@ func EnsureServerX509KeyPair(cfg config.Loader) (*tls.Certificate, error) {
 	return &certPair, nil
 }
 
-func initServerX509KeyPair(cfg config.Loader) (*tls.Certificate, error) {
+func initServerX509KeyPair(cfg config.Config) (*tls.Certificate, error) {
 	var ctx = context.Background()
 	rootCAEncoded, err := cfg.GetSystemConfig(ctx, config.AuthConfigGroup, "ca_cert_0").String()
 	if err != nil {
@@ -123,7 +123,7 @@ func initServerX509KeyPair(cfg config.Loader) (*tls.Certificate, error) {
 	return &certPair, nil
 }
 
-func ServiceName(cfg config.Loader) (string, error) {
+func ServiceName(cfg config.Config) (string, error) {
 	serviceName, err := cfg.GetSystemConfig(context.TODO(), config.FsAPIConfigGroup, "service_name").String()
 	if err != nil && !errors.Is(err, config.ErrNotConfigured) {
 		return "", fmt.Errorf("load service name error: %w", err)

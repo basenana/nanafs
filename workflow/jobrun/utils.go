@@ -18,6 +18,7 @@ package jobrun
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
@@ -54,12 +55,8 @@ func init() {
 }
 
 func initParentDirCacheData(ctx context.Context, namespace string, fsCore core.Core, parentEntryID int64) (*pluginapi.CachedData, error) {
-	parent, err := fsCore.OpenGroup(ctx, namespace, parentEntryID)
-	if err != nil {
-		return nil, fmt.Errorf("open parent %d to init failed: %s", parentEntryID, err)
-	}
-	cachedDataEn, err := parent.FindEntry(ctx, pluginapi.CachedDataFile)
-	if err != nil && err != types.ErrNotFound {
+	cachedDataEn, err := fsCore.FindEntry(ctx, namespace, parentEntryID, pluginapi.CachedDataFile)
+	if err != nil && !errors.Is(err, types.ErrNotFound) {
 		return nil, fmt.Errorf("find cached data entry %s failed: %s", pluginapi.CachedDataFile, err)
 	}
 
@@ -84,17 +81,13 @@ func writeParentDirCacheData(ctx context.Context, namespace string, fsCore core.
 		return nil
 	}
 
-	parent, err := fsCore.OpenGroup(ctx, namespace, parentEntryID)
-	if err != nil {
-		return fmt.Errorf("open parent %d to write cache failed: %s", parentEntryID, err)
-	}
-	cachedDataEn, err := parent.FindEntry(ctx, pluginapi.CachedDataFile)
-	if err != nil && err != types.ErrNotFound {
+	cachedDataEn, err := fsCore.FindEntry(ctx, namespace, parentEntryID, pluginapi.CachedDataFile)
+	if err != nil && !errors.Is(err, types.ErrNotFound) {
 		return fmt.Errorf("find cached data entry %s failed: %s", pluginapi.CachedDataFile, err)
 	}
 
 	if cachedDataEn == nil {
-		cachedDataEn, err = parent.CreateEntry(ctx, types.EntryAttr{Name: pluginapi.CachedDataFile, Kind: types.RawKind})
+		cachedDataEn, err = fsCore.CreateEntry(ctx, namespace, parentEntryID, types.EntryAttr{Name: pluginapi.CachedDataFile, Kind: types.RawKind})
 		if err != nil {
 			return fmt.Errorf("create new cached data entry failed: %s", err)
 		}

@@ -35,7 +35,7 @@ import (
 type Manager struct {
 	store  metastore.AccessToken
 	cache  *cache
-	cfg    config.Loader
+	cfg    config.Config
 	logger *zap.SugaredLogger
 }
 
@@ -90,7 +90,7 @@ func (m *Manager) AccessToken(ctx context.Context, ak, sk string) (*types.Access
 
 	nowTime := time.Now()
 	if token.CertExpiration.IsZero() || token.CertExpiration.Before(nowTime.Add(24*time.Hour)) {
-		if err = m.resignCerts(ctx, token); err != nil {
+		if err = m.resignCerts(ctx, token.Namespace, token); err != nil {
 			m.logger.Errorw("resign client certs failed", "err", err)
 			return nil, err
 		}
@@ -100,7 +100,7 @@ func (m *Manager) AccessToken(ctx context.Context, ak, sk string) (*types.Access
 	return token, nil
 }
 
-func (m *Manager) resignCerts(ctx context.Context, token *types.AccessToken) (err error) {
+func (m *Manager) resignCerts(ctx context.Context, namespace string, token *types.AccessToken) (err error) {
 	caCertEncodedContent, err := m.cfg.GetSystemConfig(ctx, config.AuthConfigGroup, "ca_cert_0").String()
 	if err != nil {
 		return fmt.Errorf("get ca cert content failed: %w", err)
@@ -136,7 +136,7 @@ func (m *Manager) resignCerts(ctx context.Context, token *types.AccessToken) (er
 	token.ClientKey = base64.StdEncoding.EncodeToString(rawKey)
 	token.CertExpiration = time.Now().AddDate(0, 11, 0) // 1mon buffer
 
-	err = m.store.UpdateAccessTokenCerts(ctx, token)
+	err = m.store.UpdateAccessTokenCerts(ctx, namespace, token)
 	if err != nil {
 		m.logger.Errorw("write back access token certs failed", "err", err)
 		return
@@ -145,7 +145,7 @@ func (m *Manager) resignCerts(ctx context.Context, token *types.AccessToken) (er
 	return nil
 }
 
-func NewTokenManager(store metastore.AccessToken, cfg config.Loader) *Manager {
+func NewTokenManager(store metastore.AccessToken, cfg config.Config) *Manager {
 	return &Manager{
 		store:  store,
 		cache:  newTokenCache(),

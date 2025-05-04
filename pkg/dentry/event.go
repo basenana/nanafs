@@ -44,7 +44,7 @@ func (m *manager) entryActionEventHandler() {
 			m.logger.Errorw("handle entry event error: entry id is empty", "entry", evt.entryID, "action", evt.actionType)
 			continue
 		}
-		en, err := m.store.GetEntry(context.Background(), evt.entryID)
+		en, err := m.store.GetEntry(context.Background(), evt.topicNS, evt.entryID)
 		if err != nil {
 			m.logger.Errorw("encounter error when handle entry event", "entry", evt.entryID, "action", evt.actionType, "err", err)
 			continue

@@ -49,14 +49,14 @@ type Manager interface {
 type manager struct {
 	recorder metastore.EntryStore
 	core     core.Core
-	cfg      config.Loader
+	cfg      config.Config
 	logger   *zap.SugaredLogger
 	friday   friday.Friday
 }
 
 var _ Manager = &manager{}
 
-func NewManager(recorder metastore.EntryStore, fsCore core.Core, cfg config.Loader, fridayClient friday.Friday) (Manager, error) {
+func NewManager(recorder metastore.EntryStore, fsCore core.Core, cfg config.Config, fridayClient friday.Friday) (Manager, error) {
 	docLogger := logger.NewLogger("document")
 	docMgr := &manager{
 		recorder: recorder,
@@ -116,7 +116,7 @@ func (m *manager) ListDocumentGroups(ctx context.Context, parentId int64, filter
 		ModifiedAtStart: filter.ChangedAtStart,
 		ModifiedAtEnd:   filter.ChangedAtEnd,
 	}
-	it, err := m.recorder.FilterEntries(ctx, entryFilter)
+	it, err := m.recorder.FilterEntries(ctx, "", entryFilter)
 	if err != nil {
 		return nil, err
 	}

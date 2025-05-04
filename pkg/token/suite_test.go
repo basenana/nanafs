@@ -43,7 +43,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 	testMeta = memMeta
 
-	cfgLoader := config.NewFakeConfigLoader(config.Bootstrap{})
+	cfgLoader := config.NewMockConfigLoader(config.Bootstrap{})
 	manager = NewTokenManager(memMeta, cfgLoader)
 	err = manager.InitBuildinCA(context.TODO())
 	Expect(err).Should(BeNil())

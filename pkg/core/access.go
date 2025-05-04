@@ -21,59 +21,7 @@ import (
 	"golang.org/x/sys/unix"
 	"os/user"
 	"strconv"
-	"time"
 )
-
-const (
-	defaultFsMaxSize = 1125899906842624
-)
-
-type Info struct {
-	Objects     uint64
-	FileCount   uint64
-	AvailInodes uint64
-	MaxSize     uint64
-	UsageSize   uint64
-}
-
-type Entry struct {
-	ID         int64
-	Name       string
-	Namespace  string
-	RefCount   int
-	Kind       types.Kind
-	IsGroup    bool
-	Size       int64
-	Storage    string
-	Dev        int64
-	UID        int64
-	GID        int64
-	CreatedAt  time.Time
-	ChangedAt  time.Time
-	ModifiedAt time.Time
-	AccessAt   time.Time
-	Access     types.Access
-
-	cache *entryCache
-	ref   uint32
-}
-
-func (e *Entry) Close() {
-	e.cache.closeEntry(e.ID)
-}
-
-type DEntry struct {
-	ID      int64
-	Name    string
-	IsGroup bool
-	Mode    int
-
-	Entry *Entry
-
-	parent   *DEntry
-	children *DEntry
-	next     *DEntry
-}
 
 var (
 	perm2Mode = map[types.Permission]uint32{
@@ -92,7 +40,7 @@ var (
 	}
 )
 
-func IsHasPermissions(access types.Access, callerUid, callerGid int64, permissions ...types.Permission) error {
+func HasAllPermissions(access types.Access, callerUid, callerGid int64, permissions ...types.Permission) error {
 	var mask uint32
 	for _, p := range permissions {
 		mask |= perm2Mode[p]

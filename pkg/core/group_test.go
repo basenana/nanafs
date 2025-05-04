@@ -74,16 +74,15 @@ var _ = Describe("TestManageGroupEntry", func() {
 		It("rename file2 to file3 should be succeed", func() {
 			grp, err := fsCore.OpenGroup(ctx, namespace, group1.ID)
 			Expect(err).Should(BeNil())
-			file2, err := grp.FindEntry(ctx, "test_group_manage_file2")
+			file2, err := groupHasChildEntry(grp, "test_group_manage_file2")
 			Expect(err).Should(BeNil())
 
-			file2.Name = "test_group_manage_file3"
-			err = grp.UpdateEntry(ctx, file2)
+			file2, err = fsCore.UpdateEntry(ctx, namespace, file2.ID, types.UpdateEntry{Name: "test_group_manage_file3"})
 			Expect(err).Should(BeNil())
 
-			_, err = grp.FindEntry(ctx, "test_group_manage_file2")
+			_, err = groupHasChildEntry(grp, "test_group_manage_file2")
 			Expect(err).Should(Equal(types.ErrNotFound))
-			_, err = grp.FindEntry(ctx, "test_group_manage_file3")
+			_, err = groupHasChildEntry(grp, "test_group_manage_file3")
 			Expect(err).Should(BeNil())
 		})
 		It("list file1 & file3 should be succeed", func() {
@@ -103,17 +102,17 @@ var _ = Describe("TestManageGroupEntry", func() {
 		It("delete file1 & file3 should be succeed", func() {
 			grp, err := fsCore.OpenGroup(ctx, namespace, group1.ID)
 			Expect(err).Should(BeNil())
-			file1, err := grp.FindEntry(ctx, "test_group_manage_file1")
+			file1, err := groupHasChildEntry(grp, "test_group_manage_file1")
 			Expect(err).Should(BeNil())
-			file3, err := grp.FindEntry(ctx, "test_group_manage_file3")
+			file3, err := groupHasChildEntry(grp, "test_group_manage_file3")
 			Expect(err).Should(BeNil())
 
-			Expect(grp.RemoveEntry(ctx, file1.ID)).Should(BeNil())
-			Expect(grp.RemoveEntry(ctx, file3.ID)).Should(BeNil())
+			Expect(fsCore.RemoveEntry(ctx, namespace, group1.ID, file1.ID)).Should(BeNil())
+			Expect(fsCore.RemoveEntry(ctx, namespace, group1.ID, file3.ID)).Should(BeNil())
 
-			file1, err = grp.FindEntry(ctx, "test_group_manage_file1")
+			file1, err = groupHasChildEntry(grp, "test_group_manage_file1")
 			Expect(err).Should(Equal(types.ErrNotFound))
-			file3, err = grp.FindEntry(ctx, "test_group_manage_file3")
+			file3, err = groupHasChildEntry(grp, "test_group_manage_file3")
 			Expect(err).Should(Equal(types.ErrNotFound))
 		})
 	})

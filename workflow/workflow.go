@@ -59,14 +59,14 @@ type manager struct {
 	docMgr document.Manager
 	notify *notify.Notify
 	meta   metastore.Meta
-	config config.Loader
+	config config.Config
 	hooks  *hooks
 	logger *zap.SugaredLogger
 }
 
 var _ Workflow = &manager{}
 
-func New(fsCore core.Core, docMgr document.Manager, notify *notify.Notify, meta metastore.Meta, cfg config.Loader) (Workflow, error) {
+func New(fsCore core.Core, docMgr document.Manager, notify *notify.Notify, meta metastore.Meta, cfg config.Config) (Workflow, error) {
 	wfLogger = logger.NewLogger("workflow")
 
 	jobWorkdir, err := cfg.GetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "job_workdir").String()
