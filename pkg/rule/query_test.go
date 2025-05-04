@@ -35,7 +35,7 @@ var _ = Describe("TestQuery", func() {
 	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	gomega.Expect(err).Should(gomega.BeNil())
 
-	InitQuery(memMeta.(metastore.DEntry))
+	InitQuery(memMeta.(metastore.EntryStore))
 	err = mockedObjectForQuery(ctx, memMeta)
 	gomega.Expect(err).Should(gomega.BeNil())
 
@@ -163,7 +163,7 @@ func isMatchAllWanted(wants []int64, got []*types.Entry) error {
 	return nil
 }
 
-func mockedObjectForQuery(ctx context.Context, entryStore metastore.DEntry) error {
+func mockedObjectForQuery(ctx context.Context, entryStore metastore.EntryStore) error {
 	var objectList = []object{
 		{
 			Entry: createMetadata(10001),

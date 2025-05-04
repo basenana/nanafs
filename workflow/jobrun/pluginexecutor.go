@@ -21,8 +21,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/basenana/go-flow"
-	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/document"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
@@ -44,7 +45,8 @@ func newExecutor(ctrl *Controller, job *types.WorkflowJob) flow.Executor {
 		return &pipeExecutor{
 			job:       job,
 			pluginMgr: ctrl.pluginMgr,
-			entryMgr:  ctrl.entryMgr,
+			core:      ctrl.core,
+			store:     ctrl.store,
 			docMgr:    ctrl.docMgr,
 			logger:    logger.NewLogger("pipeExecutor").With(zap.String("job", job.Id)),
 		}
@@ -52,7 +54,8 @@ func newExecutor(ctrl *Controller, job *types.WorkflowJob) flow.Executor {
 		return &fileExecutor{
 			job:       job,
 			pluginMgr: ctrl.pluginMgr,
-			entryMgr:  ctrl.entryMgr,
+			core:      ctrl.core,
+			store:     ctrl.store,
 			docMgr:    ctrl.docMgr,
 			workdir:   path.Join(ctrl.workdir, fmt.Sprintf("job-%s", job.Id)),
 			logger:    logger.NewLogger("fileExecutor").With(zap.String("job", job.Id)),
@@ -63,7 +66,8 @@ func newExecutor(ctrl *Controller, job *types.WorkflowJob) flow.Executor {
 type pipeExecutor struct {
 	job       *types.WorkflowJob
 	pluginMgr *plugin.Manager
-	entryMgr  dentry.Manager
+	core      core.Core
+	store     metastore.EntryStore
 	docMgr    document.Manager
 	logger    *zap.SugaredLogger
 
@@ -81,7 +85,7 @@ func (p *pipeExecutor) Setup(ctx context.Context) error {
 
 	p.ctxResults = pluginapi.NewMemBasedResults()
 	for _, eid := range p.job.Target.Entries {
-		en, err = p.entryMgr.GetEntry(ctx, eid)
+		en, err = p.core.GetEntry(ctx, p.job.Namespace, eid)
 		if err != nil && !errors.Is(err, types.ErrNotFound) {
 			return fmt.Errorf("get entry by id failed %w", err)
 		}
@@ -108,7 +112,7 @@ func (p *pipeExecutor) Exec(ctx context.Context, flow *flow.Flow, task flow.Task
 	}()
 	req := newPluginRequest(p.job, t.step, p.ctxResults, p.targets...)
 	var resp *pluginapi.Response
-	resp, err = callPlugin(ctx, p.job, *t.step.Plugin, p.pluginMgr, p.entryMgr, req, p.logger)
+	resp, err = callPlugin(ctx, p.job, *t.step.Plugin, p.pluginMgr, p.store, req, p.logger)
 	if err != nil {
 		return logOperationError(DataPipeExecName, "call_plugin", err)
 	}
@@ -127,7 +131,8 @@ func (p *pipeExecutor) Teardown(ctx context.Context) error {
 
 type fileExecutor struct {
 	job       *types.WorkflowJob
-	entryMgr  dentry.Manager
+	core      core.Core
+	store     metastore.EntryStore
 	pluginMgr *plugin.Manager
 	docMgr    document.Manager
 
@@ -161,13 +166,13 @@ func (b *fileExecutor) Setup(ctx context.Context) (err error) {
 	}
 
 	for _, enID := range b.job.Target.Entries {
-		en, err := b.entryMgr.GetEntry(ctx, enID)
+		en, err := b.core.GetEntry(ctx, b.job.Namespace, enID)
 		if err != nil && !errors.Is(err, types.ErrNotFound) {
 			return fmt.Errorf("get entry by id failed %w", err)
 		}
 		b.targets = append(b.targets, en)
 
-		epath, err := entryWorkdirInit(ctx, enID, b.entryMgr, b.workdir)
+		epath, err := entryWorkdirInit(ctx, b.job.Namespace, enID, b.core, b.workdir)
 		if err != nil {
 			b.logger.Errorw("copy target file to workdir failed", "err", err, "entry", enID)
 			return logOperationError(FileExecName, "setup", err)
@@ -177,7 +182,7 @@ func (b *fileExecutor) Setup(ctx context.Context) (err error) {
 
 	if b.job.Target.ParentEntryID != 0 && len(b.job.Target.Entries) == 0 {
 		// base on parent entry
-		b.cachedData, err = initParentDirCacheData(ctx, b.entryMgr, b.job.Target.ParentEntryID)
+		b.cachedData, err = initParentDirCacheData(ctx, b.job.Namespace, b.core, b.job.Target.ParentEntryID)
 		if err != nil {
 			b.logger.Errorw("build parent cache data failed", "parent", b.job.Target.ParentEntryID, "err", err)
 			return logOperationError(FileExecName, "setup", err)
@@ -210,7 +215,7 @@ func (b *fileExecutor) Exec(ctx context.Context, flow *flow.Flow, task flow.Task
 	req.ContextResults = b.ctxResults
 
 	var resp *pluginapi.Response
-	resp, err = callPlugin(ctx, b.job, *t.step.Plugin, b.pluginMgr, b.entryMgr, req, b.logger)
+	resp, err = callPlugin(ctx, b.job, *t.step.Plugin, b.pluginMgr, b.store, req, b.logger)
 	if err != nil {
 		return logOperationError(FileExecName, "call_plugin", err)
 	}
@@ -241,7 +246,7 @@ func (b *fileExecutor) tryCollect(ctx context.Context, resp *pluginapi.Response)
 
 	if b.cachedData != nil && b.cachedData.NeedReCache() {
 		b.logger.Infow("collect cache data")
-		if err := writeParentDirCacheData(ctx, b.entryMgr, b.job.Target.ParentEntryID, b.cachedData); err != nil {
+		if err := writeParentDirCacheData(ctx, b.job.Namespace, b.core, b.job.Target.ParentEntryID, b.cachedData); err != nil {
 			b.logger.Errorw("write parent cached data back failed", "err", err)
 			return err
 		}
@@ -252,23 +257,27 @@ func (b *fileExecutor) tryCollect(ctx context.Context, resp *pluginapi.Response)
 
 func (b *fileExecutor) collectEntries(ctx context.Context, manifests []pluginapi.CollectManifest) error {
 	b.logger.Infow("collect files", "manifests", len(manifests))
-	var errList []error
+	var (
+		errList []error
+		en      *types.Entry
+		err     error
+	)
 	for _, manifest := range manifests {
 		for i := range manifest.NewFiles {
 			file := &(manifest.NewFiles[i])
-			if err := collectFile2BaseEntry(ctx, b.entryMgr, manifest.BaseEntry, b.workdir, file); err != nil {
+			if en, err = collectFile2BaseEntry(ctx, b.job.Namespace, b.core, manifest.BaseEntry, b.workdir, file); err != nil {
 				b.logger.Errorw("collect file to base entry failed", "entry", manifest.BaseEntry, "newFile", file.Name, "err", err)
 				errList = append(errList, err)
 				continue
 			}
 
 			if file.Document != nil {
-				if file.ID == 0 {
+				if en == nil {
 					errList = append(errList, fmt.Errorf("collect document %s error: entry id is empty", file.Document.Title))
 					continue
 				}
 				b.logger.Infow("collect documents", "entryId", file.ID)
-				if err := collectFile2Document(ctx, b.docMgr, b.entryMgr, file.ID, file.Document); err != nil {
+				if err = collectFile2Document(ctx, b.docMgr, en, file.Document); err != nil {
 					return logOperationError(FileExecName, "collect", err)
 				}
 			}
@@ -294,9 +303,9 @@ func (b *fileExecutor) Teardown(ctx context.Context) error {
 }
 
 func callPlugin(ctx context.Context, job *types.WorkflowJob, ps types.PlugScope, mgr *plugin.Manager,
-	entryMgr dentry.Manager, req *pluginapi.Request, logger *zap.SugaredLogger) (*pluginapi.Response, error) {
+	store metastore.EntryStore, req *pluginapi.Request, logger *zap.SugaredLogger) (*pluginapi.Response, error) {
 	if job.Target.ParentEntryID != 0 {
-		ed, err := entryMgr.GetEntryExtendData(ctx, job.Target.ParentEntryID)
+		ed, err := store.GetEntryExtendData(ctx, job.Target.ParentEntryID)
 		if err != nil {
 			err = fmt.Errorf("get parent entry extend data error: %s", err)
 			return nil, err
@@ -305,7 +314,7 @@ func callPlugin(ctx context.Context, job *types.WorkflowJob, ps types.PlugScope,
 			ps = mergeParentEntryPlugScope(ps, *ed.PlugScope)
 		}
 
-		properties, err := entryMgr.ListEntryProperty(ctx, job.Target.ParentEntryID)
+		properties, err := store.ListEntryProperties(ctx, job.Target.ParentEntryID)
 		if err != nil {
 			err = fmt.Errorf("get parent entry properties error: %w", err)
 			return nil, err

@@ -23,7 +23,6 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
@@ -42,19 +41,17 @@ type Manager interface {
 }
 
 type manager struct {
-	recorder metastore.DEntry
-	entryMgr dentry.Manager
+	recorder metastore.EntryStore
 	logger   *zap.SugaredLogger
 }
 
 var _ Manager = &manager{}
 
-func NewManager(recorder metastore.DEntry, entryMgr dentry.Manager) (Manager, error) {
+func NewManager(recorder metastore.EntryStore) (Manager, error) {
 	roomLogger := logger.NewLogger("room")
 	roomMgr := &manager{
 		logger:   roomLogger,
 		recorder: recorder,
-		entryMgr: entryMgr,
 	}
 
 	return roomMgr, nil

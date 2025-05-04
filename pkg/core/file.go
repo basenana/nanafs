@@ -14,7 +14,7 @@
  limitations under the License.
 */
 
-package dentry
+package core
 
 import (
 	"context"
@@ -64,7 +64,7 @@ func (f *file) GetAttr() types.OpenAttr {
 }
 
 func (f *file) WriteAt(ctx context.Context, data []byte, off int64) (int64, error) {
-	defer trace.StartRegion(ctx, "dentry.file.WriteAt").End()
+	defer trace.StartRegion(ctx, "fs.core.file.WriteAt").End()
 	if !f.attr.Write || f.writer == nil {
 		return 0, types.ErrUnsupported
 	}
@@ -79,7 +79,7 @@ func (f *file) WriteAt(ctx context.Context, data []byte, off int64) (int64, erro
 }
 
 func (f *file) Flush(ctx context.Context) error {
-	defer trace.StartRegion(ctx, "dentry.file.Flush").End()
+	defer trace.StartRegion(ctx, "fs.core.file.Flush").End()
 	if !f.attr.Write {
 		return nil
 	}
@@ -91,7 +91,7 @@ func (f *file) Flush(ctx context.Context) error {
 }
 
 func (f *file) Fsync(ctx context.Context) error {
-	defer trace.StartRegion(ctx, "dentry.file.Fsync").End()
+	defer trace.StartRegion(ctx, "fs.core.file.Fsync").End()
 	if !f.attr.Write {
 		return types.ErrUnsupported
 	}
@@ -103,7 +103,7 @@ func (f *file) Fsync(ctx context.Context) error {
 }
 
 func (f *file) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error) {
-	defer trace.StartRegion(ctx, "dentry.file.ReadAt").End()
+	defer trace.StartRegion(ctx, "fs.core.file.ReadAt").End()
 	if !f.attr.Read || f.reader == nil {
 		return 0, types.ErrUnsupported
 	}
@@ -115,7 +115,7 @@ func (f *file) ReadAt(ctx context.Context, dest []byte, off int64) (int64, error
 }
 
 func (f *file) Close(ctx context.Context) (err error) {
-	defer trace.StartRegion(ctx, "dentry.file.Close").End()
+	defer trace.StartRegion(ctx, "fs.core.file.Close").End()
 	// TODO: fix close file event
 	//defer PublicFileActionEvent(events.ActionTypeClose, f.entry)
 	defer decreaseOpenedFile(f.entryID)
@@ -145,7 +145,6 @@ func openFile(en *types.Entry, attr types.OpenAttr, chunkStore metastore.ChunkSt
 
 type symlink struct {
 	entryID int64
-	mgr     *manager
 	store   metastore.EntryStore
 
 	size       int64
@@ -161,7 +160,7 @@ func (s *symlink) GetAttr() types.OpenAttr {
 }
 
 func (s *symlink) WriteAt(ctx context.Context, data []byte, off int64) (n int64, err error) {
-	defer trace.StartRegion(ctx, "dentry.symlink.WriteAt").End()
+	defer trace.StartRegion(ctx, "fs.core.symlink.WriteAt").End()
 	newSize := off + int64(len(data))
 	if off+int64(len(data)) > int64(len(s.data)) {
 		blk := make([]byte, newSize)
@@ -178,7 +177,7 @@ func (s *symlink) WriteAt(ctx context.Context, data []byte, off int64) (n int64,
 }
 
 func (s *symlink) ReadAt(ctx context.Context, dest []byte, off int64) (n int64, err error) {
-	defer trace.StartRegion(ctx, "dentry.symlink.ReadAt").End()
+	defer trace.StartRegion(ctx, "fs.core.symlink.ReadAt").End()
 	if s.data == nil || off > s.size {
 		return 0, io.EOF
 	}
@@ -190,28 +189,28 @@ func (s *symlink) Fsync(ctx context.Context) error {
 }
 
 func (s *symlink) Flush(ctx context.Context) (err error) {
-	defer trace.StartRegion(ctx, "dentry.symlink.Flush").End()
-	err = s.mgr.store.Flush(ctx, s.entryID, s.size)
+	defer trace.StartRegion(ctx, "fs.core.symlink.Flush").End()
+	err = s.store.Flush(ctx, s.entryID, s.size)
 	if err != nil {
 		return err
 	}
 
-	eData, err := s.mgr.GetEntryExtendData(ctx, s.entryID)
+	eData, err := s.store.GetEntryExtendData(ctx, s.entryID)
 	if err != nil {
 		return err
 	}
 	eData.Symlink = string(s.data[:s.size])
-	return s.mgr.UpdateEntryExtendData(ctx, s.entryID, eData)
+	return s.store.UpdateEntryExtendData(ctx, s.entryID, eData)
 }
 
 func (s *symlink) Close(ctx context.Context) error {
-	defer trace.StartRegion(ctx, "dentry.symlink.Close").End()
-	defer s.mgr.publicEntryActionEvent(events.TopicNamespaceFile, events.ActionTypeClose, s.entryID)
+	defer trace.StartRegion(ctx, "fs.core.symlink.Close").End()
+	defer publicEntryActionEvent(events.TopicNamespaceFile, events.ActionTypeClose, s.entryID)
 	defer decreaseOpenedFile(s.entryID)
 	return s.Flush(ctx)
 }
 
-func openSymlink(mgr *manager, en *types.Entry, attr types.OpenAttr) (File, error) {
+func openSymlink(store metastore.Meta, en *types.Entry, attr types.OpenAttr) (File, error) {
 	if en.Kind != types.SymLinkKind {
 		return nil, fmt.Errorf("not symlink")
 	}
@@ -220,7 +219,7 @@ func openSymlink(mgr *manager, en *types.Entry, attr types.OpenAttr) (File, erro
 		raw  []byte
 		size int64
 	)
-	eData, err := mgr.GetEntryExtendData(context.TODO(), en.ID)
+	eData, err := store.GetEntryExtendData(context.TODO(), en.ID)
 	if err != nil {
 		return nil, logOperationError(fileOperationErrorCounter, "init", err)
 	}
@@ -234,7 +233,7 @@ func openSymlink(mgr *manager, en *types.Entry, attr types.OpenAttr) (File, erro
 	}
 
 	increaseOpenedFile(en.ID)
-	return &symlink{entryID: en.ID, size: size, modifiedAt: en.ModifiedAt, mgr: mgr, data: raw, attr: attr}, nil
+	return &symlink{entryID: en.ID, size: size, modifiedAt: en.ModifiedAt, store: store, data: raw, attr: attr}, nil
 }
 
 var (

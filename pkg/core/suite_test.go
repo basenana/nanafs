@@ -14,47 +14,68 @@
  limitations under the License.
 */
 
-package bio
+package core
 
 import (
+	"context"
+	"os"
+	"testing"
+
+	"github.com/basenana/nanafs/pkg/rule"
+
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
-	"os"
-	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var (
-	chunkStore metastore.ChunkStore
-	entryStore metastore.EntryStore
-	dataStore  storage.Storage
+	metaStoreObj metastore.Meta
+	fsCore       Core
+	root         *types.Entry
+	namespace    = types.DefaultNamespace
 
 	workdir string
 )
 
-func TestBIO(t *testing.T) {
+func TestDEntry(t *testing.T) {
 	logger.InitLogger()
 	defer logger.Sync()
 	RegisterFailHandler(Fail)
 
 	var err error
-	workdir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-bio-")
+	workdir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-core-")
 	Expect(err).Should(BeNil())
 	t.Logf("unit test workdir on: %s", workdir)
 	storage.InitLocalCache(config.Bootstrap{CacheDir: workdir, CacheSize: 1})
 
+	RunSpecs(t, "Core Suite")
+}
+
+var _ = BeforeSuite(func() {
 	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())
-	chunkStore = memMeta
-	entryStore = memMeta
-
-	memData, err := storage.NewStorage(storage.MemoryStorage, storage.MemoryStorage, config.Storage{})
+	metaStoreObj = memMeta
+	fsCore, _ = New(metaStoreObj, config.Bootstrap{FS: &config.FS{}, Storages: []config.Storage{{
+		ID:   storage.MemoryStorage,
+		Type: storage.MemoryStorage,
+	}}})
+	storages := make(map[string]storage.Storage)
+	storages[storage.MemoryStorage], err = storage.NewStorage(
+		storage.MemoryStorage,
+		storage.MemoryStorage,
+		config.Storage{ID: storage.MemoryStorage, Type: storage.MemoryStorage},
+	)
 	Expect(err).Should(BeNil())
-	dataStore = memData
 
-	RunSpecs(t, "BIO Suite")
-}
+	// init rule based query
+	rule.InitQuery(memMeta)
+
+	// init root
+	root, err = fsCore.FSRoot(context.TODO())
+	Expect(err).Should(BeNil())
+})

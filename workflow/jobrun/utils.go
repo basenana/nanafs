@@ -19,7 +19,7 @@ package jobrun
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
@@ -53,8 +53,8 @@ func init() {
 	)
 }
 
-func initParentDirCacheData(ctx context.Context, entryMgr dentry.Manager, parentEntryID int64) (*pluginapi.CachedData, error) {
-	parent, err := entryMgr.OpenGroup(ctx, parentEntryID)
+func initParentDirCacheData(ctx context.Context, namespace string, fsCore core.Core, parentEntryID int64) (*pluginapi.CachedData, error) {
+	parent, err := fsCore.OpenGroup(ctx, namespace, parentEntryID)
 	if err != nil {
 		return nil, fmt.Errorf("open parent %d to init failed: %s", parentEntryID, err)
 	}
@@ -64,7 +64,7 @@ func initParentDirCacheData(ctx context.Context, entryMgr dentry.Manager, parent
 	}
 
 	if cachedDataEn != nil {
-		cachedDataFile, err := entryMgr.Open(ctx, cachedDataEn.ID, types.OpenAttr{Read: true})
+		cachedDataFile, err := fsCore.Open(ctx, namespace, cachedDataEn.ID, types.OpenAttr{Read: true})
 		if err != nil {
 			return nil, fmt.Errorf("open cached data entry %d failed: %s", cachedDataEn.ID, err)
 		}
@@ -79,12 +79,12 @@ func initParentDirCacheData(ctx context.Context, entryMgr dentry.Manager, parent
 	return pluginapi.InitCacheData(), nil
 }
 
-func writeParentDirCacheData(ctx context.Context, entryMgr dentry.Manager, parentEntryID int64, data *pluginapi.CachedData) error {
+func writeParentDirCacheData(ctx context.Context, namespace string, fsCore core.Core, parentEntryID int64, data *pluginapi.CachedData) error {
 	if !data.NeedReCache() {
 		return nil
 	}
 
-	parent, err := entryMgr.OpenGroup(ctx, parentEntryID)
+	parent, err := fsCore.OpenGroup(ctx, namespace, parentEntryID)
 	if err != nil {
 		return fmt.Errorf("open parent %d to write cache failed: %s", parentEntryID, err)
 	}
@@ -105,7 +105,7 @@ func writeParentDirCacheData(ctx context.Context, entryMgr dentry.Manager, paren
 		return fmt.Errorf("open cached data entry reader failed: %s", err)
 	}
 
-	f, err := entryMgr.Open(ctx, cachedDataEn.ID, types.OpenAttr{Write: true, Trunc: true})
+	f, err := fsCore.Open(ctx, namespace, cachedDataEn.ID, types.OpenAttr{Write: true, Trunc: true})
 	if err != nil {
 		return fmt.Errorf("open cached data entry %d failed: %s", cachedDataEn.ID, err)
 	}

@@ -31,7 +31,7 @@ import (
 
 var (
 	ctrl       Controller
-	entryStore metastore.DEntry
+	entryStore metastore.EntryStore
 )
 
 func TestController(t *testing.T) {

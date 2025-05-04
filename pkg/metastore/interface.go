@@ -26,7 +26,7 @@ import (
 type Meta interface {
 	AccessToken
 	SysConfig
-	DEntry
+	EntryStore
 	ChunkStore
 	NotificationRecorder
 	ScheduledTaskRecorder
@@ -44,7 +44,7 @@ type SysConfig interface {
 	SetConfigValue(ctx context.Context, group, name, value string) error
 }
 
-type DEntry interface {
+type EntryStore interface {
 	GetEntry(ctx context.Context, id int64) (*types.Entry, error)
 	FindEntry(ctx context.Context, parentID int64, name string) (*types.Entry, error)
 	CreateEntry(ctx context.Context, parentID int64, newEntry *types.Entry, ed *types.ExtendData) error

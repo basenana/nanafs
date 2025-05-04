@@ -97,7 +97,7 @@ func NewManager(store metastore.Meta, cfg config.Bootstrap) (Manager, error) {
 }
 
 type manager struct {
-	store          metastore.DEntry
+	store          metastore.EntryStore
 	metastore      metastore.Meta
 	defaultStorage storage.Storage
 	storages       map[string]storage.Storage

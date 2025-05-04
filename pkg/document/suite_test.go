@@ -69,7 +69,7 @@ var _ = BeforeSuite(func() {
 	docManager = &manager{
 		logger:   logger.NewLogger("doc"),
 		recorder: memMeta,
-		entryMgr: entryMgr,
+		core:     entryMgr,
 		friday:   friday.NewMockFriday(),
 	}
 

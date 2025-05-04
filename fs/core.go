@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/dialogue"
 	"github.com/basenana/nanafs/pkg/dispatch"
 	"github.com/basenana/nanafs/pkg/document"
@@ -59,12 +59,12 @@ type Depends struct {
 	Meta         metastore.Meta
 	Workflow     workflow.Workflow
 	Dispatcher   *dispatch.Dispatcher
-	Entry        dentry.Manager
 	Notify       *notify.Notify
 	Document     document.Manager
 	Dialogue     dialogue.Manager
 	Token        *token.Manager
 	ConfigLoader config.Loader
+	Core         core.Core
 }
 
 func InitDepends(loader config.Loader, meta metastore.Meta, fridayClient friday.Friday) (*Depends, error) {
@@ -81,27 +81,27 @@ func InitDepends(loader config.Loader, meta metastore.Meta, fridayClient friday.
 
 	dep.Notify = notify.NewNotify(meta)
 
-	dep.Entry, err = dentry.NewManager(meta, bCfg)
+	dep.Core, err = core.New(meta, bCfg)
 	if err != nil {
 		return nil, err
 	}
 
-	dep.Document, err = document.NewManager(meta, dep.Entry, loader, fridayClient)
+	dep.Document, err = document.NewManager(meta, dep.Core, loader, fridayClient)
 	if err != nil {
 		return nil, err
 	}
 
-	dep.Dialogue, err = dialogue.NewManager(meta, dep.Entry)
+	dep.Dialogue, err = dialogue.NewManager(meta)
 	if err != nil {
 		return nil, err
 	}
 
-	dep.Workflow, err = workflow.New(dep.Entry, dep.Document, dep.Notify, meta, loader)
+	dep.Workflow, err = workflow.New(dep.Core, dep.Document, dep.Notify, meta, loader)
 	if err != nil {
 		return nil, err
 	}
 
-	dep.Dispatcher, err = dispatch.Init(dep.Entry, dep.Document, dep.Notify, meta)
+	dep.Dispatcher, err = dispatch.Init(dep.Core, dep.Notify, meta)
 	if err != nil {
 		return nil, err
 	}

@@ -76,7 +76,7 @@ func (h *hooks) start(ctx context.Context) {
 		<-h.cron.Stop().Done()
 	}()
 
-	workflows, err := h.mgr.recorder.ListAllNamespaceWorkflows(ctx)
+	workflows, err := h.mgr.meta.ListAllNamespaceWorkflows(ctx)
 	if err != nil {
 		h.logger.Errorw("list all workflow failed", "err", err)
 		return
@@ -201,17 +201,17 @@ func (h *hooks) handleEntryCreate(evt *types.Event) {
 		return
 	}
 
-	en, err := h.mgr.entryMgr.GetEntry(ctx, evt.RefID)
+	en, err := h.mgr.core.GetEntry(ctx, evt.Namespace, evt.RefID)
 	if err != nil {
 		h.logger.Errorw("[handleEntryCreate] get entry failed", "entry", evt.RefID, "err", err)
 		return
 	}
-	properties, err := h.mgr.entryMgr.ListEntryProperty(ctx, en.ID)
+	properties, err := h.mgr.meta.ListEntryProperties(ctx, en.ID)
 	if err != nil {
 		h.logger.Errorw("[handleEntryCreate] get entry properties failed", "entry", evt.RefID, "err", err)
 		return
 	}
-	labels, err := h.mgr.entryMgr.GetEntryLabels(ctx, en.ID)
+	labels, err := h.mgr.meta.GetEntryLabels(ctx, en.ID)
 	if err != nil {
 		h.logger.Errorw("[handleEntryCreate] get entry labels failed", "entry", evt.RefID, "err", err)
 		return
@@ -273,7 +273,7 @@ func (h *hooks) filterAndRunCronWorkflow(ctx context.Context, wf *types.Workflow
 			continue
 		}
 
-		sameTargetJob, err := h.mgr.recorder.ListWorkflowJobs(ctx, wf.Namespace, types.JobFilter{WorkFlowID: wf.Id, TargetEntry: en.ID})
+		sameTargetJob, err := h.mgr.meta.ListWorkflowJobs(ctx, wf.Namespace, types.JobFilter{WorkFlowID: wf.Id, TargetEntry: en.ID})
 		if err != nil {
 			h.logger.Errorw("[filterAndRunCronWorkflow] query same target job failed", "entry", en.ID, "workflow", wf.Id, "err", err)
 			continue
@@ -390,7 +390,7 @@ func (h *hooks) initSystemWorkflow(ctx context.Context, namespace string) error 
 	workflows := buildInNsWorkflows(namespace)
 	for i := range workflows {
 		wf := workflows[i]
-		err = h.mgr.recorder.SaveWorkflow(ctx, namespace, wf)
+		err = h.mgr.meta.SaveWorkflow(ctx, namespace, wf)
 		if err != nil {
 			if !errors.Is(err, types.ErrIsExist) {
 				return err

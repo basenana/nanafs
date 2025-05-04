@@ -14,7 +14,7 @@
  limitations under the License.
 */
 
-package dentry
+package core
 
 import (
 	"context"
@@ -62,16 +62,16 @@ func (e emptyGroup) ListChildren(ctx context.Context, order *types.EntryOrder, f
 }
 
 type stdGroup struct {
-	entryID int64
-	name    string
-	mgr     *manager
-	store   metastore.EntryStore
+	entryID   int64
+	name      string
+	namespace string
+	store     metastore.EntryStore
 }
 
 var _ Group = &stdGroup{}
 
 func (g *stdGroup) GetEntry(ctx context.Context, entryID int64) (*types.Entry, error) {
-	defer trace.StartRegion(ctx, "dentry.stdGroup.GetEntry").End()
+	defer trace.StartRegion(ctx, "fs.core.stdGroup.GetEntry").End()
 	entry, err := g.store.GetEntry(ctx, entryID)
 	if err != nil {
 		return nil, err
@@ -83,7 +83,7 @@ func (g *stdGroup) GetEntry(ctx context.Context, entryID int64) (*types.Entry, e
 }
 
 func (g *stdGroup) FindEntry(ctx context.Context, name string) (*types.Entry, error) {
-	defer trace.StartRegion(ctx, "dentry.stdGroup.FindEntry").End()
+	defer trace.StartRegion(ctx, "fs.core.stdGroup.FindEntry").End()
 	entry, err := g.store.FindEntry(ctx, g.entryID, name)
 	if err != nil {
 		return nil, err
@@ -92,7 +92,7 @@ func (g *stdGroup) FindEntry(ctx context.Context, name string) (*types.Entry, er
 }
 
 func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*types.Entry, error) {
-	defer trace.StartRegion(ctx, "dentry.stdGroup.CreateEntry").End()
+	defer trace.StartRegion(ctx, "fs.core.stdGroup.CreateEntry").End()
 	existed, err := g.store.FindEntry(ctx, g.entryID, attr.Name)
 	if err != nil && err != types.ErrNotFound {
 		return nil, err
@@ -130,22 +130,22 @@ func (g *stdGroup) CreateEntry(ctx context.Context, attr types.EntryAttr) (*type
 		}
 	}
 
-	g.mgr.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeCreate, entry.ID)
+	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeCreate, entry.ID)
 	return entry, nil
 }
 
 func (g *stdGroup) UpdateEntry(ctx context.Context, entry *types.Entry) error {
-	defer trace.StartRegion(ctx, "dentry.stdGroup.UpdateEntry").End()
+	defer trace.StartRegion(ctx, "fs.core.stdGroup.UpdateEntry").End()
 	err := g.store.UpdateEntryMetadata(ctx, entry)
 	if err != nil {
 		return err
 	}
-	g.mgr.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeUpdate, entry.ID)
+	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeUpdate, entry.ID)
 	return nil
 }
 
 func (g *stdGroup) RemoveEntry(ctx context.Context, entryId int64) error {
-	defer trace.StartRegion(ctx, "dentry.stdGroup.RemoveEntry").End()
+	defer trace.StartRegion(ctx, "fs.core.stdGroup.RemoveEntry").End()
 	en, err := g.store.GetEntry(ctx, entryId)
 	if err != nil {
 		return err
@@ -157,12 +157,12 @@ func (g *stdGroup) RemoveEntry(ctx context.Context, entryId int64) error {
 	if err != nil {
 		return err
 	}
-	g.mgr.publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeDestroy, entryId)
+	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeDestroy, entryId)
 	return nil
 }
 
 func (g *stdGroup) ListChildren(ctx context.Context, order *types.EntryOrder, filters ...types.Filter) ([]*types.Entry, error) {
-	defer trace.StartRegion(ctx, "dentry.stdGroup.ListChildren").End()
+	defer trace.StartRegion(ctx, "fs.core.stdGroup.ListChildren").End()
 	it, err := g.store.ListEntryChildren(ctx, g.entryID, order, filters...)
 	if err != nil {
 		return nil, err

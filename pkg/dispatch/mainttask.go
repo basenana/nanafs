@@ -18,6 +18,7 @@ package dispatch
 
 import (
 	"context"
+	"github.com/basenana/nanafs/pkg/core"
 	"github.com/hyponet/eventbus"
 	"time"
 
@@ -36,7 +37,7 @@ const (
 )
 
 type maintainExecutor struct {
-	entry    dentry.Manager
+	core     core.Core
 	recorder metastore.ScheduledTaskRecorder
 	logger   *zap.SugaredLogger
 }
@@ -86,13 +87,13 @@ func (c *compactExecutor) execute(ctx context.Context, task *types.ScheduledTask
 		return ErrNeedRetry
 	}
 
-	en, err := c.entry.GetEntry(ctx, entry.ID)
+	en, err := c.core.GetEntry(ctx, task.Namespace, entry.ID)
 	if err != nil {
 		c.logger.Errorw("[compactExecutor] query entry error", "entry", entry.ID, "err", err.Error())
 		return err
 	}
 	c.logger.Debugw("[compactExecutor] start compact entry segment", "entry", entry.ID)
-	if err = c.entry.ChunkCompact(ctx, en.ID); err != nil {
+	if err = c.core.ChunkCompact(ctx, en.ID); err != nil {
 		c.logger.Errorw("[compactExecutor] compact entry segment error", "entry", entry.ID, "err", err.Error())
 		return err
 	}
@@ -143,21 +144,21 @@ func (c *entryCleanExecutor) execute(ctx context.Context, task *types.ScheduledT
 		return ErrNeedRetry
 	}
 
-	en, err := c.entry.GetEntry(ctx, entry.ID)
+	en, err := c.core.GetEntry(ctx, task.Namespace, entry.ID)
 	if err != nil {
 		c.logger.Errorw("[entryCleanExecutor] get entry failed", "entry", entry.ID, "task", task.ID, "err", err)
 		return err
 	}
 
 	if !en.IsGroup {
-		err = c.entry.CleanEntryData(ctx, en.ID)
+		err = c.core.CleanEntryData(ctx, en.ID)
 		if err != nil {
 			c.logger.Errorw("[entryCleanExecutor] get entry failed", "entry", entry.ID, "task", task.ID, "err", err)
 			return err
 		}
 	}
 
-	err = c.entry.DestroyEntry(ctx, en.ID)
+	err = c.core.DestroyEntry(ctx, en.ID)
 	if err != nil {
 		c.logger.Errorw("[entryCleanExecutor] get entry failed", "entry", entry.ID, "task", task.ID, "err", err)
 		return err
@@ -167,9 +168,9 @@ func (c *entryCleanExecutor) execute(ctx context.Context, task *types.ScheduledT
 
 func registerMaintainExecutor(
 	d *Dispatcher,
-	entry dentry.Manager,
+	fsCore core.Core,
 	recorder metastore.ScheduledTaskRecorder) error {
-	e := &maintainExecutor{entry: entry, recorder: recorder, logger: logger.NewLogger("maintainExecutor")}
+	e := &maintainExecutor{core: fsCore, recorder: recorder, logger: logger.NewLogger("maintainExecutor")}
 	ce := &compactExecutor{maintainExecutor: e}
 	ee := &entryCleanExecutor{maintainExecutor: e}
 

@@ -68,7 +68,6 @@ var _ = BeforeSuite(func() {
 	roomManager = &manager{
 		logger:   logger.NewLogger("room"),
 		recorder: memMeta,
-		entryMgr: entryMgr,
 	}
 
 	// init root

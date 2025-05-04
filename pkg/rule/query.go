@@ -29,7 +29,7 @@ import (
 
 var defaultQuery Query
 
-func InitQuery(entryStore metastore.DEntry) {
+func InitQuery(entryStore metastore.EntryStore) {
 	defaultQuery = &query{
 		entry:  entryStore,
 		logger: logger.NewLogger("ruleQuery"),
@@ -46,7 +46,7 @@ type Query interface {
 type query struct {
 	rules  []types.Rule
 	labels []types.LabelMatch
-	entry  metastore.DEntry
+	entry  metastore.EntryStore
 	logger *zap.SugaredLogger
 }
 

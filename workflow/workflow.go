@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"strings"
 	"time"
@@ -27,7 +28,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
@@ -54,19 +54,19 @@ type Workflow interface {
 }
 
 type manager struct {
-	ctrl     *jobrun.Controller
-	entryMgr dentry.Manager
-	docMgr   document.Manager
-	notify   *notify.Notify
-	recorder metastore.ScheduledTaskRecorder
-	config   config.Loader
-	hooks    *hooks
-	logger   *zap.SugaredLogger
+	ctrl   *jobrun.Controller
+	core   core.Core
+	docMgr document.Manager
+	notify *notify.Notify
+	meta   metastore.Meta
+	config config.Loader
+	hooks  *hooks
+	logger *zap.SugaredLogger
 }
 
 var _ Workflow = &manager{}
 
-func New(entryMgr dentry.Manager, docMgr document.Manager, notify *notify.Notify, recorder metastore.ScheduledTaskRecorder, cfg config.Loader) (Workflow, error) {
+func New(fsCore core.Core, docMgr document.Manager, notify *notify.Notify, meta metastore.Meta, cfg config.Loader) (Workflow, error) {
 	wfLogger = logger.NewLogger("workflow")
 
 	jobWorkdir, err := cfg.GetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "job_workdir").String()
@@ -86,8 +86,8 @@ func New(entryMgr dentry.Manager, docMgr document.Manager, notify *notify.Notify
 	if err != nil {
 		return nil, fmt.Errorf("init plugin failed %w", err)
 	}
-	flowCtrl := jobrun.NewJobController(pluginMgr, entryMgr, docMgr, recorder, notify, jobWorkdir)
-	mgr := &manager{ctrl: flowCtrl, entryMgr: entryMgr, docMgr: docMgr, recorder: recorder, config: cfg, logger: wfLogger}
+	flowCtrl := jobrun.NewJobController(pluginMgr, fsCore, docMgr, meta, notify, jobWorkdir)
+	mgr := &manager{ctrl: flowCtrl, core: fsCore, docMgr: docMgr, meta: meta, config: cfg, logger: wfLogger}
 	mgr.hooks = initHooks(mgr)
 
 	return mgr, nil
@@ -98,7 +98,7 @@ func (m *manager) Start(ctx context.Context) {
 }
 
 func (m *manager) ListWorkflows(ctx context.Context, namespace string) ([]*types.Workflow, error) {
-	result, err := m.recorder.ListWorkflows(ctx, namespace)
+	result, err := m.meta.ListWorkflows(ctx, namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +106,7 @@ func (m *manager) ListWorkflows(ctx context.Context, namespace string) ([]*types
 }
 
 func (m *manager) GetWorkflow(ctx context.Context, namespace string, wfId string) (*types.Workflow, error) {
-	return m.recorder.GetWorkflow(ctx, namespace, wfId)
+	return m.meta.GetWorkflow(ctx, namespace, wfId)
 }
 
 func (m *manager) CreateWorkflow(ctx context.Context, namespace string, workflow *types.Workflow) (*types.Workflow, error) {
@@ -119,7 +119,7 @@ func (m *manager) CreateWorkflow(ctx context.Context, namespace string, workflow
 		return nil, err
 	}
 	workflow.System = false
-	if err = m.recorder.SaveWorkflow(ctx, namespace, workflow); err != nil {
+	if err = m.meta.SaveWorkflow(ctx, namespace, workflow); err != nil {
 		return nil, err
 	}
 
@@ -134,7 +134,7 @@ func (m *manager) UpdateWorkflow(ctx context.Context, namespace string, workflow
 		return nil, err
 	}
 	workflow.UpdatedAt = time.Now()
-	if err = m.recorder.SaveWorkflow(ctx, namespace, workflow); err != nil {
+	if err = m.meta.SaveWorkflow(ctx, namespace, workflow); err != nil {
 		return nil, err
 	}
 
@@ -158,7 +158,7 @@ func (m *manager) DeleteWorkflow(ctx context.Context, namespace string, wfId str
 		return fmt.Errorf("has running jobs: [%s]", strings.Join(runningJobs, ","))
 	}
 
-	err = m.recorder.DeleteWorkflow(ctx, namespace, wfId)
+	err = m.meta.DeleteWorkflow(ctx, namespace, wfId)
 	if err != nil {
 		return err
 	}
@@ -167,7 +167,7 @@ func (m *manager) DeleteWorkflow(ctx context.Context, namespace string, wfId str
 }
 
 func (m *manager) GetJob(ctx context.Context, namespace string, wfId string, jobID string) (*types.WorkflowJob, error) {
-	result, err := m.recorder.GetWorkflowJob(ctx, namespace, jobID)
+	result, err := m.meta.GetWorkflowJob(ctx, namespace, jobID)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +175,7 @@ func (m *manager) GetJob(ctx context.Context, namespace string, wfId string, job
 }
 
 func (m *manager) ListJobs(ctx context.Context, namespace string, wfId string) ([]*types.WorkflowJob, error) {
-	result, err := m.recorder.ListWorkflowJobs(ctx, namespace, types.JobFilter{WorkFlowID: wfId})
+	result, err := m.meta.ListWorkflowJobs(ctx, namespace, types.JobFilter{WorkFlowID: wfId})
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +191,7 @@ func (m *manager) TriggerWorkflow(ctx context.Context, namespace string, wfId st
 	m.logger.Infow("receive workflow", "workflow", workflow.Name, "entryID", tgt)
 	for _, tgtEn := range tgt.Entries {
 		var en *types.Entry
-		en, err = m.entryMgr.GetEntry(ctx, tgtEn)
+		en, err = m.core.GetEntry(ctx, namespace, tgtEn)
 		if err != nil {
 			m.logger.Errorw("query entry failed", "workflow", workflow.Name, "entryID", tgt, "err", err)
 			return nil, err
@@ -222,7 +222,7 @@ func (m *manager) TriggerWorkflow(ctx context.Context, namespace string, wfId st
 	job.TimeoutSeconds = int(attr.Timeout.Seconds())
 	job.TriggerReason = attr.Reason
 
-	err = m.recorder.SaveWorkflowJob(ctx, namespace, job)
+	err = m.meta.SaveWorkflowJob(ctx, namespace, job)
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +235,7 @@ func (m *manager) TriggerWorkflow(ctx context.Context, namespace string, wfId st
 }
 
 func (m *manager) PauseWorkflowJob(ctx context.Context, namespace string, jobId string) error {
-	job, err := m.recorder.GetWorkflowJob(ctx, namespace, jobId)
+	job, err := m.meta.GetWorkflowJob(ctx, namespace, jobId)
 	if err != nil {
 		return err
 	}
@@ -246,7 +246,7 @@ func (m *manager) PauseWorkflowJob(ctx context.Context, namespace string, jobId 
 }
 
 func (m *manager) ResumeWorkflowJob(ctx context.Context, namespace string, jobId string) error {
-	job, err := m.recorder.GetWorkflowJob(ctx, namespace, jobId)
+	job, err := m.meta.GetWorkflowJob(ctx, namespace, jobId)
 	if err != nil {
 		return err
 	}
@@ -257,7 +257,7 @@ func (m *manager) ResumeWorkflowJob(ctx context.Context, namespace string, jobId
 }
 
 func (m *manager) CancelWorkflowJob(ctx context.Context, namespace string, jobId string) error {
-	job, err := m.recorder.GetWorkflowJob(ctx, namespace, jobId)
+	job, err := m.meta.GetWorkflowJob(ctx, namespace, jobId)
 	if err != nil {
 		return err
 	}

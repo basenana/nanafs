@@ -18,6 +18,7 @@ package document
 
 import (
 	"context"
+	"github.com/basenana/nanafs/pkg/core"
 	"github.com/hyponet/eventbus"
 	"runtime/trace"
 	"time"
@@ -28,7 +29,6 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
@@ -47,8 +47,8 @@ type Manager interface {
 }
 
 type manager struct {
-	recorder metastore.DEntry
-	entryMgr dentry.Manager
+	recorder metastore.EntryStore
+	core     core.Core
 	cfg      config.Loader
 	logger   *zap.SugaredLogger
 	friday   friday.Friday
@@ -56,11 +56,11 @@ type manager struct {
 
 var _ Manager = &manager{}
 
-func NewManager(recorder metastore.DEntry, entryMgr dentry.Manager, cfg config.Loader, fridayClient friday.Friday) (Manager, error) {
+func NewManager(recorder metastore.EntryStore, fsCore core.Core, cfg config.Loader, fridayClient friday.Friday) (Manager, error) {
 	docLogger := logger.NewLogger("document")
 	docMgr := &manager{
 		recorder: recorder,
-		entryMgr: entryMgr,
+		core:     fsCore,
 		cfg:      cfg,
 		logger:   docLogger,
 	}
@@ -156,7 +156,7 @@ func (m *manager) handleEntryEvent(evt *types.Event) error {
 	case events.ActionTypeChangeParent:
 		fallthrough
 	case events.ActionTypeUpdate:
-		en, err := m.entryMgr.GetEntry(ctx, entry.ID)
+		en, err := m.core.GetEntry(ctx, entry.Namespace, entry.ID)
 		if err != nil {
 			m.logger.Errorw("[docUpdateExecutor] get entry failed", "entry", entry.ID, "err", err)
 			return err

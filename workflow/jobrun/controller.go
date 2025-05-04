@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/go-flow"
-	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
@@ -46,9 +46,9 @@ type Controller struct {
 	workdir string
 
 	pluginMgr *plugin.Manager
-	entryMgr  dentry.Manager
+	core      core.Core
 	docMgr    document.Manager
-	recorder  metastore.ScheduledTaskRecorder
+	store     metastore.Meta
 	notify    *notify.Notify
 
 	isStartUp bool
@@ -58,7 +58,7 @@ type Controller struct {
 }
 
 func (c *Controller) TriggerJob(ctx context.Context, namespace, jID string) error {
-	job, err := c.recorder.GetWorkflowJob(ctx, namespace, jID)
+	job, err := c.store.GetWorkflowJob(ctx, namespace, jID)
 	if err != nil {
 		return err
 	}
@@ -129,7 +129,7 @@ func (c *Controller) jobWorkQueueIterator(ctx context.Context, queue string, par
 
 func (c *Controller) handleNextJob(namespace, jobID string) {
 	ctx := context.Background()
-	job, err := c.recorder.GetWorkflowJob(ctx, namespace, jobID)
+	job, err := c.store.GetWorkflowJob(ctx, namespace, jobID)
 	if err != nil {
 		c.logger.Errorw("handle next job encounter failed: get workflow job error", "job", jobID, "err", err)
 		return
@@ -177,7 +177,7 @@ func (c *Controller) handleNextJob(namespace, jobID string) {
 func (c *Controller) rescanRunnableJob(ctx context.Context) error {
 	if !c.isStartUp {
 		// all running job
-		runningJobs, err := c.recorder.ListAllNamespaceWorkflowJobs(ctx, types.JobFilter{Status: RunningStatus})
+		runningJobs, err := c.store.ListAllNamespaceWorkflowJobs(ctx, types.JobFilter{Status: RunningStatus})
 		if err != nil {
 			return err
 		}
@@ -195,7 +195,7 @@ func (c *Controller) rescanRunnableJob(ctx context.Context) error {
 		}
 	}
 
-	pendingJobs, err := c.recorder.ListAllNamespaceWorkflowJobs(ctx, types.JobFilter{Status: InitializingStatus})
+	pendingJobs, err := c.store.ListAllNamespaceWorkflowJobs(ctx, types.JobFilter{Status: InitializingStatus})
 	if err != nil {
 		return err
 	}
@@ -254,7 +254,7 @@ func (c *Controller) Shutdown() error {
 func (c *Controller) Handle(event flow.UpdateEvent) {
 	ctx := context.Background()
 	jid := NewJobID(event.Flow.ID)
-	job, err := c.recorder.GetWorkflowJob(ctx, jid.namespace, jid.id)
+	job, err := c.store.GetWorkflowJob(ctx, jid.namespace, jid.id)
 	if err != nil {
 		c.logger.Errorw("update workflow job status failed, failed to get job",
 			"err", err, "namespace", jid.namespace, "job", jid.id)
@@ -282,7 +282,7 @@ func (c *Controller) Handle(event flow.UpdateEvent) {
 		}
 	}
 
-	if err = c.recorder.SaveWorkflowJob(ctx, job.Namespace, job); err != nil {
+	if err = c.store.SaveWorkflowJob(ctx, job.Namespace, job); err != nil {
 		c.logger.Errorw("update workflow job status failed, failed to save job",
 			"err", err, "job", event.Flow.ID)
 		return
@@ -298,13 +298,13 @@ func (c *Controller) getRunner(namespace, jobiD string) *runner {
 	return r
 }
 
-func NewJobController(pluginMgr *plugin.Manager, entryMgr dentry.Manager, docMgr document.Manager,
-	recorder metastore.ScheduledTaskRecorder, notify *notify.Notify, workdir string) *Controller {
+func NewJobController(pluginMgr *plugin.Manager, fsCore core.Core, docMgr document.Manager,
+	store metastore.Meta, notify *notify.Notify, workdir string) *Controller {
 	ctrl := &Controller{
 		pluginMgr: pluginMgr,
-		entryMgr:  entryMgr,
+		core:      fsCore,
 		docMgr:    docMgr,
-		recorder:  recorder,
+		store:     store,
 		notify:    notify,
 		workdir:   workdir,
 		runners:   make(map[JobID]*runner),
