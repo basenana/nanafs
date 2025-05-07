@@ -42,13 +42,13 @@ var _ = Describe("TestAccess", func() {
 				core.UpdateAccessWithMode(acc, 0655)
 				core.UpdateAccessWithOwnID(acc, cfg.FS.Owner.Uid, cfg.FS.Owner.Gid)
 
-				entry, err := nfs.CreateEntry(ctx, root.entry.ID, types.EntryAttr{
+				entry, err := nfs.CreateEntry(ctx, root.entryID, types.EntryAttr{
 					Name:   "test_access_file.txt",
 					Kind:   types.RawKind,
 					Access: acc,
 				})
 				Expect(err).Should(BeNil())
-				node = nfs.newFsNode(entry)
+				node = nfs.newFsNode("test_access_file.txt", entry)
 			})
 		})
 		Context("access root dir", func() {
@@ -73,12 +73,12 @@ var _ = Describe("TestGetattr", func() {
 	Describe("", func() {
 		Context("create a file", func() {
 			It("should be ok", func() {
-				entry, err := nfs.CreateEntry(ctx, root.entry.ID, types.EntryAttr{
+				entry, err := nfs.CreateEntry(ctx, root.entryID, types.EntryAttr{
 					Name: "test_getattr_file.txt",
 					Kind: types.RawKind,
 				})
 				Expect(err).Should(BeNil())
-				node = nfs.newFsNode(entry)
+				node = nfs.newFsNode("test_getattr_file.txt", entry)
 			})
 		})
 		Context("get a file attr", func() {
@@ -100,22 +100,22 @@ var _ = Describe("TestOpen", func() {
 	Describe("", func() {
 		Context("create a file", func() {
 			It("should be ok", func() {
-				entry, err := nfs.CreateEntry(ctx, root.entry.ID, types.EntryAttr{
+				entry, err := nfs.CreateEntry(ctx, root.entryID, types.EntryAttr{
 					Name: "test_open_file.txt",
 					Kind: types.RawKind,
 				})
 				Expect(err).Should(BeNil())
-				fileNode = nfs.newFsNode(entry)
+				fileNode = nfs.newFsNode("test_open_file.txt", entry)
 			})
 		})
 		Context("create a dir", func() {
 			It("should be ok", func() {
-				entry, err := nfs.CreateEntry(ctx, root.entry.ID, types.EntryAttr{
+				entry, err := nfs.CreateEntry(ctx, root.entryID, types.EntryAttr{
 					Name: "test_open_dir",
 					Kind: types.GroupKind,
 				})
 				Expect(err).Should(BeNil())
-				dirNode = nfs.newFsNode(entry)
+				dirNode = nfs.newFsNode("test_open_dir", entry)
 			})
 		})
 		Context("open a file", func() {
@@ -146,12 +146,15 @@ var _ = Describe("TestCreate", func() {
 				_, _, _, errNo := root.Create(ctx, newFileName, 0, 0755, out)
 				Expect(errNo).To(Equal(syscall.Errno(0)))
 
-				children, err := nfs.ListChildren(ctx, root.entry.ID)
+				dir, err := nfs.OpenDir(ctx, root.entryID)
+				Expect(err).To(BeNil())
+
+				children, err := dir.Readdir(-1)
 				Expect(err).To(BeNil())
 
 				found := false
 				for _, ch := range children {
-					if ch.Name == newFileName {
+					if ch.Name() == newFileName {
 						found = true
 					}
 				}
@@ -177,7 +180,7 @@ var _ = Describe("TestLookup", func() {
 	Describe("", func() {
 		Context("create a file", func() {
 			It("should be ok", func() {
-				_, err := nfs.CreateEntry(ctx, root.entry.ID, types.EntryAttr{
+				_, err := nfs.CreateEntry(ctx, root.entryID, types.EntryAttr{
 					Name: fileName,
 					Kind: types.RawKind,
 				})
@@ -211,22 +214,22 @@ var _ = Describe("TestOpendir", func() {
 	Describe("", func() {
 		Context("create a file", func() {
 			It("should be ok", func() {
-				fileEntry, err := nfs.CreateEntry(ctx, root.entry.ID, types.EntryAttr{
+				fileEntry, err := nfs.CreateEntry(ctx, root.entryID, types.EntryAttr{
 					Name: "test_opendir_file.txt",
 					Kind: types.RawKind,
 				})
 				Expect(err).Should(BeNil())
-				fileNode = nfs.newFsNode(fileEntry)
+				fileNode = nfs.newFsNode("test_opendir_file.txt", fileEntry)
 			})
 		})
 		Context("create a dir", func() {
 			It("should be ok", func() {
-				dirEntry, err := nfs.CreateEntry(ctx, root.entry.ID, types.EntryAttr{
+				dirEntry, err := nfs.CreateEntry(ctx, root.entryID, types.EntryAttr{
 					Name: "test_opendir_dir",
 					Kind: types.GroupKind,
 				})
 				Expect(err).Should(BeNil())
-				dirNode = nfs.newFsNode(dirEntry)
+				dirNode = nfs.newFsNode("test_opendir_dir", dirEntry)
 			})
 		})
 		Context("open a dir", func() {
@@ -253,12 +256,12 @@ var _ = Describe("TestReaddir", func() {
 	Describe("", func() {
 		Context("create a dir", func() {
 			It("should be ok", func() {
-				entry, err := nfs.CreateEntry(ctx, root.entry.ID, types.EntryAttr{
+				entry, err := nfs.CreateEntry(ctx, root.entryID, types.EntryAttr{
 					Name: dirName,
 					Kind: types.GroupKind,
 				})
 				Expect(err).Should(BeNil())
-				node = nfs.newFsNode(entry)
+				node = nfs.newFsNode(dirName, entry)
 			})
 		})
 		It("normal file test", func() {
@@ -269,7 +272,7 @@ var _ = Describe("TestReaddir", func() {
 				ds.Close()
 			})
 			Context("add file to dir", func() {
-				_, err := nfs.CreateEntry(ctx, node.entry.ID, types.EntryAttr{
+				_, err := nfs.CreateEntry(ctx, node.entryID, types.EntryAttr{
 					Name: addFileName,
 					Kind: types.RawKind,
 				})
@@ -334,7 +337,7 @@ var _ = Describe("TestLink", func() {
 	Describe("", func() {
 		Context("create a file", func() {
 			It("should be ok", func() {
-				_, err := nfs.CreateEntry(ctx, root.entry.ID, types.EntryAttr{
+				_, err := nfs.CreateEntry(ctx, root.entryID, types.EntryAttr{
 					Name: "test_link_file.txt",
 					Kind: types.RawKind,
 				})
@@ -361,7 +364,7 @@ var _ = Describe("TestRmdir", func() {
 	Describe("", func() {
 		Context("create a dir", func() {
 			It("should be ok", func() {
-				_, err := nfs.CreateEntry(ctx, root.entry.ID, types.EntryAttr{
+				_, err := nfs.CreateEntry(ctx, root.entryID, types.EntryAttr{
 					Name: dirName,
 					Kind: types.GroupKind,
 				})
@@ -408,7 +411,7 @@ var _ = Describe("TestRename", func() {
 	Describe("", func() {
 		Context("create a file", func() {
 			It("should be ok", func() {
-				_, err := nfs.CreateEntry(ctx, root.entry.ID, types.EntryAttr{
+				_, err := nfs.CreateEntry(ctx, root.entryID, types.EntryAttr{
 					Name: filename,
 					Kind: types.RawKind,
 				})
@@ -417,12 +420,12 @@ var _ = Describe("TestRename", func() {
 		})
 		Context("create a file", func() {
 			It("should be ok", func() {
-				dst, err := nfs.CreateEntry(ctx, root.entry.ID, types.EntryAttr{
+				dst, err := nfs.CreateEntry(ctx, root.entryID, types.EntryAttr{
 					Name: dstDir,
 					Kind: types.GroupKind,
 				})
 				Expect(err).Should(BeNil())
-				dirNode = nfs.newFsNode(dst)
+				dirNode = nfs.newFsNode(dstDir, dst)
 			})
 		})
 		Context("rename a file", func() {

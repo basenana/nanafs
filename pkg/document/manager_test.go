@@ -217,7 +217,7 @@ var _ = Describe("TestHandleEvent", func() {
 			Expect(err).Should(Equal(types.ErrNotFound))
 		})
 		It("change parent should be succeed", func() {
-			err := docManager.core.ChangeEntryParent(ctx, namespace, grp1File2.ID, nil, grp1.ID, root.ID, grp1File2.Name, types.ChangeParentAttr{})
+			err := docManager.core.ChangeEntryParent(ctx, namespace, grp1File2.ID, nil, grp1.ID, root.ID, grp1File2.Name, grp1File2.Name, types.ChangeParentAttr{})
 			Expect(err).Should(BeNil())
 
 			err = docManager.handleEntryEvent(&types.Event{
@@ -234,7 +234,7 @@ var _ = Describe("TestHandleEvent", func() {
 			Expect(doc.ParentEntryID).Should(Equal(root.ID))
 		})
 		It("update name should be succeed", func() {
-			err := docManager.core.ChangeEntryParent(ctx, namespace, grp1File3.ID, nil, grp1.ID, grp1.ID, "test3", types.ChangeParentAttr{})
+			err := docManager.core.ChangeEntryParent(ctx, namespace, grp1File3.ID, nil, grp1.ID, grp1.ID, grp1File3.Name, "test3", types.ChangeParentAttr{})
 			Expect(err).Should(BeNil())
 
 			err = docManager.handleEntryEvent(&types.Event{

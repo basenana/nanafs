@@ -84,7 +84,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 
 	// mock friday
-	dep.FridayClient = friday.NewMockFriday()
+	dep.FridayClient = testFriday
 	dep.Document, err = document.NewManager(dep.Meta, dep.Core, dep.ConfigLoader, dep.FridayClient)
 
 	// init root

@@ -87,7 +87,7 @@ var _ = Describe("testEntriesService-CRUD", func() {
 			Expect(len(resp.Entries) > 0).Should(BeTrue())
 		})
 		It("get detail should be succeed", func() {
-			resp, err := serviceClient.GetEntryDetail(ctx, &GetEntryDetailRequest{EntryID: fileID}, grpc.UseCompressor(gzip.Name))
+			resp, err := serviceClient.GetEntryDetail(ctx, &GetEntryDetailRequest{EntryID: fileID, ParentID: groupID}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
 			Expect(resp.Entry.Name).Should(Equal("test-file-1"))
 		})
@@ -112,14 +112,18 @@ var _ = Describe("testEntriesService-CRUD", func() {
 			Expect(err).Should(BeNil())
 		})
 		It("get detail should be succeed", func() {
-			resp, err := serviceClient.GetEntryDetail(ctx, &GetEntryDetailRequest{EntryID: fileID}, grpc.UseCompressor(gzip.Name))
+			resp, err := serviceClient.GetEntryDetail(ctx, &GetEntryDetailRequest{EntryID: fileID, ParentID: groupID}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
 			Expect(resp.Entry.Aliases).Should(Equal("test aliases"))
 		})
 	})
 	Context("test delete entry", func() {
 		It("delete should be succeed", func() {
-			_, err := serviceClient.DeleteEntry(ctx, &DeleteEntryRequest{EntryID: fileID}, grpc.UseCompressor(gzip.Name))
+			_, err := serviceClient.DeleteEntry(ctx, &DeleteEntryRequest{
+				EntryID:   fileID,
+				ParentID:  groupID,
+				EntryName: "test-file-1",
+			}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
 		})
 		It("get detail should be notfound", func() {
@@ -264,7 +268,7 @@ var _ = Describe("testEntryPropertiesService", func() {
 			Expect(len(resp.Properties) > 0).Should(BeTrue())
 		})
 		It("get entry details should be succeed", func() {
-			resp, err := serviceClient.GetEntryDetail(ctx, &GetEntryDetailRequest{EntryID: entryID}, grpc.UseCompressor(gzip.Name))
+			resp, err := serviceClient.GetEntryDetail(ctx, &GetEntryDetailRequest{EntryID: entryID, ParentID: core.RootEntryID}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
 			Expect(len(resp.Properties) > 0).Should(BeTrue())
 		})
@@ -293,7 +297,7 @@ var _ = Describe("testEntryPropertiesService", func() {
 			Expect(len(resp.Properties)).Should(Equal(0))
 		})
 		It("get entry details should be succeed", func() {
-			resp, err := serviceClient.GetEntryDetail(ctx, &GetEntryDetailRequest{EntryID: entryID}, grpc.UseCompressor(gzip.Name))
+			resp, err := serviceClient.GetEntryDetail(ctx, &GetEntryDetailRequest{EntryID: entryID, ParentID: core.RootEntryID}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
 			Expect(len(resp.Properties)).Should(Equal(0))
 		})
@@ -331,17 +335,17 @@ var _ = Describe("testDocumentsService-ReadView", func() {
 			Expect(resp.Entry.Name).Should(Equal("test-doc-group-2"))
 			groupID2 = resp.Entry.Id
 			err = testFriday.CreateDocument(ctx, &types.Document{
-				EntryId: 100, Name: "test document 1", ParentEntryID: groupID1, Source: "unittest",
+				EntryId: 100, Name: "test document 1", Namespace: types.DefaultNamespace, ParentEntryID: groupID1, Source: "unittest",
 				Content: "test document", Marked: &f, Unread: &f,
 				CreatedAt: time.Now(), ChangedAt: time.Now()})
 			Expect(err).Should(BeNil())
 			err = testFriday.CreateDocument(ctx, &types.Document{
-				EntryId: 101, Name: "test document unread 1", ParentEntryID: groupID1, Source: "unittest",
+				EntryId: 101, Name: "test document unread 1", Namespace: types.DefaultNamespace, ParentEntryID: groupID1, Source: "unittest",
 				Content: "test document", Marked: &f, Unread: &t,
 				CreatedAt: time.Now(), ChangedAt: time.Now()})
 			Expect(err).Should(BeNil())
 			err = testFriday.CreateDocument(ctx, &types.Document{
-				EntryId: 102, Name: "test document unread 1", ParentEntryID: groupID2, Source: "unittest",
+				EntryId: 102, Name: "test document unread 1", Namespace: types.DefaultNamespace, ParentEntryID: groupID2, Source: "unittest",
 				Content: "test document", Marked: &t, Unread: &f,
 				CreatedAt: time.Now(), ChangedAt: time.Now()})
 			Expect(err).Should(BeNil())

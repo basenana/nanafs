@@ -65,3 +65,7 @@ type UpdateEntry struct {
 	UID         *int64
 	GID         *int64
 }
+
+type DeleteEntry struct {
+	DeleteAll bool
+}

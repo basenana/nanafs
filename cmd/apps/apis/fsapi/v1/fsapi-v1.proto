@@ -67,6 +67,7 @@ message FindEntryDetailRequest {
 
 message GetEntryDetailRequest {
   int64 entryID = 1;
+  int64 parentID = 2;
 }
 
 message GetEntryDetailResponse {
@@ -104,13 +105,20 @@ message UpdateEntryResponse {
 
 message DeleteEntryRequest {
   int64 entryID = 1;
+  int64 parentID = 2;
+  string entryName = 3;
 }
 message DeleteEntryResponse {
   EntryInfo entry = 1;
 }
 
 message DeleteEntriesRequest {
-  repeated int64 entryIDs = 1;
+  message EntryToDelete {
+    int64 entryID = 1;
+    int64 parentID = 2;
+    string entryName = 3;
+  }
+  repeated EntryToDelete entries = 1;
 }
 
 message DeleteEntriesResponse {
@@ -160,8 +168,10 @@ message ChangeParentRequest {
   }
   int64 entryID = 1;
   int64 newParentID = 2;
-  string newName = 3;
-  Option option = 4;
+  int64 oldParentID = 3;
+  string newName = 4;
+  string oldName = 5;
+  Option option = 6;
 }
 
 message ChangeParentResponse {

@@ -79,18 +79,6 @@ func initNamespaceRootEntry(root *types.Entry, ns string) *types.Entry {
 	return nsRoot
 }
 
-func initMirrorEntry(src, newParent *types.Entry, attr types.EntryAttr) (*types.Entry, error) {
-	result, err := types.InitNewEntry(newParent, attr)
-	if err != nil {
-		return nil, err
-	}
-
-	result.Kind = src.Kind
-	result.Namespace = src.Namespace
-	result.RefID = src.ID
-	return result, nil
-}
-
 func modeFromFileKind(kind types.Kind) uint32 {
 	switch kind {
 	case types.RawKind:

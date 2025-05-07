@@ -72,25 +72,27 @@ var _ = Describe("TestManageGroupEntry", func() {
 			Expect(err).Should(Equal(types.ErrIsExist))
 		})
 		It("rename file2 to file3 should be succeed", func() {
-			grp, err := fsCore.OpenGroup(ctx, namespace, group1.ID)
+			chList, err := fsCore.ListChildren(ctx, namespace, group1.ID)
 			Expect(err).Should(BeNil())
-			file2, err := groupHasChildEntry(grp, "test_group_manage_file2")
+			file2, err := groupHasChild(chList, "test_group_manage_file2")
 			Expect(err).Should(BeNil())
 
 			newName := "test_group_manage_file3"
-			update := types.UpdateEntry{Name: &newName}
-			file2, err = fsCore.UpdateEntry(ctx, namespace, file2.ID, update)
+			opt := types.ChangeParentAttr{}
+			err = fsCore.ChangeEntryParent(ctx, namespace, file2, nil, group1.ID, group1.ID, "test_group_manage_file2", newName, opt)
 			Expect(err).Should(BeNil())
 
-			_, err = groupHasChildEntry(grp, "test_group_manage_file2")
+			chList, err = fsCore.ListChildren(ctx, namespace, group1.ID)
+			Expect(err).Should(BeNil())
+			_, err = groupHasChild(chList, "test_group_manage_file2")
 			Expect(err).Should(Equal(types.ErrNotFound))
-			_, err = groupHasChildEntry(grp, "test_group_manage_file3")
+			_, err = groupHasChild(chList, "test_group_manage_file3")
 			Expect(err).Should(BeNil())
 		})
 		It("list file1 & file3 should be succeed", func() {
 			grp, err := fsCore.OpenGroup(ctx, namespace, group1.ID)
 			Expect(err).Should(BeNil())
-			entries, err := grp.ListChildren(ctx, nil, types.Filter{})
+			entries, err := grp.ListChildren(ctx)
 			Expect(err).Should(BeNil())
 			fileNames := map[string]bool{}
 			for _, en := range entries {
@@ -102,19 +104,21 @@ var _ = Describe("TestManageGroupEntry", func() {
 
 		})
 		It("delete file1 & file3 should be succeed", func() {
-			grp, err := fsCore.OpenGroup(ctx, namespace, group1.ID)
+			chList, err := fsCore.ListChildren(ctx, namespace, group1.ID)
 			Expect(err).Should(BeNil())
-			file1, err := groupHasChildEntry(grp, "test_group_manage_file1")
+			file1, err := groupHasChild(chList, "test_group_manage_file1")
 			Expect(err).Should(BeNil())
-			file3, err := groupHasChildEntry(grp, "test_group_manage_file3")
+			file3, err := groupHasChild(chList, "test_group_manage_file3")
 			Expect(err).Should(BeNil())
 
-			Expect(fsCore.RemoveEntry(ctx, namespace, group1.ID, file1.ID)).Should(BeNil())
-			Expect(fsCore.RemoveEntry(ctx, namespace, group1.ID, file3.ID)).Should(BeNil())
+			Expect(fsCore.RemoveEntry(ctx, namespace, group1.ID, file1, "test_group_manage_file1", types.DeleteEntry{})).Should(BeNil())
+			Expect(fsCore.RemoveEntry(ctx, namespace, group1.ID, file3, "test_group_manage_file3", types.DeleteEntry{})).Should(BeNil())
 
-			file1, err = groupHasChildEntry(grp, "test_group_manage_file1")
+			chList, err = fsCore.ListChildren(ctx, namespace, group1.ID)
+			Expect(err).Should(BeNil())
+			_, err = groupHasChild(chList, "test_group_manage_file1")
 			Expect(err).Should(Equal(types.ErrNotFound))
-			file3, err = groupHasChildEntry(grp, "test_group_manage_file3")
+			_, err = groupHasChild(chList, "test_group_manage_file3")
 			Expect(err).Should(Equal(types.ErrNotFound))
 		})
 	})
@@ -210,7 +214,7 @@ var _ = Describe("TestDynamicGroupEntry", func() {
 			Expect(err).Should(BeNil())
 			Expect(smtGrp).ShouldNot(BeNil())
 
-			children, err := smtGrp.ListChildren(ctx, nil, types.Filter{})
+			children, err := smtGrp.ListChildren(ctx)
 			Expect(err).Should(BeNil())
 			Expect(len(children)).Should(Equal(3))
 		})

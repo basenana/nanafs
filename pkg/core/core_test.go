@@ -104,7 +104,7 @@ var _ = Describe("TestEntryManage", func() {
 			Expect(err).Should(BeNil())
 			file1, err := groupHasChildEntry(grp, "test_create_file1")
 			Expect(err).Should(BeNil())
-			err = fsCore.RemoveEntry(ctx, namespace, grp1ID, file1.ID)
+			err = fsCore.RemoveEntry(ctx, namespace, grp1ID, file1.ID, "test_create_file1", types.DeleteEntry{})
 			Expect(err).Should(BeNil())
 
 			grp, err = fsCore.OpenGroup(ctx, namespace, grp1ID)
@@ -119,7 +119,7 @@ var _ = Describe("TestEntryManage", func() {
 			Expect(err).Should(BeNil())
 			_, err = groupHasChildEntry(grp, "test_create_grp1")
 			Expect(err).Should(BeNil())
-			err = fsCore.RemoveEntry(ctx, namespace, root.ID, grp1ID)
+			err = fsCore.RemoveEntry(ctx, namespace, root.ID, grp1ID, "test_create_grp1", types.DeleteEntry{})
 			Expect(err).Should(BeNil())
 		})
 		It("query should be failed", func() {
@@ -133,11 +133,11 @@ var _ = Describe("TestEntryManage", func() {
 
 var _ = Describe("TestMirrorEntryManage", func() {
 	var (
-		ctx         = context.TODO()
-		grp1        *types.Entry
-		sourceFile  = "test_mirror_grp1_file1"
-		mirrorFile2 = "test_mirror_grp1_file2"
-		mirrorFile3 = "test_mirror_grp1_file3"
+		ctx                  = context.TODO()
+		grp1, sFile1, mFile2 *types.Entry
+		sourceFile           = "test_mirror_grp1_file1"
+		mirrorFile2          = "test_mirror_grp1_file2"
+		mirrorFile3          = "test_mirror_grp1_file3"
 	)
 	Context("create group mirror entry mirror_grp1", func() {
 		It("create should be succeed", func() {
@@ -166,100 +166,106 @@ var _ = Describe("TestMirrorEntryManage", func() {
 	Context("create file entry in test_mirror_grp1", func() {
 		It("create should be succeed", func() {
 			var err error
-			_, err = fsCore.CreateEntry(ctx, namespace, grp1.ID, types.EntryAttr{
+			sFile1, err = fsCore.CreateEntry(ctx, namespace, grp1.ID, types.EntryAttr{
 				Name:   sourceFile,
 				Kind:   types.RawKind,
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
 
-		})
-		It("mirror file should be succeed", func() {
-			grp, err := fsCore.OpenGroup(ctx, namespace, grp1.ID)
-			Expect(err).Should(BeNil())
-			sFile, err := groupHasChildEntry(grp, sourceFile)
+			child, err := fsCore.ListChildren(ctx, namespace, grp1.ID)
 			Expect(err).Should(BeNil())
 
-			mFile2, err := fsCore.MirrorEntry(ctx, namespace, mustGetSourceEntry(sFile).ID, grp1.ID, types.EntryAttr{
+			_, err = groupHasChild(child, sourceFile)
+			Expect(err).Should(BeNil())
+		})
+		It("mirror file should be succeed", func() {
+			var err error
+			mFile2, err = fsCore.MirrorEntry(ctx, namespace, sFile1.ID, grp1.ID, types.EntryAttr{
 				Name:   mirrorFile2,
 				Kind:   types.RawKind,
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
-			Expect(mustGetSourceEntry(mFile2).RefCount).Should(Equal(2))
+			Expect(mustGetEntry(mFile2).RefCount).Should(Equal(2))
 
-			grp, err = fsCore.OpenGroup(ctx, namespace, grp1.ID)
+			child, err := fsCore.ListChildren(ctx, namespace, grp1.ID)
 			Expect(err).Should(BeNil())
-			sFile, err = groupHasChildEntry(grp, sourceFile)
-			Expect(err).Should(BeNil())
-			Expect(mustGetSourceEntry(sFile).RefCount).Should(Equal(2))
+			_, err = groupHasChild(child, mirrorFile2)
+
+			Expect(mustGetEntry(sFile1).RefCount).Should(Equal(2))
 		})
 		It("mirror mirrored file should be succeed", func() {
-			grp, err := fsCore.OpenGroup(ctx, namespace, grp1.ID)
+			child, err := fsCore.ListChildren(ctx, namespace, grp1.ID)
 			Expect(err).Should(BeNil())
-			mFile2, err := groupHasChildEntry(grp, mirrorFile2)
+			_, err = groupHasChild(child, mirrorFile2)
 			Expect(err).Should(BeNil())
-			_, err = fsCore.MirrorEntry(ctx, namespace, mustGetSourceEntry(mFile2).ID, grp1.ID, types.EntryAttr{
+			_, err = fsCore.MirrorEntry(ctx, namespace, mFile2.ID, grp1.ID, types.EntryAttr{
 				Name:   mirrorFile3,
 				Kind:   types.RawKind,
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
 
-			grp, err = fsCore.OpenGroup(ctx, namespace, grp1.ID)
+			child, err = fsCore.ListChildren(ctx, namespace, grp1.ID)
 			Expect(err).Should(BeNil())
-			sFile, err := groupHasChildEntry(grp, sourceFile)
+
+			mFile3ID, err := groupHasChild(child, mirrorFile3)
 			Expect(err).Should(BeNil())
-			Expect(mustGetSourceEntry(sFile).RefCount).Should(Equal(3))
+			Expect(mFile3ID).Should(Equal(mFile2.ID))
+
+			_, err = groupHasChild(child, sourceFile)
+			Expect(err).Should(BeNil())
+
+			Expect(mustGetEntry(mFile2).RefCount).Should(Equal(3))
 		})
 		It("delete file should be succeed", func() {
-			grp, err := fsCore.OpenGroup(ctx, namespace, grp1.ID)
+			child, err := fsCore.ListChildren(ctx, namespace, grp1.ID)
 			Expect(err).Should(BeNil())
-			sFile, err := groupHasChildEntry(grp, sourceFile)
+			_, err = groupHasChild(child, sourceFile)
+
+			err = fsCore.RemoveEntry(ctx, namespace, grp1.ID, sFile1.ID, sourceFile, types.DeleteEntry{})
 			Expect(err).Should(BeNil())
 
-			err = fsCore.RemoveEntry(ctx, namespace, grp1.ID, sFile.ID)
+			child, err = fsCore.ListChildren(ctx, namespace, grp1.ID)
 			Expect(err).Should(BeNil())
 
-			grp, err = fsCore.OpenGroup(ctx, namespace, grp1.ID)
-			Expect(err).Should(BeNil())
-			_, err = groupHasChildEntry(grp, sourceFile)
+			_, err = groupHasChild(child, sourceFile)
 			Expect(err).Should(Equal(types.ErrNotFound))
 
-			grp, err = fsCore.OpenGroup(ctx, namespace, grp1.ID)
-			Expect(err).Should(BeNil())
-			f2, err := groupHasChildEntry(grp, mirrorFile2)
-			Expect(err).Should(BeNil())
-			Expect(mustGetSourceEntry(f2).RefCount).Should(Equal(2))
-		})
-		It("delete mirror file should be succeed", func() {
-			grp, err := fsCore.OpenGroup(ctx, namespace, grp1.ID)
-			Expect(err).Should(BeNil())
-			mFile2, err := groupHasChildEntry(grp, mirrorFile2)
-			Expect(err).Should(BeNil())
-			err = fsCore.RemoveEntry(ctx, namespace, grp1.ID, mFile2.ID)
+			_, err = groupHasChild(child, mirrorFile2)
 			Expect(err).Should(BeNil())
 
-			grp, err = fsCore.OpenGroup(ctx, namespace, grp1.ID)
+			Expect(mustGetEntry(mFile2).RefCount).Should(Equal(2))
+		})
+		It("delete mirror file should be succeed", func() {
+			chList, err := fsCore.ListChildren(ctx, namespace, grp1.ID)
 			Expect(err).Should(BeNil())
-			_, err = groupHasChildEntry(grp, mirrorFile2)
+			_, err = groupHasChild(chList, mirrorFile2)
+			Expect(err).Should(BeNil())
+
+			err = fsCore.RemoveEntry(ctx, namespace, grp1.ID, mFile2.ID, mirrorFile2, types.DeleteEntry{})
+			Expect(err).Should(BeNil())
+
+			chList, err = fsCore.ListChildren(ctx, namespace, grp1.ID)
+			Expect(err).Should(BeNil())
+			_, err = groupHasChild(chList, mirrorFile2)
 			Expect(err).Should(Equal(types.ErrNotFound))
-			mFile3, err := groupHasChildEntry(grp, mirrorFile3)
-			Expect(err).Should(BeNil())
-			Expect(mustGetSourceEntry(mFile3).RefCount).Should(Equal(1))
+			Expect(mustGetEntry(sFile1).RefCount).Should(Equal(1))
 		})
 		It("delete mirror file should be succeed", func() {
-			grp, err := fsCore.OpenGroup(ctx, namespace, grp1.ID)
+			chList, err := fsCore.ListChildren(ctx, namespace, grp1.ID)
 			Expect(err).Should(BeNil())
-			mirroredFile, err := groupHasChildEntry(grp, mirrorFile3)
-			Expect(err).Should(BeNil())
-
-			err = fsCore.RemoveEntry(ctx, namespace, grp1.ID, mirroredFile.ID)
+			_, err = groupHasChild(chList, mirrorFile3)
 			Expect(err).Should(BeNil())
 
-			grp, err = fsCore.OpenGroup(ctx, namespace, grp1.ID)
+			err = fsCore.RemoveEntry(ctx, namespace, grp1.ID, sFile1.ID, mirrorFile3, types.DeleteEntry{})
 			Expect(err).Should(BeNil())
-			_, err = groupHasChildEntry(grp, mirrorFile3)
+
+			chList, err = fsCore.ListChildren(ctx, namespace, grp1.ID)
+			Expect(err).Should(BeNil())
+
+			_, err = groupHasChild(chList, mirrorFile3)
 			Expect(err).Should(Equal(types.ErrNotFound))
 		})
 	})
@@ -315,30 +321,28 @@ var _ = Describe("TestChangeEntryParent", func() {
 	})
 	Context("mv file src grp1 and files", func() {
 		It("should be succeed", func() {
-			err := fsCore.ChangeEntryParent(ctx, namespace, grp1File1.ID, nil, grp1.ID, grp2.ID, "test_mv_grp2_file1", types.ChangeParentAttr{})
+			err := fsCore.ChangeEntryParent(ctx, namespace, grp1File1.ID, nil, grp1.ID, grp2.ID, grp1File1.Name, "test_mv_grp2_file1", types.ChangeParentAttr{})
 			Expect(err).Should(BeNil())
 		})
 		It("has existed file should be failed", func() {
-			err := fsCore.ChangeEntryParent(ctx, namespace, grp1File2.ID, &grp2File2.ID, grp1.ID, grp2.ID, "test_mv_grp2_file2", types.ChangeParentAttr{})
+			err := fsCore.ChangeEntryParent(ctx, namespace, grp1File2.ID, &grp2File2.ID, grp1.ID, grp2.ID, grp1File2.Name, "test_mv_grp2_file2", types.ChangeParentAttr{})
 			Expect(err).Should(Equal(types.ErrIsExist))
 		})
 		It("has existed file should be succeed if enable replace", func() {
-			err := fsCore.ChangeEntryParent(ctx, namespace, grp1File2.ID, &grp2File2.ID, grp1.ID, grp2.ID, "test_mv_grp2_file2", types.ChangeParentAttr{Replace: true})
+			err := fsCore.ChangeEntryParent(ctx, namespace, grp1File2.ID, &grp2File2.ID, grp1.ID, grp2.ID, grp1File2.Name, "test_mv_grp2_file2", types.ChangeParentAttr{Replace: true})
 			Expect(err).Should(BeNil())
 		})
 	})
 })
 
-func mustGetSourceEntry(entry *types.Entry) *types.Entry {
+func mustGetEntry(entry *types.Entry) *types.Entry {
 	var (
 		ctx = context.TODO()
 		err error
 	)
-	for entry.RefID != 0 && entry.RefID != entry.ID {
-		entry, err = fsCore.GetEntry(ctx, namespace, entry.RefID)
-		if err != nil {
-			panic(err)
-		}
+	entry, err = fsCore.GetEntry(ctx, namespace, entry.ID)
+	if err != nil {
+		panic(err)
 	}
 	return entry
 }
@@ -354,25 +358,8 @@ var accessPermissions = &types.Access{
 	},
 }
 
-func hasChildEntry(c *core, parentID int64, entryName string) (*types.Entry, error) {
-	children, err := c.ListChildren(context.TODO(), namespace, parentID)
-	if err != nil {
-		return nil, err
-	}
-	for _, child := range children {
-		en, err := c.GetEntry(context.TODO(), namespace, child.ChildID)
-		if err != nil {
-			return nil, err
-		}
-		if en.Name == entryName {
-			return en, nil
-		}
-	}
-	return nil, types.ErrNotFound
-}
-
 func groupHasChildEntry(grp Group, entryName string) (*types.Entry, error) {
-	children, err := grp.ListChildren(context.TODO(), &types.EntryOrder{})
+	children, err := grp.ListChildren(context.TODO())
 	if err != nil {
 		return nil, err
 	}
@@ -382,4 +369,13 @@ func groupHasChildEntry(grp Group, entryName string) (*types.Entry, error) {
 		}
 	}
 	return nil, types.ErrNotFound
+}
+
+func groupHasChild(childList []*types.Child, entryName string) (int64, error) {
+	for _, child := range childList {
+		if child.Name == entryName {
+			return child.ChildID, nil
+		}
+	}
+	return 0, types.ErrNotFound
 }

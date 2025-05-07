@@ -23,6 +23,7 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"runtime/trace"
+	"sort"
 )
 
 const (
@@ -35,7 +36,7 @@ func (s *servicesV1) getGroupTree(ctx context.Context, namespace string) (*GetGr
 		return nil, err
 	}
 
-	children, err := s.listEntryChildren(ctx, namespace, nsRoot.ID, &types.EntryOrder{Order: types.EntryName})
+	children, err := s.listEntryChildren(ctx, namespace, nsRoot.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +58,7 @@ func (s *servicesV1) getGroupTree(ctx context.Context, namespace string) (*GetGr
 }
 
 func (s *servicesV1) listGroupEntry(ctx context.Context, namespace string, name string, parentID int64) (*GetGroupTreeResponse_GroupEntry, error) {
-	children, err := s.listEntryChildren(ctx, namespace, parentID, &types.EntryOrder{Order: types.EntryName})
+	children, err := s.listEntryChildren(ctx, namespace, parentID)
 	if err != nil {
 		return nil, err
 	}
@@ -82,18 +83,11 @@ func (s *servicesV1) listGroupEntry(ctx context.Context, namespace string, name 
 	return result, nil
 }
 
-func (s *servicesV1) getEntryDetails(ctx context.Context, namespace string, id int64) (*EntryDetail, []*Property, error) {
+func (s *servicesV1) getEntryDetails(ctx context.Context, namespace string, parent, id int64) (*EntryDetail, []*Property, error) {
 	en, err := s.core.GetEntry(ctx, namespace, id)
 	if err != nil {
 		return nil, nil, err
 	}
-	parent, err := s.core.GetEntry(ctx, namespace, en.ParentID)
-	if err != nil {
-		// TODO
-		s.logger.Warnw("get entry parent detail failed", "entry", id, "err", err)
-	}
-
-	properties := make(map[string]types.PropertyItem)
 
 	access := &EntryDetail_Access{Uid: en.Access.UID, Gid: en.Access.GID}
 	for _, perm := range en.Access.Permissions {
@@ -117,8 +111,15 @@ func (s *servicesV1) getEntryDetails(ctx context.Context, namespace string, id i
 		AccessAt:   timestamppb.New(en.AccessAt),
 	}
 
-	if parent != nil {
-		baseProperties, err := s.meta.ListEntryProperties(ctx, namespace, en.ParentID)
+	properties := make(map[string]types.PropertyItem)
+	if parent > 0 {
+		parentEn, err := s.core.GetEntry(ctx, namespace, parent)
+		if err != nil {
+			// TODO
+			s.logger.Warnw("get entry parent detail failed", "entry", id, "err", err)
+		}
+
+		baseProperties, err := s.meta.ListEntryProperties(ctx, namespace, parent)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -128,7 +129,7 @@ func (s *servicesV1) getEntryDetails(ctx context.Context, namespace string, id i
 			}
 			properties[k] = p
 		}
-		ed.Parent = toEntryInfo(parent)
+		ed.Parent = toEntryInfo(parentEn)
 	}
 
 	ps, err := s.meta.ListEntryProperties(ctx, namespace, id)
@@ -154,15 +155,19 @@ func (s *servicesV1) getEntryDetails(ctx context.Context, namespace string, id i
 	return ed, pl, nil
 }
 
-func (s *servicesV1) listEntryChildren(ctx context.Context, namespace string, entryId int64, order *types.EntryOrder, filters ...types.Filter) ([]*types.Entry, error) {
+func (s *servicesV1) listEntryChildren(ctx context.Context, namespace string, entryId int64) ([]*types.Entry, error) {
 	grp, err := s.core.OpenGroup(ctx, namespace, entryId)
 	if err != nil {
 		return nil, err
 	}
-	children, err := grp.ListChildren(ctx, order, filters...)
+	children, err := grp.ListChildren(ctx)
 	if err != nil {
 		return nil, err
 	}
+
+	sort.Slice(children, func(i, j int) bool {
+		return children[i].Name < children[j].Name
+	})
 
 	return children, nil
 }
@@ -235,7 +240,7 @@ func (s *servicesV1) ChangeEntryParent(ctx context.Context, namespace string, ta
 	}
 
 	var existObjId *int64
-	existObj, err := s.core.FindEntry(ctx, namespace, newParentId, newName)
+	existCh, err := s.core.FindEntry(ctx, namespace, newParentId, newName)
 	if err != nil {
 		if !errors.Is(err, types.ErrNotFound) {
 			s.logger.Errorw("new name verify failed", "old", targetId, "newParent", newParentId, "newName", newName, "err", err)
@@ -243,7 +248,12 @@ func (s *servicesV1) ChangeEntryParent(ctx context.Context, namespace string, ta
 		}
 	}
 
-	if existObj != nil {
+	if existCh != nil {
+		existObj, err := s.core.GetEntry(ctx, namespace, existCh.ChildID)
+		if err != nil {
+			s.logger.Errorw("get exited entry for verify failed", "old", targetId, "newParent", newParentId, "newName", newName, "err", err)
+			return err
+		}
 		if opt.Uid != 0 && opt.Uid != newParent.Access.UID && opt.Uid != existObj.Access.UID && newParent.Access.HasPerm(types.PermSticky) {
 			return types.ErrNoPerm
 		}
@@ -252,7 +262,7 @@ func (s *servicesV1) ChangeEntryParent(ctx context.Context, namespace string, ta
 	}
 
 	s.logger.Debugw("change entry parent", "target", targetId, "existObj", existObjId, "oldParent", oldParentId, "newParent", newParentId, "newName", newName)
-	err = s.core.ChangeEntryParent(ctx, namespace, targetId, existObjId, oldParentId, newParentId, newName, types.ChangeParentAttr{
+	err = s.core.ChangeEntryParent(ctx, namespace, targetId, existObjId, oldParentId, newParentId, target.Name, newName, types.ChangeParentAttr{
 		Replace:  opt.Replace,
 		Exchange: opt.Exchange,
 	})
@@ -268,7 +278,7 @@ func (s *servicesV1) queryEntryProperties(ctx context.Context, namespace string,
 		properties types.Properties
 		err        error
 	)
-	if parentID != core.RootEntryID {
+	if parentID > 0 {
 		properties, err = s.meta.ListEntryProperties(ctx, namespace, parentID)
 		if err != nil {
 			return nil, err

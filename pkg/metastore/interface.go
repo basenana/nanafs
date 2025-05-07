@@ -47,19 +47,20 @@ type SysConfig interface {
 
 type EntryStore interface {
 	GetEntry(ctx context.Context, namespace string, id int64) (*types.Entry, error)
-	FindEntry(ctx context.Context, namespace string, parentID int64, name string) (*types.Entry, error)
 	CreateEntry(ctx context.Context, namespace string, parentID int64, newEntry *types.Entry, ed *types.ExtendData) error
-	RemoveEntry(ctx context.Context, namespace string, parentID, entryID int64) error
 	DeleteRemovedEntry(ctx context.Context, namespace string, entryID int64) error
 	UpdateEntry(ctx context.Context, namespace string, entry *types.Entry) error
 
-	ListChildren(ctx context.Context, namespace string, parentId int64, order *types.EntryOrder, filters ...types.Filter) (EntryIterator, error)
+	FindEntry(ctx context.Context, namespace string, parentID int64, name string) (*types.Child, error)
+	GetChild(ctx context.Context, namespace string, parentID, id int64) (*types.Child, error)
+	ListChildren(ctx context.Context, namespace string, parentId int64) ([]*types.Child, error)
 	FilterEntries(ctx context.Context, namespace string, filter types.Filter) (EntryIterator, error)
+	MirrorEntry(ctx context.Context, namespace string, entryID int64, newName string, newParentID int64) error
+	ChangeEntryParent(ctx context.Context, namespace string, targetEntryId int64, oldParentID int64, newParentId int64, oldName string, newName string, opt types.ChangeParentAttr) error
+	RemoveEntry(ctx context.Context, namespace string, parentID, entryID int64, entryName string, attr types.DeleteEntry) error
 
 	Open(ctx context.Context, namespace string, id int64, attr types.OpenAttr) (*types.Entry, error)
 	Flush(ctx context.Context, namespace string, id int64, size int64) error
-	MirrorEntry(ctx context.Context, namespace string, newEntry *types.Entry) error
-	ChangeEntryParent(ctx context.Context, namespace string, targetEntryId int64, newParentId int64, newName string, opt types.ChangeParentAttr) error
 
 	GetEntryExtendData(ctx context.Context, namespace string, id int64) (types.ExtendData, error)
 	UpdateEntryExtendData(ctx context.Context, namespace string, id int64, ed types.ExtendData) error

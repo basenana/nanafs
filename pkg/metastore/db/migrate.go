@@ -76,10 +76,6 @@ func buildMigrations() []*gormigrate.Migration {
 					return err
 				}
 				_ = db.Exec("UPDATE object_property SET encoded=true WHERE 1=1;")
-				err = db.AutoMigrate(&EntryURI{})
-				if err != nil {
-					return err
-				}
 				err = db.AutoMigrate(&Workflow{})
 				return err
 			},
@@ -169,15 +165,6 @@ func buildMigrations() []*gormigrate.Migration {
 		{
 			ID: "2024052500",
 			Migrate: func(db *gorm.DB) error {
-				err := db.AutoMigrate(
-					&EntryURI{},
-				)
-				if err != nil {
-					return err
-				}
-
-				// rebuild uri cache
-				_ = db.Exec(`DELETE FROM object_uri WHERE 1=1;`)
 				return nil
 			},
 			Rollback: func(db *gorm.DB) error {
@@ -191,6 +178,46 @@ func buildMigrations() []*gormigrate.Migration {
 					&Workflow{},
 					&WorkflowJob{},
 				)
+			},
+			Rollback: func(db *gorm.DB) error {
+				return nil
+			},
+		},
+		{
+			ID: "2024050500",
+			Migrate: func(db *gorm.DB) error {
+				err := db.AutoMigrate(&Children{})
+				if err != nil {
+					return err
+				}
+
+				var entries []Entry
+				res := db.Where("1 = 1").Find(&entries)
+				if res.Error != nil {
+					return res.Error
+				}
+
+				return db.Transaction(func(tx *gorm.DB) error {
+					for _, entry := range entries {
+						if entry.ParentID == nil {
+							continue
+						}
+
+						if *entry.ParentID == 0 || *entry.ParentID == entry.ID {
+							continue
+						}
+						res := tx.Save(&Children{
+							ParentID:  *entry.ParentID,
+							ChildID:   entry.ID,
+							Name:      entry.Name,
+							Namespace: entry.Namespace,
+						})
+						if res.Error != nil {
+							return res.Error
+						}
+					}
+					return nil
+				})
 			},
 			Rollback: func(db *gorm.DB) error {
 				return nil

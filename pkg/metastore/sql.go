@@ -104,10 +104,16 @@ func (s *sqliteMetaStore) GetEntry(ctx context.Context, namespace string, id int
 	return s.dbStore.GetEntry(ctx, namespace, id)
 }
 
-func (s *sqliteMetaStore) FindEntry(ctx context.Context, namespace string, parentID int64, name string) (*types.Entry, error) {
+func (s *sqliteMetaStore) FindEntry(ctx context.Context, namespace string, parentID int64, name string) (*types.Child, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	return s.dbStore.FindEntry(ctx, namespace, parentID, name)
+}
+
+func (s *sqliteMetaStore) GetChild(ctx context.Context, namespace string, parentID, id int64) (*types.Child, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return s.dbStore.GetChild(ctx, namespace, parentID, id)
 }
 
 func (s *sqliteMetaStore) CreateEntry(ctx context.Context, namespace string, parentID int64, newEntry *types.Entry, ed *types.ExtendData) error {
@@ -116,10 +122,10 @@ func (s *sqliteMetaStore) CreateEntry(ctx context.Context, namespace string, par
 	return s.dbStore.CreateEntry(ctx, namespace, parentID, newEntry, ed)
 }
 
-func (s *sqliteMetaStore) RemoveEntry(ctx context.Context, namespace string, parentID, entryID int64) error {
+func (s *sqliteMetaStore) RemoveEntry(ctx context.Context, namespace string, parentID, entryID int64, entryName string, attr types.DeleteEntry) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.RemoveEntry(ctx, namespace, parentID, entryID)
+	return s.dbStore.RemoveEntry(ctx, namespace, parentID, entryID, entryName, attr)
 }
 
 func (s *sqliteMetaStore) DeleteRemovedEntry(ctx context.Context, namespace string, entryID int64) error {
@@ -134,10 +140,10 @@ func (s *sqliteMetaStore) UpdateEntry(ctx context.Context, namespace string, ent
 	return s.dbStore.UpdateEntry(ctx, namespace, entry)
 }
 
-func (s *sqliteMetaStore) ListChildren(ctx context.Context, namespace string, parentId int64, order *types.EntryOrder, filters ...types.Filter) (EntryIterator, error) {
+func (s *sqliteMetaStore) ListChildren(ctx context.Context, namespace string, parentId int64) ([]*types.Child, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.ListChildren(ctx, namespace, parentId, order, filters...)
+	return s.dbStore.ListChildren(ctx, namespace, parentId)
 }
 
 func (s *sqliteMetaStore) FilterEntries(ctx context.Context, namespace string, filter types.Filter) (EntryIterator, error) {
@@ -158,16 +164,16 @@ func (s *sqliteMetaStore) Flush(ctx context.Context, namespace string, id int64,
 	return s.dbStore.Flush(ctx, namespace, id, size)
 }
 
-func (s *sqliteMetaStore) MirrorEntry(ctx context.Context, namespace string, newEntry *types.Entry) error {
+func (s *sqliteMetaStore) MirrorEntry(ctx context.Context, namespace string, entryID int64, newName string, newParentID int64) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.MirrorEntry(ctx, namespace, newEntry)
+	return s.dbStore.MirrorEntry(ctx, namespace, entryID, newName, newParentID)
 }
 
-func (s *sqliteMetaStore) ChangeEntryParent(ctx context.Context, namespace string, targetEntryId int64, newParentId int64, newName string, opt types.ChangeParentAttr) error {
+func (s *sqliteMetaStore) ChangeEntryParent(ctx context.Context, namespace string, targetEntryId int64, oldParentID int64, newParentId int64, oldName string, newName string, opt types.ChangeParentAttr) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.ChangeEntryParent(ctx, namespace, targetEntryId, newParentId, newName, opt)
+	return s.dbStore.ChangeEntryParent(ctx, namespace, targetEntryId, oldParentID, newParentId, oldName, newName, opt)
 }
 
 func (s *sqliteMetaStore) GetEntryExtendData(ctx context.Context, namespace string, id int64) (types.ExtendData, error) {
@@ -579,17 +585,34 @@ func (s *sqlMetaStore) GetEntry(ctx context.Context, namespace string, id int64)
 	return objMod.ToEntry(), nil
 }
 
-func (s *sqlMetaStore) FindEntry(ctx context.Context, namespace string, parentID int64, name string) (*types.Entry, error) {
+func (s *sqlMetaStore) FindEntry(ctx context.Context, namespace string, parentID int64, name string) (*types.Child, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.FindEntry").End()
-	var objMod = &db.Entry{ParentID: &parentID, Name: name}
-	res := s.WithNamespace(ctx, namespace).Where("parent_id = ? AND name = ?", parentID, name).First(objMod)
+	var (
+		child = &db.Children{}
+	)
+	res := s.WithNamespace(ctx, namespace).Where("parent_id = ? AND name = ?", parentID, name).First(child)
 	if err := res.Error; err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			s.logger.Errorw("find entry by name failed", "parent", parentID, "name", name, "err", err)
 		}
 		return nil, db.SqlError2Error(err)
 	}
-	return objMod.ToEntry(), nil
+	return child.To(), nil
+}
+
+func (s *sqlMetaStore) GetChild(ctx context.Context, namespace string, parentID, id int64) (*types.Child, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.GetChild").End()
+	var (
+		child = &db.Children{}
+	)
+	res := s.WithNamespace(ctx, namespace).Where("parent_id = ? AND child_id = ?", parentID, id).First(child)
+	if err := res.Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			s.logger.Errorw("find entry by name failed", "parent", parentID, "id", id, "err", err)
+		}
+		return nil, db.SqlError2Error(err)
+	}
+	return child.To(), nil
 }
 
 func (s *sqlMetaStore) CreateEntry(ctx context.Context, namespace string, parentID int64, newEntry *types.Entry, ed *types.ExtendData) error {
@@ -607,6 +630,18 @@ func (s *sqlMetaStore) CreateEntry(ctx context.Context, namespace string, parent
 		res := tx.Create(entryMod)
 		if res.Error != nil {
 			return res.Error
+		}
+
+		if parentID != 0 && parentID != entryMod.ID {
+			res = tx.Create(&db.Children{
+				ParentID:  parentID,
+				ChildID:   entryMod.ID,
+				Name:      entryMod.Name,
+				Namespace: namespace,
+			})
+			if res.Error != nil {
+				return res.Error
+			}
 		}
 
 		if ed != nil {
@@ -656,14 +691,13 @@ func (s *sqlMetaStore) UpdateEntry(ctx context.Context, namespace string, entry 
 	return nil
 }
 
-func (s *sqlMetaStore) RemoveEntry(ctx context.Context, namespace string, parentID, entryID int64) error {
+func (s *sqlMetaStore) RemoveEntry(ctx context.Context, namespace string, parentID, entryID int64, entryName string, attr types.DeleteEntry) error {
 	defer trace.StartRegion(ctx, "metastore.sql.RemoveEntry").End()
 	var (
-		noneParentID int64 = 0
-		srcMod       *db.Entry
-		parentMod    = &db.Entry{ID: parentID}
-		entryMod     = &db.Entry{ID: entryID}
-		nowTime      = time.Now().UnixNano()
+		parentMod = &db.Entry{ID: parentID}
+		entryMod  = &db.Entry{ID: entryID}
+		childRef  = &db.Children{}
+		nowTime   = time.Now().UnixNano()
 	)
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		res := namespaceQuery(tx, namespace).Where("id = ?", parentID).First(parentMod)
@@ -675,20 +709,19 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, namespace string, parent
 			return res.Error
 		}
 
-		if entryMod.RefID != nil && *entryMod.RefID != 0 {
-			srcMod = &db.Entry{ID: *entryMod.RefID}
-			res = namespaceQuery(tx, namespace).Where("id = ?", *entryMod.RefID).First(srcMod)
-			if res.Error != nil {
-				return res.Error
+		res = tx.Where("parent_id = ? AND child_id = ? AND name = ? AND namespace = ?", parentID, entryID, entryName, namespace).First(childRef)
+		if res.Error != nil {
+			if !errors.Is(res.Error, gorm.ErrRecordNotFound) {
+				return nil
 			}
+			return res.Error
 		}
 
 		parentMod.ModifiedAt = nowTime
 		parentMod.ChangedAt = nowTime
 		if entryMod.IsGroup {
-
 			var entryChildCount int64
-			res = namespaceQuery(tx, namespace).Model(&db.Entry{}).Where("parent_id = ?", entryID).Count(&entryChildCount)
+			res = namespaceQuery(tx, namespace).Model(&db.Children{}).Where("parent_id = ?", entryID).Count(&entryChildCount)
 			if res.Error != nil {
 				return res.Error
 			}
@@ -705,18 +738,11 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, namespace string, parent
 			return err
 		}
 
-		if srcMod != nil {
-			srcRef := (*srcMod.RefCount) - 1
-			srcMod.RefCount = &srcRef
-			srcMod.ModifiedAt = nowTime
-			srcMod.ChangedAt = nowTime
-			if err := updateEntryWithVersion(tx, srcMod); err != nil {
-				return err
-			}
+		res = tx.Delete(childRef)
+		if res.Error != nil {
+			return res.Error
 		}
-
 		entryRef := (*entryMod.RefCount) - 1
-		entryMod.ParentID = &noneParentID
 		entryMod.RefCount = &entryRef
 		entryMod.ModifiedAt = nowTime
 		entryMod.ChangedAt = nowTime
@@ -770,24 +796,22 @@ func (s *sqlMetaStore) DeleteRemovedEntry(ctx context.Context, namespace string,
 	return nil
 }
 
-func (s *sqlMetaStore) ListChildren(ctx context.Context, namespace string, parentId int64, order *types.EntryOrder, filters ...types.Filter) (EntryIterator, error) {
+func (s *sqlMetaStore) ListChildren(ctx context.Context, namespace string, parentId int64) ([]*types.Child, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListEntryChildren").End()
-	var total int64
-	if len(filters) > 0 {
-		filters[0].ParentID = parentId
-	} else {
-		filters = append(filters, types.Filter{ParentID: parentId})
+
+	var (
+		models []db.Children
+		result []*types.Child
+	)
+	res := s.WithContext(ctx).Where("parent_id = ? AND namespace = ?", parentId, namespace).Find(&models)
+	if res.Error != nil {
+		return nil, res.Error
 	}
-	tx := enOrder(queryFilter(s.WithNamespace(ctx, namespace).Model(&db.Entry{}), filters[0], nil), order)
-	if page := types.GetPagination(ctx); page != nil {
-		tx = tx.Offset(page.Offset()).Limit(page.Limit())
+
+	for _, model := range models {
+		result = append(result, model.To())
 	}
-	res := tx.Count(&total)
-	if err := res.Error; err != nil {
-		s.logger.Errorw("count children entry failed", "parent", parentId, "err", err)
-		return nil, db.SqlError2Error(err)
-	}
-	return newTransactionEntryIterator(tx, total), nil
+	return result, nil
 }
 
 func (s *sqlMetaStore) FilterEntries(ctx context.Context, namespace string, filter types.Filter) (EntryIterator, error) {
@@ -807,7 +831,7 @@ func (s *sqlMetaStore) FilterEntries(ctx context.Context, namespace string, filt
 	}
 
 	var total int64
-	tx := queryFilter(s.WithNamespace(ctx, namespace).Model(&db.Entry{}), filter, scopeIds)
+	tx := queryFilter(s.WithContext(ctx).Model(&db.Entry{}).Where("object.namespace = ?", namespace), filter, scopeIds)
 	if page := types.GetPagination(ctx); page != nil {
 		tx = tx.Offset(page.Offset()).Limit(page.Limit())
 	}
@@ -915,93 +939,114 @@ func (s *sqlMetaStore) UpdateEntryExtendData(ctx context.Context, namespace stri
 	return nil
 }
 
-func (s *sqlMetaStore) MirrorEntry(ctx context.Context, namespace string, newEntry *types.Entry) error {
-	if newEntry.ParentID == 0 || newEntry.RefID == 0 {
-		s.logger.Errorw("mirror entry failed", "parentID", newEntry.ParentID, "srcID", newEntry.RefID, "err", "parent or src id is empty")
-		return types.ErrNotFound
-	}
-
+func (s *sqlMetaStore) MirrorEntry(ctx context.Context, namespace string, entryID int64, newName string, newParentID int64) error {
 	defer trace.StartRegion(ctx, "metastore.sql.MirrorEntry").End()
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var (
-			enModel          = (&db.Entry{}).FromEntry(newEntry)
-			srcEnModel       = &db.Entry{ID: newEntry.RefID}
-			dstParentEnModel = &db.Entry{ID: newEntry.ParentID}
-			nowTime          = time.Now().UnixNano()
-			updateErr        error
+			entryModel = &db.Entry{}
+			child      = &db.Children{}
 		)
-
-		res := namespaceQuery(tx, namespace).Where("id = ?", newEntry.RefID).First(srcEnModel)
+		res := tx.Where("id = ?", entryID).First(entryModel)
 		if res.Error != nil {
 			return res.Error
 		}
-		srcRefCount := *srcEnModel.RefCount + 1
-		srcEnModel.RefCount = &srcRefCount
-		srcEnModel.ChangedAt = nowTime
-		if updateErr = updateEntryWithVersion(tx, srcEnModel); updateErr != nil {
-			return updateErr
-		}
 
-		res = namespaceQuery(tx, namespace).Where("id = ?", newEntry.ParentID).First(dstParentEnModel)
-		if res.Error != nil {
+		res = tx.Where("parent_id = ? AND child_id = ? AND namespace = ? AND name = ?", newParentID, entryID, namespace, newName).First(child)
+		if res.Error != nil && !errors.Is(res.Error, gorm.ErrRecordNotFound) {
 			return res.Error
 		}
-		dstParentEnModel.ChangedAt = nowTime
-		dstParentEnModel.ModifiedAt = nowTime
-		if updateErr = updateEntryWithVersion(tx, dstParentEnModel); updateErr != nil {
-			return updateErr
+
+		if res.Error == nil {
+			return types.ErrIsExist
 		}
 
-		res = tx.Create(enModel)
+		oldRef := *entryModel.RefCount
+		oldRef += 1
+		entryModel.RefCount = &oldRef
+
+		err := updateEntryWithVersion(tx, entryModel)
+		if err != nil {
+			return err
+		}
+
+		child.Name = newName
+		child.ChildID = entryID
+		child.ParentID = newParentID
+		child.Namespace = namespace
+
+		res = tx.Create(child)
 		if res.Error != nil {
 			return res.Error
 		}
 		return nil
 	})
 	if err != nil {
-		s.logger.Errorw("mirror entry failed", "entry", newEntry.ID, "parentID", newEntry.ParentID, "srcID", newEntry.RefID, "err", err)
+		s.logger.Errorw("mirror entry failed", "entry", entryID, "parentID", newParentID, "err", err)
 		return db.SqlError2Error(err)
 	}
 	return nil
 }
 
-func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, namespace string, targetEntryId int64, newParentId int64, newName string, opt types.ChangeParentAttr) error {
+func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, namespace string, targetEntryId int64, oldParentID int64, newParentId int64, oldName string, newName string, opt types.ChangeParentAttr) error {
 	defer trace.StartRegion(ctx, "metastore.sql.ChangeEntryParent").End()
 	return s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var (
-			enModel          = &db.Entry{ID: targetEntryId}
-			srcParentEnModel = &db.Entry{}
-			dstParentEnModel = &db.Entry{}
-			nowTime          = time.Now().UnixNano()
-			srcParentEntryID int64
-			updateErr        error
+			enModel           = &db.Entry{ID: targetEntryId}
+			srcParentEnModel  = &db.Entry{}
+			dstParentEnModel  = &db.Entry{}
+			refSrcParentChild = &db.Children{}
+			nowTime           = time.Now().UnixNano()
+			updateErr         error
 		)
 		res := namespaceQuery(tx, namespace).Where("id = ?", targetEntryId).First(enModel)
 		if res.Error != nil {
 			return res.Error
 		}
-		res = namespaceQuery(tx, namespace).Where("id = ?", newParentId).First(dstParentEnModel)
+
+		res = tx.Where("parent_id = ? AND child_id = ? AND name = ? AND namespace = ?", oldParentID, targetEntryId, oldName, namespace).First(refSrcParentChild)
 		if res.Error != nil {
+			s.logger.Errorw("fetch source parent error", "entry", targetEntryId, "err", res.Error)
 			return res.Error
 		}
 
-		if enModel.ParentID != nil {
-			srcParentEntryID = *enModel.ParentID
-		}
 		enModel.Name = newName
-		enModel.ParentID = &newParentId
 		enModel.ChangedAt = nowTime
+		enModel.ParentID = &newParentId
 		if updateErr = updateEntryWithVersion(tx, enModel); updateErr != nil {
 			s.logger.Errorw("update target entry failed when change parent",
-				"entry", targetEntryId, "srcParent", srcParentEntryID, "dstParent", newParentId, "err", updateErr)
+				"entry", targetEntryId, "srcParent", oldParentID, "dstParent", newParentId, "err", updateErr)
 			return updateErr
 		}
 
-		res = namespaceQuery(tx, namespace).Where("id = ?", srcParentEntryID).First(srcParentEnModel)
+		if oldParentID == newParentId && oldName == newName {
+			return nil
+		}
+
+		res = tx.Where("parent_id = ? AND child_id = ? AND name = ? AND namespace = ?", oldParentID, targetEntryId, oldName, namespace).Delete(&db.Children{})
 		if res.Error != nil {
 			return res.Error
 		}
-		if enModel.IsGroup && newParentId != srcParentEntryID {
+
+		res = tx.Save(&db.Children{
+			ParentID:  newParentId,
+			ChildID:   enModel.ID,
+			Name:      enModel.Name,
+			Namespace: enModel.Namespace,
+		})
+		if res.Error != nil {
+			return res.Error
+		}
+
+		res = namespaceQuery(tx, namespace).Where("id = ?", oldParentID).First(srcParentEnModel)
+		if res.Error != nil {
+			return res.Error
+		}
+		if enModel.IsGroup && oldParentID != newParentId {
+			res = namespaceQuery(tx, namespace).Where("id = ?", newParentId).First(dstParentEnModel)
+			if res.Error != nil {
+				return res.Error
+			}
+
 			dstParentEnModel.ChangedAt = nowTime
 			dstParentEnModel.ModifiedAt = nowTime
 			dstParentRef := *dstParentEnModel.RefCount + 1
@@ -1009,7 +1054,7 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, namespace string, 
 			dstParentEnModel.ChangedAt = nowTime
 			if updateErr = updateEntryWithVersion(tx, dstParentEnModel); updateErr != nil {
 				s.logger.Errorw("update dst parent entry failed when change parent",
-					"entry", targetEntryId, "srcParent", srcParentEntryID, "dstParent", newParentId, "err", updateErr)
+					"entry", targetEntryId, "srcParent", oldParentID, "dstParent", newParentId, "err", updateErr)
 				return updateErr
 			}
 
@@ -1021,7 +1066,7 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, namespace string, 
 		srcParentEnModel.ModifiedAt = nowTime
 		if updateErr = updateEntryWithVersion(tx, srcParentEnModel); updateErr != nil {
 			s.logger.Errorw("update src parent entry failed when change parent",
-				"entry", targetEntryId, "srcParent", srcParentEntryID, "dstParent", newParentId, "err", updateErr)
+				"entry", targetEntryId, "srcParent", oldParentID, "dstParent", newParentId, "err", updateErr)
 			return updateErr
 		}
 
@@ -1855,19 +1900,11 @@ func queryFilter(tx *gorm.DB, filter types.Filter, scopeIds []int64) *gorm.DB {
 	}
 
 	if filter.ParentID != 0 {
-		tx = tx.Where("parent_id = ?", filter.ParentID)
-	} else {
-		tx = tx.Where("parent_id > 0")
+		tx = tx.Joins("JOIN children on children.child_id = object.id AND children.parent_id = ?", filter.ParentID)
 	}
 
-	if filter.RefID != 0 {
-		tx = tx.Where("ref_id = ?", filter.RefID)
-	}
 	if filter.Name != "" {
 		tx = tx.Where("name = ?", filter.Name)
-	}
-	if filter.Namespace != "" {
-		tx = tx.Where("namespace = ?", filter.Namespace)
 	}
 	if filter.Kind != "" {
 		tx = tx.Where("kind = ?", filter.Kind)
@@ -1889,17 +1926,6 @@ func queryFilter(tx *gorm.DB, filter types.Filter, scopeIds []int64) *gorm.DB {
 	}
 	if filter.FuzzyName != "" {
 		tx = tx.Where("name LIKE ?", "%"+filter.FuzzyName+"%")
-	}
-	return tx
-}
-
-func enOrder(tx *gorm.DB, order *types.EntryOrder) *gorm.DB {
-	if order != nil {
-		orderStr := order.Order.String()
-		if order.Desc {
-			orderStr += " DESC"
-		}
-		tx = tx.Order(orderStr)
 	}
 	return tx
 }

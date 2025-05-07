@@ -122,20 +122,11 @@ func (f *FileSystem) GetEntryByPath(ctx context.Context, path string) (*types.En
 }
 
 func (f *FileSystem) LookUpEntry(ctx context.Context, parent int64, name string) (*types.Entry, error) {
-	group, err := f.core.ListChildren(ctx, f.namespace, parent)
+	child, err := f.core.FindEntry(ctx, f.namespace, parent, name)
 	if err != nil {
 		return nil, err
 	}
-	for _, child := range group {
-		en, err := f.core.GetEntry(ctx, f.namespace, child.ChildID)
-		if err != nil {
-			return nil, err
-		}
-		if en.Name == name {
-			return en, nil
-		}
-	}
-	return nil, types.ErrNotFound
+	return f.core.GetEntry(ctx, f.namespace, child.ChildID)
 }
 
 func (f *FileSystem) CreateEntry(ctx context.Context, parent int64, attr types.EntryAttr) (*types.Entry, error) {
@@ -185,7 +176,7 @@ func (f *FileSystem) UnlinkEntry(ctx context.Context, parentID int64, child stri
 	}
 
 	f.logger.Debugw("delete entry", "parent", parentID, "entry", child)
-	return f.core.RemoveEntry(ctx, f.namespace, parentID, en.ID)
+	return f.core.RemoveEntry(ctx, f.namespace, parentID, en.ID, child, types.DeleteEntry{})
 }
 
 func (f *FileSystem) RmGroup(ctx context.Context, parentID int64, child string, attr types.DestroyEntryAttr) error {
@@ -219,10 +210,10 @@ func (f *FileSystem) RmGroup(ctx context.Context, parentID int64, child string, 
 	}
 
 	f.logger.Debugw("delete group", "parent", parentID, "entry", child)
-	return f.core.RemoveEntry(ctx, f.namespace, parentID, en.ID)
+	return f.core.RemoveEntry(ctx, f.namespace, parentID, en.ID, child, types.DeleteEntry{})
 }
 
-func (f *FileSystem) Rename(ctx context.Context, targetId, oldParentId, newParentId int64, newName string, opt types.ChangeParentAttr) error {
+func (f *FileSystem) Rename(ctx context.Context, targetId, oldParentId, newParentId int64, oldName, newName string, opt types.ChangeParentAttr) error {
 	if len(newName) > fileNameMaxLength {
 		return types.ErrNameTooLong
 	}
@@ -268,7 +259,7 @@ func (f *FileSystem) Rename(ctx context.Context, targetId, oldParentId, newParen
 		existObjId = &eid
 	}
 
-	return f.core.ChangeEntryParent(ctx, f.namespace, targetId, existObjId, oldParentId, newParentId, newName, opt)
+	return f.core.ChangeEntryParent(ctx, f.namespace, targetId, existObjId, oldParentId, newParentId, oldName, newName, opt)
 }
 
 // MARK: xattr
@@ -317,18 +308,21 @@ func (f *FileSystem) Open(ctx context.Context, id int64, attr types.OpenAttr) (F
 	return newFile(ctx, en, raw), nil
 }
 
-func (f *FileSystem) ListChildren(ctx context.Context, id int64) ([]*types.Entry, error) {
+func (f *FileSystem) listChildren(ctx context.Context, id int64) ([]*fInfo, error) {
 	children, err := f.core.ListChildren(ctx, f.namespace, id)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]*types.Entry, 0, len(children))
+	result := make([]*fInfo, 0, len(children))
 	for _, child := range children {
 		c, err := f.core.GetEntry(ctx, f.namespace, child.ChildID)
 		if err != nil {
 			return nil, err
 		}
-		result = append(result, c)
+		result = append(result, &fInfo{
+			name:  child.Name,
+			Entry: c,
+		})
 	}
 
 	return result, nil
@@ -359,6 +353,7 @@ type FileInfo interface {
 }
 
 type fInfo struct {
+	name string
 	*types.Entry
 }
 
@@ -367,7 +362,7 @@ func (f *fInfo) ID() int64 {
 }
 
 func (f *fInfo) Name() string {
-	return f.Entry.Name
+	return f.name
 }
 
 func (f *fInfo) Size() int64 {
@@ -462,19 +457,29 @@ func (f *fsFile) Raw() RawFile {
 var _ File = &fsFile{}
 
 type fsDIR struct {
-	ctx   context.Context
-	group int64
-	fs    *FileSystem
-	info  FileInfo
+	ctx      context.Context
+	group    int64
+	children []*fInfo
+	crt      int
+	err      error
+	fs       *FileSystem
+	info     FileInfo
 }
 
 func newDIR(ctx context.Context, entry *types.Entry, fs *FileSystem) *fsDIR {
-	return &fsDIR{
+	d := &fsDIR{
 		ctx:   ctx,
 		group: entry.ID,
 		info:  &fInfo{Entry: entry},
 		fs:    fs,
 	}
+	var err error
+	d.children, err = fs.listChildren(ctx, d.group)
+	if err != nil {
+		d.err = err
+		return d
+	}
+	return d
 }
 
 func (f *fsDIR) Read(p []byte) (n int, err error) {
@@ -494,18 +499,22 @@ func (f *fsDIR) Seek(offset int64, whence int) (int64, error) {
 }
 
 func (f *fsDIR) Readdir(count int) ([]FileInfo, error) {
-	child, err := f.fs.ListChildren(f.ctx, f.group)
-	if err != nil {
-		return nil, err
+	if f.err != nil {
+		return nil, f.err
 	}
 
-	result := make([]FileInfo, 0, len(child))
-	for i := range child {
-		result = append(result, &fInfo{Entry: child[i]})
+	if count < 0 || len(f.children) < count {
+		count = len(f.children)
 	}
 
-	if count == -1 || count >= len(result) {
-		return result, io.EOF
+	result := make([]FileInfo, 0, count)
+	for f.crt < len(f.children) {
+		result = append(result, f.children[f.crt])
+		f.crt += 1
+	}
+
+	if len(result) == 0 {
+		return nil, io.EOF
 	}
 
 	return result, nil

@@ -49,7 +49,8 @@ func (f *File) Getattr(ctx context.Context, out *fuse.AttrOut) syscall.Errno {
 	defer trace.StartRegion(ctx, "fuse.file.Getattr").End()
 	defer logOperationLatency("file_get_attr", time.Now())
 
-	st := nanaNode2Stat(f.node.entry)
+	en := f.node.entry
+	st := nanaNode2Stat(en)
 	updateAttrOut(st, &out.Attr)
 
 	return NoErr

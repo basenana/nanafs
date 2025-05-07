@@ -136,17 +136,18 @@ func collectFile2BaseEntry(ctx context.Context, namespace string, fsCore core.Co
 	}
 
 	var (
+		exist  *types.Child
 		result *types.Entry
 		err    error
 	)
-	result, err = fsCore.FindEntry(ctx, namespace, baseEntryId, entry.Name)
+	exist, err = fsCore.FindEntry(ctx, namespace, baseEntryId, entry.Name)
 	if err != nil && !errors.Is(err, types.ErrNotFound) {
 		return nil, fmt.Errorf("check new file existed error: %s", err)
 	}
 
 	if isNeedCreate && err == nil {
 		// file already existed
-		return result, nil
+		return fsCore.GetEntry(ctx, namespace, exist.ChildID)
 	}
 
 	tmpFile, err := os.Open(path.Join(workdir, entry.Name))

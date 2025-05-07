@@ -40,14 +40,13 @@ type Core interface {
 	GetEntry(ctx context.Context, namespace string, id int64) (*types.Entry, error)
 	CreateEntry(ctx context.Context, namespace string, parentId int64, attr types.EntryAttr) (*types.Entry, error)
 	UpdateEntry(ctx context.Context, namespace string, id int64, update types.UpdateEntry) (*types.Entry, error)
-	RemoveEntry(ctx context.Context, namespace string, parentId, entryId int64) error
-	MirrorEntry(ctx context.Context, namespace string, srcId, dstParentId int64, attr types.EntryAttr) (*types.Entry, error)
-	ChangeEntryParent(ctx context.Context, namespace string, targetEntryId int64, overwriteEntryId *int64, oldParentId, newParentId int64, newName string, opt types.ChangeParentAttr) error
+	RemoveEntry(ctx context.Context, namespace string, parentId, entryId int64, entryName string, attr types.DeleteEntry) error
 
-	FindEntry(ctx context.Context, namespace string, parentId int64, name string) (*types.Entry, error)
+	MirrorEntry(ctx context.Context, namespace string, srcId, dstParentId int64, attr types.EntryAttr) (*types.Entry, error)
+	ChangeEntryParent(ctx context.Context, namespace string, targetEntryId int64, overwriteEntryId *int64, oldParentId, newParentId int64, oldName, newName string, opt types.ChangeParentAttr) error
+	FindEntry(ctx context.Context, namespace string, parentId int64, name string) (*types.Child, error)
 	ListChildren(ctx context.Context, namespace string, parentId int64) ([]*types.Child, error)
 
-	// Deprecated
 	OpenGroup(ctx context.Context, namespace string, entryID int64) (Group, error)
 	Open(ctx context.Context, namespace string, entryId int64, attr types.OpenAttr) (RawFile, error)
 
@@ -157,12 +156,22 @@ func (c *core) NamespaceRoot(ctx context.Context, namespace string) (*types.Entr
 		return root, nil
 	}
 
-	var nsRoot *types.Entry
-	nsRoot, err = c.store.FindEntry(ctx, types.DefaultNamespace, root.ID, namespace)
+	var (
+		nsChild *types.Child
+		nsRoot  *types.Entry
+	)
+	nsChild, err = c.store.FindEntry(ctx, types.DefaultNamespace, root.ID, namespace)
+	if err != nil {
+		c.logger.Errorw("load ns child object error", "namespace", namespace, "err", err)
+		return nil, err
+	}
+
+	nsRoot, err = c.getEntry(ctx, namespace, nsChild.ChildID)
 	if err != nil {
 		c.logger.Errorw("load ns root object error", "namespace", namespace, "err", err)
 		return nil, err
 	}
+
 	if nsRoot.Namespace != namespace {
 		c.logger.Errorw("find ns root object error", "err", "namespace not match")
 		return nil, types.ErrNotFound
@@ -241,6 +250,10 @@ func (c *core) GetEntry(ctx context.Context, namespace string, id int64) (*types
 		return nil, err
 	}
 
+	if en.RefCount == 0 {
+		return nil, types.ErrNotFound
+	}
+
 	return en, nil
 }
 
@@ -271,14 +284,14 @@ func (c *core) CreateEntry(ctx context.Context, namespace string, parentId int64
 
 	if len(attr.Labels.Labels) > 0 {
 		if err = c.store.UpdateEntryLabels(ctx, namespace, entry.ID, attr.Labels); err != nil {
-			_ = c.store.RemoveEntry(ctx, namespace, entry.ParentID, entry.ID)
+			_ = c.store.RemoveEntry(ctx, namespace, parentId, entry.ID, attr.Name, types.DeleteEntry{})
 			return nil, err
 		}
 	}
 
 	if len(attr.Properties.Fields) > 0 {
 		if err = c.store.UpdateEntryProperties(ctx, namespace, entry.ID, attr.Properties); err != nil {
-			_ = c.store.RemoveEntry(ctx, namespace, entry.ParentID, entry.ID)
+			_ = c.store.RemoveEntry(ctx, namespace, parentId, entry.ID, attr.Name, types.DeleteEntry{})
 			return nil, err
 		}
 	}
@@ -312,31 +325,20 @@ func (c *core) UpdateEntry(ctx context.Context, namespace string, id int64, upda
 	return en, nil
 }
 
-func (c *core) RemoveEntry(ctx context.Context, namespace string, parentId, entryId int64) error {
+func (c *core) RemoveEntry(ctx context.Context, namespace string, parentId, entryId int64, entryName string, attr types.DeleteEntry) error {
 	defer trace.StartRegion(ctx, "fs.core.RemoveEntry").End()
-	children, err := c.store.ListChildren(ctx, namespace, entryId, &types.EntryOrder{}, types.Filter{})
+	children, err := c.store.ListChildren(ctx, namespace, entryId)
 	if err != nil {
 		return err
 	}
 
-	for children.HasNext() {
-		next := children.Next()
-		if next.ID == next.ParentID {
-			continue
-		}
-		if err = c.RemoveEntry(ctx, namespace, entryId, next.ID); err != nil {
+	for _, child := range children {
+		if err = c.RemoveEntry(ctx, namespace, entryId, child.ChildID, child.Name, types.DeleteEntry{DeleteAll: true}); err != nil {
 			return err
 		}
 	}
 
-	en, err := c.getEntry(ctx, namespace, entryId)
-	if err != nil {
-		return err
-	}
-	if en.ParentID != parentId {
-		return types.ErrNotFound
-	}
-	err = c.store.RemoveEntry(ctx, namespace, parentId, entryId)
+	err = c.store.RemoveEntry(ctx, namespace, parentId, entryId, entryName, attr)
 	if err != nil {
 		return err
 	}
@@ -389,45 +391,43 @@ func (c *core) MirrorEntry(ctx context.Context, namespace string, srcId, dstPare
 	if err != nil {
 		return nil, err
 	}
+	if src.IsGroup {
+		return nil, types.ErrIsGroup
+	}
 
 	parent, err := c.getEntry(ctx, namespace, dstParentId)
 	if err != nil {
 		return nil, err
 	}
-	if src.IsGroup {
-		return nil, types.ErrIsGroup
-	}
 	if !parent.IsGroup {
 		return nil, types.ErrNoGroup
 	}
 
-	if types.IsMirrored(src) {
-		c.logger.Warnw("source entry is mirrored", "entry", srcId)
-		return nil, fmt.Errorf("source entry is mirrored")
+	name := src.Name
+	if attr.Name != "" {
+		name = attr.Name
 	}
 
-	en, err := initMirrorEntry(src, parent, attr)
-	if err != nil {
-		c.logger.Errorw("create mirror object error", "srcEntry", srcId, "dstParent", dstParentId, "err", err.Error())
-		return nil, err
-	}
-
-	if err = c.store.MirrorEntry(ctx, namespace, en); err != nil {
+	if err = c.store.MirrorEntry(ctx, namespace, src.ID, name, dstParentId); err != nil {
 		c.logger.Errorw("update dst parent object ref count error", "srcEntry", srcId, "dstParent", dstParentId, "err", err.Error())
 		return nil, err
 	}
 	c.cache.Remove(ik{namespace: namespace, id: srcId})
 	c.cache.Remove(ik{namespace: namespace, id: dstParentId})
-	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeMirror, en.Namespace, en.ID)
-	return en, nil
+	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeMirror, src.Namespace, src.ID)
+	return src, nil
 }
 
-func (c *core) ChangeEntryParent(ctx context.Context, namespace string, targetEntryId int64, overwriteEntryId *int64, oldParentId, newParentId int64, newName string, opt types.ChangeParentAttr) error {
+func (c *core) ChangeEntryParent(ctx context.Context, namespace string, targetEntryId int64, overwriteEntryId *int64, oldParentId, newParentId int64, oldName, newName string, opt types.ChangeParentAttr) error {
 	defer trace.StartRegion(ctx, "fs.core.ChangeEntryParent").End()
 
 	target, err := c.getEntry(ctx, namespace, targetEntryId)
 	if err != nil {
 		return err
+	}
+
+	if newName == "" {
+		newName = oldName
 	}
 
 	// TODO delete overwrite entry on outside
@@ -441,7 +441,7 @@ func (c *core) ChangeEntryParent(ctx context.Context, namespace string, targetEn
 			if err != nil {
 				return err
 			}
-			children, err := overwriteGrp.ListChildren(ctx, nil, types.Filter{})
+			children, err := overwriteGrp.ListChildren(ctx)
 			if err != nil {
 				return err
 			}
@@ -459,7 +459,7 @@ func (c *core) ChangeEntryParent(ctx context.Context, namespace string, targetEn
 			return types.ErrUnsupported
 		}
 
-		if err = c.RemoveEntry(ctx, namespace, newParentId, *overwriteEntryId); err != nil {
+		if err = c.RemoveEntry(ctx, namespace, newParentId, *overwriteEntryId, newName, types.DeleteEntry{}); err != nil {
 			c.logger.Errorw("remove entry failed when overwrite old one", "err", err)
 			return err
 		}
@@ -467,7 +467,7 @@ func (c *core) ChangeEntryParent(ctx context.Context, namespace string, targetEn
 		publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeDestroy, overwriteEntry.Namespace, overwriteEntry.ID)
 	}
 
-	err = c.store.ChangeEntryParent(ctx, namespace, targetEntryId, newParentId, newName, opt)
+	err = c.store.ChangeEntryParent(ctx, namespace, targetEntryId, oldParentId, newParentId, oldName, newName, opt)
 	if err != nil {
 		c.logger.Errorw("change object parent failed", "entry", target.ID, "newParent", newParentId, "newName", newName, "err", err)
 		return err
@@ -508,37 +508,14 @@ func (c *core) Open(ctx context.Context, namespace string, entryId int64, attr t
 	return f, nil
 }
 
-func (c *core) FindEntry(ctx context.Context, namespace string, parentId int64, name string) (*types.Entry, error) {
+func (c *core) FindEntry(ctx context.Context, namespace string, parentId int64, name string) (*types.Child, error) {
 	defer trace.StartRegion(ctx, "fs.core.ListChildren").End()
-	grp, err := c.OpenGroup(ctx, namespace, parentId)
-	if err != nil {
-		return nil, err
-	}
-	return grp.FindEntry(ctx, name)
+	return c.store.FindEntry(ctx, namespace, parentId, name)
 }
 
 func (c *core) ListChildren(ctx context.Context, namespace string, parentId int64) ([]*types.Child, error) {
 	defer trace.StartRegion(ctx, "fs.core.ListChildren").End()
-	grp, err := c.OpenGroup(ctx, namespace, parentId)
-	if err != nil {
-		return nil, err
-	}
-	children, err := grp.ListChildren(ctx, &types.EntryOrder{})
-	if err != nil {
-		return nil, err
-	}
-	var (
-		result = make([]*types.Child, 0)
-	)
-	for _, child := range children {
-		result = append(result, &types.Child{
-			ParentID:  parentId,
-			ChildID:   child.ID,
-			Name:      child.Name,
-			Namespace: namespace,
-		})
-	}
-	return result, nil
+	return c.store.ListChildren(ctx, namespace, parentId)
 }
 
 func (c *core) OpenGroup(ctx context.Context, namespace string, groupId int64) (Group, error) {
@@ -551,7 +528,7 @@ func (c *core) OpenGroup(ctx context.Context, namespace string, groupId int64) (
 		return nil, types.ErrNoGroup
 	}
 	var (
-		stdGrp       = &stdGroup{entryID: entry.ID, name: entry.Name, namespace: namespace, store: c.store}
+		stdGrp       = &stdGroup{entryID: entry.ID, name: entry.Name, namespace: namespace, core: c, store: c.store}
 		grp    Group = stdGrp
 	)
 	switch entry.Kind {

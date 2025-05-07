@@ -30,7 +30,7 @@ import (
 
 type Group interface {
 	FindEntry(ctx context.Context, name string) (*types.Entry, error)
-	ListChildren(ctx context.Context, order *types.EntryOrder, filters ...types.Filter) ([]*types.Entry, error)
+	ListChildren(ctx context.Context) ([]*types.Entry, error)
 }
 
 type emptyGroup struct{}
@@ -41,7 +41,7 @@ func (e emptyGroup) FindEntry(ctx context.Context, name string) (*types.Entry, e
 	return nil, types.ErrNotFound
 }
 
-func (e emptyGroup) ListChildren(ctx context.Context, order *types.EntryOrder, filters ...types.Filter) ([]*types.Entry, error) {
+func (e emptyGroup) ListChildren(ctx context.Context) ([]*types.Entry, error) {
 	return make([]*types.Entry, 0), nil
 }
 
@@ -49,6 +49,7 @@ type stdGroup struct {
 	entryID   int64
 	name      string
 	namespace string
+	core      Core
 	store     metastore.EntryStore
 }
 
@@ -56,27 +57,28 @@ var _ Group = &stdGroup{}
 
 func (g *stdGroup) FindEntry(ctx context.Context, name string) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "fs.core.stdGroup.FindEntry").End()
-	entry, err := g.store.FindEntry(ctx, g.namespace, g.entryID, name)
+	ch, err := g.core.FindEntry(ctx, g.namespace, g.entryID, name)
 	if err != nil {
 		return nil, err
 	}
-	return entry, nil
+	return g.core.GetEntry(ctx, g.namespace, ch.ChildID)
 }
 
-func (g *stdGroup) ListChildren(ctx context.Context, order *types.EntryOrder, filters ...types.Filter) ([]*types.Entry, error) {
+func (g *stdGroup) ListChildren(ctx context.Context) ([]*types.Entry, error) {
 	defer trace.StartRegion(ctx, "fs.core.stdGroup.ListChildren").End()
-	it, err := g.store.ListChildren(ctx, g.namespace, g.entryID, order, filters...)
+	children, err := g.core.ListChildren(ctx, g.namespace, g.entryID)
 	if err != nil {
 		return nil, err
 	}
+
 	var (
-		result = make([]*types.Entry, 0)
+		result = make([]*types.Entry, 0, len(children))
 		next   *types.Entry
 	)
-	for it.HasNext() {
-		next = it.Next()
-		if next.ID == next.ParentID {
-			continue
+	for _, child := range children {
+		next, err = g.core.GetEntry(ctx, g.namespace, child.ChildID)
+		if err != nil {
+			return nil, err
 		}
 		result = append(result, next)
 	}
@@ -91,7 +93,7 @@ type dynamicGroup struct {
 }
 
 func (d *dynamicGroup) FindEntry(ctx context.Context, name string) (*types.Entry, error) {
-	children, err := d.ListChildren(ctx, nil, types.Filter{})
+	children, err := d.ListChildren(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -103,8 +105,8 @@ func (d *dynamicGroup) FindEntry(ctx context.Context, name string) (*types.Entry
 	return nil, types.ErrNotFound
 }
 
-func (d *dynamicGroup) ListChildren(ctx context.Context, order *types.EntryOrder, filters ...types.Filter) ([]*types.Entry, error) {
-	children, err := d.std.ListChildren(ctx, order, filters...)
+func (d *dynamicGroup) ListChildren(ctx context.Context) ([]*types.Entry, error) {
+	children, err := d.std.ListChildren(ctx)
 	if err != nil {
 		d.logger.Errorw("list static children failed", "err", err)
 		return nil, err
@@ -195,7 +197,7 @@ func (d *dcache) findDEntry(ctx context.Context, namespace string, parentId int6
 		return nil, err
 	}
 	return &dentry{
-		ID:        entry.ID,
+		ID:        entry.ChildID,
 		Name:      entry.Name,
 		Namespace: entry.Namespace,
 		children:  nil,

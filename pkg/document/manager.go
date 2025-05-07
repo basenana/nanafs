@@ -109,7 +109,6 @@ func (m *manager) ListDocumentGroups(ctx context.Context, namespace string, pare
 	entryFilter := types.Filter{
 		ID:              parentId,
 		FuzzyName:       filter.FuzzyName,
-		Namespace:       types.GetNamespace(ctx).String(),
 		IsGroup:         utils.ToPtr(true),
 		CreatedAtStart:  filter.CreatedAtStart,
 		CreatedAtEnd:    filter.CreatedAtEnd,

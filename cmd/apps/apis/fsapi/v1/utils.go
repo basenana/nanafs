@@ -49,7 +49,6 @@ func entryInfo(en *types.Entry) *EntryInfo {
 		Id:         en.ID,
 		Name:       en.Name,
 		Kind:       string(en.Kind),
-		ParentID:   en.ParentID,
 		IsGroup:    en.IsGroup,
 		Size:       en.Size,
 		CreatedAt:  timestamppb.New(en.CreatedAt),
@@ -79,7 +78,6 @@ func toEntryInfo(en *types.Entry) *EntryInfo {
 		Id:         en.ID,
 		Name:       en.Name,
 		Kind:       string(en.Kind),
-		ParentID:   en.ParentID,
 		IsGroup:    en.IsGroup,
 		Size:       en.Size,
 		CreatedAt:  timestamppb.New(en.CreatedAt),
@@ -262,4 +260,35 @@ type GroupTree struct {
 	ID       int64
 	Name     string
 	Children []*GroupTree
+}
+
+type EnOrder int
+
+const (
+	EntryName EnOrder = iota
+	EntryKind
+	EntryIsGroup
+	EntrySize
+	EntryCreatedAt
+	EntryModifiedAt
+)
+
+func (d EnOrder) String() string {
+	names := []string{
+		"name",
+		"kind",
+		"is_group",
+		"size",
+		"created_at",
+		"modified_at",
+	}
+	if d < EntryName || d > EntryModifiedAt {
+		return "Unknown"
+	}
+	return names[d]
+}
+
+type EntryOrder struct {
+	Order EnOrder
+	Desc  bool
 }

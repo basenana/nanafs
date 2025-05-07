@@ -18,11 +18,9 @@ package webdav
 
 import (
 	"context"
-	"errors"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/types"
 	"golang.org/x/net/webdav"
-	"io"
 	"io/fs"
 )
 
@@ -38,7 +36,7 @@ func (f *File) Readdir(count int) ([]fs.FileInfo, error) {
 
 	var result []fs.FileInfo
 	infos, err := f.File.Readdir(count)
-	if err != nil && !errors.Is(err, io.EOF) {
+	if err != nil {
 		return nil, err
 	}
 

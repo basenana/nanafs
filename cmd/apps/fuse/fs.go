@@ -127,14 +127,16 @@ func (n *NanaFS) rootNode() (*NanaNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	return n.newFsNode(root), nil
+	return n.newFsNode(root.Name, root), nil
 }
 
-func (n *NanaFS) newFsNode(entry *types.Entry) *NanaNode {
+func (n *NanaFS) newFsNode(name string, entry *types.Entry) *NanaNode {
 	node := &NanaNode{
-		entry:  entry,
-		R:      n,
-		logger: n.logger.With(zap.Int64("entry", entry.ID)),
+		name:    name,
+		entryID: entry.ID,
+		entry:   entry,
+		R:       n,
+		logger:  n.logger.With(zap.Int64("entry", entry.ID)),
 	}
 	return node
 }

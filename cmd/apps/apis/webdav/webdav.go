@@ -181,6 +181,7 @@ func (o FsOperator) RemoveAll(ctx context.Context, path string) error {
 
 func (o FsOperator) Rename(ctx context.Context, oldPath, newPath string) error {
 	defer trace.StartRegion(ctx, "apis.webdav.Rename").End()
+	oldName := path.Base(oldPath)
 	oldParent, target, err := o.fs.GetEntryByPath(ctx, oldPath)
 	if err != nil {
 		return error2FsError(err)
@@ -193,7 +194,7 @@ func (o FsOperator) Rename(ctx context.Context, oldPath, newPath string) error {
 		return error2FsError(err)
 	}
 
-	err = o.fs.Rename(ctx, target.ID, oldParent.ID, parent.ID, newName, types.ChangeParentAttr{})
+	err = o.fs.Rename(ctx, target.ID, oldParent.ID, parent.ID, oldName, newName, types.ChangeParentAttr{})
 	if err != nil {
 		return error2FsError(err)
 	}
