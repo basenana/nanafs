@@ -134,7 +134,7 @@ func (n *NanaFS) newFsNode(name string, entry *types.Entry) *NanaNode {
 	node := &NanaNode{
 		name:    name,
 		entryID: entry.ID,
-		entry:   entry,
+		cache:   entry,
 		R:       n,
 		logger:  n.logger.With(zap.Int64("entry", entry.ID)),
 	}

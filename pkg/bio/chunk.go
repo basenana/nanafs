@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/events"
-	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
@@ -45,11 +44,18 @@ var (
 	maxWriteChunkTaskParallel = utils.NewParallelWorker(64)
 )
 
+type ChunkStore interface {
+	NextSegmentID(ctx context.Context) (int64, error)
+	ListSegments(ctx context.Context, oid, chunkID int64, allChunk bool) ([]types.ChunkSeg, error)
+	AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Entry, error)
+	DeleteSegment(ctx context.Context, segID int64) error
+}
+
 type chunkReader struct {
 	entry *types.Entry
 
 	page        *pageCache
-	store       metastore.ChunkStore
+	store       ChunkStore
 	cache       *storage.LocalCache
 	readers     map[int64]*segReader
 	readMux     sync.Mutex
@@ -58,7 +64,7 @@ type chunkReader struct {
 	needCompact bool
 }
 
-func NewChunkReader(entry *types.Entry, chunkStore metastore.ChunkStore, dataStore storage.Storage) Reader {
+func NewChunkReader(entry *types.Entry, chunkStore ChunkStore, dataStore storage.Storage) Reader {
 	fileChunkMux.Lock()
 	defer fileChunkMux.Unlock()
 
@@ -965,7 +971,7 @@ type segment struct {
 	len int64 // segment remaining length after pos
 }
 
-func CompactChunksData(ctx context.Context, entry *types.Entry, chunkStore metastore.ChunkStore, dataStore storage.Storage) (resultErr error) {
+func CompactChunksData(ctx context.Context, entry *types.Entry, chunkStore ChunkStore, dataStore storage.Storage) (resultErr error) {
 	maxChunkID := (entry.Size / fileChunkSize) + 1
 	var (
 		reader Reader
@@ -1032,7 +1038,7 @@ func CompactChunksData(ctx context.Context, entry *types.Entry, chunkStore metas
 	return resultErr
 }
 
-func DeleteChunksData(ctx context.Context, entry *types.Entry, chunkStore metastore.ChunkStore, dataStore storage.Storage) error {
+func DeleteChunksData(ctx context.Context, entry *types.Entry, chunkStore ChunkStore, dataStore storage.Storage) error {
 	segments, err := chunkStore.ListSegments(ctx, entry.ID, 0, true)
 	if err != nil {
 		return err
@@ -1043,7 +1049,7 @@ func DeleteChunksData(ctx context.Context, entry *types.Entry, chunkStore metast
 	return nil
 }
 
-func deleteSegmentAndData(ctx context.Context, segments []types.ChunkSeg, chunkStore metastore.ChunkStore, dataStore storage.Storage) (resultErr error) {
+func deleteSegmentAndData(ctx context.Context, segments []types.ChunkSeg, chunkStore ChunkStore, dataStore storage.Storage) (resultErr error) {
 	for _, seg := range segments {
 		if err := dataStore.Delete(ctx, seg.ID); err != nil && err != types.ErrNotFound {
 			resultErr = err

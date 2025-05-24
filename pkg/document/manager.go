@@ -64,10 +64,10 @@ func NewManager(recorder metastore.EntryStore, fsCore core.Core, cfg config.Conf
 		cfg:      cfg,
 		logger:   docLogger,
 	}
-	err := registerDocExecutor(docMgr)
-	if err != nil {
-		return nil, err
-	}
+	//err := registerDocExecutor(docMgr)
+	//if err != nil {
+	//	return nil, err
+	//}
 	docMgr.friday = fridayClient
 
 	return docMgr, nil

@@ -122,6 +122,9 @@ func (f *FileSystem) GetEntryByPath(ctx context.Context, path string) (*types.En
 }
 
 func (f *FileSystem) LookUpEntry(ctx context.Context, parent int64, name string) (*types.Entry, error) {
+	if len(name) > fileNameMaxLength {
+		return nil, types.ErrNameTooLong
+	}
 	child, err := f.core.FindEntry(ctx, f.namespace, parent, name)
 	if err != nil {
 		return nil, err
@@ -171,6 +174,9 @@ func (f *FileSystem) UnlinkEntry(ctx context.Context, parentID int64, child stri
 	if err != nil {
 		return err
 	}
+	if en.IsGroup {
+		return types.ErrIsGroup
+	}
 	if attr.Uid != 0 && attr.Uid != en.Access.UID && attr.Uid != parent.Access.UID && parent.Access.HasPerm(types.PermSticky) {
 		return types.ErrNoAccess
 	}
@@ -198,15 +204,6 @@ func (f *FileSystem) RmGroup(ctx context.Context, parentID int64, child string, 
 
 	if !en.IsGroup {
 		return types.ErrNoGroup
-	}
-
-	children, err := f.core.ListChildren(ctx, f.namespace, en.ID)
-	if err != nil {
-		return err
-	}
-
-	if len(children) > 0 {
-		return types.ErrNotEmpty
 	}
 
 	f.logger.Debugw("delete group", "parent", parentID, "entry", child)

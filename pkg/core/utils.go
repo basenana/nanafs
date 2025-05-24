@@ -122,7 +122,7 @@ func (c *core) entryActionEventHandler() {
 		}
 		en, err := c.store.GetEntry(context.Background(), evt.namespace, evt.entryID)
 		if err != nil {
-			c.logger.Errorw("encounter error when handle entry event", "entry", evt.entryID, "action", evt.actionType, "err", err)
+			c.logger.Errorw("encounter error when handle entry event", "namespace", evt.namespace, "entry", evt.entryID, "action", evt.actionType, "err", err)
 			continue
 		}
 		eventbus.Publish(events.NamespacedTopic(evt.topicNS, evt.actionType), BuildEntryEvent(evt.actionType, en))

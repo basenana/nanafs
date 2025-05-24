@@ -130,7 +130,7 @@ func (f *rawFile) Close(ctx context.Context) (err error) {
 	return nil
 }
 
-func openFile(en *types.Entry, attr types.OpenAttr, chunkStore metastore.ChunkStore, fileStorage storage.Storage) (RawFile, error) {
+func openFile(en *types.Entry, attr types.OpenAttr, chunkStore bio.ChunkStore, fileStorage storage.Storage) (RawFile, error) {
 	f := &rawFile{namespace: en.Namespace, entryID: en.ID, size: en.Size, attr: attr}
 	if fileStorage == nil {
 		return nil, logOperationError(fileOperationErrorCounter, "init", fmt.Errorf("storage %s not found", en.Storage))
@@ -179,7 +179,7 @@ func (s *symlink) WriteAt(ctx context.Context, data []byte, off int64) (n int64,
 
 func (s *symlink) ReadAt(ctx context.Context, dest []byte, off int64) (n int64, err error) {
 	defer trace.StartRegion(ctx, "fs.core.symlink.ReadAt").End()
-	if s.data == nil || off > s.size {
+	if s.data == nil || off >= s.size {
 		return 0, io.EOF
 	}
 	return int64(copy(dest, s.data[off:s.size])), nil
@@ -191,7 +191,7 @@ func (s *symlink) Fsync(ctx context.Context) error {
 
 func (s *symlink) Flush(ctx context.Context) (err error) {
 	defer trace.StartRegion(ctx, "fs.core.symlink.Flush").End()
-	err = s.store.Flush(ctx, "", s.entryID, s.size)
+	err = s.store.Flush(ctx, s.namespace, s.entryID, s.size)
 	if err != nil {
 		return err
 	}
@@ -206,7 +206,7 @@ func (s *symlink) Flush(ctx context.Context) (err error) {
 
 func (s *symlink) Close(ctx context.Context) error {
 	defer trace.StartRegion(ctx, "fs.core.symlink.Close").End()
-	defer publicEntryActionEvent(events.TopicNamespaceFile, events.ActionTypeClose, "", s.entryID)
+	defer publicEntryActionEvent(events.TopicNamespaceFile, events.ActionTypeClose, s.namespace, s.entryID)
 	defer decreaseOpenedFile(s.entryID)
 	return s.Flush(ctx)
 }

@@ -43,6 +43,7 @@ func fsMountOptions(displayName string, ops []string) []string {
 
 func nanaNode2Stat(entry *types.Entry) *syscall.Stat_t {
 	aTime, _ := unix.TimeToTimespec(entry.AccessAt)
+	bTime, _ := unix.TimeToTimespec(entry.CreatedAt)
 	mTime, _ := unix.TimeToTimespec(entry.ModifiedAt)
 	cTime, _ := unix.TimeToTimespec(entry.ChangedAt)
 
@@ -56,18 +57,19 @@ func nanaNode2Stat(entry *types.Entry) *syscall.Stat_t {
 	}
 
 	return &syscall.Stat_t{
-		Size:      entry.Size,
-		Blocks:    entry.Size/fileBlockSize + 1,
-		Blksize:   fileBlockSize,
-		Atimespec: syscall.Timespec{Sec: aTime.Sec, Nsec: aTime.Nsec},
-		Mtimespec: syscall.Timespec{Sec: mTime.Sec, Nsec: mTime.Nsec},
-		Ctimespec: syscall.Timespec{Sec: cTime.Sec, Nsec: cTime.Nsec},
-		Mode:      uint16(mode),
-		Ino:       uint64(entry.ID),
-		Nlink:     uint16(entry.RefCount),
-		Uid:       uint32(entry.Access.UID),
-		Gid:       uint32(entry.Access.GID),
-		Rdev:      rdev,
+		Size:          entry.Size,
+		Blocks:        entry.Size/fileBlockSize + 1,
+		Blksize:       fileBlockSize,
+		Atimespec:     syscall.Timespec{Sec: aTime.Sec, Nsec: aTime.Nsec},
+		Mtimespec:     syscall.Timespec{Sec: mTime.Sec, Nsec: mTime.Nsec},
+		Ctimespec:     syscall.Timespec{Sec: cTime.Sec, Nsec: cTime.Nsec},
+		Birthtimespec: syscall.Timespec{Sec: bTime.Sec, Nsec: bTime.Nsec},
+		Mode:          uint16(mode),
+		Ino:           uint64(entry.ID),
+		Nlink:         uint16(entry.RefCount),
+		Uid:           uint32(entry.Access.UID),
+		Gid:           uint32(entry.Access.GID),
+		Rdev:          rdev,
 	}
 }
 
@@ -75,6 +77,6 @@ func updateAttrOut(st *syscall.Stat_t, out *fuse.Attr) {
 	out.FromStat(st)
 
 	// macos
-	out.Crtime_ = uint64(st.Ctimespec.Sec)
-	out.Crtimensec_ = uint32(st.Ctimespec.Nsec)
+	out.Crtime_ = uint64(st.Birthtimespec.Sec)
+	out.Crtimensec_ = uint32(st.Birthtimespec.Nsec)
 }

@@ -172,6 +172,9 @@ func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, entry *types.Entry, update *ty
 		   which the S_IXGRP bit is not set) the S_ISGID bit indicates
 		   mandatory locking, and is not cleared by a chown().
 		*/
+		if update.Permissions == nil {
+			update.Permissions = entry.Access.Permissions
+		}
 		update.Permissions = RemovePerm(update.Permissions, types.PermSetUid, types.PermSetGid)
 	}
 
@@ -187,6 +190,9 @@ func updateNanaNodeWithAttr(attr *fuse.SetAttrIn, entry *types.Entry, update *ty
 	}
 	if ctime, ok := attr.GetCTime(); ok {
 		update.ChangedAt = utils.ToPtr(ctime)
+	}
+
+	if len(update.Permissions) > 0 {
 	}
 
 	return nil
@@ -293,7 +299,7 @@ func Mode2Permissions(mode uint32) []types.Permission {
 
 func RemovePerm(p []types.Permission, remove ...types.Permission) []types.Permission {
 	var (
-		result     = make([]types.Permission, 0, len(p)-len(remove))
+		result     = make([]types.Permission, 0, len(p))
 		needDelete = make(map[types.Permission]struct{})
 	)
 

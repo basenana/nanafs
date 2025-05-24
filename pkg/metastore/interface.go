@@ -27,7 +27,6 @@ type Meta interface {
 	AccessToken
 	SysConfig
 	EntryStore
-	ChunkStore
 	NotificationRecorder
 	ScheduledTaskRecorder
 }
@@ -72,9 +71,7 @@ type EntryStore interface {
 	AddEntryProperty(ctx context.Context, namespace string, id int64, key string, item types.PropertyItem) error
 	RemoveEntryProperty(ctx context.Context, namespace string, id int64, key string) error
 	UpdateEntryProperties(ctx context.Context, namespace string, id int64, properties types.Properties) error
-}
 
-type ChunkStore interface {
 	NextSegmentID(ctx context.Context) (int64, error)
 	ListSegments(ctx context.Context, oid, chunkID int64, allChunk bool) ([]types.ChunkSeg, error)
 	AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Entry, error)

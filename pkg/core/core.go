@@ -53,6 +53,11 @@ type Core interface {
 	DestroyEntry(ctx context.Context, namespace string, entryId int64) error
 	CleanEntryData(ctx context.Context, namespace string, entryId int64) error
 	ChunkCompact(ctx context.Context, namespace string, entryId int64) error
+
+	NextSegmentID(ctx context.Context) (int64, error)
+	ListSegments(ctx context.Context, oid, chunkID int64, allChunk bool) ([]types.ChunkSeg, error)
+	AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Entry, error)
+	DeleteSegment(ctx context.Context, segID int64) error
 }
 
 func New(store metastore.Meta, cfg config.Bootstrap) (Core, error) {
@@ -160,7 +165,7 @@ func (c *core) NamespaceRoot(ctx context.Context, namespace string) (*types.Entr
 		nsChild *types.Child
 		nsRoot  *types.Entry
 	)
-	nsChild, err = c.store.FindEntry(ctx, types.DefaultNamespace, root.ID, namespace)
+	nsChild, err = c.store.FindEntry(ctx, namespace, root.ID, namespace)
 	if err != nil {
 		c.logger.Errorw("load ns child object error", "namespace", namespace, "err", err)
 		return nil, err
@@ -183,7 +188,7 @@ func (c *core) CreateNamespace(ctx context.Context, namespace string) error {
 	defer trace.StartRegion(ctx, "fs.core.CreateNamespace").End()
 
 	_, err := c.NamespaceRoot(ctx, namespace)
-	if err != nil {
+	if err == nil {
 		return nil
 	}
 
@@ -192,6 +197,7 @@ func (c *core) CreateNamespace(ctx context.Context, namespace string) error {
 		c.logger.Errorw("load root object error", "err", err.Error())
 		return err
 	}
+
 	// init root entry of namespace
 	nsRoot := initNamespaceRootEntry(root, namespace)
 	nsRoot.Access.UID = c.fsOwnerUid
@@ -260,7 +266,7 @@ func (c *core) GetEntry(ctx context.Context, namespace string, id int64) (*types
 func (c *core) CreateEntry(ctx context.Context, namespace string, parentId int64, attr types.EntryAttr) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "fs.core.CreateEntry").End()
 	existed, err := c.store.FindEntry(ctx, namespace, parentId, attr.Name)
-	if err != nil && err != types.ErrNotFound {
+	if err != nil && !errors.Is(err, types.ErrNotFound) {
 		return nil, err
 	}
 	if existed != nil {
@@ -281,6 +287,7 @@ func (c *core) CreateEntry(ctx context.Context, namespace string, parentId int64
 	if err != nil {
 		return nil, err
 	}
+	defer c.cache.Remove(ik{namespace: namespace, id: parentId})
 
 	if len(attr.Labels.Labels) > 0 {
 		if err = c.store.UpdateEntryLabels(ctx, namespace, entry.ID, attr.Labels); err != nil {
@@ -296,7 +303,6 @@ func (c *core) CreateEntry(ctx context.Context, namespace string, parentId int64
 		}
 	}
 
-	c.cache.Set(ik{namespace: namespace, id: entry.ID}, entry)
 	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeCreate, entry.Namespace, entry.ID)
 	return entry, nil
 }
@@ -312,17 +318,38 @@ func (c *core) UpdateEntry(ctx context.Context, namespace string, id int64, upda
 	if update.Name != nil {
 		en.Name = *update.Name
 	}
-
 	if update.Aliases != nil {
 		en.Aliases = *update.Aliases
 	}
 
+	if update.Size != nil {
+		en.Size = *update.Size
+	}
+	if update.ModifiedAt != nil {
+		en.ModifiedAt = *update.ModifiedAt
+	}
+	if update.AccessAt != nil {
+		en.AccessAt = *update.AccessAt
+	}
+	if update.ChangedAt != nil {
+		en.ChangedAt = *update.ChangedAt
+	}
+
+	if len(update.Permissions) > 0 {
+		en.Access.Permissions = update.Permissions
+	}
+	if update.UID != nil {
+		en.Access.UID = *update.UID
+	}
+	if update.GID != nil {
+		en.Access.GID = *update.GID
+	}
 	if err = c.store.UpdateEntry(ctx, namespace, en); err != nil {
 		return nil, err
 	}
 	c.cache.Remove(ik{namespace: namespace, id: id})
 	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeUpdate, en.Namespace, en.ID)
-	return en, nil
+	return c.getEntry(ctx, namespace, id)
 }
 
 func (c *core) RemoveEntry(ctx context.Context, namespace string, parentId, entryId int64, entryName string, attr types.DeleteEntry) error {
@@ -330,6 +357,10 @@ func (c *core) RemoveEntry(ctx context.Context, namespace string, parentId, entr
 	children, err := c.store.ListChildren(ctx, namespace, entryId)
 	if err != nil {
 		return err
+	}
+
+	if len(children) > 0 && !attr.DeleteAll {
+		return types.ErrNotEmpty
 	}
 
 	for _, child := range children {
@@ -342,6 +373,7 @@ func (c *core) RemoveEntry(ctx context.Context, namespace string, parentId, entr
 	if err != nil {
 		return err
 	}
+	c.cache.Remove(ik{namespace: namespace, id: parentId})
 	c.cache.Remove(ik{namespace: namespace, id: entryId})
 	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeDestroy, namespace, entryId)
 	return nil
@@ -370,13 +402,8 @@ func (c *core) CleanEntryData(ctx context.Context, namespace string, entryId int
 		return fmt.Errorf("storage %s not register", entry.Storage)
 	}
 
-	cs, ok := c.store.(metastore.ChunkStore)
-	if !ok {
-		return nil
-	}
-
 	defer logger.CostLog(c.logger.With(zap.Int64("entry", entry.ID)), "clean entry data")()
-	err = bio.DeleteChunksData(ctx, entry, cs, s)
+	err = bio.DeleteChunksData(ctx, entry, c, s)
 	if err != nil {
 		c.logger.Errorw("delete chunk data failed", "entry", entry.ID, "err", err)
 		return err
@@ -408,14 +435,14 @@ func (c *core) MirrorEntry(ctx context.Context, namespace string, srcId, dstPare
 		name = attr.Name
 	}
 
-	if err = c.store.MirrorEntry(ctx, namespace, src.ID, name, dstParentId); err != nil {
+	if err = c.store.MirrorEntry(ctx, namespace, srcId, name, dstParentId); err != nil {
 		c.logger.Errorw("update dst parent object ref count error", "srcEntry", srcId, "dstParent", dstParentId, "err", err.Error())
 		return nil, err
 	}
 	c.cache.Remove(ik{namespace: namespace, id: srcId})
 	c.cache.Remove(ik{namespace: namespace, id: dstParentId})
 	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeMirror, src.Namespace, src.ID)
-	return src, nil
+	return c.getEntry(ctx, namespace, src.ID)
 }
 
 func (c *core) ChangeEntryParent(ctx context.Context, namespace string, targetEntryId int64, overwriteEntryId *int64, oldParentId, newParentId int64, oldName, newName string, opt types.ChangeParentAttr) error {
@@ -474,6 +501,7 @@ func (c *core) ChangeEntryParent(ctx context.Context, namespace string, targetEn
 	}
 	c.cache.Remove(ik{namespace: namespace, id: targetEntryId})
 	c.cache.Remove(ik{namespace: namespace, id: newParentId})
+	c.cache.Remove(ik{namespace: namespace, id: oldParentId})
 	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeChangeParent, target.Namespace, target.ID)
 	return nil
 }
@@ -492,14 +520,14 @@ func (c *core) Open(ctx context.Context, namespace string, entryId int64, attr t
 		}
 		publicEntryActionEvent(events.TopicNamespaceFile, events.ActionTypeTrunc, namespace, entryId)
 	}
-	c.cache.Set(ik{namespace: namespace, id: entryId}, entry)
+	c.cache.Remove(ik{namespace: namespace, id: entryId})
 
 	switch entry.Kind {
 	case types.SymLinkKind:
 		f, err = openSymlink(c.metastore, entry, attr)
 	default:
 		attr.FsWriteback = c.fsWriteback
-		f, err = openFile(entry, attr, c.metastore, c.storages[entry.Storage])
+		f, err = openFile(entry, attr, c, c.storages[entry.Storage])
 	}
 	if err != nil {
 		return nil, err
@@ -559,15 +587,32 @@ func (c *core) ChunkCompact(ctx context.Context, namespace string, entryId int64
 	if err != nil {
 		return err
 	}
-	chunkStore, ok := c.store.(metastore.ChunkStore)
-	if !ok {
-		return fmt.Errorf("not chunk store")
-	}
 	dataStorage, ok := c.storages[entry.Storage]
 	if !ok {
 		return fmt.Errorf("storage %s not registered", entry.Storage)
 	}
-	return bio.CompactChunksData(ctx, entry, chunkStore, dataStorage)
+	return bio.CompactChunksData(ctx, entry, c, dataStorage)
+}
+
+func (c *core) NextSegmentID(ctx context.Context) (int64, error) {
+	return c.store.NextSegmentID(ctx)
+}
+
+func (c *core) ListSegments(ctx context.Context, oid, chunkID int64, allChunk bool) ([]types.ChunkSeg, error) {
+	return c.store.ListSegments(ctx, oid, chunkID, allChunk)
+}
+
+func (c *core) AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Entry, error) {
+	en, err := c.store.AppendSegments(ctx, seg)
+	if err != nil {
+		return nil, err
+	}
+	_ = c.cache.Set(ik{namespace: en.Namespace, id: en.ID}, en)
+	return en, nil
+}
+
+func (c *core) DeleteSegment(ctx context.Context, segID int64) error {
+	return c.store.DeleteSegment(ctx, segID)
 }
 
 // FIXME: call this before shutdown
