@@ -30,16 +30,15 @@ type Notify struct {
 	store metastore.NotificationRecorder
 }
 
-func (n *Notify) ListNotifications(ctx context.Context) ([]types.Notification, error) {
-	return n.store.ListNotifications(ctx)
+func (n *Notify) ListNotifications(ctx context.Context, namespace string) ([]types.Notification, error) {
+	return n.store.ListNotifications(ctx, namespace)
 }
 
-func (n *Notify) RecordInfo(ctx context.Context, title, message, source string) error {
+func (n *Notify) RecordInfo(ctx context.Context, namespace, title, message, source string) error {
 	nid := fmt.Sprintf("%d-info-%s", time.Now().UnixNano(), utils.MustRandString(8))
-	ns := types.GetNamespace(ctx).String()
 	no := types.Notification{
 		ID:        nid,
-		Namespace: ns,
+		Namespace: namespace,
 		Title:     title,
 		Message:   message,
 		Type:      types.NotificationInfo,
@@ -47,15 +46,14 @@ func (n *Notify) RecordInfo(ctx context.Context, title, message, source string) 
 		Status:    types.NotificationUnread,
 		Time:      time.Now(),
 	}
-	return n.store.RecordNotification(ctx, nid, no)
+	return n.store.RecordNotification(ctx, namespace, nid, no)
 }
 
-func (n *Notify) RecordWarn(ctx context.Context, title, message, source string) error {
+func (n *Notify) RecordWarn(ctx context.Context, namespace, title, message, source string) error {
 	nid := fmt.Sprintf("%d-warn-%s", time.Now().UnixNano(), utils.MustRandString(8))
-	ns := types.GetNamespace(ctx).String()
 	no := types.Notification{
 		ID:        nid,
-		Namespace: ns,
+		Namespace: namespace,
 		Title:     title,
 		Message:   message,
 		Type:      types.NotificationWarn,
@@ -63,11 +61,11 @@ func (n *Notify) RecordWarn(ctx context.Context, title, message, source string) 
 		Status:    types.NotificationUnread,
 		Time:      time.Now(),
 	}
-	return n.store.RecordNotification(ctx, nid, no)
+	return n.store.RecordNotification(ctx, namespace, nid, no)
 }
 
-func (n *Notify) MarkRead(ctx context.Context, nid string) error {
-	return n.store.UpdateNotificationStatus(ctx, nid, types.NotificationRead)
+func (n *Notify) MarkRead(ctx context.Context, namespace, nid string) error {
+	return n.store.UpdateNotificationStatus(ctx, namespace, nid, types.NotificationRead)
 }
 
 func NewNotify(s metastore.NotificationRecorder) *Notify {

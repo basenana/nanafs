@@ -2,12 +2,20 @@ package bus
 
 import (
 	"fmt"
-	"github.com/google/uuid"
+	"math/rand"
 	"reflect"
 	"sync"
+	"sync/atomic"
+	"time"
 )
 
-type listener struct {
+var gid uint64
+
+func init() {
+	gid = uint64(rand.Uint32())
+}
+
+type Listener struct {
 	id    string
 	topic string
 	fn    reflect.Value
@@ -16,7 +24,7 @@ type listener struct {
 	mux   sync.Mutex
 }
 
-func (l *listener) call(args ...interface{}) {
+func (l *Listener) call(args ...interface{}) {
 	if l.block {
 		l.mux.Lock()
 		defer l.mux.Unlock()
@@ -24,7 +32,7 @@ func (l *listener) call(args ...interface{}) {
 	l.fn.Call(l.parseArgs(args...))
 }
 
-func (l *listener) parseArgs(inArgs ...interface{}) (args []reflect.Value) {
+func (l *Listener) parseArgs(inArgs ...interface{}) (args []reflect.Value) {
 	fn := l.fn.Type()
 	args = make([]reflect.Value, len(inArgs))
 	for i, inArg := range inArgs {
@@ -37,21 +45,21 @@ func (l *listener) parseArgs(inArgs ...interface{}) (args []reflect.Value) {
 	return
 }
 
-func buildNewListener(topic string, fn interface{}, block, once bool) (*listener, error) {
+func NewListener(topic string, fn interface{}, block, once bool) *Listener {
 	if fn == nil {
-		return nil, fmt.Errorf("handler must be function")
+		panic("handler must be function")
 	}
 
 	handler := reflect.ValueOf(fn)
 	if handler.Type().Kind() != reflect.Func {
-		return nil, fmt.Errorf("handler not a function")
+		panic("handler not a function")
 	}
 
-	return &listener{
-		id:    uuid.New().String(),
+	return &Listener{
+		id:    fmt.Sprintf("%d.%d", time.Now().Nanosecond(), atomic.AddUint64(&gid, 1)),
 		topic: topic,
 		fn:    handler,
 		block: block,
 		once:  once,
-	}, nil
+	}
 }

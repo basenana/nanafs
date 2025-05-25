@@ -67,7 +67,6 @@ type Entry struct {
 	Name       string  `gorm:"column:name;index:obj_name"`
 	Aliases    *string `gorm:"column:aliases"`
 	ParentID   *int64  `gorm:"column:parent_id;index:parent_id"`
-	RefID      *int64  `gorm:"column:ref_id;index:ref_id"`
 	RefCount   *int    `gorm:"column:ref_count"`
 	Kind       string  `gorm:"column:kind"`
 	KindMap    *int64  `gorm:"column:kind_map"`
@@ -95,7 +94,6 @@ func (o *Entry) FromEntry(en *types.Entry) *Entry {
 	o.Name = en.Name
 	o.Aliases = &en.Aliases
 	o.ParentID = &en.ParentID
-	o.RefID = &en.RefID
 	o.RefCount = &en.RefCount
 	o.Kind = string(en.Kind)
 	o.KindMap = &en.KindMap
@@ -137,9 +135,6 @@ func (o *Entry) ToEntry() *types.Entry {
 	if o.ParentID != nil {
 		result.ParentID = *o.ParentID
 	}
-	if o.RefID != nil {
-		result.RefID = *o.RefID
-	}
 	if o.RefCount != nil {
 		result.RefCount = *o.RefCount
 	}
@@ -150,6 +145,36 @@ func (o *Entry) ToEntry() *types.Entry {
 		result.Size = *o.Size
 	}
 	return result
+}
+
+type Children struct {
+	ParentID  int64  `gorm:"column:parent_id;primaryKey"`
+	ChildID   int64  `gorm:"column:child_id;primaryKey"`
+	Name      string `gorm:"column:name;primaryKey"`
+	Namespace string `gorm:"column:namespace;index:child_ns"`
+	Marker    string `gorm:"column:marker"`
+}
+
+func (c *Children) From(child *types.Child) {
+	c.ParentID = child.ParentID
+	c.ChildID = child.ChildID
+	c.Name = child.Name
+	c.Namespace = child.Namespace
+	c.Marker = child.Marker
+}
+
+func (c *Children) To() *types.Child {
+	return &types.Child{
+		ParentID:  c.ParentID,
+		ChildID:   c.ChildID,
+		Name:      c.Name,
+		Namespace: c.Namespace,
+		Marker:    c.Marker,
+	}
+}
+
+func (c *Children) TableName() string {
+	return "children"
 }
 
 type Label struct {
@@ -217,34 +242,6 @@ func (o *EntryExtend) ToExtData() types.ExtendData {
 		_ = json.Unmarshal(o.PlugScope, &ext.PlugScope)
 	}
 	return ext
-}
-
-type EntryURI struct {
-	OID       int64  `gorm:"column:oid;primaryKey"`
-	Uri       string `gorm:"column:uri;index:obj_uri"`
-	Namespace string `gorm:"column:namespace;index:obj_uri_ns"`
-	Invalid   bool   `gorm:"column:invalid"`
-}
-
-func (o *EntryURI) TableName() string {
-	return "object_uri"
-}
-
-func (o *EntryURI) ToEntryUri() *types.EntryUri {
-	return &types.EntryUri{
-		ID:        o.OID,
-		Uri:       o.Uri,
-		Namespace: o.Namespace,
-		Invalid:   o.Invalid,
-	}
-}
-
-func (o *EntryURI) FromEntryUri(entryUri *types.EntryUri) *EntryURI {
-	o.OID = entryUri.ID
-	o.Uri = entryUri.Uri
-	o.Namespace = entryUri.Namespace
-	o.Invalid = entryUri.Invalid
-	return o
 }
 
 type EntryChunk struct {
@@ -323,7 +320,7 @@ func (o *Event) From(event types.Event) {
 	o.DataContentType = event.DataContentType
 	o.Data = event.Data.String()
 	o.Sequence = event.Sequence
-	o.Namespace = event.Data.Namespace
+	o.Namespace = event.Namespace
 	o.Time = event.Time
 }
 

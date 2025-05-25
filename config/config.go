@@ -16,64 +16,202 @@
 
 package config
 
-type Bootstrap struct {
-	FUSE FUSE `json:"fuse"`
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"reflect"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+)
 
-	Meta             Meta       `json:"meta"`
-	Storages         []Storage  `json:"storages"`
-	GlobalEncryption Encryption `json:"global_encryption"`
+var FilePath string
 
-	FS           *FS          `json:"fs,omitempty"`
-	FridayConfig FridayConfig `json:"friday_config,omitempty"`
+var (
+	ErrNotConfigured = fmt.Errorf("no configured")
+)
 
-	CacheDir  string `json:"cache_dir,omitempty"`
-	CacheSize int    `json:"cache_size,omitempty"`
-	Debug     bool   `json:"debug,omitempty"`
+type Config interface {
+	GetBootstrapConfig() Bootstrap
+	RegisterCMDB(cmdb CMDB) error
+	SetSystemConfig(ctx context.Context, group, name string, value any) error
+	GetSystemConfig(ctx context.Context, group, name string) Value
 }
 
-type FridayConfig struct {
-	HttpAddr string `json:"http_addr"`
+type configWrapper struct {
+	cmdb   CMDB
+	cached map[cacheConfigKey]*Value
+	bCfg   *Bootstrap
+	mux    sync.RWMutex
 }
 
-type FsApi struct {
-	Enable     bool   `json:"enable"`
-	Host       string `json:"host"`
-	Port       int    `json:"port"`
-	Metrics    bool   `json:"metrics"`
-	ServerName string `json:"server_name"`
-	CertFile   string `json:"cert_file"`
-	KeyFile    string `json:"key_file"`
-	CaFile     string `json:"ca_file"`
-	CaKeyFile  string `json:"ca_key_file"`
+func (c *configWrapper) initBootstrapConfig() error {
+	if c.bCfg != nil {
+		return nil
+	}
+
+	result := Bootstrap{}
+
+	if FilePath == "" {
+		return fmt.Errorf("--config not set")
+	}
+
+	_, err := os.Stat(FilePath)
+	if err != nil {
+		return fmt.Errorf("open config file failed: %w", err)
+	}
+
+	f, err := os.Open(FilePath)
+	if err != nil {
+		return fmt.Errorf("open config file failed: %w", err)
+	}
+	defer f.Close()
+
+	jd := json.NewDecoder(f)
+	if err = jd.Decode(&result); err != nil {
+		return fmt.Errorf("parse config failed: %w", err)
+	}
+
+	if err = Verify(&result); err != nil {
+		return err
+	}
+
+	c.bCfg = &result
+	return nil
 }
 
-type Webdav struct {
-	Enable         bool            `json:"enable"`
-	Host           string          `json:"host"`
-	Port           int             `json:"port"`
-	OverwriteUsers []OverwriteUser `json:"overwrite_users"`
+func (c *configWrapper) GetBootstrapConfig() Bootstrap {
+	return *c.bCfg
 }
 
-type FUSE struct {
-	Enable       bool     `json:"enable"`
-	RootPath     string   `json:"root_path"`
-	MountOptions []string `json:"mount_options,omitempty"`
-	DisplayName  string   `json:"display_name,omitempty"`
-	VerboseLog   bool     `json:"verbose_log,omitempty"`
-
-	EntryTimeout *int `json:"entry_timeout,omitempty"`
-	AttrTimeout  *int `json:"attr_timeout,omitempty"`
+func (c *configWrapper) RegisterCMDB(cmdb CMDB) error {
+	c.cmdb = cmdb
+	return setCMDBDefaultConfigs(cmdb)
 }
 
-type Encryption struct {
-	Enable    bool   `json:"enable"`
-	Method    string `json:"method"`
-	SecretKey string `json:"secret_key"`
+func (c *configWrapper) SetSystemConfig(ctx context.Context, group, name string, value any) error {
+	var record = Value{Group: group, Name: name}
+	switch fmtVal := value.(type) {
+	case string:
+		record.Value = fmtVal
+	case int, int64:
+		record.Value = fmt.Sprintf("%d", fmtVal)
+	case bool:
+		if fmtVal {
+			record.Value = "true"
+		} else {
+			record.Value = "false"
+		}
+	default:
+		bData, err := json.Marshal(value)
+		if err != nil {
+			return err
+		}
+		record.Value = string(bData)
+	}
+
+	c.mux.Lock()
+	delete(c.cached, cacheConfigKey{namespace: "", group: group, name: name})
+	c.mux.Unlock()
+
+	return c.cmdb.SetConfigValue(ctx, "", group, name, record.Value)
 }
 
-type OverwriteUser struct {
-	UID      int64  `json:"uid"`
-	GID      int64  `json:"gid"`
-	Username string `json:"username"`
-	Password string `json:"password"`
+func (c *configWrapper) GetSystemConfig(ctx context.Context, group, name string) Value {
+	c.mux.RLock()
+	cachedRecord := c.cached[cacheConfigKey{namespace: "", group: group, name: name}]
+	c.mux.RUnlock()
+
+	if cachedRecord != nil &&
+		(cachedRecord.expiration == nil || time.Now().Before(*cachedRecord.expiration)) {
+		return *cachedRecord
+	}
+
+	var record = Value{Group: group, Name: name}
+	if c.cmdb == nil {
+		record.Error = fmt.Errorf("cmdb not init")
+		return record
+	}
+	record.Value, record.Error = c.cmdb.GetConfigValue(ctx, "", group, name)
+	if record.Error != nil && isConfigNotFound(record.Error) {
+		record.Error = ErrNotConfigured
+	}
+
+	if record.Error != nil {
+		return record
+	}
+
+	exp := time.Now().Add(time.Minute * 15)
+	record.expiration = &exp
+	c.mux.Lock()
+	c.cached[cacheConfigKey{namespace: "", group: group, name: name}] = &record
+	c.mux.Unlock()
+
+	return record
+}
+
+func NewConfigLoader() (Config, error) {
+	l := &configWrapper{cmdb: NewMemCmdb(), cached: make(map[cacheConfigKey]*Value)}
+	_ = setCMDBDefaultConfigs(l.cmdb)
+	return l, l.initBootstrapConfig()
+}
+
+func NewMockConfigLoader(b Bootstrap) Config {
+	l := &configWrapper{cmdb: NewMemCmdb(), cached: make(map[cacheConfigKey]*Value), bCfg: &b}
+	_ = setCMDBDefaultConfigs(l.cmdb)
+	return l
+}
+
+type Value struct {
+	Group string
+	Name  string
+	Value string
+	Error error
+
+	expiration *time.Time
+}
+
+func (v Value) Int() (int, error) {
+	if v.Error != nil {
+		return 0, v.Error
+	}
+	return strconv.Atoi(v.Value)
+}
+
+func (v Value) Int64() (int64, error) {
+	if v.Error != nil {
+		return 0, v.Error
+	}
+	return strconv.ParseInt(v.Value, 10, 64)
+}
+
+func (v Value) Bool() (bool, error) {
+	if v.Error != nil {
+		return false, v.Error
+	}
+	switch strings.ToLower(v.Value) {
+	case "yes", "y", "true", "t":
+		return true, nil
+	case "no", "n", "false", "f":
+		return false, nil
+	default:
+		return false, fmt.Errorf("unknown bool config value %s", v.Value)
+	}
+}
+
+func (v Value) String() (string, error) {
+	return v.Value, v.Error
+}
+
+func (v Value) Unmarshal(data any) error {
+	if v.Error != nil {
+		return v.Error
+	}
+	if reflect.TypeOf(data).Kind() != reflect.Pointer {
+		return fmt.Errorf("not a pointer")
+	}
+	return json.Unmarshal([]byte(v.Value), data)
 }

@@ -20,12 +20,12 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/events"
-	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/getsentry/sentry-go"
+	"github.com/hyponet/eventbus"
 	"go.uber.org/zap"
 	"io"
 	"runtime/trace"
@@ -44,11 +44,18 @@ var (
 	maxWriteChunkTaskParallel = utils.NewParallelWorker(64)
 )
 
+type ChunkStore interface {
+	NextSegmentID(ctx context.Context) (int64, error)
+	ListSegments(ctx context.Context, oid, chunkID int64, allChunk bool) ([]types.ChunkSeg, error)
+	AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.Entry, error)
+	DeleteSegment(ctx context.Context, segID int64) error
+}
+
 type chunkReader struct {
 	entry *types.Entry
 
 	page        *pageCache
-	store       metastore.ChunkStore
+	store       ChunkStore
 	cache       *storage.LocalCache
 	readers     map[int64]*segReader
 	readMux     sync.Mutex
@@ -57,7 +64,7 @@ type chunkReader struct {
 	needCompact bool
 }
 
-func NewChunkReader(entry *types.Entry, chunkStore metastore.ChunkStore, dataStore storage.Storage) Reader {
+func NewChunkReader(entry *types.Entry, chunkStore ChunkStore, dataStore storage.Storage) Reader {
 	fileChunkMux.Lock()
 	defer fileChunkMux.Unlock()
 
@@ -114,6 +121,9 @@ func (c *chunkReader) ReadAt(ctx context.Context, dest []byte, off int64) (n int
 		readLen := chunkEnd - off
 		wg.Add(1)
 		reqList = append(reqList, c.prepareData(ctx, index, off, dest[n:n+readLen], wg))
+		if reqList[len(reqList)-1].err != nil {
+			break
+		}
 
 		n += readLen
 		off = chunkEnd
@@ -124,7 +134,7 @@ func (c *chunkReader) ReadAt(ctx context.Context, dest []byte, off int64) (n int
 	wg.Wait()
 	for _, req := range reqList {
 		if req.err != nil {
-			return 0, err
+			return n, err
 		}
 	}
 	return n, nil
@@ -172,7 +182,7 @@ func (c *chunkReader) Close() {
 		delete(fileChunkReaders, c.entry.ID)
 		fileChunkMux.Unlock()
 		if c.needCompact {
-			events.Publish(events.NamespacedTopic(events.TopicNamespaceFile, events.ActionTypeCompact),
+			eventbus.Publish(events.NamespacedTopic(events.TopicNamespaceFile, events.ActionTypeCompact),
 				buildCompactEvent(c.entry))
 		}
 		c.page.close()
@@ -423,7 +433,7 @@ func (c *chunkWriter) WriteAt(ctx context.Context, data []byte, off int64) (n in
 		wg.Add(1)
 		req := &ioReq{WaitGroup: wg, off: off, data: data[n : n+readLen]}
 		if err = c.writeSegData(ctx, index, req); err != nil {
-			return n, err
+			break
 		}
 		reqList = append(reqList, req)
 
@@ -964,7 +974,7 @@ type segment struct {
 	len int64 // segment remaining length after pos
 }
 
-func CompactChunksData(ctx context.Context, entry *types.Entry, chunkStore metastore.ChunkStore, dataStore storage.Storage) (resultErr error) {
+func CompactChunksData(ctx context.Context, entry *types.Entry, chunkStore ChunkStore, dataStore storage.Storage) (resultErr error) {
 	maxChunkID := (entry.Size / fileChunkSize) + 1
 	var (
 		reader Reader
@@ -1031,7 +1041,7 @@ func CompactChunksData(ctx context.Context, entry *types.Entry, chunkStore metas
 	return resultErr
 }
 
-func DeleteChunksData(ctx context.Context, entry *types.Entry, chunkStore metastore.ChunkStore, dataStore storage.Storage) error {
+func DeleteChunksData(ctx context.Context, entry *types.Entry, chunkStore ChunkStore, dataStore storage.Storage) error {
 	segments, err := chunkStore.ListSegments(ctx, entry.ID, 0, true)
 	if err != nil {
 		return err
@@ -1042,7 +1052,7 @@ func DeleteChunksData(ctx context.Context, entry *types.Entry, chunkStore metast
 	return nil
 }
 
-func deleteSegmentAndData(ctx context.Context, segments []types.ChunkSeg, chunkStore metastore.ChunkStore, dataStore storage.Storage) (resultErr error) {
+func deleteSegmentAndData(ctx context.Context, segments []types.ChunkSeg, chunkStore ChunkStore, dataStore storage.Storage) (resultErr error) {
 	for _, seg := range segments {
 		if err := dataStore.Delete(ctx, seg.ID); err != nil && err != types.ErrNotFound {
 			resultErr = err

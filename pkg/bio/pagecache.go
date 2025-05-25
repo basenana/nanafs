@@ -19,7 +19,6 @@ package bio
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils"
 	"runtime/trace"
@@ -48,11 +47,8 @@ var (
 	pageCacheLFU              = utils.NewLFUPool(maxPageCacheTotal - 1)
 )
 
-func InitPageCache(cfg *config.FS) {
-	if cfg == nil {
-		return
-	}
-	switch cfg.PageSize {
+func InitPageCache(ps int) {
+	switch ps {
 	case 2:
 		pageSize = 1 << 21 // 2M
 	case 4:
@@ -298,7 +294,7 @@ func pageCacheKey(oid, pIdx int64) string {
 }
 
 func init() {
-	pageCacheLFU.HandlerRemove = func(k string, v interface{}) {
+	pageCacheLFU.HandlerRemove = func(k interface{}, v interface{}) {
 		pNode := v.(*pageNode)
 		if atomic.LoadInt32(&pNode.ref) == 0 {
 			releasePage(pNode)
@@ -313,7 +309,7 @@ func init() {
 			select {
 			case <-ticker.C:
 				if atomic.LoadInt32(&crtPageCacheTotal) > int32(float64(maxPageCacheTotal)*0.8) {
-					pageCacheLFU.Visit(func(k string, v interface{}) {
+					pageCacheLFU.Visit(func(k interface{}, v interface{}) {
 						pNode := v.(*pageNode)
 						if atomic.LoadInt32(&pNode.ref) == 0 {
 							pageCacheLFU.Remove(k)

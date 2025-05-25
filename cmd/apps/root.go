@@ -19,23 +19,19 @@ package apps
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/fs"
+	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
+	"github.com/basenana/nanafs/pkg/core"
+	"github.com/basenana/nanafs/pkg/types"
 	"path"
 	"time"
-
-	"github.com/basenana/nanafs/pkg/friday"
-	"github.com/basenana/nanafs/pkg/rule"
 
 	"github.com/spf13/cobra"
 
 	"github.com/basenana/nanafs/cmd/apps/apis"
 	configapp "github.com/basenana/nanafs/cmd/apps/config"
-	fsapi "github.com/basenana/nanafs/cmd/apps/fs"
+	fsapi "github.com/basenana/nanafs/cmd/apps/fuse"
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/bio"
-	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 )
@@ -43,7 +39,7 @@ import (
 func init() {
 	RootCmd.AddCommand(daemonCmd)
 	RootCmd.AddCommand(versionCmd)
-	RootCmd.AddCommand(NamespaceCmd)
+	//RootCmd.AddCommand(NamespaceCmd)
 	RootCmd.AddCommand(configapp.RunCmd)
 }
 
@@ -58,7 +54,7 @@ var RootCmd = &cobra.Command{
 
 func init() {
 	daemonCmd.Flags().StringVar(&config.FilePath, "config", path.Join(config.LocalUserPath(), config.DefaultConfigBase), "nanafs config file")
-	NamespaceCmd.Flags().StringVar(&config.FilePath, "config", path.Join(config.LocalUserPath(), config.DefaultConfigBase), "nanafs config file")
+	//NamespaceCmd.Flags().StringVar(&config.FilePath, "config", path.Join(config.LocalUserPath(), config.DefaultConfigBase), "nanafs config file")
 }
 
 var daemonCmd = &cobra.Command{
@@ -68,78 +64,68 @@ var daemonCmd = &cobra.Command{
 
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		loader := config.NewConfigLoader()
-		cfg, err := loader.GetBootstrapConfig()
+		loader, err := config.NewConfigLoader()
 		if err != nil {
 			panic(err)
 		}
 
-		if cfg.Debug {
-			logger.SetDebug(cfg.Debug)
+		boot := loader.GetBootstrapConfig()
+		if boot.Debug {
+			logger.SetDebug(boot.Debug)
 		}
 
-		meta, err := metastore.NewMetaStorage(cfg.Meta.Type, cfg.Meta)
+		meta, err := metastore.NewMetaStorage(boot.Meta.Type, boot.Meta)
 		if err != nil {
 			panic(err)
 		}
 
-		err = loader.InitCMDB(meta)
-		if err != nil {
-			panic(err)
-		}
-
-		if len(cfg.Storages) == 0 {
+		if len(boot.Storages) == 0 {
 			panic("storage must config")
 		}
 
-		bio.InitPageCache(cfg.FS)
-		storage.InitLocalCache(cfg)
-		rule.InitQuery(meta)
-
-		fridayClient := friday.NewFridayClient(cfg.FridayConfig)
-		depends, err := fs.InitDepends(loader, meta, fridayClient)
+		depends, err := common.InitDepends(loader, meta)
 		if err != nil {
 			panic(err)
 		}
 
-		ctrl, err := controller.New(loader, meta, fridayClient)
-		if err != nil {
-			panic(err)
-		}
 		stop := utils.HandleTerminalSignal()
-
-		run(ctrl, depends, loader, cfg, stop)
+		run(depends, loader, stop)
 	},
 }
 
-func run(ctrl controller.Controller, depends *fs.Depends, cfgLoader config.Loader, cfg config.Bootstrap, stopCh chan struct{}) {
+func run(depends *common.Depends, cfg config.Config, stopCh chan struct{}) {
 	log := logger.NewLogger("nanafs")
 	log.Infow("starting", "version", config.VersionInfo().Version())
-	ctrl.StartBackendTask(stopCh)
-	shutdown := ctrl.SetupShutdownHandler(stopCh)
+
+	shutdown := core.SetupShutdownHandler(stopCh)
+	boot := cfg.GetBootstrapConfig()
 
 	ctx, canF := context.WithCancel(context.Background())
 	defer canF()
 
 	depends.Workflow.Start(ctx)
+	defaultFS, err := core.NewFileSystem(depends.Core, depends.Meta, types.DefaultNamespace)
+	if err != nil {
+		log.Panic("failed to create default filesystem")
+	}
 
-	pathEntryMgr, err := apis.NewPathEntryManager(ctrl)
-	if err != nil {
-		log.Panicf("init api path entry manager error: %s", err)
-	}
-	err = apis.Setup(ctrl, depends, pathEntryMgr, cfgLoader, stopCh)
-	if err != nil {
-		log.Panicw("setup api servers failed", "err", err.Error())
-	}
-	if cfg.FUSE.Enable {
-		fsServer, err := fsapi.NewNanaFsRoot(cfg.FUSE, ctrl)
+	if boot.API.Enable {
+		err = apis.RunFSAPI(depends, cfg, stopCh)
 		if err != nil {
-			panic(err)
+			log.Panicw("run fspi failed", "err", err)
 		}
-		fsServer.SetDebug(cfg.Debug)
-		err = fsServer.Start(stopCh)
+	}
+	if boot.Webdav.Enable {
+		err = apis.RunWebdav(defaultFS, depends.Token, boot.Webdav, stopCh)
 		if err != nil {
-			panic(err)
+			log.Panicw("run fsapi failed", "err", err)
+		}
+	}
+
+	if boot.FUSE.Enable {
+		err = fsapi.Run(stopCh, defaultFS, boot.FUSE, boot.Debug)
+		if err != nil {
+			log.Panicw("run fuse failed", "err", err)
 		}
 	}
 
@@ -159,48 +145,48 @@ var versionCmd = &cobra.Command{
 	},
 }
 
-var NamespaceCmd = &cobra.Command{
-	Use:   "namespace",
-	Short: "create namespace",
-	Run: func(cmd *cobra.Command, args []string) {
-		loader := config.NewConfigLoader()
-		cfg, err := loader.GetBootstrapConfig()
-		if err != nil {
-			panic(err)
-		}
-
-		if cfg.Debug {
-			logger.SetDebug(cfg.Debug)
-		}
-
-		meta, err := metastore.NewMetaStorage(cfg.Meta.Type, cfg.Meta)
-		if err != nil {
-			panic(err)
-		}
-
-		err = loader.InitCMDB(meta)
-		if err != nil {
-			panic(err)
-		}
-
-		if len(cfg.Storages) == 0 {
-			panic("storage must config")
-		}
-
-		bio.InitPageCache(cfg.FS)
-		storage.InitLocalCache(cfg)
-		rule.InitQuery(meta)
-
-		fridayClient := friday.NewFridayClient(cfg.FridayConfig)
-
-		ctrl, err := controller.New(loader, meta, fridayClient)
-		if err != nil {
-			panic(err)
-		}
-
-		_, err = ctrl.CreateNamespace(context.Background(), args[0])
-		if err != nil {
-			panic(err)
-		}
-	},
-}
+//var NamespaceCmd = &cobra.Command{
+//	Use:   "namespace",
+//	Short: "create namespace",
+//	Run: func(cmd *cobra.Command, args []string) {
+//		loader := config.NewConfigLoader()
+//		cfg, err := loader.GetBootstrapConfig()
+//		if err != nil {
+//			panic(err)
+//		}
+//
+//		if cfg.Debug {
+//			logger.SetDebug(cfg.Debug)
+//		}
+//
+//		meta, err := metastore.NewMetaStorage(cfg.Meta.Type, cfg.Meta)
+//		if err != nil {
+//			panic(err)
+//		}
+//
+//		err = loader.InitCMDB(meta)
+//		if err != nil {
+//			panic(err)
+//		}
+//
+//		if len(cfg.Storages) == 0 {
+//			panic("storage must config")
+//		}
+//
+//		bio.InitPageCache(cfg.FS)
+//		storage.InitLocalCache(cfg)
+//		rule.InitQuery(meta)
+//
+//		fridayClient := friday.NewFridayClient(cfg.FridayConfig)
+//
+//		ctrl, err := controller.New(loader, meta, fridayClient)
+//		if err != nil {
+//			panic(err)
+//		}
+//
+//		_, err = ctrl.CreateNamespace(context.Background(), args[0])
+//		if err != nil {
+//			panic(err)
+//		}
+//	},
+//}

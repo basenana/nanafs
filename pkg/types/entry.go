@@ -45,10 +45,7 @@ type SystemInfo struct {
 
 type Entry struct {
 	ID         int64     `json:"id"`
-	Name       string    `json:"name"`
 	Aliases    string    `json:"aliases,omitempty"`
-	ParentID   int64     `json:"parent_id"`
-	RefID      int64     `json:"ref_id,omitempty"`
 	RefCount   int       `json:"ref_count,omitempty"`
 	Kind       Kind      `json:"kind"`
 	KindMap    int64     `json:"kind_map"`
@@ -63,6 +60,19 @@ type Entry struct {
 	ModifiedAt time.Time `json:"modified_at"`
 	AccessAt   time.Time `json:"access_at"`
 	Access     Access    `json:"access"`
+
+	// Deprecated
+	Name string `json:"name"`
+	// Deprecated
+	ParentID int64 `json:"parent_id"`
+}
+
+type Child struct {
+	ParentID  int64  `json:"parent_id"`
+	ChildID   int64  `json:"child_id"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+	Marker    string `json:"marker"`
 }
 
 func NewEntry(name string, kind Kind) Entry {
@@ -85,49 +95,6 @@ func NewEntry(name string, kind Kind) Entry {
 		result.Kind = kind
 	}
 	return result
-}
-
-type GroupEntry struct {
-	Entry    *Entry        `json:"entry"`
-	Children []*GroupEntry `json:"children"`
-}
-
-type EntryOrder struct {
-	Order EnOrder
-	Desc  bool
-}
-
-type EnOrder int
-
-const (
-	EntryName EnOrder = iota
-	EntryKind
-	EntryIsGroup
-	EntrySize
-	EntryCreatedAt
-	EntryModifiedAt
-)
-
-func (d EnOrder) String() string {
-	names := []string{
-		"name",
-		"kind",
-		"is_group",
-		"size",
-		"created_at",
-		"modified_at",
-	}
-	if d < EntryName || d > EntryModifiedAt {
-		return "Unknown"
-	}
-	return names[d]
-}
-
-type EntryUri struct {
-	ID        int64  `json:"id"`
-	Uri       string `json:"uri"`
-	Namespace string `json:"namespace"`
-	Invalid   bool   `json:"invalid"`
 }
 
 type ExtendData struct {
@@ -210,8 +177,4 @@ type ChunkSeg struct {
 	Off     int64
 	Len     int64
 	State   int16
-}
-
-func IsMirrored(entry *Entry) bool {
-	return !entry.IsGroup && entry.RefID != 0 && entry.RefID != entry.ID
 }

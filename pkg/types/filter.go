@@ -23,9 +23,7 @@ type Filter struct {
 	Name            string
 	FuzzyName       string
 	ParentID        int64
-	RefID           int64
 	Kind            Kind
-	Namespace       string
 	Label           LabelMatch
 	IsGroup         *bool
 	CreatedAtStart  *time.Time

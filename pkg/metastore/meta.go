@@ -40,5 +40,5 @@ func NewMetaStorage(metaType string, meta config.Meta) (m Meta, err error) {
 	if disableMetrics {
 		return m, nil
 	}
-	return instrumentalStore{store: m}, nil
+	return m, nil
 }

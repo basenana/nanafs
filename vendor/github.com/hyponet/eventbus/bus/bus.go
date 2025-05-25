@@ -3,42 +3,42 @@ package bus
 import "sync"
 
 var (
-	evb *eventbus
+	sb *Bus
 )
 
 func init() {
-	evb = &eventbus{
-		listeners: map[string]*listener{},
+	sb = &Bus{
+		listeners: map[string]*Listener{},
 		exchange:  newExchange(),
 	}
 }
 
-type eventbus struct {
-	listeners map[string]*listener
+type Bus struct {
+	listeners map[string]*Listener
 	exchange  *exchange
 	mux       sync.RWMutex
 }
 
-func (b *eventbus) subscribe(l *listener) {
+func (b *Bus) Subscribe(l *Listener) {
 	b.mux.Lock()
 	b.listeners[l.id] = l
 	b.exchange.add(l.topic, l.id)
 	b.mux.Unlock()
 }
 
-func (b *eventbus) unsubscribe(lID string) {
+func (b *Bus) Unsubscribe(lid string) {
 	b.mux.Lock()
-	b.unsubscribeWithLock(lID)
+	b.unsubscribeWithLock(lid)
 	b.mux.Unlock()
 }
 
-func (b *eventbus) unsubscribeWithLock(lID string) {
-	delete(b.listeners, lID)
-	b.exchange.remove(lID)
+func (b *Bus) unsubscribeWithLock(lid string) {
+	delete(b.listeners, lid)
+	b.exchange.remove(lid)
 }
 
-func (b *eventbus) publish(topic string, args ...interface{}) {
-	var needDo []*listener
+func (b *Bus) Publish(topic string, args ...interface{}) {
+	var needDo []*Listener
 	b.mux.Lock()
 	lIDs := b.exchange.route(topic)
 	for i, lID := range lIDs {
@@ -57,40 +57,30 @@ func (b *eventbus) publish(topic string, args ...interface{}) {
 	}
 }
 
-func Subscribe(topic string, fn interface{}) (string, error) {
-	l, err := buildNewListener(topic, fn, false, false)
-	if err != nil {
-		return "", err
-	}
-
-	evb.subscribe(l)
-	return l.id, nil
+func Subscribe(topic string, fn interface{}) string {
+	l := NewListener(topic, fn, false, false)
+	sb.Subscribe(l)
+	return l.id
 }
 
-func SubscribeOnce(topic string, fn interface{}) (string, error) {
-	l, err := buildNewListener(topic, fn, false, true)
-	if err != nil {
-		return "", err
-	}
+func SubscribeOnce(topic string, fn interface{}) string {
+	l := NewListener(topic, fn, false, true)
 
-	evb.subscribe(l)
-	return l.id, nil
+	sb.Subscribe(l)
+	return l.id
 }
 
-func SubscribeWithBlock(topic string, fn interface{}) (string, error) {
-	l, err := buildNewListener(topic, fn, true, false)
-	if err != nil {
-		return "", err
-	}
+func SubscribeWithBlock(topic string, fn interface{}) string {
+	l := NewListener(topic, fn, true, false)
 
-	evb.subscribe(l)
-	return l.id, nil
+	sb.Subscribe(l)
+	return l.id
 }
 
-func Unsubscribe(lID string) {
-	evb.unsubscribe(lID)
+func Unsubscribe(lid string) {
+	sb.Unsubscribe(lid)
 }
 
 func Publish(topic string, args ...interface{}) {
-	evb.publish(topic, args...)
+	sb.Publish(topic, args...)
 }

@@ -18,6 +18,7 @@ package workflow
 
 import (
 	"context"
+	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/types"
 	"os"
 	"testing"
@@ -29,7 +30,6 @@ import (
 	testcfg "github.com/onsi/ginkgo/config"
 
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
@@ -43,10 +43,18 @@ import (
 var (
 	stopCh    = make(chan struct{})
 	tempDir   string
-	entryMgr  dentry.Manager
+	fsCore    core.Core
 	docMgr    document.Manager
 	mgr       Workflow
 	namespace = types.DefaultNamespace
+
+	bootCfg = config.Bootstrap{
+		FS: &config.FS{},
+		Storages: []config.Storage{{
+			ID:   storage.MemoryStorage,
+			Type: storage.MemoryStorage,
+		}},
+	}
 )
 
 func TestWorkflow(t *testing.T) {
@@ -61,30 +69,25 @@ var _ = BeforeSuite(func() {
 	var err error
 	tempDir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-wf-")
 	Expect(err).Should(BeNil())
+	bootCfg.CacheDir = tempDir
+	bootCfg.CacheSize = 0
 
 	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())
 
 	rule.InitQuery(memMeta)
 
-	storage.InitLocalCache(config.Bootstrap{CacheDir: tempDir, CacheSize: 1})
-	entryMgr, err = dentry.NewManager(memMeta, config.Bootstrap{
-		FS: &config.FS{},
-		Storages: []config.Storage{{
-			ID:   storage.MemoryStorage,
-			Type: storage.MemoryStorage,
-		}},
-	})
+	fsCore, err = core.New(memMeta, bootCfg)
 	Expect(err).Should(BeNil())
 
-	cfg := config.NewFakeConfigLoader(config.Bootstrap{})
+	cfg := config.NewMockConfigLoader(bootCfg)
 	err = cfg.SetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "job_workdir", tempDir)
 	Expect(err).Should(BeNil())
 
-	docMgr, err = document.NewManager(memMeta, entryMgr, cfg, friday.NewMockFriday())
+	docMgr, err = document.NewManager(memMeta, fsCore, cfg, friday.NewMockFriday())
 	Expect(err).Should(BeNil())
 
-	mgr, err = New(entryMgr, docMgr, notify.NewNotify(memMeta), memMeta, cfg)
+	mgr, err = New(fsCore, docMgr, notify.NewNotify(memMeta), memMeta, cfg)
 	Expect(err).Should(BeNil())
 
 	ctx, canF := context.WithCancel(context.Background())

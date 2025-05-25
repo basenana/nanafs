@@ -49,7 +49,35 @@ func entryInfo(en *types.Entry) *EntryInfo {
 		Id:         en.ID,
 		Name:       en.Name,
 		Kind:       string(en.Kind),
-		ParentID:   en.ParentID,
+		IsGroup:    en.IsGroup,
+		Size:       en.Size,
+		CreatedAt:  timestamppb.New(en.CreatedAt),
+		ChangedAt:  timestamppb.New(en.ChangedAt),
+		ModifiedAt: timestamppb.New(en.ModifiedAt),
+		AccessAt:   timestamppb.New(en.AccessAt),
+	}
+}
+
+func coreEntryInfo(parentID int64, name string, en *types.Entry) *EntryInfo {
+	return &EntryInfo{
+		Id:         en.ID,
+		Name:       name,
+		Kind:       string(en.Kind),
+		ParentID:   parentID,
+		IsGroup:    en.IsGroup,
+		Size:       en.Size,
+		CreatedAt:  timestamppb.New(en.CreatedAt),
+		ChangedAt:  timestamppb.New(en.ChangedAt),
+		ModifiedAt: timestamppb.New(en.ModifiedAt),
+		AccessAt:   timestamppb.New(en.AccessAt),
+	}
+}
+
+func toEntryInfo(en *types.Entry) *EntryInfo {
+	return &EntryInfo{
+		Id:         en.ID,
+		Name:       en.Name,
+		Kind:       string(en.Kind),
 		IsGroup:    en.IsGroup,
 		Size:       en.Size,
 		CreatedAt:  timestamppb.New(en.CreatedAt),
@@ -99,7 +127,7 @@ func eventInfo(evt *types.Event) *Event {
 			ParentID:  evt.Data.ParentID,
 			Kind:      string(evt.Data.Kind),
 			IsGroup:   evt.Data.IsGroup,
-			Namespace: evt.Data.Namespace,
+			Namespace: evt.Namespace,
 		},
 		Time:     timestamppb.New(evt.Time),
 		RefID:    evt.RefID,
@@ -154,18 +182,6 @@ func documentInfo(doc *types.Document) *DocumentInfo {
 		CreatedAt:     timestamppb.New(doc.CreatedAt),
 		ChangedAt:     timestamppb.New(doc.ChangedAt),
 	}
-}
-
-func buildRootGroup(entry *types.GroupEntry) *GetGroupTreeResponse_GroupEntry {
-	result := &GetGroupTreeResponse_GroupEntry{
-		Entry:    entryInfo(entry.Entry),
-		Children: make([]*GetGroupTreeResponse_GroupEntry, 0),
-	}
-
-	for _, ch := range entry.Children {
-		result.Children = append(result.Children, buildRootGroup(ch))
-	}
-	return result
 }
 
 func setupRssConfig(config *CreateEntryRequest_RssConfig, attr *types.EntryAttr) {
@@ -238,4 +254,41 @@ func buildWorkflow(w *types.Workflow) *WorkflowInfo {
 		UpdatedAt:       timestamppb.New(w.UpdatedAt),
 		LastTriggeredAt: timestamppb.New(w.LastTriggeredAt),
 	}
+}
+
+type GroupTree struct {
+	ID       int64
+	Name     string
+	Children []*GroupTree
+}
+
+type EnOrder int
+
+const (
+	EntryName EnOrder = iota
+	EntryKind
+	EntryIsGroup
+	EntrySize
+	EntryCreatedAt
+	EntryModifiedAt
+)
+
+func (d EnOrder) String() string {
+	names := []string{
+		"name",
+		"kind",
+		"is_group",
+		"size",
+		"created_at",
+		"modified_at",
+	}
+	if d < EntryName || d > EntryModifiedAt {
+		return "Unknown"
+	}
+	return names[d]
+}
+
+type EntryOrder struct {
+	Order EnOrder
+	Desc  bool
 }

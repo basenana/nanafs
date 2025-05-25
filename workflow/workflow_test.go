@@ -118,12 +118,12 @@ var _ = Describe("TestWorkflowJobManage", func() {
 	)
 	Context("trigger a workflow", func() {
 		It("create dummy entry should be succeed", func() {
-			root, err := entryMgr.Root(ctx)
+			root, err := fsCore.NamespaceRoot(ctx, namespace)
 			Expect(err).Should(BeNil())
-			en, err = entryMgr.CreateEntry(ctx, root.ID, types.EntryAttr{Name: "test_workflow.txt", Kind: types.RawKind})
+			en, err = fsCore.CreateEntry(ctx, namespace, root.ID, types.EntryAttr{Name: "test_workflow.txt", Kind: types.RawKind})
 			Expect(err).Should(BeNil())
 
-			f, err := entryMgr.Open(ctx, en.ID, types.OpenAttr{Write: true})
+			f, err := fsCore.Open(ctx, namespace, en.ID, types.OpenAttr{Write: true})
 			Expect(err).Should(BeNil())
 			_, err = f.WriteAt(ctx, []byte("Hello World!"), 0)
 			Expect(err).Should(BeNil())

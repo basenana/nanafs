@@ -17,15 +17,11 @@
 package fsapi
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
 	v1 "github.com/basenana/nanafs/cmd/apps/apis/fsapi/v1"
-	"github.com/basenana/nanafs/cmd/apps/apis/pathmgr"
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/fs"
-	"github.com/basenana/nanafs/pkg/controller"
 	"github.com/basenana/nanafs/utils/logger"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -37,7 +33,7 @@ import (
 type Server struct {
 	server   *grpc.Server
 	listener net.Listener
-	services v1.Services
+	services v1.ServicesV1
 }
 
 func (s *Server) Run(stopCh chan struct{}) {
@@ -54,7 +50,12 @@ func (s *Server) Run(stopCh chan struct{}) {
 	}
 }
 
-func New(ctrl controller.Controller, depends *fs.Depends, pathEntryMgr *pathmgr.PathManager, cfg config.Loader) (*Server, error) {
+func New(depends *common.Depends, cfg config.Config) (*Server, error) {
+	apiCfg := cfg.GetBootstrapConfig().API
+	if !apiCfg.Enable {
+		return nil, fmt.Errorf("no api enabled")
+	}
+
 	rootCaPool, err := common.ReadRootCAs(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("load root ca error: %w", err)
@@ -81,22 +82,13 @@ func New(ctrl controller.Controller, depends *fs.Depends, pathEntryMgr *pathmgr.
 		ClientAuth:   tls.VerifyClientCertIfGiven,
 	})
 
-	serverHost, err := cfg.GetSystemConfig(context.TODO(), config.FsAPIConfigGroup, "host").String()
-	if err != nil {
-		return nil, fmt.Errorf("load server host error: %w", err)
-	}
-	serverPort, err := cfg.GetSystemConfig(context.TODO(), config.FsAPIConfigGroup, "port").Int()
-	if err != nil {
-		return nil, fmt.Errorf("load server port error: %w", err)
-	}
-
 	var opts = []grpc.ServerOption{
 		grpc.Creds(creds),
 		grpc.MaxRecvMsgSize(1024 * 1024 * 50), // 50M
 		common.WithCommonInterceptors(),
 		common.WithStreamInterceptors(),
 	}
-	l, err := net.Listen("tcp", fmt.Sprintf("%s:%d", serverHost, serverPort))
+	l, err := net.Listen("tcp", fmt.Sprintf("%s:%d", apiCfg.Host, apiCfg.Port))
 	if err != nil {
 		return nil, fmt.Errorf("")
 	}
@@ -104,7 +96,7 @@ func New(ctrl controller.Controller, depends *fs.Depends, pathEntryMgr *pathmgr.
 		listener: l,
 		server:   grpc.NewServer(opts...),
 	}
-	s.services, err = v1.InitServices(s.server, ctrl, depends, pathEntryMgr)
+	s.services, err = v1.InitServicesV1(s.server, depends)
 	if err != nil {
 		return nil, err
 	}

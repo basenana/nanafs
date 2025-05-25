@@ -55,7 +55,7 @@ message GetGroupTreeRequest {}
 
 message GetGroupTreeResponse {
   message GroupEntry {
-    EntryInfo entry = 1;
+    string name = 1;
     repeated GroupEntry children = 2;
   }
   GroupEntry root = 1;
@@ -63,12 +63,11 @@ message GetGroupTreeResponse {
 
 message FindEntryDetailRequest {
   bool root = 1;
-  int64 parentID = 2;
-  string name = 3;
 }
 
 message GetEntryDetailRequest {
   int64 entryID = 1;
+  int64 parentID = 2;
 }
 
 message GetEntryDetailResponse {
@@ -95,21 +94,31 @@ message CreateEntryResponse {
 }
 
 message UpdateEntryRequest {
-  EntryDetail entry = 1;
+  int64 entryID = 1;
+  string  name = 2;
+  string  aliases = 3;
 }
+
 message UpdateEntryResponse {
   EntryDetail entry = 1;
 }
 
 message DeleteEntryRequest {
   int64 entryID = 1;
+  int64 parentID = 2;
+  string entryName = 3;
 }
 message DeleteEntryResponse {
-  EntryDetail entry = 1;
+  EntryInfo entry = 1;
 }
 
 message DeleteEntriesRequest {
-  repeated int64 entryIDs = 1;
+  message EntryToDelete {
+    int64 entryID = 1;
+    int64 parentID = 2;
+    string entryName = 3;
+  }
+  repeated EntryToDelete entries = 1;
 }
 
 message DeleteEntriesResponse {
@@ -159,8 +168,10 @@ message ChangeParentRequest {
   }
   int64 entryID = 1;
   int64 newParentID = 2;
-  string newName = 3;
-  Option option = 4;
+  int64 oldParentID = 3;
+  string newName = 4;
+  string oldName = 5;
+  Option option = 6;
 }
 
 message ChangeParentResponse {
@@ -316,96 +327,6 @@ message SearchDocumentsRequest {
 
 message SearchDocumentsResponse {
   repeated DocumentInfo documents = 1;
-}
-
-service Room {
-  rpc ListRooms (ListRoomsRequest) returns (ListRoomsResponse) {}
-  rpc OpenRoom (OpenRoomRequest) returns (OpenRoomResponse) {}
-  rpc UpdateRoom (UpdateRoomRequest) returns (UpdateRoomResponse) {}
-  rpc DeleteRoom (DeleteRoomRequest) returns (DeleteRoomResponse) {}
-  rpc ClearRoom (ClearRoomRequest) returns (ClearRoomResponse) {}
-  rpc ChatInRoom (ChatRequest) returns (stream ChatResponse) {}
-}
-
-message RoomInfo {
-  int64 id = 1;
-  int64 entryID = 2;
-  string title = 3;
-  string prompt = 4;
-  string namespace = 5;
-  repeated RoomMessage messages = 10;
-  google.protobuf.Timestamp createdAt = 11;
-}
-
-message RoomMessage {
-  int64 id = 1;
-  int64 roomID = 2;
-  string sender = 3;
-  string message = 4;
-  string namespace = 5;
-  google.protobuf.Timestamp sendAt = 6;
-  google.protobuf.Timestamp createdAt = 10;
-}
-
-message ListRoomsRequest {
-  int64 entryID = 1;
-}
-
-message ListRoomsResponse {
-  repeated RoomInfo rooms = 1;
-}
-
-message OpenRoomRequest {
-  message Option {
-    string prompt = 1;
-  }
-  int64 entryID = 1;
-  int64 roomID = 2;
-  Option option = 3;
-}
-
-message OpenRoomResponse {
-  RoomInfo room = 1;
-}
-
-message UpdateRoomRequest {
-  int64 roomID = 1;
-  string prompt = 2;
-}
-
-message UpdateRoomResponse {
-  int64 roomID = 1;
-}
-
-message DeleteRoomRequest {
-  int64 roomID = 1;
-}
-
-message ClearRoomRequest {
-  int64 roomID = 1;
-}
-
-message DeleteRoomResponse {
-  int64 roomID = 1;
-}
-
-message ClearRoomResponse {
-  int64 roomID = 1;
-}
-
-message ChatRequest {
-  int64 roomID = 1;
-  string newRequest = 3;
-  google.protobuf.Timestamp sendAt = 10;
-}
-
-message ChatResponse {
-  int64 requestID = 1;
-  int64 responseID = 2;
-  string responseMessage = 3;
-  string sender = 4;
-  google.protobuf.Timestamp sendAt = 10;
-  google.protobuf.Timestamp createdAt = 11;
 }
 
 service Notify {

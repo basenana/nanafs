@@ -22,8 +22,6 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/basenana/nanafs/pkg/dentry"
-	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
@@ -31,8 +29,6 @@ import (
 )
 
 type workflowExecutor struct {
-	entry    dentry.Manager
-	doc      document.Manager
 	recorder metastore.ScheduledTaskRecorder
 	logger   *zap.SugaredLogger
 }
@@ -86,12 +82,8 @@ func (w workflowExecutor) cleanUpFinishJobs(ctx context.Context) error {
 
 func registerWorkflowExecutor(
 	d *Dispatcher,
-	entry dentry.Manager,
-	doc document.Manager,
 	recorder metastore.ScheduledTaskRecorder) error {
 	e := &workflowExecutor{
-		entry:    entry,
-		doc:      doc,
 		recorder: recorder,
 		logger:   logger.NewLogger("workflowExecutor"),
 	}

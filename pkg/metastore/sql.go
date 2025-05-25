@@ -62,22 +62,22 @@ func (s *sqliteMetaStore) GetAccessToken(ctx context.Context, tokenKey string, s
 	return s.dbStore.GetAccessToken(ctx, tokenKey, secretKey)
 }
 
-func (s *sqliteMetaStore) CreateAccessToken(ctx context.Context, token *types.AccessToken) error {
+func (s *sqliteMetaStore) CreateAccessToken(ctx context.Context, namespace string, token *types.AccessToken) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.CreateAccessToken(ctx, token)
+	return s.dbStore.CreateAccessToken(ctx, namespace, token)
 }
 
-func (s *sqliteMetaStore) UpdateAccessTokenCerts(ctx context.Context, token *types.AccessToken) error {
+func (s *sqliteMetaStore) UpdateAccessTokenCerts(ctx context.Context, namespace string, token *types.AccessToken) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.UpdateAccessTokenCerts(ctx, token)
+	return s.dbStore.UpdateAccessTokenCerts(ctx, namespace, token)
 }
 
-func (s *sqliteMetaStore) RevokeAccessToken(ctx context.Context, tokenKey string) error {
+func (s *sqliteMetaStore) RevokeAccessToken(ctx context.Context, namespace string, tokenKey string) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.RevokeAccessToken(ctx, tokenKey)
+	return s.dbStore.RevokeAccessToken(ctx, namespace, tokenKey)
 }
 
 func (s *sqliteMetaStore) SystemInfo(ctx context.Context) (*types.SystemInfo, error) {
@@ -86,154 +86,148 @@ func (s *sqliteMetaStore) SystemInfo(ctx context.Context) (*types.SystemInfo, er
 	return s.dbStore.SystemInfo(ctx)
 }
 
-func (s *sqliteMetaStore) GetConfigValue(ctx context.Context, group string, name string) (string, error) {
+func (s *sqliteMetaStore) GetConfigValue(ctx context.Context, namespace, group, name string) (string, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.GetConfigValue(ctx, group, name)
+	return s.dbStore.GetConfigValue(ctx, "", group, name)
 }
 
-func (s *sqliteMetaStore) SetConfigValue(ctx context.Context, group, name, value string) error {
+func (s *sqliteMetaStore) SetConfigValue(ctx context.Context, namespace, group, name, value string) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.SetConfigValue(ctx, group, name, value)
+	return s.dbStore.SetConfigValue(ctx, "", group, name, value)
 }
 
-func (s *sqliteMetaStore) GetEntry(ctx context.Context, id int64) (*types.Entry, error) {
+func (s *sqliteMetaStore) GetEntry(ctx context.Context, namespace string, id int64) (*types.Entry, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.GetEntry(ctx, id)
+	return s.dbStore.GetEntry(ctx, namespace, id)
 }
 
-func (s *sqliteMetaStore) FindEntry(ctx context.Context, parentID int64, name string) (*types.Entry, error) {
+func (s *sqliteMetaStore) FindEntry(ctx context.Context, namespace string, parentID int64, name string) (*types.Child, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.FindEntry(ctx, parentID, name)
+	return s.dbStore.FindEntry(ctx, namespace, parentID, name)
 }
 
-func (s *sqliteMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry *types.Entry, ed *types.ExtendData) error {
+func (s *sqliteMetaStore) GetChild(ctx context.Context, namespace string, parentID, id int64) (*types.Child, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.CreateEntry(ctx, parentID, newEntry, ed)
+	return s.dbStore.GetChild(ctx, namespace, parentID, id)
 }
 
-func (s *sqliteMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64) error {
+func (s *sqliteMetaStore) CreateEntry(ctx context.Context, namespace string, parentID int64, newEntry *types.Entry, ed *types.ExtendData) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.RemoveEntry(ctx, parentID, entryID)
+	return s.dbStore.CreateEntry(ctx, namespace, parentID, newEntry, ed)
 }
 
-func (s *sqliteMetaStore) SaveEntryUri(ctx context.Context, entryUri *types.EntryUri) error {
+func (s *sqliteMetaStore) RemoveEntry(ctx context.Context, namespace string, parentID, entryID int64, entryName string, attr types.DeleteEntry) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.SaveEntryUri(ctx, entryUri)
+	return s.dbStore.RemoveEntry(ctx, namespace, parentID, entryID, entryName, attr)
 }
 
-func (s *sqliteMetaStore) GetEntryUri(ctx context.Context, uri string) (*types.EntryUri, error) {
+func (s *sqliteMetaStore) DeleteRemovedEntry(ctx context.Context, namespace string, entryID int64) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.GetEntryUri(ctx, uri)
+	return s.dbStore.DeleteRemovedEntry(ctx, namespace, entryID)
 }
 
-func (s *sqliteMetaStore) DeleteRemovedEntry(ctx context.Context, entryID int64) error {
+func (s *sqliteMetaStore) UpdateEntry(ctx context.Context, namespace string, entry *types.Entry) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.DeleteRemovedEntry(ctx, entryID)
+	return s.dbStore.UpdateEntry(ctx, namespace, entry)
 }
 
-func (s *sqliteMetaStore) UpdateEntryMetadata(ctx context.Context, ed *types.Entry) error {
+func (s *sqliteMetaStore) ListChildren(ctx context.Context, namespace string, parentId int64) ([]*types.Child, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.UpdateEntryMetadata(ctx, ed)
+	return s.dbStore.ListChildren(ctx, namespace, parentId)
 }
 
-func (s *sqliteMetaStore) ListEntryChildren(ctx context.Context, parentId int64, order *types.EntryOrder, filters ...types.Filter) (EntryIterator, error) {
+func (s *sqliteMetaStore) FilterEntries(ctx context.Context, namespace string, filter types.Filter) (EntryIterator, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.ListEntryChildren(ctx, parentId, order, filters...)
+	return s.dbStore.FilterEntries(ctx, namespace, filter)
 }
 
-func (s *sqliteMetaStore) FilterEntries(ctx context.Context, filter types.Filter) (EntryIterator, error) {
+func (s *sqliteMetaStore) Open(ctx context.Context, namespace string, id int64, attr types.OpenAttr) (*types.Entry, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.FilterEntries(ctx, filter)
+	return s.dbStore.Open(ctx, namespace, id, attr)
 }
 
-func (s *sqliteMetaStore) Open(ctx context.Context, id int64, attr types.OpenAttr) (*types.Entry, error) {
+func (s *sqliteMetaStore) Flush(ctx context.Context, namespace string, id int64, size int64) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.Open(ctx, id, attr)
+	return s.dbStore.Flush(ctx, namespace, id, size)
 }
 
-func (s *sqliteMetaStore) Flush(ctx context.Context, id int64, size int64) error {
+func (s *sqliteMetaStore) MirrorEntry(ctx context.Context, namespace string, entryID int64, newName string, newParentID int64) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.Flush(ctx, id, size)
+	return s.dbStore.MirrorEntry(ctx, namespace, entryID, newName, newParentID)
 }
 
-func (s *sqliteMetaStore) MirrorEntry(ctx context.Context, newEntry *types.Entry) error {
+func (s *sqliteMetaStore) ChangeEntryParent(ctx context.Context, namespace string, targetEntryId int64, oldParentID int64, newParentId int64, oldName string, newName string, opt types.ChangeParentAttr) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.MirrorEntry(ctx, newEntry)
+	return s.dbStore.ChangeEntryParent(ctx, namespace, targetEntryId, oldParentID, newParentId, oldName, newName, opt)
 }
 
-func (s *sqliteMetaStore) ChangeEntryParent(ctx context.Context, targetEntryId int64, newParentId int64, newName string, opt types.ChangeParentAttr) error {
+func (s *sqliteMetaStore) GetEntryExtendData(ctx context.Context, namespace string, id int64) (types.ExtendData, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.ChangeEntryParent(ctx, targetEntryId, newParentId, newName, opt)
+	return s.dbStore.GetEntryExtendData(ctx, namespace, id)
 }
 
-func (s *sqliteMetaStore) GetEntryExtendData(ctx context.Context, id int64) (types.ExtendData, error) {
+func (s *sqliteMetaStore) UpdateEntryExtendData(ctx context.Context, namespace string, id int64, ed types.ExtendData) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.GetEntryExtendData(ctx, id)
+	return s.dbStore.UpdateEntryExtendData(ctx, namespace, id, ed)
 }
 
-func (s *sqliteMetaStore) UpdateEntryExtendData(ctx context.Context, id int64, ed types.ExtendData) error {
+func (s *sqliteMetaStore) GetEntryLabels(ctx context.Context, namespace string, id int64) (types.Labels, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.UpdateEntryExtendData(ctx, id, ed)
+	return s.dbStore.GetEntryLabels(ctx, namespace, id)
 }
 
-func (s *sqliteMetaStore) GetEntryLabels(ctx context.Context, id int64) (types.Labels, error) {
+func (s *sqliteMetaStore) UpdateEntryLabels(ctx context.Context, namespace string, id int64, labels types.Labels) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.GetEntryLabels(ctx, id)
+	return s.dbStore.UpdateEntryLabels(ctx, namespace, id, labels)
 }
 
-func (s *sqliteMetaStore) UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error {
+func (s *sqliteMetaStore) ListEntryProperties(ctx context.Context, namespace string, id int64) (types.Properties, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.UpdateEntryLabels(ctx, id, labels)
+	return s.dbStore.ListEntryProperties(ctx, namespace, id)
 }
 
-func (s *sqliteMetaStore) ListEntryProperties(ctx context.Context, id int64) (types.Properties, error) {
+func (s *sqliteMetaStore) GetEntryProperty(ctx context.Context, namespace string, id int64, key string) (types.PropertyItem, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.ListEntryProperties(ctx, id)
+	return s.dbStore.GetEntryProperty(ctx, namespace, id, key)
 }
 
-func (s *sqliteMetaStore) GetEntryProperty(ctx context.Context, id int64, key string) (types.PropertyItem, error) {
+func (s *sqliteMetaStore) AddEntryProperty(ctx context.Context, namespace string, id int64, key string, item types.PropertyItem) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.GetEntryProperty(ctx, id, key)
+	return s.dbStore.AddEntryProperty(ctx, namespace, id, key, item)
 }
 
-func (s *sqliteMetaStore) AddEntryProperty(ctx context.Context, id int64, key string, item types.PropertyItem) error {
+func (s *sqliteMetaStore) RemoveEntryProperty(ctx context.Context, namespace string, id int64, key string) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.AddEntryProperty(ctx, id, key, item)
+	return s.dbStore.RemoveEntryProperty(ctx, namespace, id, key)
 }
 
-func (s *sqliteMetaStore) RemoveEntryProperty(ctx context.Context, id int64, key string) error {
+func (s *sqliteMetaStore) UpdateEntryProperties(ctx context.Context, namespace string, id int64, properties types.Properties) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.RemoveEntryProperty(ctx, id, key)
-}
-
-func (s *sqliteMetaStore) UpdateEntryProperties(ctx context.Context, id int64, properties types.Properties) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.UpdateEntryProperties(ctx, id, properties)
+	return s.dbStore.UpdateEntryProperties(ctx, namespace, id, properties)
 }
 
 func (s *sqliteMetaStore) NextSegmentID(ctx context.Context) (int64, error) {
@@ -338,88 +332,22 @@ func (s *sqliteMetaStore) DeleteWorkflowJobs(ctx context.Context, wfJobID ...str
 	return s.dbStore.DeleteWorkflowJobs(ctx, wfJobID...)
 }
 
-func (s *sqliteMetaStore) ListNotifications(ctx context.Context) ([]types.Notification, error) {
+func (s *sqliteMetaStore) ListNotifications(ctx context.Context, namespace string) ([]types.Notification, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.ListNotifications(ctx)
+	return s.dbStore.ListNotifications(ctx, namespace)
 }
 
-func (s *sqliteMetaStore) RecordNotification(ctx context.Context, nid string, no types.Notification) error {
+func (s *sqliteMetaStore) RecordNotification(ctx context.Context, namespace string, nid string, no types.Notification) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.RecordNotification(ctx, nid, no)
+	return s.dbStore.RecordNotification(ctx, namespace, nid, no)
 }
 
-func (s *sqliteMetaStore) UpdateNotificationStatus(ctx context.Context, nid, status string) error {
+func (s *sqliteMetaStore) UpdateNotificationStatus(ctx context.Context, namespace, nid, status string) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	return s.dbStore.UpdateNotificationStatus(ctx, nid, status)
-}
-
-func (s *sqliteMetaStore) RecordEvents(ctx context.Context, events []types.Event) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.RecordEvents(ctx, events)
-}
-
-func (s *sqliteMetaStore) ListEvents(ctx context.Context, filter types.EventFilter) ([]types.Event, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.ListEvents(ctx, filter)
-}
-
-func (s *sqliteMetaStore) SaveRoom(ctx context.Context, room *types.Room) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.SaveRoom(ctx, room)
-}
-
-func (s *sqliteMetaStore) GetRoom(ctx context.Context, id int64) (*types.Room, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.GetRoom(ctx, id)
-}
-
-func (s *sqliteMetaStore) FindRoom(ctx context.Context, entryId int64) (*types.Room, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.FindRoom(ctx, entryId)
-}
-
-func (s *sqliteMetaStore) DeleteRoom(ctx context.Context, id int64) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.DeleteRoom(ctx, id)
-}
-
-func (s *sqliteMetaStore) ListRooms(ctx context.Context, entryId int64) ([]*types.Room, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.ListRooms(ctx, entryId)
-}
-
-func (s *sqliteMetaStore) ListRoomMessage(ctx context.Context, roomId int64) ([]*types.RoomMessage, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.ListRoomMessage(ctx, roomId)
-}
-
-func (s *sqliteMetaStore) SaveRoomMessage(ctx context.Context, msg *types.RoomMessage) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.SaveRoomMessage(ctx, msg)
-}
-
-func (s *sqliteMetaStore) GetRoomMessage(ctx context.Context, msgId int64) (*types.RoomMessage, error) {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.GetRoomMessage(ctx, msgId)
-}
-
-func (s *sqliteMetaStore) DeleteRoomMessages(ctx context.Context, roomId int64) error {
-	s.mux.Lock()
-	defer s.mux.Unlock()
-	return s.dbStore.DeleteRoomMessages(ctx, roomId)
+	return s.dbStore.UpdateNotificationStatus(ctx, namespace, nid, status)
 }
 
 func newSqliteMetaStore(meta config.Meta) (*sqliteMetaStore, error) {
@@ -518,7 +446,7 @@ func (s *sqlMetaStore) GetAccessToken(ctx context.Context, tokenKey string, secr
 	}, nil
 }
 
-func (s *sqlMetaStore) CreateAccessToken(ctx context.Context, token *types.AccessToken) error {
+func (s *sqlMetaStore) CreateAccessToken(ctx context.Context, namespace string, token *types.AccessToken) error {
 	defer trace.StartRegion(ctx, "metastore.sql.CreateAccessToken").End()
 	tokenModel := db.AccessToken{}
 	res := s.WithContext(ctx).Where("token_key = ?", token.TokenKey).First(&tokenModel)
@@ -547,10 +475,10 @@ func (s *sqlMetaStore) CreateAccessToken(ctx context.Context, token *types.Acces
 	return nil
 }
 
-func (s *sqlMetaStore) UpdateAccessTokenCerts(ctx context.Context, token *types.AccessToken) error {
+func (s *sqlMetaStore) UpdateAccessTokenCerts(ctx context.Context, namespace string, token *types.AccessToken) error {
 	defer trace.StartRegion(ctx, "metastore.sql.UpdateAccessTokenCerts").End()
 	tokenModel := db.AccessToken{}
-	res := s.WithContext(ctx).Where("token_key = ? AND secret_token = ?", token.TokenKey, token.SecretToken).First(&tokenModel)
+	res := s.WithNamespace(ctx, namespace).Where("token_key = ? AND secret_token = ?", token.TokenKey, token.SecretToken).First(&tokenModel)
 	if res.Error != nil {
 		return db.SqlError2Error(res.Error)
 	}
@@ -566,10 +494,10 @@ func (s *sqlMetaStore) UpdateAccessTokenCerts(ctx context.Context, token *types.
 	return nil
 }
 
-func (s *sqlMetaStore) RevokeAccessToken(ctx context.Context, tokenKey string) error {
+func (s *sqlMetaStore) RevokeAccessToken(ctx context.Context, namespace string, tokenKey string) error {
 	defer trace.StartRegion(ctx, "metastore.sql.RevokeAccessToken").End()
 	tokenModel := db.AccessToken{}
-	res := s.WithContext(ctx).Where("token_key = ?", tokenKey).First(&tokenModel)
+	res := s.WithNamespace(ctx, namespace).Where("token_key = ?", tokenKey).First(&tokenModel)
 	if res.Error != nil {
 		return db.SqlError2Error(res.Error)
 	}
@@ -620,56 +548,74 @@ func (s *sqlMetaStore) SystemInfo(ctx context.Context) (*types.SystemInfo, error
 	return result, nil
 }
 
-func (s *sqlMetaStore) GetConfigValue(ctx context.Context, group string, name string) (string, error) {
+func (s *sqlMetaStore) GetConfigValue(ctx context.Context, namespace, group, name string) (string, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.GetConfigValue").End()
 	var sysCfg = db.SystemConfig{}
-	res := s.WithNamespaceInCtx(ctx).Where("cfg_group = ? AND cfg_name = ?", group, name).First(&sysCfg)
+	res := s.WithNamespace(ctx, namespace).Where("cfg_group = ? AND cfg_name = ?", group, name).First(&sysCfg)
 	if res.Error != nil {
 		return "", db.SqlError2Error(res.Error)
 	}
 	return sysCfg.Value, nil
 }
 
-func (s *sqlMetaStore) SetConfigValue(ctx context.Context, group, name, value string) error {
+func (s *sqlMetaStore) SetConfigValue(ctx context.Context, namespace, group, name, value string) error {
 	defer trace.StartRegion(ctx, "metastore.sql.SetConfigValue").End()
 	var sysCfg = db.SystemConfig{}
-	res := s.WithNamespaceInCtx(ctx).Where("cfg_group = ? AND cfg_name = ?", group, name).First(&sysCfg)
+	res := s.WithNamespace(ctx, namespace).Where("cfg_group = ? AND cfg_name = ?", group, name).First(&sysCfg)
 	if res.Error != nil && !errors.Is(res.Error, gorm.ErrRecordNotFound) {
 		return res.Error
 	}
-	sysCfg.Namespace = types.GetNamespace(ctx).String()
+
+	sysCfg.Namespace = namespace
 	sysCfg.Group = group
 	sysCfg.Name = name
 	sysCfg.Value = value
 	sysCfg.ChangedAt = time.Now()
-	res = s.WithNamespaceInCtx(ctx).Save(&sysCfg)
+	res = s.WithContext(ctx).Save(&sysCfg)
 	return res.Error
 }
 
-func (s *sqlMetaStore) GetEntry(ctx context.Context, id int64) (*types.Entry, error) {
+func (s *sqlMetaStore) GetEntry(ctx context.Context, namespace string, id int64) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.GetEntry").End()
 	var objMod = &db.Entry{ID: id}
-	res := s.WithNamespaceInCtx(ctx).Where("id = ?", id).First(objMod)
+	res := s.WithNamespace(ctx, namespace).Where("id = ?", id).First(objMod)
 	if err := res.Error; err != nil {
 		return nil, db.SqlError2Error(err)
 	}
 	return objMod.ToEntry(), nil
 }
 
-func (s *sqlMetaStore) FindEntry(ctx context.Context, parentID int64, name string) (*types.Entry, error) {
+func (s *sqlMetaStore) FindEntry(ctx context.Context, namespace string, parentID int64, name string) (*types.Child, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.FindEntry").End()
-	var objMod = &db.Entry{ParentID: &parentID, Name: name}
-	res := s.WithNamespaceInCtx(ctx).Where("parent_id = ? AND name = ?", parentID, name).First(objMod)
+	var (
+		child = &db.Children{}
+	)
+	res := s.WithNamespace(ctx, namespace).Where("parent_id = ? AND name = ?", parentID, name).First(child)
 	if err := res.Error; err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			s.logger.Errorw("find entry by name failed", "parent", parentID, "name", name, "err", err)
 		}
 		return nil, db.SqlError2Error(err)
 	}
-	return objMod.ToEntry(), nil
+	return child.To(), nil
 }
 
-func (s *sqlMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry *types.Entry, ed *types.ExtendData) error {
+func (s *sqlMetaStore) GetChild(ctx context.Context, namespace string, parentID, id int64) (*types.Child, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.GetChild").End()
+	var (
+		child = &db.Children{}
+	)
+	res := s.WithNamespace(ctx, namespace).Where("parent_id = ? AND child_id = ?", parentID, id).First(child)
+	if err := res.Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			s.logger.Errorw("find entry by id failed", "parent", parentID, "id", id, "err", err)
+		}
+		return nil, db.SqlError2Error(err)
+	}
+	return child.To(), nil
+}
+
+func (s *sqlMetaStore) CreateEntry(ctx context.Context, namespace string, parentID int64, newEntry *types.Entry, ed *types.ExtendData) error {
 	defer trace.StartRegion(ctx, "metastore.sql.CreateEntry").End()
 	var (
 		parentMod = &db.Entry{ID: parentID}
@@ -679,10 +625,23 @@ func (s *sqlMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry
 	if parentID != 0 {
 		entryMod.ParentID = &parentID
 	}
+	entryMod.Namespace = namespace
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		res := tx.Create(entryMod)
 		if res.Error != nil {
 			return res.Error
+		}
+
+		if parentID != 0 && parentID != entryMod.ID {
+			res = tx.Create(&db.Children{
+				ParentID:  parentID,
+				ChildID:   entryMod.ID,
+				Name:      entryMod.Name,
+				Namespace: namespace,
+			})
+			if res.Error != nil {
+				return res.Error
+			}
 		}
 
 		if ed != nil {
@@ -696,7 +655,7 @@ func (s *sqlMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry
 			return nil
 		}
 
-		res = tx.Where("id = ?", parentID).First(parentMod)
+		res = tx.Where("id = ? AND namespace = ?", parentID, namespace).First(parentMod)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -708,7 +667,7 @@ func (s *sqlMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry
 			parentMod.RefCount = &refCount
 		}
 
-		return updateEntryWithVersion(tx, parentMod)
+		return updateEntryModelWithVersion(tx, parentMod)
 	})
 	if err != nil {
 		s.logger.Errorw("create entry failed", "parent", parentID, "entry", newEntry.ID, "err", err)
@@ -717,89 +676,51 @@ func (s *sqlMetaStore) CreateEntry(ctx context.Context, parentID int64, newEntry
 	return nil
 }
 
-func (s *sqlMetaStore) SaveEntryUri(ctx context.Context, entryUri *types.EntryUri) error {
-	defer trace.StartRegion(ctx, "metastore.sql.CreateEntryUri").End()
-	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		entryUriMod := &db.EntryURI{}
-		res := tx.Where("oid = ?", entryUri.ID).First(entryUriMod)
-		if res.Error != nil {
-			if res.Error == gorm.ErrRecordNotFound {
-				entryUriMod = entryUriMod.FromEntryUri(entryUri)
-				res = tx.Create(entryUriMod)
-				return res.Error
-			}
-			return res.Error
-		}
-		entryUriMod = entryUriMod.FromEntryUri(entryUri)
-		res = tx.Updates(entryUriMod)
-		return res.Error
-	})
-	if err != nil {
-		return db.SqlError2Error(err)
-	}
-	return nil
-}
-
-func (s *sqlMetaStore) GetEntryUri(ctx context.Context, uri string) (*types.EntryUri, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.GetEntryUri").End()
-	var entryUri = &db.EntryURI{Uri: uri}
-	res := s.WithNamespaceInCtx(ctx).Where("uri = ?", uri).First(entryUri)
-	if err := res.Error; err != nil {
-		if err != gorm.ErrRecordNotFound {
-			s.logger.Errorw("get entryUri by uri failed", "uri", uri, "err", err)
-		}
-		return nil, db.SqlError2Error(err)
-	}
-	return entryUri.ToEntryUri(), nil
-}
-
-func (s *sqlMetaStore) UpdateEntryMetadata(ctx context.Context, entry *types.Entry) error {
+func (s *sqlMetaStore) UpdateEntry(ctx context.Context, namespace string, entry *types.Entry) error {
 	defer trace.StartRegion(ctx, "metastore.sql.UpdateEntry").End()
+	entry.ChangedAt = time.Now()
 	var entryMod = (&db.Entry{}).FromEntry(entry)
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		entryMod.ChangedAt = time.Now().UnixNano()
-		return updateEntryAndCleanURICache(tx, entryMod)
+		return updateEntryModelWithVersion(tx, entryMod)
 	})
 	if err != nil {
-		s.logger.Errorw("create entry failed", "entry", entry.ID, "err", err)
+		s.logger.Errorw("update entry failed", "entry", entry.ID, "err", err)
 		return db.SqlError2Error(err)
 	}
 	return nil
 }
 
-func (s *sqlMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64) error {
+func (s *sqlMetaStore) RemoveEntry(ctx context.Context, namespace string, parentID, entryID int64, entryName string, attr types.DeleteEntry) error {
 	defer trace.StartRegion(ctx, "metastore.sql.RemoveEntry").End()
 	var (
-		noneParentID int64 = 0
-		srcMod       *db.Entry
-		parentMod    = &db.Entry{ID: parentID}
-		entryMod     = &db.Entry{ID: entryID}
-		nowTime      = time.Now().UnixNano()
+		parentMod = &db.Entry{ID: parentID}
+		entryMod  = &db.Entry{ID: entryID}
+		childRef  = &db.Children{}
+		nowTime   = time.Now().UnixNano()
 	)
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", parentID).First(parentMod)
+		res := namespaceQuery(tx, namespace).Where("id = ?", parentID).First(parentMod)
 		if res.Error != nil {
 			return res.Error
 		}
-		res = namespaceQueryInCtx(ctx, tx).Where("id = ?", entryID).First(entryMod)
+		res = namespaceQuery(tx, namespace).Where("id = ?", entryID).First(entryMod)
 		if res.Error != nil {
 			return res.Error
 		}
 
-		if entryMod.RefID != nil && *entryMod.RefID != 0 {
-			srcMod = &db.Entry{ID: *entryMod.RefID}
-			res = namespaceQueryInCtx(ctx, tx).Where("id = ?", *entryMod.RefID).First(srcMod)
-			if res.Error != nil {
-				return res.Error
+		res = tx.Where("parent_id = ? AND child_id = ? AND name = ? AND namespace = ?", parentID, entryID, entryName, namespace).First(childRef)
+		if res.Error != nil {
+			if !errors.Is(res.Error, gorm.ErrRecordNotFound) {
+				return nil
 			}
+			return res.Error
 		}
 
 		parentMod.ModifiedAt = nowTime
 		parentMod.ChangedAt = nowTime
 		if entryMod.IsGroup {
-
 			var entryChildCount int64
-			res = namespaceQueryInCtx(ctx, tx.Model(&db.Entry{})).Where("parent_id = ?", entryID).Count(&entryChildCount)
+			res = namespaceQuery(tx, namespace).Model(&db.Children{}).Where("parent_id = ?", entryID).Count(&entryChildCount)
 			if res.Error != nil {
 				return res.Error
 			}
@@ -812,26 +733,19 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64)
 			parentRef := (*parentMod.RefCount) - 1
 			parentMod.RefCount = &parentRef
 		}
-		if err := updateEntryWithVersion(tx, parentMod); err != nil {
+		if err := updateEntryModelWithVersion(tx, parentMod); err != nil {
 			return err
 		}
 
-		if srcMod != nil {
-			srcRef := (*srcMod.RefCount) - 1
-			srcMod.RefCount = &srcRef
-			srcMod.ModifiedAt = nowTime
-			srcMod.ChangedAt = nowTime
-			if err := updateEntryWithVersion(tx, srcMod); err != nil {
-				return err
-			}
+		res = tx.Delete(childRef)
+		if res.Error != nil {
+			return res.Error
 		}
-
 		entryRef := (*entryMod.RefCount) - 1
-		entryMod.ParentID = &noneParentID
 		entryMod.RefCount = &entryRef
 		entryMod.ModifiedAt = nowTime
 		entryMod.ChangedAt = nowTime
-		return updateEntryAndCleanURICache(tx, entryMod)
+		return updateEntryModelWithVersion(tx, entryMod)
 	})
 	if err != nil {
 		s.logger.Errorw("mark entry removed failed", "parent", parentID, "entry", entryID, "err", err)
@@ -840,13 +754,13 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, parentID, entryID int64)
 	return nil
 }
 
-func (s *sqlMetaStore) DeleteRemovedEntry(ctx context.Context, entryID int64) error {
+func (s *sqlMetaStore) DeleteRemovedEntry(ctx context.Context, namespace string, entryID int64) error {
 	defer trace.StartRegion(ctx, "metastore.sql.DeleteRemovedEntry").End()
 	var (
 		entryMod = &db.Entry{ID: entryID}
 	)
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", entryID).First(entryMod)
+		res := namespaceQuery(tx, namespace).Where("id = ?", entryID).First(entryMod)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -881,34 +795,32 @@ func (s *sqlMetaStore) DeleteRemovedEntry(ctx context.Context, entryID int64) er
 	return nil
 }
 
-func (s *sqlMetaStore) ListEntryChildren(ctx context.Context, parentId int64, order *types.EntryOrder, filters ...types.Filter) (EntryIterator, error) {
+func (s *sqlMetaStore) ListChildren(ctx context.Context, namespace string, parentId int64) ([]*types.Child, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListEntryChildren").End()
-	var total int64
-	if len(filters) > 0 {
-		filters[0].ParentID = parentId
-	} else {
-		filters = append(filters, types.Filter{ParentID: parentId})
+
+	var (
+		models []db.Children
+		result []*types.Child
+	)
+	res := s.WithContext(ctx).Where("parent_id = ? AND namespace = ?", parentId, namespace).Find(&models)
+	if res.Error != nil {
+		return nil, res.Error
 	}
-	tx := enOrder(queryFilter(s.WithNamespaceInCtx(ctx).Model(&db.Entry{}), filters[0], nil), order)
-	if page := types.GetPagination(ctx); page != nil {
-		tx = tx.Offset(page.Offset()).Limit(page.Limit())
+
+	for _, model := range models {
+		result = append(result, model.To())
 	}
-	res := tx.Count(&total)
-	if err := res.Error; err != nil {
-		s.logger.Errorw("count children entry failed", "parent", parentId, "err", err)
-		return nil, db.SqlError2Error(err)
-	}
-	return newTransactionEntryIterator(tx, total), nil
+	return result, nil
 }
 
-func (s *sqlMetaStore) FilterEntries(ctx context.Context, filter types.Filter) (EntryIterator, error) {
+func (s *sqlMetaStore) FilterEntries(ctx context.Context, namespace string, filter types.Filter) (EntryIterator, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.FilterEntries").End()
 	var (
 		scopeIds []int64
 		err      error
 	)
 	if len(filter.Label.Include) > 0 || len(filter.Label.Exclude) > 0 {
-		scopeIds, err = listEntryIdsWithLabelMatcher(ctx, s.DB, filter.Label)
+		scopeIds, err = listEntryIdsWithLabelMatcher(ctx, namespace, s.DB, filter.Label)
 		if err != nil {
 			return nil, db.SqlError2Error(err)
 		}
@@ -918,7 +830,7 @@ func (s *sqlMetaStore) FilterEntries(ctx context.Context, filter types.Filter) (
 	}
 
 	var total int64
-	tx := queryFilter(s.WithNamespaceInCtx(ctx).Model(&db.Entry{}), filter, scopeIds)
+	tx := queryFilter(s.WithContext(ctx).Model(&db.Entry{}).Where("object.namespace = ?", namespace), filter, scopeIds)
 	if page := types.GetPagination(ctx); page != nil {
 		tx = tx.Offset(page.Offset()).Limit(page.Limit())
 	}
@@ -930,16 +842,19 @@ func (s *sqlMetaStore) FilterEntries(ctx context.Context, filter types.Filter) (
 	return newTransactionEntryIterator(tx, total), nil
 }
 
-func (s *sqlMetaStore) Open(ctx context.Context, id int64, attr types.OpenAttr) (*types.Entry, error) {
+func (s *sqlMetaStore) Open(ctx context.Context, namespace string, id int64, attr types.OpenAttr) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.Open").End()
 	var (
 		enMod   = &db.Entry{}
 		nowTime = time.Now().UnixNano()
 	)
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", id).First(enMod)
+		res := namespaceQuery(tx, namespace).Where("id = ?", id).First(enMod)
 		if res.Error != nil {
 			return res.Error
+		}
+		if enMod.IsGroup {
+			return types.ErrIsGroup
 		}
 		// do not update ctime
 		enMod.AccessAt = nowTime
@@ -950,7 +865,7 @@ func (s *sqlMetaStore) Open(ctx context.Context, id int64, attr types.OpenAttr) 
 			var zeroSize int64 = 0
 			enMod.Size = &zeroSize
 		}
-		return updateEntryWithVersion(tx, enMod)
+		return updateEntryModelWithVersion(tx, enMod)
 	})
 	if err != nil {
 		s.logger.Errorw("open entry failed", "entry", id, "err", err)
@@ -959,21 +874,21 @@ func (s *sqlMetaStore) Open(ctx context.Context, id int64, attr types.OpenAttr) 
 	return enMod.ToEntry(), nil
 }
 
-func (s *sqlMetaStore) Flush(ctx context.Context, id int64, size int64) error {
+func (s *sqlMetaStore) Flush(ctx context.Context, namespace string, id int64, size int64) error {
 	defer trace.StartRegion(ctx, "metastore.sql.Flush").End()
 	var (
 		enMod   = &db.Entry{}
 		nowTime = time.Now().UnixNano()
 	)
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", id).First(enMod)
+		res := namespaceQuery(tx, namespace).Where("id = ?", id).First(enMod)
 		if res.Error != nil {
 			return res.Error
 		}
 		enMod.ModifiedAt = nowTime
 		enMod.ChangedAt = nowTime
 		enMod.Size = &size
-		return updateEntryWithVersion(tx, enMod)
+		return updateEntryModelWithVersion(tx, enMod)
 	})
 	if err != nil {
 		s.logger.Errorw("open entry failed", "entry", id, "err", err)
@@ -982,7 +897,7 @@ func (s *sqlMetaStore) Flush(ctx context.Context, id int64, size int64) error {
 	return nil
 }
 
-func (s *sqlMetaStore) GetEntryExtendData(ctx context.Context, id int64) (types.ExtendData, error) {
+func (s *sqlMetaStore) GetEntryExtendData(ctx context.Context, namespace string, id int64) (types.ExtendData, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.GetEntryExtendData").End()
 	var ext = &db.EntryExtend{}
 	res := s.WithContext(ctx).Where("id = ?", id).First(ext)
@@ -996,7 +911,7 @@ func (s *sqlMetaStore) GetEntryExtendData(ctx context.Context, id int64) (types.
 	return ext.ToExtData(), nil
 }
 
-func (s *sqlMetaStore) UpdateEntryExtendData(ctx context.Context, id int64, ed types.ExtendData) error {
+func (s *sqlMetaStore) UpdateEntryExtendData(ctx context.Context, namespace string, id int64, ed types.ExtendData) error {
 	defer trace.StartRegion(ctx, "metastore.sql.UpdateEntryExtendData").End()
 	var (
 		entryModel = &db.Entry{ID: id}
@@ -1004,7 +919,7 @@ func (s *sqlMetaStore) UpdateEntryExtendData(ctx context.Context, id int64, ed t
 	)
 
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", id).First(entryModel)
+		res := tx.Where("id = ?", id).First(entryModel)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -1023,101 +938,136 @@ func (s *sqlMetaStore) UpdateEntryExtendData(ctx context.Context, id int64, ed t
 	return nil
 }
 
-func (s *sqlMetaStore) MirrorEntry(ctx context.Context, newEntry *types.Entry) error {
-	if newEntry.ParentID == 0 || newEntry.RefID == 0 {
-		s.logger.Errorw("mirror entry failed", "parentID", newEntry.ParentID, "srcID", newEntry.RefID, "err", "parent or src id is empty")
-		return types.ErrNotFound
-	}
-
+func (s *sqlMetaStore) MirrorEntry(ctx context.Context, namespace string, entryID int64, newName string, newParentID int64) error {
 	defer trace.StartRegion(ctx, "metastore.sql.MirrorEntry").End()
+	nowAt := time.Now().UnixNano()
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var (
-			enModel          = (&db.Entry{}).FromEntry(newEntry)
-			srcEnModel       = &db.Entry{ID: newEntry.RefID}
-			dstParentEnModel = &db.Entry{ID: newEntry.ParentID}
-			nowTime          = time.Now().UnixNano()
-			updateErr        error
+			entryModel  = &db.Entry{}
+			parentModel = &db.Entry{}
+			child       = &db.Children{}
 		)
-
-		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", newEntry.RefID).First(srcEnModel)
+		res := tx.Where("id = ?", entryID).First(entryModel)
 		if res.Error != nil {
 			return res.Error
 		}
-		srcRefCount := *srcEnModel.RefCount + 1
-		srcEnModel.RefCount = &srcRefCount
-		srcEnModel.ChangedAt = nowTime
-		if updateErr = updateEntryWithVersion(tx, srcEnModel); updateErr != nil {
-			return updateErr
+
+		res = tx.Where("parent_id = ? AND child_id = ? AND namespace = ? AND name = ?", newParentID, entryID, namespace, newName).First(child)
+		if res.Error != nil && !errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			return res.Error
 		}
 
-		res = namespaceQueryInCtx(ctx, tx).Where("id = ?", newEntry.ParentID).First(dstParentEnModel)
+		if res.Error == nil {
+			return types.ErrIsExist
+		}
+
+		oldRef := *entryModel.RefCount
+		oldRef += 1
+		entryModel.RefCount = &oldRef
+		entryModel.ChangedAt = nowAt
+
+		err := updateEntryModelWithVersion(tx, entryModel)
+		if err != nil {
+			return err
+		}
+
+		res = tx.Where("id = ?", newParentID).First(parentModel)
 		if res.Error != nil {
 			return res.Error
 		}
-		dstParentEnModel.ChangedAt = nowTime
-		dstParentEnModel.ModifiedAt = nowTime
-		if updateErr = updateEntryWithVersion(tx, dstParentEnModel); updateErr != nil {
-			return updateErr
+		parentModel.ChangedAt = nowAt
+		parentModel.ModifiedAt = nowAt
+		err = updateEntryModelWithVersion(tx, parentModel)
+		if err != nil {
+			return err
 		}
 
-		res = tx.Create(enModel)
+		child.Name = newName
+		child.ChildID = entryID
+		child.ParentID = newParentID
+		child.Namespace = namespace
+
+		res = tx.Create(child)
 		if res.Error != nil {
 			return res.Error
 		}
 		return nil
 	})
 	if err != nil {
-		s.logger.Errorw("mirror entry failed", "entry", newEntry.ID, "parentID", newEntry.ParentID, "srcID", newEntry.RefID, "err", err)
+		s.logger.Errorw("mirror entry failed", "entry", entryID, "parentID", newParentID, "err", err)
 		return db.SqlError2Error(err)
 	}
 	return nil
 }
 
-func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, targetEntryId int64, newParentId int64, newName string, opt types.ChangeParentAttr) error {
+func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, namespace string, targetEntryId int64, oldParentID int64, newParentId int64, oldName string, newName string, opt types.ChangeParentAttr) error {
 	defer trace.StartRegion(ctx, "metastore.sql.ChangeEntryParent").End()
 	return s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var (
-			enModel          = &db.Entry{ID: targetEntryId}
-			srcParentEnModel = &db.Entry{}
-			dstParentEnModel = &db.Entry{}
-			nowTime          = time.Now().UnixNano()
-			srcParentEntryID int64
-			updateErr        error
+			enModel           = &db.Entry{ID: targetEntryId}
+			srcParentEnModel  = &db.Entry{}
+			dstParentEnModel  = &db.Entry{}
+			refSrcParentChild = &db.Children{}
+			nowTime           = time.Now().UnixNano()
+			updateErr         error
 		)
-		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", targetEntryId).First(enModel)
-		if res.Error != nil {
-			return res.Error
-		}
-		res = namespaceQueryInCtx(ctx, tx).Where("id = ?", newParentId).First(dstParentEnModel)
+		res := namespaceQuery(tx, namespace).Where("id = ?", targetEntryId).First(enModel)
 		if res.Error != nil {
 			return res.Error
 		}
 
-		if enModel.ParentID != nil {
-			srcParentEntryID = *enModel.ParentID
+		res = tx.Where("parent_id = ? AND child_id = ? AND name = ? AND namespace = ?", oldParentID, targetEntryId, oldName, namespace).First(refSrcParentChild)
+		if res.Error != nil {
+			s.logger.Errorw("fetch source parent error", "entry", targetEntryId, "err", res.Error)
+			return res.Error
 		}
+
 		enModel.Name = newName
-		enModel.ParentID = &newParentId
 		enModel.ChangedAt = nowTime
-		if updateErr = updateEntryAndCleanURICache(tx, enModel); updateErr != nil {
+		enModel.ParentID = &newParentId
+		if updateErr = updateEntryModelWithVersion(tx, enModel); updateErr != nil {
 			s.logger.Errorw("update target entry failed when change parent",
-				"entry", targetEntryId, "srcParent", srcParentEntryID, "dstParent", newParentId, "err", updateErr)
+				"entry", targetEntryId, "srcParent", oldParentID, "dstParent", newParentId, "err", updateErr)
 			return updateErr
 		}
 
-		res = namespaceQueryInCtx(ctx, tx).Where("id = ?", srcParentEntryID).First(srcParentEnModel)
+		if oldParentID == newParentId && oldName == newName {
+			return nil
+		}
+
+		res = tx.Where("parent_id = ? AND child_id = ? AND name = ? AND namespace = ?", oldParentID, targetEntryId, oldName, namespace).Delete(&db.Children{})
 		if res.Error != nil {
 			return res.Error
 		}
-		if enModel.IsGroup && newParentId != srcParentEntryID {
+
+		res = tx.Save(&db.Children{
+			ParentID:  newParentId,
+			ChildID:   enModel.ID,
+			Name:      enModel.Name,
+			Namespace: enModel.Namespace,
+		})
+		if res.Error != nil {
+			return res.Error
+		}
+
+		res = namespaceQuery(tx, namespace).Where("id = ?", oldParentID).First(srcParentEnModel)
+		if res.Error != nil {
+			return res.Error
+		}
+		if enModel.IsGroup && oldParentID != newParentId {
+			res = namespaceQuery(tx, namespace).Where("id = ?", newParentId).First(dstParentEnModel)
+			if res.Error != nil {
+				return res.Error
+			}
+
 			dstParentEnModel.ChangedAt = nowTime
 			dstParentEnModel.ModifiedAt = nowTime
 			dstParentRef := *dstParentEnModel.RefCount + 1
 			dstParentEnModel.RefCount = &dstParentRef
 			dstParentEnModel.ChangedAt = nowTime
-			if updateErr = updateEntryWithVersion(tx, dstParentEnModel); updateErr != nil {
+			if updateErr = updateEntryModelWithVersion(tx, dstParentEnModel); updateErr != nil {
 				s.logger.Errorw("update dst parent entry failed when change parent",
-					"entry", targetEntryId, "srcParent", srcParentEntryID, "dstParent", newParentId, "err", updateErr)
+					"entry", targetEntryId, "srcParent", oldParentID, "dstParent", newParentId, "err", updateErr)
 				return updateErr
 			}
 
@@ -1127,9 +1077,9 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, targetEntryId int6
 
 		srcParentEnModel.ChangedAt = nowTime
 		srcParentEnModel.ModifiedAt = nowTime
-		if updateErr = updateEntryWithVersion(tx, srcParentEnModel); updateErr != nil {
+		if updateErr = updateEntryModelWithVersion(tx, srcParentEnModel); updateErr != nil {
 			s.logger.Errorw("update src parent entry failed when change parent",
-				"entry", targetEntryId, "srcParent", srcParentEntryID, "dstParent", newParentId, "err", updateErr)
+				"entry", targetEntryId, "srcParent", oldParentID, "dstParent", newParentId, "err", updateErr)
 			return updateErr
 		}
 
@@ -1137,14 +1087,14 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, targetEntryId int6
 	})
 }
 
-func (s *sqlMetaStore) GetEntryLabels(ctx context.Context, id int64) (types.Labels, error) {
+func (s *sqlMetaStore) GetEntryLabels(ctx context.Context, namespace string, id int64) (types.Labels, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.GetEntryLabels").End()
 	var (
 		result    types.Labels
 		labelMods []db.Label
 	)
 
-	res := s.WithNamespaceInCtx(ctx).Where("ref_type = ? and ref_id = ?", "object", id).Find(&labelMods)
+	res := s.WithNamespace(ctx, namespace).Where("ref_type = ? and ref_id = ?", "object", id).Find(&labelMods)
 	if res.Error != nil {
 		s.logger.Errorw("get entry labels failed", "entry", id, "err", res.Error)
 		return result, db.SqlError2Error(res.Error)
@@ -1156,7 +1106,7 @@ func (s *sqlMetaStore) GetEntryLabels(ctx context.Context, id int64) (types.Labe
 	return result, nil
 }
 
-func (s *sqlMetaStore) UpdateEntryLabels(ctx context.Context, id int64, labels types.Labels) error {
+func (s *sqlMetaStore) UpdateEntryLabels(ctx context.Context, namespace string, id int64, labels types.Labels) error {
 	defer trace.StartRegion(ctx, "metastore.sql.UpdateEntryLabels").End()
 
 	var (
@@ -1167,7 +1117,7 @@ func (s *sqlMetaStore) UpdateEntryLabels(ctx context.Context, id int64, labels t
 
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		labelModels := make([]db.Label, 0)
-		res := namespaceQueryInCtx(ctx, tx).Where("ref_type = ? AND ref_id = ?", "object", id).Find(&labelModels)
+		res := namespaceQuery(tx, namespace).Where("ref_type = ? AND ref_id = ?", "object", id).Find(&labelModels)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -1191,7 +1141,15 @@ func (s *sqlMetaStore) UpdateEntryLabels(ctx context.Context, id int64, labels t
 		}
 
 		for k, v := range labelsMap {
-			needCreateLabelModels = append(needCreateLabelModels, db.Label{RefType: "object", RefID: id, Key: k, Value: v, SearchKey: labelSearchKey(k, v)})
+			needCreateLabelModels = append(needCreateLabelModels,
+				db.Label{
+					RefID:     id,
+					RefType:   "object",
+					Namespace: namespace,
+					Key:       k,
+					Value:     v,
+					SearchKey: labelSearchKey(k, v),
+				})
 		}
 
 		if len(needCreateLabelModels) > 0 {
@@ -1231,14 +1189,14 @@ func (s *sqlMetaStore) UpdateEntryLabels(ctx context.Context, id int64, labels t
 	return nil
 }
 
-func (s *sqlMetaStore) ListEntryProperties(ctx context.Context, id int64) (types.Properties, error) {
+func (s *sqlMetaStore) ListEntryProperties(ctx context.Context, namespace string, id int64) (types.Properties, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListEntryProperties").End()
 	var (
 		property = make([]db.EntryProperty, 0)
 		result   = types.Properties{Fields: map[string]types.PropertyItem{}}
 	)
 
-	res := s.WithNamespaceInCtx(ctx).Where("oid = ?", id).Find(&property)
+	res := s.WithNamespace(ctx, namespace).Where("oid = ?", id).Find(&property)
 	if res.Error != nil {
 		return result, res.Error
 	}
@@ -1249,13 +1207,13 @@ func (s *sqlMetaStore) ListEntryProperties(ctx context.Context, id int64) (types
 	return result, nil
 }
 
-func (s *sqlMetaStore) GetEntryProperty(ctx context.Context, id int64, key string) (types.PropertyItem, error) {
+func (s *sqlMetaStore) GetEntryProperty(ctx context.Context, namespace string, id int64, key string) (types.PropertyItem, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.GetEntryProperty").End()
 	var (
 		itemModel = &db.EntryProperty{}
 		result    types.PropertyItem
 	)
-	res := s.WithContext(ctx).Where("oid = ? AND key = ?", id, key).First(&itemModel)
+	res := s.WithNamespace(ctx, namespace).Where("oid = ? AND key = ?", id, key).First(&itemModel)
 	if res.Error != nil {
 		return result, db.SqlError2Error(res.Error)
 	}
@@ -1264,19 +1222,19 @@ func (s *sqlMetaStore) GetEntryProperty(ctx context.Context, id int64, key strin
 	return result, nil
 }
 
-func (s *sqlMetaStore) AddEntryProperty(ctx context.Context, id int64, key string, item types.PropertyItem) error {
+func (s *sqlMetaStore) AddEntryProperty(ctx context.Context, namespace string, id int64, key string, item types.PropertyItem) error {
 	defer trace.StartRegion(ctx, "metastore.sql.AddEntryProperty").End()
 	var (
 		entryModel   = &db.Entry{ID: id}
 		propertyItem = &db.EntryProperty{}
 	)
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", id).First(entryModel)
+		res := namespaceQuery(tx, namespace).Where("id = ?", id).First(entryModel)
 		if res.Error != nil {
 			return res.Error
 		}
 
-		res = namespaceQueryInCtx(ctx, tx).Where("oid = ? AND key = ?", id, key).First(propertyItem)
+		res = namespaceQuery(tx, namespace).Where("oid = ? AND key = ?", id, key).First(propertyItem)
 		if res.Error != nil && !errors.Is(res.Error, gorm.ErrRecordNotFound) {
 			return res.Error
 		}
@@ -1301,16 +1259,16 @@ func (s *sqlMetaStore) AddEntryProperty(ctx context.Context, id int64, key strin
 	return nil
 }
 
-func (s *sqlMetaStore) RemoveEntryProperty(ctx context.Context, id int64, key string) error {
+func (s *sqlMetaStore) RemoveEntryProperty(ctx context.Context, namespace string, id int64, key string) error {
 	defer trace.StartRegion(ctx, "metastore.sql.RemoveEntryProperty").End()
-	res := s.WithContext(ctx).Where("oid = ? AND key = ?", id, key).Delete(&db.EntryProperty{})
+	res := s.WithNamespace(ctx, namespace).Where("oid = ? AND key = ?", id, key).Delete(&db.EntryProperty{})
 	if res.Error != nil {
 		return db.SqlError2Error(res.Error)
 	}
 	return nil
 }
 
-func (s *sqlMetaStore) UpdateEntryProperties(ctx context.Context, id int64, properties types.Properties) error {
+func (s *sqlMetaStore) UpdateEntryProperties(ctx context.Context, namespace string, id int64, properties types.Properties) error {
 	defer trace.StartRegion(ctx, "metastore.sql.UpdateEntryProperties").End()
 	var (
 		entryModel                 = &db.Entry{ID: id}
@@ -1320,12 +1278,12 @@ func (s *sqlMetaStore) UpdateEntryProperties(ctx context.Context, id int64, prop
 		needDeletePropertiesModels = make([]db.EntryProperty, 0)
 	)
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", id).First(entryModel)
+		res := namespaceQuery(tx, namespace).Where("id = ?", id).First(entryModel)
 		if res.Error != nil {
 			return res.Error
 		}
 
-		res = namespaceQueryInCtx(ctx, tx).Where("oid = ?", id).Find(&objectProperties)
+		res = namespaceQuery(tx, namespace).Where("oid = ?", id).Find(&objectProperties)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -1476,7 +1434,7 @@ func (s *sqlMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (
 		enMod.ModifiedAt = nowTime
 		enMod.ChangedAt = nowTime
 
-		if writeBackErr := updateEntryWithVersion(tx, enMod); writeBackErr != nil {
+		if writeBackErr := updateEntryModelWithVersion(tx, enMod); writeBackErr != nil {
 			return writeBackErr
 		}
 		return nil
@@ -1805,17 +1763,17 @@ func (s *sqlMetaStore) SaveWorkflowJob(ctx context.Context, namespace string, jo
 
 func (s *sqlMetaStore) DeleteWorkflowJobs(ctx context.Context, wfJobID ...string) error {
 	defer trace.StartRegion(ctx, "metastore.sql.DeleteWorkflowJob").End()
-	res := s.WithNamespaceInCtx(ctx).Where("id IN ?", wfJobID).Delete(&db.WorkflowJob{})
+	res := s.WithContext(ctx).Where("id IN ?", wfJobID).Delete(&db.WorkflowJob{})
 	if res.Error != nil {
 		return db.SqlError2Error(res.Error)
 	}
 	return nil
 }
 
-func (s *sqlMetaStore) ListNotifications(ctx context.Context) ([]types.Notification, error) {
+func (s *sqlMetaStore) ListNotifications(ctx context.Context, namespace string) ([]types.Notification, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListNotifications").End()
 	noList := make([]db.Notification, 0)
-	res := s.WithNamespaceInCtx(ctx).Order("time desc").Find(&noList)
+	res := s.WithNamespace(ctx, namespace).Order("time desc").Find(&noList)
 	if res.Error != nil {
 		return nil, db.SqlError2Error(res.Error)
 	}
@@ -1837,11 +1795,11 @@ func (s *sqlMetaStore) ListNotifications(ctx context.Context) ([]types.Notificat
 	return result, nil
 }
 
-func (s *sqlMetaStore) RecordNotification(ctx context.Context, nid string, no types.Notification) error {
+func (s *sqlMetaStore) RecordNotification(ctx context.Context, namespace string, nid string, no types.Notification) error {
 	defer trace.StartRegion(ctx, "metastore.sql.RecordNotification").End()
 	model := db.Notification{
 		ID:        nid,
-		Namespace: no.Namespace,
+		Namespace: namespace,
 		Title:     no.Title,
 		Message:   no.Message,
 		Type:      no.Type,
@@ -1857,242 +1815,17 @@ func (s *sqlMetaStore) RecordNotification(ctx context.Context, nid string, no ty
 	return nil
 }
 
-func (s *sqlMetaStore) UpdateNotificationStatus(ctx context.Context, nid, status string) error {
+func (s *sqlMetaStore) UpdateNotificationStatus(ctx context.Context, namespace, nid, status string) error {
 	defer trace.StartRegion(ctx, "metastore.sql.UpdateNotificationStatus").End()
-	res := s.WithNamespaceInCtx(ctx).Model(&db.Notification{}).Where("id = ?", nid).UpdateColumn("status", status)
+	res := s.WithNamespace(ctx, namespace).Model(&db.Notification{}).Where("id = ?", nid).UpdateColumn("status", status)
 	if res.Error != nil {
 		return db.SqlError2Error(res.Error)
 	}
 	return nil
 }
 
-func (s *sqlMetaStore) RecordEvents(ctx context.Context, events []types.Event) error {
-	defer trace.StartRegion(ctx, "metastore.sql.RecordEvents").End()
-
-	if len(events) == 0 {
-		return nil
-	}
-
-	eventModels := make([]db.Event, len(events))
-	for i, evt := range events {
-		eventModels[i].From(evt)
-	}
-
-	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		for _, evt := range eventModels {
-			if res := tx.Create(evt); res.Error != nil {
-				s.logger.Errorw("insert event error", "event", evt.ID, "err", res.Error)
-				return res.Error
-			}
-		}
-		return nil
-	})
-	return err
-}
-
-func (s *sqlMetaStore) ListEvents(ctx context.Context, filter types.EventFilter) ([]types.Event, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.ListEvents").End()
-	query := s.WithNamespaceInCtx(ctx)
-	if filter.StartSequence > 0 {
-		query = query.Where("sequence > ?", filter.StartSequence)
-	}
-	if filter.Limit > 0 {
-		query = query.Limit(filter.Limit)
-	}
-	if filter.DESC {
-		query = query.Order("sequence DESC")
-	} else {
-		query = query.Order("sequence ASC")
-	}
-
-	modelList := make([]db.Event, 0)
-	res := query.Find(&modelList)
-	if res.Error != nil {
-		s.logger.Errorw("list event from db failed", "err", res.Error)
-		return nil, res.Error
-	}
-
-	var (
-		result = make([]types.Event, len(modelList))
-		err    error
-	)
-	for i, m := range modelList {
-		result[i], err = m.To()
-		if err != nil {
-			s.logger.Errorw("trans event data from db model error", "event", m.ID, "data", m.Data)
-		}
-	}
-	return result, nil
-}
-
-func (s *sqlMetaStore) SaveRoom(ctx context.Context, room *types.Room) error {
-	defer trace.StartRegion(ctx, "metastore.sql.CreateRoom").End()
-	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		roomMod := &db.Room{}
-		var err error
-		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", room.ID).First(roomMod)
-		if res.Error != nil {
-			if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-				roomMod, err = roomMod.From(room)
-				if err != nil {
-					return err
-				}
-				res := tx.Create(roomMod)
-				return res.Error
-			}
-			return res.Error
-		}
-		roomMod, err = roomMod.From(room)
-		if err != nil {
-			return err
-		}
-		res = tx.Save(roomMod)
-		return res.Error
-	})
-	if err != nil {
-		return db.SqlError2Error(err)
-	}
-	return nil
-}
-
-func (s *sqlMetaStore) GetRoom(ctx context.Context, id int64) (*types.Room, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.GetRoom").End()
-	room := &db.Room{}
-	res := s.WithNamespaceInCtx(ctx).Where("id = ?", id).First(room)
-	if res.Error != nil {
-		return nil, db.SqlError2Error(res.Error)
-	}
-	return room.To()
-}
-
-func (s *sqlMetaStore) FindRoom(ctx context.Context, entryId int64) (*types.Room, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.FindRoom").End()
-	room := &db.Room{}
-	res := s.WithNamespaceInCtx(ctx).Where("entry_id = ?", entryId).First(room)
-	if res.Error != nil {
-		return nil, db.SqlError2Error(res.Error)
-	}
-	return room.To()
-}
-
-func (s *sqlMetaStore) DeleteRoom(ctx context.Context, id int64) error {
-	defer trace.StartRegion(ctx, "metastore.sql.DeleteRoom").End()
-	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", id).Delete(&db.Room{})
-		return res.Error
-	})
-	return db.SqlError2Error(err)
-}
-
-func (s *sqlMetaStore) ListRooms(ctx context.Context, entryId int64) ([]*types.Room, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.ListRoom").End()
-	roomList := make([]db.Room, 0)
-	query := s.WithNamespaceInCtx(ctx)
-	query = query.Where("entry_id = ?", entryId)
-	if page := types.GetPagination(ctx); page != nil {
-		query = query.Offset(page.Offset()).Limit(page.Limit())
-	}
-	res := query.Order("created_at DESC").Find(&roomList)
-	if res.Error != nil {
-		return nil, db.SqlError2Error(res.Error)
-	}
-
-	result := make([]*types.Room, len(roomList))
-	for i, room := range roomList {
-		r, err := room.To()
-		if err != nil {
-			return nil, err
-		}
-		result[i] = r
-	}
-	return result, nil
-}
-
-func (s *sqlMetaStore) ListRoomMessage(ctx context.Context, roomId int64) ([]*types.RoomMessage, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.ListRoomMessage").End()
-	roomMsgList := make([]db.RoomMessage, 0)
-	query := s.WithNamespaceInCtx(ctx)
-	query = query.Where("room_id = ?", roomId)
-	if page := types.GetPagination(ctx); page != nil {
-		query = query.Offset(page.Offset()).Limit(page.Limit())
-	}
-	res := query.Order("send_at").Find(&roomMsgList)
-	if res.Error != nil {
-		return nil, db.SqlError2Error(res.Error)
-	}
-
-	result := make([]*types.RoomMessage, len(roomMsgList))
-	for i, msg := range roomMsgList {
-		result[i] = msg.To()
-	}
-	return result, nil
-}
-
-func (s *sqlMetaStore) SaveRoomMessage(ctx context.Context, msg *types.RoomMessage) error {
-	defer trace.StartRegion(ctx, "metastore.sql.SaveRoomMessage").End()
-	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		roomMsgMod := &db.RoomMessage{}
-		res := namespaceQueryInCtx(ctx, tx).Where("id = ?", msg.ID).First(roomMsgMod)
-		if res.Error != nil {
-			if errors.Is(res.Error, gorm.ErrRecordNotFound) {
-				roomMsgMod = roomMsgMod.From(msg)
-				res := tx.Create(roomMsgMod)
-				return res.Error
-			}
-			return res.Error
-		}
-		roomMsgMod = roomMsgMod.From(msg)
-		res = tx.Save(roomMsgMod)
-		return res.Error
-	})
-	if err != nil {
-		return db.SqlError2Error(err)
-	}
-	return nil
-}
-
-func (s *sqlMetaStore) GetRoomMessage(ctx context.Context, msgId int64) (*types.RoomMessage, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.GetRoomMessage").End()
-	roomMsg := &db.RoomMessage{}
-	res := s.WithNamespaceInCtx(ctx).Where("id = ?", msgId).First(roomMsg)
-	if res.Error != nil {
-		return nil, db.SqlError2Error(res.Error)
-	}
-	return roomMsg.To(), nil
-}
-
-func (s *sqlMetaStore) DeleteRoomMessages(ctx context.Context, roomId int64) error {
-	defer trace.StartRegion(ctx, "metastore.sql.DeleteRoomMessage").End()
-	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQueryInCtx(ctx, tx).Where("room_id = ?", roomId).Delete(&db.RoomMessage{})
-		return res.Error
-	})
-	return db.SqlError2Error(err)
-}
-
-func (s *sqlMetaStore) WithNamespaceOfTable(ctx context.Context, table string) *gorm.DB {
-	ns := types.GetNamespace(ctx)
-	if ns.String() == types.DefaultNamespace {
-		return s.WithContext(ctx)
-	}
-	return s.WithContext(ctx).Where(fmt.Sprintf("%s.namespace = ?", table), ns.String())
-}
-
-func (s *sqlMetaStore) WithNamespaceInCtx(ctx context.Context) *gorm.DB {
-	ns := types.GetNamespace(ctx)
-	if ns.String() == types.DefaultNamespace {
-		return s.WithContext(ctx)
-	}
-	return s.WithContext(ctx).Where("namespace = ?", ns.String())
-}
-
 func (s *sqlMetaStore) WithNamespace(ctx context.Context, namespace string) *gorm.DB {
 	return s.WithContext(ctx).Where("namespace = ?", namespace)
-}
-
-func (s *sqlMetaStore) WithPagination(ctx context.Context) *gorm.DB {
-	page := types.GetPagination(ctx)
-	return s.WithContext(ctx).Where("limit = ? AND offset = ?", page.PageSize, (page.Page-1)*page.PageSize)
 }
 
 func newPostgresMetaStore(meta config.Meta) (*sqlMetaStore, error) {
@@ -2117,31 +1850,7 @@ func newPostgresMetaStore(meta config.Meta) (*sqlMetaStore, error) {
 	return buildSqlMetaStore(dbEntity)
 }
 
-func updateEntryAndCleanURICache(tx *gorm.DB, entryMod *db.Entry) error {
-	// clean uri cache
-	uri := &db.EntryURI{}
-	res := tx.Where("oid = ?", entryMod.ID).First(uri)
-	if res.Error != nil {
-		if !errors.Is(res.Error, gorm.ErrRecordNotFound) {
-			return res.Error
-		}
-	} else {
-		res = tx.Where("oid = ?", entryMod.ID).Delete(&db.EntryURI{})
-		if res.Error != nil {
-			return res.Error
-		}
-		if entryMod.IsGroup {
-			res = tx.Where("uri LIKE ?", uri.Uri+"%").Delete(&db.EntryURI{})
-			if res.Error != nil {
-				return res.Error
-			}
-		}
-	}
-
-	return updateEntryWithVersion(tx, entryMod)
-}
-
-func updateEntryWithVersion(tx *gorm.DB, entryMod *db.Entry) error {
+func updateEntryModelWithVersion(tx *gorm.DB, entryMod *db.Entry) error {
 	currentVersion := entryMod.Version
 	entryMod.Version += 1
 	if entryMod.Version < 0 {
@@ -2158,21 +1867,21 @@ func updateEntryWithVersion(tx *gorm.DB, entryMod *db.Entry) error {
 	return nil
 }
 
-func listEntryIdsWithLabelMatcher(ctx context.Context, tx *gorm.DB, labelMatch types.LabelMatch) ([]int64, error) {
-	tx = namespaceQueryInCtx(ctx, tx.WithContext(ctx))
+func listEntryIdsWithLabelMatcher(ctx context.Context, namespace string, tx *gorm.DB, labelMatch types.LabelMatch) ([]int64, error) {
+	tx = tx.WithContext(ctx)
 	includeSearchKeys := make([]string, len(labelMatch.Include))
 	for i, inKey := range labelMatch.Include {
 		includeSearchKeys[i] = labelSearchKey(inKey.Key, inKey.Value)
 	}
 
 	var includeLabels []db.Label
-	res := tx.Where("ref_type = ? AND search_key IN ?", "object", includeSearchKeys).Find(&includeLabels)
+	res := namespaceQuery(tx, namespace).Where("ref_type = ? AND search_key IN ?", "object", includeSearchKeys).Find(&includeLabels)
 	if res.Error != nil {
 		return nil, res.Error
 	}
 
 	var excludeLabels []db.Label
-	res = tx.Select("ref_id").Where("ref_type = ? AND key IN ?", "object", labelMatch.Exclude).Find(&excludeLabels)
+	res = namespaceQuery(tx, namespace).Select("ref_id").Where("ref_type = ? AND key IN ?", "object", labelMatch.Exclude).Find(&excludeLabels)
 	if res.Error != nil {
 		return nil, res.Error
 	}
@@ -2204,19 +1913,11 @@ func queryFilter(tx *gorm.DB, filter types.Filter, scopeIds []int64) *gorm.DB {
 	}
 
 	if filter.ParentID != 0 {
-		tx = tx.Where("parent_id = ?", filter.ParentID)
-	} else {
-		tx = tx.Where("parent_id > 0")
+		tx = tx.Joins("JOIN children on children.child_id = object.id AND children.parent_id = ?", filter.ParentID)
 	}
 
-	if filter.RefID != 0 {
-		tx = tx.Where("ref_id = ?", filter.RefID)
-	}
 	if filter.Name != "" {
 		tx = tx.Where("name = ?", filter.Name)
-	}
-	if filter.Namespace != "" {
-		tx = tx.Where("namespace = ?", filter.Namespace)
 	}
 	if filter.Kind != "" {
 		tx = tx.Where("kind = ?", filter.Kind)
@@ -2240,25 +1941,6 @@ func queryFilter(tx *gorm.DB, filter types.Filter, scopeIds []int64) *gorm.DB {
 		tx = tx.Where("name LIKE ?", "%"+filter.FuzzyName+"%")
 	}
 	return tx
-}
-
-func enOrder(tx *gorm.DB, order *types.EntryOrder) *gorm.DB {
-	if order != nil {
-		orderStr := order.Order.String()
-		if order.Desc {
-			orderStr += " DESC"
-		}
-		tx = tx.Order(orderStr)
-	}
-	return tx
-}
-
-func namespaceQueryInCtx(ctx context.Context, tx *gorm.DB) *gorm.DB {
-	ns := types.GetNamespace(ctx)
-	if ns.String() == types.DefaultNamespace {
-		return tx
-	}
-	return tx.Where("namespace = ?", ns.String())
 }
 
 func namespaceQuery(tx *gorm.DB, namespace string) *gorm.DB {

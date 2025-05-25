@@ -35,12 +35,12 @@ var _ = Describe("TestQuery", func() {
 	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	gomega.Expect(err).Should(gomega.BeNil())
 
-	InitQuery(memMeta.(metastore.DEntry))
+	InitQuery(memMeta.(metastore.EntryStore))
 	err = mockedObjectForQuery(ctx, memMeta)
 	gomega.Expect(err).Should(gomega.BeNil())
 
 	doQuery := func(rules []types.Rule, labelMatches []types.LabelMatch) []*types.Entry {
-		q := Q()
+		q := Q(types.DefaultNamespace)
 		for i := range rules {
 			q = q.Rule(rules[i])
 		}
@@ -163,7 +163,7 @@ func isMatchAllWanted(wants []int64, got []*types.Entry) error {
 	return nil
 }
 
-func mockedObjectForQuery(ctx context.Context, entryStore metastore.DEntry) error {
+func mockedObjectForQuery(ctx context.Context, entryStore metastore.EntryStore) error {
 	var objectList = []object{
 		{
 			Entry: createMetadata(10001),
@@ -208,15 +208,15 @@ func mockedObjectForQuery(ctx context.Context, entryStore metastore.DEntry) erro
 	}
 
 	for _, o := range objectList {
-		err := entryStore.CreateEntry(ctx, 0, o.Entry, nil)
+		err := entryStore.CreateEntry(ctx, types.DefaultNamespace, 0, o.Entry, nil)
 		if err != nil {
 			return err
 		}
-		err = entryStore.UpdateEntryProperties(ctx, o.ID, *o.Properties)
+		err = entryStore.UpdateEntryProperties(ctx, types.DefaultNamespace, o.ID, *o.Properties)
 		if err != nil {
 			return err
 		}
-		err = entryStore.UpdateEntryLabels(ctx, o.ID, *o.Labels)
+		err = entryStore.UpdateEntryLabels(ctx, types.DefaultNamespace, o.ID, *o.Labels)
 		if err != nil {
 			return err
 		}

@@ -30,7 +30,7 @@ import (
 
 var (
 	chunkStore metastore.ChunkStore
-	entryStore metastore.DEntry
+	entryStore metastore.EntryStore
 	dataStore  storage.Storage
 
 	workdir string

@@ -18,8 +18,9 @@ package jobrun
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/dentry"
+	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
@@ -53,20 +54,16 @@ func init() {
 	)
 }
 
-func initParentDirCacheData(ctx context.Context, entryMgr dentry.Manager, parentEntryID int64) (*pluginapi.CachedData, error) {
-	parent, err := entryMgr.OpenGroup(ctx, parentEntryID)
-	if err != nil {
-		return nil, fmt.Errorf("open parent %d to init failed: %s", parentEntryID, err)
-	}
-	cachedDataEn, err := parent.FindEntry(ctx, pluginapi.CachedDataFile)
-	if err != nil && err != types.ErrNotFound {
+func initParentDirCacheData(ctx context.Context, namespace string, fsCore core.Core, parentEntryID int64) (*pluginapi.CachedData, error) {
+	cachedDataCh, err := fsCore.FindEntry(ctx, namespace, parentEntryID, pluginapi.CachedDataFile)
+	if err != nil && !errors.Is(err, types.ErrNotFound) {
 		return nil, fmt.Errorf("find cached data entry %s failed: %s", pluginapi.CachedDataFile, err)
 	}
 
-	if cachedDataEn != nil {
-		cachedDataFile, err := entryMgr.Open(ctx, cachedDataEn.ID, types.OpenAttr{Read: true})
+	if cachedDataCh != nil {
+		cachedDataFile, err := fsCore.Open(ctx, namespace, cachedDataCh.ChildID, types.OpenAttr{Read: true})
 		if err != nil {
-			return nil, fmt.Errorf("open cached data entry %d failed: %s", cachedDataEn.ID, err)
+			return nil, fmt.Errorf("open cached data entry %d failed: %s", cachedDataCh.ChildID, err)
 		}
 
 		cachedData, err := pluginapi.OpenCacheData(utils.NewReaderWithContextReaderAt(ctx, cachedDataFile))
@@ -79,25 +76,25 @@ func initParentDirCacheData(ctx context.Context, entryMgr dentry.Manager, parent
 	return pluginapi.InitCacheData(), nil
 }
 
-func writeParentDirCacheData(ctx context.Context, entryMgr dentry.Manager, parentEntryID int64, data *pluginapi.CachedData) error {
+func writeParentDirCacheData(ctx context.Context, namespace string, fsCore core.Core, parentEntryID int64, data *pluginapi.CachedData) error {
 	if !data.NeedReCache() {
 		return nil
 	}
 
-	parent, err := entryMgr.OpenGroup(ctx, parentEntryID)
-	if err != nil {
-		return fmt.Errorf("open parent %d to write cache failed: %s", parentEntryID, err)
-	}
-	cachedDataEn, err := parent.FindEntry(ctx, pluginapi.CachedDataFile)
-	if err != nil && err != types.ErrNotFound {
+	cachedDataCh, err := fsCore.FindEntry(ctx, namespace, parentEntryID, pluginapi.CachedDataFile)
+	if err != nil && !errors.Is(err, types.ErrNotFound) {
 		return fmt.Errorf("find cached data entry %s failed: %s", pluginapi.CachedDataFile, err)
 	}
 
-	if cachedDataEn == nil {
-		cachedDataEn, err = parent.CreateEntry(ctx, types.EntryAttr{Name: pluginapi.CachedDataFile, Kind: types.RawKind})
+	var cachedDataEnID int64
+	if cachedDataCh == nil {
+		cachedDataEn, err := fsCore.CreateEntry(ctx, namespace, parentEntryID, types.EntryAttr{Name: pluginapi.CachedDataFile, Kind: types.RawKind})
 		if err != nil {
 			return fmt.Errorf("create new cached data entry failed: %s", err)
 		}
+		cachedDataEnID = cachedDataEn.ID
+	} else {
+		cachedDataEnID = cachedDataCh.ChildID
 	}
 
 	newReader, err := data.Reader()
@@ -105,9 +102,9 @@ func writeParentDirCacheData(ctx context.Context, entryMgr dentry.Manager, paren
 		return fmt.Errorf("open cached data entry reader failed: %s", err)
 	}
 
-	f, err := entryMgr.Open(ctx, cachedDataEn.ID, types.OpenAttr{Write: true, Trunc: true})
+	f, err := fsCore.Open(ctx, namespace, cachedDataEnID, types.OpenAttr{Write: true, Trunc: true})
 	if err != nil {
-		return fmt.Errorf("open cached data entry %d failed: %s", cachedDataEn.ID, err)
+		return fmt.Errorf("open cached data entry %d failed: %s", cachedDataEnID, err)
 	}
 
 	_, err = io.Copy(utils.NewWriterWithContextWriter(ctx, f), newReader)

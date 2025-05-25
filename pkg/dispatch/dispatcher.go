@@ -19,7 +19,7 @@ package dispatch
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/document"
+	"github.com/basenana/nanafs/pkg/core"
 	"os"
 	"strconv"
 	"time"
@@ -28,7 +28,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
-	"github.com/basenana/nanafs/pkg/dentry"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/types"
@@ -54,7 +53,7 @@ type executor interface {
 type routineTask func(ctx context.Context) error
 
 type Dispatcher struct {
-	entry     dentry.Manager
+	core      core.Core
 	notify    *notify.Notify
 	recorder  metastore.ScheduledTaskRecorder
 	executors map[string]executor
@@ -124,7 +123,7 @@ func (d *Dispatcher) dispatch(ctx context.Context, taskID string, exec executor,
 		taskFinishStatusCounter.WithLabelValues(taskID, types.ScheduledTaskFailed)
 		sentry.CaptureException(err)
 		d.logger.Errorw("execute task error", "recordID", task.ID, "taskID", task.TaskID, "err", err,
-			"recordNotificationErr", d.notify.RecordWarn(ctx, fmt.Sprintf("Scheduled task %s failed", task.TaskID), task.Result, "Dispatcher"))
+			"recordNotificationErr", d.notify.RecordWarn(ctx, task.Namespace, fmt.Sprintf("Scheduled task %s failed", task.TaskID), task.Result, "Dispatcher"))
 	} else {
 		task.Result = "succeed"
 		task.Status = types.ScheduledTaskSucceed
@@ -215,9 +214,9 @@ func (d *Dispatcher) registerRoutineTask(periodH int, task routineTask) {
 	}
 }
 
-func Init(entry dentry.Manager, doc document.Manager, notify *notify.Notify, recorder metastore.ScheduledTaskRecorder) (*Dispatcher, error) {
+func Init(fsCore core.Core, notify *notify.Notify, recorder metastore.ScheduledTaskRecorder) (*Dispatcher, error) {
 	d := &Dispatcher{
-		entry:     entry,
+		core:      fsCore,
 		notify:    notify,
 		recorder:  recorder,
 		executors: map[string]executor{},
@@ -226,11 +225,11 @@ func Init(entry dentry.Manager, doc document.Manager, notify *notify.Notify, rec
 		logger:    logger.NewLogger("dispatcher"),
 	}
 
-	if err := registerMaintainExecutor(d, entry, recorder); err != nil {
+	if err := registerMaintainExecutor(d, fsCore, recorder); err != nil {
 		return nil, err
 	}
 
-	if err := registerWorkflowExecutor(d, entry, doc, recorder); err != nil {
+	if err := registerWorkflowExecutor(d, recorder); err != nil {
 		return nil, err
 	}
 
