@@ -19,7 +19,6 @@ package core
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/bluele/gcache"
 	"runtime/trace"
 
 	"go.uber.org/zap"
@@ -129,98 +128,4 @@ func (d *dynamicGroup) ListChildren(ctx context.Context) ([]*types.Entry, error)
 		children = append(children, dynamicChildren[i])
 	}
 	return children, nil
-}
-
-type DCache interface {
-	FindChild(ctx context.Context, namespace string, parentId int64, child string) (*types.Child, error)
-	Invalid(namespace string, entries ...int64)
-}
-
-type dcache struct {
-	cache gcache.Cache
-	store metastore.EntryStore
-}
-
-func NewDcache(store metastore.EntryStore) DCache {
-	dc := &dcache{
-		store: store,
-	}
-	dc.cache = gcache.New(defaultLFUCacheSize).LFU().
-		Expiration(defaultLFUCacheExpire).Build()
-	return dc
-}
-
-func (d *dcache) FindChild(ctx context.Context, namespace string, parentId int64, childName string) (*types.Child, error) {
-	k := dk{namespace: namespace, parentID: parentId}
-	raw, err := d.cache.Get(k)
-
-	var (
-		pCache *dentry
-		child  *dentry
-	)
-	if err == nil {
-		pCache = raw.(*dentry)
-	} else {
-		pCache = &dentry{ID: parentId, Namespace: namespace}
-	}
-
-	head := pCache.children
-	for head != nil {
-		if head.Name == childName {
-			child = head
-		}
-		head = head.next
-	}
-
-	if child == nil {
-		child, err = d.findDEntry(ctx, namespace, parentId, childName)
-		if err != nil {
-			return nil, err
-		}
-		d.cache.Set(k, child)
-	}
-
-	if child == nil {
-		return nil, types.ErrNotFound
-	}
-	return &types.Child{
-		ParentID:  parentId,
-		ChildID:   child.ID,
-		Name:      childName,
-		Namespace: namespace,
-	}, nil
-}
-
-func (d *dcache) findDEntry(ctx context.Context, namespace string, parentId int64, child string) (*dentry, error) {
-	entry, err := d.store.FindEntry(ctx, namespace, parentId, child)
-	if err != nil {
-		return nil, err
-	}
-	return &dentry{
-		ID:        entry.ChildID,
-		Name:      entry.Name,
-		Namespace: entry.Namespace,
-		children:  nil,
-		next:      nil,
-	}, nil
-}
-
-func (d *dcache) Invalid(namespace string, entries ...int64) {
-	for _, entry := range entries {
-		d.cache.Remove(dk{namespace: namespace, parentID: entry})
-	}
-}
-
-type dk struct {
-	namespace string
-	parentID  int64
-}
-
-type dentry struct {
-	ID        int64
-	Name      string
-	Namespace string
-
-	children *dentry
-	next     *dentry
 }

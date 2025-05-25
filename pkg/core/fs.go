@@ -102,6 +102,10 @@ func (f *FileSystem) GetEntryByPath(ctx context.Context, path string) (*types.En
 		return nil, nil, err
 	}
 
+	if path == "/" {
+		return parent, parent, nil
+	}
+
 	entries := strings.Split(path, "/")
 	for _, entryName := range entries {
 		if entryName == "" {

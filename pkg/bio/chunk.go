@@ -121,6 +121,9 @@ func (c *chunkReader) ReadAt(ctx context.Context, dest []byte, off int64) (n int
 		readLen := chunkEnd - off
 		wg.Add(1)
 		reqList = append(reqList, c.prepareData(ctx, index, off, dest[n:n+readLen], wg))
+		if reqList[len(reqList)-1].err != nil {
+			break
+		}
 
 		n += readLen
 		off = chunkEnd
@@ -131,7 +134,7 @@ func (c *chunkReader) ReadAt(ctx context.Context, dest []byte, off int64) (n int
 	wg.Wait()
 	for _, req := range reqList {
 		if req.err != nil {
-			return 0, err
+			return n, err
 		}
 	}
 	return n, nil
@@ -430,7 +433,7 @@ func (c *chunkWriter) WriteAt(ctx context.Context, data []byte, off int64) (n in
 		wg.Add(1)
 		req := &ioReq{WaitGroup: wg, off: off, data: data[n : n+readLen]}
 		if err = c.writeSegData(ctx, index, req); err != nil {
-			return n, err
+			break
 		}
 		reqList = append(reqList, req)
 

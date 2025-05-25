@@ -30,7 +30,7 @@ import (
 const (
 	RootEntryID           = 1
 	RootEntryName         = "root"
-	defaultLFUCacheExpire = time.Minute * 10
+	defaultLFUCacheExpire = time.Hour
 	defaultLFUCacheSize   = 1 << 15
 )
 
@@ -38,11 +38,6 @@ var (
 	fsInfoCache       *Info
 	fsInfoNextFetchAt time.Time
 )
-
-type ik struct {
-	namespace string
-	id        int64
-}
 
 func initRootEntry() *types.Entry {
 	acc := &types.Access{

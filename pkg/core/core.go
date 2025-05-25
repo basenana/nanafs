@@ -27,7 +27,6 @@ import (
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
-	"github.com/bluele/gcache"
 	"go.uber.org/zap"
 	"runtime/trace"
 )
@@ -82,14 +81,12 @@ func New(store metastore.Meta, cfg config.Bootstrap) (Core, error) {
 		metastore:      store,
 		defaultStorage: defaultStorage,
 		storages:       storages,
+		cache:          newCache(),
 		fsOwnerUid:     cfg.FS.Owner.Uid,
 		fsOwnerGid:     cfg.FS.Owner.Gid,
 		fsWriteback:    cfg.FS.Writeback,
 		logger:         logger.NewLogger("fsCore"),
 	}
-
-	c.cache = gcache.New(defaultLFUCacheSize).LFU().
-		Expiration(defaultLFUCacheExpire).Build()
 
 	bio.InitPageCache(cfg.FS.PageSize)
 	storage.InitLocalCache(cfg)
@@ -108,7 +105,7 @@ type core struct {
 	fsOwnerUid     int64
 	fsOwnerGid     int64
 	fsWriteback    bool
-	cache          gcache.Cache
+	cache          *cache
 	root           *types.Entry
 	logger         *zap.SugaredLogger
 }
@@ -229,10 +226,9 @@ func (c *core) CreateNamespace(ctx context.Context, namespace string) error {
 func (c *core) getEntry(ctx context.Context, namespace string, id int64) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "fs.core.GetEntryMetadata").End()
 
-	k := ik{namespace: namespace, id: id}
-	cached, err := c.cache.Get(k)
+	cached, err := c.cache.getEntry(namespace, id)
 	if err == nil {
-		return cached.(*types.Entry), nil
+		return cached, nil
 	}
 
 	en, err := c.store.GetEntry(ctx, namespace, id)
@@ -244,7 +240,7 @@ func (c *core) getEntry(ctx context.Context, namespace string, id int64) (*types
 		return nil, types.ErrNotFound
 	}
 
-	c.cache.Set(k, en)
+	c.cache.setEntry(en)
 	return en, nil
 }
 
@@ -287,7 +283,7 @@ func (c *core) CreateEntry(ctx context.Context, namespace string, parentId int64
 	if err != nil {
 		return nil, err
 	}
-	defer c.cache.Remove(ik{namespace: namespace, id: parentId})
+	defer c.cache.invalidEntry(namespace, parentId)
 
 	if len(attr.Labels.Labels) > 0 {
 		if err = c.store.UpdateEntryLabels(ctx, namespace, entry.ID, attr.Labels); err != nil {
@@ -347,7 +343,7 @@ func (c *core) UpdateEntry(ctx context.Context, namespace string, id int64, upda
 	if err = c.store.UpdateEntry(ctx, namespace, en); err != nil {
 		return nil, err
 	}
-	c.cache.Remove(ik{namespace: namespace, id: id})
+	c.cache.invalidEntry(namespace, id)
 	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeUpdate, en.Namespace, en.ID)
 	return c.getEntry(ctx, namespace, id)
 }
@@ -373,8 +369,8 @@ func (c *core) RemoveEntry(ctx context.Context, namespace string, parentId, entr
 	if err != nil {
 		return err
 	}
-	c.cache.Remove(ik{namespace: namespace, id: parentId})
-	c.cache.Remove(ik{namespace: namespace, id: entryId})
+	c.cache.invalidEntry(namespace, entryId, parentId)
+	c.cache.invalidChild(namespace, parentId, entryName)
 	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeDestroy, namespace, entryId)
 	return nil
 }
@@ -387,7 +383,7 @@ func (c *core) DestroyEntry(ctx context.Context, namespace string, entryId int64
 		c.logger.Errorw("destroy entry failed", "err", err)
 		return err
 	}
-	c.cache.Remove(ik{namespace: namespace, id: entryId})
+	c.cache.invalidEntry(namespace, entryId)
 	return nil
 }
 
@@ -439,8 +435,7 @@ func (c *core) MirrorEntry(ctx context.Context, namespace string, srcId, dstPare
 		c.logger.Errorw("update dst parent object ref count error", "srcEntry", srcId, "dstParent", dstParentId, "err", err.Error())
 		return nil, err
 	}
-	c.cache.Remove(ik{namespace: namespace, id: srcId})
-	c.cache.Remove(ik{namespace: namespace, id: dstParentId})
+	c.cache.invalidEntry(namespace, srcId, dstParentId)
 	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeMirror, src.Namespace, src.ID)
 	return c.getEntry(ctx, namespace, src.ID)
 }
@@ -490,7 +485,8 @@ func (c *core) ChangeEntryParent(ctx context.Context, namespace string, targetEn
 			c.logger.Errorw("remove entry failed when overwrite old one", "err", err)
 			return err
 		}
-		c.cache.Remove(ik{namespace: namespace, id: *overwriteEntryId})
+		c.cache.invalidEntry(namespace, *overwriteEntryId)
+		c.cache.invalidChild(namespace, newParentId, newName)
 		publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeDestroy, overwriteEntry.Namespace, overwriteEntry.ID)
 	}
 
@@ -499,9 +495,8 @@ func (c *core) ChangeEntryParent(ctx context.Context, namespace string, targetEn
 		c.logger.Errorw("change object parent failed", "entry", target.ID, "newParent", newParentId, "newName", newName, "err", err)
 		return err
 	}
-	c.cache.Remove(ik{namespace: namespace, id: targetEntryId})
-	c.cache.Remove(ik{namespace: namespace, id: newParentId})
-	c.cache.Remove(ik{namespace: namespace, id: oldParentId})
+	c.cache.invalidChild(namespace, oldParentId, oldName)
+	c.cache.invalidEntry(namespace, targetEntryId, newParentId, oldParentId)
 	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeChangeParent, target.Namespace, target.ID)
 	return nil
 }
@@ -520,7 +515,7 @@ func (c *core) Open(ctx context.Context, namespace string, entryId int64, attr t
 		}
 		publicEntryActionEvent(events.TopicNamespaceFile, events.ActionTypeTrunc, namespace, entryId)
 	}
-	c.cache.Remove(ik{namespace: namespace, id: entryId})
+	c.cache.invalidEntry(namespace, entryId)
 
 	switch entry.Kind {
 	case types.SymLinkKind:
@@ -538,7 +533,17 @@ func (c *core) Open(ctx context.Context, namespace string, entryId int64, attr t
 
 func (c *core) FindEntry(ctx context.Context, namespace string, parentId int64, name string) (*types.Child, error) {
 	defer trace.StartRegion(ctx, "fs.core.ListChildren").End()
-	return c.store.FindEntry(ctx, namespace, parentId, name)
+	cached, err := c.cache.findChild(namespace, parentId, name)
+	if err == nil {
+		return cached, nil
+	}
+
+	ch, err := c.store.FindEntry(ctx, namespace, parentId, name)
+	if err != nil {
+		return nil, err
+	}
+	c.cache.setChild(ch)
+	return ch, nil
 }
 
 func (c *core) ListChildren(ctx context.Context, namespace string, parentId int64) ([]*types.Child, error) {
@@ -607,7 +612,7 @@ func (c *core) AppendSegments(ctx context.Context, seg types.ChunkSeg) (*types.E
 	if err != nil {
 		return nil, err
 	}
-	_ = c.cache.Set(ik{namespace: en.Namespace, id: en.ID}, en)
+	c.cache.setEntry(en)
 	return en, nil
 }
 

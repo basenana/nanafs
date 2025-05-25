@@ -59,7 +59,7 @@ func (w *Webdav) Run(stopCh chan struct{}) {
 	go func() {
 		if err := httpServer.ListenAndServe(); err != nil {
 			if !errors.Is(http.ErrServerClosed, err) {
-				w.logger.Panicw("webdav server down", "err", err.Error())
+				w.logger.Errorw("webdav server down", "err", err)
 			}
 			w.logger.Infof("webdav server stopped")
 		}
@@ -155,23 +155,28 @@ func (o FsOperator) OpenFile(ctx context.Context, entryPath string, flag int, pe
 	return f, err
 }
 
-func (o FsOperator) RemoveAll(ctx context.Context, path string) error {
+func (o FsOperator) RemoveAll(ctx context.Context, entryPath string) error {
 	defer trace.StartRegion(ctx, "apis.webdav.RemoveAll").End()
 
-	parent, en, err := o.fs.GetEntryByPath(ctx, path)
+	entryName := path.Base(entryPath)
+	parent, en, err := o.fs.GetEntryByPath(ctx, entryPath)
 	if err != nil {
 		return error2FsError(err)
 	}
 
+	if parent.ID == en.ID { // root entry
+		return error2FsError(types.ErrNoPerm)
+	}
+
 	if !en.IsGroup {
-		err := o.fs.UnlinkEntry(ctx, parent.ID, en.Name, types.DestroyEntryAttr{})
+		err := o.fs.UnlinkEntry(ctx, parent.ID, entryName, types.DestroyEntryAttr{})
 		if err != nil {
 			return error2FsError(err)
 		}
 		return nil
 	}
 
-	err = o.fs.RmGroup(ctx, parent.ID, en.Name, types.DestroyEntryAttr{Recursion: true})
+	err = o.fs.RmGroup(ctx, parent.ID, entryName, types.DestroyEntryAttr{Recursion: true})
 	if err != nil {
 		return error2FsError(types.ErrNotEmpty)
 	}
@@ -185,6 +190,10 @@ func (o FsOperator) Rename(ctx context.Context, oldPath, newPath string) error {
 	oldParent, target, err := o.fs.GetEntryByPath(ctx, oldPath)
 	if err != nil {
 		return error2FsError(err)
+	}
+
+	if oldParent.ID == target.ID { // root entry
+		return error2FsError(types.ErrNoPerm)
 	}
 
 	newParent := path.Dir(newPath)
