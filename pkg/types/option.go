@@ -26,6 +26,7 @@ type EntryAttr struct {
 	Properties Properties
 	Labels     Labels
 	ExtendData *ExtendData
+	Dynamic    bool
 }
 
 type OpenAttr struct {

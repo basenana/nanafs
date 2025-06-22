@@ -46,10 +46,6 @@ func init() {
 	}
 }
 
-type executor interface {
-	execute(ctx context.Context, task *types.ScheduledTask) error
-}
-
 type routineTask func(ctx context.Context) error
 
 type Dispatcher struct {

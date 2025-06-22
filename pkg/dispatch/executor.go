@@ -15,3 +15,25 @@
 */
 
 package dispatch
+
+import (
+	"context"
+	"github.com/basenana/nanafs/pkg/core"
+	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/types"
+	"go.uber.org/zap"
+)
+
+type executor interface {
+	execute(ctx context.Context, task *types.ScheduledTask) error
+}
+
+type taskExecutor struct {
+	core     core.Core
+	recorder metastore.ScheduledTaskRecorder
+	logger   *zap.SugaredLogger
+}
+
+func (e *taskExecutor) execute(ctx context.Context, task *types.ScheduledTask) error {
+	return nil
+}

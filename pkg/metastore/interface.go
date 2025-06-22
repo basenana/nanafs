@@ -54,7 +54,7 @@ type EntryStore interface {
 	GetChild(ctx context.Context, namespace string, parentID, id int64) (*types.Child, error)
 	ListChildren(ctx context.Context, namespace string, parentId int64) ([]*types.Child, error)
 	FilterEntries(ctx context.Context, namespace string, filter types.Filter) (EntryIterator, error)
-	MirrorEntry(ctx context.Context, namespace string, entryID int64, newName string, newParentID int64) error
+	MirrorEntry(ctx context.Context, namespace string, entryID int64, newName string, newParentID int64, attr types.EntryAttr) error
 	ChangeEntryParent(ctx context.Context, namespace string, targetEntryId int64, oldParentID int64, newParentId int64, oldName string, newName string, opt types.ChangeParentAttr) error
 	RemoveEntry(ctx context.Context, namespace string, parentID, entryID int64, entryName string, attr types.DeleteEntry) error
 

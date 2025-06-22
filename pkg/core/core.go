@@ -431,7 +431,7 @@ func (c *core) MirrorEntry(ctx context.Context, namespace string, srcId, dstPare
 		name = attr.Name
 	}
 
-	if err = c.store.MirrorEntry(ctx, namespace, srcId, name, dstParentId); err != nil {
+	if err = c.store.MirrorEntry(ctx, namespace, srcId, name, dstParentId, attr); err != nil {
 		c.logger.Errorw("update dst parent object ref count error", "srcEntry", srcId, "dstParent", dstParentId, "err", err.Error())
 		return nil, err
 	}

@@ -18,6 +18,8 @@ package fuse
 
 import (
 	"github.com/basenana/nanafs/pkg/core"
+	"github.com/hanwen/go-fuse/v2/fs"
+	"github.com/hanwen/go-fuse/v2/fuse"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"os"
@@ -78,6 +80,12 @@ var _ = BeforeSuite(func() {
 
 	root, err = nfs.rootNode()
 	Expect(err).Should(BeNil())
+
+	// init root node
+	_ = fs.NewNodeFS(root, &fs.Options{
+		MountOptions: fuse.MountOptions{AllowOther: true, FsName: fsName, Name: fsName, SingleThreaded: true},
+		Logger:       logger.NewFuseLogger(),
+	})
 })
 
 var _ = AfterSuite(func() {

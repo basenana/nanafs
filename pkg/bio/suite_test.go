@@ -29,7 +29,7 @@ import (
 )
 
 var (
-	chunkStore metastore.ChunkStore
+	chunkStore ChunkStore
 	entryStore metastore.EntryStore
 	dataStore  storage.Storage
 

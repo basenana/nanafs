@@ -26,14 +26,20 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 )
 
+type AccessToken interface {
+	GetAccessToken(ctx context.Context, tokenKey string, secretKey string) (*types.AccessToken, error)
+	CreateAccessToken(ctx context.Context, namespace string, token *types.AccessToken) error
+	UpdateAccessTokenCerts(ctx context.Context, namespace string, token *types.AccessToken) error
+	RevokeAccessToken(ctx context.Context, namespace string, tokenKey string) error
+}
+
 type Manager struct {
-	store  metastore.AccessToken
+	store  AccessToken
 	cache  *cache
 	cfg    config.Config
 	logger *zap.SugaredLogger
@@ -145,7 +151,7 @@ func (m *Manager) resignCerts(ctx context.Context, namespace string, token *type
 	return nil
 }
 
-func NewTokenManager(store metastore.AccessToken, cfg config.Config) *Manager {
+func NewTokenManager(store AccessToken, cfg config.Config) *Manager {
 	return &Manager{
 		store:  store,
 		cache:  newTokenCache(),

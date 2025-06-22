@@ -71,6 +71,7 @@ type Child struct {
 	ParentID  int64  `json:"parent_id"`
 	ChildID   int64  `json:"child_id"`
 	Name      string `json:"name"`
+	Dynamic   bool   `json:"dynamic"`
 	Namespace string `json:"namespace"`
 	Marker    string `json:"marker"`
 }

@@ -373,7 +373,7 @@ func InitRootEntry() *types.Entry {
 	return root
 }
 
-func buildNewSqliteMetaStore(dbName string) *sqliteMetaStore {
+func buildNewSqliteMetaStore(dbName string) *sqlMetaStore {
 	result, err := newSqliteMetaStore(config.Meta{
 		Type: SqliteMeta,
 		Path: path.Join(workdir, dbName),

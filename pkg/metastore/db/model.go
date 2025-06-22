@@ -86,7 +86,7 @@ type Entry struct {
 }
 
 func (o *Entry) TableName() string {
-	return "object"
+	return "entry"
 }
 
 func (o *Entry) FromEntry(en *types.Entry) *Entry {
@@ -152,6 +152,7 @@ type Children struct {
 	ChildID   int64  `gorm:"column:child_id;primaryKey"`
 	Name      string `gorm:"column:name;primaryKey"`
 	Namespace string `gorm:"column:namespace;index:child_ns"`
+	Dynamic   bool   `gorm:"column:dynamic;index:child_dy"`
 	Marker    string `gorm:"column:marker"`
 }
 
@@ -160,6 +161,7 @@ func (c *Children) From(child *types.Child) {
 	c.ChildID = child.ChildID
 	c.Name = child.Name
 	c.Namespace = child.Namespace
+	c.Dynamic = child.Dynamic
 	c.Marker = child.Marker
 }
 
@@ -169,6 +171,7 @@ func (c *Children) To() *types.Child {
 		ChildID:   c.ChildID,
 		Name:      c.Name,
 		Namespace: c.Namespace,
+		Dynamic:   c.Dynamic,
 		Marker:    c.Marker,
 	}
 }
@@ -201,7 +204,7 @@ type EntryProperty struct {
 }
 
 func (o EntryProperty) TableName() string {
-	return "object_property"
+	return "entry_property"
 }
 
 type EntryExtend struct {
@@ -212,7 +215,7 @@ type EntryExtend struct {
 }
 
 func (o *EntryExtend) TableName() string {
-	return "object_extend"
+	return "entry_extend"
 }
 
 func (o *EntryExtend) From(ed *types.ExtendData) *EntryExtend {
@@ -255,7 +258,7 @@ type EntryChunk struct {
 }
 
 func (o EntryChunk) TableName() string {
-	return "object_chunk"
+	return "entry_chunk"
 }
 
 type ScheduledTask struct {
@@ -502,87 +505,4 @@ func (o *WorkflowJob) To() (*types.WorkflowJob, error) {
 	}
 
 	return result, nil
-}
-
-type Room struct {
-	ID        int64     `gorm:"column:id;primaryKey"`
-	Namespace string    `gorm:"column:namespace;index:room_namespace"`
-	Title     string    `gorm:"column:title"`
-	EntryId   int64     `gorm:"column:entry_id;index:room_entry_id"`
-	Prompt    string    `gorm:"column:prompt"`
-	History   string    `gorm:"column:history"`
-	CreatedAt time.Time `gorm:"column:created_at"`
-}
-
-func (r *Room) TableName() string { return "room" }
-
-func (r *Room) From(room *types.Room) (*Room, error) {
-	res := &Room{
-		ID:        room.ID,
-		Namespace: room.Namespace,
-		Title:     room.Title,
-		EntryId:   room.EntryId,
-		Prompt:    room.Prompt,
-		CreatedAt: room.CreatedAt,
-	}
-
-	history, err := json.Marshal(room.History)
-	if err != nil {
-		return nil, err
-	}
-	res.History = string(history)
-	return res, nil
-}
-
-func (r *Room) To() (room *types.Room, err error) {
-	room = &types.Room{
-		ID:        r.ID,
-		Namespace: r.Namespace,
-		Title:     r.Title,
-		EntryId:   r.EntryId,
-		Prompt:    r.Prompt,
-		History:   []map[string]string{},
-		CreatedAt: r.CreatedAt,
-	}
-	if r.History != "" {
-		err = json.Unmarshal([]byte(r.History), &(room.History))
-	}
-	return
-}
-
-type RoomMessage struct {
-	ID        int64     `gorm:"column:id;primaryKey"`
-	Namespace string    `gorm:"column:namespace;index:message_namespace"`
-	RoomID    int64     `gorm:"column:room_id;index:message_room_id"`
-	Sender    string    `gorm:"column:sender"`
-	Message   string    `gorm:"column:message"`
-	SendAt    time.Time `gorm:"column:send_at"`
-	CreatedAt time.Time `gorm:"column:created_at"`
-}
-
-func (r *RoomMessage) TableName() string { return "room_message" }
-
-func (r *RoomMessage) From(roomMessage *types.RoomMessage) *RoomMessage {
-	return &RoomMessage{
-		ID:        roomMessage.ID,
-		Namespace: roomMessage.Namespace,
-		RoomID:    roomMessage.RoomID,
-		Sender:    roomMessage.Sender,
-		Message:   roomMessage.Message,
-		SendAt:    roomMessage.SendAt,
-		CreatedAt: roomMessage.CreatedAt,
-	}
-}
-
-func (r *RoomMessage) To() (roomMessage *types.RoomMessage) {
-	roomMessage = &types.RoomMessage{
-		ID:        r.ID,
-		Namespace: r.Namespace,
-		RoomID:    r.RoomID,
-		Sender:    r.Sender,
-		Message:   r.Message,
-		SendAt:    r.SendAt,
-		CreatedAt: r.CreatedAt,
-	}
-	return
 }
