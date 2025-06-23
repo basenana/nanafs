@@ -41,7 +41,7 @@ type transactionEntryIterator struct {
 }
 
 func newTransactionEntryIterator(tx *gorm.DB, total int64) EntryIterator {
-	it := &transactionEntryIterator{tx: tx.Order("object.name DESC"), onePage: make([]*types.Entry, 0)}
+	it := &transactionEntryIterator{tx: tx.Order("entry.name DESC"), onePage: make([]*types.Entry, 0)}
 	it.remain = total
 	return it
 }

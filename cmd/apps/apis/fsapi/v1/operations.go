@@ -267,7 +267,7 @@ func (s *servicesV1) ChangeEntryParent(ctx context.Context, namespace string, ta
 		Exchange: opt.Exchange,
 	})
 	if err != nil {
-		s.logger.Errorw("change object parent failed", "target", targetId, "newParent", newParentId, "newName", newName, "err", err)
+		s.logger.Errorw("change entry parent failed", "target", targetId, "newParent", newParentId, "newName", newName, "err", err)
 		return err
 	}
 	return nil

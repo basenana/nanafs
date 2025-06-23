@@ -24,7 +24,7 @@ var (
 	ErrIsExist     = errors.New("record existed")
 	ErrNotEmpty    = errors.New("group not empty")
 	ErrNoGroup     = errors.New("not group")
-	ErrIsGroup     = errors.New("this object is a group")
+	ErrIsGroup     = errors.New("this entry is a group")
 	ErrNoAccess    = errors.New("no access")
 	ErrNoPerm      = errors.New("no permission")
 	ErrNoNamespace = errors.New("no namespace")

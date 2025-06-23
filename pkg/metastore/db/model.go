@@ -47,15 +47,19 @@ func (i SystemConfig) TableName() string {
 }
 
 type AccessToken struct {
-	TokenKey       string    `gorm:"column:token_key;primaryKey"`
-	SecretToken    string    `gorm:"column:secret_token"`
-	UID            int64     `gorm:"column:uid;index:tk_uid"`
-	GID            int64     `gorm:"column:gid"`
+	ID          string    `gorm:"column:id;primaryKey"`
+	Token       string    `gorm:"column:token"`
+	Namespace   string    `gorm:"column:namespace;index:tk_ns"`
+	UID         int64     `gorm:"column:uid;index:tk_uid"`
+	GID         int64     `gorm:"column:gid"`
+	LastSeenAt  time.Time `gorm:"column:last_seen_at"`
+	Description string    `gorm:"column:description"`
+
 	ClientCrt      string    `gorm:"column:client_crt"`
 	ClientKey      string    `gorm:"column:client_key"`
+	TokenKey       string    `gorm:"column:token_key;primaryKey"`
+	SecretToken    string    `gorm:"column:secret_token"`
 	CertExpiration time.Time `gorm:"column:cert_expiration"`
-	LastSeenAt     time.Time `gorm:"column:last_seen_at"`
-	Namespace      string    `gorm:"column:namespace;index:tk_ns"`
 }
 
 func (o *AccessToken) TableName() string {
@@ -64,21 +68,19 @@ func (o *AccessToken) TableName() string {
 
 type Entry struct {
 	ID         int64   `gorm:"column:id;primaryKey"`
-	Name       string  `gorm:"column:name;index:obj_name"`
+	Name       string  `gorm:"column:name;index:en_name"`
 	Aliases    *string `gorm:"column:aliases"`
-	ParentID   *int64  `gorm:"column:parent_id;index:parent_id"`
+	ParentID   *int64  `gorm:"column:parent_id;index:en_parent"`
 	RefCount   *int    `gorm:"column:ref_count"`
 	Kind       string  `gorm:"column:kind"`
-	KindMap    *int64  `gorm:"column:kind_map"`
-	IsGroup    bool    `gorm:"column:is_group;index:obj_isgrp"`
+	IsGroup    bool    `gorm:"column:is_group;index:en_isgrp"`
 	Size       *int64  `gorm:"column:size"`
-	Version    int64   `gorm:"column:version;index:obj_version"`
-	Dev        int64   `gorm:"column:dev"`
+	Version    int64   `gorm:"column:version;index:en_version"`
 	Owner      *int64  `gorm:"column:owner"`
 	GroupOwner *int64  `gorm:"column:group_owner"`
 	Permission *int64  `gorm:"column:permission"`
 	Storage    string  `gorm:"column:storage"`
-	Namespace  string  `gorm:"column:namespace;index:obj_ns"`
+	Namespace  string  `gorm:"column:namespace;index:en_ns"`
 	CreatedAt  int64   `gorm:"column:created_at"`
 	ChangedAt  int64   `gorm:"column:changed_at"`
 	ModifiedAt int64   `gorm:"column:modified_at"`
@@ -96,11 +98,9 @@ func (o *Entry) FromEntry(en *types.Entry) *Entry {
 	o.ParentID = &en.ParentID
 	o.RefCount = &en.RefCount
 	o.Kind = string(en.Kind)
-	o.KindMap = &en.KindMap
 	o.IsGroup = en.IsGroup
 	o.Size = &en.Size
 	o.Version = en.Version
-	o.Dev = en.Dev
 	o.Storage = en.Storage
 	o.Namespace = en.Namespace
 	o.CreatedAt = en.CreatedAt.UnixNano()
@@ -120,7 +120,6 @@ func (o *Entry) ToEntry() *types.Entry {
 		Kind:       types.Kind(o.Kind),
 		IsGroup:    o.IsGroup,
 		Version:    o.Version,
-		Dev:        o.Dev,
 		Storage:    o.Storage,
 		Namespace:  o.Namespace,
 		CreatedAt:  time.Unix(0, o.CreatedAt),
@@ -138,9 +137,6 @@ func (o *Entry) ToEntry() *types.Entry {
 	if o.RefCount != nil {
 		result.RefCount = *o.RefCount
 	}
-	if o.KindMap != nil {
-		result.KindMap = *o.KindMap
-	}
 	if o.Size != nil {
 		result.Size = *o.Size
 	}
@@ -153,7 +149,6 @@ type Children struct {
 	Name      string `gorm:"column:name;primaryKey"`
 	Namespace string `gorm:"column:namespace;index:child_ns"`
 	Dynamic   bool   `gorm:"column:dynamic;index:child_dy"`
-	Marker    string `gorm:"column:marker"`
 }
 
 func (c *Children) From(child *types.Child) {
@@ -162,7 +157,6 @@ func (c *Children) From(child *types.Child) {
 	c.Name = child.Name
 	c.Namespace = child.Namespace
 	c.Dynamic = child.Dynamic
-	c.Marker = child.Marker
 }
 
 func (c *Children) To() *types.Child {
@@ -172,7 +166,6 @@ func (c *Children) To() *types.Child {
 		Name:      c.Name,
 		Namespace: c.Namespace,
 		Dynamic:   c.Dynamic,
-		Marker:    c.Marker,
 	}
 }
 
@@ -195,12 +188,14 @@ func (o Label) TableName() string {
 }
 
 type EntryProperty struct {
-	ID        int64  `gorm:"column:id;autoIncrement"`
-	OID       int64  `gorm:"column:oid;index:prop_oid"`
-	Name      string `gorm:"column:key;index:prop_name"`
-	Namespace string `gorm:"column:namespace;index:prop_ns"`
+	Entry     int64  `gorm:"column:entry;primaryKey"`
+	Type      string `gorm:"column:type;primaryKey"`
 	Value     string `gorm:"column:value"`
-	Encoded   bool   `gorm:"column:encoded"`
+	Namespace string `gorm:"column:namespace;index:prop_ns"`
+
+	OID     int64  `gorm:"column:oid;index:prop_oid"`
+	Name    string `gorm:"column:key;index:prop_name"`
+	Encoded bool   `gorm:"column:encoded"`
 }
 
 func (o EntryProperty) TableName() string {
@@ -249,12 +244,14 @@ func (o *EntryExtend) ToExtData() types.ExtendData {
 
 type EntryChunk struct {
 	ID       int64 `gorm:"column:id;primaryKey"`
-	OID      int64 `gorm:"column:oid;index:ck_oid"`
+	Entry    int64 `gorm:"column:entry;index:ck_eid"`
 	ChunkID  int64 `gorm:"column:chunk_id;index:ck_id"`
 	Off      int64 `gorm:"column:off"`
 	Len      int64 `gorm:"column:len"`
 	State    int16 `gorm:"column:state"`
 	AppendAt int64 `gorm:"column:append_at;index:ck_append_at"`
+
+	OID int64 `gorm:"column:oid;index:ck_oid"`
 }
 
 func (o EntryChunk) TableName() string {
@@ -293,67 +290,6 @@ type Notification struct {
 
 func (o *Notification) TableName() string {
 	return "notification"
-}
-
-type Event struct {
-	ID              string    `gorm:"column:id;primaryKey"`
-	Type            string    `gorm:"column:type;index:evt_type"`
-	Source          string    `gorm:"column:source"`
-	SpecVersion     string    `gorm:"column:specversion"`
-	RefID           int64     `gorm:"column:ref_id;index:evt_refid"`
-	RefType         string    `gorm:"column:ref_type;index:evt_reftype"`
-	DataContentType string    `gorm:"column:datacontenttype"`
-	Data            string    `gorm:"column:data"`
-	Sequence        int64     `gorm:"column:sequence;index:evt_seq"`
-	Namespace       string    `gorm:"column:namespace;index:evt_ns"`
-	Time            time.Time `gorm:"column:time;index:evt_time"`
-}
-
-func (o *Event) TableName() string {
-	return "event"
-}
-
-func (o *Event) From(event types.Event) {
-	o.ID = event.Id
-	o.Type = event.Type
-	o.Source = event.Source
-	o.SpecVersion = event.SpecVersion
-	o.RefID = event.RefID
-	o.RefType = event.RefType
-	o.DataContentType = event.DataContentType
-	o.Data = event.Data.String()
-	o.Sequence = event.Sequence
-	o.Namespace = event.Namespace
-	o.Time = event.Time
-}
-
-func (o *Event) To() (event types.Event, err error) {
-	event = types.Event{
-		Id:              o.ID,
-		Type:            o.Type,
-		Source:          o.Source,
-		SpecVersion:     o.SpecVersion,
-		Time:            o.Time,
-		Sequence:        o.Sequence,
-		Namespace:       o.Namespace,
-		RefID:           o.RefID,
-		RefType:         o.RefType,
-		DataContentType: o.DataContentType,
-		Data:            types.EventData{},
-	}
-	err = json.Unmarshal([]byte(o.Data), &(event.Data))
-	return
-}
-
-type RegisteredDevice struct {
-	ID             string    `gorm:"column:id;primaryKey"`
-	SyncedSequence int64     `gorm:"column:synced_sequence"`
-	LastSeenAt     time.Time `gorm:"column:last_seen_at"`
-	Namespace      string    `gorm:"column:namespace;index:device_ns"`
-}
-
-func (o *RegisteredDevice) TableName() string {
-	return "registered_device"
 }
 
 type Workflow struct {

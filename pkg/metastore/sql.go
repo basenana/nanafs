@@ -508,15 +508,7 @@ func (s *sqlMetaStore) DeleteRemovedEntry(ctx context.Context, namespace string,
 		if res.Error != nil {
 			return res.Error
 		}
-		res = tx.Where("id = ?", entryMod.ID).Delete(&db.EntryExtend{})
-		if res.Error != nil {
-			return res.Error
-		}
-		res = tx.Where("oid = ?", entryMod.ID).Delete(&db.EntryProperty{})
-		if res.Error != nil {
-			return res.Error
-		}
-		res = tx.Where("ref_type = 'object' AND ref_id = ?", entryID).Delete(&db.Label{})
+		res = tx.Where("entry = ?", entryMod.ID).Delete(&db.EntryProperty{})
 		if res.Error != nil {
 			return res.Error
 		}
@@ -568,7 +560,7 @@ func (s *sqlMetaStore) FilterEntries(ctx context.Context, namespace string, filt
 	}
 
 	var total int64
-	tx := queryFilter(s.WithContext(ctx).Model(&db.Entry{}).Where("object.namespace = ?", namespace), filter, scopeIds)
+	tx := queryFilter(s.WithContext(ctx).Model(&db.Entry{}).Where("entry.namespace = ?", namespace), filter, scopeIds)
 	if page := types.GetPagination(ctx); page != nil {
 		tx = tx.Offset(page.Offset()).Limit(page.Limit())
 	}

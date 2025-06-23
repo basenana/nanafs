@@ -52,10 +52,6 @@ func nanaNode2Stat(entry *types.Entry) *syscall.Stat_t {
 	mode |= accMod
 
 	rdev := int32(MountDev)
-	if entry.Dev != 0 {
-		rdev = int32(entry.Dev)
-	}
-
 	return &syscall.Stat_t{
 		Size:          entry.Size,
 		Blocks:        entry.Size/fileBlockSize + 1,

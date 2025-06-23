@@ -48,11 +48,9 @@ type Entry struct {
 	Aliases    string    `json:"aliases,omitempty"`
 	RefCount   int       `json:"ref_count,omitempty"`
 	Kind       Kind      `json:"kind"`
-	KindMap    int64     `json:"kind_map"`
 	IsGroup    bool      `json:"is_group"`
 	Size       int64     `json:"size"`
 	Version    int64     `json:"version"`
-	Dev        int64     `json:"dev"`
 	Namespace  string    `json:"namespace,omitempty"`
 	Storage    string    `json:"storage"`
 	CreatedAt  time.Time `json:"created_at"`
@@ -81,7 +79,6 @@ func NewEntry(name string, kind Kind) Entry {
 		ID:         utils.GenerateNewID(),
 		Name:       name,
 		Kind:       FileKind(name, kind),
-		KindMap:    0,
 		IsGroup:    IsGroup(kind),
 		Version:    1,
 		RefCount:   1,
@@ -152,8 +149,6 @@ func InitNewEntry(parent *Entry, attr EntryAttr) (*Entry, error) {
 	}
 
 	md := NewEntry(attr.Name, attr.Kind)
-	md.Dev = attr.Dev
-
 	if parent != nil {
 		md.ParentID = parent.ID
 		md.Storage = parent.Storage

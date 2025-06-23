@@ -447,7 +447,6 @@ func (s *servicesV1) CreateEntry(ctx context.Context, request *CreateEntryReques
 		Name:   request.Name,
 		Kind:   pdKind2EntryKind(request.Kind),
 		Access: &parent.Access,
-		Dev:    parent.Dev,
 	}
 	if request.Rss != nil {
 		s.logger.Infow("setup rss feed to dir", "feed", request.Rss.Feed, "siteName", request.Rss.SiteName)

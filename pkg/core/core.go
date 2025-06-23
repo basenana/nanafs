@@ -129,7 +129,7 @@ func (c *core) FSRoot(ctx context.Context) (*types.Entry, error) {
 	}
 
 	if !errors.Is(err, types.ErrNotFound) {
-		c.logger.Errorw("load root object error", "err", err.Error())
+		c.logger.Errorw("load root entry error", "err", err.Error())
 		return nil, err
 	}
 	root = initRootEntry()
@@ -164,18 +164,18 @@ func (c *core) NamespaceRoot(ctx context.Context, namespace string) (*types.Entr
 	)
 	nsChild, err = c.store.FindEntry(ctx, namespace, root.ID, namespace)
 	if err != nil {
-		c.logger.Errorw("load ns child object error", "namespace", namespace, "err", err)
+		c.logger.Errorw("load ns child entry error", "namespace", namespace, "err", err)
 		return nil, err
 	}
 
 	nsRoot, err = c.getEntry(ctx, namespace, nsChild.ChildID)
 	if err != nil {
-		c.logger.Errorw("load ns root object error", "namespace", namespace, "err", err)
+		c.logger.Errorw("load ns root entry error", "namespace", namespace, "err", err)
 		return nil, err
 	}
 
 	if nsRoot.Namespace != namespace {
-		c.logger.Errorw("find ns root object error", "err", "namespace not match")
+		c.logger.Errorw("find ns root entry error", "err", "namespace not match")
 		return nil, types.ErrNotFound
 	}
 	return nsRoot, nil
@@ -191,7 +191,7 @@ func (c *core) CreateNamespace(ctx context.Context, namespace string) error {
 
 	root, err := c.getEntry(ctx, types.DefaultNamespace, RootEntryID)
 	if err != nil {
-		c.logger.Errorw("load root object error", "err", err.Error())
+		c.logger.Errorw("load root entry error", "err", err.Error())
 		return err
 	}
 
@@ -432,7 +432,7 @@ func (c *core) MirrorEntry(ctx context.Context, namespace string, srcId, dstPare
 	}
 
 	if err = c.store.MirrorEntry(ctx, namespace, srcId, name, dstParentId, attr); err != nil {
-		c.logger.Errorw("update dst parent object ref count error", "srcEntry", srcId, "dstParent", dstParentId, "err", err.Error())
+		c.logger.Errorw("update dst parent entry ref count error", "srcEntry", srcId, "dstParent", dstParentId, "err", err.Error())
 		return nil, err
 	}
 	c.cache.invalidEntry(namespace, srcId, dstParentId)
@@ -492,7 +492,7 @@ func (c *core) ChangeEntryParent(ctx context.Context, namespace string, targetEn
 
 	err = c.store.ChangeEntryParent(ctx, namespace, targetEntryId, oldParentId, newParentId, oldName, newName, opt)
 	if err != nil {
-		c.logger.Errorw("change object parent failed", "entry", target.ID, "newParent", newParentId, "newName", newName, "err", err)
+		c.logger.Errorw("change entry parent failed", "entry", target.ID, "newParent", newParentId, "newName", newName, "err", err)
 		return err
 	}
 	c.cache.invalidChild(namespace, oldParentId, oldName)
