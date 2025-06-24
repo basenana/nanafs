@@ -24,18 +24,10 @@ import (
 )
 
 type Meta interface {
-	AccessToken
 	SysConfig
 	EntryStore
 	NotificationRecorder
 	ScheduledTaskRecorder
-}
-
-type AccessToken interface {
-	GetAccessToken(ctx context.Context, tokenKey string, secretKey string) (*types.AccessToken, error)
-	CreateAccessToken(ctx context.Context, namespace string, token *types.AccessToken) error
-	UpdateAccessTokenCerts(ctx context.Context, namespace string, token *types.AccessToken) error
-	RevokeAccessToken(ctx context.Context, namespace string, tokenKey string) error
 }
 
 type SysConfig interface {

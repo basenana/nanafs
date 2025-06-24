@@ -22,6 +22,7 @@ import (
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/types"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"path"
 	"runtime/trace"
 	"sort"
 )
@@ -83,7 +84,7 @@ func (s *servicesV1) listGroupEntry(ctx context.Context, namespace string, name 
 	return result, nil
 }
 
-func (s *servicesV1) getEntryDetails(ctx context.Context, namespace string, parent, id int64) (*EntryDetail, []*Property, error) {
+func (s *servicesV1) getEntryDetails(ctx context.Context, namespace, uri string, parent, id int64) (*EntryDetail, []*Property, error) {
 	en, err := s.core.GetEntry(ctx, namespace, id)
 	if err != nil {
 		return nil, nil, err
@@ -95,8 +96,9 @@ func (s *servicesV1) getEntryDetails(ctx context.Context, namespace string, pare
 	}
 
 	ed := &EntryDetail{
-		Id:         en.ID,
-		Name:       en.Name,
+		Uri:        uri,
+		Entry:      en.ID,
+		Name:       path.Base(uri),
 		Aliases:    en.Aliases,
 		Kind:       string(en.Kind),
 		IsGroup:    en.IsGroup,
@@ -113,12 +115,7 @@ func (s *servicesV1) getEntryDetails(ctx context.Context, namespace string, pare
 
 	properties := make(map[string]types.PropertyItem)
 	if parent > 0 {
-		parentEn, err := s.core.GetEntry(ctx, namespace, parent)
-		if err != nil {
-			// TODO
-			s.logger.Warnw("get entry parent detail failed", "entry", id, "err", err)
-		}
-
+		// TODO: delete this?
 		baseProperties, err := s.meta.ListEntryProperties(ctx, namespace, parent)
 		if err != nil {
 			return nil, nil, err
@@ -129,7 +126,6 @@ func (s *servicesV1) getEntryDetails(ctx context.Context, namespace string, pare
 			}
 			properties[k] = p
 		}
-		ed.Parent = toEntryInfo(parentEn)
 	}
 
 	ps, err := s.meta.ListEntryProperties(ctx, namespace, id)

@@ -18,96 +18,11 @@ import (
 // Requires gRPC-Go v1.32.0 or later.
 const _ = grpc.SupportPackageIsVersion7
 
-// AuthClient is the client API for Auth service.
-//
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type AuthClient interface {
-	AccessToken(ctx context.Context, in *AccessTokenRequest, opts ...grpc.CallOption) (*AccessTokenResponse, error)
-}
-
-type authClient struct {
-	cc grpc.ClientConnInterface
-}
-
-func NewAuthClient(cc grpc.ClientConnInterface) AuthClient {
-	return &authClient{cc}
-}
-
-func (c *authClient) AccessToken(ctx context.Context, in *AccessTokenRequest, opts ...grpc.CallOption) (*AccessTokenResponse, error) {
-	out := new(AccessTokenResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Auth/AccessToken", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// AuthServer is the server API for Auth service.
-// All implementations should embed UnimplementedAuthServer
-// for forward compatibility
-type AuthServer interface {
-	AccessToken(context.Context, *AccessTokenRequest) (*AccessTokenResponse, error)
-}
-
-// UnimplementedAuthServer should be embedded to have forward compatible implementations.
-type UnimplementedAuthServer struct {
-}
-
-func (UnimplementedAuthServer) AccessToken(context.Context, *AccessTokenRequest) (*AccessTokenResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method AccessToken not implemented")
-}
-
-// UnsafeAuthServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to AuthServer will
-// result in compilation errors.
-type UnsafeAuthServer interface {
-	mustEmbedUnimplementedAuthServer()
-}
-
-func RegisterAuthServer(s grpc.ServiceRegistrar, srv AuthServer) {
-	s.RegisterService(&Auth_ServiceDesc, srv)
-}
-
-func _Auth_AccessToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AccessTokenRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AuthServer).AccessToken(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/api.v1.Auth/AccessToken",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServer).AccessToken(ctx, req.(*AccessTokenRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-// Auth_ServiceDesc is the grpc.ServiceDesc for Auth service.
-// It's only intended for direct use with grpc.RegisterService,
-// and not to be introspected or modified (even as a copy)
-var Auth_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "api.v1.Auth",
-	HandlerType: (*AuthServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "AccessToken",
-			Handler:    _Auth_AccessToken_Handler,
-		},
-	},
-	Streams:  []grpc.StreamDesc{},
-	Metadata: "cmd/apps/apis/fsapi/v1/fsapi-v1.proto",
-}
-
 // EntriesClient is the client API for Entries service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type EntriesClient interface {
 	GroupTree(ctx context.Context, in *GetGroupTreeRequest, opts ...grpc.CallOption) (*GetGroupTreeResponse, error)
-	FindEntryDetail(ctx context.Context, in *FindEntryDetailRequest, opts ...grpc.CallOption) (*GetEntryDetailResponse, error)
 	GetEntryDetail(ctx context.Context, in *GetEntryDetailRequest, opts ...grpc.CallOption) (*GetEntryDetailResponse, error)
 	CreateEntry(ctx context.Context, in *CreateEntryRequest, opts ...grpc.CallOption) (*CreateEntryResponse, error)
 	UpdateEntry(ctx context.Context, in *UpdateEntryRequest, opts ...grpc.CallOption) (*UpdateEntryResponse, error)
@@ -130,15 +45,6 @@ func NewEntriesClient(cc grpc.ClientConnInterface) EntriesClient {
 func (c *entriesClient) GroupTree(ctx context.Context, in *GetGroupTreeRequest, opts ...grpc.CallOption) (*GetGroupTreeResponse, error) {
 	out := new(GetGroupTreeResponse)
 	err := c.cc.Invoke(ctx, "/api.v1.Entries/GroupTree", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *entriesClient) FindEntryDetail(ctx context.Context, in *FindEntryDetailRequest, opts ...grpc.CallOption) (*GetEntryDetailResponse, error) {
-	out := new(GetEntryDetailResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Entries/FindEntryDetail", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -279,7 +185,6 @@ func (x *entriesReadFileClient) Recv() (*ReadFileResponse, error) {
 // for forward compatibility
 type EntriesServer interface {
 	GroupTree(context.Context, *GetGroupTreeRequest) (*GetGroupTreeResponse, error)
-	FindEntryDetail(context.Context, *FindEntryDetailRequest) (*GetEntryDetailResponse, error)
 	GetEntryDetail(context.Context, *GetEntryDetailRequest) (*GetEntryDetailResponse, error)
 	CreateEntry(context.Context, *CreateEntryRequest) (*CreateEntryResponse, error)
 	UpdateEntry(context.Context, *UpdateEntryRequest) (*UpdateEntryResponse, error)
@@ -297,9 +202,6 @@ type UnimplementedEntriesServer struct {
 
 func (UnimplementedEntriesServer) GroupTree(context.Context, *GetGroupTreeRequest) (*GetGroupTreeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GroupTree not implemented")
-}
-func (UnimplementedEntriesServer) FindEntryDetail(context.Context, *FindEntryDetailRequest) (*GetEntryDetailResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method FindEntryDetail not implemented")
 }
 func (UnimplementedEntriesServer) GetEntryDetail(context.Context, *GetEntryDetailRequest) (*GetEntryDetailResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetEntryDetail not implemented")
@@ -354,24 +256,6 @@ func _Entries_GroupTree_Handler(srv interface{}, ctx context.Context, dec func(i
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(EntriesServer).GroupTree(ctx, req.(*GetGroupTreeRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Entries_FindEntryDetail_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(FindEntryDetailRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(EntriesServer).FindEntryDetail(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/api.v1.Entries/FindEntryDetail",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(EntriesServer).FindEntryDetail(ctx, req.(*FindEntryDetailRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -559,10 +443,6 @@ var Entries_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GroupTree",
 			Handler:    _Entries_GroupTree_Handler,
-		},
-		{
-			MethodName: "FindEntryDetail",
-			Handler:    _Entries_FindEntryDetail_Handler,
 		},
 		{
 			MethodName: "GetEntryDetail",
@@ -758,234 +638,6 @@ var Properties_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteProperty",
 			Handler:    _Properties_DeleteProperty_Handler,
-		},
-	},
-	Streams:  []grpc.StreamDesc{},
-	Metadata: "cmd/apps/apis/fsapi/v1/fsapi-v1.proto",
-}
-
-// DocumentClient is the client API for Document service.
-//
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type DocumentClient interface {
-	ListDocuments(ctx context.Context, in *ListDocumentsRequest, opts ...grpc.CallOption) (*ListDocumentsResponse, error)
-	GetDocumentParents(ctx context.Context, in *GetDocumentParentsRequest, opts ...grpc.CallOption) (*GetDocumentParentsResponse, error)
-	GetDocumentDetail(ctx context.Context, in *GetDocumentDetailRequest, opts ...grpc.CallOption) (*GetDocumentDetailResponse, error)
-	UpdateDocument(ctx context.Context, in *UpdateDocumentRequest, opts ...grpc.CallOption) (*UpdateDocumentResponse, error)
-	SearchDocuments(ctx context.Context, in *SearchDocumentsRequest, opts ...grpc.CallOption) (*SearchDocumentsResponse, error)
-}
-
-type documentClient struct {
-	cc grpc.ClientConnInterface
-}
-
-func NewDocumentClient(cc grpc.ClientConnInterface) DocumentClient {
-	return &documentClient{cc}
-}
-
-func (c *documentClient) ListDocuments(ctx context.Context, in *ListDocumentsRequest, opts ...grpc.CallOption) (*ListDocumentsResponse, error) {
-	out := new(ListDocumentsResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Document/ListDocuments", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *documentClient) GetDocumentParents(ctx context.Context, in *GetDocumentParentsRequest, opts ...grpc.CallOption) (*GetDocumentParentsResponse, error) {
-	out := new(GetDocumentParentsResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Document/GetDocumentParents", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *documentClient) GetDocumentDetail(ctx context.Context, in *GetDocumentDetailRequest, opts ...grpc.CallOption) (*GetDocumentDetailResponse, error) {
-	out := new(GetDocumentDetailResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Document/GetDocumentDetail", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *documentClient) UpdateDocument(ctx context.Context, in *UpdateDocumentRequest, opts ...grpc.CallOption) (*UpdateDocumentResponse, error) {
-	out := new(UpdateDocumentResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Document/UpdateDocument", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *documentClient) SearchDocuments(ctx context.Context, in *SearchDocumentsRequest, opts ...grpc.CallOption) (*SearchDocumentsResponse, error) {
-	out := new(SearchDocumentsResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Document/SearchDocuments", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// DocumentServer is the server API for Document service.
-// All implementations should embed UnimplementedDocumentServer
-// for forward compatibility
-type DocumentServer interface {
-	ListDocuments(context.Context, *ListDocumentsRequest) (*ListDocumentsResponse, error)
-	GetDocumentParents(context.Context, *GetDocumentParentsRequest) (*GetDocumentParentsResponse, error)
-	GetDocumentDetail(context.Context, *GetDocumentDetailRequest) (*GetDocumentDetailResponse, error)
-	UpdateDocument(context.Context, *UpdateDocumentRequest) (*UpdateDocumentResponse, error)
-	SearchDocuments(context.Context, *SearchDocumentsRequest) (*SearchDocumentsResponse, error)
-}
-
-// UnimplementedDocumentServer should be embedded to have forward compatible implementations.
-type UnimplementedDocumentServer struct {
-}
-
-func (UnimplementedDocumentServer) ListDocuments(context.Context, *ListDocumentsRequest) (*ListDocumentsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListDocuments not implemented")
-}
-func (UnimplementedDocumentServer) GetDocumentParents(context.Context, *GetDocumentParentsRequest) (*GetDocumentParentsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetDocumentParents not implemented")
-}
-func (UnimplementedDocumentServer) GetDocumentDetail(context.Context, *GetDocumentDetailRequest) (*GetDocumentDetailResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetDocumentDetail not implemented")
-}
-func (UnimplementedDocumentServer) UpdateDocument(context.Context, *UpdateDocumentRequest) (*UpdateDocumentResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateDocument not implemented")
-}
-func (UnimplementedDocumentServer) SearchDocuments(context.Context, *SearchDocumentsRequest) (*SearchDocumentsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SearchDocuments not implemented")
-}
-
-// UnsafeDocumentServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to DocumentServer will
-// result in compilation errors.
-type UnsafeDocumentServer interface {
-	mustEmbedUnimplementedDocumentServer()
-}
-
-func RegisterDocumentServer(s grpc.ServiceRegistrar, srv DocumentServer) {
-	s.RegisterService(&Document_ServiceDesc, srv)
-}
-
-func _Document_ListDocuments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListDocumentsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DocumentServer).ListDocuments(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/api.v1.Document/ListDocuments",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DocumentServer).ListDocuments(ctx, req.(*ListDocumentsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Document_GetDocumentParents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetDocumentParentsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DocumentServer).GetDocumentParents(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/api.v1.Document/GetDocumentParents",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DocumentServer).GetDocumentParents(ctx, req.(*GetDocumentParentsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Document_GetDocumentDetail_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetDocumentDetailRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DocumentServer).GetDocumentDetail(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/api.v1.Document/GetDocumentDetail",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DocumentServer).GetDocumentDetail(ctx, req.(*GetDocumentDetailRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Document_UpdateDocument_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateDocumentRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DocumentServer).UpdateDocument(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/api.v1.Document/UpdateDocument",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DocumentServer).UpdateDocument(ctx, req.(*UpdateDocumentRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Document_SearchDocuments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SearchDocumentsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DocumentServer).SearchDocuments(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/api.v1.Document/SearchDocuments",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DocumentServer).SearchDocuments(ctx, req.(*SearchDocumentsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-// Document_ServiceDesc is the grpc.ServiceDesc for Document service.
-// It's only intended for direct use with grpc.RegisterService,
-// and not to be introspected or modified (even as a copy)
-var Document_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "api.v1.Document",
-	HandlerType: (*DocumentServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "ListDocuments",
-			Handler:    _Document_ListDocuments_Handler,
-		},
-		{
-			MethodName: "GetDocumentParents",
-			Handler:    _Document_GetDocumentParents_Handler,
-		},
-		{
-			MethodName: "GetDocumentDetail",
-			Handler:    _Document_GetDocumentDetail_Handler,
-		},
-		{
-			MethodName: "UpdateDocument",
-			Handler:    _Document_UpdateDocument_Handler,
-		},
-		{
-			MethodName: "SearchDocuments",
-			Handler:    _Document_SearchDocuments_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

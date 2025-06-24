@@ -17,7 +17,6 @@
 package common
 
 import (
-	"context"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/dispatch"
@@ -48,13 +47,12 @@ func InitDepends(loader config.Config, meta metastore.Meta) (*Depends, error) {
 		err  error
 	)
 
-	dep := &Depends{Meta: meta, ConfigLoader: loader}
-	dep.Token = token.NewTokenManager(meta, loader)
-	if tokenErr := dep.Token.InitBuildinCA(context.Background()); tokenErr != nil {
-		return nil, tokenErr
+	dep := &Depends{
+		Meta:         meta,
+		Notify:       notify.NewNotify(meta),
+		Token:        token.NewTokenManager(loader),
+		ConfigLoader: loader,
 	}
-
-	dep.Notify = notify.NewNotify(meta)
 
 	dep.Core, err = core.New(meta, bCfg)
 	if err != nil {

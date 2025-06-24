@@ -6,24 +6,6 @@ option go_package = "github.com/basenana/nanafs/cmd/apps/apis/fsapi/v1";
 
 import "google/protobuf/timestamp.proto";
 
-service Auth {
-  rpc AccessToken (AccessTokenRequest) returns (AccessTokenResponse) {}
-}
-
-message AccessTokenRequest {
-  string AccessTokenKey = 1;
-  string SecretToken = 2;
-}
-
-message AccessTokenResponse {
-  string Namespace = 1;
-  int64 UID = 2;
-  int64 GID = 3;
-  string ClientCrt = 4;
-  string ClientKey = 5;
-  google.protobuf.Timestamp CertExpiration = 6;
-}
-
 enum WebFileType {
   BookmarkFile = 0;
   HtmlFile = 1;
@@ -33,7 +15,6 @@ enum WebFileType {
 
 service Entries {
   rpc GroupTree (GetGroupTreeRequest) returns (GetGroupTreeResponse) {}
-  rpc FindEntryDetail (FindEntryDetailRequest) returns (GetEntryDetailResponse) {}
   rpc GetEntryDetail (GetEntryDetailRequest) returns (GetEntryDetailResponse) {}
   rpc CreateEntry (CreateEntryRequest) returns (CreateEntryResponse) {}
   rpc UpdateEntry (UpdateEntryRequest) returns (UpdateEntryResponse) {}
@@ -61,13 +42,8 @@ message GetGroupTreeResponse {
   GroupEntry root = 1;
 }
 
-message FindEntryDetailRequest {
-  bool root = 1;
-}
-
 message GetEntryDetailRequest {
-  int64 entryID = 1;
-  int64 parentID = 2;
+  string uri = 1;
 }
 
 message GetEntryDetailResponse {
@@ -76,9 +52,12 @@ message GetEntryDetailResponse {
 }
 
 message CreateEntryRequest {
-  int64 parentID = 1;
-  string  name = 2;
+  string uri = 1;
   string kind = 3;
+
+  oneof groupConfig {
+    RssConfig rss = 4;
+  }
 
   message RssConfig {
     string feed = 1;
@@ -86,7 +65,6 @@ message CreateEntryRequest {
     string siteURL = 3;
     WebFileType fileType = 4;
   }
-  RssConfig rss = 4;
 }
 
 message CreateEntryResponse {
@@ -94,9 +72,9 @@ message CreateEntryResponse {
 }
 
 message UpdateEntryRequest {
-  int64 entryID = 1;
-  string  name = 2;
-  string  aliases = 3;
+  string uri = 1;
+  string name = 2;
+  string aliases = 3;
 }
 
 message UpdateEntryResponse {
@@ -104,25 +82,19 @@ message UpdateEntryResponse {
 }
 
 message DeleteEntryRequest {
-  int64 entryID = 1;
-  int64 parentID = 2;
-  string entryName = 3;
+  string uri = 1;
 }
 message DeleteEntryResponse {
   EntryInfo entry = 1;
 }
 
 message DeleteEntriesRequest {
-  message EntryToDelete {
-    int64 entryID = 1;
-    int64 parentID = 2;
-    string entryName = 3;
-  }
-  repeated EntryToDelete entries = 1;
+  repeated string uriList = 1;
 }
 
 message DeleteEntriesResponse {
-  repeated int64 entryIDs = 1;
+  repeated string deleted = 1;
+  string message = 2;
 }
 
 message EntryFilter {
@@ -141,7 +113,7 @@ message EntryFilter {
 }
 
 message ListGroupChildrenRequest {
-  int64 parentID = 1;
+  string parentURI = 1;
 
   Pagination pagination = 10;
   enum EntryOrder {
@@ -166,12 +138,9 @@ message ChangeParentRequest {
     bool Replace = 1;
     bool Exchange = 2;
   }
-  int64 entryID = 1;
-  int64 newParentID = 2;
-  int64 oldParentID = 3;
-  string newName = 4;
-  string oldName = 5;
-  Option option = 6;
+  string entryURI = 1;
+  string newEntryURI = 2;
+  Option option = 4;
 }
 
 message ChangeParentResponse {
@@ -179,7 +148,7 @@ message ChangeParentResponse {
 }
 
 message WriteFileRequest {
-  int64 entryID = 1;
+  int64 entry = 1;
   int64 off = 2;
   int64 len = 3;
   bytes data = 4;
@@ -190,7 +159,7 @@ message WriteFileResponse {
 }
 
 message ReadFileRequest {
-  int64 entryID = 1;
+  int64 entry = 1;
   int64 off = 2;
   int64 len = 3;
 }
@@ -214,119 +183,32 @@ message Property {
 }
 
 message AddPropertyRequest {
-  int64 entryID = 1;
+  int64 entry = 1;
   string key = 2;
   string value = 3;
 }
 
 message AddPropertyResponse {
-  EntryInfo entry = 1;
-  repeated Property properties = 2;
+  repeated Property properties = 1;
 }
 
 message UpdatePropertyRequest {
-  int64 entryID = 1;
+  int64 entry = 1;
   string key = 2;
   string value = 3;
 }
 
 message UpdatePropertyResponse {
-  EntryInfo entry = 1;
-  repeated Property properties = 2;
+  repeated Property properties = 1;
 }
 
 message DeletePropertyRequest {
-  int64 entryID = 1;
+  int64 entry = 1;
   string key = 2;
 }
 
 message DeletePropertyResponse {
-  EntryInfo entry = 1;
-  repeated Property properties = 2;
-}
-
-service Document {
-  rpc ListDocuments (ListDocumentsRequest) returns (ListDocumentsResponse) {}
-  rpc GetDocumentParents (GetDocumentParentsRequest) returns (GetDocumentParentsResponse) {}
-  rpc GetDocumentDetail (GetDocumentDetailRequest) returns (GetDocumentDetailResponse) {}
-  rpc UpdateDocument (UpdateDocumentRequest) returns (UpdateDocumentResponse) {}
-  rpc SearchDocuments (SearchDocumentsRequest) returns (SearchDocumentsResponse) {}
-}
-
-message DocumentFilter {
-  string fuzzyName = 1;
-  int64 parentEntryID = 2;
-  string source = 3;
-  bool marked = 4;
-  bool unread = 5;
-  google.protobuf.Timestamp createdAtStart = 6;
-  google.protobuf.Timestamp createdAtEnd = 7;
-  google.protobuf.Timestamp changedAtStart = 8;
-  google.protobuf.Timestamp changedAtEnd = 9;
-  string search = 10;
-}
-
-message ListDocumentsRequest {
-  bool listAll = 1;
-  int64 parentID = 2;
-  Pagination pagination = 10;
-  enum DocumentOrder {
-    Name = 0;
-    Source = 1;
-    Marked = 2;
-    Unread = 3;
-    CreatedAt = 4;
-  }
-  DocumentOrder order = 11;
-  bool OrderDesc = 12;
-  DocumentFilter filter = 13;
-}
-
-message GetDocumentParentsRequest {
-  int64 parentId = 1;
-  DocumentFilter filter = 10;
-}
-
-message GetDocumentParentsResponse {
-  repeated EntryInfo entries = 1;
-}
-
-message ListDocumentsResponse {
-  repeated DocumentInfo documents = 1;
-}
-
-message GetDocumentDetailRequest {
-  int64 documentID = 1;
-  int64 entryID = 2;
-}
-
-message GetDocumentDetailResponse {
-  DocumentDescribe document = 1;
-  repeated Property properties = 2;
-}
-
-message UpdateDocumentRequest {
-  enum DocumentMark {
-    Unchanged = 0;
-    Marked = 1;
-    Unmarked = 2;
-    Read = 3;
-    Unread = 4;
-  }
-  DocumentDescribe document = 1;
-  DocumentMark setMark = 2;
-}
-
-message UpdateDocumentResponse {
-  DocumentDescribe document = 1;
-}
-
-message SearchDocumentsRequest {
-  string query = 1;
-}
-
-message SearchDocumentsResponse {
-  repeated DocumentInfo documents = 1;
+  repeated Property properties = 1;
 }
 
 service Notify {
@@ -368,11 +250,9 @@ message ListWorkflowJobsResponse {
   repeated WorkflowJobDetail jobs = 1;
 }
 
-
 message TriggerWorkflowRequest {
   message WorkflowTarget {
-    int64 entryID = 1;
-    int64 parentEntryID = 2;
+    string uri = 1;
   }
   message WorkflowJobAttr {
     string reason = 1;
@@ -392,7 +272,6 @@ message WorkflowInfo {
   string name = 2;
   string executor = 3;
   string queueName = 4;
-  int32 healthScore = 5;
 
   google.protobuf.Timestamp createdAt = 10;
   google.protobuf.Timestamp updatedAt = 11;
@@ -400,7 +279,6 @@ message WorkflowInfo {
 }
 
 message WorkflowJobDetail {
-
   string id = 1;
   string workflow = 2;
   string triggerReason = 3;
@@ -410,8 +288,7 @@ message WorkflowJobDetail {
   string queueName = 7;
 
   message JobTarget {
-    int64 parentEntryID = 2;
-    repeated int64 entries = 3;
+    repeated string entries = 1;
   }
   JobTarget target = 8;
 
@@ -436,70 +313,30 @@ message WorkflowPlugScope {
   map<string, string> parameters = 5;
 }
 
-message DocumentInfo {
-  int64 id = 1;
-  string name = 2;
-  int64 entryID = 3;
-  int64 parentEntryID = 4;
-  string source = 5;
-  bool marked = 6;
-  bool unread = 7;
-  string namespace = 8;
-  string subContent = 9;
-  string headerImage = 10;
-  repeated string searchContent = 11;
-  repeated Property properties = 20;
-  EntryInfo parent = 21;
-  google.protobuf.Timestamp createdAt = 30;
-  google.protobuf.Timestamp changedAt = 31;
-}
-
-message DocumentDescribe {
-  int64 id = 1;
-  string name = 2;
-  int64 entryID = 3;
-  int64 parentEntryID = 4;
-  string source = 5;
-  bool marked = 6;
-  bool unread = 7;
-  string namespace = 8;
-
-  string htmlContent = 10;
-  repeated string keyWords = 11;
-  string summary = 12;
-  string headerImage = 13;
-
-  EntryInfo entryInfo = 20;
-
-  google.protobuf.Timestamp createdAt = 30;
-  google.protobuf.Timestamp changedAt = 31;
-}
-
 message EntryInfo {
-  int64 id = 1;
-  string name = 2;
-  string kind = 3;
-  int64 parentID = 4;
+  string uri = 1;
+  int64 entry = 2;
+  string name = 3;
+  string kind = 4;
   bool isGroup = 6;
   int64 size = 7;
-  google.protobuf.Timestamp createdAt = 30;
-  google.protobuf.Timestamp changedAt = 31;
-  google.protobuf.Timestamp modifiedAt = 32;
-  google.protobuf.Timestamp accessAt = 33;
+  google.protobuf.Timestamp createdAt = 10;
+  google.protobuf.Timestamp changedAt = 11;
+  google.protobuf.Timestamp modifiedAt = 12;
+  google.protobuf.Timestamp accessAt = 13;
 }
 
 message EntryDetail {
-
   message Access  {
     int64 uid = 1;
     int64 gid = 2;
     repeated string permissions = 3;
   }
 
-  int64 id = 1;
-  string name = 2;
-  string aliases = 3;
-  EntryInfo parent = 4;
+  string uri = 1;
+  int64 entry = 2;
+  string name = 3;
+  string aliases = 4;
   string kind = 5;
   bool isGroup = 6;
   int64 size = 10;
@@ -507,33 +344,10 @@ message EntryDetail {
   string namespace = 12;
   string storage = 13;
   Access access = 14;
-  google.protobuf.Timestamp createdAt = 30;
-  google.protobuf.Timestamp changedAt = 31;
-  google.protobuf.Timestamp modifiedAt = 32;
-  google.protobuf.Timestamp accessAt = 33;
-}
-
-message Event {
-
-  message EventData {
-    int64 id = 1;
-    int64 parentID = 2;
-    string kind = 3;
-    bool isGroup = 4;
-    string namespace = 5;
-  }
-
-  string id = 1;
-  string type = 2;
-  string source = 3;
-  string specVersion = 4;
-  string dataContentType = 5;
-  EventData data = 6;
-  google.protobuf.Timestamp time = 7;
-
-  int64 refID = 10;
-  string refType = 11;
-  int64 sequence = 12;
+  google.protobuf.Timestamp createdAt = 20;
+  google.protobuf.Timestamp changedAt = 21;
+  google.protobuf.Timestamp modifiedAt = 22;
+  google.protobuf.Timestamp accessAt = 23;
 }
 
 message Message {

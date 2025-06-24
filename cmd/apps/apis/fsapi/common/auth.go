@@ -18,70 +18,28 @@ package common
 
 import (
 	"context"
-	"fmt"
-	"strconv"
+	"errors"
+	"github.com/basenana/nanafs/pkg/token"
+	"google.golang.org/grpc/metadata"
 	"strings"
-
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/peer"
 )
 
-type AuthInfo struct {
-	Authenticated bool
-	AccessToken   string
-	UID           int64
-	GID           int64
-	Namespace     string
+func getAccessTokenFromMetadata(md metadata.MD) (string, error) {
+	authorizationHeaders := md.Get("Authorization")
+	if len(authorizationHeaders) == 0 {
+		return "", errors.New("authorization header not found")
+	}
+	authHeaderParts := strings.Fields(authorizationHeaders[0])
+	if len(authHeaderParts) != 2 || strings.ToLower(authHeaderParts[0]) != "bearer" {
+		return "", errors.New("authorization header format must be Bearer {token}")
+	}
+	return authHeaderParts[1], nil
 }
 
-type CallerAuthGetter func(ctx context.Context) AuthInfo
-
-func CallerAuth(ctx context.Context) AuthInfo {
-	ai := AuthInfo{Authenticated: false, UID: -1}
-	p, ok := peer.FromContext(ctx)
-	if ok && p.AuthInfo != nil {
-		tlsInfo, ok := p.AuthInfo.(credentials.TLSInfo)
-		if !ok {
-			return ai
-		}
-		if len(tlsInfo.State.VerifiedChains) > 0 &&
-			len(tlsInfo.State.VerifiedChains[0]) > 0 {
-			subject := tlsInfo.State.VerifiedChains[0][0].Subject
-
-			if len(subject.Organization) == 0 {
-				return ai
-			}
-			ai.Namespace = subject.Organization[0]
-
-			if len(subject.OrganizationalUnit) == 0 {
-				return ai
-			}
-			ai.AccessToken = subject.OrganizationalUnit[0]
-
-			var err error
-			ai.UID, ai.GID, err = parseUidAndGid(subject.CommonName)
-			if err != nil {
-				return ai
-			}
-			ai.Authenticated = true
-		}
+func Auth(ctx context.Context) *token.AuthInfo {
+	raw := ctx.Value(authInfoContextKey)
+	if raw == nil {
+		return nil
 	}
-	return ai
-}
-
-func parseUidAndGid(cn string) (uid, gid int64, err error) {
-	cnParts := strings.Split(cn, ",")
-	if len(cnParts) < 2 {
-		err = fmt.Errorf("unexpect common name")
-		return
-	}
-	uid, err = strconv.ParseInt(cnParts[0], 10, 64)
-	if err != nil {
-		return
-	}
-	gid, err = strconv.ParseInt(cnParts[1], 10, 64)
-	if err != nil {
-		return
-	}
-	return
+	return raw.(*token.AuthInfo)
 }

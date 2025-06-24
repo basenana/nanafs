@@ -29,8 +29,8 @@ const (
 )
 
 type UserInfo struct {
-	AccessKey string
 	UID, GID  int64
+	Namespace string
 }
 
 func GetUserInfo(ctx context.Context) *UserInfo {
@@ -42,12 +42,12 @@ func GetUserInfo(ctx context.Context) *UserInfo {
 }
 
 type TokenValidator interface {
-	AccessToken(ctx context.Context, ak, sk string) (*types.AccessToken, error)
+	AccessToken(ctx context.Context, token string) (*types.AccessToken, error)
 }
 
 func BasicAuthHandler(h http.Handler, validator TokenValidator) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		username, password, ok := r.BasicAuth()
+		_, token, ok := r.BasicAuth()
 		if !ok {
 			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
 			w.WriteHeader(http.StatusUnauthorized)
@@ -55,7 +55,7 @@ func BasicAuthHandler(h http.Handler, validator TokenValidator) http.Handler {
 			return
 		}
 
-		tokenInfo, err := validator.AccessToken(r.Context(), username, password)
+		tokenInfo, err := validator.AccessToken(r.Context(), token)
 		if err != nil {
 			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
 			w.WriteHeader(http.StatusUnauthorized)
@@ -64,9 +64,9 @@ func BasicAuthHandler(h http.Handler, validator TokenValidator) http.Handler {
 		}
 
 		ctx := context.WithValue(r.Context(), userInfoContextKey, &UserInfo{
-			AccessKey: username,
 			UID:       tokenInfo.UID,
 			GID:       tokenInfo.GID,
+			Namespace: tokenInfo.Namespace,
 		})
 		ctx = types.WithNamespace(ctx, types.NewNamespace(tokenInfo.Namespace))
 

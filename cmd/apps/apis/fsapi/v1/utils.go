@@ -18,6 +18,7 @@ package v1
 
 import (
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"path"
 
 	"github.com/basenana/nanafs/pkg/types"
 )
@@ -60,10 +61,9 @@ func entryInfo(en *types.Entry) *EntryInfo {
 
 func coreEntryInfo(parentID int64, name string, en *types.Entry) *EntryInfo {
 	return &EntryInfo{
-		Id:         en.ID,
+		Entry:      en.ID,
 		Name:       name,
 		Kind:       string(en.Kind),
-		ParentID:   parentID,
 		IsGroup:    en.IsGroup,
 		Size:       en.Size,
 		CreatedAt:  timestamppb.New(en.CreatedAt),
@@ -73,10 +73,11 @@ func coreEntryInfo(parentID int64, name string, en *types.Entry) *EntryInfo {
 	}
 }
 
-func toEntryInfo(en *types.Entry) *EntryInfo {
+func toEntryInfo(parent, name string, en *types.Entry) *EntryInfo {
 	return &EntryInfo{
-		Id:         en.ID,
-		Name:       en.Name,
+		Uri:        path.Join(parent, name),
+		Entry:      en.ID,
+		Name:       name,
 		Kind:       string(en.Kind),
 		IsGroup:    en.IsGroup,
 		Size:       en.Size,
@@ -87,15 +88,16 @@ func toEntryInfo(en *types.Entry) *EntryInfo {
 	}
 }
 
-func entryDetail(en, parent *types.Entry) *EntryDetail {
+func entryDetail(parent, name string, en *types.Entry) *EntryDetail {
 	access := &EntryDetail_Access{Uid: en.Access.UID, Gid: en.Access.GID}
 	for _, perm := range en.Access.Permissions {
 		access.Permissions = append(access.Permissions, string(perm))
 	}
 
 	ed := &EntryDetail{
-		Id:         en.ID,
-		Name:       en.Name,
+		Uri:        path.Join(parent, name),
+		Entry:      en.ID,
+		Name:       name,
 		Aliases:    en.Aliases,
 		Kind:       string(en.Kind),
 		IsGroup:    en.IsGroup,
@@ -109,31 +111,7 @@ func entryDetail(en, parent *types.Entry) *EntryDetail {
 		ModifiedAt: timestamppb.New(en.ModifiedAt),
 		AccessAt:   timestamppb.New(en.AccessAt),
 	}
-	if parent != nil {
-		ed.Parent = entryInfo(parent)
-	}
 	return ed
-}
-
-func eventInfo(evt *types.Event) *Event {
-	return &Event{
-		Id:              evt.Id,
-		Type:            evt.Type,
-		Source:          evt.Source,
-		SpecVersion:     evt.SpecVersion,
-		DataContentType: evt.DataContentType,
-		Data: &Event_EventData{
-			Id:        evt.Data.ID,
-			ParentID:  evt.Data.ParentID,
-			Kind:      string(evt.Data.Kind),
-			IsGroup:   evt.Data.IsGroup,
-			Namespace: evt.Namespace,
-		},
-		Time:     timestamppb.New(evt.Time),
-		RefID:    evt.RefID,
-		RefType:  evt.RefType,
-		Sequence: evt.Sequence,
-	}
 }
 
 func jobDetail(j *types.WorkflowJob) *WorkflowJobDetail {
@@ -146,8 +124,7 @@ func jobDetail(j *types.WorkflowJob) *WorkflowJobDetail {
 		Executor:      j.Executor,
 		QueueName:     j.QueueName,
 		Target: &WorkflowJobDetail_JobTarget{
-			Entries:       j.Target.Entries,
-			ParentEntryID: j.Target.ParentEntryID,
+			Entries: j.Target.Entries,
 		},
 		Steps:     nil,
 		CreatedAt: timestamppb.New(j.CreatedAt),
@@ -164,24 +141,6 @@ func jobDetail(j *types.WorkflowJob) *WorkflowJobDetail {
 		})
 	}
 	return jd
-}
-
-func documentInfo(doc *types.Document) *DocumentInfo {
-	return &DocumentInfo{
-		Id:            doc.EntryId,
-		Name:          doc.Name,
-		EntryID:       doc.EntryId,
-		ParentEntryID: doc.ParentEntryID,
-		Source:        doc.Source,
-		Marked:        *doc.Marked,
-		Unread:        *doc.Unread,
-		Namespace:     doc.Namespace,
-		SubContent:    doc.SubContent,
-		SearchContent: doc.SearchContext,
-		HeaderImage:   doc.HeaderImage,
-		CreatedAt:     timestamppb.New(doc.CreatedAt),
-		ChangedAt:     timestamppb.New(doc.ChangedAt),
-	}
 }
 
 func setupRssConfig(config *CreateEntryRequest_RssConfig, attr *types.EntryAttr) {
