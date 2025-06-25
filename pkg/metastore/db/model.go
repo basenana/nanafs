@@ -46,26 +46,6 @@ func (i SystemConfig) TableName() string {
 	return "system_config"
 }
 
-type AccessToken struct {
-	ID          string    `gorm:"column:id;primaryKey"`
-	Token       string    `gorm:"column:token"`
-	Namespace   string    `gorm:"column:namespace;index:tk_ns"`
-	UID         int64     `gorm:"column:uid;index:tk_uid"`
-	GID         int64     `gorm:"column:gid"`
-	LastSeenAt  time.Time `gorm:"column:last_seen_at"`
-	Description string    `gorm:"column:description"`
-
-	ClientCrt      string    `gorm:"column:client_crt"`
-	ClientKey      string    `gorm:"column:client_key"`
-	TokenKey       string    `gorm:"column:token_key;primaryKey"`
-	SecretToken    string    `gorm:"column:secret_token"`
-	CertExpiration time.Time `gorm:"column:cert_expiration"`
-}
-
-func (o *AccessToken) TableName() string {
-	return "access_token"
-}
-
 type Entry struct {
 	ID         int64   `gorm:"column:id;primaryKey"`
 	Name       string  `gorm:"column:name;index:en_name"`
@@ -173,73 +153,15 @@ func (c *Children) TableName() string {
 	return "children"
 }
 
-type Label struct {
-	ID        int64  `gorm:"column:id;autoIncrement"`
-	RefID     int64  `gorm:"column:ref_id;index:label_refid"`
-	RefType   string `gorm:"column:ref_type;index:label_reftype"`
-	Namespace string `gorm:"column:namespace;index:label_ns"`
-	Key       string `gorm:"column:key"`
-	Value     string `gorm:"column:value"`
-	SearchKey string `gorm:"column:search_key;index:label_search_key"`
-}
-
-func (o Label) TableName() string {
-	return "label"
-}
-
 type EntryProperty struct {
 	Entry     int64  `gorm:"column:entry;primaryKey"`
 	Type      string `gorm:"column:type;primaryKey"`
 	Value     string `gorm:"column:value"`
 	Namespace string `gorm:"column:namespace;index:prop_ns"`
-
-	OID     int64  `gorm:"column:oid;index:prop_oid"`
-	Name    string `gorm:"column:key;index:prop_name"`
-	Encoded bool   `gorm:"column:encoded"`
 }
 
 func (o EntryProperty) TableName() string {
 	return "entry_property"
-}
-
-type EntryExtend struct {
-	ID          int64  `gorm:"column:id;primaryKey"`
-	Symlink     string `gorm:"column:symlink"`
-	GroupFilter []byte `gorm:"column:group_filter"`
-	PlugScope   []byte `gorm:"column:plug_scope"`
-}
-
-func (o *EntryExtend) TableName() string {
-	return "entry_extend"
-}
-
-func (o *EntryExtend) From(ed *types.ExtendData) *EntryExtend {
-	if ed == nil {
-		return o
-	}
-	o.Symlink = ed.Symlink
-	if ed.GroupFilter != nil {
-		o.GroupFilter, _ = json.Marshal(ed.GroupFilter)
-	}
-	if ed.PlugScope != nil {
-		o.PlugScope, _ = json.Marshal(ed.PlugScope)
-	}
-	return o
-}
-
-func (o *EntryExtend) ToExtData() types.ExtendData {
-	ext := types.ExtendData{
-		Symlink:     o.Symlink,
-		GroupFilter: nil,
-		PlugScope:   nil,
-	}
-	if o.GroupFilter != nil {
-		_ = json.Unmarshal(o.GroupFilter, &ext.GroupFilter)
-	}
-	if o.PlugScope != nil {
-		_ = json.Unmarshal(o.PlugScope, &ext.PlugScope)
-	}
-	return ext
 }
 
 type EntryChunk struct {
@@ -250,8 +172,6 @@ type EntryChunk struct {
 	Len      int64 `gorm:"column:len"`
 	State    int16 `gorm:"column:state"`
 	AppendAt int64 `gorm:"column:append_at;index:ck_append_at"`
-
-	OID int64 `gorm:"column:oid;index:ck_oid"`
 }
 
 func (o EntryChunk) TableName() string {

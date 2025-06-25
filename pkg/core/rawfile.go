@@ -196,12 +196,8 @@ func (s *symlink) Flush(ctx context.Context) (err error) {
 		return err
 	}
 
-	eData, err := s.store.GetEntryExtendData(ctx, s.namespace, s.entryID)
-	if err != nil {
-		return err
-	}
-	eData.Symlink = string(s.data[:s.size])
-	return s.store.UpdateEntryExtendData(ctx, s.namespace, s.entryID, eData)
+	sp := types.SymlinkProperties{Symlink: string(s.data[:s.size])}
+	return s.store.UpdateEntryProperties(ctx, s.namespace, types.PropertyTypeSymlink, s.entryID, sp)
 }
 
 func (s *symlink) Close(ctx context.Context) error {
@@ -219,13 +215,14 @@ func openSymlink(store metastore.Meta, en *types.Entry, attr types.OpenAttr) (Ra
 	var (
 		raw  []byte
 		size int64
+		sp   = &types.SymlinkProperties{}
 	)
-	eData, err := store.GetEntryExtendData(context.TODO(), en.Namespace, en.ID)
+	err := store.GetEntryProperties(context.TODO(), en.Namespace, types.PropertyTypeSymlink, en.ID, sp)
 	if err != nil {
 		return nil, logOperationError(fileOperationErrorCounter, "init", err)
 	}
-	if eData.Symlink != "" {
-		raw = []byte(eData.Symlink)
+	if sp.Symlink != "" {
+		raw = []byte(sp.Symlink)
 		size = int64(len(raw))
 	}
 

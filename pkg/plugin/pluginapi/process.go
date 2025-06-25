@@ -32,9 +32,8 @@ type Request struct {
 	// deprecated
 	EntryURI string
 
-	Entries          []Entry
-	ParentEntryId    int64
-	ParentProperties map[string]string
+	Entries       []Entry
+	ParentEntryId int64
 
 	Namespace      string
 	CacheData      *CachedData

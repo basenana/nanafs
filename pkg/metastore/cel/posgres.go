@@ -14,4 +14,4 @@
  limitations under the License.
 */
 
-package metastore
+package cel

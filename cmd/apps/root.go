@@ -116,7 +116,7 @@ func run(depends *common.Depends, cfg config.Config, stopCh chan struct{}) {
 		}
 	}
 	if boot.Webdav.Enable {
-		err = apis.RunWebdav(defaultFS, depends.Token, boot.Webdav, stopCh)
+		err = apis.RunWebdav(defaultFS, boot.Webdav, stopCh)
 		if err != nil {
 			log.Panicw("run fsapi failed", "err", err)
 		}

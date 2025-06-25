@@ -18,7 +18,6 @@ package core
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
@@ -56,6 +55,10 @@ func NewFileSystem(core Core, store metastore.Meta, namespace string) (*FileSyst
 		namespace: namespace,
 		logger:    logger.NewLogger("core.fs"),
 	}, nil
+}
+
+func (f *FileSystem) Namespace() string {
+	return f.namespace
 }
 
 func (f *FileSystem) FsInfo(ctx context.Context) Info {
@@ -266,33 +269,51 @@ func (f *FileSystem) Rename(ctx context.Context, targetId, oldParentId, newParen
 // MARK: xattr
 
 func (f *FileSystem) GetXAttr(ctx context.Context, id int64, fKey string) ([]byte, error) {
-	p, err := f.store.GetEntryProperty(ctx, f.namespace, id, fKey)
+	properties := make(types.AttrProperties)
+	err := f.store.GetEntryProperties(ctx, f.namespace, types.PropertyTypeAttr, id, &properties)
 	if err != nil {
 		return nil, err
 	}
 
-	val := []byte(p.Value)
-	if p.Encoded {
-		val, err = base64.StdEncoding.DecodeString(p.Value)
-		if err != nil {
-			return nil, err
-		}
+	p, ok := properties[fKey]
+	if !ok {
+		return nil, types.ErrNotFound
+	}
+
+	val, err := utils.DecodeBase64(p.Value)
+	if err != nil {
+		return nil, err
 	}
 	return val, nil
 }
 
 func (f *FileSystem) SetXAttr(ctx context.Context, id int64, fKey string, fVal []byte) error {
-	if err := f.store.AddEntryProperty(ctx, f.namespace, id, fKey, types.PropertyItem{Value: utils.EncodeBase64(fVal), Encoded: true}); err != nil {
+	properties := make(types.AttrProperties)
+	err := f.store.GetEntryProperties(ctx, f.namespace, types.PropertyTypeAttr, id, &properties)
+	if err != nil {
 		return err
 	}
-	return nil
+
+	properties[fKey] = types.PropertyItem{
+		Value: utils.EncodeBase64(fVal),
+	}
+
+	return f.store.UpdateEntryProperties(ctx, f.namespace, types.PropertyTypeAttr, id, &properties)
 }
 
 func (f *FileSystem) RemoveXAttr(ctx context.Context, id int64, fKey string) error {
-	if err := f.store.RemoveEntryProperty(ctx, f.namespace, id, fKey); err != nil {
+	properties := make(types.AttrProperties)
+	err := f.store.GetEntryProperties(ctx, f.namespace, types.PropertyTypeAttr, id, &properties)
+	if err != nil {
 		return err
 	}
-	return nil
+
+	if _, ok := properties[fKey]; !ok {
+		return types.ErrNotFound
+	}
+
+	delete(properties, fKey)
+	return f.store.UpdateEntryProperties(ctx, f.namespace, types.PropertyTypeAttr, id, &properties)
 }
 
 // MARK: file

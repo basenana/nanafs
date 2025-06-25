@@ -137,7 +137,7 @@ func (c *core) FSRoot(ctx context.Context) (*types.Entry, error) {
 	root.Access.GID = c.fsOwnerGid
 	root.Storage = c.defaultStorage.ID()
 
-	err = c.store.CreateEntry(ctx, types.DefaultNamespace, 0, root, nil)
+	err = c.store.CreateEntry(ctx, types.DefaultNamespace, 0, root)
 	if err != nil {
 		c.logger.Errorw("create root entry failed", "err", err)
 		return nil, err
@@ -201,7 +201,7 @@ func (c *core) CreateNamespace(ctx context.Context, namespace string) error {
 	nsRoot.Access.GID = c.fsOwnerGid
 	nsRoot.Storage = c.defaultStorage.ID()
 
-	err = c.store.CreateEntry(ctx, types.DefaultNamespace, RootEntryID, nsRoot, nil)
+	err = c.store.CreateEntry(ctx, types.DefaultNamespace, RootEntryID, nsRoot)
 	if err != nil {
 		c.logger.Errorw("create root entry failed", "err", err)
 		return err
@@ -279,25 +279,11 @@ func (c *core) CreateEntry(ctx context.Context, namespace string, parentId int64
 		return nil, err
 	}
 
-	err = c.store.CreateEntry(ctx, namespace, parentId, entry, attr.ExtendData)
+	err = c.store.CreateEntry(ctx, namespace, parentId, entry)
 	if err != nil {
 		return nil, err
 	}
 	defer c.cache.invalidEntry(namespace, parentId)
-
-	if len(attr.Labels.Labels) > 0 {
-		if err = c.store.UpdateEntryLabels(ctx, namespace, entry.ID, attr.Labels); err != nil {
-			_ = c.store.RemoveEntry(ctx, namespace, parentId, entry.ID, attr.Name, types.DeleteEntry{})
-			return nil, err
-		}
-	}
-
-	if len(attr.Properties.Fields) > 0 {
-		if err = c.store.UpdateEntryProperties(ctx, namespace, entry.ID, attr.Properties); err != nil {
-			_ = c.store.RemoveEntry(ctx, namespace, parentId, entry.ID, attr.Name, types.DeleteEntry{})
-			return nil, err
-		}
-	}
 
 	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeCreate, entry.Namespace, entry.ID)
 	return entry, nil
@@ -564,17 +550,20 @@ func (c *core) OpenGroup(ctx context.Context, namespace string, groupId int64) (
 		stdGrp       = &stdGroup{entryID: entry.ID, name: entry.Name, namespace: namespace, core: c, store: c.store}
 		grp    Group = stdGrp
 	)
+
 	switch entry.Kind {
 	case types.SmartGroupKind:
-		ed, err := c.store.GetEntryExtendData(ctx, namespace, groupId)
+		gattr := &types.GroupProperties{}
+		err = c.store.GetEntryProperties(ctx, namespace, types.PropertyTypeGroupAttr, groupId, gattr)
 		if err != nil {
 			c.logger.Errorw("query dynamic group extend data failed", "err", err)
 			return nil, err
 		}
-		if ed.GroupFilter != nil {
+
+		if gattr.Filter != nil {
 			grp = &dynamicGroup{
 				std:       stdGrp,
-				rule:      *ed.GroupFilter,
+				rule:      *gattr.Filter,
 				baseEntry: groupId,
 				logger:    logger.NewLogger("dynamicGroup").With(zap.Int64("group", groupId)),
 			}

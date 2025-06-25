@@ -206,19 +206,8 @@ func (h *hooks) handleEntryCreate(evt *types.Event) {
 		h.logger.Errorw("[handleEntryCreate] get entry failed", "entry", evt.RefID, "err", err)
 		return
 	}
-	properties, err := h.mgr.meta.ListEntryProperties(ctx, en.Namespace, en.ID)
-	if err != nil {
-		h.logger.Errorw("[handleEntryCreate] get entry properties failed", "entry", evt.RefID, "err", err)
-		return
-	}
-	labels, err := h.mgr.meta.GetEntryLabels(ctx, en.Namespace, en.ID)
-	if err != nil {
-		h.logger.Errorw("[handleEntryCreate] get entry labels failed", "entry", evt.RefID, "err", err)
-		return
-	}
-
 	for wfID, hook := range nsHooks.workflowOnBoard {
-		if !rule.Filter(&hook.rule, en, &properties, &labels) {
+		if !rule.Filter(&hook.rule, en, nil, nil) {
 			continue
 		}
 

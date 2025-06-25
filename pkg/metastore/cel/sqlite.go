@@ -14,23 +14,4 @@
  limitations under the License.
 */
 
-package events
-
-var (
-	TopicNamespaceEntry = "action.entry."
-	TopicNamespaceFile  = "action.file."
-
-	ActionTypeCreate       = "create"
-	ActionTypeUpdate       = "update"
-	ActionTypeDestroy      = "destroy"
-	ActionTypeMirror       = "mirror"
-	ActionTypeChangeParent = "change_parent"
-	ActionTypeTrunc        = "trunc"
-	ActionTypeOpen         = "open"
-	ActionTypeClose        = "close"
-	ActionTypeCompact      = "compact"
-)
-
-func NamespacedTopic(topicNamespace string, actionType string) string {
-	return topicNamespace + actionType
-}
+package cel

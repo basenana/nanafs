@@ -104,19 +104,7 @@ func (q *query) Results(ctx context.Context) ([]*types.Entry, error) {
 	// filter in memory
 	for entriesIt.HasNext() {
 		en := entriesIt.Next()
-		properties, err := q.store.ListEntryProperties(ctx, en.Namespace, en.ID)
-		if err != nil {
-			q.logger.Errorw("get entry extend data failed", "entry", en.ID, "err", err)
-			return nil, err
-		}
-
-		labels, err := q.store.GetEntryLabels(ctx, en.Namespace, en.ID)
-		if err != nil {
-			q.logger.Errorw("get entry labels failed", "entry", en.ID, "err", err)
-			return nil, err
-		}
-
-		if Filter(mergeRules(q.rules), en, &properties, &labels) {
+		if Filter(mergeRules(q.rules), en, nil, nil) {
 			entries = append(entries, en)
 		}
 	}

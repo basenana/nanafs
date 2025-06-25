@@ -44,7 +44,7 @@ func NewEntriesClient(cc grpc.ClientConnInterface) EntriesClient {
 
 func (c *entriesClient) GroupTree(ctx context.Context, in *GetGroupTreeRequest, opts ...grpc.CallOption) (*GetGroupTreeResponse, error) {
 	out := new(GetGroupTreeResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Entries/GroupTree", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/nanafs.v1.Entries/GroupTree", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func (c *entriesClient) GroupTree(ctx context.Context, in *GetGroupTreeRequest, 
 
 func (c *entriesClient) GetEntryDetail(ctx context.Context, in *GetEntryDetailRequest, opts ...grpc.CallOption) (*GetEntryDetailResponse, error) {
 	out := new(GetEntryDetailResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Entries/GetEntryDetail", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/nanafs.v1.Entries/GetEntryDetail", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (c *entriesClient) GetEntryDetail(ctx context.Context, in *GetEntryDetailRe
 
 func (c *entriesClient) CreateEntry(ctx context.Context, in *CreateEntryRequest, opts ...grpc.CallOption) (*CreateEntryResponse, error) {
 	out := new(CreateEntryResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Entries/CreateEntry", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/nanafs.v1.Entries/CreateEntry", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func (c *entriesClient) CreateEntry(ctx context.Context, in *CreateEntryRequest,
 
 func (c *entriesClient) UpdateEntry(ctx context.Context, in *UpdateEntryRequest, opts ...grpc.CallOption) (*UpdateEntryResponse, error) {
 	out := new(UpdateEntryResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Entries/UpdateEntry", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/nanafs.v1.Entries/UpdateEntry", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (c *entriesClient) UpdateEntry(ctx context.Context, in *UpdateEntryRequest,
 
 func (c *entriesClient) DeleteEntry(ctx context.Context, in *DeleteEntryRequest, opts ...grpc.CallOption) (*DeleteEntryResponse, error) {
 	out := new(DeleteEntryResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Entries/DeleteEntry", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/nanafs.v1.Entries/DeleteEntry", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func (c *entriesClient) DeleteEntry(ctx context.Context, in *DeleteEntryRequest,
 
 func (c *entriesClient) DeleteEntries(ctx context.Context, in *DeleteEntriesRequest, opts ...grpc.CallOption) (*DeleteEntriesResponse, error) {
 	out := new(DeleteEntriesResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Entries/DeleteEntries", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/nanafs.v1.Entries/DeleteEntries", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +98,7 @@ func (c *entriesClient) DeleteEntries(ctx context.Context, in *DeleteEntriesRequ
 
 func (c *entriesClient) ListGroupChildren(ctx context.Context, in *ListGroupChildrenRequest, opts ...grpc.CallOption) (*ListGroupChildrenResponse, error) {
 	out := new(ListGroupChildrenResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Entries/ListGroupChildren", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/nanafs.v1.Entries/ListGroupChildren", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +107,7 @@ func (c *entriesClient) ListGroupChildren(ctx context.Context, in *ListGroupChil
 
 func (c *entriesClient) ChangeParent(ctx context.Context, in *ChangeParentRequest, opts ...grpc.CallOption) (*ChangeParentResponse, error) {
 	out := new(ChangeParentResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Entries/ChangeParent", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/nanafs.v1.Entries/ChangeParent", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func (c *entriesClient) ChangeParent(ctx context.Context, in *ChangeParentReques
 }
 
 func (c *entriesClient) WriteFile(ctx context.Context, opts ...grpc.CallOption) (Entries_WriteFileClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Entries_ServiceDesc.Streams[0], "/api.v1.Entries/WriteFile", opts...)
+	stream, err := c.cc.NewStream(ctx, &Entries_ServiceDesc.Streams[0], "/nanafs.v1.Entries/WriteFile", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ func (x *entriesWriteFileClient) CloseAndRecv() (*WriteFileResponse, error) {
 }
 
 func (c *entriesClient) ReadFile(ctx context.Context, in *ReadFileRequest, opts ...grpc.CallOption) (Entries_ReadFileClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Entries_ServiceDesc.Streams[1], "/api.v1.Entries/ReadFile", opts...)
+	stream, err := c.cc.NewStream(ctx, &Entries_ServiceDesc.Streams[1], "/nanafs.v1.Entries/ReadFile", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +252,7 @@ func _Entries_GroupTree_Handler(srv interface{}, ctx context.Context, dec func(i
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/api.v1.Entries/GroupTree",
+		FullMethod: "/nanafs.v1.Entries/GroupTree",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(EntriesServer).GroupTree(ctx, req.(*GetGroupTreeRequest))
@@ -270,7 +270,7 @@ func _Entries_GetEntryDetail_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/api.v1.Entries/GetEntryDetail",
+		FullMethod: "/nanafs.v1.Entries/GetEntryDetail",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(EntriesServer).GetEntryDetail(ctx, req.(*GetEntryDetailRequest))
@@ -288,7 +288,7 @@ func _Entries_CreateEntry_Handler(srv interface{}, ctx context.Context, dec func
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/api.v1.Entries/CreateEntry",
+		FullMethod: "/nanafs.v1.Entries/CreateEntry",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(EntriesServer).CreateEntry(ctx, req.(*CreateEntryRequest))
@@ -306,7 +306,7 @@ func _Entries_UpdateEntry_Handler(srv interface{}, ctx context.Context, dec func
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/api.v1.Entries/UpdateEntry",
+		FullMethod: "/nanafs.v1.Entries/UpdateEntry",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(EntriesServer).UpdateEntry(ctx, req.(*UpdateEntryRequest))
@@ -324,7 +324,7 @@ func _Entries_DeleteEntry_Handler(srv interface{}, ctx context.Context, dec func
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/api.v1.Entries/DeleteEntry",
+		FullMethod: "/nanafs.v1.Entries/DeleteEntry",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(EntriesServer).DeleteEntry(ctx, req.(*DeleteEntryRequest))
@@ -342,7 +342,7 @@ func _Entries_DeleteEntries_Handler(srv interface{}, ctx context.Context, dec fu
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/api.v1.Entries/DeleteEntries",
+		FullMethod: "/nanafs.v1.Entries/DeleteEntries",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(EntriesServer).DeleteEntries(ctx, req.(*DeleteEntriesRequest))
@@ -360,7 +360,7 @@ func _Entries_ListGroupChildren_Handler(srv interface{}, ctx context.Context, de
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/api.v1.Entries/ListGroupChildren",
+		FullMethod: "/nanafs.v1.Entries/ListGroupChildren",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(EntriesServer).ListGroupChildren(ctx, req.(*ListGroupChildrenRequest))
@@ -378,7 +378,7 @@ func _Entries_ChangeParent_Handler(srv interface{}, ctx context.Context, dec fun
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/api.v1.Entries/ChangeParent",
+		FullMethod: "/nanafs.v1.Entries/ChangeParent",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(EntriesServer).ChangeParent(ctx, req.(*ChangeParentRequest))
@@ -437,7 +437,7 @@ func (x *entriesReadFileServer) Send(m *ReadFileResponse) error {
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Entries_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "api.v1.Entries",
+	ServiceName: "nanafs.v1.Entries",
 	HandlerType: (*EntriesServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -493,7 +493,6 @@ var Entries_ServiceDesc = grpc.ServiceDesc{
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type PropertiesClient interface {
 	AddProperty(ctx context.Context, in *AddPropertyRequest, opts ...grpc.CallOption) (*AddPropertyResponse, error)
-	UpdateProperty(ctx context.Context, in *UpdatePropertyRequest, opts ...grpc.CallOption) (*UpdatePropertyResponse, error)
 	DeleteProperty(ctx context.Context, in *DeletePropertyRequest, opts ...grpc.CallOption) (*DeletePropertyResponse, error)
 }
 
@@ -507,16 +506,7 @@ func NewPropertiesClient(cc grpc.ClientConnInterface) PropertiesClient {
 
 func (c *propertiesClient) AddProperty(ctx context.Context, in *AddPropertyRequest, opts ...grpc.CallOption) (*AddPropertyResponse, error) {
 	out := new(AddPropertyResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Properties/AddProperty", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *propertiesClient) UpdateProperty(ctx context.Context, in *UpdatePropertyRequest, opts ...grpc.CallOption) (*UpdatePropertyResponse, error) {
-	out := new(UpdatePropertyResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Properties/UpdateProperty", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/nanafs.v1.Properties/AddProperty", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -525,7 +515,7 @@ func (c *propertiesClient) UpdateProperty(ctx context.Context, in *UpdatePropert
 
 func (c *propertiesClient) DeleteProperty(ctx context.Context, in *DeletePropertyRequest, opts ...grpc.CallOption) (*DeletePropertyResponse, error) {
 	out := new(DeletePropertyResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Properties/DeleteProperty", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/nanafs.v1.Properties/DeleteProperty", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -537,7 +527,6 @@ func (c *propertiesClient) DeleteProperty(ctx context.Context, in *DeletePropert
 // for forward compatibility
 type PropertiesServer interface {
 	AddProperty(context.Context, *AddPropertyRequest) (*AddPropertyResponse, error)
-	UpdateProperty(context.Context, *UpdatePropertyRequest) (*UpdatePropertyResponse, error)
 	DeleteProperty(context.Context, *DeletePropertyRequest) (*DeletePropertyResponse, error)
 }
 
@@ -547,9 +536,6 @@ type UnimplementedPropertiesServer struct {
 
 func (UnimplementedPropertiesServer) AddProperty(context.Context, *AddPropertyRequest) (*AddPropertyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddProperty not implemented")
-}
-func (UnimplementedPropertiesServer) UpdateProperty(context.Context, *UpdatePropertyRequest) (*UpdatePropertyResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateProperty not implemented")
 }
 func (UnimplementedPropertiesServer) DeleteProperty(context.Context, *DeletePropertyRequest) (*DeletePropertyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteProperty not implemented")
@@ -576,28 +562,10 @@ func _Properties_AddProperty_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/api.v1.Properties/AddProperty",
+		FullMethod: "/nanafs.v1.Properties/AddProperty",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(PropertiesServer).AddProperty(ctx, req.(*AddPropertyRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Properties_UpdateProperty_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdatePropertyRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(PropertiesServer).UpdateProperty(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/api.v1.Properties/UpdateProperty",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PropertiesServer).UpdateProperty(ctx, req.(*UpdatePropertyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -612,7 +580,7 @@ func _Properties_DeleteProperty_Handler(srv interface{}, ctx context.Context, de
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/api.v1.Properties/DeleteProperty",
+		FullMethod: "/nanafs.v1.Properties/DeleteProperty",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(PropertiesServer).DeleteProperty(ctx, req.(*DeletePropertyRequest))
@@ -624,16 +592,12 @@ func _Properties_DeleteProperty_Handler(srv interface{}, ctx context.Context, de
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Properties_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "api.v1.Properties",
+	ServiceName: "nanafs.v1.Properties",
 	HandlerType: (*PropertiesServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "AddProperty",
 			Handler:    _Properties_AddProperty_Handler,
-		},
-		{
-			MethodName: "UpdateProperty",
-			Handler:    _Properties_UpdateProperty_Handler,
 		},
 		{
 			MethodName: "DeleteProperty",
@@ -662,7 +626,7 @@ func NewNotifyClient(cc grpc.ClientConnInterface) NotifyClient {
 
 func (c *notifyClient) ListMessages(ctx context.Context, in *ListMessagesRequest, opts ...grpc.CallOption) (*ListMessagesResponse, error) {
 	out := new(ListMessagesResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Notify/ListMessages", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/nanafs.v1.Notify/ListMessages", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -671,7 +635,7 @@ func (c *notifyClient) ListMessages(ctx context.Context, in *ListMessagesRequest
 
 func (c *notifyClient) ReadMessages(ctx context.Context, in *ReadMessagesRequest, opts ...grpc.CallOption) (*ReadMessagesResponse, error) {
 	out := new(ReadMessagesResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Notify/ReadMessages", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/nanafs.v1.Notify/ReadMessages", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -718,7 +682,7 @@ func _Notify_ListMessages_Handler(srv interface{}, ctx context.Context, dec func
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/api.v1.Notify/ListMessages",
+		FullMethod: "/nanafs.v1.Notify/ListMessages",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NotifyServer).ListMessages(ctx, req.(*ListMessagesRequest))
@@ -736,7 +700,7 @@ func _Notify_ReadMessages_Handler(srv interface{}, ctx context.Context, dec func
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/api.v1.Notify/ReadMessages",
+		FullMethod: "/nanafs.v1.Notify/ReadMessages",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NotifyServer).ReadMessages(ctx, req.(*ReadMessagesRequest))
@@ -748,7 +712,7 @@ func _Notify_ReadMessages_Handler(srv interface{}, ctx context.Context, dec func
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Notify_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "api.v1.Notify",
+	ServiceName: "nanafs.v1.Notify",
 	HandlerType: (*NotifyServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -783,7 +747,7 @@ func NewWorkflowClient(cc grpc.ClientConnInterface) WorkflowClient {
 
 func (c *workflowClient) ListWorkflows(ctx context.Context, in *ListWorkflowsRequest, opts ...grpc.CallOption) (*ListWorkflowsResponse, error) {
 	out := new(ListWorkflowsResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Workflow/ListWorkflows", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/nanafs.v1.Workflow/ListWorkflows", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -792,7 +756,7 @@ func (c *workflowClient) ListWorkflows(ctx context.Context, in *ListWorkflowsReq
 
 func (c *workflowClient) ListWorkflowJobs(ctx context.Context, in *ListWorkflowJobsRequest, opts ...grpc.CallOption) (*ListWorkflowJobsResponse, error) {
 	out := new(ListWorkflowJobsResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Workflow/ListWorkflowJobs", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/nanafs.v1.Workflow/ListWorkflowJobs", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -801,7 +765,7 @@ func (c *workflowClient) ListWorkflowJobs(ctx context.Context, in *ListWorkflowJ
 
 func (c *workflowClient) TriggerWorkflow(ctx context.Context, in *TriggerWorkflowRequest, opts ...grpc.CallOption) (*TriggerWorkflowResponse, error) {
 	out := new(TriggerWorkflowResponse)
-	err := c.cc.Invoke(ctx, "/api.v1.Workflow/TriggerWorkflow", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/nanafs.v1.Workflow/TriggerWorkflow", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -852,7 +816,7 @@ func _Workflow_ListWorkflows_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/api.v1.Workflow/ListWorkflows",
+		FullMethod: "/nanafs.v1.Workflow/ListWorkflows",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(WorkflowServer).ListWorkflows(ctx, req.(*ListWorkflowsRequest))
@@ -870,7 +834,7 @@ func _Workflow_ListWorkflowJobs_Handler(srv interface{}, ctx context.Context, de
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/api.v1.Workflow/ListWorkflowJobs",
+		FullMethod: "/nanafs.v1.Workflow/ListWorkflowJobs",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(WorkflowServer).ListWorkflowJobs(ctx, req.(*ListWorkflowJobsRequest))
@@ -888,7 +852,7 @@ func _Workflow_TriggerWorkflow_Handler(srv interface{}, ctx context.Context, dec
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/api.v1.Workflow/TriggerWorkflow",
+		FullMethod: "/nanafs.v1.Workflow/TriggerWorkflow",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(WorkflowServer).TriggerWorkflow(ctx, req.(*TriggerWorkflowRequest))
@@ -900,7 +864,7 @@ func _Workflow_TriggerWorkflow_Handler(srv interface{}, ctx context.Context, dec
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Workflow_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "api.v1.Workflow",
+	ServiceName: "nanafs.v1.Workflow",
 	HandlerType: (*WorkflowServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

@@ -175,7 +175,6 @@ func newPluginRequest(job *types.WorkflowJob, step *types.WorkflowJobStep, resul
 	req.Parameter[pluginapi.ResPluginVersion] = step.Plugin.Version
 	req.Parameter[pluginapi.ResPluginType] = step.Plugin.PluginType
 	req.Parameter[pluginapi.ResPluginAction] = step.Plugin.Action
-	req.ParentProperties = map[string]string{}
 
 	for _, en := range targets {
 		req.Entries = append(req.Entries, pluginapi.Entry{

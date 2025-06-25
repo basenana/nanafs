@@ -20,8 +20,6 @@ import (
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/dispatch"
-	"github.com/basenana/nanafs/pkg/document"
-	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/rule"
@@ -34,8 +32,6 @@ type Depends struct {
 	Workflow     workflow.Workflow
 	Dispatcher   *dispatch.Dispatcher
 	Notify       *notify.Notify
-	Document     document.Manager
-	FridayClient friday.Friday
 	Token        *token.Manager
 	ConfigLoader config.Config
 	Core         core.Core
@@ -59,13 +55,7 @@ func InitDepends(loader config.Config, meta metastore.Meta) (*Depends, error) {
 		return nil, err
 	}
 
-	dep.FridayClient = friday.NewFridayClient(bCfg.FridayConfig)
-	dep.Document, err = document.NewManager(meta, dep.Core, loader, dep.FridayClient)
-	if err != nil {
-		return nil, err
-	}
-
-	dep.Workflow, err = workflow.New(dep.Core, dep.Document, dep.Notify, meta, loader)
+	dep.Workflow, err = workflow.New(dep.Core, dep.Notify, meta, loader)
 	if err != nil {
 		return nil, err
 	}

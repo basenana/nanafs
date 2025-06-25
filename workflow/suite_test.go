@@ -24,13 +24,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/rule"
 
 	testcfg "github.com/onsi/ginkgo/config"
 
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/storage"
@@ -44,7 +42,6 @@ var (
 	stopCh    = make(chan struct{})
 	tempDir   string
 	fsCore    core.Core
-	docMgr    document.Manager
 	mgr       Workflow
 	namespace = types.DefaultNamespace
 
@@ -84,10 +81,7 @@ var _ = BeforeSuite(func() {
 	err = cfg.SetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "job_workdir", tempDir)
 	Expect(err).Should(BeNil())
 
-	docMgr, err = document.NewManager(memMeta, fsCore, cfg, friday.NewMockFriday())
-	Expect(err).Should(BeNil())
-
-	mgr, err = New(fsCore, docMgr, notify.NewNotify(memMeta), memMeta, cfg)
+	mgr, err = New(fsCore, notify.NewNotify(memMeta), memMeta, cfg)
 	Expect(err).Should(BeNil())
 
 	ctx, canF := context.WithCancel(context.Background())

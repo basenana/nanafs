@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
 	"github.com/basenana/nanafs/pkg/core"
-	"github.com/basenana/nanafs/pkg/token"
 	"net/http"
 	"time"
 
@@ -129,11 +128,11 @@ func RunFSAPI(depends *common.Depends, cfg config.Config, stopCh chan struct{}) 
 	return nil
 }
 
-func RunWebdav(fs *core.FileSystem, tokenMgr *token.Manager, cfg config.Webdav, stopCh chan struct{}) error {
+func RunWebdav(fs *core.FileSystem, cfg config.Webdav, stopCh chan struct{}) error {
 	if !cfg.Enable {
 		return nil
 	}
-	w, err := webdav.NewWebdavServer(fs, tokenMgr, cfg)
+	w, err := webdav.NewWebdavServer(fs, cfg)
 	if err != nil {
 		return fmt.Errorf("init webdav server failed: %w", err)
 	}

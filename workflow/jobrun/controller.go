@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"github.com/basenana/go-flow"
 	"github.com/basenana/nanafs/pkg/core"
-	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/plugin"
@@ -47,7 +46,6 @@ type Controller struct {
 
 	pluginMgr *plugin.Manager
 	core      core.Core
-	docMgr    document.Manager
 	store     metastore.Meta
 	notify    *notify.Notify
 
@@ -136,7 +134,6 @@ func (c *Controller) handleNextJob(namespace, jobID string) {
 	}
 
 	f := workflowJob2Flow(c, job)
-	ctx = types.WithNamespace(ctx, types.NewNamespace(job.Namespace))
 	c.logger.Infow("ns in ctx before start", "namespace", job.Namespace, "job", jobID)
 	ctx = utils.NewWorkflowJobContext(ctx, job.Id)
 
@@ -160,9 +157,7 @@ func (c *Controller) handleNextJob(namespace, jobID string) {
 		job.TimeoutSeconds = 60 * 60 * 3 // 3H
 	}
 
-	// FIXME: delete this
-	nsCtx := types.WithNamespace(ctx, types.NewNamespace(job.Namespace))
-	jobCtx, canF := context.WithTimeout(nsCtx, time.Duration(job.TimeoutSeconds)*time.Second)
+	jobCtx, canF := context.WithTimeout(ctx, time.Duration(job.TimeoutSeconds)*time.Second)
 	defer canF()
 
 	c.logger.Infof("trigger flow %s %s", namespace, job.Id)
@@ -298,12 +293,11 @@ func (c *Controller) getRunner(namespace, jobiD string) *runner {
 	return r
 }
 
-func NewJobController(pluginMgr *plugin.Manager, fsCore core.Core, docMgr document.Manager,
+func NewJobController(pluginMgr *plugin.Manager, fsCore core.Core,
 	store metastore.Meta, notify *notify.Notify, workdir string) *Controller {
 	ctrl := &Controller{
 		pluginMgr: pluginMgr,
 		core:      fsCore,
-		docMgr:    docMgr,
 		store:     store,
 		notify:    notify,
 		workdir:   workdir,

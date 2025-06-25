@@ -248,7 +248,7 @@ func (s *sqlMetaStore) GetChild(ctx context.Context, namespace string, parentID,
 	return child.To(), nil
 }
 
-func (s *sqlMetaStore) CreateEntry(ctx context.Context, namespace string, parentID int64, newEntry *types.Entry, ed *types.ExtendData) error {
+func (s *sqlMetaStore) CreateEntry(ctx context.Context, namespace string, parentID int64, newEntry *types.Entry) error {
 	defer trace.StartRegion(ctx, "metastore.sql.CreateEntry").End()
 	requireLock()
 	defer releaseLock()
@@ -279,13 +279,6 @@ func (s *sqlMetaStore) CreateEntry(ctx context.Context, namespace string, parent
 			}
 		}
 
-		if ed != nil {
-			edMod := (&db.EntryExtend{ID: entryMod.ID}).From(ed)
-			res = tx.Create(edMod)
-			if res.Error != nil {
-				return res.Error
-			}
-		}
 		if parentID == 0 {
 			return nil
 		}
@@ -451,31 +444,7 @@ func (s *sqlMetaStore) FilterEntries(ctx context.Context, namespace string, filt
 	defer trace.StartRegion(ctx, "metastore.sql.FilterEntries").End()
 	requireLock()
 	defer releaseLock()
-	var (
-		scopeIds []int64
-		err      error
-	)
-	if len(filter.Label.Include) > 0 || len(filter.Label.Exclude) > 0 {
-		scopeIds, err = listEntryIdsWithLabelMatcher(ctx, namespace, s.DB, filter.Label)
-		if err != nil {
-			return nil, db.SqlError2Error(err)
-		}
-		if len(scopeIds) == 0 {
-			return newTransactionEntryIterator(s.DB, 0), nil
-		}
-	}
-
-	var total int64
-	tx := queryFilter(s.WithContext(ctx).Model(&db.Entry{}).Where("entry.namespace = ?", namespace), filter, scopeIds)
-	if page := types.GetPagination(ctx); page != nil {
-		tx = tx.Offset(page.Offset()).Limit(page.Limit())
-	}
-	res := tx.Count(&total)
-	if err = res.Error; err != nil {
-		s.logger.Errorw("count filtered entry failed", "filter", filter, "err", err)
-		return nil, db.SqlError2Error(err)
-	}
-	return newTransactionEntryIterator(tx, total), nil
+	return nil, nil
 }
 
 func (s *sqlMetaStore) Open(ctx context.Context, namespace string, id int64, attr types.OpenAttr) (*types.Entry, error) {
@@ -537,51 +506,6 @@ func (s *sqlMetaStore) Flush(ctx context.Context, namespace string, id int64, si
 	return nil
 }
 
-func (s *sqlMetaStore) GetEntryExtendData(ctx context.Context, namespace string, id int64) (types.ExtendData, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.GetEntryExtendData").End()
-	requireLock()
-	defer releaseLock()
-	var ext = &db.EntryExtend{}
-	res := s.WithContext(ctx).Where("id = ?", id).First(ext)
-	if res.Error != nil {
-		err := db.SqlError2Error(res.Error)
-		if errors.Is(err, types.ErrNotFound) {
-			return types.ExtendData{}, nil
-		}
-		return types.ExtendData{}, err
-	}
-	return ext.ToExtData(), nil
-}
-
-func (s *sqlMetaStore) UpdateEntryExtendData(ctx context.Context, namespace string, id int64, ed types.ExtendData) error {
-	defer trace.StartRegion(ctx, "metastore.sql.UpdateEntryExtendData").End()
-	requireLock()
-	defer releaseLock()
-	var (
-		entryModel = &db.Entry{ID: id}
-		extModel   = &db.EntryExtend{ID: id}
-	)
-
-	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := tx.Where("id = ?", id).First(entryModel)
-		if res.Error != nil {
-			return res.Error
-		}
-
-		extModel.From(&ed)
-		res = tx.Save(extModel)
-		if res.Error != nil {
-			return res.Error
-		}
-		return nil
-	})
-	if err != nil {
-		s.logger.Errorw("save entry extend data failed", "entry", id, "err", err)
-		return db.SqlError2Error(err)
-	}
-	return nil
-}
-
 func (s *sqlMetaStore) MirrorEntry(ctx context.Context, namespace string, entryID int64, newName string, newParentID int64, attr types.EntryAttr) error {
 	defer trace.StartRegion(ctx, "metastore.sql.MirrorEntry").End()
 	requireLock()
@@ -632,9 +556,6 @@ func (s *sqlMetaStore) MirrorEntry(ctx context.Context, namespace string, entryI
 		child.ChildID = entryID
 		child.ParentID = newParentID
 		child.Namespace = namespace
-		if attr.Dynamic {
-			child.Dynamic = true
-		}
 
 		res = tx.Create(child)
 		if res.Error != nil {
@@ -735,277 +656,41 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, namespace string, 
 	})
 }
 
-func (s *sqlMetaStore) GetEntryLabels(ctx context.Context, namespace string, id int64) (types.Labels, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.GetEntryLabels").End()
+func (s *sqlMetaStore) GetEntryProperties(ctx context.Context, namespace string, ptype types.PropertyType, id int64, data any) error {
+	defer trace.StartRegion(ctx, "metastore.sql.GetEntryProperties").End()
 	requireLock()
 	defer releaseLock()
-	var (
-		result    types.Labels
-		labelMods []db.Label
-	)
-
-	res := s.WithNamespace(ctx, namespace).Where("ref_type = ? and ref_id = ?", "object", id).Find(&labelMods)
+	var itemModel = &db.EntryProperty{}
+	res := s.WithNamespace(ctx, namespace).Where("entry = ? AND type = ?", id, ptype).First(&itemModel)
 	if res.Error != nil {
-		s.logger.Errorw("get entry labels failed", "entry", id, "err", res.Error)
-		return result, db.SqlError2Error(res.Error)
-	}
-
-	for _, l := range labelMods {
-		result.Labels = append(result.Labels, types.Label{Key: l.Key, Value: l.Value})
-	}
-	return result, nil
-}
-
-func (s *sqlMetaStore) UpdateEntryLabels(ctx context.Context, namespace string, id int64, labels types.Labels) error {
-	defer trace.StartRegion(ctx, "metastore.sql.UpdateEntryLabels").End()
-	requireLock()
-	defer releaseLock()
-	var (
-		needCreateLabelModels = make([]db.Label, 0)
-		needUpdateLabelModels = make([]db.Label, 0)
-		needDeleteLabelModels = make([]db.Label, 0)
-	)
-
-	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		labelModels := make([]db.Label, 0)
-		res := namespaceQuery(tx, namespace).Where("ref_type = ? AND ref_id = ?", "object", id).Find(&labelModels)
-		if res.Error != nil {
-			return res.Error
+		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			// just return
+			return nil
 		}
-
-		labelsMap := map[string]string{}
-		for _, kv := range labels.Labels {
-			labelsMap[kv.Key] = kv.Value
-		}
-		for i := range labelModels {
-			oldKv := labelModels[i]
-			if newV, ok := labelsMap[oldKv.Key]; ok {
-				if oldKv.Value != newV {
-					oldKv.Value = newV
-					oldKv.SearchKey = labelSearchKey(oldKv.Key, newV)
-					needUpdateLabelModels = append(needUpdateLabelModels, oldKv)
-				}
-				delete(labelsMap, oldKv.Key)
-				continue
-			}
-			needDeleteLabelModels = append(needDeleteLabelModels, oldKv)
-		}
-
-		for k, v := range labelsMap {
-			needCreateLabelModels = append(needCreateLabelModels,
-				db.Label{
-					RefID:     id,
-					RefType:   "object",
-					Namespace: namespace,
-					Key:       k,
-					Value:     v,
-					SearchKey: labelSearchKey(k, v),
-				})
-		}
-
-		if len(needCreateLabelModels) > 0 {
-			for i := range needCreateLabelModels {
-				label := needCreateLabelModels[i]
-				res = tx.Create(&label)
-				if res.Error != nil {
-					return res.Error
-				}
-			}
-		}
-		if len(needUpdateLabelModels) > 0 {
-			for i := range needUpdateLabelModels {
-				label := needUpdateLabelModels[i]
-				res = tx.Save(label)
-				if res.Error != nil {
-					return res.Error
-				}
-			}
-		}
-
-		if len(needDeleteLabelModels) > 0 {
-			for i := range needDeleteLabelModels {
-				label := needDeleteLabelModels[i]
-				res = tx.Delete(label)
-				if res.Error != nil {
-					return res.Error
-				}
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		s.logger.Errorw("update entry labels failed", "entry", id, "err", err)
-		return db.SqlError2Error(err)
-	}
-	return nil
-}
-
-func (s *sqlMetaStore) ListEntryProperties(ctx context.Context, namespace string, id int64) (types.Properties, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.ListEntryProperties").End()
-	requireLock()
-	defer releaseLock()
-	var (
-		property = make([]db.EntryProperty, 0)
-		result   = types.Properties{Fields: map[string]types.PropertyItem{}}
-	)
-
-	res := s.WithNamespace(ctx, namespace).Where("oid = ?", id).Find(&property)
-	if res.Error != nil {
-		return result, res.Error
-	}
-
-	for _, p := range property {
-		result.Fields[p.Name] = types.PropertyItem{Value: p.Value, Encoded: p.Encoded}
-	}
-	return result, nil
-}
-
-func (s *sqlMetaStore) GetEntryProperty(ctx context.Context, namespace string, id int64, key string) (types.PropertyItem, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.GetEntryProperty").End()
-	requireLock()
-	defer releaseLock()
-	var (
-		itemModel = &db.EntryProperty{}
-		result    types.PropertyItem
-	)
-	res := s.WithNamespace(ctx, namespace).Where("oid = ? AND key = ?", id, key).First(&itemModel)
-	if res.Error != nil {
-		return result, db.SqlError2Error(res.Error)
-	}
-	result.Value = itemModel.Value
-	result.Encoded = itemModel.Encoded
-	return result, nil
-}
-
-func (s *sqlMetaStore) AddEntryProperty(ctx context.Context, namespace string, id int64, key string, item types.PropertyItem) error {
-	defer trace.StartRegion(ctx, "metastore.sql.AddEntryProperty").End()
-	requireLock()
-	defer releaseLock()
-	var (
-		entryModel   = &db.Entry{ID: id}
-		propertyItem = &db.EntryProperty{}
-	)
-	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQuery(tx, namespace).Where("id = ?", id).First(entryModel)
-		if res.Error != nil {
-			return res.Error
-		}
-
-		res = namespaceQuery(tx, namespace).Where("oid = ? AND key = ?", id, key).First(propertyItem)
-		if res.Error != nil && !errors.Is(res.Error, gorm.ErrRecordNotFound) {
-			return res.Error
-		}
-
-		propertyItem.OID = id
-		propertyItem.Namespace = entryModel.Namespace
-		propertyItem.Name = key
-		propertyItem.Value = item.Value
-		propertyItem.Encoded = item.Encoded
-
-		if propertyItem.ID == 0 {
-			res = tx.Create(propertyItem)
-			return res.Error
-		}
-		res = tx.Updates(propertyItem)
-		return res.Error
-	})
-	if err != nil {
-		s.logger.Errorw("add entry property failed", "entry", id, "err", err)
-		return db.SqlError2Error(err)
-	}
-	return nil
-}
-
-func (s *sqlMetaStore) RemoveEntryProperty(ctx context.Context, namespace string, id int64, key string) error {
-	defer trace.StartRegion(ctx, "metastore.sql.RemoveEntryProperty").End()
-	requireLock()
-	defer releaseLock()
-	res := s.WithNamespace(ctx, namespace).Where("oid = ? AND key = ?", id, key).Delete(&db.EntryProperty{})
-	if res.Error != nil {
 		return db.SqlError2Error(res.Error)
 	}
-	return nil
+	return json.Unmarshal([]byte(itemModel.Value), data)
 }
 
-func (s *sqlMetaStore) UpdateEntryProperties(ctx context.Context, namespace string, id int64, properties types.Properties) error {
+func (s *sqlMetaStore) UpdateEntryProperties(ctx context.Context, namespace string, ptype types.PropertyType, id int64, data any) error {
 	defer trace.StartRegion(ctx, "metastore.sql.UpdateEntryProperties").End()
 	requireLock()
 	defer releaseLock()
-	var (
-		entryModel                 = &db.Entry{ID: id}
-		objectProperties           = make([]db.EntryProperty, 0)
-		needCreatePropertiesModels = make([]db.EntryProperty, 0)
-		needUpdatePropertiesModels = make([]db.EntryProperty, 0)
-		needDeletePropertiesModels = make([]db.EntryProperty, 0)
-	)
-	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQuery(tx, namespace).Where("id = ?", id).First(entryModel)
-		if res.Error != nil {
-			return res.Error
-		}
+	var itemModel = &db.EntryProperty{
+		Entry:     id,
+		Type:      string(ptype),
+		Value:     "",
+		Namespace: namespace,
+	}
 
-		res = namespaceQuery(tx, namespace).Where("oid = ?", id).Find(&objectProperties)
-		if res.Error != nil {
-			return res.Error
-		}
-
-		propertiesMap := map[string]types.PropertyItem{}
-		for k, v := range properties.Fields {
-			propertiesMap[k] = v
-		}
-
-		for i := range objectProperties {
-			oldKv := objectProperties[i]
-			if newV, ok := propertiesMap[oldKv.Name]; ok {
-				if oldKv.Value != newV.Value {
-					oldKv.Value = newV.Value
-					oldKv.Encoded = newV.Encoded
-					needUpdatePropertiesModels = append(needUpdatePropertiesModels, oldKv)
-				}
-				delete(propertiesMap, oldKv.Name)
-				continue
-			}
-			needDeletePropertiesModels = append(needDeletePropertiesModels, oldKv)
-		}
-
-		for k, v := range propertiesMap {
-			needCreatePropertiesModels = append(needCreatePropertiesModels,
-				db.EntryProperty{OID: id, Name: k, Namespace: entryModel.Namespace, Value: v.Value, Encoded: v.Encoded})
-		}
-
-		if len(needCreatePropertiesModels) > 0 {
-			for i := range needCreatePropertiesModels {
-				property := needCreatePropertiesModels[i]
-				res = tx.Create(&property)
-				if res.Error != nil {
-					return res.Error
-				}
-			}
-		}
-		if len(needUpdatePropertiesModels) > 0 {
-			for i := range needUpdatePropertiesModels {
-				property := needUpdatePropertiesModels[i]
-				res = tx.Save(&property)
-				if res.Error != nil {
-					return res.Error
-				}
-			}
-		}
-
-		if len(needDeletePropertiesModels) > 0 {
-			for i := range needDeletePropertiesModels {
-				property := needDeletePropertiesModels[i]
-				res = tx.Delete(&property)
-				if res.Error != nil {
-					return res.Error
-				}
-			}
-		}
-		return nil
-	})
+	raw, err := json.Marshal(data)
 	if err != nil {
-		s.logger.Errorw("save entry properties failed", "entry", id, "err", err)
-		return db.SqlError2Error(err)
+		return err
+	}
+	itemModel.Value = string(raw)
+	res := s.WithNamespace(ctx, namespace).Save(itemModel)
+	if res.Error != nil {
+		return db.SqlError2Error(res.Error)
 	}
 	return nil
 }
@@ -1056,7 +741,7 @@ func (s *sqlMetaStore) ListSegments(ctx context.Context, oid, chunkID int64, all
 		result[i] = types.ChunkSeg{
 			ID:      seg.ID,
 			ChunkID: seg.ChunkID,
-			EntryID: seg.OID,
+			EntryID: seg.Entry,
 			Off:     seg.Off,
 			Len:     seg.Len,
 			State:   seg.State,
@@ -1083,7 +768,7 @@ func (s *sqlMetaStore) AppendSegments(ctx context.Context, seg types.ChunkSeg) (
 
 		res = tx.Create(&db.EntryChunk{
 			ID:       seg.ID,
-			OID:      seg.EntryID,
+			Entry:    seg.EntryID,
 			ChunkID:  seg.ChunkID,
 			Off:      seg.Off,
 			Len:      seg.Len,
@@ -1568,44 +1253,6 @@ func updateEntryModelWithVersion(tx *gorm.DB, entryMod *db.Entry) error {
 		return res.Error
 	}
 	return nil
-}
-
-func listEntryIdsWithLabelMatcher(ctx context.Context, namespace string, tx *gorm.DB, labelMatch types.LabelMatch) ([]int64, error) {
-	tx = tx.WithContext(ctx)
-	includeSearchKeys := make([]string, len(labelMatch.Include))
-	for i, inKey := range labelMatch.Include {
-		includeSearchKeys[i] = labelSearchKey(inKey.Key, inKey.Value)
-	}
-
-	var includeLabels []db.Label
-	res := namespaceQuery(tx, namespace).Where("ref_type = ? AND search_key IN ?", "object", includeSearchKeys).Find(&includeLabels)
-	if res.Error != nil {
-		return nil, res.Error
-	}
-
-	var excludeLabels []db.Label
-	res = namespaceQuery(tx, namespace).Select("ref_id").Where("ref_type = ? AND key IN ?", "object", labelMatch.Exclude).Find(&excludeLabels)
-	if res.Error != nil {
-		return nil, res.Error
-	}
-
-	targetObjects := make(map[int64]int)
-	for _, in := range includeLabels {
-		targetObjects[in.RefID] += 1
-	}
-	for _, ex := range excludeLabels {
-		delete(targetObjects, ex.RefID)
-	}
-
-	idList := make([]int64, 0, len(targetObjects))
-	for i, matchedKeyCount := range targetObjects {
-		if matchedKeyCount != len(labelMatch.Include) {
-			// part match
-			continue
-		}
-		idList = append(idList, i)
-	}
-	return idList, nil
 }
 
 func queryFilter(tx *gorm.DB, filter types.Filter, scopeIds []int64) *gorm.DB {

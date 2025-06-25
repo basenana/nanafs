@@ -208,15 +208,7 @@ func mockedObjectForQuery(ctx context.Context, entryStore metastore.EntryStore) 
 	}
 
 	for _, o := range objectList {
-		err := entryStore.CreateEntry(ctx, types.DefaultNamespace, 0, o.Entry, nil)
-		if err != nil {
-			return err
-		}
-		err = entryStore.UpdateEntryProperties(ctx, types.DefaultNamespace, o.ID, *o.Properties)
-		if err != nil {
-			return err
-		}
-		err = entryStore.UpdateEntryLabels(ctx, types.DefaultNamespace, o.ID, *o.Labels)
+		err := entryStore.CreateEntry(ctx, types.DefaultNamespace, 0, o.Entry)
 		if err != nil {
 			return err
 		}

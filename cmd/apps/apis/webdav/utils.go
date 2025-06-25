@@ -17,10 +17,13 @@
 package webdav
 
 import (
+	"context"
+	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"io/fs"
+	"net/http"
 	"os"
 	"strings"
 	"syscall"
@@ -160,4 +163,53 @@ func error2FsError(err error) error {
 
 func splitPath(path string) []string {
 	return strings.Split(path, utils.PathSeparator)
+}
+
+type UserInfo struct {
+	UID, GID  int64
+	Namespace string
+}
+
+const (
+	userInfoContextKey = "ctx.user_info"
+)
+
+func basicAuthHandler(h http.Handler, namespace string, cfg config.Webdav) http.Handler {
+	users := make(map[string]config.OverwriteUser)
+	for _, u := range cfg.OverwriteUsers {
+		users[u.Username] = u
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok {
+			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte("Unauthorised.\n"))
+			return
+		}
+
+		info, ok := users[user]
+		if !ok || info.Password != pass {
+			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte("User or password incorrect.\n"))
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), userInfoContextKey, &UserInfo{
+			UID:       info.UID,
+			GID:       info.GID,
+			Namespace: namespace,
+		})
+		h.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func getUserInfo(ctx context.Context) *UserInfo {
+	rawUi := ctx.Value(userInfoContextKey)
+	if rawUi == nil {
+		return nil
+	}
+	return rawUi.(*UserInfo)
 }

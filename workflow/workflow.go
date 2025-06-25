@@ -28,7 +28,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/types"
@@ -56,7 +55,6 @@ type Workflow interface {
 type manager struct {
 	ctrl   *jobrun.Controller
 	core   core.Core
-	docMgr document.Manager
 	notify *notify.Notify
 	meta   metastore.Meta
 	config config.Config
@@ -66,7 +64,7 @@ type manager struct {
 
 var _ Workflow = &manager{}
 
-func New(fsCore core.Core, docMgr document.Manager, notify *notify.Notify, meta metastore.Meta, cfg config.Config) (Workflow, error) {
+func New(fsCore core.Core, notify *notify.Notify, meta metastore.Meta, cfg config.Config) (Workflow, error) {
 	wfLogger = logger.NewLogger("workflow")
 
 	jobWorkdir, err := cfg.GetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "job_workdir").String()
@@ -86,8 +84,8 @@ func New(fsCore core.Core, docMgr document.Manager, notify *notify.Notify, meta 
 	if err != nil {
 		return nil, fmt.Errorf("init plugin failed %w", err)
 	}
-	flowCtrl := jobrun.NewJobController(pluginMgr, fsCore, docMgr, meta, notify, jobWorkdir)
-	mgr := &manager{ctrl: flowCtrl, core: fsCore, docMgr: docMgr, meta: meta, config: cfg, logger: wfLogger}
+	flowCtrl := jobrun.NewJobController(pluginMgr, fsCore, nil, meta, notify, jobWorkdir)
+	mgr := &manager{ctrl: flowCtrl, core: fsCore, meta: meta, config: cfg, logger: wfLogger}
 	mgr.hooks = initHooks(mgr)
 
 	return mgr, nil

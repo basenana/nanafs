@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"google.golang.org/grpc/credentials"
@@ -45,7 +44,6 @@ import (
 var (
 	dep           *common.Depends
 	testMeta      metastore.Meta
-	testFriday    friday.Friday
 	testServer    *grpc.Server
 	serviceClient *Client
 	mockListen    *bufconn.Listener
@@ -69,8 +67,6 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 	testMeta = memMeta
 
-	testFriday = friday.NewMockFriday()
-
 	workdir, err := os.MkdirTemp(os.TempDir(), "ut-nanafs-fsapi-")
 	Expect(err).Should(BeNil())
 
@@ -82,10 +78,6 @@ var _ = BeforeSuite(func() {
 
 	dep, err = common.InitDepends(cl, memMeta)
 	Expect(err).Should(BeNil())
-
-	// mock friday
-	dep.FridayClient = testFriday
-	dep.Document, err = document.NewManager(dep.Meta, dep.Core, dep.ConfigLoader, dep.FridayClient)
 
 	// init root
 	_, err = dep.Core.FSRoot(context.TODO())
@@ -100,8 +92,8 @@ var _ = BeforeSuite(func() {
 	var opts = []grpc.ServerOption{
 		grpc.Creds(serverCreds),
 		grpc.MaxRecvMsgSize(1024 * 1024 * 50), // 50M
-		common.WithCommonInterceptors(),
-		common.WithStreamInterceptors(),
+		common.WithCommonInterceptors(dep.Token),
+		common.WithStreamInterceptors(dep.Token),
 	}
 	testServer = grpc.NewServer(opts...)
 	_, err = InitServicesV1(testServer, dep)

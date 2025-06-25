@@ -29,11 +29,12 @@ const (
 	LabelKeyPluginKind   = LabelKeyPluginPrefix + "kind"
 	LabelKeyPluginName   = LabelKeyPluginPrefix + "name"
 
-	PropertyWebSiteName     = "org.basenana.web.site_name"
-	PropertyWebSiteURL      = "org.basenana.web.site_url"
 	PropertyWebPageURL      = "org.basenana.web.url"
 	PropertyWebPageUpdateAt = "org.basenana.web.updated_at"
 	PropertyWebPageTitle    = "org.basenana.web.title"
+
+	AllNamespace     = ""
+	DefaultNamespace = "default"
 )
 
 type SystemInfo struct {
@@ -132,15 +133,6 @@ func (l Labels) Get(key string) *Label {
 type Label struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
-}
-
-type Properties struct {
-	Fields map[string]PropertyItem `json:"fields,omitempty"`
-}
-
-type PropertyItem struct {
-	Value   string `json:"value"`
-	Encoded bool   `json:"encoded"`
 }
 
 func InitNewEntry(parent *Entry, attr EntryAttr) (*Entry, error) {

@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"github.com/basenana/go-flow"
 	"github.com/basenana/nanafs/pkg/core"
-	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
@@ -47,7 +46,6 @@ func newExecutor(ctrl *Controller, job *types.WorkflowJob) flow.Executor {
 			pluginMgr: ctrl.pluginMgr,
 			core:      ctrl.core,
 			store:     ctrl.store,
-			docMgr:    ctrl.docMgr,
 			logger:    logger.NewLogger("pipeExecutor").With(zap.String("job", job.Id)),
 		}
 	default:
@@ -56,7 +54,6 @@ func newExecutor(ctrl *Controller, job *types.WorkflowJob) flow.Executor {
 			pluginMgr: ctrl.pluginMgr,
 			core:      ctrl.core,
 			store:     ctrl.store,
-			docMgr:    ctrl.docMgr,
 			workdir:   path.Join(ctrl.workdir, fmt.Sprintf("job-%s", job.Id)),
 			logger:    logger.NewLogger("fileExecutor").With(zap.String("job", job.Id)),
 		}
@@ -68,7 +65,6 @@ type pipeExecutor struct {
 	pluginMgr *plugin.Manager
 	core      core.Core
 	store     metastore.EntryStore
-	docMgr    document.Manager
 	logger    *zap.SugaredLogger
 
 	ctxResults pluginapi.Results
@@ -134,7 +130,6 @@ type fileExecutor struct {
 	core      core.Core
 	store     metastore.EntryStore
 	pluginMgr *plugin.Manager
-	docMgr    document.Manager
 
 	workdir    string
 	entryPath  string
@@ -277,7 +272,7 @@ func (b *fileExecutor) collectEntries(ctx context.Context, manifests []pluginapi
 					continue
 				}
 				b.logger.Infow("collect documents", "entryId", file.ID)
-				if err = collectFile2Document(ctx, b.docMgr, en, file.Document); err != nil {
+				if err = collectFile2Document(ctx, en, file.Document); err != nil {
 					return logOperationError(FileExecName, "collect", err)
 				}
 			}
@@ -304,34 +299,6 @@ func (b *fileExecutor) Teardown(ctx context.Context) error {
 
 func callPlugin(ctx context.Context, job *types.WorkflowJob, ps types.PlugScope, mgr *plugin.Manager,
 	store metastore.EntryStore, req *pluginapi.Request, logger *zap.SugaredLogger) (*pluginapi.Response, error) {
-	if job.Target.ParentEntryID != 0 {
-		ed, err := store.GetEntryExtendData(ctx, job.Namespace, job.Target.ParentEntryID)
-		if err != nil {
-			err = fmt.Errorf("get parent entry extend data error: %s", err)
-			return nil, err
-		}
-		if ed.PlugScope != nil {
-			ps = mergeParentEntryPlugScope(ps, *ed.PlugScope)
-		}
-
-		properties, err := store.ListEntryProperties(ctx, job.Namespace, job.Target.ParentEntryID)
-		if err != nil {
-			err = fmt.Errorf("get parent entry properties error: %w", err)
-			return nil, err
-		}
-		for k, v := range properties.Fields {
-			val := v.Value
-			if v.Encoded {
-				val, err = utils.DecodeBase64String(val)
-				if err != nil {
-					logger.Warnw("decode extend property value failed", "key", k)
-					continue
-				}
-			}
-			req.ParentProperties[k] = val
-		}
-	}
-
 	req.Action = ps.Action
 	resp, err := mgr.Call(ctx, job, ps, req)
 	if err != nil {

@@ -113,39 +113,17 @@ func (s *servicesV1) getEntryDetails(ctx context.Context, namespace, uri string,
 		AccessAt:   timestamppb.New(en.AccessAt),
 	}
 
-	properties := make(map[string]types.PropertyItem)
-	if parent > 0 {
-		// TODO: delete this?
-		baseProperties, err := s.meta.ListEntryProperties(ctx, namespace, parent)
-		if err != nil {
-			return nil, nil, err
-		}
-		for k, p := range baseProperties.Fields {
-			if p.Encoded {
-				continue
-			}
-			properties[k] = p
-		}
-	}
-
-	ps, err := s.meta.ListEntryProperties(ctx, namespace, id)
+	properties := make(types.Properties)
+	err = s.meta.GetEntryProperties(ctx, namespace, types.PropertyTypeProperty, id, &properties)
 	if err != nil {
 		return nil, nil, err
-	}
-
-	for k, p := range ps.Fields {
-		if p.Encoded {
-			continue
-		}
-		properties[k] = p
 	}
 
 	pl := make([]*Property, 0)
 	for k, item := range properties {
 		pl = append(pl, &Property{
-			Key:     k,
-			Value:   item.Value,
-			Encoded: item.Encoded,
+			Key:   k,
+			Value: item.Value,
 		})
 	}
 	return ed, pl, nil
@@ -271,35 +249,20 @@ func (s *servicesV1) ChangeEntryParent(ctx context.Context, namespace string, ta
 
 func (s *servicesV1) queryEntryProperties(ctx context.Context, namespace string, entryID, parentID int64) ([]*Property, error) {
 	var (
-		properties types.Properties
+		properties = make(types.Properties)
 		err        error
 	)
-	if parentID > 0 {
-		properties, err = s.meta.ListEntryProperties(ctx, namespace, parentID)
-		if err != nil {
-			return nil, err
-		}
-		s.logger.Infow("list entry properties", "entry", entryID, "parentID", parentID, "got", len(properties.Fields))
-	}
-	entryProperties, err := s.meta.ListEntryProperties(ctx, namespace, entryID)
+	err = s.meta.GetEntryProperties(ctx, namespace, types.PropertyTypeProperty, entryID, &properties)
 	if err != nil {
 		return nil, err
 	}
 
-	if properties.Fields == nil {
-		properties.Fields = make(map[string]types.PropertyItem)
-	}
-	for k, p := range entryProperties.Fields {
-		properties.Fields[k] = p
-	}
-	result := make([]*Property, 0, len(properties.Fields))
-	for key, p := range properties.Fields {
+	result := make([]*Property, 0, len(properties))
+	for key, p := range properties {
 		result = append(result, &Property{
-			Key:     key,
-			Value:   p.Value,
-			Encoded: p.Encoded,
+			Key:   key,
+			Value: p.Value,
 		})
 	}
-
 	return result, nil
 }

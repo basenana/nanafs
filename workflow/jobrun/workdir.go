@@ -28,7 +28,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
@@ -186,27 +185,6 @@ func collectFile2BaseEntry(ctx context.Context, namespace string, fsCore core.Co
 	return result, nil
 }
 
-func collectFile2Document(ctx context.Context, docMgr document.Manager, baseEn *types.Entry, document *pluginapi.Document) error {
-	unread := true
-	doc := &types.Document{
-		EntryId:       baseEn.ID,
-		Name:          document.Title,
-		Namespace:     baseEn.Namespace,
-		ParentEntryID: baseEn.ParentID,
-		Source:        "collect",
-		Content:       document.Content,
-		Unread:        &unread,
-		CreatedAt:     baseEn.CreatedAt,
-		ChangedAt:     baseEn.ChangedAt,
-	}
-	if !document.PublicAt.IsZero() {
-		doc.CreatedAt = document.PublicAt
-		doc.ChangedAt = document.PublicAt
-	}
-	err := docMgr.CreateDocument(ctx, baseEn.Namespace, doc)
-	if err != nil {
-		return fmt.Errorf("create new entry failed: %s", err)
-	}
-
+func collectFile2Document(ctx context.Context, baseEn *types.Entry, document *pluginapi.Document) error {
 	return nil
 }

@@ -31,7 +31,7 @@ var _ = Describe("TestSqliteObjectOperation", func() {
 	var sqlite = buildNewSqliteMetaStore("test_object.db")
 	// init root
 	rootEn := InitRootEntry()
-	Expect(sqlite.CreateEntry(context.TODO(), namespace, 0, rootEn, nil)).Should(BeNil())
+	Expect(sqlite.CreateEntry(context.TODO(), namespace, 0, rootEn)).Should(BeNil())
 
 	Context("create a new file entry", func() {
 		It("should be succeed", func() {
@@ -41,7 +41,7 @@ var _ = Describe("TestSqliteObjectOperation", func() {
 			})
 			Expect(err).Should(BeNil())
 
-			err = sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, en, nil)
+			err = sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, en)
 			Expect(err).Should(BeNil())
 
 			fetchObj, err := sqlite.GetEntry(context.TODO(), namespace, en.ID)
@@ -58,7 +58,7 @@ var _ = Describe("TestSqliteObjectOperation", func() {
 			})
 			Expect(err).Should(BeNil())
 
-			err = sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, en, nil)
+			err = sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, en)
 			Expect(err).Should(BeNil())
 
 			en.Name = "test-update-en-2"
@@ -115,33 +115,33 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 	var sqlite = buildNewSqliteMetaStore("test_group.db")
 	// init root
 	rootEn := InitRootEntry()
-	Expect(sqlite.CreateEntry(context.TODO(), namespace, 0, rootEn, nil)).Should(BeNil())
+	Expect(sqlite.CreateEntry(context.TODO(), namespace, 0, rootEn)).Should(BeNil())
 
 	group1, err := types.InitNewEntry(rootEn, types.EntryAttr{
 		Name: "test-new-group-1",
 		Kind: types.GroupKind,
 	})
 	Expect(err).Should(BeNil())
-	Expect(sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, group1, nil)).Should(BeNil())
+	Expect(sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, group1)).Should(BeNil())
 
 	group2, err := types.InitNewEntry(rootEn, types.EntryAttr{
 		Name: "test-new-group-2",
 		Kind: types.GroupKind,
 	})
 	Expect(err).Should(BeNil())
-	Expect(sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, group2, nil)).Should(BeNil())
+	Expect(sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, group2)).Should(BeNil())
 
 	Context("list a group entry all children", func() {
 		It("create group file should be succeed", func() {
 			for i := 0; i < 4; i++ {
 				en, err := types.InitNewEntry(group1, types.EntryAttr{Name: "test-file-en-1", Kind: types.RawKind})
 				Expect(err).Should(BeNil())
-				Expect(sqlite.CreateEntry(context.TODO(), namespace, group1.ID, en, nil)).Should(BeNil())
+				Expect(sqlite.CreateEntry(context.TODO(), namespace, group1.ID, en)).Should(BeNil())
 			}
 
 			en, err := types.InitNewEntry(group1, types.EntryAttr{Name: "test-dev-en-1", Kind: types.BlkDevKind})
 			Expect(err).Should(BeNil())
-			Expect(sqlite.CreateEntry(context.TODO(), namespace, group1.ID, en, nil)).Should(BeNil())
+			Expect(sqlite.CreateEntry(context.TODO(), namespace, group1.ID, en)).Should(BeNil())
 		})
 
 		It("list new file entry should be succeed", func() {
@@ -157,7 +157,7 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 		It("create new file be succeed", func() {
 			targetEn, err = types.InitNewEntry(group1, types.EntryAttr{Name: "test-mv-src-raw-obj-1", Kind: types.RawKind})
 			Expect(err).Should(BeNil())
-			Expect(sqlite.CreateEntry(context.TODO(), namespace, group1.ID, targetEn, nil)).Should(BeNil())
+			Expect(sqlite.CreateEntry(context.TODO(), namespace, group1.ID, targetEn)).Should(BeNil())
 		})
 
 		It("should be succeed", func() {
@@ -202,20 +202,20 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 			Kind: types.GroupKind,
 		})
 		Expect(err).Should(BeNil())
-		Expect(sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, group3, nil)).Should(BeNil())
+		Expect(sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, group3)).Should(BeNil())
 
 		group4, err := types.InitNewEntry(rootEn, types.EntryAttr{
 			Name: "test-mirror-group-2",
 			Kind: types.GroupKind,
 		})
 		Expect(err).Should(BeNil())
-		Expect(sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, group4, nil)).Should(BeNil())
+		Expect(sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, group4)).Should(BeNil())
 
 		var srcEN *types.Entry
 		It("create new file be succeed", func() {
 			srcEN, err = types.InitNewEntry(group1, types.EntryAttr{Name: "test-src-raw-obj-1", Kind: types.RawKind})
 			Expect(err).Should(BeNil())
-			Expect(sqlite.CreateEntry(context.TODO(), namespace, group1.ID, srcEN, nil)).Should(BeNil())
+			Expect(sqlite.CreateEntry(context.TODO(), namespace, group1.ID, srcEN)).Should(BeNil())
 		})
 
 		It("create mirror entry should be succeed", func() {
@@ -245,17 +245,17 @@ var _ = Describe("TestSqliteLabelOperation", func() {
 	)
 	// init root
 	rootEn := InitRootEntry()
-	Expect(sqlite.CreateEntry(context.TODO(), namespace, 0, rootEn, nil)).Should(BeNil())
+	Expect(sqlite.CreateEntry(context.TODO(), namespace, 0, rootEn)).Should(BeNil())
 
 	Context("save labels", func() {
 		It("create entry with/without labels should succeed", func() {
 			entry1, err := types.InitNewEntry(rootEn, types.EntryAttr{Name: "test-label-obj-1", Kind: types.RawKind})
 			Expect(err).Should(BeNil())
-			Expect(sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, entry1, nil)).Should(BeNil())
+			Expect(sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, entry1)).Should(BeNil())
 
 			entry2, err := types.InitNewEntry(rootEn, types.EntryAttr{Name: "test-label-obj-2", Kind: types.RawKind})
 			Expect(err).Should(BeNil())
-			Expect(sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, entry2, nil)).Should(BeNil())
+			Expect(sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, entry2)).Should(BeNil())
 
 			Expect(sqlite.UpdateEntryLabels(context.TODO(), namespace, entry2.ID, types.Labels{Labels: []types.Label{
 				{Key: "test.nanafs.label1", Value: "cus_value"},
@@ -264,7 +264,7 @@ var _ = Describe("TestSqliteLabelOperation", func() {
 
 			entry3, err := types.InitNewEntry(rootEn, types.EntryAttr{Name: "test-label-obj-3", Kind: types.RawKind})
 			Expect(err).Should(BeNil())
-			Expect(sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, entry3, nil)).Should(BeNil())
+			Expect(sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, entry3)).Should(BeNil())
 
 			Expect(sqlite.UpdateEntryLabels(context.TODO(), namespace, entry3.ID, types.Labels{Labels: []types.Label{
 				{Key: "test.nanafs.label2", Value: "cus_value"},

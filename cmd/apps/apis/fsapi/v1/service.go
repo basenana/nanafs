@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/core"
-	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/token"
@@ -53,7 +52,6 @@ func InitServicesV1(server *grpc.Server, depends *common.Depends) (ServicesV1, e
 	s := &servicesV1{
 		meta:      depends.Meta,
 		core:      depends.Core,
-		doc:       depends.Document,
 		workflow:  depends.Workflow,
 		notify:    depends.Notify,
 		cfgLoader: depends.ConfigLoader,
@@ -70,7 +68,6 @@ func InitServicesV1(server *grpc.Server, depends *common.Depends) (ServicesV1, e
 type servicesV1 struct {
 	meta      metastore.Meta
 	core      core.Core
-	doc       document.Manager
 	workflow  workflow.Workflow
 	notify    *notify.Notify
 	cfgLoader config.Config
@@ -173,6 +170,13 @@ func (s *servicesV1) CreateEntry(ctx context.Context, request *CreateEntryReques
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "create entry failed")
 	}
+
+	if len(attr.Properties) > 0 {
+		if err = s.meta.UpdateEntryProperties(ctx, caller.Namespace, types.PropertyTypeProperty, en.ID, attr.Properties); err != nil {
+			return nil, err
+		}
+	}
+
 	return &CreateEntryResponse{Entry: coreEntryInfo(parent.ID, name, en)}, nil
 }
 
@@ -558,52 +562,22 @@ func (s *servicesV1) AddProperty(ctx context.Context, request *AddPropertyReques
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
-	err = s.meta.AddEntryProperty(ctx, caller.Namespace, en.ID, request.Key, types.PropertyItem{Value: request.Value, Encoded: false})
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "add entry extend field failed")
-	}
 
-	en, err = s.core.GetEntry(ctx, caller.Namespace, request.Entry)
+	properties := make(types.Properties)
+	err = s.meta.GetEntryProperties(ctx, caller.Namespace, types.PropertyTypeProperty, en.ID, &properties)
 	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query entry failed")
+		return nil, status.Error(common.FsApiError(err), "fetch entry properties failed")
 	}
+	properties[request.Key] = types.PropertyItem{Value: request.Value}
 
-	properties, err := s.queryEntryProperties(ctx, caller.Namespace, en.ID, 0)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query entry properties failed")
+	resp := &AddPropertyResponse{Properties: make([]*Property, 0, len(properties))}
+	for k, v := range properties {
+		resp.Properties = append(resp.Properties, &Property{
+			Key:   k,
+			Value: v.Value,
+		})
 	}
-	return &AddPropertyResponse{
-		Properties: properties,
-	}, nil
-}
-
-func (s *servicesV1) UpdateProperty(ctx context.Context, request *UpdatePropertyRequest) (*UpdatePropertyResponse, error) {
-	caller, err := s.caller(ctx)
-	if err != nil {
-		return nil, err
-	}
-	en, err := s.core.GetEntry(ctx, caller.Namespace, request.Entry)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query entry failed")
-	}
-
-	err = s.meta.AddEntryProperty(ctx, caller.Namespace, en.ID, request.Key, types.PropertyItem{Value: request.Value, Encoded: false})
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "set entry extend field failed")
-	}
-
-	en, err = s.core.GetEntry(ctx, caller.Namespace, request.Entry)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query entry failed")
-	}
-	properties, err := s.queryEntryProperties(ctx, caller.Namespace, en.ID, en.ParentID)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query entry properties failed")
-	}
-
-	return &UpdatePropertyResponse{
-		Properties: properties,
-	}, nil
+	return resp, nil
 }
 
 func (s *servicesV1) DeleteProperty(ctx context.Context, request *DeletePropertyRequest) (*DeletePropertyResponse, error) {
@@ -616,23 +590,23 @@ func (s *servicesV1) DeleteProperty(ctx context.Context, request *DeleteProperty
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
-	err = s.meta.RemoveEntryProperty(ctx, caller.Namespace, en.ID, request.Key)
+
+	properties := make(types.Properties)
+	err = s.meta.GetEntryProperties(ctx, caller.Namespace, types.PropertyTypeProperty, en.ID, &properties)
 	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "set entry extend field failed")
+		return nil, status.Error(common.FsApiError(err), "fetch entry properties failed")
 	}
 
-	en, err = s.core.GetEntry(ctx, caller.Namespace, request.Entry)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query entry failed")
-	}
-	properties, err := s.queryEntryProperties(ctx, caller.Namespace, en.ID, en.ParentID)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query entry properties failed")
+	if _, ok := properties[request.Key]; ok {
+		delete(properties, request.Key)
 	}
 
-	return &DeletePropertyResponse{
-		Properties: properties,
-	}, nil
+	resp := &DeletePropertyResponse{Properties: make([]*Property, 0, len(properties))}
+	for k, v := range properties {
+		resp.Properties = append(resp.Properties, &Property{Key: k, Value: v.Value})
+	}
+
+	return resp, nil
 }
 
 func (s *servicesV1) ListMessages(ctx context.Context, request *ListMessagesRequest) (*ListMessagesResponse, error) {

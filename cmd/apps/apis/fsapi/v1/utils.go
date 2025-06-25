@@ -169,38 +169,14 @@ func setupRssConfig(config *CreateEntryRequest_RssConfig, attr *types.EntryAttr)
 		fileType = archiveFileTypeHtml
 	}
 
-	attr.ExtendData = &types.ExtendData{
-		PlugScope: &types.PlugScope{
-			PluginName: "rss",
-			Version:    "1.0",
-			PluginType: types.TypeSource,
-			Parameters: map[string]string{
-				"feed":         config.Feed,
-				"file_type":    fileType,
-				"clutter_free": "true",
-			},
+	attr.GroupProperties = &types.GroupProperties{
+		Source: "rss",
+		RSS: &types.GroupRSS{
+			Feed:     config.Feed,
+			SiteName: config.SiteName,
+			SiteURL:  config.SiteURL,
+			FileType: fileType,
 		},
-	}
-
-	attr.Labels = types.Labels{Labels: []types.Label{
-		{
-			Key:   types.LabelKeyPluginKind,
-			Value: "source",
-		},
-		{
-			Key:   types.LabelKeyPluginName,
-			Value: "rss",
-		},
-	}}
-
-	if attr.Properties.Fields == nil {
-		attr.Properties.Fields = map[string]types.PropertyItem{}
-	}
-	if config.SiteURL != "" {
-		attr.Properties.Fields[types.PropertyWebSiteURL] = types.PropertyItem{Value: config.SiteURL}
-	}
-	if config.SiteName != "" {
-		attr.Properties.Fields[types.PropertyWebSiteName] = types.PropertyItem{Value: config.SiteName}
 	}
 }
 

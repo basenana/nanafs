@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package api.v1;
+package nanafs.v1;
 
 option go_package = "github.com/basenana/nanafs/cmd/apps/apis/fsapi/v1";
 
@@ -172,7 +172,6 @@ message ReadFileResponse {
 
 service Properties {
   rpc AddProperty (AddPropertyRequest) returns (AddPropertyResponse) {}
-  rpc UpdateProperty (UpdatePropertyRequest) returns (UpdatePropertyResponse) {}
   rpc DeleteProperty (DeletePropertyRequest) returns (DeletePropertyResponse) {}
 }
 
@@ -189,16 +188,6 @@ message AddPropertyRequest {
 }
 
 message AddPropertyResponse {
-  repeated Property properties = 1;
-}
-
-message UpdatePropertyRequest {
-  int64 entry = 1;
-  string key = 2;
-  string value = 3;
-}
-
-message UpdatePropertyResponse {
   repeated Property properties = 1;
 }
 
