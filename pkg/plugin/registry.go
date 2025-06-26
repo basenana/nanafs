@@ -76,7 +76,7 @@ type Plugin interface {
 	Version() string
 }
 
-type Builder func(job *types.WorkflowJob, scope types.PluginCall) (Plugin, error)
+type Builder func(job *types.WorkflowJob, pcall types.PluginCall) (Plugin, error)
 
 func Init(cfg config.Workflow) (*Manager, error) {
 	r := &registry{

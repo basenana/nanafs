@@ -211,13 +211,6 @@ func (h *hooks) handleEntryCreate(evt *types.Event) {
 			continue
 		}
 
-		if en.IsGroup {
-			if err = h.triggerGroupWorkflow(ctx, evt.Namespace, wfID, en.ID, "group created"); err != nil {
-				h.logger.Errorw("[handleEntryCreate] trigger group workflow failed", "entry", evt.RefID, "err", err)
-			}
-			continue
-		}
-
 		h.workflowJobDelay(ctx, evt.Namespace, wfID, evt.Data.Parent, en, "entry created")
 	}
 	return
@@ -273,8 +266,6 @@ func (h *hooks) filterAndRunCronWorkflow(ctx context.Context, wf *types.Workflow
 		if needSkip {
 			continue
 		}
-
-		_ = h.triggerGroupWorkflow(ctx, wf.Namespace, wf.Id, en.ID, "cronjob")
 	}
 	return nil
 }
@@ -334,7 +325,7 @@ func (h *hooks) triggerDelayedWorkflowJob(isAll bool) {
 			for _, en := range entries {
 				entryIDs = append(entryIDs, en.entryID)
 			}
-			if err := h.triggerEntriesWorkflow(ctx, firstEn.namespace, wf, entryIDs, parentID, firstEn.reason); err != nil {
+			if err := h.triggerEntriesWorkflow(ctx, firstEn.namespace, wf, entryIDs, firstEn.reason); err != nil {
 				h.logger.Errorw("trigger entries workflow failed", "parentID", parentID, "workflow", wf, "err", err)
 			}
 		}
@@ -342,18 +333,12 @@ func (h *hooks) triggerDelayedWorkflowJob(isAll bool) {
 
 }
 
-func (h *hooks) triggerGroupWorkflow(ctx context.Context, namespace, wfId string, parentID int64, reason string) error {
-	tgt := types.WorkflowTarget{ParentEntryID: parentID}
-	return h.triggerWorkflow(ctx, namespace, wfId, tgt, reason)
-}
-
 func (h *hooks) triggerEntriesWorkflow(ctx context.Context, namespace, wfId string, entries []int64, parentID int64, reason string) error {
 	if len(entries) == 0 {
 		return nil
 	}
 	tgt := types.WorkflowTarget{
-		Entries:       entries,
-		ParentEntryID: parentID,
+		Entries: entries,
 	}
 	return h.triggerWorkflow(ctx, namespace, wfId, tgt, reason)
 }

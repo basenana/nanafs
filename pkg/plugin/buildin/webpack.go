@@ -58,7 +58,7 @@ var WebpackPluginSpec = types.PluginSpec{
 
 type WebpackPlugin struct {
 	job    *types.WorkflowJob
-	scope  types.PluginCall
+	pcall  types.PluginCall
 	logger *zap.SugaredLogger
 }
 
@@ -77,10 +77,10 @@ func (w *WebpackPlugin) Version() string {
 func (w *WebpackPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
 	var (
 		workdir     = request.WorkPath
-		filename    = pluginapi.GetParameter(webpackParameterFilename, request, WebpackPluginSpec, w.scope)
-		urlInfo     = pluginapi.GetParameter(webpackParameterURL, request, WebpackPluginSpec, w.scope)
-		fileType    = pluginapi.GetParameter(webpackParameterFileType, request, WebpackPluginSpec, w.scope)
-		clutterFree = strings.ToLower(pluginapi.GetParameter(webpackParameterClutterFree, request, WebpackPluginSpec, w.scope)) == "true"
+		filename    = pluginapi.GetParameter(webpackParameterFilename, request, WebpackPluginSpec, w.pcall)
+		urlInfo     = pluginapi.GetParameter(webpackParameterURL, request, WebpackPluginSpec, w.pcall)
+		fileType    = pluginapi.GetParameter(webpackParameterFileType, request, WebpackPluginSpec, w.pcall)
+		clutterFree = strings.ToLower(pluginapi.GetParameter(webpackParameterClutterFree, request, WebpackPluginSpec, w.pcall)) == "true"
 		filePath    = path.Join(workdir, filename)
 	)
 
@@ -174,10 +174,10 @@ func (w *WebpackPlugin) packFromURL(ctx context.Context, filePath, urlInfo, tgtF
 	}, nil
 }
 
-func NewWebpackPlugin(job *types.WorkflowJob, scope types.PluginCall) (*WebpackPlugin, error) {
+func NewWebpackPlugin(job *types.WorkflowJob, pcall types.PluginCall) (*WebpackPlugin, error) {
 	return &WebpackPlugin{
 		job:    job,
-		scope:  scope,
+		pcall:  pcall,
 		logger: logger.NewLogger("webpackPlugin").With(zap.String("job", job.Id)),
 	}, nil
 }

@@ -95,7 +95,7 @@ func (d *ThreeBodyPlugin) fileGenerate(baseEntry int64, workdir string) (plugina
 	}, nil
 }
 
-func threeBodyBuilder(job *types.WorkflowJob, scope types.PluginCall) (Plugin, error) {
+func threeBodyBuilder(job *types.WorkflowJob, pcall types.PluginCall) (Plugin, error) {
 	return &ThreeBodyPlugin{}, nil
 }
 
@@ -105,7 +105,7 @@ func registerBuildInSourcePlugin(r *registry) {
 
 	r.Register(buildin.RssSourcePluginName,
 		buildin.RssSourcePluginSpec,
-		func(job *types.WorkflowJob, scope types.PluginCall) (Plugin, error) {
-			return buildin.BuildRssSourcePlugin(job, scope), nil
+		func(job *types.WorkflowJob, pcall types.PluginCall) (Plugin, error) {
+			return buildin.BuildRssSourcePlugin(job, pcall), nil
 		})
 }

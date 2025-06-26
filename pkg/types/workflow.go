@@ -66,6 +66,7 @@ type WorkflowJob struct {
 	TriggerReason  string            `json:"trigger_reason,omitempty"`
 	Target         WorkflowTarget    `json:"target"`
 	Steps          []WorkflowJobStep `json:"steps"`
+	Parameters     map[string]string `json:"parameters"`
 	Status         string            `json:"status,omitempty"`
 	Message        string            `json:"message,omitempty"`
 	Executor       string            `json:"executor"`
@@ -105,13 +106,6 @@ type WorkflowTarget struct {
 	Entries       []string `json:"entries,omitempty"`
 	ParentEntryID int64    `json:"parent_entry_id,omitempty"`
 }
-
-const (
-	PlugScopeEntryName     = "entry.name"
-	PlugScopeEntryPath     = "entry.path" // relative path
-	PlugScopeWorkflowID    = "workflow.id"
-	PlugScopeWorkflowJobID = "workflow.job.id"
-)
 
 type PluginCall struct {
 	PluginName string            `json:"plugin_name"`

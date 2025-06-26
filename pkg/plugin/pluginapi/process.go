@@ -22,20 +22,18 @@ import (
 )
 
 type Request struct {
-	Action    string
-	Parameter map[string]any
-
 	WorkPath string
 
+	Namespace     string
 	Entries       []Entry
 	ParentEntryId int64
+	Parameter     map[string]any
 
-	Namespace      string
 	CacheData      *CachedData
 	ContextResults Results
 }
 
-func GetParameter(key string, r *Request, spec types.PluginSpec, scope types.PluginCall) string {
+func GetParameter(key string, r *Request, spec types.PluginSpec, pcall types.PluginCall) string {
 	if len(r.Parameter) > 0 {
 		valRaw, ok := r.Parameter[key]
 		if ok {
@@ -47,8 +45,8 @@ func GetParameter(key string, r *Request, spec types.PluginSpec, scope types.Plu
 		}
 
 	}
-	if len(scope.Parameters) > 0 {
-		val, ok := scope.Parameters[key]
+	if len(pcall.Parameters) > 0 {
+		val, ok := pcall.Parameters[key]
 		if ok {
 			return val
 		}

@@ -71,7 +71,7 @@ var RssSourcePluginSpec = types.PluginSpec{
 
 type RssSourcePlugin struct {
 	job    *types.WorkflowJob
-	scope  types.PluginCall
+	pcall  types.PluginCall
 	logger *zap.SugaredLogger
 }
 
@@ -88,9 +88,10 @@ func (r *RssSourcePlugin) Version() string {
 }
 
 func (r *RssSourcePlugin) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
-	if request.ParentEntryId <= 0 {
+	if len(request.Entries) != 1 {
 		return nil, fmt.Errorf("invalid parent entry id: %d", request.ParentEntryId)
 	}
+
 	source, err := r.rssSources(request)
 	if err != nil {
 		r.logger.Errorw("get rss source failed", "err", err)
@@ -112,7 +113,7 @@ func (r *RssSourcePlugin) Run(ctx context.Context, request *pluginapi.Request) (
 }
 
 func (r *RssSourcePlugin) rssSources(request *pluginapi.Request) (src rssSource, err error) {
-	src.FeedUrl = pluginapi.GetParameter(rssParameterFeed, request, RssSourcePluginSpec, r.scope)
+	src.FeedUrl = pluginapi.GetParameter(rssParameterFeed, request, RssSourcePluginSpec, r.pcall)
 	if src.FeedUrl == "" {
 		err = fmt.Errorf("feed url is empty")
 		return
@@ -124,22 +125,22 @@ func (r *RssSourcePlugin) rssSources(request *pluginapi.Request) (src rssSource,
 		return
 	}
 
-	src.FileType = pluginapi.GetParameter(rssParameterFileType, request, RssSourcePluginSpec, r.scope)
+	src.FileType = pluginapi.GetParameter(rssParameterFileType, request, RssSourcePluginSpec, r.pcall)
 	if src.FileType == "" {
 		src.FileType = archiveFileTypeHtml
 	}
 
-	timeoutStr := pluginapi.GetParameter(rssParameterTimeout, request, RssSourcePluginSpec, r.scope)
+	timeoutStr := pluginapi.GetParameter(rssParameterTimeout, request, RssSourcePluginSpec, r.pcall)
 	src.Timeout, err = strconv.Atoi(timeoutStr)
 	if err != nil {
 		r.logger.Warnf("parse timeout error: %s", err)
 		src.Timeout = 120
 	}
 
-	src.ClutterFree = pluginapi.GetParameter(rssParameterClutterFree, request, RssSourcePluginSpec, r.scope) == "true"
+	src.ClutterFree = pluginapi.GetParameter(rssParameterClutterFree, request, RssSourcePluginSpec, r.pcall) == "true"
 	src.Headers = make(map[string]string)
 
-	for k, v := range r.scope.Parameters {
+	for k, v := range r.pcall.Parameters {
 		if strings.HasPrefix(k, "header_") || strings.HasPrefix(k, "HEADER_") {
 			headerKey := strings.TrimPrefix(k, "header_")
 			headerKey = strings.TrimPrefix(headerKey, "HEADER_")
@@ -343,8 +344,8 @@ func absoluteURL(sitURL, link string) string {
 	return link
 }
 
-func BuildRssSourcePlugin(job *types.WorkflowJob, scope types.PluginCall) *RssSourcePlugin {
-	return &RssSourcePlugin{job: job, scope: scope,
+func BuildRssSourcePlugin(job *types.WorkflowJob, pcall types.PluginCall) *RssSourcePlugin {
+	return &RssSourcePlugin{job: job, pcall: pcall,
 		logger: logger.NewLogger("rssPlugin").With(zap.String("job", job.Id))}
 }
 

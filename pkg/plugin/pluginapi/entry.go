@@ -19,7 +19,6 @@ package pluginapi
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/types"
-	"time"
 )
 
 type Entry struct {
@@ -42,9 +41,8 @@ type EntryAttr struct {
 }
 
 type Document struct {
-	Title    string
-	Content  string
-	PublicAt time.Time
+	Content string
+	types.DocumentProperties
 }
 
 type CollectManifest struct {

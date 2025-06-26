@@ -17,13 +17,14 @@
 package docloader
 
 import (
+	"bytes"
 	"context"
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"github.com/basenana/nanafs/pkg/types"
 	"io"
 	"os"
-	"strconv"
 	"strings"
 )
 
@@ -39,7 +40,7 @@ func NewCSV(docPath string, option map[string]string) CSV {
 	return CSV{docPath: docPath}
 }
 
-func (c CSV) Load(_ context.Context) (result []FDocument, err error) {
+func (c CSV) Load(_ context.Context, doc types.DocumentProperties) (*FDocument, error) {
 	f, err := os.Open(c.docPath)
 	if err != nil {
 		return nil, err
@@ -50,6 +51,7 @@ func (c CSV) Load(_ context.Context) (result []FDocument, err error) {
 	var rown int
 
 	rd := csv.NewReader(f)
+	buf := bytes.Buffer{}
 	for {
 		row, err := rd.Read()
 		if errors.Is(err, io.EOF) {
@@ -70,12 +72,12 @@ func (c CSV) Load(_ context.Context) (result []FDocument, err error) {
 		}
 
 		rown++
+		buf.WriteString(strings.Join(content, "\t"))
 		// TODO: using HTML fmt?
-		result = append(result, FDocument{
-			Content:  strings.Join(content, "\n"),
-			Metadata: map[string]string{"type": csvLoader, "row": strconv.Itoa(rown)},
-		})
 	}
 
-	return
+	return &FDocument{
+		Content:            buf.String(),
+		DocumentProperties: doc,
+	}, nil
 }

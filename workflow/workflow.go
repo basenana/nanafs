@@ -86,6 +86,9 @@ func New(fsCore core.Core, notify *notify.Notify, meta metastore.Meta, cfg confi
 	return mgr, nil
 }
 func (m *manager) Start(ctx context.Context) {
+	if !m.config.Enable {
+		return
+	}
 	m.ctrl.Start(ctx)
 	m.hooks.start(ctx)
 }
@@ -181,6 +184,10 @@ func (m *manager) TriggerWorkflow(ctx context.Context, namespace string, wfId st
 		return nil, err
 	}
 
+	if !m.config.Enable {
+		return nil, fmt.Errorf("workflow is disabled")
+	}
+
 	m.logger.Infow("receive workflow", "workflow", workflow.Name, "entryID", tgt)
 	job, err := assembleWorkflowJob(workflow, tgt)
 	if err != nil {
@@ -193,6 +200,7 @@ func (m *manager) TriggerWorkflow(ctx context.Context, namespace string, wfId st
 	}
 	job.TimeoutSeconds = int(attr.Timeout.Seconds())
 	job.TriggerReason = attr.Reason
+	job.Parameters = attr.Parameters
 
 	err = m.meta.SaveWorkflowJob(ctx, namespace, job)
 	if err != nil {
@@ -240,7 +248,8 @@ func (m *manager) CancelWorkflowJob(ctx context.Context, namespace string, jobId
 }
 
 type JobAttr struct {
-	Reason  string
-	Queue   string
-	Timeout time.Duration
+	Reason     string
+	Queue      string
+	Parameters map[string]string
+	Timeout    time.Duration
 }

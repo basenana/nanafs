@@ -68,7 +68,7 @@ type pipeExecutor struct {
 	logger    *zap.SugaredLogger
 
 	ctxResults pluginapi.Results
-	targets    []*types.Entry
+	targets    []*pluginapi.Entry
 }
 
 var _ flow.Executor = &pipeExecutor{}
@@ -175,7 +175,8 @@ func (b *fileExecutor) Setup(ctx context.Context) (err error) {
 		b.logger.Infow("copy entry to workdir", "entry", enID, "path", epath)
 	}
 
-	if b.job.Target.ParentEntryID != 0 && len(b.job.Target.Entries) == 0 {
+	// FIXME
+	if len(b.job.Target.Entries) == 0 {
 		// base on parent entry
 		b.cachedData, err = initParentDirCacheData(ctx, b.job.Namespace, b.core, b.job.Target.ParentEntryID)
 		if err != nil {
@@ -241,7 +242,7 @@ func (b *fileExecutor) tryCollect(ctx context.Context, resp *pluginapi.Response)
 
 	if b.cachedData != nil && b.cachedData.NeedReCache() {
 		b.logger.Infow("collect cache data")
-		if err := writeParentDirCacheData(ctx, b.job.Namespace, b.core, b.job.Target.ParentEntryID, b.cachedData); err != nil {
+		if err := writeParentDirCacheData(ctx, b.job.Namespace, b.core, -1, b.cachedData); err != nil {
 			b.logger.Errorw("write parent cached data back failed", "err", err)
 			return err
 		}
@@ -297,10 +298,9 @@ func (b *fileExecutor) Teardown(ctx context.Context) error {
 	return nil
 }
 
-func callPlugin(ctx context.Context, job *types.WorkflowJob, ps types.PluginCall, mgr *plugin.Manager,
+func callPlugin(ctx context.Context, job *types.WorkflowJob, pcall types.PluginCall, mgr *plugin.Manager,
 	store metastore.EntryStore, req *pluginapi.Request, logger *zap.SugaredLogger) (*pluginapi.Response, error) {
-	req.Action = ps.Action
-	resp, err := mgr.Call(ctx, job, ps, req)
+	resp, err := mgr.Call(ctx, job, pcall, req)
 	if err != nil {
 		err = fmt.Errorf("plugin action error: %s", err)
 		return nil, err

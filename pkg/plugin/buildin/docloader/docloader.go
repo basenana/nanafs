@@ -19,13 +19,11 @@ package docloader
 import (
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
+	"github.com/basenana/nanafs/pkg/types"
 	"path"
 	"path/filepath"
 	"strings"
-	"time"
-
-	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
-	"github.com/basenana/nanafs/pkg/types"
 )
 
 const (
@@ -43,7 +41,7 @@ var PluginSpec = types.PluginSpec{
 
 type DocLoader struct {
 	job   *types.WorkflowJob
-	scope types.PluginCall
+	pcall types.PluginCall
 }
 
 func (d DocLoader) Name() string {
@@ -100,31 +98,32 @@ func (d DocLoader) loadEntry(ctx context.Context, workdir string, entry *plugina
 		return fmt.Errorf("load %s file unsupported", fileExt)
 	}
 
-	document, err := p.Load(ctx)
+	document, err := p.Load(ctx, entry.Document.DocumentProperties)
 	if err != nil {
 		return fmt.Errorf("load file %s failed: %w", entryPath, err)
 	}
 
-	title := strings.TrimSpace(strings.TrimSuffix(entry.Name, fileExt))
 	entry.Document = &pluginapi.Document{
-		Title:    title,
-		Content:  document.Content,
-		PublicAt: document.PublicAt,
+		Content:            document.Content,
+		DocumentProperties: document.DocumentProperties,
 	}
 
-	for k, v := range document.Metadata {
-		entry.Parameters[k] = v
+	// some default setting
+	if entry.Document.Title == "" {
+		title := strings.TrimSpace(strings.TrimSuffix(entry.Name, fileExt))
+		entry.Document.Title = title
 	}
+	entry.Document.Unread = true
 
 	return nil
 }
 
-func NewDocLoader(job *types.WorkflowJob, scope types.PluginCall) *DocLoader {
-	return &DocLoader{job: job, scope: scope}
+func NewDocLoader(job *types.WorkflowJob, pcall types.PluginCall) *DocLoader {
+	return &DocLoader{job: job, pcall: pcall}
 }
 
 type Parser interface {
-	Load(ctx context.Context) (result *FDocument, err error)
+	Load(ctx context.Context, doc types.DocumentProperties) (result *FDocument, err error)
 }
 
 type parserBuilder func(docPath string, docOption map[string]string) Parser
@@ -139,8 +138,7 @@ var (
 )
 
 type FDocument struct {
-	Title    string
-	Content  string
-	PublicAt time.Time
-	Metadata map[string]string
+	types.DocumentProperties
+	Content string
+	Extra   map[string]string
 }

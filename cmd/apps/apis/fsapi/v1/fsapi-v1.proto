@@ -311,11 +311,10 @@ message WorkflowJobDetail {
   google.protobuf.Timestamp finishAt = 13;
 }
 
-message WorkflowPlugScope {
+message WorkflowPluginCall {
   string pluginName = 1;
   string version = 2;
-  string pluginType = 3;
-  string action = 4;
+  string action = 3;
   map<string, string> parameters = 5;
 }
 

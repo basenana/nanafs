@@ -299,6 +299,7 @@ type WorkflowJob struct {
 	TriggerReason string    `gorm:"column:trigger_reason"`
 	Target        JSON      `gorm:"column:target"`
 	Steps         JSON      `gorm:"column:steps"`
+	Parameters    JSON      `gorm:"column:parameters"`
 	Status        string    `gorm:"column:status;index:job_status"`
 	Message       string    `gorm:"column:message"`
 	QueueName     string    `gorm:"column:queue_name;index:job_queue"`
@@ -334,6 +335,12 @@ func (o *WorkflowJob) From(job *types.WorkflowJob) (*WorkflowJob, error) {
 	}
 	o.Target = rawTarget
 
+	rawPara, err := json.Marshal(job.Parameters)
+	if err != nil {
+		return o, fmt.Errorf("marshal workflow job steps failed: %s", err)
+	}
+	o.Parameters = rawPara
+
 	rawStep, err := json.Marshal(job.Steps)
 	if err != nil {
 		return o, fmt.Errorf("marshal workflow job steps failed: %s", err)
@@ -363,6 +370,11 @@ func (o *WorkflowJob) To() (*types.WorkflowJob, error) {
 	err := json.Unmarshal(o.Target, &result.Target)
 	if err != nil {
 		return nil, fmt.Errorf("load workflow job target failed: %s", err)
+	}
+
+	err = json.Unmarshal(o.Parameters, &result.Parameters)
+	if err != nil {
+		return nil, fmt.Errorf("load workflow job steps failed: %s", err)
 	}
 
 	err = json.Unmarshal(o.Steps, &result.Steps)

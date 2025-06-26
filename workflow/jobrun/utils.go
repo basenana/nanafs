@@ -138,7 +138,6 @@ func logOperationError(execName, operation string, err error) error {
 
 func newPluginRequest(job *types.WorkflowJob, step *types.WorkflowJobStep, result pluginapi.Results, targets ...*types.Entry) *pluginapi.Request {
 	req := pluginapi.NewRequest()
-	req.ParentEntryId = job.Target.ParentEntryID
 	req.ContextResults = result
 	req.Namespace = job.Namespace
 

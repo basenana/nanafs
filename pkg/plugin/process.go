@@ -49,7 +49,7 @@ var DelayProcessPluginSpec = types.PluginSpec{
 }
 
 type DelayProcessPlugin struct {
-	scope types.PluginCall
+	pcall types.PluginCall
 }
 
 var _ ProcessPlugin = &DelayProcessPlugin{}
@@ -72,10 +72,10 @@ func (d *DelayProcessPlugin) Run(ctx context.Context, request *pluginapi.Request
 		nowTime = time.Now()
 	)
 
-	switch request.Action {
+	switch d.pcall.Action {
 
 	case "delay":
-		delayDurationStr := pluginapi.GetParameter("delay", request, DelayProcessPluginSpec, d.scope)
+		delayDurationStr := pluginapi.GetParameter("delay", request, DelayProcessPluginSpec, d.pcall)
 		duration, err := time.ParseDuration(delayDurationStr)
 		if err != nil {
 			return nil, fmt.Errorf("parse delay duration [%s] failed: %s", delayDurationStr, err)
@@ -84,14 +84,14 @@ func (d *DelayProcessPlugin) Run(ctx context.Context, request *pluginapi.Request
 
 	case "until":
 		var err error
-		untilStr := pluginapi.GetParameter("until", request, DelayProcessPluginSpec, d.scope)
+		untilStr := pluginapi.GetParameter("until", request, DelayProcessPluginSpec, d.pcall)
 		until, err = time.Parse(untilStr, time.RFC3339)
 		if err != nil {
 			return nil, fmt.Errorf("parse delay until [%s] failed: %s", untilStr, err)
 		}
 
 	default:
-		return pluginapi.NewFailedResponse(fmt.Sprintf("unknown action: %s", request.Action)), nil
+		return pluginapi.NewFailedResponse(fmt.Sprintf("unknown action: %s", d.pcall.Action)), nil
 	}
 
 	if nowTime.Before(until) {
@@ -112,24 +112,24 @@ func registerBuildInProcessPlugin(r *registry) {
 	r.Register(
 		delayPluginName,
 		DelayProcessPluginSpec,
-		func(job *types.WorkflowJob, scope types.PluginCall) (Plugin, error) {
-			return &DelayProcessPlugin{scope: scope}, nil
+		func(job *types.WorkflowJob, pcall types.PluginCall) (Plugin, error) {
+			return &DelayProcessPlugin{pcall: pcall}, nil
 		},
 	)
 
 	r.Register(
 		docloader.PluginName,
 		docloader.PluginSpec,
-		func(job *types.WorkflowJob, scope types.PluginCall) (Plugin, error) {
-			return docloader.NewDocLoader(job, scope), nil
+		func(job *types.WorkflowJob, pcall types.PluginCall) (Plugin, error) {
+			return docloader.NewDocLoader(job, pcall), nil
 		},
 	)
 
 	r.Register(
 		buildin.WebpackPluginName,
 		buildin.WebpackPluginSpec,
-		func(job *types.WorkflowJob, scope types.PluginCall) (Plugin, error) {
-			return buildin.NewWebpackPlugin(job, scope)
+		func(job *types.WorkflowJob, pcall types.PluginCall) (Plugin, error) {
+			return buildin.NewWebpackPlugin(job, pcall)
 		},
 	)
 }
