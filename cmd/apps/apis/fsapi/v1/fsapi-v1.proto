@@ -17,10 +17,11 @@ service Entries {
   rpc GroupTree (GetGroupTreeRequest) returns (GetGroupTreeResponse) {}
   rpc GetEntryDetail (GetEntryDetailRequest) returns (GetEntryDetailResponse) {}
   rpc CreateEntry (CreateEntryRequest) returns (CreateEntryResponse) {}
+  rpc FilterEntry (FilterEntryRequest) returns (ListEntriesResponse) {}
   rpc UpdateEntry (UpdateEntryRequest) returns (UpdateEntryResponse) {}
   rpc DeleteEntry (DeleteEntryRequest) returns (DeleteEntryResponse) {}
   rpc DeleteEntries (DeleteEntriesRequest) returns (DeleteEntriesResponse) {}
-  rpc ListGroupChildren (ListGroupChildrenRequest) returns (ListGroupChildrenResponse) {}
+  rpc ListGroupChildren (ListGroupChildrenRequest) returns (ListEntriesResponse) {}
   rpc ChangeParent (ChangeParentRequest) returns (ChangeParentResponse) {}
 
   rpc WriteFile (stream WriteFileRequest) returns (WriteFileResponse) {}
@@ -51,12 +52,17 @@ message GetEntryDetailResponse {
   repeated Property properties = 2;
 }
 
+message FilterEntryRequest {
+  string celPattern = 1;
+}
+
 message CreateEntryRequest {
   string uri = 1;
   string kind = 3;
 
   oneof groupConfig {
     RssConfig rss = 4;
+    FilterConfig Filter = 5;
   }
 
   message RssConfig {
@@ -64,6 +70,10 @@ message CreateEntryRequest {
     string siteName = 2;
     string siteURL = 3;
     WebFileType fileType = 4;
+  }
+
+  message FilterConfig {
+    string celPattern = 1;
   }
 }
 
@@ -97,21 +107,6 @@ message DeleteEntriesResponse {
   string message = 2;
 }
 
-message EntryFilter {
-  string fuzzyName = 1;
-  string kind = 2;
-  enum GroupFilter {
-    All = 0;
-    Group = 1;
-    File = 2;
-  }
-  GroupFilter isGroup = 3;
-  google.protobuf.Timestamp createdAtStart = 6;
-  google.protobuf.Timestamp createdAtEnd = 7;
-  google.protobuf.Timestamp modifiedAtStart = 8;
-  google.protobuf.Timestamp modifiedAtEnd = 9;
-}
-
 message ListGroupChildrenRequest {
   string parentURI = 1;
 
@@ -126,10 +121,9 @@ message ListGroupChildrenRequest {
   }
   EntryOrder order = 11;
   bool OrderDesc = 12;
-  EntryFilter filter = 13;
 }
 
-message ListGroupChildrenResponse {
+message ListEntriesResponse {
   repeated EntryInfo entries = 1;
 }
 
@@ -171,14 +165,30 @@ message ReadFileResponse {
 }
 
 service Properties {
-  rpc AddProperty (AddPropertyRequest) returns (AddPropertyResponse) {}
-  rpc DeleteProperty (DeletePropertyRequest) returns (DeletePropertyResponse) {}
+  rpc AddProperty (AddPropertyRequest) returns (GetPropertiesResponse) {}
+  rpc DeleteProperty (DeletePropertyRequest) returns (GetPropertiesResponse) {}
+
+  rpc UpdateDocumentProperty (UpdateDocumentPropertyRequest) returns (GetDocumentPropertiesResponse) {}
 }
 
 message Property {
   string key = 1;
   string value = 2;
-  bool encoded = 3;
+}
+
+message DocumentProperty {
+  string Title = 1;
+  string Author = 2;
+  string Year = 3;
+  string Source = 4;
+  string Abstract = 5;
+  repeated string Keywords = 6;
+  bool Unread = 7;
+  bool Marked = 8;
+}
+
+message GetPropertiesRequest {
+  int64 entry = 1;
 }
 
 message AddPropertyRequest {
@@ -187,17 +197,24 @@ message AddPropertyRequest {
   string value = 3;
 }
 
-message AddPropertyResponse {
-  repeated Property properties = 1;
-}
-
 message DeletePropertyRequest {
   int64 entry = 1;
   string key = 2;
 }
 
-message DeletePropertyResponse {
+message UpdateDocumentPropertyRequest {
+  int64 entry = 1;
+  oneof mark {
+    bool unread = 2;
+    bool marked = 3;
+  }
+}
+
+message GetPropertiesResponse {
   repeated Property properties = 1;
+}
+
+message GetDocumentPropertiesResponse {
 }
 
 service Notify {
@@ -309,6 +326,7 @@ message EntryInfo {
   string kind = 4;
   bool isGroup = 6;
   int64 size = 7;
+  DocumentProperty document = 8;
   google.protobuf.Timestamp createdAt = 10;
   google.protobuf.Timestamp changedAt = 11;
   google.protobuf.Timestamp modifiedAt = 12;
@@ -333,6 +351,7 @@ message EntryDetail {
   string namespace = 12;
   string storage = 13;
   Access access = 14;
+  DocumentProperty document = 15;
   google.protobuf.Timestamp createdAt = 20;
   google.protobuf.Timestamp changedAt = 21;
   google.protobuf.Timestamp modifiedAt = 22;

@@ -54,14 +54,13 @@ type Meta struct {
 }
 
 type Storage struct {
-	ID         string               `json:"id"`
-	Type       string               `json:"type"`
-	LocalDir   string               `json:"local_dir,omitempty"`
-	S3         *S3Config            `json:"s3,omitempty"`
-	MinIO      *MinIOConfig         `json:"minio,omitempty"`
-	OSS        *OSSConfig           `json:"oss,omitempty"`
-	Webdav     *WebdavStorageConfig `json:"webdav,omitempty"`
-	Encryption *Encryption          `json:"encryption,omitempty"`
+	ID       string               `json:"id"`
+	Type     string               `json:"type"`
+	LocalDir string               `json:"local_dir,omitempty"`
+	S3       *S3Config            `json:"s3,omitempty"`
+	MinIO    *MinIOConfig         `json:"minio,omitempty"`
+	OSS      *OSSConfig           `json:"oss,omitempty"`
+	Webdav   *WebdavStorageConfig `json:"webdav,omitempty"`
 }
 
 type S3Config struct {

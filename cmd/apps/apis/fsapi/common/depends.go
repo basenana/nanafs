@@ -22,7 +22,6 @@ import (
 	"github.com/basenana/nanafs/pkg/dispatch"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
-	"github.com/basenana/nanafs/pkg/rule"
 	"github.com/basenana/nanafs/pkg/token"
 	"github.com/basenana/nanafs/workflow"
 )
@@ -55,7 +54,7 @@ func InitDepends(loader config.Config, meta metastore.Meta) (*Depends, error) {
 		return nil, err
 	}
 
-	dep.Workflow, err = workflow.New(dep.Core, dep.Notify, meta, loader)
+	dep.Workflow, err = workflow.New(dep.Core, dep.Notify, meta, bCfg.Workflow)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +63,5 @@ func InitDepends(loader config.Config, meta metastore.Meta) (*Depends, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	rule.InitQuery(meta)
 	return dep, nil
 }

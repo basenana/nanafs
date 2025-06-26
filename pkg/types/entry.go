@@ -17,6 +17,7 @@
 package types
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/basenana/nanafs/utils"
@@ -62,8 +63,6 @@ type Entry struct {
 
 	// Deprecated
 	Name string `json:"name"`
-	// Deprecated
-	ParentID int64 `json:"parent_id"`
 }
 
 type Child struct {
@@ -96,45 +95,6 @@ func NewEntry(name string, kind Kind) Entry {
 	return result
 }
 
-type ExtendData struct {
-	Symlink     string     `json:"symlink,omitempty"`
-	GroupFilter *Rule      `json:"group_filter,omitempty"`
-	PlugScope   *PlugScope `json:"plug_scope,omitempty"`
-}
-
-const (
-	PlugScopeEntryName     = "entry.name"
-	PlugScopeEntryPath     = "entry.path" // relative path
-	PlugScopeWorkflowID    = "workflow.id"
-	PlugScopeWorkflowJobID = "workflow.job.id"
-)
-
-type PlugScope struct {
-	PluginName string            `json:"plugin_name"`
-	Version    string            `json:"version"`
-	PluginType PluginType        `json:"plugin_type,omitempty"`
-	Action     string            `json:"action,omitempty"`
-	Parameters map[string]string `json:"parameters"`
-}
-
-type Labels struct {
-	Labels []Label `json:"labels,omitempty"`
-}
-
-func (l Labels) Get(key string) *Label {
-	for _, label := range l.Labels {
-		if label.Key == key {
-			return &label
-		}
-	}
-	return nil
-}
-
-type Label struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
-
 func InitNewEntry(parent *Entry, attr EntryAttr) (*Entry, error) {
 	if len(attr.Name) > entryNameMaxLength {
 		return nil, ErrNameTooLong
@@ -142,10 +102,16 @@ func InitNewEntry(parent *Entry, attr EntryAttr) (*Entry, error) {
 
 	md := NewEntry(attr.Name, attr.Kind)
 	if parent != nil {
-		md.ParentID = parent.ID
 		md.Storage = parent.Storage
 		md.Access = parent.Access
 		md.Namespace = parent.Namespace
+	}
+
+	switch attr.Kind {
+	case SmartGroupKind:
+		if attr.GroupProperties == nil || attr.GroupProperties.Filter == nil {
+			return nil, fmt.Errorf("invalid group properties")
+		}
 	}
 
 	if attr.Access != nil {

@@ -31,7 +31,7 @@ const (
 
 type ScriptPluginAdaptor struct {
 	spec   types.PluginSpec
-	scope  types.PlugScope
+	scope  types.PluginCall
 	logger *zap.SugaredLogger
 }
 
@@ -46,6 +46,6 @@ func (s *ScriptPluginAdaptor) Run(ctx context.Context, request *pluginapi.Reques
 	panic("implement me")
 }
 
-func NewScriptPluginAdaptor(spec types.PluginSpec, scope types.PlugScope) (*ScriptPluginAdaptor, error) {
+func NewScriptPluginAdaptor(spec types.PluginSpec, scope types.PluginCall) (*ScriptPluginAdaptor, error) {
 	return &ScriptPluginAdaptor{spec: spec, scope: scope, logger: logger.NewLogger("scriptPluginAdaptor")}, nil
 }

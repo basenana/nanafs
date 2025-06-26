@@ -18,6 +18,7 @@ package common
 
 import (
 	"context"
+	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/token"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -33,8 +34,8 @@ const (
 	authInfoContextKey = "auth.info"
 )
 
-func WithCommonInterceptors(tokenMgr *token.Manager) grpc.ServerOption {
-	ci := commonInterceptors{token: tokenMgr}
+func WithCommonInterceptors(tokenMgr *token.Manager, config config.FsApi) grpc.ServerOption {
+	ci := commonInterceptors{token: tokenMgr, config: config}
 	return grpc.ChainUnaryInterceptor(
 		ci.serverLogInterceptor,
 		ci.serverAuthInterceptor,
@@ -42,7 +43,8 @@ func WithCommonInterceptors(tokenMgr *token.Manager) grpc.ServerOption {
 }
 
 type commonInterceptors struct {
-	token *token.Manager
+	token  *token.Manager
+	config config.FsApi
 }
 
 func (c *commonInterceptors) serverLogInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
@@ -54,11 +56,19 @@ func (c *commonInterceptors) serverLogInterceptor(ctx context.Context, req any, 
 }
 
 func (c *commonInterceptors) serverAuthInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
-	var valueCtx context.Context
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return nil, status.Errorf(codes.Unauthenticated, "failed to parse metadata from incoming context")
 	}
+
+	if c.config.Noauth {
+		ns := getNamespaceFromMetadata(md)
+		if ns != "" {
+			valueCtx := context.WithValue(ctx, authInfoContextKey, token.AuthInfo{UID: 0, GID: 0, Namespace: ns})
+			return handler(valueCtx, req)
+		}
+	}
+
 	accessToken, err := getAccessTokenFromMetadata(md)
 	if err != nil {
 		return nil, status.Errorf(codes.Unauthenticated, "failed to parse token from incoming metadata")
@@ -68,7 +78,7 @@ func (c *commonInterceptors) serverAuthInterceptor(ctx context.Context, req any,
 		return nil, status.Errorf(codes.Unauthenticated, "failed to authenticate token")
 	}
 
-	valueCtx = context.WithValue(ctx, authInfoContextKey, ai)
+	valueCtx := context.WithValue(ctx, authInfoContextKey, ai)
 	return handler(valueCtx, req)
 }
 

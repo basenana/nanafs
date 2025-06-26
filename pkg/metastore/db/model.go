@@ -50,7 +50,6 @@ type Entry struct {
 	ID         int64   `gorm:"column:id;primaryKey"`
 	Name       string  `gorm:"column:name;index:en_name"`
 	Aliases    *string `gorm:"column:aliases"`
-	ParentID   *int64  `gorm:"column:parent_id;index:en_parent"`
 	RefCount   *int    `gorm:"column:ref_count"`
 	Kind       string  `gorm:"column:kind"`
 	IsGroup    bool    `gorm:"column:is_group;index:en_isgrp"`
@@ -75,7 +74,6 @@ func (o *Entry) FromEntry(en *types.Entry) *Entry {
 	o.ID = en.ID
 	o.Name = en.Name
 	o.Aliases = &en.Aliases
-	o.ParentID = &en.ParentID
 	o.RefCount = &en.RefCount
 	o.Kind = string(en.Kind)
 	o.IsGroup = en.IsGroup
@@ -110,9 +108,6 @@ func (o *Entry) ToEntry() *types.Entry {
 	}
 	if o.Aliases != nil {
 		result.Aliases = *o.Aliases
-	}
-	if o.ParentID != nil {
-		result.ParentID = *o.ParentID
 	}
 	if o.RefCount != nil {
 		result.RefCount = *o.RefCount
@@ -156,7 +151,7 @@ func (c *Children) TableName() string {
 type EntryProperty struct {
 	Entry     int64  `gorm:"column:entry;primaryKey"`
 	Type      string `gorm:"column:type;primaryKey"`
-	Value     string `gorm:"column:value"`
+	Value     JSON   `gorm:"column:value"`
 	Namespace string `gorm:"column:namespace;index:prop_ns"`
 }
 
@@ -178,6 +173,21 @@ func (o EntryChunk) TableName() string {
 	return "entry_chunk"
 }
 
+type Project struct {
+	ID        int64     `gorm:"column:id;primaryKey"`
+	Goal      string    `gorm:"column:goal"`
+	Details   string    `gorm:"column:details"`
+	Config    JSON      `gorm:"column:config"`
+	Paused    bool      `gorm:"column:paused;index:proj_paused"`
+	Archived  bool      `gorm:"column:archived;index:proj_arched"`
+	CreatedAt time.Time `gorm:"column:created_at;index:proj_creat"`
+	UpdatedAt time.Time `gorm:"column:updated_at"`
+}
+
+func (p Project) TableName() string {
+	return "project"
+}
+
 type ScheduledTask struct {
 	ID             int64     `gorm:"column:id;autoIncrement"`
 	TaskID         string    `gorm:"column:task_id;index:st_task_id"`
@@ -189,7 +199,7 @@ type ScheduledTask struct {
 	CreatedTime    time.Time `gorm:"column:created_time"`
 	ExecutionTime  time.Time `gorm:"column:execution_time"`
 	ExpirationTime time.Time `gorm:"column:expiration_time"`
-	Event          string    `gorm:"column:event"`
+	Event          JSON      `gorm:"column:event"`
 }
 
 func (d ScheduledTask) TableName() string {
@@ -215,9 +225,9 @@ func (o *Notification) TableName() string {
 type Workflow struct {
 	ID              string    `gorm:"column:id;primaryKey"`
 	Name            string    `gorm:"column:name"`
-	Rule            string    `gorm:"column:rule"`
+	Rule            JSON      `gorm:"column:rule"`
 	Cron            string    `gorm:"column:cron"`
-	Steps           string    `gorm:"column:steps"`
+	Steps           JSON      `gorm:"column:steps"`
 	Enable          bool      `gorm:"column:enable;index:wf_enable"`
 	QueueName       string    `gorm:"column:queue_name;index:wf_q"`
 	Namespace       string    `gorm:"column:namespace;index:wf_ns"`
@@ -246,14 +256,14 @@ func (o *Workflow) From(wf *types.Workflow) (*Workflow, error) {
 		if err != nil {
 			return o, fmt.Errorf("marshal workflow rule config failed: %s", err)
 		}
-		o.Rule = string(rawRule)
+		o.Rule = rawRule
 	}
 
 	rawSteps, err := json.Marshal(wf.Steps)
 	if err != nil {
 		return o, fmt.Errorf("marshal workflow rule config failed: %s", err)
 	}
-	o.Steps = string(rawSteps)
+	o.Steps = rawSteps
 	return o, nil
 }
 
@@ -271,13 +281,13 @@ func (o *Workflow) To() (*types.Workflow, error) {
 		LastTriggeredAt: o.LastTriggeredAt,
 	}
 
-	if o.Rule != "" {
-		if err := json.Unmarshal([]byte(o.Rule), &result.Rule); err != nil {
+	if len(o.Rule) > 0 {
+		if err := json.Unmarshal(o.Rule, &result.Rule); err != nil {
 			return nil, fmt.Errorf("load workflow rule config failed: %s", err)
 		}
 	}
 
-	if err := json.Unmarshal([]byte(o.Steps), &result.Steps); err != nil {
+	if err := json.Unmarshal(o.Steps, &result.Steps); err != nil {
 		return nil, fmt.Errorf("load workflow steps config failed: %s", err)
 	}
 	return result, nil
@@ -287,8 +297,8 @@ type WorkflowJob struct {
 	ID            string    `gorm:"column:id;autoIncrement"`
 	Workflow      string    `gorm:"column:workflow;index:job_wf_id"`
 	TriggerReason string    `gorm:"column:trigger_reason"`
-	Target        string    `gorm:"column:target"`
-	Steps         string    `gorm:"column:steps"`
+	Target        JSON      `gorm:"column:target"`
+	Steps         JSON      `gorm:"column:steps"`
 	Status        string    `gorm:"column:status;index:job_status"`
 	Message       string    `gorm:"column:message"`
 	QueueName     string    `gorm:"column:queue_name;index:job_queue"`
@@ -322,13 +332,13 @@ func (o *WorkflowJob) From(job *types.WorkflowJob) (*WorkflowJob, error) {
 	if err != nil {
 		return o, fmt.Errorf("marshal workflow job target failed: %s", err)
 	}
-	o.Target = string(rawTarget)
+	o.Target = rawTarget
 
 	rawStep, err := json.Marshal(job.Steps)
 	if err != nil {
 		return o, fmt.Errorf("marshal workflow job steps failed: %s", err)
 	}
-	o.Steps = string(rawStep)
+	o.Steps = rawStep
 
 	return o, nil
 }
@@ -350,12 +360,12 @@ func (o *WorkflowJob) To() (*types.WorkflowJob, error) {
 		Namespace:     o.Namespace,
 	}
 
-	err := json.Unmarshal([]byte(o.Target), &result.Target)
+	err := json.Unmarshal(o.Target, &result.Target)
 	if err != nil {
 		return nil, fmt.Errorf("load workflow job target failed: %s", err)
 	}
 
-	err = json.Unmarshal([]byte(o.Steps), &result.Steps)
+	err = json.Unmarshal(o.Steps, &result.Steps)
 	if err != nil {
 		return nil, fmt.Errorf("load workflow job steps failed: %s", err)
 	}

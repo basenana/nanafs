@@ -71,7 +71,7 @@ var RssSourcePluginSpec = types.PluginSpec{
 
 type RssSourcePlugin struct {
 	job    *types.WorkflowJob
-	scope  types.PlugScope
+	scope  types.PluginCall
 	logger *zap.SugaredLogger
 }
 
@@ -103,7 +103,7 @@ func (r *RssSourcePlugin) Run(ctx context.Context, request *pluginapi.Request) (
 		r.logger.Warnw("sync rss failed", "source", source.FeedUrl, "err", err)
 		return pluginapi.NewFailedResponse(fmt.Sprintf("sync rss failed: %s", err)), nil
 	}
-	results := []pluginapi.CollectManifest{{BaseEntry: source.EntryId, NewFiles: entries}}
+	results := []pluginapi.CollectManifest{{ParentEntry: source.EntryId, NewFiles: entries}}
 	r.logger.Infow("sync rss finish", "baseEntry", source.EntryId, "entries", len(entries))
 
 	resp := pluginapi.NewResponse()
@@ -343,7 +343,7 @@ func absoluteURL(sitURL, link string) string {
 	return link
 }
 
-func BuildRssSourcePlugin(job *types.WorkflowJob, scope types.PlugScope) *RssSourcePlugin {
+func BuildRssSourcePlugin(job *types.WorkflowJob, scope types.PluginCall) *RssSourcePlugin {
 	return &RssSourcePlugin{job: job, scope: scope,
 		logger: logger.NewLogger("rssPlugin").With(zap.String("job", job.Id))}
 }

@@ -27,11 +27,6 @@ type Request struct {
 
 	WorkPath string
 
-	// deprecated
-	EntryId int64
-	// deprecated
-	EntryURI string
-
 	Entries       []Entry
 	ParentEntryId int64
 
@@ -40,7 +35,7 @@ type Request struct {
 	ContextResults Results
 }
 
-func GetParameter(key string, r *Request, spec types.PluginSpec, scope types.PlugScope) string {
+func GetParameter(key string, r *Request, spec types.PluginSpec, scope types.PluginCall) string {
 	if len(r.Parameter) > 0 {
 		valRaw, ok := r.Parameter[key]
 		if ok {

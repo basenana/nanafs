@@ -24,6 +24,14 @@ import (
 	"strings"
 )
 
+func getNamespaceFromMetadata(md metadata.MD) string {
+	authorizationHeaders := md.Get("X-Namespace-Admin")
+	if len(authorizationHeaders) == 0 {
+		return ""
+	}
+	return authorizationHeaders[0]
+}
+
 func getAccessTokenFromMetadata(md metadata.MD) (string, error) {
 	authorizationHeaders := md.Get("Authorization")
 	if len(authorizationHeaders) == 0 {

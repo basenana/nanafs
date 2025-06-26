@@ -218,7 +218,7 @@ func (h *hooks) handleEntryCreate(evt *types.Event) {
 			continue
 		}
 
-		h.workflowJobDelay(ctx, evt.Namespace, wfID, en, "entry created")
+		h.workflowJobDelay(ctx, evt.Namespace, wfID, evt.Data.Parent, en, "entry created")
 	}
 	return
 }
@@ -242,13 +242,7 @@ func (h *hooks) newJobFunc(namespace, wfID string) func() {
 func (h *hooks) filterAndRunCronWorkflow(ctx context.Context, wf *types.Workflow) error {
 	var (
 		entries []*types.Entry
-		err     error
 	)
-	entries, err = rule.Q(wf.Namespace).Rule(*wf.Rule).Results(ctx)
-	if err != nil {
-		h.logger.Errorw("[filterAndRunCronWorkflow] query entries with wf rule failed", "workflow", wf.Id, "rule", wf.Rule, "err", err)
-		return err
-	}
 	h.logger.Infow("[filterAndRunCronWorkflow] query entries with wf rule", "workflow", wf.Id, "entries", len(entries))
 
 	for _, en := range entries {
@@ -285,13 +279,13 @@ func (h *hooks) filterAndRunCronWorkflow(ctx context.Context, wf *types.Workflow
 	return nil
 }
 
-func (h *hooks) workflowJobDelay(ctx context.Context, namespace, wfId string, en *types.Entry, reason string) {
+func (h *hooks) workflowJobDelay(ctx context.Context, namespace, wfId string, parentID int64, en *types.Entry, reason string) {
 	h.qMux.Lock()
 	h.delayQ = append(h.delayQ, &pendingEntry{
 		namespace: namespace,
 		workflow:  wfId,
 		entryID:   en.ID,
-		parentID:  en.ParentID,
+		parentID:  parentID,
 		isGroup:   en.IsGroup,
 		reason:    reason,
 		addAt:     time.Now(),
@@ -398,7 +392,7 @@ type workflowHooks struct {
 type workflowHook struct {
 	cronID *cron.EntryID
 	cron   *string
-	rule   types.Rule
+	rule   types.WorkflowRule
 }
 
 func buildInNsWorkflows(namespace string) []*types.Workflow {
@@ -408,18 +402,15 @@ func buildInNsWorkflows(namespace string) []*types.Workflow {
 			Id:        fmt.Sprintf("%s.dacload", namespace),
 			Name:      "Document load",
 			Namespace: namespace,
-			Rule: &types.Rule{
-				Operation: types.RuleOpEndWith,
-				Column:    "name",
-				Value:     "html,htm,webarchive,pdf",
+			Rule: &types.WorkflowRule{
+				FileTypes: "html,htm,webarchive,pdf",
 			},
 			Steps: []types.WorkflowStepSpec{
 				{
 					Name: "docload",
-					Plugin: &types.PlugScope{
+					Plugin: &types.PluginCall{
 						PluginName: "docloader",
 						Version:    "1.0",
-						PluginType: types.TypeProcess,
 						Parameters: map[string]string{},
 					},
 				},
@@ -432,22 +423,16 @@ func buildInNsWorkflows(namespace string) []*types.Workflow {
 			Id:        fmt.Sprintf("%s.rss", namespace),
 			Name:      "RSS Collect",
 			Namespace: namespace,
-			Rule: &types.Rule{
-				Labels: &types.LabelMatch{
-					Include: []types.Label{
-						{Key: types.LabelKeyPluginKind, Value: string(types.TypeSource)},
-						{Key: types.LabelKeyPluginName, Value: "rss"},
-					},
-				},
+			Rule: &types.WorkflowRule{
+				PropertiesCELPattern: "group.source = rss",
 			},
 			Cron: "*/30 * * * *",
 			Steps: []types.WorkflowStepSpec{
 				{
 					Name: "collect",
-					Plugin: &types.PlugScope{
+					Plugin: &types.PluginCall{
 						PluginName: "rss",
 						Version:    "1.0",
-						PluginType: types.TypeSource,
 						Parameters: map[string]string{},
 					},
 				},

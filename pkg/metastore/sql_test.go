@@ -238,123 +238,6 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 	})
 })
 
-var _ = Describe("TestSqliteLabelOperation", func() {
-	var (
-		ctx    = context.TODO()
-		sqlite = buildNewSqliteMetaStore("test_label_operation.db")
-	)
-	// init root
-	rootEn := InitRootEntry()
-	Expect(sqlite.CreateEntry(context.TODO(), namespace, 0, rootEn)).Should(BeNil())
-
-	Context("save labels", func() {
-		It("create entry with/without labels should succeed", func() {
-			entry1, err := types.InitNewEntry(rootEn, types.EntryAttr{Name: "test-label-obj-1", Kind: types.RawKind})
-			Expect(err).Should(BeNil())
-			Expect(sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, entry1)).Should(BeNil())
-
-			entry2, err := types.InitNewEntry(rootEn, types.EntryAttr{Name: "test-label-obj-2", Kind: types.RawKind})
-			Expect(err).Should(BeNil())
-			Expect(sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, entry2)).Should(BeNil())
-
-			Expect(sqlite.UpdateEntryLabels(context.TODO(), namespace, entry2.ID, types.Labels{Labels: []types.Label{
-				{Key: "test.nanafs.label1", Value: "cus_value"},
-				{Key: "test.nanafs.label2", Value: "cus_value"},
-			}})).Should(BeNil())
-
-			entry3, err := types.InitNewEntry(rootEn, types.EntryAttr{Name: "test-label-obj-3", Kind: types.RawKind})
-			Expect(err).Should(BeNil())
-			Expect(sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, entry3)).Should(BeNil())
-
-			Expect(sqlite.UpdateEntryLabels(context.TODO(), namespace, entry3.ID, types.Labels{Labels: []types.Label{
-				{Key: "test.nanafs.label2", Value: "cus_value"},
-			}})).Should(BeNil())
-
-			Expect(sqlite.UpdateEntryProperties(context.TODO(), namespace, entry3.ID, types.Properties{Fields: map[string]types.PropertyItem{"custom_field": {Value: "cus_value"}}})).Should(BeNil())
-		})
-		It("add entry labels should succeed", func() {
-			entry, err := sqlite.FindEntry(ctx, namespace, rootEn.ID, "test-label-obj-1")
-			Expect(err).Should(BeNil())
-
-			Expect(sqlite.UpdateEntryLabels(context.TODO(), namespace, entry.ChildID, types.Labels{Labels: []types.Label{
-				{Key: "test.nanafs.label1", Value: "cus_value"},
-				{Key: "test.nanafs.label2", Value: "cus_value2"},
-			}})).Should(BeNil())
-		})
-		It("update entry labels should succeed", func() {
-			entry, err := sqlite.FindEntry(ctx, namespace, rootEn.ID, "test-label-obj-3")
-			Expect(err).Should(BeNil())
-
-			Expect(sqlite.UpdateEntryLabels(context.TODO(), namespace, entry.ChildID, types.Labels{Labels: []types.Label{
-				{Key: "test.nanafs.label1", Value: "cus_value"},
-				{Key: "test.nanafs.label2", Value: "cus_value2"},
-				{Key: "test.nanafs.label3", Value: "cus_value3"},
-			}})).Should(BeNil())
-		})
-	})
-
-	/*
-		test-label-obj-1
-			- test.nanafs.label1=cus_value
-			- test.nanafs.label2=cus_value2
-
-		test-label-obj-2
-			- test.nanafs.label1=cus_value
-			- test.nanafs.label2=cus_value
-
-		test-label-obj-3
-			- test.nanafs.label1=cus_value
-			- test.nanafs.label2=cus_value2
-			- test.nanafs.label3=cus_value3
-	*/
-
-	Context("query entry with labels", func() {
-		It("list entry with labels test.nanafs.label1 should succeed", func() {
-			enIt, err := sqlite.FilterEntries(ctx, namespace, types.Filter{
-				Label: types.LabelMatch{
-					Include: []types.Label{{Key: "test.nanafs.label1", Value: "cus_value"}},
-				},
-			})
-			Expect(err).Should(BeNil())
-
-			chList := make([]*types.Entry, 0)
-			for enIt.HasNext() {
-				chList = append(chList, enIt.Next())
-			}
-			Expect(len(chList)).Should(Equal(3))
-		})
-		It("list entry with labels test.nanafs.label2 should succeed", func() {
-			enIt, err := sqlite.FilterEntries(ctx, namespace, types.Filter{
-				Label: types.LabelMatch{
-					Include: []types.Label{{Key: "test.nanafs.label2", Value: "cus_value2"}},
-				},
-			})
-			Expect(err).Should(BeNil())
-
-			chList := make([]*types.Entry, 0)
-			for enIt.HasNext() {
-				chList = append(chList, enIt.Next())
-			}
-			Expect(len(chList)).Should(Equal(2))
-		})
-		It("list entry with label exclude should succeed", func() {
-			enIt, err := sqlite.FilterEntries(ctx, namespace, types.Filter{
-				Label: types.LabelMatch{
-					Include: []types.Label{{Key: "test.nanafs.label2", Value: "cus_value2"}},
-					Exclude: []string{"test.nanafs.label3"},
-				},
-			})
-			Expect(err).Should(BeNil())
-
-			chList := make([]*types.Entry, 0)
-			for enIt.HasNext() {
-				chList = append(chList, enIt.Next())
-			}
-			Expect(len(chList)).Should(Equal(1))
-		})
-	})
-})
-
 func InitRootEntry() *types.Entry {
 	acc := &types.Access{
 		Permissions: []types.Permission{
@@ -368,7 +251,6 @@ func InitRootEntry() *types.Entry {
 	}
 	root, _ := types.InitNewEntry(nil, types.EntryAttr{Name: "root", Kind: types.GroupKind, Access: acc})
 	root.ID = 1
-	root.ParentID = root.ID
 	root.Namespace = types.DefaultNamespace
 	return root
 }

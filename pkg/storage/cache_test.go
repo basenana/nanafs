@@ -46,16 +46,15 @@ var _ = Describe("TestTemporaryNode", func() {
 				ID:       "test-local-2",
 				Type:     LocalStorage,
 				LocalDir: storageDir,
-				Encryption: &config.Encryption{
-					Enable:    true,
-					Method:    config.AESEncryption,
-					SecretKey: sk,
-				},
 			},
 		},
-		CacheDir:         cacheDir,
-		GlobalEncryption: config.Encryption{},
-		Debug:            false,
+		CacheDir: cacheDir,
+		Encryption: config.Encryption{
+			Enable:    true,
+			Method:    config.AESEncryption,
+			SecretKey: sk,
+		},
+		Debug: false,
 	}
 	InitLocalCache(cfg)
 
@@ -164,7 +163,7 @@ var _ = Describe("TestCacheNode", func() {
 		},
 		CacheDir:  cacheDir,
 		CacheSize: 1,
-		GlobalEncryption: config.Encryption{
+		Encryption: config.Encryption{
 			Enable:    true,
 			Method:    config.AESEncryption,
 			SecretKey: sk,

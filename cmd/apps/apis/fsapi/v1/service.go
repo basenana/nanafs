@@ -113,18 +113,48 @@ func (s *servicesV1) GetEntryDetail(ctx context.Context, request *GetEntryDetail
 		return nil, status.Error(common.FsApiError(err), "has no permission")
 	}
 
-	if child.ParentID != core.RootEntryID {
-		_, err = s.core.GetEntry(ctx, caller.Namespace, child.ParentID)
-		if err != nil {
-			return nil, status.Error(common.FsApiError(err), "query entry parent failed")
-		}
-	}
-
-	detail, properties, err := s.getEntryDetails(ctx, caller.Namespace, request.Uri, child.ParentID, child.ChildID)
+	parentURI, name := path.Split(request.Uri)
+	detail, properties, err := s.getEntryDetails(ctx, caller.Namespace, parentURI, name, child.ChildID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry details failed")
 	}
 	return &GetEntryDetailResponse{Entry: detail, Properties: properties}, nil
+}
+
+func (s *servicesV1) FilterEntry(ctx context.Context, request *FilterEntryRequest) (*ListEntriesResponse, error) {
+	caller, err := s.caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	it, err := s.meta.FilterEntries(ctx, caller.Namespace, types.Filter{CELPattern: request.CelPattern})
+	if err != nil {
+		s.logger.Errorw("list static children failed", "err", err)
+		return nil, err
+	}
+
+	var (
+		resp = &ListEntriesResponse{}
+		doc  *types.DocumentProperties
+	)
+
+	for it.HasNext() {
+		en, err := it.Next()
+		if err != nil {
+			return nil, err
+		}
+
+		if !en.IsGroup {
+			doc = &types.DocumentProperties{}
+			if err = s.meta.GetEntryProperties(ctx, caller.Namespace, types.PropertyTypeDocument, en.ID, doc); err != nil {
+				s.logger.Errorw("get entry document properties failed", "entry", en.ID, "err", err)
+				doc = nil
+			}
+		}
+		resp.Entries = append(resp.Entries, toEntryInfo("/filters/", en.Name, en, doc))
+	}
+
+	return resp, nil
 }
 
 func (s *servicesV1) CreateEntry(ctx context.Context, request *CreateEntryRequest) (*CreateEntryResponse, error) {
@@ -164,6 +194,9 @@ func (s *servicesV1) CreateEntry(ctx context.Context, request *CreateEntryReques
 	case *CreateEntryRequest_Rss:
 		s.logger.Infow("setup rss feed to dir", "feed", cfg.Rss.Feed, "siteName", cfg.Rss.SiteName)
 		setupRssConfig(cfg.Rss, &attr)
+	case *CreateEntryRequest_Filter:
+		s.logger.Infow("setup group filter", "cel", cfg.Filter.CelPattern)
+		setupGroupFilterConfig(cfg.Filter, &attr)
 	}
 
 	en, err := s.core.CreateEntry(ctx, caller.Namespace, parentID, attr)
@@ -177,7 +210,7 @@ func (s *servicesV1) CreateEntry(ctx context.Context, request *CreateEntryReques
 		}
 	}
 
-	return &CreateEntryResponse{Entry: coreEntryInfo(parent.ID, name, en)}, nil
+	return &CreateEntryResponse{Entry: toEntryInfo(parentURI, name, en, nil)}, nil
 }
 
 func (s *servicesV1) UpdateEntry(ctx context.Context, request *UpdateEntryRequest) (*UpdateEntryResponse, error) {
@@ -201,7 +234,7 @@ func (s *servicesV1) UpdateEntry(ctx context.Context, request *UpdateEntryReques
 		return nil, status.Error(common.FsApiError(err), "has no permission")
 	}
 
-	_, err = s.core.GetEntry(ctx, caller.Namespace, en.ParentID)
+	_, err = s.core.GetEntry(ctx, caller.Namespace, parentID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry parent failed")
 	}
@@ -218,7 +251,8 @@ func (s *servicesV1) UpdateEntry(ctx context.Context, request *UpdateEntryReques
 		return nil, status.Error(common.FsApiError(err), "update entry failed")
 	}
 
-	detail, _, err := s.getEntryDetails(ctx, caller.Namespace, request.Uri, parentID, en.ID)
+	parentURI, name := path.Split(request.Uri)
+	detail, _, err := s.getEntryDetails(ctx, caller.Namespace, parentURI, name, en.ID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry detail failed")
 	}
@@ -241,7 +275,7 @@ func (s *servicesV1) DeleteEntry(ctx context.Context, request *DeleteEntryReques
 	}
 
 	parentURI, name := path.Split(request.Uri)
-	return &DeleteEntryResponse{Entry: toEntryInfo(parentURI, name, en)}, nil
+	return &DeleteEntryResponse{Entry: toEntryInfo(parentURI, name, en, nil)}, nil
 }
 
 func (s *servicesV1) deleteEntry(ctx context.Context, namespace string, uid, parentID, entryId int64, name string) (en *types.Entry, err error) {
@@ -302,7 +336,7 @@ func (s *servicesV1) DeleteEntries(ctx context.Context, request *DeleteEntriesRe
 	return &DeleteEntriesResponse{Deleted: deleted}, nil
 }
 
-func (s *servicesV1) ListGroupChildren(ctx context.Context, request *ListGroupChildrenRequest) (*ListGroupChildrenResponse, error) {
+func (s *servicesV1) ListGroupChildren(ctx context.Context, request *ListGroupChildrenRequest) (*ListEntriesResponse, error) {
 	caller, err := s.caller(ctx)
 	if err != nil {
 		return nil, err
@@ -316,37 +350,6 @@ func (s *servicesV1) ListGroupChildren(ctx context.Context, request *ListGroupCh
 	if request.Pagination != nil {
 		ctx = types.WithPagination(ctx, types.NewPagination(request.Pagination.Page, request.Pagination.PageSize))
 	}
-	filter := types.Filter{}
-	if request.Filter != nil {
-		filter.FuzzyName = request.Filter.FuzzyName
-		filter.Kind = types.Kind(request.Filter.Kind)
-		t := true
-		f := false
-		switch request.Filter.IsGroup {
-		case EntryFilter_All:
-			filter.IsGroup = nil
-		case EntryFilter_Group:
-			filter.IsGroup = &t
-		case EntryFilter_File:
-			filter.IsGroup = &f
-		}
-		if request.Filter.CreatedAtStart != nil {
-			createdStart := request.Filter.CreatedAtStart.AsTime()
-			filter.CreatedAtStart = &createdStart
-		}
-		if request.Filter.CreatedAtEnd != nil {
-			ct := request.Filter.CreatedAtEnd.AsTime()
-			filter.CreatedAtEnd = &ct
-		}
-		if request.Filter.ModifiedAtStart != nil {
-			ct := request.Filter.ModifiedAtStart.AsTime()
-			filter.ModifiedAtStart = &ct
-		}
-		if request.Filter.ModifiedAtEnd != nil {
-			ct := request.Filter.ModifiedAtEnd.AsTime()
-			filter.ModifiedAtEnd = &ct
-		}
-	}
 	//order := EntryOrder{
 	//	Order: EnOrder(request.Order),
 	//	Desc:  request.OrderDesc,
@@ -356,9 +359,19 @@ func (s *servicesV1) ListGroupChildren(ctx context.Context, request *ListGroupCh
 		return nil, status.Error(common.FsApiError(err), "list children failed")
 	}
 
-	resp := &ListGroupChildrenResponse{}
+	var (
+		resp = &ListEntriesResponse{}
+		doc  *types.DocumentProperties
+	)
 	for _, en := range children {
-		resp.Entries = append(resp.Entries, toEntryInfo(request.ParentURI, en.Name, en))
+		if !en.IsGroup {
+			doc = &types.DocumentProperties{}
+			if err = s.meta.GetEntryProperties(ctx, caller.Namespace, types.PropertyTypeDocument, en.ID, doc); err != nil {
+				s.logger.Errorw("get entry document properties failed", "entry", en.ID, "err", err)
+				doc = nil
+			}
+		}
+		resp.Entries = append(resp.Entries, toEntryInfo(request.ParentURI, en.Name, en, doc))
 	}
 	return resp, nil
 }
@@ -429,7 +442,7 @@ func (s *servicesV1) ChangeParent(ctx context.Context, request *ChangeParentRequ
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
-	return &ChangeParentResponse{Entry: toEntryInfo(newParentURI, newName, en)}, nil
+	return &ChangeParentResponse{Entry: toEntryInfo(newParentURI, newName, en, nil)}, nil
 }
 
 func (s *servicesV1) WriteFile(reader Entries_WriteFileServer) error {
@@ -553,7 +566,42 @@ func (s *servicesV1) ReadFile(request *ReadFileRequest, writer Entries_ReadFileS
 	return nil
 }
 
-func (s *servicesV1) AddProperty(ctx context.Context, request *AddPropertyRequest) (*AddPropertyResponse, error) {
+func (s *servicesV1) UpdateDocumentProperty(ctx context.Context, request *UpdateDocumentPropertyRequest) (*GetDocumentPropertiesResponse, error) {
+	caller, err := s.caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	en, err := s.core.GetEntry(ctx, caller.Namespace, request.Entry)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "query entry failed")
+	}
+
+	if en.IsGroup {
+		return nil, status.Error(common.FsApiError(types.ErrIsGroup), "group has no document properties")
+	}
+
+	properties := &types.DocumentProperties{}
+	err = s.meta.GetEntryProperties(ctx, caller.Namespace, types.PropertyTypeDocument, en.ID, &properties)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "fetch entry properties failed")
+	}
+
+	switch mark := request.Mark.(type) {
+	case *UpdateDocumentPropertyRequest_Unread:
+		properties.Unread = mark.Unread
+	case *UpdateDocumentPropertyRequest_Marked:
+		properties.Marked = mark.Marked
+	}
+
+	err = s.meta.UpdateEntryProperties(ctx, caller.Namespace, types.PropertyTypeDocument, en.ID, &properties)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "update entry properties failed")
+	}
+
+	return &GetDocumentPropertiesResponse{}, nil
+}
+
+func (s *servicesV1) AddProperty(ctx context.Context, request *AddPropertyRequest) (*GetPropertiesResponse, error) {
 	caller, err := s.caller(ctx)
 	if err != nil {
 		return nil, err
@@ -568,9 +616,14 @@ func (s *servicesV1) AddProperty(ctx context.Context, request *AddPropertyReques
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "fetch entry properties failed")
 	}
-	properties[request.Key] = types.PropertyItem{Value: request.Value}
 
-	resp := &AddPropertyResponse{Properties: make([]*Property, 0, len(properties))}
+	properties[request.Key] = types.PropertyItem{Value: request.Value}
+	err = s.meta.UpdateEntryProperties(ctx, caller.Namespace, types.PropertyTypeProperty, en.ID, &properties)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "update entry properties failed")
+	}
+
+	resp := &GetPropertiesResponse{Properties: make([]*Property, 0, len(properties))}
 	for k, v := range properties {
 		resp.Properties = append(resp.Properties, &Property{
 			Key:   k,
@@ -580,7 +633,7 @@ func (s *servicesV1) AddProperty(ctx context.Context, request *AddPropertyReques
 	return resp, nil
 }
 
-func (s *servicesV1) DeleteProperty(ctx context.Context, request *DeletePropertyRequest) (*DeletePropertyResponse, error) {
+func (s *servicesV1) DeleteProperty(ctx context.Context, request *DeletePropertyRequest) (*GetPropertiesResponse, error) {
 	caller, err := s.caller(ctx)
 	if err != nil {
 		return nil, err
@@ -601,7 +654,7 @@ func (s *servicesV1) DeleteProperty(ctx context.Context, request *DeleteProperty
 		delete(properties, request.Key)
 	}
 
-	resp := &DeletePropertyResponse{Properties: make([]*Property, 0, len(properties))}
+	resp := &GetPropertiesResponse{Properties: make([]*Property, 0, len(properties))}
 	for k, v := range properties {
 		resp.Properties = append(resp.Properties, &Property{Key: k, Value: v.Value})
 	}

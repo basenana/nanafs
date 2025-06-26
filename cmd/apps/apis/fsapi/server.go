@@ -56,36 +56,15 @@ func New(depends *common.Depends, cfg config.Config) (*Server, error) {
 		return nil, fmt.Errorf("no api enabled")
 	}
 
-	rootCaPool, err := common.ReadRootCAs(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("load root ca error: %w", err)
-	}
-	clientCaPool, err := common.ReadClientCAs(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("load client ca error: %w", err)
-	}
-	certificate, err := common.EnsureServerX509KeyPair(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("load cert/key file error: %w", err)
-	}
-
-	serviceName, err := common.ServiceName(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("load service name error: %w", err)
-	}
-
 	creds := credentials.NewTLS(&tls.Config{
-		Certificates: []tls.Certificate{*certificate},
-		ServerName:   serviceName,
-		RootCAs:      rootCaPool,
-		ClientCAs:    clientCaPool,
-		ClientAuth:   tls.VerifyClientCertIfGiven,
+		ServerName: apiCfg.ServerName,
+		ClientAuth: tls.VerifyClientCertIfGiven,
 	})
 
 	var opts = []grpc.ServerOption{
 		grpc.Creds(creds),
 		grpc.MaxRecvMsgSize(1024 * 1024 * 50), // 50M
-		common.WithCommonInterceptors(depends.Token),
+		common.WithCommonInterceptors(depends.Token, apiCfg),
 		common.WithStreamInterceptors(depends.Token),
 	}
 	l, err := net.Listen("tcp", fmt.Sprintf("%s:%d", apiCfg.Host, apiCfg.Port))

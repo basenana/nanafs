@@ -20,7 +20,14 @@ import (
 	"context"
 	"fmt"
 	"github.com/basenana/nanafs/utils/logger"
+	"strings"
 	"sync"
+)
+
+const (
+	DocConfigGroup      = "document"
+	PluginConfigGroup   = "plugin"
+	WorkflowConfigGroup = "workflow"
 )
 
 type CMDB interface {
@@ -66,24 +73,7 @@ type cacheConfigKey struct {
 }
 
 var (
-	defaultConfigValues []Value = []Value{
-		{Group: AdminApiConfigGroup, Name: "enable", Value: "false"},
-		{Group: AdminApiConfigGroup, Name: "host", Value: "127.0.0.1"},
-		{Group: AdminApiConfigGroup, Name: "port", Value: "7080"},
-		{Group: AdminApiConfigGroup, Name: "enable_metric", Value: "true"},
-		{Group: AdminApiConfigGroup, Name: "enable_pprof", Value: "true"},
-		{Group: FsAPIConfigGroup, Name: "enable", Value: "true"},
-		{Group: FsAPIConfigGroup, Name: "host", Value: "127.0.0.1"},
-		{Group: FsAPIConfigGroup, Name: "port", Value: "7081"},
-		{Group: WorkflowConfigGroup, Name: "job_workdir", Value: ""},
-		{Group: PluginConfigGroup, Name: "define_path", Value: ""},
-		{Group: WebdavConfigGroup, Name: "enable", Value: "false"},
-		{Group: WebdavConfigGroup, Name: "host", Value: "127.0.0.1"},
-		{Group: WebdavConfigGroup, Name: "port", Value: "7082"},
-		{Group: DocConfigGroup, Name: "index.enable", Value: "false"},
-		{Group: DocConfigGroup, Name: "index.local_indexer_dir", Value: ""},
-		{Group: DocConfigGroup, Name: "index.jieba_dict_file", Value: ""},
-	}
+	defaultConfigValues []Value = []Value{}
 )
 
 func setCMDBDefaultConfigs(db CMDB) error {
@@ -107,4 +97,14 @@ func setCMDBDefaultConfigs(db CMDB) error {
 		cfgLogger.Infof("set %s.%s=%s", defaultVal.Group, defaultVal.Name, defaultVal.Value)
 	}
 	return nil
+}
+
+func isConfigNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	if strings.Contains(err.Error(), "no record") {
+		return true
+	}
+	return false
 }

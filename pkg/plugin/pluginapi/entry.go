@@ -24,6 +24,7 @@ import (
 
 type Entry struct {
 	ID         int64
+	Parent     int64
 	Name       string
 	Kind       types.Kind
 	Size       int64
@@ -47,8 +48,10 @@ type Document struct {
 }
 
 type CollectManifest struct {
-	BaseEntry int64
-	NewFiles  []Entry
+	ParentEntry  int64
+	Entry        int64
+	NewFiles     []Entry
+	NewDocuments []*Document
 }
 
 type File interface {

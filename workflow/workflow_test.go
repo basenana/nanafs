@@ -34,11 +34,10 @@ var _ = Describe("TestWorkflowManage", func() {
 			Steps: []types.WorkflowStepSpec{
 				{
 					Name: "step-1",
-					Plugin: &types.PlugScope{
+					Plugin: &types.PluginCall{
 						PluginName: "delay",
 						Version:    "1.0",
 						Action:     "delay",
-						PluginType: types.TypeProcess,
 						Parameters: map[string]string{"delay": "1s"},
 					},
 				},
@@ -98,10 +97,9 @@ var _ = Describe("TestWorkflowManage", func() {
 var _ = Describe("TestWorkflowJobManage", func() {
 	var (
 		ctx = context.TODO()
-		ps  = &types.PlugScope{
+		ps  = &types.PluginCall{
 			PluginName: "delay",
 			Version:    "1.0",
-			PluginType: types.TypeProcess,
 			Action:     "delay",
 			Parameters: map[string]string{"delay": "1s"},
 		}

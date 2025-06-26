@@ -24,8 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basenana/nanafs/pkg/rule"
-
 	testcfg "github.com/onsi/ginkgo/config"
 
 	"github.com/basenana/nanafs/config"
@@ -72,16 +70,13 @@ var _ = BeforeSuite(func() {
 	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())
 
-	rule.InitQuery(memMeta)
-
 	fsCore, err = core.New(memMeta, bootCfg)
 	Expect(err).Should(BeNil())
 
 	cfg := config.NewMockConfigLoader(bootCfg)
-	err = cfg.SetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "job_workdir", tempDir)
 	Expect(err).Should(BeNil())
 
-	mgr, err = New(fsCore, notify.NewNotify(memMeta), memMeta, cfg)
+	mgr, err = New(fsCore, notify.NewNotify(memMeta), memMeta, bootCfg.Workflow)
 	Expect(err).Should(BeNil())
 
 	ctx, canF := context.WithCancel(context.Background())

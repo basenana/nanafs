@@ -28,7 +28,7 @@ import (
 
 type EntryIterator interface {
 	HasNext() bool
-	Next() *types.Entry
+	Next() (*types.Entry, error)
 }
 
 const entryFetchPageSize = 1000
@@ -75,13 +75,13 @@ func (i *transactionEntryIterator) HasNext() bool {
 	return len(i.onePage) > 0
 }
 
-func (i *transactionEntryIterator) Next() *types.Entry {
+func (i *transactionEntryIterator) Next() (*types.Entry, error) {
 	defer logOperationLatency("transactionEntryIterator.next", time.Now())
 	if len(i.onePage) > 0 {
 		one := i.onePage[0]
 		i.onePage = i.onePage[1:]
-		return one
+		return one, nil
 	}
 	logOperationError("transactionEntryIterator.next", types.ErrNotFound)
-	return nil
+	return nil, nil
 }

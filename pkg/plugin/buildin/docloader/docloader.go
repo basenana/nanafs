@@ -43,7 +43,7 @@ var PluginSpec = types.PluginSpec{
 
 type DocLoader struct {
 	job   *types.WorkflowJob
-	scope types.PlugScope
+	scope types.PluginCall
 }
 
 func (d DocLoader) Name() string {
@@ -59,20 +59,23 @@ func (d DocLoader) Version() string {
 }
 
 func (d DocLoader) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
-	var result = pluginapi.CollectManifest{BaseEntry: request.ParentEntryId}
+	var result = make([]pluginapi.CollectManifest, 0, len(request.Entries))
 	for i := range request.Entries {
 		en := request.Entries[i]
+		r := pluginapi.CollectManifest{ParentEntry: en.Parent, Entry: en.ID}
 		if err := d.loadEntry(ctx, request.WorkPath, &en); err != nil {
 			return pluginapi.NewFailedResponse(fmt.Sprintf("load entry %d error: %s", en.ID, err.Error())), nil
 		}
 
-		if en.Document != nil {
-			result.NewFiles = append(result.NewFiles, en)
+		if en.Document == nil {
+			continue
 		}
+		r.NewDocuments = append(r.NewDocuments, en.Document)
+		result = append(result, r)
 	}
 
 	resp := pluginapi.NewResponse()
-	resp.NewEntries = append(resp.NewEntries, result)
+	resp.NewEntries = append(resp.NewEntries, result...)
 	return resp, nil
 }
 
@@ -116,7 +119,7 @@ func (d DocLoader) loadEntry(ctx context.Context, workdir string, entry *plugina
 	return nil
 }
 
-func NewDocLoader(job *types.WorkflowJob, scope types.PlugScope) *DocLoader {
+func NewDocLoader(job *types.WorkflowJob, scope types.PluginCall) *DocLoader {
 	return &DocLoader{job: job, scope: scope}
 }
 

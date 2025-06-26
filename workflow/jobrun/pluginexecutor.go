@@ -260,8 +260,8 @@ func (b *fileExecutor) collectEntries(ctx context.Context, manifests []pluginapi
 	for _, manifest := range manifests {
 		for i := range manifest.NewFiles {
 			file := &(manifest.NewFiles[i])
-			if en, err = collectFile2BaseEntry(ctx, b.job.Namespace, b.core, manifest.BaseEntry, b.workdir, file); err != nil {
-				b.logger.Errorw("collect file to base entry failed", "entry", manifest.BaseEntry, "newFile", file.Name, "err", err)
+			if en, err = collectFile2BaseEntry(ctx, b.job.Namespace, b.core, manifest.ParentEntry, b.workdir, file); err != nil {
+				b.logger.Errorw("collect file to base entry failed", "entry", manifest.ParentEntry, "newFile", file.Name, "err", err)
 				errList = append(errList, err)
 				continue
 			}
@@ -297,7 +297,7 @@ func (b *fileExecutor) Teardown(ctx context.Context) error {
 	return nil
 }
 
-func callPlugin(ctx context.Context, job *types.WorkflowJob, ps types.PlugScope, mgr *plugin.Manager,
+func callPlugin(ctx context.Context, job *types.WorkflowJob, ps types.PluginCall, mgr *plugin.Manager,
 	store metastore.EntryStore, req *pluginapi.Request, logger *zap.SugaredLogger) (*pluginapi.Response, error) {
 	req.Action = ps.Action
 	resp, err := mgr.Call(ctx, job, ps, req)

@@ -37,7 +37,7 @@ func (m *Manager) AccessToken(ctx context.Context, token string) (*AuthInfo, err
 func NewTokenManager(cfg config.Config) *Manager {
 	bc := cfg.GetBootstrapConfig()
 	return &Manager{
-		secret: []byte(bc.GlobalEncryption.SecretKey),
+		secret: []byte(bc.Encryption.SecretKey),
 		cfg:    cfg,
 		logger: logger.NewLogger("tokenManager"),
 	}

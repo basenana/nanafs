@@ -23,6 +23,7 @@ const (
 	PropertyTypeAttr      PropertyType = "A"
 	PropertyTypeSymlink   PropertyType = "S"
 	PropertyTypeGroupAttr PropertyType = "G"
+	PropertyTypeDocument  PropertyType = "D"
 )
 
 type Properties map[string]PropertyItem
@@ -34,7 +35,7 @@ type SymlinkProperties struct {
 }
 
 type GroupProperties struct {
-	Filter *Rule     `json:"filter,omitempty"`
+	Filter *Filter   `json:"filter,omitempty"`
 	Source string    `json:"source,omitempty"` // rss
 	RSS    *GroupRSS `json:"rss,omitempty"`
 }
@@ -46,7 +47,35 @@ type GroupRSS struct {
 	FileType string `json:"fileType"`
 }
 
+type DocumentProperties struct {
+	Title string `json:"title"`
+
+	// papers
+	Author string `json:"author,omitempty"`
+	Year   string `json:"year,omitempty"`
+	Source string `json:"source,omitempty"`
+
+	// content
+	Abstract string   `json:"abstract,omitempty"`
+	Notes    string   `json:"notes,omitempty"`
+	Keywords []string `json:"keywords,omitempty"`
+
+	// web
+	URL         string `json:"url,omitempty"`
+	SiteName    string `json:"site,omitempty"`
+	HeaderImage string `json:"headerImage,omitempty"`
+
+	Unread    bool   `json:"unread"`
+	Marked    bool   `json:"marked"`
+	PublishAt string `json:"publishAt,omitempty"`
+}
+
 type PropertyItem struct {
 	Value string `json:"value"`
 	Type  string `json:"type,omitempty"`
 }
+
+const (
+	WebPropertySite = "Site"
+	WebPropertyURL  = "URL"
+)

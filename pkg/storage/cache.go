@@ -52,7 +52,7 @@ var (
 	cachedFile       *cachedFileMapper
 	cacheLog         *zap.SugaredLogger
 	configs          []config.Storage
-	globalEncryptCfg *config.Encryption
+	globalEncryptCfg config.Encryption
 )
 
 func init() {
@@ -68,14 +68,20 @@ func init() {
 
 func InitLocalCache(config config.Bootstrap) {
 	cacheLog = logger.NewLogger("localCache")
+	if config.Encryption.Enable {
+		globalEncryptCfg = config.Encryption
+	}
+	configs = config.Storages
+
 	localCacheDir = config.CacheDir
-	if localCacheDir == "" {
-		cacheLog.Panic("init local cache dri dir failed: empty")
+	localCacheSizeLimit = int64(config.CacheSize) * (1 << 30) // config.CacheSize Gi
+	if localCacheDir == "" || localCacheSizeLimit == 0 {
+		cacheLog.Infof("local cache disabled")
+		localCacheSizeLimit = 0
+		return
 	}
 
 	cacheLog.Infof("local cache dir: %s", localCacheDir)
-	localCacheSizeLimit = int64(config.CacheSize) * (1 << 30) // config.CacheSize Gi
-
 	if localCacheDir != "" {
 		if err := utils.Mkdir(localCacheDir); err != nil {
 			cacheLog.Panicf("init local cache dir failed: %s", err)
@@ -87,10 +93,6 @@ func InitLocalCache(config config.Bootstrap) {
 	}
 	cacheLog.Infof("local size usage: %d, limit: %d", localCacheSizeUsage, localCacheSizeLimit)
 
-	if config.GlobalEncryption.Enable {
-		globalEncryptCfg = &config.GlobalEncryption
-	}
-	configs = config.Storages
 }
 
 type LocalCache struct {
@@ -359,17 +361,13 @@ func (c *LocalCache) mustAccountCacheUsage(ctx context.Context, usage int64) err
 
 func (c *LocalCache) nodeDataEncode(ctx context.Context, segIDKey int64, in io.Reader, out io.Writer) (err error) {
 	var (
-		pipeOut  = out
-		cryptOut io.ReadCloser
-		cryptIn  io.WriteCloser
+		pipeOut    = out
+		cryptOut   io.ReadCloser
+		cryptIn    io.WriteCloser
+		encryptCfg = globalEncryptCfg
+		wg         = sync.WaitGroup{}
 	)
-	encryptCfg := globalEncryptCfg
-	if c.cfg.Encryption != nil && c.cfg.Encryption.Enable {
-		encryptCfg = c.cfg.Encryption
-	}
-
-	wg := sync.WaitGroup{}
-	if encryptCfg != nil {
+	if encryptCfg.Enable {
 		cryptOut, cryptIn = io.Pipe()
 		pipeOut = cryptIn
 
@@ -409,17 +407,13 @@ func (c *LocalCache) nodeDataDecode(ctx context.Context, segIDKey int64, in io.R
 	defer trace.StartRegion(ctx, "storage.localCache.nodeDataDecode").End()
 	in = bufio.NewReader(in)
 	var (
-		pipeIn   = in
-		cryptOut io.ReadCloser
-		cryptIn  io.WriteCloser
+		pipeIn     = in
+		cryptOut   io.ReadCloser
+		cryptIn    io.WriteCloser
+		encryptCfg = globalEncryptCfg
+		wg         = sync.WaitGroup{}
 	)
-	encryptCfg := globalEncryptCfg
-	if c.cfg.Encryption != nil && c.cfg.Encryption.Enable {
-		encryptCfg = c.cfg.Encryption
-	}
-
-	wg := sync.WaitGroup{}
-	if encryptCfg != nil {
+	if encryptCfg.Enable {
 		cryptOut, cryptIn = io.Pipe()
 		pipeIn = cryptOut
 

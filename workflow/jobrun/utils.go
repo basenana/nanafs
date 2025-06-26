@@ -54,6 +54,11 @@ func init() {
 	)
 }
 
+type targetEntry struct {
+	entry  *types.Entry
+	parent *types.Entry
+}
+
 func initParentDirCacheData(ctx context.Context, namespace string, fsCore core.Core, parentEntryID int64) (*pluginapi.CachedData, error) {
 	cachedDataCh, err := fsCore.FindEntry(ctx, namespace, parentEntryID, pluginapi.CachedDataFile)
 	if err != nil && !errors.Is(err, types.ErrNotFound) {
@@ -120,36 +125,6 @@ func writeParentDirCacheData(ctx context.Context, namespace string, fsCore core.
 	return nil
 }
 
-func mergeParentEntryPlugScope(step, entryDef types.PlugScope) types.PlugScope {
-	if step.PluginName != entryDef.PluginName {
-		return step
-	}
-	ps := types.PlugScope{
-		PluginName: step.PluginName,
-		Version:    step.Version,
-		PluginType: step.PluginType,
-		Action:     entryDef.Action,
-		Parameters: map[string]string{},
-	}
-
-	if entryDef.Parameters != nil {
-		for k, v := range entryDef.Parameters {
-			ps.Parameters[k] = v
-		}
-	}
-
-	// do overwrite
-	if step.Action != "" {
-		ps.Action = step.Action
-	}
-	if step.Parameters != nil {
-		for k, v := range step.Parameters {
-			ps.Parameters[k] = v
-		}
-	}
-	return ps
-}
-
 func logOperationLatency(execName, operation string, startAt time.Time) {
 	execOperationTimeUsage.WithLabelValues(execName, operation).Observe(time.Since(startAt).Seconds())
 }
@@ -173,7 +148,6 @@ func newPluginRequest(job *types.WorkflowJob, step *types.WorkflowJobStep, resul
 	}
 	req.Parameter[pluginapi.ResPluginName] = step.Plugin.PluginName
 	req.Parameter[pluginapi.ResPluginVersion] = step.Plugin.Version
-	req.Parameter[pluginapi.ResPluginType] = step.Plugin.PluginType
 	req.Parameter[pluginapi.ResPluginAction] = step.Plugin.Action
 
 	for _, en := range targets {

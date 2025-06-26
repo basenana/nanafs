@@ -21,8 +21,6 @@ import (
 	"errors"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/types"
-	"google.golang.org/protobuf/types/known/timestamppb"
-	"path"
 	"runtime/trace"
 	"sort"
 )
@@ -84,34 +82,18 @@ func (s *servicesV1) listGroupEntry(ctx context.Context, namespace string, name 
 	return result, nil
 }
 
-func (s *servicesV1) getEntryDetails(ctx context.Context, namespace, uri string, parent, id int64) (*EntryDetail, []*Property, error) {
+func (s *servicesV1) getEntryDetails(ctx context.Context, namespace, uri, name string, id int64) (*EntryDetail, []*Property, error) {
 	en, err := s.core.GetEntry(ctx, namespace, id)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	access := &EntryDetail_Access{Uid: en.Access.UID, Gid: en.Access.GID}
-	for _, perm := range en.Access.Permissions {
-		access.Permissions = append(access.Permissions, string(perm))
+	doc := types.DocumentProperties{}
+	err = s.meta.GetEntryProperties(ctx, namespace, types.PropertyTypeDocument, id, &doc)
+	if err != nil {
+		return nil, nil, err
 	}
-
-	ed := &EntryDetail{
-		Uri:        uri,
-		Entry:      en.ID,
-		Name:       path.Base(uri),
-		Aliases:    en.Aliases,
-		Kind:       string(en.Kind),
-		IsGroup:    en.IsGroup,
-		Size:       en.Size,
-		Version:    en.Version,
-		Namespace:  en.Namespace,
-		Storage:    en.Storage,
-		Access:     access,
-		CreatedAt:  timestamppb.New(en.CreatedAt),
-		ChangedAt:  timestamppb.New(en.ChangedAt),
-		ModifiedAt: timestamppb.New(en.ModifiedAt),
-		AccessAt:   timestamppb.New(en.AccessAt),
-	}
+	details := toEntryDetail(uri, name, en, doc)
 
 	properties := make(types.Properties)
 	err = s.meta.GetEntryProperties(ctx, namespace, types.PropertyTypeProperty, id, &properties)
@@ -126,7 +108,7 @@ func (s *servicesV1) getEntryDetails(ctx context.Context, namespace, uri string,
 			Value: item.Value,
 		})
 	}
-	return ed, pl, nil
+	return details, pl, nil
 }
 
 func (s *servicesV1) listEntryChildren(ctx context.Context, namespace string, entryId int64) ([]*types.Entry, error) {

@@ -85,20 +85,15 @@ func checkStorageConfigs(config *Bootstrap) error {
 		if err := checkStorageConfig(s); err != nil {
 			return fmt.Errorf("storages[%d].%s: %s", i, s.ID, err)
 		}
-		if s.Encryption != nil {
-			if err := checkEncryptionConfig(*s.Encryption); err != nil {
-				return fmt.Errorf("storages[%d].%s: encryption config %s", i, s.ID, err)
-			}
-		}
 	}
 	return nil
 }
 
 func checkGlobalEncryptionConfig(config *Bootstrap) error {
-	if !config.GlobalEncryption.Enable {
+	if !config.Encryption.Enable {
 		return nil
 	}
-	enCfg := config.GlobalEncryption
+	enCfg := config.Encryption
 	return checkEncryptionConfig(enCfg)
 }
 

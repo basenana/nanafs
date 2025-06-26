@@ -49,7 +49,7 @@ func (m *Manager) ListPlugins() []types.PluginSpec {
 	return result
 }
 
-func (m *Manager) Call(ctx context.Context, job *types.WorkflowJob, ps types.PlugScope, req *pluginapi.Request) (resp *pluginapi.Response, err error) {
+func (m *Manager) Call(ctx context.Context, job *types.WorkflowJob, ps types.PluginCall, req *pluginapi.Request) (resp *pluginapi.Response, err error) {
 	startAt := time.Now()
 	defer func() {
 		if rErr := utils.Recover(); rErr != nil {
@@ -76,9 +76,9 @@ type Plugin interface {
 	Version() string
 }
 
-type Builder func(job *types.WorkflowJob, scope types.PlugScope) (Plugin, error)
+type Builder func(job *types.WorkflowJob, scope types.PluginCall) (Plugin, error)
 
-func Init(cfg config.Config) (*Manager, error) {
+func Init(cfg config.Workflow) (*Manager, error) {
 	r := &registry{
 		cfg:     cfg,
 		plugins: map[string]*pluginInfo{},
@@ -94,12 +94,12 @@ func Init(cfg config.Config) (*Manager, error) {
 
 type registry struct {
 	plugins map[string]*pluginInfo
-	cfg     config.Config
+	cfg     config.Workflow
 	mux     sync.RWMutex
 	logger  *zap.SugaredLogger
 }
 
-func (r *registry) BuildPlugin(job *types.WorkflowJob, ps types.PlugScope) (Plugin, error) {
+func (r *registry) BuildPlugin(job *types.WorkflowJob, ps types.PluginCall) (Plugin, error) {
 	r.mux.RLock()
 	p, ok := r.plugins[ps.PluginName]
 	if !ok {

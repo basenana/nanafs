@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"runtime/trace"
 	"sync"
 	"time"
@@ -257,9 +256,6 @@ func (s *sqlMetaStore) CreateEntry(ctx context.Context, namespace string, parent
 		entryMod  = (&db.Entry{}).FromEntry(newEntry)
 		nowTime   = time.Now().UnixNano()
 	)
-	if parentID != 0 {
-		entryMod.ParentID = &parentID
-	}
 	entryMod.Namespace = namespace
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		res := tx.Create(entryMod)
@@ -595,6 +591,10 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, namespace string, 
 		}
 
 		enModel.ChangedAt = nowTime
+		if newName != "" {
+			enModel.Name = newName
+			refChild.Name = newName
+		}
 		if updateErr = updateEntryModelWithVersion(tx, enModel); updateErr != nil {
 			s.logger.Errorw("update target entry failed when change parent",
 				"entry", targetEntryId, "srcParent", oldParentID, "dstParent", newParentId, "err", updateErr)
@@ -605,9 +605,6 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, namespace string, 
 			return nil
 		}
 
-		if newName != "" {
-			refChild.Name = newName
-		}
 		if refChild.ParentID != newParentId {
 			if refChild.Dynamic {
 				return types.ErrNoAccess
@@ -669,7 +666,7 @@ func (s *sqlMetaStore) GetEntryProperties(ctx context.Context, namespace string,
 		}
 		return db.SqlError2Error(res.Error)
 	}
-	return json.Unmarshal([]byte(itemModel.Value), data)
+	return json.Unmarshal(itemModel.Value, data)
 }
 
 func (s *sqlMetaStore) UpdateEntryProperties(ctx context.Context, namespace string, ptype types.PropertyType, id int64, data any) error {
@@ -679,7 +676,6 @@ func (s *sqlMetaStore) UpdateEntryProperties(ctx context.Context, namespace stri
 	var itemModel = &db.EntryProperty{
 		Entry:     id,
 		Type:      string(ptype),
-		Value:     "",
 		Namespace: namespace,
 	}
 
@@ -687,7 +683,7 @@ func (s *sqlMetaStore) UpdateEntryProperties(ctx context.Context, namespace stri
 	if err != nil {
 		return err
 	}
-	itemModel.Value = string(raw)
+	itemModel.Value = raw
 	res := s.WithNamespace(ctx, namespace).Save(itemModel)
 	if res.Error != nil {
 		return db.SqlError2Error(res.Error)
@@ -831,7 +827,7 @@ func (s *sqlMetaStore) ListTask(ctx context.Context, taskID string, filter types
 	result := make([]*types.ScheduledTask, len(tasks))
 	for i, t := range tasks {
 		evt := types.Event{}
-		_ = json.Unmarshal([]byte(t.Event), &evt)
+		_ = json.Unmarshal(t.Event, &evt)
 		result[i] = &types.ScheduledTask{
 			ID:             t.ID,
 			Namespace:      t.Namespace,
@@ -869,7 +865,7 @@ func (s *sqlMetaStore) SaveTask(ctx context.Context, task *types.ScheduledTask) 
 	if err != nil {
 		return err
 	}
-	t.Event = string(rawEvt)
+	t.Event = rawEvt
 	if task.ID == 0 {
 		res := s.WithContext(ctx).Create(t)
 		if res.Error != nil {
@@ -1255,48 +1251,6 @@ func updateEntryModelWithVersion(tx *gorm.DB, entryMod *db.Entry) error {
 	return nil
 }
 
-func queryFilter(tx *gorm.DB, filter types.Filter, scopeIds []int64) *gorm.DB {
-	if filter.ID != 0 {
-		tx = tx.Where("id = ?", filter.ID)
-	} else if len(scopeIds) > 0 {
-		tx = tx.Where("id IN ?", scopeIds)
-	}
-
-	if filter.ParentID != 0 {
-		tx = tx.Joins("JOIN children on children.child_id = object.id AND children.parent_id = ?", filter.ParentID)
-	}
-
-	if filter.Name != "" {
-		tx = tx.Where("name = ?", filter.Name)
-	}
-	if filter.Kind != "" {
-		tx = tx.Where("kind = ?", filter.Kind)
-	}
-	if filter.IsGroup != nil {
-		tx = tx.Where("is_group = ?", *filter.IsGroup)
-	}
-	if filter.CreatedAtStart != nil {
-		tx = tx.Where("created_at >= ?", *filter.CreatedAtStart)
-	}
-	if filter.CreatedAtEnd != nil {
-		tx = tx.Where("created_at < ?", *filter.CreatedAtEnd)
-	}
-	if filter.ModifiedAtStart != nil {
-		tx = tx.Where("modified_at >= ?", *filter.ModifiedAtStart)
-	}
-	if filter.ModifiedAtEnd != nil {
-		tx = tx.Where("modified_at < ?", *filter.ModifiedAtEnd)
-	}
-	if filter.FuzzyName != "" {
-		tx = tx.Where("name LIKE ?", "%"+filter.FuzzyName+"%")
-	}
-	return tx
-}
-
 func namespaceQuery(tx *gorm.DB, namespace string) *gorm.DB {
 	return tx.Where("namespace = ?", namespace)
-}
-
-func labelSearchKey(k, v string) string {
-	return fmt.Sprintf("%s=%s", k, v)
 }

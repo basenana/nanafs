@@ -47,7 +47,7 @@ func pdKind2EntryKind(k string) types.Kind {
 
 func entryInfo(en *types.Entry) *EntryInfo {
 	return &EntryInfo{
-		Id:         en.ID,
+		Entry:      en.ID,
 		Name:       en.Name,
 		Kind:       string(en.Kind),
 		IsGroup:    en.IsGroup,
@@ -73,9 +73,9 @@ func coreEntryInfo(parentID int64, name string, en *types.Entry) *EntryInfo {
 	}
 }
 
-func toEntryInfo(parent, name string, en *types.Entry) *EntryInfo {
-	return &EntryInfo{
-		Uri:        path.Join(parent, name),
+func toEntryInfo(parentURI, name string, en *types.Entry, doc *types.DocumentProperties) *EntryInfo {
+	info := &EntryInfo{
+		Uri:        path.Join(parentURI, name),
 		Entry:      en.ID,
 		Name:       name,
 		Kind:       string(en.Kind),
@@ -86,26 +86,50 @@ func toEntryInfo(parent, name string, en *types.Entry) *EntryInfo {
 		ModifiedAt: timestamppb.New(en.ModifiedAt),
 		AccessAt:   timestamppb.New(en.AccessAt),
 	}
+
+	if doc != nil {
+		info.Document = &DocumentProperty{
+			Title:    doc.Title,
+			Author:   doc.Author,
+			Year:     doc.Year,
+			Source:   doc.Source,
+			Abstract: doc.Abstract,
+			Keywords: doc.Keywords,
+			Unread:   doc.Unread,
+			Marked:   doc.Marked,
+		}
+	}
+	return info
 }
 
-func entryDetail(parent, name string, en *types.Entry) *EntryDetail {
+func toEntryDetail(parentURI, name string, en *types.Entry, doc types.DocumentProperties) *EntryDetail {
 	access := &EntryDetail_Access{Uid: en.Access.UID, Gid: en.Access.GID}
 	for _, perm := range en.Access.Permissions {
 		access.Permissions = append(access.Permissions, string(perm))
 	}
 
 	ed := &EntryDetail{
-		Uri:        path.Join(parent, name),
-		Entry:      en.ID,
-		Name:       name,
-		Aliases:    en.Aliases,
-		Kind:       string(en.Kind),
-		IsGroup:    en.IsGroup,
-		Size:       en.Size,
-		Version:    en.Version,
-		Namespace:  en.Namespace,
-		Storage:    en.Storage,
-		Access:     access,
+		Uri:       path.Join(parentURI, name),
+		Entry:     en.ID,
+		Name:      name,
+		Aliases:   en.Aliases,
+		Kind:      string(en.Kind),
+		IsGroup:   en.IsGroup,
+		Size:      en.Size,
+		Version:   en.Version,
+		Namespace: en.Namespace,
+		Storage:   en.Storage,
+		Access:    access,
+		Document: &DocumentProperty{
+			Title:    doc.Title,
+			Author:   doc.Author,
+			Year:     doc.Year,
+			Source:   doc.Source,
+			Abstract: doc.Abstract,
+			Keywords: doc.Keywords,
+			Unread:   doc.Unread,
+			Marked:   doc.Marked,
+		},
 		CreatedAt:  timestamppb.New(en.CreatedAt),
 		ChangedAt:  timestamppb.New(en.ChangedAt),
 		ModifiedAt: timestamppb.New(en.ModifiedAt),
@@ -176,6 +200,20 @@ func setupRssConfig(config *CreateEntryRequest_RssConfig, attr *types.EntryAttr)
 			SiteName: config.SiteName,
 			SiteURL:  config.SiteURL,
 			FileType: fileType,
+		},
+	}
+
+	if attr.Properties == nil {
+		attr.Properties = make(types.Properties)
+	}
+	attr.Properties[types.WebPropertySite] = types.PropertyItem{Value: config.SiteName}
+	attr.Properties[types.WebPropertyURL] = types.PropertyItem{Value: config.SiteURL}
+}
+
+func setupGroupFilterConfig(config *CreateEntryRequest_FilterConfig, attr *types.EntryAttr) {
+	attr.GroupProperties = &types.GroupProperties{
+		Filter: &types.Filter{
+			CELPattern: config.CelPattern,
 		},
 	}
 }

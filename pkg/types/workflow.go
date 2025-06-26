@@ -29,7 +29,7 @@ type Workflow struct {
 	Id              string             `json:"id"`
 	Name            string             `json:"name"`
 	Namespace       string             `json:"namespace"`
-	Rule            *Rule              `json:"rule,omitempty"`
+	Rule            *WorkflowRule      `json:"rule,omitempty"`
 	Cron            string             `json:"cron,omitempty"`
 	Steps           []WorkflowStepSpec `json:"steps,omitempty"`
 	Enable          bool               `json:"enable"`
@@ -41,8 +41,22 @@ type Workflow struct {
 }
 
 type WorkflowStepSpec struct {
-	Name   string     `json:"name"`
-	Plugin *PlugScope `json:"plugin,omitempty"`
+	Name   string      `json:"name"`
+	Plugin *PluginCall `json:"plugin,omitempty"`
+}
+
+type WorkflowRule struct {
+	// File
+	FileTypes       string `json:"fileTypes,omitempty"`
+	FileNamePattern string `json:"fileNamePattern"`
+	MinFileSize     int    `json:"minFileSize,omitempty"`
+	MaxFileSize     int    `json:"maxFileSize,omitempty"`
+
+	// Tree
+	ParentID int64 `json:"parentId,omitempty"`
+
+	// Properties
+	PropertiesCELPattern string `json:"propertiesCELPattern,omitempty"`
 }
 
 type WorkflowJob struct {
@@ -80,10 +94,11 @@ func (w *WorkflowJob) SetMessage(msg string) {
 }
 
 type WorkflowJobStep struct {
-	StepName string     `json:"step_name"`
-	Message  string     `json:"message,omitempty"`
-	Status   string     `json:"status,omitempty"`
-	Plugin   *PlugScope `json:"plugin,omitempty"`
+	StepName string      `json:"step_name"`
+	Plugin   *PluginCall `json:"plugin,omitempty"`
+
+	Status  string `json:"status,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 type WorkflowTarget struct {
@@ -91,5 +106,16 @@ type WorkflowTarget struct {
 	ParentEntryID int64    `json:"parent_entry_id,omitempty"`
 }
 
-type WorkflowEntryResult struct {
+const (
+	PlugScopeEntryName     = "entry.name"
+	PlugScopeEntryPath     = "entry.path" // relative path
+	PlugScopeWorkflowID    = "workflow.id"
+	PlugScopeWorkflowJobID = "workflow.job.id"
+)
+
+type PluginCall struct {
+	PluginName string            `json:"plugin_name"`
+	Version    string            `json:"version"`
+	Action     string            `json:"action,omitempty"`
+	Parameters map[string]string `json:"parameters"`
 }

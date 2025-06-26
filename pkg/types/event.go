@@ -36,11 +36,11 @@ type Event struct {
 }
 
 type EventData struct {
-	ID       int64 `json:"id"`
-	ParentID int64 `json:"parent_id,omitempty"`
-	Kind     Kind  `json:"kind,omitempty"`
-	KindMap  int64 `json:"kind_map,omitempty"`
-	IsGroup  bool  `json:"is_group,omitempty"`
+	ID      int64 `json:"id"`
+	Kind    Kind  `json:"kind,omitempty"`
+	KindMap int64 `json:"kind_map,omitempty"`
+	IsGroup bool  `json:"is_group,omitempty"`
+	Parent  int64 `json:"parent,omitempty"`
 }
 
 func (e EventData) String() string {
@@ -53,10 +53,9 @@ func (e EventData) String() string {
 
 func NewEventDataFromEntry(entry *Entry) EventData {
 	return EventData{
-		ID:       entry.ID,
-		ParentID: entry.ParentID,
-		Kind:     entry.Kind,
-		IsGroup:  entry.IsGroup,
+		ID:      entry.ID,
+		Kind:    entry.Kind,
+		IsGroup: entry.IsGroup,
 	}
 }
 

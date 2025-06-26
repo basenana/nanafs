@@ -21,8 +21,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/basenana/nanafs/pkg/rule"
-
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
@@ -68,9 +66,6 @@ var _ = BeforeSuite(func() {
 	metaStoreObj = memMeta
 	fsCore, err = New(metaStoreObj, bootCfg)
 	Expect(err).Should(BeNil())
-
-	// init rule based query
-	rule.InitQuery(memMeta)
 
 	// init root
 	root, err = fsCore.FSRoot(context.TODO())

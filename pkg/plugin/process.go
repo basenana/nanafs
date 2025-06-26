@@ -49,7 +49,7 @@ var DelayProcessPluginSpec = types.PluginSpec{
 }
 
 type DelayProcessPlugin struct {
-	scope types.PlugScope
+	scope types.PluginCall
 }
 
 var _ ProcessPlugin = &DelayProcessPlugin{}
@@ -112,7 +112,7 @@ func registerBuildInProcessPlugin(r *registry) {
 	r.Register(
 		delayPluginName,
 		DelayProcessPluginSpec,
-		func(job *types.WorkflowJob, scope types.PlugScope) (Plugin, error) {
+		func(job *types.WorkflowJob, scope types.PluginCall) (Plugin, error) {
 			return &DelayProcessPlugin{scope: scope}, nil
 		},
 	)
@@ -120,7 +120,7 @@ func registerBuildInProcessPlugin(r *registry) {
 	r.Register(
 		docloader.PluginName,
 		docloader.PluginSpec,
-		func(job *types.WorkflowJob, scope types.PlugScope) (Plugin, error) {
+		func(job *types.WorkflowJob, scope types.PluginCall) (Plugin, error) {
 			return docloader.NewDocLoader(job, scope), nil
 		},
 	)
@@ -128,7 +128,7 @@ func registerBuildInProcessPlugin(r *registry) {
 	r.Register(
 		buildin.WebpackPluginName,
 		buildin.WebpackPluginSpec,
-		func(job *types.WorkflowJob, scope types.PlugScope) (Plugin, error) {
+		func(job *types.WorkflowJob, scope types.PluginCall) (Plugin, error) {
 			return buildin.NewWebpackPlugin(job, scope)
 		},
 	)

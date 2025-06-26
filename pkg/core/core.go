@@ -563,7 +563,7 @@ func (c *core) OpenGroup(ctx context.Context, namespace string, groupId int64) (
 		if gattr.Filter != nil {
 			grp = &dynamicGroup{
 				std:       stdGrp,
-				rule:      *gattr.Filter,
+				filter:    *gattr.Filter,
 				baseEntry: groupId,
 				logger:    logger.NewLogger("dynamicGroup").With(zap.Int64("group", groupId)),
 			}

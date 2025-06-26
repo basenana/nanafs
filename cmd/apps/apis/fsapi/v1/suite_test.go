@@ -35,7 +35,6 @@ import (
 
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils/logger"
@@ -74,8 +73,6 @@ var _ = BeforeSuite(func() {
 	mockConfig.CacheSize = 0
 
 	cl := config.NewMockConfigLoader(mockConfig)
-	_ = cl.SetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "job_workdir", workdir)
-
 	dep, err = common.InitDepends(cl, memMeta)
 	Expect(err).Should(BeNil())
 
@@ -92,7 +89,7 @@ var _ = BeforeSuite(func() {
 	var opts = []grpc.ServerOption{
 		grpc.Creds(serverCreds),
 		grpc.MaxRecvMsgSize(1024 * 1024 * 50), // 50M
-		common.WithCommonInterceptors(dep.Token),
+		common.WithCommonInterceptors(dep.Token, mockConfig),
 		common.WithStreamInterceptors(dep.Token),
 	}
 	testServer = grpc.NewServer(opts...)

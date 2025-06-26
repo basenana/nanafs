@@ -18,7 +18,6 @@ package workflow
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/plugin"
@@ -57,26 +56,22 @@ type manager struct {
 	core   core.Core
 	notify *notify.Notify
 	meta   metastore.Meta
-	config config.Config
+	config config.Workflow
 	hooks  *hooks
 	logger *zap.SugaredLogger
 }
 
 var _ Workflow = &manager{}
 
-func New(fsCore core.Core, notify *notify.Notify, meta metastore.Meta, cfg config.Config) (Workflow, error) {
+func New(fsCore core.Core, notify *notify.Notify, meta metastore.Meta, cfg config.Workflow) (Workflow, error) {
 	wfLogger = logger.NewLogger("workflow")
 
-	jobWorkdir, err := cfg.GetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "job_workdir").String()
-	if err != nil && !errors.Is(err, config.ErrNotConfigured) {
-		return nil, fmt.Errorf("get workflow job workdir failed: %w", err)
-	}
-	if jobWorkdir == "" {
-		jobWorkdir = genDefaultJobRootWorkdir()
-		wfLogger.Warnw("using default job root workdir", "jobWorkdir", jobWorkdir)
+	if cfg.JobWorkdir == "" {
+		cfg.JobWorkdir = genDefaultJobRootWorkdir()
+		wfLogger.Warnw("using default job root workdir", "jobWorkdir", cfg.JobWorkdir)
 	}
 
-	if err = initWorkflowJobRootWorkdir(jobWorkdir); err != nil {
+	if err := initWorkflowJobRootWorkdir(cfg.JobWorkdir); err != nil {
 		return nil, fmt.Errorf("init workflow job root workdir error: %s", err)
 	}
 
@@ -84,7 +79,7 @@ func New(fsCore core.Core, notify *notify.Notify, meta metastore.Meta, cfg confi
 	if err != nil {
 		return nil, fmt.Errorf("init plugin failed %w", err)
 	}
-	flowCtrl := jobrun.NewJobController(pluginMgr, fsCore, nil, meta, notify, jobWorkdir)
+	flowCtrl := jobrun.NewJobController(pluginMgr, fsCore, meta, notify, cfg.JobWorkdir)
 	mgr := &manager{ctrl: flowCtrl, core: fsCore, meta: meta, config: cfg, logger: wfLogger}
 	mgr.hooks = initHooks(mgr)
 
@@ -187,27 +182,6 @@ func (m *manager) TriggerWorkflow(ctx context.Context, namespace string, wfId st
 	}
 
 	m.logger.Infow("receive workflow", "workflow", workflow.Name, "entryID", tgt)
-	for _, tgtEn := range tgt.Entries {
-		var en *types.Entry
-		en, err = m.core.GetEntry(ctx, namespace, tgtEn)
-		if err != nil {
-			m.logger.Errorw("query entry failed", "workflow", workflow.Name, "entryID", tgt, "err", err)
-			return nil, err
-		}
-
-		if en.IsGroup {
-			return nil, types.ErrIsGroup
-		}
-
-		if tgt.ParentEntryID == 0 {
-			tgt.ParentEntryID = en.ParentID
-		}
-
-		if tgt.ParentEntryID != en.ParentID {
-			return nil, fmt.Errorf("entry has wrong parent id")
-		}
-	}
-
 	job, err := assembleWorkflowJob(workflow, tgt)
 	if err != nil {
 		m.logger.Errorw("assemble job failed", "workflow", workflow.Name, "err", err)

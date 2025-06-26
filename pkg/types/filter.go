@@ -16,20 +16,8 @@
 
 package types
 
-import "time"
-
 type Filter struct {
-	ID              int64
-	Name            string
-	FuzzyName       string
-	ParentID        int64
-	Kind            Kind
-	Label           LabelMatch
-	IsGroup         *bool
-	CreatedAtStart  *time.Time
-	CreatedAtEnd    *time.Time
-	ModifiedAtStart *time.Time
-	ModifiedAtEnd   *time.Time
+	CELPattern string `json:"celPattern,omitempty"`
 }
 
 type JobFilter struct {
@@ -39,11 +27,6 @@ type JobFilter struct {
 	QueueName   string
 	Executor    string
 	TargetEntry int64
-}
-
-type LabelMatch struct {
-	Include []Label  `json:"include"`
-	Exclude []string `json:"exclude"`
 }
 
 type EventFilter struct {

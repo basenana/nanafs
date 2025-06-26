@@ -33,6 +33,7 @@ func buildMigrations() []*gormigrate.Migration {
 					&Children{},
 					&EntryProperty{},
 					&EntryChunk{},
+					&Project{},
 					&ScheduledTask{},
 					&Workflow{},
 					&WorkflowJob{},

@@ -58,7 +58,7 @@ var WebpackPluginSpec = types.PluginSpec{
 
 type WebpackPlugin struct {
 	job    *types.WorkflowJob
-	scope  types.PlugScope
+	scope  types.PluginCall
 	logger *zap.SugaredLogger
 }
 
@@ -106,8 +106,8 @@ func (w *WebpackPlugin) Run(ctx context.Context, request *pluginapi.Request) (*p
 	}
 
 	newManifest := pluginapi.CollectManifest{
-		BaseEntry: request.ParentEntryId,
-		NewFiles:  []pluginapi.Entry{*newEntry}}
+		ParentEntry: request.ParentEntryId,
+		NewFiles:    []pluginapi.Entry{*newEntry}}
 	resp := pluginapi.NewResponse()
 	resp.NewEntries = append(resp.NewEntries, newManifest)
 	return resp, nil
@@ -174,7 +174,7 @@ func (w *WebpackPlugin) packFromURL(ctx context.Context, filePath, urlInfo, tgtF
 	}, nil
 }
 
-func NewWebpackPlugin(job *types.WorkflowJob, scope types.PlugScope) (*WebpackPlugin, error) {
+func NewWebpackPlugin(job *types.WorkflowJob, scope types.PluginCall) (*WebpackPlugin, error) {
 	return &WebpackPlugin{
 		job:    job,
 		scope:  scope,

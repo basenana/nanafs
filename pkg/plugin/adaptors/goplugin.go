@@ -42,6 +42,6 @@ func (g GoPluginAdaptor) Version() string {
 	panic("implement me")
 }
 
-func NewGoPluginAdaptor(spec types.PluginSpec, scope types.PlugScope) (*GoPluginAdaptor, error) {
+func NewGoPluginAdaptor(spec types.PluginSpec, scope types.PluginCall) (*GoPluginAdaptor, error) {
 	return &GoPluginAdaptor{}, nil
 }

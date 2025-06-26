@@ -21,32 +21,25 @@ type Bootstrap struct {
 	Webdav Webdav `json:"webdav"`
 	API    FsApi  `json:"api"`
 
-	Meta             Meta       `json:"meta"`
-	Storages         []Storage  `json:"storages"`
-	GlobalEncryption Encryption `json:"global_encryption"`
+	Meta       Meta       `json:"meta"`
+	Storages   []Storage  `json:"storages"`
+	Encryption Encryption `json:"encryption"`
 
-	FS           *FS          `json:"fs,omitempty"`
-	FridayConfig FridayConfig `json:"friday_config,omitempty"`
-
+	FS        *FS    `json:"fs,omitempty"`
 	CacheDir  string `json:"cache_dir,omitempty"`
 	CacheSize int    `json:"cache_size,omitempty"`
 	Debug     bool   `json:"debug,omitempty"`
-}
 
-type FridayConfig struct {
-	HttpAddr string `json:"http_addr"`
+	Workflow Workflow `json:"workflow"`
 }
 
 type FsApi struct {
-	Enable     bool   `json:"enable"`
-	Host       string `json:"host"`
-	Port       int    `json:"port"`
-	Metrics    bool   `json:"metrics"`
-	ServerName string `json:"server_name"`
-	CertFile   string `json:"cert_file"`
-	KeyFile    string `json:"key_file"`
-	CaFile     string `json:"ca_file"`
-	CaKeyFile  string `json:"ca_key_file"`
+	Enable      bool   `json:"enable"`
+	Host        string `json:"host"`
+	Port        int    `json:"port"`
+	ServerName  string `json:"server_name"`
+	TokenSecret string `json:"token_secret"`
+	Noauth      bool   `json:"noauth"`
 }
 
 type Webdav struct {
@@ -54,6 +47,13 @@ type Webdav struct {
 	Host           string          `json:"host"`
 	Port           int             `json:"port"`
 	OverwriteUsers []OverwriteUser `json:"overwrite_users"`
+}
+
+type OverwriteUser struct {
+	UID      int64  `json:"uid"`
+	GID      int64  `json:"gid"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 type FUSE struct {
@@ -73,9 +73,12 @@ type Encryption struct {
 	SecretKey string `json:"secret_key"`
 }
 
-type OverwriteUser struct {
-	UID      int64  `json:"uid"`
-	GID      int64  `json:"gid"`
-	Username string `json:"username"`
-	Password string `json:"password"`
+type Workflow struct {
+	Enable      bool        `json:"enable"`
+	JobWorkdir  string      `json:"job_workdir"`
+	Integration Integration `json:"integration"`
+}
+
+type Integration struct {
+	DocumentWebhook string `json:"document_webhook"`
 }

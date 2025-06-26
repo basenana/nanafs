@@ -22,13 +22,11 @@ import (
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/types"
-	"path"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/basenana/nanafs/cmd/apps/apis"
-	configapp "github.com/basenana/nanafs/cmd/apps/config"
 	fsapi "github.com/basenana/nanafs/cmd/apps/fuse"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/metastore"
@@ -40,7 +38,6 @@ func init() {
 	RootCmd.AddCommand(daemonCmd)
 	RootCmd.AddCommand(versionCmd)
 	//RootCmd.AddCommand(NamespaceCmd)
-	RootCmd.AddCommand(configapp.RunCmd)
 }
 
 var RootCmd = &cobra.Command{
@@ -53,8 +50,7 @@ var RootCmd = &cobra.Command{
 }
 
 func init() {
-	daemonCmd.Flags().StringVar(&config.FilePath, "config", path.Join(config.LocalUserPath(), config.DefaultConfigBase), "nanafs config file")
-	//NamespaceCmd.Flags().StringVar(&config.FilePath, "config", path.Join(config.LocalUserPath(), config.DefaultConfigBase), "nanafs config file")
+	daemonCmd.Flags().StringVar(&config.FilePath, "config", "/var/lib/nanafs/config.json", "nanafs config file")
 }
 
 var daemonCmd = &cobra.Command{
@@ -78,11 +74,13 @@ var daemonCmd = &cobra.Command{
 		if err != nil {
 			panic(err)
 		}
-
 		if len(boot.Storages) == 0 {
 			panic("storage must config")
 		}
 
+		if err = loader.RegisterCMDB(meta); err != nil {
+			panic(err)
+		}
 		depends, err := common.InitDepends(loader, meta)
 		if err != nil {
 			panic(err)
@@ -175,7 +173,6 @@ var versionCmd = &cobra.Command{
 //
 //		bio.InitPageCache(cfg.FS)
 //		storage.InitLocalCache(cfg)
-//		rule.InitQuery(meta)
 //
 //		fridayClient := friday.NewFridayClient(cfg.FridayConfig)
 //
