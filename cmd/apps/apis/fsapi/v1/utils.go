@@ -204,10 +204,11 @@ func setupRssConfig(config *CreateEntryRequest_RssConfig, attr *types.EntryAttr)
 	}
 
 	if attr.Properties == nil {
-		attr.Properties = make(types.Properties)
+		attr.Properties = &types.Properties{}
 	}
-	attr.Properties[types.WebPropertySite] = types.PropertyItem{Value: config.SiteName}
-	attr.Properties[types.WebPropertyURL] = types.PropertyItem{Value: config.SiteURL}
+
+	attr.Properties.SiteName = config.SiteName
+	attr.Properties.URL = config.SiteURL
 }
 
 func setupGroupFilterConfig(config *CreateEntryRequest_FilterConfig, attr *types.EntryAttr) {

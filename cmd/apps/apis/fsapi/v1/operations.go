@@ -82,7 +82,7 @@ func (s *servicesV1) listGroupEntry(ctx context.Context, namespace string, name 
 	return result, nil
 }
 
-func (s *servicesV1) getEntryDetails(ctx context.Context, namespace, uri, name string, id int64) (*EntryDetail, []*Property, error) {
+func (s *servicesV1) getEntryDetails(ctx context.Context, namespace, uri, name string, id int64) (*EntryDetail, *Property, error) {
 	en, err := s.core.GetEntry(ctx, namespace, id)
 	if err != nil {
 		return nil, nil, err
@@ -95,20 +95,15 @@ func (s *servicesV1) getEntryDetails(ctx context.Context, namespace, uri, name s
 	}
 	details := toEntryDetail(uri, name, en, doc)
 
-	properties := make(types.Properties)
+	properties := &types.Properties{}
 	err = s.meta.GetEntryProperties(ctx, namespace, types.PropertyTypeProperty, id, &properties)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	pl := make([]*Property, 0)
-	for k, item := range properties {
-		pl = append(pl, &Property{
-			Key:   k,
-			Value: item.Value,
-		})
-	}
-	return details, pl, nil
+	return details, &Property{
+		Tags:       properties.Tags,
+		Properties: properties.Properties,
+	}, nil
 }
 
 func (s *servicesV1) listEntryChildren(ctx context.Context, namespace string, entryId int64) ([]*types.Entry, error) {
@@ -227,24 +222,4 @@ func (s *servicesV1) ChangeEntryParent(ctx context.Context, namespace string, ta
 		return err
 	}
 	return nil
-}
-
-func (s *servicesV1) queryEntryProperties(ctx context.Context, namespace string, entryID, parentID int64) ([]*Property, error) {
-	var (
-		properties = make(types.Properties)
-		err        error
-	)
-	err = s.meta.GetEntryProperties(ctx, namespace, types.PropertyTypeProperty, entryID, &properties)
-	if err != nil {
-		return nil, err
-	}
-
-	result := make([]*Property, 0, len(properties))
-	for key, p := range properties {
-		result = append(result, &Property{
-			Key:   key,
-			Value: p.Value,
-		})
-	}
-	return result, nil
 }

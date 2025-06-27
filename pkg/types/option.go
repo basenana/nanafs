@@ -22,7 +22,7 @@ type EntryAttr struct {
 	Name            string
 	Kind            Kind
 	Access          *Access
-	Properties      Properties
+	Properties      *Properties
 	GroupProperties *GroupProperties
 }
 

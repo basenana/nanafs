@@ -1,6 +1,15 @@
 package cel
 
-var entryColumns = map[string]struct{}{
+import "github.com/google/cel-go/cel"
+
+type column struct {
+	table   string
+	column  string
+	jsonkey string
+	valtype *cel.Type
+}
+
+var identify2Columns = map[string]column{
 	"entry.id":          {},
 	"entry.name":        {},
 	"entry.aliases":     {},
@@ -13,9 +22,18 @@ var entryColumns = map[string]struct{}{
 	"entry.changed_at":  {},
 	"entry.modified_at": {},
 	"entry.access_at":   {},
-}
 
-var documentFields = map[string]struct{}{
+	// children table
+	"child.parent": {},
+	"child.child":  {},
+	"child.name":   {},
+
+	// properties
+	"tags": {},
+	"url":  {},
+	"site": {},
+
+	// document properties
 	"document.title":       {},
 	"document.author":      {},
 	"document.year":        {},
@@ -27,8 +45,19 @@ var documentFields = map[string]struct{}{
 	"document.headerImage": {},
 	"document.unread":      {},
 	"document.marked":      {},
+
+	// group properties
+	"group.source": {},
 }
 
-var groupFields = map[string]struct{}{
-	"group.source": {},
+var (
+	ColumnsList       = []string{"document.keywords"}
+	ColumnsBool       = []string{"entry.created_at"}
+	ColumnsTime       = []string{"entry.created_at"}
+	ColumnsSizeable   = []string{"document.keywords"}
+	ColumnsComparable = []string{"entry.created_at"}
+)
+
+func CheckValueType(identifier string, value any) error {
+	return nil
 }

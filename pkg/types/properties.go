@@ -26,9 +26,17 @@ const (
 	PropertyTypeDocument  PropertyType = "D"
 )
 
-type Properties map[string]PropertyItem
+type Properties struct {
+	Tags []string `json:"tags"`
 
-type AttrProperties map[string]PropertyItem
+	// web
+	URL      string `json:"url,omitempty"`
+	SiteName string `json:"site,omitempty"`
+
+	Properties map[string]string `json:"properties,omitempty"`
+}
+
+type AttrProperties map[string]string
 
 type SymlinkProperties struct {
 	Symlink string `json:"symlink"`
@@ -62,20 +70,14 @@ type DocumentProperties struct {
 
 	// web
 	URL         string `json:"url,omitempty"`
-	SiteName    string `json:"site,omitempty"`
 	HeaderImage string `json:"headerImage,omitempty"`
 
-	Unread    bool   `json:"unread"`
-	Marked    bool   `json:"marked"`
-	PublishAt string `json:"publishAt,omitempty"`
+	Unread    bool  `json:"unread"`
+	Marked    bool  `json:"marked"`
+	PublishAt int64 `json:"publishAt,omitempty"`
 }
 
 type PropertyItem struct {
 	Value string `json:"value"`
 	Type  string `json:"type,omitempty"`
 }
-
-const (
-	WebPropertySite = "Site"
-	WebPropertyURL  = "URL"
-)

@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/events"
-	"github.com/basenana/nanafs/pkg/rule"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
@@ -206,10 +205,10 @@ func (h *hooks) handleEntryCreate(evt *types.Event) {
 		h.logger.Errorw("[handleEntryCreate] get entry failed", "entry", evt.RefID, "err", err)
 		return
 	}
-	for wfID, hook := range nsHooks.workflowOnBoard {
-		if !rule.Filter(&hook.rule, en, nil, nil) {
-			continue
-		}
+	for wfID, _ := range nsHooks.workflowOnBoard {
+		//if !rule.Filter(&hook.rule, en, nil, nil) {
+		//	continue
+		//}
 
 		h.workflowJobDelay(ctx, evt.Namespace, wfID, evt.Data.Parent, en, "entry created")
 	}

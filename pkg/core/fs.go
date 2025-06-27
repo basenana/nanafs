@@ -275,12 +275,12 @@ func (f *FileSystem) GetXAttr(ctx context.Context, id int64, fKey string) ([]byt
 		return nil, err
 	}
 
-	p, ok := properties[fKey]
+	encodedVal, ok := properties[fKey]
 	if !ok {
 		return nil, types.ErrNotFound
 	}
 
-	val, err := utils.DecodeBase64(p.Value)
+	val, err := utils.DecodeBase64(encodedVal)
 	if err != nil {
 		return nil, err
 	}
@@ -294,10 +294,7 @@ func (f *FileSystem) SetXAttr(ctx context.Context, id int64, fKey string, fVal [
 		return err
 	}
 
-	properties[fKey] = types.PropertyItem{
-		Value: utils.EncodeBase64(fVal),
-	}
-
+	properties[fKey] = utils.EncodeBase64(fVal)
 	return f.store.UpdateEntryProperties(ctx, f.namespace, types.PropertyTypeAttr, id, &properties)
 }
 

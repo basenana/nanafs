@@ -204,7 +204,7 @@ func (s *servicesV1) CreateEntry(ctx context.Context, request *CreateEntryReques
 		return nil, status.Error(common.FsApiError(err), "create entry failed")
 	}
 
-	if len(attr.Properties) > 0 {
+	if attr.Properties != nil {
 		if err = s.meta.UpdateEntryProperties(ctx, caller.Namespace, types.PropertyTypeProperty, en.ID, attr.Properties); err != nil {
 			return nil, err
 		}
@@ -601,7 +601,7 @@ func (s *servicesV1) UpdateDocumentProperty(ctx context.Context, request *Update
 	return &GetDocumentPropertiesResponse{}, nil
 }
 
-func (s *servicesV1) AddProperty(ctx context.Context, request *AddPropertyRequest) (*GetPropertiesResponse, error) {
+func (s *servicesV1) UpdateProperty(ctx context.Context, request *UpdatePropertyRequest) (*GetPropertiesResponse, error) {
 	caller, err := s.caller(ctx)
 	if err != nil {
 		return nil, err
@@ -611,54 +611,26 @@ func (s *servicesV1) AddProperty(ctx context.Context, request *AddPropertyReques
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
 
-	properties := make(types.Properties)
+	properties := &types.Properties{}
 	err = s.meta.GetEntryProperties(ctx, caller.Namespace, types.PropertyTypeProperty, en.ID, &properties)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "fetch entry properties failed")
 	}
 
-	properties[request.Key] = types.PropertyItem{Value: request.Value}
+	update := request.Properties
+	if update != nil {
+		properties.Tags = update.Tags
+		properties.Properties = update.Properties
+	}
+
 	err = s.meta.UpdateEntryProperties(ctx, caller.Namespace, types.PropertyTypeProperty, en.ID, &properties)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "update entry properties failed")
 	}
 
-	resp := &GetPropertiesResponse{Properties: make([]*Property, 0, len(properties))}
-	for k, v := range properties {
-		resp.Properties = append(resp.Properties, &Property{
-			Key:   k,
-			Value: v.Value,
-		})
-	}
-	return resp, nil
-}
-
-func (s *servicesV1) DeleteProperty(ctx context.Context, request *DeletePropertyRequest) (*GetPropertiesResponse, error) {
-	caller, err := s.caller(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	en, err := s.core.GetEntry(ctx, caller.Namespace, request.Entry)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query entry failed")
-	}
-
-	properties := make(types.Properties)
-	err = s.meta.GetEntryProperties(ctx, caller.Namespace, types.PropertyTypeProperty, en.ID, &properties)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "fetch entry properties failed")
-	}
-
-	if _, ok := properties[request.Key]; ok {
-		delete(properties, request.Key)
-	}
-
-	resp := &GetPropertiesResponse{Properties: make([]*Property, 0, len(properties))}
-	for k, v := range properties {
-		resp.Properties = append(resp.Properties, &Property{Key: k, Value: v.Value})
-	}
-
+	resp := &GetPropertiesResponse{Properties: &Property{
+		Properties: properties.Properties,
+	}}
 	return resp, nil
 }
 

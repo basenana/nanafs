@@ -18,6 +18,7 @@ require (
 	github.com/glebarez/sqlite v1.7.0
 	github.com/go-gormigrate/gormigrate/v2 v2.1.1
 	github.com/golang-jwt/jwt/v5 v5.2.1
+	github.com/google/cel-go v0.25.0
 	github.com/google/uuid v1.6.0
 	github.com/hanwen/go-fuse/v2 v2.3.0
 	github.com/hyponet/eventbus v1.1.0
@@ -28,6 +29,7 @@ require (
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.36.0
 	github.com/pierrec/lz4/v4 v4.1.17
+	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.16.0
 	github.com/robfig/cron/v3 v3.0.0
 	github.com/slok/go-http-metrics v0.10.0
@@ -35,14 +37,17 @@ require (
 	go.uber.org/zap v1.24.0
 	golang.org/x/net v0.38.0
 	golang.org/x/sys v0.31.0
+	google.golang.org/genproto/googleapis/api v0.0.0-20240903143218-8af14fe29dc1
 	google.golang.org/grpc v1.68.1
 	google.golang.org/protobuf v1.35.2
 	gorm.io/driver/postgres v1.5.2
 )
 
 require (
+	cel.dev/expr v0.23.1 // indirect
 	code.dny.dev/ssrf v0.2.0 // indirect
 	github.com/andybalholm/cascadia v1.3.2 // indirect
+	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.4.10 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.4 // indirect
@@ -102,6 +107,7 @@ require (
 	github.com/rs/xid v1.4.0 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/stoewer/go-strcase v1.2.0 // indirect
 	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/yosssi/gohtml v0.0.0-20201013000340-ee4748c638f4 // indirect
