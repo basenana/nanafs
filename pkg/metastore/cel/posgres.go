@@ -25,98 +25,97 @@ import (
 	"strings"
 )
 
-func convertWithParameterIndexWithPG(ctx *ConvertContext, expr *exprv1.Expr, paramIndex int) (int, error) {
+func convertWithParameterIndexWithPG(ctx *ConvertContext, expr *exprv1.Expr) error {
 	if v, ok := expr.ExprKind.(*exprv1.Expr_CallExpr); ok {
 		switch v.CallExpr.Function {
 		case "_||_", "_&&_":
 			if len(v.CallExpr.Args) != 2 {
-				return paramIndex, fmt.Errorf("invalid number of arguments for %s", v.CallExpr.Function)
+				return fmt.Errorf("invalid number of arguments for %s", v.CallExpr.Function)
 			}
 			if _, err := ctx.Buffer.WriteString("("); err != nil {
-				return paramIndex, err
+				return err
 			}
-			newParamIndex, err := convertWithParameterIndexWithPG(ctx, v.CallExpr.Args[0], paramIndex)
+			err := convertWithParameterIndexWithPG(ctx, v.CallExpr.Args[0])
 			if err != nil {
-				return paramIndex, err
+				return err
 			}
 			operator := "AND"
 			if v.CallExpr.Function == "_||_" {
 				operator = "OR"
 			}
-			if _, err := ctx.Buffer.WriteString(fmt.Sprintf(" %s ", operator)); err != nil {
-				return paramIndex, err
+			if _, err = ctx.Buffer.WriteString(fmt.Sprintf(" %s ", operator)); err != nil {
+				return err
 			}
-			newParamIndex, err = convertWithParameterIndexWithPG(ctx, v.CallExpr.Args[1], newParamIndex)
+			err = convertWithParameterIndexWithPG(ctx, v.CallExpr.Args[1])
 			if err != nil {
-				return paramIndex, err
+				return err
 			}
-			if _, err := ctx.Buffer.WriteString(")"); err != nil {
-				return paramIndex, err
+			if _, err = ctx.Buffer.WriteString(")"); err != nil {
+				return err
 			}
-			return newParamIndex, nil
+			return nil
 		case "!_":
 			if len(v.CallExpr.Args) != 1 {
-				return paramIndex, fmt.Errorf("invalid number of arguments for %s", v.CallExpr.Function)
+				return fmt.Errorf("invalid number of arguments for %s", v.CallExpr.Function)
 			}
 			if _, err := ctx.Buffer.WriteString("NOT ("); err != nil {
-				return paramIndex, err
+				return err
 			}
-			newParamIndex, err := convertWithParameterIndexWithPG(ctx, v.CallExpr.Args[0], paramIndex)
+			err := convertWithParameterIndexWithPG(ctx, v.CallExpr.Args[0])
 			if err != nil {
-				return paramIndex, err
+				return err
 			}
 			if _, err := ctx.Buffer.WriteString(")"); err != nil {
-				return paramIndex, err
+				return err
 			}
-			return newParamIndex, nil
+			return nil
 		case "_==_", "_!=_", "_<_", "_>_", "_<=_", "_>=_":
 			if len(v.CallExpr.Args) != 2 {
-				return paramIndex, fmt.Errorf("invalid number of arguments for %s", v.CallExpr.Function)
+				return fmt.Errorf("invalid number of arguments for %s", v.CallExpr.Function)
 			}
 			// Check if the left side is a function call like size(tags)
 			if leftCallExpr, ok := v.CallExpr.Args[0].ExprKind.(*exprv1.Expr_CallExpr); ok {
 				if leftCallExpr.CallExpr.Function == "size" {
 					// Handle size(tags) comparison
 					if len(leftCallExpr.CallExpr.Args) != 1 {
-						return paramIndex, errors.New("size function requires exactly one argument")
+						return errors.New("size function requires exactly one argument")
 					}
 					identifier, err := cel.GetIdentExprName(leftCallExpr.CallExpr.Args[0])
 					if err != nil {
-						return paramIndex, err
+						return err
 					}
 					if !slices.Contains(cel.ColumnsSizeable, identifier) {
-						return paramIndex, errors.Errorf("size function not supports '%s' identifier", identifier)
+						return errors.Errorf("size function not supports '%s' identifier", identifier)
 					}
 					value, err := cel.GetExprValue(v.CallExpr.Args[1])
 					if err != nil {
-						return paramIndex, err
+						return err
 					}
 					valueInt, ok := value.(int64)
 					if !ok {
-						return paramIndex, errors.New("size comparison value must be an integer")
+						return errors.New("size comparison value must be an integer")
 					}
 					operator := getComparisonOperatorWithPG(v.CallExpr.Function)
 
-					if _, err := ctx.Buffer.WriteString(fmt.Sprintf("%s %s %s",
-						cel.GetSQL("json_array_length", cel.PostgreSQLTemplate, identifier), operator,
-						cel.GetParameterPlaceholder(cel.PostgreSQLTemplate, paramIndex))); err != nil {
-						return paramIndex, err
+					if _, err = ctx.Buffer.WriteString(fmt.Sprintf("%s %s %d",
+						cel.GetSQL("array_length", cel.PostgreSQLTemplate, identifier), operator, valueInt)); err != nil {
+						return err
 					}
 					ctx.Args = append(ctx.Args, valueInt)
-					return paramIndex + 1, nil
+					return nil
 				}
 			}
 
 			identifier, err := cel.GetIdentExprName(v.CallExpr.Args[0])
 			if err != nil {
-				return paramIndex, err
+				return err
 			}
 			value, err := cel.GetExprValue(v.CallExpr.Args[1])
 			if err != nil {
-				return paramIndex, err
+				return err
 			}
 			if err = cel.CheckValueType(identifier, value); err != nil {
-				return paramIndex, fmt.Errorf("invalid type for %s", v.CallExpr.Function)
+				return fmt.Errorf("invalid type for %s", v.CallExpr.Function)
 			}
 
 			operator := getComparisonOperatorWithPG(v.CallExpr.Function)
@@ -124,154 +123,148 @@ func convertWithParameterIndexWithPG(ctx *ConvertContext, expr *exprv1.Expr, par
 			if slices.Contains(cel.ColumnsTime, identifier) {
 				valueInt, ok := value.(int64)
 				if !ok {
-					return paramIndex, errors.New("invalid integer timestamp value")
+					return errors.New("invalid integer timestamp value")
 				}
 
-				timestampSQL := cel.GetSQL("timestamp_field", cel.PostgreSQLTemplate, identifier)
-				if _, err := ctx.Buffer.WriteString(fmt.Sprintf("%s %s %s", timestampSQL, operator,
-					cel.GetParameterPlaceholder(cel.PostgreSQLTemplate, paramIndex))); err != nil {
-					return paramIndex, err
+				timestampSQL := cel.GetSQL("timestamp_field", cel.PostgreSQLTemplate, identifier, operator)
+				if _, err := ctx.Buffer.WriteString(fmt.Sprintf("%s %s ?", timestampSQL, operator)); err != nil {
+					return err
 				}
 				ctx.Args = append(ctx.Args, valueInt)
-				return paramIndex + 1, nil
+				return nil
 			} else if slices.Contains(cel.ColumnsBool, identifier) {
 				if operator != "=" && operator != "!=" {
-					return paramIndex, fmt.Errorf("invalid operator for %s", v.CallExpr.Function)
+					return fmt.Errorf("invalid operator for %s", v.CallExpr.Function)
 				}
 				valueBool, ok := value.(bool)
 				if !ok {
-					return paramIndex, errors.New("invalid boolean value for has_task_list")
+					return errors.New("invalid boolean value for has_task_list")
 				}
-				// Use parameterized template for boolean comparison (PostgreSQL only)
-				placeholder := cel.GetParameterPlaceholder(cel.PostgreSQLTemplate, paramIndex)
-				sqlTemplate := cel.GetSQL("boolean_compare", cel.PostgreSQLTemplate, operator)
-				sqlTemplate = strings.Replace(sqlTemplate, "?", placeholder, 1)
+				sqlTemplate := cel.GetSQL("boolean_compare", cel.PostgreSQLTemplate, identifier, operator)
 				if _, err := ctx.Buffer.WriteString(sqlTemplate); err != nil {
-					return paramIndex, err
+					return err
 				}
 				ctx.Args = append(ctx.Args, valueBool)
-				return paramIndex + 1, nil
+				return nil
 			} else {
 				if operator != "=" && operator != "!=" {
-					return paramIndex, fmt.Errorf("invalid operator for %s", v.CallExpr.Function)
+					return fmt.Errorf("invalid operator for %s", v.CallExpr.Function)
 				}
 
-				sqlTemplate := cel.GetSQL("table_prefix", cel.PostgreSQLTemplate, identifier)
-				if _, err := ctx.Buffer.WriteString(fmt.Sprintf("%s %s %s", sqlTemplate, operator,
-					cel.GetParameterPlaceholder(cel.PostgreSQLTemplate, paramIndex))); err != nil {
-					return paramIndex, err
+				sqlTemplate := cel.GetSQL("content_compare", cel.PostgreSQLTemplate, identifier, operator)
+				if _, err = ctx.Buffer.WriteString(sqlTemplate); err != nil {
+					return err
 				}
 				ctx.Args = append(ctx.Args, value)
-				return paramIndex + 1, nil
+				return nil
 			}
 		case "@in":
 			if len(v.CallExpr.Args) != 2 {
-				return paramIndex, fmt.Errorf("invalid number of arguments for %s", v.CallExpr.Function)
+				return fmt.Errorf("invalid number of arguments for %s", v.CallExpr.Function)
 			}
 
 			// Check if this is "element in collection" syntax
 			if identifier, err := cel.GetIdentExprName(v.CallExpr.Args[1]); err == nil {
 				// This is "element in collection" - the second argument is the collection
 				if !slices.Contains(cel.ColumnsList, identifier) {
-					return paramIndex, fmt.Errorf("invalid collection identifier for %s: %s", v.CallExpr.Function, identifier)
+					return fmt.Errorf("invalid collection identifier for %s: %s", v.CallExpr.Function, identifier)
 				}
 
 				// Handle "element" in tags
 				element, err := cel.GetConstValue(v.CallExpr.Args[0])
 				if err != nil {
-					return paramIndex, fmt.Errorf("first argument must be a constant value for 'element': %v", err)
+					return fmt.Errorf("first argument must be a constant value for 'element': %v", err)
 				}
-				placeholder := cel.GetParameterPlaceholder(cel.PostgreSQLTemplate, paramIndex)
-				sql := strings.Replace(cel.GetSQL("json_contains_element", cel.PostgreSQLTemplate, identifier), "?", placeholder, 1)
-				if _, err := ctx.Buffer.WriteString(sql); err != nil {
-					return paramIndex, err
+				if _, err := ctx.Buffer.WriteString(cel.GetSQL("contains_element", cel.PostgreSQLTemplate, identifier)); err != nil {
+					return err
 				}
 				ctx.Args = append(ctx.Args, cel.GetParameterValue(cel.PostgreSQLTemplate, "json_contains_element", element))
-				return paramIndex + 1, nil
+				return nil
 			}
 
 			// Original logic for "identifier in [list]" syntax
 			identifier, err := cel.GetIdentExprName(v.CallExpr.Args[0])
 			if err != nil {
-				return paramIndex, err
+				return err
 			}
 			if !slices.Contains(cel.ColumnsList, identifier) {
-				return paramIndex, fmt.Errorf("invalid identifier for %s", v.CallExpr.Function)
+				return fmt.Errorf("invalid identifier for %s", v.CallExpr.Function)
 			}
 
 			values := []any{}
 			for _, element := range v.CallExpr.Args[1].GetListExpr().Elements {
 				value, err := cel.GetConstValue(element)
 				if err != nil {
-					return paramIndex, err
+					return err
 				}
 				values = append(values, value)
 			}
 			if slices.Contains(cel.ColumnsList, identifier) {
 				subconditions := []string{}
 				args := []any{}
-				currentParamIndex := paramIndex
 				for _, v := range values {
 					// Use parameter index for each placeholder
-					placeholder := cel.GetParameterPlaceholder(cel.PostgreSQLTemplate, currentParamIndex)
-					subcondition := strings.Replace(cel.GetSQL("json_contains_element", cel.PostgreSQLTemplate, identifier), "?", placeholder, 1)
+					subcondition := cel.GetSQL("contains_element", cel.PostgreSQLTemplate, identifier)
 					subconditions = append(subconditions, subcondition)
 					args = append(args, cel.GetParameterValue(cel.PostgreSQLTemplate, "json_contains_element", v))
-					currentParamIndex++
 				}
 				if len(subconditions) == 1 {
-					if _, err := ctx.Buffer.WriteString(subconditions[0]); err != nil {
-						return paramIndex, err
+					if _, err = ctx.Buffer.WriteString(subconditions[0]); err != nil {
+						return err
 					}
 				} else {
 					if _, err := ctx.Buffer.WriteString(fmt.Sprintf("(%s)", strings.Join(subconditions, " OR "))); err != nil {
-						return paramIndex, err
+						return err
 					}
 				}
 				ctx.Args = append(ctx.Args, args...)
-				return paramIndex + len(args), nil
+				return nil
 			} else {
-				placeholders := cel.FormatPlaceholders(cel.PostgreSQLTemplate, len(values), paramIndex)
-				visibilitySQL := fmt.Sprintf(cel.GetSQL("content_in", cel.PostgreSQLTemplate, identifier), strings.Join(placeholders, ","))
-				if _, err := ctx.Buffer.WriteString(visibilitySQL); err != nil {
-					return paramIndex, err
+				tmplateSQL := fmt.Sprintf(cel.GetSQL("content_in", cel.PostgreSQLTemplate, identifier), func() string {
+					var ph []string
+					for _ = range values {
+						ph = append(ph, "?")
+					}
+					return strings.Join(ph, ",")
+				})
+				if _, err := ctx.Buffer.WriteString(tmplateSQL); err != nil {
+					return err
 				}
 				ctx.Args = append(ctx.Args, values...)
-				return paramIndex + len(values), nil
+				return nil
 			}
 		case "contains":
 			if len(v.CallExpr.Args) != 1 {
-				return paramIndex, fmt.Errorf("invalid number of arguments for %s", v.CallExpr.Function)
+				return fmt.Errorf("invalid number of arguments for %s", v.CallExpr.Function)
 			}
 			identifier, err := cel.GetIdentExprName(v.CallExpr.Target)
 			if err != nil {
-				return paramIndex, err
+				return err
 			}
 			if identifier != "content" {
-				return paramIndex, fmt.Errorf("invalid identifier for %s", v.CallExpr.Function)
+				return fmt.Errorf("invalid identifier for %s", v.CallExpr.Function)
 			}
 			arg, err := cel.GetConstValue(v.CallExpr.Args[0])
 			if err != nil {
-				return paramIndex, err
+				return err
 			}
-			placeholder := cel.GetParameterPlaceholder(cel.PostgreSQLTemplate, paramIndex)
-			sql := strings.Replace(cel.GetSQL("content_like", cel.PostgreSQLTemplate, identifier), "?", placeholder, 1)
+			sql := cel.GetSQL("content_like", cel.PostgreSQLTemplate, identifier)
 			if _, err := ctx.Buffer.WriteString(sql); err != nil {
-				return paramIndex, err
+				return err
 			}
 			ctx.Args = append(ctx.Args, fmt.Sprintf("%%%s%%", arg))
-			return paramIndex + 1, nil
+			return nil
 		}
 	} else if v, ok := expr.ExprKind.(*exprv1.Expr_IdentExpr); ok {
 		identifier := v.IdentExpr.GetName()
 		if !slices.Contains(cel.ColumnsBool, identifier) {
-			return paramIndex, fmt.Errorf("invalid identifier %s", identifier)
+			return fmt.Errorf("invalid identifier %s", identifier)
 		}
 		if _, err := ctx.Buffer.WriteString(cel.GetSQL("boolean_check", cel.PostgreSQLTemplate, identifier)); err != nil {
-			return paramIndex, err
+			return err
 		}
 	}
-	return paramIndex, nil
+	return nil
 }
 
 func getComparisonOperatorWithPG(function string) string {

@@ -151,7 +151,7 @@ func (c *Children) TableName() string {
 type EntryProperty struct {
 	Entry     int64  `gorm:"column:entry;primaryKey"`
 	Type      string `gorm:"column:type;primaryKey"`
-	Value     JSON   `gorm:"column:value"`
+	Value     JSON   `gorm:"column:value;index:prop_val"`
 	Namespace string `gorm:"column:namespace;index:prop_ns"`
 }
 

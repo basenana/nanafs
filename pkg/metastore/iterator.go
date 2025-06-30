@@ -17,12 +17,6 @@
 package metastore
 
 import (
-	"sync/atomic"
-	"time"
-
-	"gorm.io/gorm"
-
-	"github.com/basenana/nanafs/pkg/metastore/db"
 	"github.com/basenana/nanafs/pkg/types"
 )
 
@@ -33,55 +27,17 @@ type EntryIterator interface {
 
 const entryFetchPageSize = 1000
 
-type transactionEntryIterator struct {
-	tx      *gorm.DB
-	onePage []*types.Entry
-	remain  int64
-	crtPage int32
+type simpleIterator struct {
+	page []*types.Entry
+	idx  int
 }
 
-func newTransactionEntryIterator(tx *gorm.DB, total int64) EntryIterator {
-	it := &transactionEntryIterator{tx: tx.Order("entry.name DESC"), onePage: make([]*types.Entry, 0)}
-	it.remain = total
-	return it
+func (s *simpleIterator) HasNext() bool {
+	return s.idx < len(s.page)
 }
 
-func (i *transactionEntryIterator) HasNext() bool {
-	if len(i.onePage) > 0 {
-		return true
-	}
-
-	// fetch next page
-	if atomic.LoadInt64(&i.remain) > 0 {
-		defer logOperationLatency("transactionEntryIterator.query_one_page", time.Now())
-		onePage := make([]db.Entry, 0, entryFetchPageSize)
-		res := i.tx.Limit(entryFetchPageSize).Offset(entryFetchPageSize * int(i.crtPage)).Find(&onePage)
-		if res.Error != nil {
-			logOperationError("transactionEntryIterator.query_one_page", res.Error)
-			return false
-		}
-
-		if len(onePage) == 0 {
-			return false
-		}
-
-		for _, en := range onePage {
-			i.onePage = append(i.onePage, en.ToEntry())
-		}
-
-		atomic.AddInt32(&i.crtPage, 1)
-		atomic.AddInt64(&i.remain, -1*int64(len(i.onePage)))
-	}
-	return len(i.onePage) > 0
-}
-
-func (i *transactionEntryIterator) Next() (*types.Entry, error) {
-	defer logOperationLatency("transactionEntryIterator.next", time.Now())
-	if len(i.onePage) > 0 {
-		one := i.onePage[0]
-		i.onePage = i.onePage[1:]
-		return one, nil
-	}
-	logOperationError("transactionEntryIterator.next", types.ErrNotFound)
-	return nil, nil
+func (s *simpleIterator) Next() (*types.Entry, error) {
+	next := s.page[s.idx]
+	s.idx++
+	return next, nil
 }

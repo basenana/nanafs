@@ -95,7 +95,7 @@ func convertWithTemplatesWithSQLite(ctx *ConvertContext, expr *exprv1.Expr) erro
 					operator := getComparisonOperatorWithSQLite(v.CallExpr.Function)
 
 					if _, err := ctx.Buffer.WriteString(fmt.Sprintf("%s %s ?",
-						cel.GetSQL("json_array_length", dbType, identifier), operator)); err != nil {
+						cel.GetSQL("array_length", dbType, identifier), operator)); err != nil {
 						return err
 					}
 					ctx.Args = append(ctx.Args, valueInt)
@@ -108,7 +108,7 @@ func convertWithTemplatesWithSQLite(ctx *ConvertContext, expr *exprv1.Expr) erro
 				return err
 			}
 			if !slices.Contains(cel.ColumnsComparable, identifier) {
-				return errors.Errorf("invalid identifier for %s", v.CallExpr.Function)
+				return errors.Errorf("invalid identifier for %s", identifier)
 			}
 			value, err := cel.GetExprValue(v.CallExpr.Args[1])
 			if err != nil {
@@ -150,8 +150,8 @@ func convertWithTemplatesWithSQLite(ctx *ConvertContext, expr *exprv1.Expr) erro
 					return errors.Errorf("invalid value for %s %s", identifier, err)
 				}
 
-				sqlTemplate := cel.GetSQL("table_prefix", dbType, identifier) + ".`visibility`"
-				if _, err := ctx.Buffer.WriteString(fmt.Sprintf("%s %s ?", sqlTemplate, operator)); err != nil {
+				sqlTemplate := cel.GetSQL("content_compare", dbType, identifier, operator)
+				if _, err := ctx.Buffer.WriteString(sqlTemplate); err != nil {
 					return err
 				}
 				ctx.Args = append(ctx.Args, value)
@@ -174,10 +174,10 @@ func convertWithTemplatesWithSQLite(ctx *ConvertContext, expr *exprv1.Expr) erro
 					if err != nil {
 						return errors.Errorf("first argument must be a constant value for 'element in %s': %v", err, identifier)
 					}
-					if _, err := ctx.Buffer.WriteString(cel.GetSQL("json_contains_element", dbType, identifier)); err != nil {
+					if _, err := ctx.Buffer.WriteString(cel.GetSQL("contains_element", dbType, identifier)); err != nil {
 						return err
 					}
-					ctx.Args = append(ctx.Args, cel.GetParameterValue(dbType, "json_contains_element", element))
+					ctx.Args = append(ctx.Args, cel.GetParameterValue(dbType, "contains_element", element))
 				}
 				return nil
 			}
@@ -203,8 +203,8 @@ func convertWithTemplatesWithSQLite(ctx *ConvertContext, expr *exprv1.Expr) erro
 				subconditions := []string{}
 				args := []any{}
 				for _, v := range values {
-					subconditions = append(subconditions, cel.GetSQL("json_contains_element", dbType, identifier))
-					args = append(args, cel.GetParameterValue(dbType, "json_contains_element", v))
+					subconditions = append(subconditions, cel.GetSQL("contains_element", dbType, identifier))
+					args = append(args, cel.GetParameterValue(dbType, "contains_element", v))
 				}
 				if len(subconditions) == 1 {
 					if _, err := ctx.Buffer.WriteString(subconditions[0]); err != nil {
