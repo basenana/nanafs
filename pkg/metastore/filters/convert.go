@@ -1,4 +1,4 @@
-package cel
+package filters
 
 import (
 	"fmt"
@@ -8,9 +8,8 @@ import (
 )
 
 type ConvertContext struct {
-	Buffer     strings.Builder
-	Args       []any
-	ArgsOffset int
+	Buffer strings.Builder
+	Args   []any
 }
 
 func NewConvertContext() *ConvertContext {

@@ -268,12 +268,12 @@ func (c *Controller) Handle(event flow.UpdateEvent) {
 	job.Message = event.Flow.Message
 
 	if event.Task != nil {
-		for i, step := range job.Steps {
+		for i, step := range job.Nodes {
 			if step.StepName != event.Task.GetName() {
 				continue
 			}
-			job.Steps[i].Status = event.Task.GetName()
-			job.Steps[i].Message = event.Task.GetMessage()
+			job.Nodes[i].Status = event.Task.GetName()
+			job.Nodes[i].Message = event.Task.GetMessage()
 		}
 	}
 

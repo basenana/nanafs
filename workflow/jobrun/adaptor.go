@@ -35,7 +35,7 @@ var (
 
 type Task struct {
 	job  *types.WorkflowJob
-	step *types.WorkflowJobStep
+	step *types.WorkflowJobNode
 }
 
 func (t *Task) GetName() string {
@@ -58,7 +58,7 @@ func (t *Task) SetMessage(s string) {
 	t.step.Message = s
 }
 
-func newTask(job *types.WorkflowJob, step *types.WorkflowJobStep) flow.Task {
+func newTask(job *types.WorkflowJob, step *types.WorkflowJobNode) flow.Task {
 	return &Task{job: job, step: step}
 }
 
@@ -87,8 +87,8 @@ func workflowJob2Flow(ctrl *Controller, job *types.WorkflowJob) *flow.Flow {
 		Executor(newExecutor(ctrl, job)).
 		Observer(ctrl)
 
-	for i := range job.Steps {
-		fb.Task(newTask(job, &job.Steps[i]))
+	for i := range job.Nodes {
+		fb.Task(newTask(job, &job.Nodes[i]))
 	}
 
 	return fb.Finish()

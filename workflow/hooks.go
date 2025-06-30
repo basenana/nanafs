@@ -19,7 +19,6 @@ package workflow
 import (
 	"context"
 	"errors"
-	"fmt"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
@@ -117,7 +116,7 @@ func (h *hooks) handleWorkflowUpdate(wf *types.Workflow) {
 		delete(nsHooks.workflowOnBoard, wf.Id)
 		return
 	}
-	if wf.Rule == nil {
+	if wf.Trigger.OnCreate == nil {
 		delete(nsHooks.workflowOnBoard, wf.Id)
 		return
 	}
@@ -128,9 +127,9 @@ func (h *hooks) handleWorkflowUpdate(wf *types.Workflow) {
 		nsHooks.workflowOnBoard[wf.Id] = hook
 	}
 
-	hook.rule = *wf.Rule
+	hook.rule = *wf.Trigger.OnCreate
 
-	if wf.Cron == "" {
+	if wf.Trigger.Cron == "" {
 		if hook.cronID != nil {
 			h.cron.Remove(*hook.cronID)
 			hook.cronID = nil
@@ -139,12 +138,12 @@ func (h *hooks) handleWorkflowUpdate(wf *types.Workflow) {
 		return
 	}
 
-	if hook.cron == nil || *(hook.cron) != wf.Cron {
+	if hook.cron == nil || *(hook.cron) != wf.Trigger.Cron {
 		if hook.cronID != nil {
 			h.cron.Remove(*hook.cronID)
 		}
-		hook.cron = utils.ToPtr(wf.Cron)
-		cronID, err := h.cron.AddFunc(wf.Cron, h.newJobFunc(wf.Namespace, wf.Id))
+		hook.cron = utils.ToPtr(wf.Trigger.Cron)
+		cronID, err := h.cron.AddFunc(wf.Trigger.Cron, h.newJobFunc(wf.Namespace, wf.Id))
 		if err != nil {
 			h.logger.Errorw("add cron job failed", "err", err)
 			return
@@ -376,56 +375,11 @@ type workflowHooks struct {
 type workflowHook struct {
 	cronID *cron.EntryID
 	cron   *string
-	rule   types.WorkflowRule
+	rule   types.WorkflowEntryMatch
 }
 
 func buildInNsWorkflows(namespace string) []*types.Workflow {
-	return []*types.Workflow{
-		{
-
-			Id:        fmt.Sprintf("%s.dacload", namespace),
-			Name:      "Document load",
-			Namespace: namespace,
-			Rule: &types.WorkflowRule{
-				FileTypes: "html,htm,webarchive,pdf",
-			},
-			Steps: []types.WorkflowStepSpec{
-				{
-					Name: "docload",
-					Plugin: &types.PluginCall{
-						PluginName: "docloader",
-						Version:    "1.0",
-						Parameters: map[string]string{},
-					},
-				},
-			},
-			Enable:    true,
-			System:    true,
-			QueueName: types.WorkflowQueueFile,
-		},
-		{
-			Id:        fmt.Sprintf("%s.rss", namespace),
-			Name:      "RSS Collect",
-			Namespace: namespace,
-			Rule: &types.WorkflowRule{
-				PropertiesCELPattern: "group.source = rss",
-			},
-			Cron: "*/30 * * * *",
-			Steps: []types.WorkflowStepSpec{
-				{
-					Name: "collect",
-					Plugin: &types.PluginCall{
-						PluginName: "rss",
-						Version:    "1.0",
-						Parameters: map[string]string{},
-					},
-				},
-			},
-			Enable:    true,
-			System:    true,
-			QueueName: types.WorkflowQueueFile,
-		},
-	}
+	return []*types.Workflow{}
 }
 
 type pendingEntry struct {

@@ -40,7 +40,7 @@ func assembleWorkflowJob(wf *types.Workflow, tgt types.WorkflowTarget) (*types.W
 	j := &types.WorkflowJob{
 		Id:        uuid.New().String(),
 		Workflow:  wf.Id,
-		Target:    tgt,
+		Targets:   tgt,
 		Status:    jobrun.InitializingStatus,
 		Namespace: wf.Namespace,
 		QueueName: wf.QueueName,
@@ -48,14 +48,14 @@ func assembleWorkflowJob(wf *types.Workflow, tgt types.WorkflowTarget) (*types.W
 		UpdatedAt: time.Now(),
 	}
 
-	for _, stepSpec := range wf.Steps {
+	for _, stepSpec := range wf.Nodes {
 		if stepSpec.Plugin != nil {
 			for k, v := range globalParam {
 				stepSpec.Plugin.Parameters[k] = v
 			}
 		}
-		j.Steps = append(j.Steps,
-			types.WorkflowJobStep{
+		j.Nodes = append(j.Nodes,
+			types.WorkflowJobNode{
 				StepName: stepSpec.Name,
 				Status:   jobrun.InitializingStatus,
 				Plugin:   stepSpec.Plugin,

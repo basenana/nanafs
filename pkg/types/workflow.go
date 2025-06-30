@@ -26,26 +26,39 @@ const (
 )
 
 type Workflow struct {
-	Id              string             `json:"id"`
-	Name            string             `json:"name"`
-	Namespace       string             `json:"namespace"`
-	Rule            *WorkflowRule      `json:"rule,omitempty"`
-	Cron            string             `json:"cron,omitempty"`
-	Steps           []WorkflowStepSpec `json:"steps,omitempty"`
-	Enable          bool               `json:"enable"`
-	System          bool               `json:"system"`
-	QueueName       string             `json:"queue_name"`
-	CreatedAt       time.Time          `json:"created_at,omitempty"`
-	UpdatedAt       time.Time          `json:"updated_at,omitempty"`
-	LastTriggeredAt time.Time          `json:"last_triggered_at,omitempty"`
+	Id              string          `json:"id"`
+	Name            string          `json:"name"`
+	Namespace       string          `json:"namespace"`
+	Trigger         WorkflowTrigger `json:"trigger"`
+	Nodes           []WorkflowNode  `json:"nodes"`
+	Enable          bool            `json:"enable"`
+	QueueName       string          `json:"queue_name"`
+	CreatedAt       time.Time       `json:"created_at,omitempty"`
+	UpdatedAt       time.Time       `json:"updated_at,omitempty"`
+	LastTriggeredAt time.Time       `json:"last_triggered_at,omitempty"`
 }
 
-type WorkflowStepSpec struct {
-	Name   string      `json:"name"`
+type WorkflowTrigger struct {
+	OnCreate *WorkflowEntryMatch `json:"on_create,omitempty"`
+	Cron     string              `json:"cron,omitempty"`
+}
+
+type WorkflowNode struct {
+	Name       string            `json:"name"`
+	Type       string            `json:"type"`
+	Parameters map[string]string `json:"parameters"`
+	Inputs     map[string]string `json:"inputs"`
+
+	Next     string          `json:"next,omitempty"`
+	Branches *WorkflowBranch `json:"branches,omitempty"`
+
 	Plugin *PluginCall `json:"plugin,omitempty"`
 }
 
-type WorkflowRule struct {
+type WorkflowBranch struct {
+}
+
+type WorkflowEntryMatch struct {
 	// File
 	FileTypes       string `json:"fileTypes,omitempty"`
 	FileNamePattern string `json:"fileNamePattern"`
@@ -64,8 +77,8 @@ type WorkflowJob struct {
 	Namespace      string            `json:"namespace"`
 	Workflow       string            `json:"workflow"`
 	TriggerReason  string            `json:"trigger_reason,omitempty"`
-	Target         WorkflowTarget    `json:"target"`
-	Steps          []WorkflowJobStep `json:"steps"`
+	Targets        WorkflowTarget    `json:"targets"`
+	Nodes          []WorkflowJobNode `json:"nodes"`
 	Parameters     map[string]string `json:"parameters"`
 	Status         string            `json:"status,omitempty"`
 	Message        string            `json:"message,omitempty"`
@@ -94,7 +107,9 @@ func (w *WorkflowJob) SetMessage(msg string) {
 	w.Message = msg
 }
 
-type WorkflowJobStep struct {
+type WorkflowJobNode struct {
+	Node WorkflowNode `json:"node"`
+
 	StepName string      `json:"step_name"`
 	Plugin   *PluginCall `json:"plugin,omitempty"`
 
@@ -103,8 +118,10 @@ type WorkflowJobStep struct {
 }
 
 type WorkflowTarget struct {
-	Entries       []string `json:"entries,omitempty"`
-	ParentEntryID int64    `json:"parent_entry_id,omitempty"`
+	Entries []string `json:"entries,omitempty"`
+
+	// Deprecated
+	ParentEntryID int64 `json:"parent_entry_id,omitempty"`
 }
 
 type PluginCall struct {

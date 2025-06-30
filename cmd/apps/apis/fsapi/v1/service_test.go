@@ -329,7 +329,7 @@ var _ = Describe("testWorkflowService", func() {
 					Namespace:     types.DefaultNamespace,
 					Workflow:      wfID,
 					TriggerReason: "mock",
-					Steps:         make([]types.WorkflowJobStep, 0),
+					Nodes:         make([]types.WorkflowJobNode, 0),
 					Status:        jobrun.SucceedStatus,
 					StartAt:       time.Now(),
 					FinishAt:      time.Now(),

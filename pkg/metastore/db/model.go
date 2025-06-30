@@ -225,9 +225,8 @@ func (o *Notification) TableName() string {
 type Workflow struct {
 	ID              string    `gorm:"column:id;primaryKey"`
 	Name            string    `gorm:"column:name"`
-	Rule            JSON      `gorm:"column:rule"`
-	Cron            string    `gorm:"column:cron"`
-	Steps           JSON      `gorm:"column:steps"`
+	Trigger         JSON      `gorm:"column:trigger"`
+	Nodes           JSON      `gorm:"column:nodes"`
 	Enable          bool      `gorm:"column:enable;index:wf_enable"`
 	QueueName       string    `gorm:"column:queue_name;index:wf_q"`
 	Namespace       string    `gorm:"column:namespace;index:wf_ns"`
@@ -245,25 +244,22 @@ func (o *Workflow) From(wf *types.Workflow) (*Workflow, error) {
 	o.Name = wf.Name
 	o.Namespace = wf.Namespace
 	o.Enable = wf.Enable
-	o.Cron = wf.Cron
 	o.QueueName = wf.QueueName
 	o.CreatedAt = wf.CreatedAt
 	o.UpdatedAt = wf.UpdatedAt
 	o.LastTriggeredAt = wf.LastTriggeredAt
 
-	if wf.Rule != nil {
-		rawRule, err := json.Marshal(wf.Rule)
-		if err != nil {
-			return o, fmt.Errorf("marshal workflow rule config failed: %s", err)
-		}
-		o.Rule = rawRule
-	}
-
-	rawSteps, err := json.Marshal(wf.Steps)
+	rawTrigger, err := json.Marshal(wf.Trigger)
 	if err != nil {
 		return o, fmt.Errorf("marshal workflow rule config failed: %s", err)
 	}
-	o.Steps = rawSteps
+	o.Trigger = rawTrigger
+
+	rawSteps, err := json.Marshal(wf.Nodes)
+	if err != nil {
+		return o, fmt.Errorf("marshal workflow rule config failed: %s", err)
+	}
+	o.Nodes = rawSteps
 	return o, nil
 }
 
@@ -273,21 +269,20 @@ func (o *Workflow) To() (*types.Workflow, error) {
 		Name:            o.Name,
 		Namespace:       o.Namespace,
 		Enable:          o.Enable,
-		Cron:            o.Cron,
-		Steps:           []types.WorkflowStepSpec{},
+		Nodes:           []types.WorkflowNode{},
 		QueueName:       o.QueueName,
 		CreatedAt:       o.CreatedAt,
 		UpdatedAt:       o.UpdatedAt,
 		LastTriggeredAt: o.LastTriggeredAt,
 	}
 
-	if len(o.Rule) > 0 {
-		if err := json.Unmarshal(o.Rule, &result.Rule); err != nil {
+	if len(o.Trigger) > 0 {
+		if err := json.Unmarshal(o.Trigger, &result.Trigger); err != nil {
 			return nil, fmt.Errorf("load workflow rule config failed: %s", err)
 		}
 	}
 
-	if err := json.Unmarshal(o.Steps, &result.Steps); err != nil {
+	if err := json.Unmarshal(o.Nodes, &result.Nodes); err != nil {
 		return nil, fmt.Errorf("load workflow steps config failed: %s", err)
 	}
 	return result, nil
@@ -297,8 +292,8 @@ type WorkflowJob struct {
 	ID            string    `gorm:"column:id;autoIncrement"`
 	Workflow      string    `gorm:"column:workflow;index:job_wf_id"`
 	TriggerReason string    `gorm:"column:trigger_reason"`
-	Target        JSON      `gorm:"column:target"`
-	Steps         JSON      `gorm:"column:steps"`
+	Targets       JSON      `gorm:"column:targets"`
+	Nodes         JSON      `gorm:"column:nodes"`
 	Parameters    JSON      `gorm:"column:parameters"`
 	Status        string    `gorm:"column:status;index:job_status"`
 	Message       string    `gorm:"column:message"`
@@ -329,11 +324,11 @@ func (o *WorkflowJob) From(job *types.WorkflowJob) (*WorkflowJob, error) {
 	o.UpdatedAt = job.UpdatedAt
 	o.Namespace = job.Namespace
 
-	rawTarget, err := json.Marshal(job.Target)
+	rawTarget, err := json.Marshal(job.Targets)
 	if err != nil {
 		return o, fmt.Errorf("marshal workflow job target failed: %s", err)
 	}
-	o.Target = rawTarget
+	o.Targets = rawTarget
 
 	rawPara, err := json.Marshal(job.Parameters)
 	if err != nil {
@@ -341,11 +336,11 @@ func (o *WorkflowJob) From(job *types.WorkflowJob) (*WorkflowJob, error) {
 	}
 	o.Parameters = rawPara
 
-	rawStep, err := json.Marshal(job.Steps)
+	rawStep, err := json.Marshal(job.Nodes)
 	if err != nil {
 		return o, fmt.Errorf("marshal workflow job steps failed: %s", err)
 	}
-	o.Steps = rawStep
+	o.Nodes = rawStep
 
 	return o, nil
 }
@@ -355,7 +350,7 @@ func (o *WorkflowJob) To() (*types.WorkflowJob, error) {
 		Id:            o.ID,
 		Workflow:      o.Workflow,
 		TriggerReason: o.TriggerReason,
-		Steps:         []types.WorkflowJobStep{},
+		Nodes:         []types.WorkflowJobNode{},
 		Status:        o.Status,
 		Message:       o.Message,
 		Executor:      o.Executor,
@@ -367,7 +362,7 @@ func (o *WorkflowJob) To() (*types.WorkflowJob, error) {
 		Namespace:     o.Namespace,
 	}
 
-	err := json.Unmarshal(o.Target, &result.Target)
+	err := json.Unmarshal(o.Targets, &result.Targets)
 	if err != nil {
 		return nil, fmt.Errorf("load workflow job target failed: %s", err)
 	}
@@ -377,7 +372,7 @@ func (o *WorkflowJob) To() (*types.WorkflowJob, error) {
 		return nil, fmt.Errorf("load workflow job steps failed: %s", err)
 	}
 
-	err = json.Unmarshal(o.Steps, &result.Steps)
+	err = json.Unmarshal(o.Nodes, &result.Nodes)
 	if err != nil {
 		return nil, fmt.Errorf("load workflow job steps failed: %s", err)
 	}

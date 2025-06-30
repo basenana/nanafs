@@ -14,7 +14,7 @@
  limitations under the License.
 */
 
-package cel
+package filters
 
 import (
 	"github.com/basenana/nanafs/pkg/cel"
@@ -34,7 +34,7 @@ func Test_convertWithParameterIndexWithPG(t *testing.T) {
 			name: "DB Column Match",
 			args: args{
 				filter: `name == "test"`,
-				wanted: "",
+				wanted: "children.name = ?",
 			},
 		},
 		//{
@@ -48,21 +48,21 @@ func Test_convertWithParameterIndexWithPG(t *testing.T) {
 			name: "DB JSON Column Key Match",
 			args: args{
 				filter: `group.source == "rss"`,
-				wanted: "",
+				wanted: "group.value->>'source' = ?",
 			},
 		},
 		{
 			name: "DB JSON Column List Match",
 			args: args{
 				filter: `"test" in tags`,
-				wanted: "",
+				wanted: "property.value->'tags' @> jsonb_build_array(?)",
 			},
 		},
 		{
 			name: "DB JSON Column List Match",
 			args: args{
 				filter: `tag in ["test1", "test2"]`,
-				wanted: "",
+				wanted: "(property.value->'tags' @> jsonb_build_array(?) OR property.value->'tags' @> jsonb_build_array(?))",
 			},
 		},
 	}

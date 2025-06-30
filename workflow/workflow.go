@@ -114,7 +114,6 @@ func (m *manager) CreateWorkflow(ctx context.Context, namespace string, workflow
 	if err != nil {
 		return nil, err
 	}
-	workflow.System = false
 	if err = m.meta.SaveWorkflow(ctx, namespace, workflow); err != nil {
 		return nil, err
 	}

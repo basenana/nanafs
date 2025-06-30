@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"runtime/trace"
-	"strings"
 	"sync"
 	"time"
 
@@ -435,45 +434,6 @@ func (s *sqlMetaStore) ListChildren(ctx context.Context, namespace string, paren
 		result = append(result, model.To())
 	}
 	return result, nil
-}
-
-func (s *sqlMetaStore) FilterEntries(ctx context.Context, namespace string, filter types.Filter) (EntryIterator, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.FilterEntries").End()
-	requireLock()
-	defer releaseLock()
-
-	var (
-		where  = ""
-		args   = []interface{}{}
-		result []db.Entry
-	)
-
-	tx := s.WithNamespace(ctx, namespace)
-	if strings.Contains(where, "child.") {
-		tx = tx.Joins("JOIN children ON children.child_id = entry.id")
-	}
-	if strings.Contains(where, "group.") {
-		tx = tx.Joins("JOIN entry_property AS group ON group.entry = entry.id").Where("group.type = ?", types.PropertyTypeGroupAttr)
-	}
-	if strings.Contains(where, "property.") {
-		tx = tx.Joins("JOIN entry_property AS property ON property.entry = entry.id").Where("property.type = ?", types.PropertyTypeProperty)
-	}
-	if strings.Contains(where, "document.") {
-		tx = tx.Joins("JOIN entry_property AS document ON document.entry = entry.id").Where("document.type = ?", types.PropertyTypeDocument)
-	}
-
-	res := tx.Where(where, args...).Find(&result)
-	if res.Error != nil {
-		return nil, db.SqlError2Error(res.Error)
-	}
-
-	return &simpleIterator{page: func() []*types.Entry {
-		entries := make([]*types.Entry, len(result))
-		for i, entry := range result {
-			entries[i] = entry.ToEntry()
-		}
-		return entries
-	}()}, nil
 }
 
 func (s *sqlMetaStore) Open(ctx context.Context, namespace string, id int64, attr types.OpenAttr) (*types.Entry, error) {

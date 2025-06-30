@@ -80,7 +80,7 @@ func (p *pipeExecutor) Setup(ctx context.Context) error {
 	)
 
 	p.ctxResults = pluginapi.NewMemBasedResults()
-	for _, eid := range p.job.Target.Entries {
+	for _, eid := range p.job.Targets.Entries {
 		en, err = p.core.GetEntry(ctx, p.job.Namespace, eid)
 		if err != nil && !errors.Is(err, types.ErrNotFound) {
 			return fmt.Errorf("get entry by id failed %w", err)
@@ -160,7 +160,7 @@ func (b *fileExecutor) Setup(ctx context.Context) (err error) {
 		return logOperationError(FileExecName, "setup", err)
 	}
 
-	for _, enID := range b.job.Target.Entries {
+	for _, enID := range b.job.Targets.Entries {
 		en, err := b.core.GetEntry(ctx, b.job.Namespace, enID)
 		if err != nil && !errors.Is(err, types.ErrNotFound) {
 			return fmt.Errorf("get entry by id failed %w", err)
@@ -176,11 +176,11 @@ func (b *fileExecutor) Setup(ctx context.Context) (err error) {
 	}
 
 	// FIXME
-	if len(b.job.Target.Entries) == 0 {
+	if len(b.job.Targets.Entries) == 0 {
 		// base on parent entry
-		b.cachedData, err = initParentDirCacheData(ctx, b.job.Namespace, b.core, b.job.Target.ParentEntryID)
+		b.cachedData, err = initParentDirCacheData(ctx, b.job.Namespace, b.core, b.job.Targets.ParentEntryID)
 		if err != nil {
-			b.logger.Errorw("build parent cache data failed", "parent", b.job.Target.ParentEntryID, "err", err)
+			b.logger.Errorw("build parent cache data failed", "parent", b.job.Targets.ParentEntryID, "err", err)
 			return logOperationError(FileExecName, "setup", err)
 		}
 	}

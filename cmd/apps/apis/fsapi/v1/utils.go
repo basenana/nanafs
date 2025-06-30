@@ -148,7 +148,7 @@ func jobDetail(j *types.WorkflowJob) *WorkflowJobDetail {
 		Executor:      j.Executor,
 		QueueName:     j.QueueName,
 		Target: &WorkflowJobDetail_JobTarget{
-			Entries: j.Target.Entries,
+			Entries: j.Targets.Entries,
 		},
 		Steps:     nil,
 		CreatedAt: timestamppb.New(j.CreatedAt),
@@ -157,7 +157,7 @@ func jobDetail(j *types.WorkflowJob) *WorkflowJobDetail {
 		FinishAt:  timestamppb.New(j.FinishAt),
 	}
 
-	for _, s := range j.Steps {
+	for _, s := range j.Nodes {
 		jd.Steps = append(jd.Steps, &WorkflowJobDetail_JobStep{
 			Name:    s.StepName,
 			Status:  s.Status,

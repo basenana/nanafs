@@ -31,7 +31,7 @@ var _ = Describe("TestWorkflowManage", func() {
 		wf  = &types.Workflow{
 			Name:      "test-create-workflow-1",
 			Namespace: namespace,
-			Steps: []types.WorkflowStepSpec{
+			Nodes: []types.WorkflowNode{
 				{
 					Name: "step-1",
 					Plugin: &types.PluginCall{
@@ -106,7 +106,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 		wf = &types.Workflow{
 			Name:      "test-trigger-workflow-1",
 			Namespace: namespace,
-			Steps: []types.WorkflowStepSpec{
+			Nodes: []types.WorkflowNode{
 				{Name: "step-1", Plugin: ps},
 				{Name: "step-2", Plugin: ps},
 			},

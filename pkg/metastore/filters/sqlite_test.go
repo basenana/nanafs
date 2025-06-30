@@ -14,7 +14,7 @@
  limitations under the License.
 */
 
-package cel
+package filters
 
 import (
 	"github.com/basenana/nanafs/pkg/cel"
@@ -34,7 +34,7 @@ func Test_convertWithTemplatesWithSQLite(t *testing.T) {
 			name: "DB Column Match",
 			args: args{
 				filter: `name == "test"`,
-				wanted: "",
+				wanted: "`children`.`name` = ?",
 			},
 		},
 		//{
@@ -48,21 +48,21 @@ func Test_convertWithTemplatesWithSQLite(t *testing.T) {
 			name: "DB JSON Column Key Match",
 			args: args{
 				filter: `group.source == "rss"`,
-				wanted: "",
+				wanted: "JSON_EXTRACT(`group`.`value`, '$.source') = ?",
 			},
 		},
 		{
 			name: "DB JSON Column List Match",
 			args: args{
 				filter: `"test" in tags`,
-				wanted: "",
+				wanted: "JSON_EXTRACT(`property`.`value`, '$.tags') LIKE ?",
 			},
 		},
 		{
 			name: "DB JSON Column List Match",
 			args: args{
 				filter: `tag in ["test1", "test2"]`,
-				wanted: "",
+				wanted: "(JSON_EXTRACT(`property`.`value`, '$.tags') LIKE ? OR JSON_EXTRACT(`property`.`value`, '$.tags') LIKE ?)",
 			},
 		},
 	}

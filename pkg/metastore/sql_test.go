@@ -79,7 +79,7 @@ var _ = Describe("TestSqliteObjectOperation", func() {
 			})
 			Expect(err).Should(BeNil())
 
-			err = sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, en, nil)
+			err = sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, en)
 			Expect(err).Should(BeNil())
 
 			_, err = sqlite.FindEntry(context.TODO(), namespace, rootEn.ID, en.Name)
@@ -100,7 +100,7 @@ var _ = Describe("TestSqliteObjectOperation", func() {
 			})
 			Expect(err).Should(BeNil())
 
-			err = sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, en, nil)
+			err = sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, en)
 			Expect(err).Should(BeNil())
 
 			fetchEn, err := sqlite.GetEntry(context.TODO(), namespace, en.ID)
@@ -219,7 +219,7 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 		})
 
 		It("create mirror entry should be succeed", func() {
-			err := sqlite.MirrorEntry(context.TODO(), namespace, srcEN.ID, "test-mirror-dst-file-2", rootEn.ID)
+			err := sqlite.MirrorEntry(context.TODO(), namespace, srcEN.ID, "test-mirror-dst-file-2", rootEn.ID, types.EntryAttr{})
 			Expect(err).Should(BeNil())
 		})
 
