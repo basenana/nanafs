@@ -85,9 +85,7 @@ func genDefaultJobRootWorkdir() (jobWorkdir string) {
 }
 
 func initWorkflow(namespace string, wf *types.Workflow) *types.Workflow {
-	if wf.Id == "" {
-		wf.Id = uuid.New().String()
-	}
+	wf.Id = uuid.New().String()
 	wf.Namespace = namespace
 	wf.CreatedAt = time.Now()
 	wf.UpdatedAt = time.Now()

@@ -29,6 +29,7 @@ type Request struct {
 	ParentEntryId int64
 	Parameter     map[string]any
 
+	// deprecated
 	CacheData      *CachedData
 	ContextResults Results
 }

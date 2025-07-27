@@ -52,13 +52,13 @@ type Workflow interface {
 }
 
 type manager struct {
-	ctrl   *jobrun.Controller
-	core   core.Core
-	notify *notify.Notify
-	meta   metastore.Meta
-	config config.Workflow
-	hooks  *hooks
-	logger *zap.SugaredLogger
+	ctrl    *jobrun.Controller
+	core    core.Core
+	notify  *notify.Notify
+	meta    metastore.Meta
+	config  config.Workflow
+	trigger *triggers
+	logger  *zap.SugaredLogger
 }
 
 var _ Workflow = &manager{}
@@ -81,7 +81,7 @@ func New(fsCore core.Core, notify *notify.Notify, meta metastore.Meta, cfg confi
 	}
 	flowCtrl := jobrun.NewJobController(pluginMgr, fsCore, meta, notify, cfg.JobWorkdir)
 	mgr := &manager{ctrl: flowCtrl, core: fsCore, meta: meta, config: cfg, logger: wfLogger}
-	mgr.hooks = initHooks(mgr)
+	mgr.trigger = initTriggers(mgr)
 
 	return mgr, nil
 }
@@ -90,7 +90,7 @@ func (m *manager) Start(ctx context.Context) {
 		return
 	}
 	m.ctrl.Start(ctx)
-	m.hooks.start(ctx)
+	m.trigger.start(ctx)
 }
 
 func (m *manager) ListWorkflows(ctx context.Context, namespace string) ([]*types.Workflow, error) {
@@ -106,9 +106,6 @@ func (m *manager) GetWorkflow(ctx context.Context, namespace string, wfId string
 }
 
 func (m *manager) CreateWorkflow(ctx context.Context, namespace string, workflow *types.Workflow) (*types.Workflow, error) {
-	if workflow.Name == "" {
-		return nil, fmt.Errorf("workflow name is empty")
-	}
 	workflow = initWorkflow(namespace, workflow)
 	err := validateWorkflowSpec(workflow)
 	if err != nil {
@@ -118,7 +115,7 @@ func (m *manager) CreateWorkflow(ctx context.Context, namespace string, workflow
 		return nil, err
 	}
 
-	m.hooks.handleWorkflowUpdate(workflow)
+	m.trigger.handleWorkflowUpdate(workflow)
 	return workflow, nil
 }
 
@@ -133,7 +130,7 @@ func (m *manager) UpdateWorkflow(ctx context.Context, namespace string, workflow
 		return nil, err
 	}
 
-	m.hooks.handleWorkflowUpdate(workflow)
+	m.trigger.handleWorkflowUpdate(workflow)
 	return workflow, nil
 }
 
@@ -157,7 +154,7 @@ func (m *manager) DeleteWorkflow(ctx context.Context, namespace string, wfId str
 	if err != nil {
 		return err
 	}
-	m.hooks.handleWorkflowDelete(namespace, wfId)
+	m.trigger.handleWorkflowDelete(namespace, wfId)
 	return nil
 }
 
@@ -187,7 +184,7 @@ func (m *manager) TriggerWorkflow(ctx context.Context, namespace string, wfId st
 		return nil, fmt.Errorf("workflow is disabled")
 	}
 
-	m.logger.Infow("receive workflow", "workflow", workflow.Name, "entryID", tgt)
+	m.logger.Infow("receive workflow", "workflow", workflow.Name, "targets", tgt)
 	job, err := assembleWorkflowJob(workflow, tgt)
 	if err != nil {
 		m.logger.Errorw("assemble job failed", "workflow", workflow.Name, "err", err)

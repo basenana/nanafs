@@ -70,7 +70,6 @@ func (c *Controller) Start(ctx context.Context) {
 	}
 
 	go c.jobWorkQueueIterator(ctx, types.WorkflowQueueFile, 10)
-	go c.jobWorkQueueIterator(ctx, types.WorkflowQueuePipe, 50)
 
 	if err := c.rescanRunnableJob(ctx); err != nil {
 		c.logger.Errorw("rescanle runable job failed", "err", err)

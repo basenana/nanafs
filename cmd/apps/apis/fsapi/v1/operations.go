@@ -21,6 +21,7 @@ import (
 	"errors"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/types"
+	"path"
 	"runtime/trace"
 	"sort"
 )
@@ -40,6 +41,7 @@ func (s *servicesV1) getGroupTree(ctx context.Context, namespace string) (*GetGr
 		return nil, err
 	}
 	root := &GetGroupTreeResponse_GroupEntry{
+		Uri:      "/",
 		Name:     nsRoot.Name,
 		Children: make([]*GetGroupTreeResponse_GroupEntry, 0, len(children)),
 	}
@@ -47,7 +49,7 @@ func (s *servicesV1) getGroupTree(ctx context.Context, namespace string) (*GetGr
 		if !child.IsGroup {
 			continue
 		}
-		grp, err := s.listGroupEntry(ctx, namespace, child.Name, child.ID)
+		grp, err := s.listGroupEntry(ctx, namespace, child.Name, path.Join(root.Uri, child.Name), child.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -56,13 +58,14 @@ func (s *servicesV1) getGroupTree(ctx context.Context, namespace string) (*GetGr
 	return root, nil
 }
 
-func (s *servicesV1) listGroupEntry(ctx context.Context, namespace string, name string, parentID int64) (*GetGroupTreeResponse_GroupEntry, error) {
-	children, err := s.listEntryChildren(ctx, namespace, parentID)
+func (s *servicesV1) listGroupEntry(ctx context.Context, namespace string, name, groupUri string, groupID int64) (*GetGroupTreeResponse_GroupEntry, error) {
+	children, err := s.listEntryChildren(ctx, namespace, groupID)
 	if err != nil {
 		return nil, err
 	}
 	result := &GetGroupTreeResponse_GroupEntry{
 		Name:     name,
+		Uri:      groupUri,
 		Children: nil,
 	}
 
@@ -72,7 +75,7 @@ func (s *servicesV1) listGroupEntry(ctx context.Context, namespace string, name 
 			if !child.IsGroup {
 				continue
 			}
-			grp, err := s.listGroupEntry(ctx, namespace, child.Name, child.ID)
+			grp, err := s.listGroupEntry(ctx, namespace, child.Name, path.Join(groupUri, child.Name), child.ID)
 			if err != nil {
 				return nil, err
 			}

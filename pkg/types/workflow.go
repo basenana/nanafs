@@ -22,17 +22,16 @@ import (
 
 const (
 	WorkflowQueueFile = "file"
-	WorkflowQueuePipe = "pipe"
 )
 
 type Workflow struct {
 	Id              string          `json:"id"`
-	Name            string          `json:"name"`
 	Namespace       string          `json:"namespace"`
+	Name            string          `json:"name"`
 	Trigger         WorkflowTrigger `json:"trigger"`
 	Nodes           []WorkflowNode  `json:"nodes"`
 	Enable          bool            `json:"enable"`
-	QueueName       string          `json:"queue_name"`
+	QueueName       string          `json:"queue_Name"`
 	CreatedAt       time.Time       `json:"created_at,omitempty"`
 	UpdatedAt       time.Time       `json:"updated_at,omitempty"`
 	LastTriggeredAt time.Time       `json:"last_triggered_at,omitempty"`
@@ -40,6 +39,7 @@ type Workflow struct {
 
 type WorkflowTrigger struct {
 	OnCreate *WorkflowEntryMatch `json:"on_create,omitempty"`
+	RSS      *WorkflowRssTrigger `json:"rss,omitempty"`
 	Cron     string              `json:"cron,omitempty"`
 }
 
@@ -49,27 +49,27 @@ type WorkflowNode struct {
 	Parameters map[string]string `json:"parameters"`
 	Inputs     map[string]string `json:"inputs"`
 
-	Next     string          `json:"next,omitempty"`
-	Branches *WorkflowBranch `json:"branches,omitempty"`
-
+	Next string `json:"next,omitempty"`
+	// Deprecated
 	Plugin *PluginCall `json:"plugin,omitempty"`
-}
-
-type WorkflowBranch struct {
 }
 
 type WorkflowEntryMatch struct {
 	// File
-	FileTypes       string `json:"fileTypes,omitempty"`
-	FileNamePattern string `json:"fileNamePattern"`
-	MinFileSize     int    `json:"minFileSize,omitempty"`
-	MaxFileSize     int    `json:"maxFileSize,omitempty"`
+	FileTypes       string `json:"file_types,omitempty"`
+	FileNamePattern string `json:"file_name_pattern"`
+	MinFileSize     int    `json:"min_file_size,omitempty"`
+	MaxFileSize     int    `json:"max_file_size,omitempty"`
 
 	// Tree
-	ParentID int64 `json:"parentId,omitempty"`
+	ParentID int64 `json:"parent_id,omitempty"`
 
 	// Properties
-	PropertiesCELPattern string `json:"propertiesCELPattern,omitempty"`
+	CELPattern string `json:"cel_pattern,omitempty"`
+}
+
+type WorkflowRssTrigger struct {
+	CheckInterval int `json:"check_interval,omitempty"`
 }
 
 type WorkflowJob struct {

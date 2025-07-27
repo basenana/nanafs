@@ -379,3 +379,16 @@ func (o *WorkflowJob) To() (*types.WorkflowJob, error) {
 
 	return result, nil
 }
+
+type WorkflowContext struct {
+	Source    string    `gorm:"column:source;primaryKey"`
+	Group     string    `gorm:"column:group;primaryKey"`
+	Key       string    `gorm:"column:key;primaryKey"`
+	Value     string    `gorm:"column:value"`
+	Namespace string    `gorm:"column:namespace;index:wfctx_namespace"`
+	UpdatedAt time.Time `gorm:"column:updated_at"`
+}
+
+func (o *WorkflowContext) TableName() string {
+	return "workflow_context"
+}

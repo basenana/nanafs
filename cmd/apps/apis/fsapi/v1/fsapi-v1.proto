@@ -38,7 +38,8 @@ message GetGroupTreeRequest {}
 message GetGroupTreeResponse {
   message GroupEntry {
     string name = 1;
-    repeated GroupEntry children = 2;
+    string uri = 2;
+    repeated GroupEntry children = 3;
   }
   GroupEntry root = 1;
 }
@@ -175,14 +176,19 @@ message Property {
 }
 
 message DocumentProperty {
-  string Title = 1;
-  string Author = 2;
-  string Year = 3;
-  string Source = 4;
-  string Abstract = 5;
-  repeated string Keywords = 6;
-  bool Unread = 7;
-  bool Marked = 8;
+  string title = 1;
+  string author = 2;
+  string year = 3;
+  string source = 4;
+  string abstract = 5;
+  repeated string keywords = 6;
+  string notes = 7;
+  bool unread = 8;
+  bool marked = 9;
+  google.protobuf.Timestamp publishAt = 10;
+
+  string url = 11;
+  string headerImage = 12;
 }
 
 message GetPropertiesRequest {
@@ -207,6 +213,7 @@ message GetPropertiesResponse {
 }
 
 message GetDocumentPropertiesResponse {
+  DocumentProperty properties = 1;
 }
 
 service Notify {

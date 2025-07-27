@@ -1141,6 +1141,41 @@ func (s *sqlMetaStore) DeleteWorkflowJobs(ctx context.Context, wfJobID ...string
 	return nil
 }
 
+func (s *sqlMetaStore) LoadWorkflowContext(ctx context.Context, namespace, source, group, key string, data any) error {
+	record := db.WorkflowContext{}
+	res := s.WithNamespace(ctx, namespace).Where("source = ? AND group = ? AND key = ?", source, group, key).First(&record)
+	if res.Error != nil && !errors.Is(res.Error, gorm.ErrRecordNotFound) {
+		return db.SqlError2Error(res.Error)
+	}
+
+	if record.Value == "" {
+		return nil
+	}
+	return json.Unmarshal([]byte(record.Value), data)
+}
+
+func (s *sqlMetaStore) SaveWorkflowContext(ctx context.Context, namespace, source, group, key string, data any) error {
+	record := db.WorkflowContext{
+		Source:    source,
+		Group:     group,
+		Key:       key,
+		Namespace: namespace,
+		UpdatedAt: time.Now(),
+	}
+
+	raw, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	record.Value = string(raw)
+
+	res := s.WithContext(ctx).Save(&record)
+	if res.Error != nil {
+		return db.SqlError2Error(res.Error)
+	}
+	return nil
+}
+
 func (s *sqlMetaStore) ListNotifications(ctx context.Context, namespace string) ([]types.Notification, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListNotifications").End()
 	requireLock()

@@ -41,5 +41,8 @@ func validateWorkflowSpec(spec *types.Workflow) error {
 	if spec.Name == "" {
 		return fmt.Errorf("workflow name is empty")
 	}
+	if spec.Namespace == "" {
+		return fmt.Errorf("workflow namespace is empty")
+	}
 	return nil
 }

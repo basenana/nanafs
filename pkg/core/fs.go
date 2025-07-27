@@ -96,36 +96,7 @@ func (f *FileSystem) GetEntry(ctx context.Context, id int64) (*types.Entry, erro
 }
 
 func (f *FileSystem) GetEntryByPath(ctx context.Context, path string) (*types.Entry, *types.Entry, error) {
-	var (
-		crt, parent *types.Entry
-		err         error
-	)
-	parent, err = f.Root(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if path == "/" {
-		return parent, parent, nil
-	}
-
-	entries := strings.Split(path, "/")
-	for _, entryName := range entries {
-		if entryName == "" {
-			continue
-		}
-
-		if crt != nil {
-			parent = crt
-		}
-
-		crt, err = f.LookUpEntry(ctx, parent.ID, entryName)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
-	return parent, crt, nil
+	return GetEntryByPath(ctx, f.namespace, f.core, path)
 }
 
 func (f *FileSystem) LookUpEntry(ctx context.Context, parent int64, name string) (*types.Entry, error) {
@@ -548,3 +519,41 @@ func (f *fsDIR) Raw() RawFile {
 }
 
 var _ File = &fsDIR{}
+
+func GetEntryByPath(ctx context.Context, namespace string, c Core, path string) (*types.Entry, *types.Entry, error) {
+	var (
+		crt, parent *types.Entry
+		err         error
+	)
+	parent, err = c.NamespaceRoot(ctx, namespace)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if path == "/" {
+		return parent, parent, nil
+	}
+
+	entries := strings.Split(path, "/")
+	for _, entryName := range entries {
+		if entryName == "" {
+			continue
+		}
+
+		if len(entryName) > fileNameMaxLength {
+			return nil, nil, types.ErrNameTooLong
+		}
+
+		if crt != nil {
+			parent = crt
+		}
+
+		child, err := c.FindEntry(ctx, namespace, parent.ID, entryName)
+		if err != nil {
+			return nil, nil, err
+		}
+		crt, err = c.GetEntry(ctx, namespace, child.ChildID)
+	}
+
+	return parent, crt, nil
+}

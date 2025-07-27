@@ -27,7 +27,6 @@ import (
 	"github.com/basenana/nanafs/pkg/token"
 	"io"
 	"path"
-	"strings"
 	"time"
 
 	"github.com/basenana/nanafs/workflow"
@@ -728,38 +727,9 @@ func (s *servicesV1) caller(ctx context.Context) (*token.AuthInfo, error) {
 }
 
 func (s *servicesV1) getEntryByPath(ctx context.Context, namespace, path string) (int64, int64, error) {
-	var (
-		root        *types.Entry
-		next        *types.Child
-		crt, parent int64
-		err         error
-	)
-	root, err = s.core.NamespaceRoot(ctx, namespace)
+	p, e, err := core.GetEntryByPath(ctx, namespace, s.core, path)
 	if err != nil {
-		return 0, 0, status.Error(common.FsApiError(err), fmt.Sprintf("get root failed: %s", err))
+		return 0, 0, status.Error(common.FsApiError(err), fmt.Sprintf("get entry failed: %s", err))
 	}
-
-	parent = root.ID
-	if path == "/" {
-		return parent, parent, nil
-	}
-
-	entries := strings.Split(path, "/")
-	for _, entryName := range entries {
-		if entryName == "" {
-			continue
-		}
-
-		if crt != 0 {
-			parent = crt
-		}
-
-		next, err = s.core.FindEntry(ctx, namespace, parent, entryName)
-		if err != nil {
-			return 0, 0, status.Error(common.FsApiError(err), fmt.Sprintf("get entry failed: %s", err))
-		}
-		crt = next.ChildID
-	}
-
-	return parent, crt, nil
+	return p.ID, e.ID, nil
 }

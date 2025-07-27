@@ -25,7 +25,6 @@ import (
 	"io"
 	"os"
 	"path"
-	"strings"
 	"time"
 
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
@@ -81,35 +80,46 @@ func cleanupWorkdir(ctx context.Context, workdir string) error {
 	return utils.Rmdir(workdir)
 }
 
-func entryWorkdirInit(ctx context.Context, namespace string, entryID int64, fsCore core.Core, workdir string) (string, error) {
-	entry, err := fsCore.GetEntry(ctx, namespace, entryID)
+func entryWorkdirInit(ctx context.Context, namespace, entryUri string, fsCore core.Core, workdir string) (*pluginapi.Entry, error) {
+	_, entry, err := core.GetEntryByPath(ctx, namespace, fsCore, entryUri)
 	if err != nil {
-		return "", fmt.Errorf("load entry failed: %s", err)
+		return nil, fmt.Errorf("load entry failed: %s", err)
 	}
 	if entry.IsGroup {
-		return "", fmt.Errorf("entry is a group")
+		return nil, fmt.Errorf("entry is a group")
+	}
+
+	result := &pluginapi.Entry{
+		ID:         entry.ID,
+		Name:       path.Base(entryUri),
+		Kind:       entry.Kind,
+		Size:       entry.Size,
+		IsGroup:    entry.IsGroup,
+		Properties: nil,
+		Parameters: nil,
+		Document:   nil,
 	}
 
 	entryPath := path.Join(workdir, entry.Name)
 	enInfo, err := os.Stat(entryPath)
 	if err != nil && !os.IsNotExist(err) {
-		return "", err
+		return nil, err
 	}
 
 	if enInfo != nil {
-		return entryPath, nil
+		return result, nil
 	}
 
 	f, err := fsCore.Open(ctx, namespace, entry.ID, types.OpenAttr{Read: true})
 	if err != nil {
-		return "", fmt.Errorf("open entry failed: %s", err)
+		return nil, fmt.Errorf("open entry failed: %s", err)
 	}
 	defer f.Close(ctx)
 
 	if err = copyEntryToJobWorkDir(ctx, entryPath, entry, f); err != nil {
-		return "", fmt.Errorf("copy entry file failed: %s", err)
+		return nil, fmt.Errorf("copy entry file failed: %s", err)
 	}
-	return entryPath, nil
+	return result, nil
 }
 
 func copyEntryToJobWorkDir(ctx context.Context, entryPath string, entry *types.Entry, file core.RawFile) error {
@@ -155,16 +165,8 @@ func collectFile2BaseEntry(ctx context.Context, namespace string, fsCore core.Co
 	}
 	defer tmpFile.Close()
 
-	var properties = types.Properties{Fields: make(map[string]types.PropertyItem)}
-	for k, v := range entry.Parameters {
-		if strings.HasPrefix(k, pluginapi.ResWorkflowKeyPrefix) {
-			continue
-		}
-		properties.Fields[k] = types.PropertyItem{Value: v}
-	}
-
 	if isNeedCreate {
-		result, err = fsCore.CreateEntry(ctx, namespace, baseEntryId, types.EntryAttr{Name: entry.Name, Kind: entry.Kind, Properties: properties})
+		result, err = fsCore.CreateEntry(ctx, namespace, baseEntryId, types.EntryAttr{Name: entry.Name, Kind: entry.Kind, Properties: nil})
 		if err != nil {
 			return nil, fmt.Errorf("create new entry failed: %s", err)
 		}

@@ -18,7 +18,6 @@ package jobrun
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/basenana/go-flow"
 	"github.com/basenana/nanafs/pkg/core"
@@ -34,95 +33,18 @@ import (
 )
 
 const (
-	DataPipeExecName = "pipe"
-	FileExecName     = "file"
+	FileExecName = "file"
 )
 
 func newExecutor(ctrl *Controller, job *types.WorkflowJob) flow.Executor {
-	switch job.QueueName {
-	case types.WorkflowQueuePipe:
-		return &pipeExecutor{
-			job:       job,
-			pluginMgr: ctrl.pluginMgr,
-			core:      ctrl.core,
-			store:     ctrl.store,
-			logger:    logger.NewLogger("pipeExecutor").With(zap.String("job", job.Id)),
-		}
-	default:
-		return &fileExecutor{
-			job:       job,
-			pluginMgr: ctrl.pluginMgr,
-			core:      ctrl.core,
-			store:     ctrl.store,
-			workdir:   path.Join(ctrl.workdir, fmt.Sprintf("job-%s", job.Id)),
-			logger:    logger.NewLogger("fileExecutor").With(zap.String("job", job.Id)),
-		}
+	return &fileExecutor{
+		job:       job,
+		pluginMgr: ctrl.pluginMgr,
+		core:      ctrl.core,
+		store:     ctrl.store,
+		workdir:   path.Join(ctrl.workdir, fmt.Sprintf("job-%s", job.Id)),
+		logger:    logger.NewLogger("fileExecutor").With(zap.String("job", job.Id)),
 	}
-}
-
-type pipeExecutor struct {
-	job       *types.WorkflowJob
-	pluginMgr *plugin.Manager
-	core      core.Core
-	store     metastore.EntryStore
-	logger    *zap.SugaredLogger
-
-	ctxResults pluginapi.Results
-	targets    []*pluginapi.Entry
-}
-
-var _ flow.Executor = &pipeExecutor{}
-
-func (p *pipeExecutor) Setup(ctx context.Context) error {
-	var (
-		en  *types.Entry
-		err error
-	)
-
-	p.ctxResults = pluginapi.NewMemBasedResults()
-	for _, eid := range p.job.Targets.Entries {
-		en, err = p.core.GetEntry(ctx, p.job.Namespace, eid)
-		if err != nil && !errors.Is(err, types.ErrNotFound) {
-			return fmt.Errorf("get entry by id failed %w", err)
-		}
-		p.targets = append(p.targets, en)
-	}
-
-	return nil
-}
-
-func (p *pipeExecutor) Exec(ctx context.Context, flow *flow.Flow, task flow.Task) (err error) {
-	t, ok := task.(*Task)
-	if !ok {
-		return fmt.Errorf("not job task")
-	}
-
-	startAt := time.Now()
-	defer logOperationLatency(DataPipeExecName, "do_operation", startAt)
-
-	defer func() {
-		if panicErr := utils.Recover(); panicErr != nil {
-			p.logger.Errorw("executor panic", "err", panicErr)
-			err = panicErr
-		}
-	}()
-	req := newPluginRequest(p.job, t.step, p.ctxResults, p.targets...)
-	var resp *pluginapi.Response
-	resp, err = callPlugin(ctx, p.job, *t.step.Plugin, p.pluginMgr, p.store, req, p.logger)
-	if err != nil {
-		return logOperationError(DataPipeExecName, "call_plugin", err)
-	}
-
-	for k, v := range resp.Results {
-		if err = p.ctxResults.Set(k, v); err != nil {
-			return logOperationError(DataPipeExecName, "update_context", err)
-		}
-	}
-	return
-}
-
-func (p *pipeExecutor) Teardown(ctx context.Context) error {
-	return nil
 }
 
 type fileExecutor struct {
@@ -131,11 +53,10 @@ type fileExecutor struct {
 	store     metastore.EntryStore
 	pluginMgr *plugin.Manager
 
-	workdir    string
-	entryPath  string
-	entryURI   string
-	cachedData *pluginapi.CachedData
-	targets    []*types.Entry
+	workdir   string
+	entryPath string
+	entryURI  string
+	targets   []*pluginapi.Entry
 
 	ctxResults pluginapi.Results
 	logger     *zap.SugaredLogger
@@ -160,30 +81,16 @@ func (b *fileExecutor) Setup(ctx context.Context) (err error) {
 		return logOperationError(FileExecName, "setup", err)
 	}
 
-	for _, enID := range b.job.Targets.Entries {
-		en, err := b.core.GetEntry(ctx, b.job.Namespace, enID)
-		if err != nil && !errors.Is(err, types.ErrNotFound) {
-			return fmt.Errorf("get entry by id failed %w", err)
+	for _, enUri := range b.job.Targets.Entries {
+		en, err := entryWorkdirInit(ctx, b.job.Namespace, enUri, b.core, b.workdir)
+		if err != nil {
+			b.logger.Errorw("copy target file to workdir failed", "err", err, "entry", enUri)
+			return logOperationError(FileExecName, "setup", err)
 		}
 		b.targets = append(b.targets, en)
-
-		epath, err := entryWorkdirInit(ctx, b.job.Namespace, enID, b.core, b.workdir)
-		if err != nil {
-			b.logger.Errorw("copy target file to workdir failed", "err", err, "entry", enID)
-			return logOperationError(FileExecName, "setup", err)
-		}
-		b.logger.Infow("copy entry to workdir", "entry", enID, "path", epath)
+		b.logger.Infow("copy entry to workdir", "entry", enUri)
 	}
 
-	// FIXME
-	if len(b.job.Targets.Entries) == 0 {
-		// base on parent entry
-		b.cachedData, err = initParentDirCacheData(ctx, b.job.Namespace, b.core, b.job.Targets.ParentEntryID)
-		if err != nil {
-			b.logger.Errorw("build parent cache data failed", "parent", b.job.Targets.ParentEntryID, "err", err)
-			return logOperationError(FileExecName, "setup", err)
-		}
-	}
 	b.logger.Infow("job setup finish", "workdir", b.workdir, "entryPath", b.entryPath)
 
 	return
@@ -207,7 +114,6 @@ func (b *fileExecutor) Exec(ctx context.Context, flow *flow.Flow, task flow.Task
 
 	req := newPluginRequest(b.job, t.step, b.ctxResults, b.targets...)
 	req.WorkPath = b.workdir
-	req.CacheData = b.cachedData
 	req.ContextResults = b.ctxResults
 
 	var resp *pluginapi.Response
@@ -236,14 +142,6 @@ func (b *fileExecutor) tryCollect(ctx context.Context, resp *pluginapi.Response)
 		// collect files
 		err := b.collectEntries(ctx, resp.NewEntries)
 		if err != nil {
-			return err
-		}
-	}
-
-	if b.cachedData != nil && b.cachedData.NeedReCache() {
-		b.logger.Infow("collect cache data")
-		if err := writeParentDirCacheData(ctx, b.job.Namespace, b.core, -1, b.cachedData); err != nil {
-			b.logger.Errorw("write parent cached data back failed", "err", err)
 			return err
 		}
 	}

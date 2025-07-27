@@ -33,7 +33,7 @@ import (
 
 var entryHandleDelay = time.Second * 30
 
-type hooks struct {
+type triggers struct {
 	mgr      *manager
 	cron     *cron.Cron
 	allHooks map[string]*workflowHooks
@@ -45,8 +45,8 @@ type hooks struct {
 	logger *zap.SugaredLogger
 }
 
-func initHooks(mgr *manager) *hooks {
-	h := &hooks{
+func initTriggers(mgr *manager) *triggers {
+	h := &triggers{
 		mgr: mgr,
 		cron: cron.New([]cron.Option{
 			cron.WithLocation(time.Local),
@@ -59,11 +59,11 @@ func initHooks(mgr *manager) *hooks {
 	return h
 }
 
-func (h *hooks) setupHooks() {
+func (h *triggers) setupHooks() {
 	eventbus.Subscribe(events.NamespacedTopic(events.TopicNamespaceEntry, events.ActionTypeCreate), h.handleEntryCreate)
 }
 
-func (h *hooks) start(ctx context.Context) {
+func (h *triggers) start(ctx context.Context) {
 	go func() {
 		// delay start
 		time.Sleep(time.Minute)
@@ -101,7 +101,7 @@ func (h *hooks) start(ctx context.Context) {
 
 // MARK: workflow cache hook
 
-func (h *hooks) handleWorkflowUpdate(wf *types.Workflow) {
+func (h *triggers) handleWorkflowUpdate(wf *types.Workflow) {
 	h.mux.Lock()
 	nsHooks, ok := h.allHooks[wf.Namespace]
 	if !ok {
@@ -153,7 +153,7 @@ func (h *hooks) handleWorkflowUpdate(wf *types.Workflow) {
 
 }
 
-func (h *hooks) handleWorkflowDelete(namespace, wfID string) {
+func (h *triggers) handleWorkflowDelete(namespace, wfID string) {
 	h.mux.Lock()
 	nsHooks, ok := h.allHooks[namespace]
 	h.mux.Unlock()
@@ -177,7 +177,7 @@ func (h *hooks) handleWorkflowDelete(namespace, wfID string) {
 
 // MARK: entry trigger hook
 
-func (h *hooks) handleEntryCreate(evt *types.Event) {
+func (h *triggers) handleEntryCreate(evt *types.Event) {
 	h.logger.Infow("[handleEntryCreate] handle entry create event", "type", evt.RefType, "entry", evt.RefID)
 	h.mux.Lock()
 	nsHooks, ok := h.allHooks[evt.Namespace]
@@ -214,7 +214,7 @@ func (h *hooks) handleEntryCreate(evt *types.Event) {
 	return
 }
 
-func (h *hooks) newJobFunc(namespace, wfID string) func() {
+func (h *triggers) newJobFunc(namespace, wfID string) func() {
 	// trigger new workflow job
 	return func() {
 		wf, err := h.mgr.GetWorkflow(context.Background(), namespace, wfID)
@@ -230,7 +230,7 @@ func (h *hooks) newJobFunc(namespace, wfID string) func() {
 	}
 }
 
-func (h *hooks) filterAndRunCronWorkflow(ctx context.Context, wf *types.Workflow) error {
+func (h *triggers) filterAndRunCronWorkflow(ctx context.Context, wf *types.Workflow) error {
 	var (
 		entries []*types.Entry
 	)
@@ -268,7 +268,7 @@ func (h *hooks) filterAndRunCronWorkflow(ctx context.Context, wf *types.Workflow
 	return nil
 }
 
-func (h *hooks) workflowJobDelay(ctx context.Context, namespace, wfId string, parentID int64, en *types.Entry, reason string) {
+func (h *triggers) workflowJobDelay(ctx context.Context, namespace, wfId string, parentID int64, en *types.Entry, reason string) {
 	h.qMux.Lock()
 	h.delayQ = append(h.delayQ, &pendingEntry{
 		namespace: namespace,
@@ -283,7 +283,7 @@ func (h *hooks) workflowJobDelay(ctx context.Context, namespace, wfId string, pa
 	h.logger.Infow("delay handle entry", "namespace", namespace, "workflow", wfId, "entry", en.ID, "reason", reason)
 }
 
-func (h *hooks) triggerDelayedWorkflowJob(isAll bool) {
+func (h *triggers) triggerDelayedWorkflowJob(isAll bool) {
 	if len(h.delayQ) == 0 {
 		return
 	}
@@ -331,17 +331,17 @@ func (h *hooks) triggerDelayedWorkflowJob(isAll bool) {
 
 }
 
-func (h *hooks) triggerEntriesWorkflow(ctx context.Context, namespace, wfId string, entries []int64, parentID int64, reason string) error {
+func (h *triggers) triggerEntriesWorkflow(ctx context.Context, namespace, wfId string, entries []int64, reason string) error {
 	if len(entries) == 0 {
 		return nil
 	}
 	tgt := types.WorkflowTarget{
-		Entries: entries,
+		Entries: nil,
 	}
 	return h.triggerWorkflow(ctx, namespace, wfId, tgt, reason)
 }
 
-func (h *hooks) triggerWorkflow(ctx context.Context, namespace, wfId string, tgt types.WorkflowTarget, reason string) error {
+func (h *triggers) triggerWorkflow(ctx context.Context, namespace, wfId string, tgt types.WorkflowTarget, reason string) error {
 	job, err := h.mgr.TriggerWorkflow(ctx, namespace, wfId, tgt, JobAttr{Reason: reason})
 	if err != nil {
 		h.logger.Errorw("trigger workflow failed", "workflow", wfId, "err", err)
@@ -351,7 +351,7 @@ func (h *hooks) triggerWorkflow(ctx context.Context, namespace, wfId string, tgt
 	return nil
 }
 
-func (h *hooks) initSystemWorkflow(ctx context.Context, namespace string) error {
+func (h *triggers) initSystemWorkflow(ctx context.Context, namespace string) error {
 	var err error
 	workflows := buildInNsWorkflows(namespace)
 	for i := range workflows {

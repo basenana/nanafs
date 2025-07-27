@@ -19,6 +19,7 @@ package v1
 import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"path"
+	"time"
 
 	"github.com/basenana/nanafs/pkg/types"
 )
@@ -89,14 +90,18 @@ func toEntryInfo(parentURI, name string, en *types.Entry, doc *types.DocumentPro
 
 	if doc != nil {
 		info.Document = &DocumentProperty{
-			Title:    doc.Title,
-			Author:   doc.Author,
-			Year:     doc.Year,
-			Source:   doc.Source,
-			Abstract: doc.Abstract,
-			Keywords: doc.Keywords,
-			Unread:   doc.Unread,
-			Marked:   doc.Marked,
+			Title:       doc.Title,
+			Author:      doc.Author,
+			Year:        doc.Year,
+			Source:      doc.Source,
+			Abstract:    doc.Abstract,
+			Keywords:    doc.Keywords,
+			Notes:       doc.Notes,
+			Unread:      doc.Unread,
+			Marked:      doc.Marked,
+			PublishAt:   timestamppb.New(time.Unix(doc.PublishAt, 0)),
+			Url:         doc.URL,
+			HeaderImage: doc.HeaderImage,
 		}
 	}
 	return info
@@ -121,14 +126,18 @@ func toEntryDetail(parentURI, name string, en *types.Entry, doc types.DocumentPr
 		Storage:   en.Storage,
 		Access:    access,
 		Document: &DocumentProperty{
-			Title:    doc.Title,
-			Author:   doc.Author,
-			Year:     doc.Year,
-			Source:   doc.Source,
-			Abstract: doc.Abstract,
-			Keywords: doc.Keywords,
-			Unread:   doc.Unread,
-			Marked:   doc.Marked,
+			Title:       doc.Title,
+			Author:      doc.Author,
+			Year:        doc.Year,
+			Source:      doc.Source,
+			Abstract:    doc.Abstract,
+			Keywords:    doc.Keywords,
+			Notes:       doc.Notes,
+			Unread:      doc.Unread,
+			Marked:      doc.Marked,
+			PublishAt:   timestamppb.New(time.Unix(doc.PublishAt, 0)),
+			Url:         doc.URL,
+			HeaderImage: doc.HeaderImage,
 		},
 		CreatedAt:  timestamppb.New(en.CreatedAt),
 		ChangedAt:  timestamppb.New(en.ChangedAt),
