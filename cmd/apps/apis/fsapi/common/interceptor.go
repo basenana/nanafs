@@ -18,16 +18,17 @@ package common
 
 import (
 	"context"
-	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/token"
+	"time"
+
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"time"
 
+	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/token"
 	"github.com/basenana/nanafs/utils/logger"
-	"go.uber.org/zap"
-	"google.golang.org/grpc"
 )
 
 const (
@@ -64,7 +65,7 @@ func (c *commonInterceptors) serverAuthInterceptor(ctx context.Context, req any,
 	if c.config.Noauth {
 		ns := getNamespaceFromMetadata(md)
 		if ns != "" {
-			valueCtx := context.WithValue(ctx, authInfoContextKey, token.AuthInfo{UID: 0, GID: 0, Namespace: ns})
+			valueCtx := context.WithValue(ctx, authInfoContextKey, &token.AuthInfo{UID: 0, GID: 0, Namespace: ns})
 			return handler(valueCtx, req)
 		}
 	}
@@ -82,8 +83,8 @@ func (c *commonInterceptors) serverAuthInterceptor(ctx context.Context, req any,
 	return handler(valueCtx, req)
 }
 
-func WithStreamInterceptors(tokenMgr *token.Manager) grpc.ServerOption {
-	si := streamInterceptors{token: tokenMgr}
+func WithStreamInterceptors(tokenMgr *token.Manager, config config.FsApi) grpc.ServerOption {
+	si := streamInterceptors{token: tokenMgr, config: config}
 	return grpc.ChainStreamInterceptor(
 		si.serverStreamAuthInterceptor,
 		si.serverStreamLogInterceptor,
@@ -91,12 +92,53 @@ func WithStreamInterceptors(tokenMgr *token.Manager) grpc.ServerOption {
 }
 
 type streamInterceptors struct {
-	token *token.Manager
+	token  *token.Manager
+	config config.FsApi
+}
+
+type wrappedServerStream struct {
+	grpc.ServerStream
+	ctx context.Context
+}
+
+func (w *wrappedServerStream) Context() context.Context {
+	return w.ctx
 }
 
 func (s *streamInterceptors) serverStreamAuthInterceptor(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) (err error) {
-	err = handler(srv, ss)
-	return
+	ctx := ss.Context()
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return status.Errorf(codes.Unauthenticated, "failed to parse metadata from incoming context")
+	}
+
+	if s.config.Noauth {
+		ns := getNamespaceFromMetadata(md)
+		if ns != "" {
+			valueCtx := context.WithValue(ctx, authInfoContextKey, &token.AuthInfo{UID: 0, GID: 0, Namespace: ns})
+			wrapped := &wrappedServerStream{
+				ServerStream: ss,
+				ctx:          valueCtx,
+			}
+			return handler(srv, wrapped)
+		}
+	}
+
+	accessToken, err := getAccessTokenFromMetadata(md)
+	if err != nil {
+		return status.Errorf(codes.Unauthenticated, "failed to parse token from incoming metadata")
+	}
+	ai, err := s.token.AccessToken(ctx, accessToken)
+	if err != nil {
+		return status.Errorf(codes.Unauthenticated, "failed to authenticate token")
+	}
+
+	valueCtx := context.WithValue(ctx, authInfoContextKey, ai)
+	wrapped := &wrappedServerStream{
+		ServerStream: ss,
+		ctx:          valueCtx,
+	}
+	return handler(valueCtx, wrapped)
 }
 
 func (s *streamInterceptors) serverStreamLogInterceptor(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) (err error) {

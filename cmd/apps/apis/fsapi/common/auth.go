@@ -19,9 +19,11 @@ package common
 import (
 	"context"
 	"errors"
-	"github.com/basenana/nanafs/pkg/token"
-	"google.golang.org/grpc/metadata"
 	"strings"
+
+	"google.golang.org/grpc/metadata"
+
+	"github.com/basenana/nanafs/pkg/token"
 )
 
 func getNamespaceFromMetadata(md metadata.MD) string {
