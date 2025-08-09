@@ -714,12 +714,12 @@ func (s *sqlMetaStore) ListSegments(ctx context.Context, oid, chunkID int64, all
 	defer releaseLock()
 	segments := make([]db.EntryChunk, 0)
 	if allChunk {
-		res := s.WithContext(ctx).Where("oid = ?", oid).Order("append_at").Find(&segments)
+		res := s.WithContext(ctx).Where("entry = ?", oid).Order("append_at").Find(&segments)
 		if res.Error != nil {
 			return nil, db.SqlError2Error(res.Error)
 		}
 	} else {
-		res := s.WithContext(ctx).Where("oid = ? AND chunk_id = ?", oid, chunkID).Order("append_at").Find(&segments)
+		res := s.WithContext(ctx).Where("entry = ? AND chunk_id = ?", oid, chunkID).Order("append_at").Find(&segments)
 		if res.Error != nil {
 			return nil, db.SqlError2Error(res.Error)
 		}

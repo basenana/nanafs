@@ -20,24 +20,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/core"
-	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/pkg/notify"
-	"github.com/basenana/nanafs/pkg/token"
 	"io"
 	"path"
 	"time"
 
-	"github.com/basenana/nanafs/workflow"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
+	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/core"
+	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/notify"
+	"github.com/basenana/nanafs/pkg/token"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
+	"github.com/basenana/nanafs/workflow"
 )
 
 type ServicesV1 interface {
@@ -720,7 +720,7 @@ func (s *servicesV1) TriggerWorkflow(ctx context.Context, request *TriggerWorkfl
 
 func (s *servicesV1) caller(ctx context.Context) (*token.AuthInfo, error) {
 	ai := common.Auth(ctx)
-	if ai != nil {
+	if ai == nil {
 		return nil, status.Errorf(codes.Unauthenticated, "unauthenticated")
 	}
 	return ai, nil

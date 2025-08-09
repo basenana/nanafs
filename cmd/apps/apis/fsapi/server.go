@@ -17,17 +17,16 @@
 package fsapi
 
 import (
-	"crypto/tls"
 	"fmt"
+	"net"
+
+	"google.golang.org/grpc"
+	_ "google.golang.org/grpc/encoding/gzip"
+
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
 	v1 "github.com/basenana/nanafs/cmd/apps/apis/fsapi/v1"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/utils/logger"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"net"
-
-	_ "google.golang.org/grpc/encoding/gzip"
 )
 
 type Server struct {
@@ -56,16 +55,10 @@ func New(depends *common.Depends, cfg config.Config) (*Server, error) {
 		return nil, fmt.Errorf("no api enabled")
 	}
 
-	creds := credentials.NewTLS(&tls.Config{
-		ServerName: apiCfg.ServerName,
-		ClientAuth: tls.VerifyClientCertIfGiven,
-	})
-
 	var opts = []grpc.ServerOption{
-		grpc.Creds(creds),
 		grpc.MaxRecvMsgSize(1024 * 1024 * 50), // 50M
 		common.WithCommonInterceptors(depends.Token, apiCfg),
-		common.WithStreamInterceptors(depends.Token),
+		common.WithStreamInterceptors(depends.Token, apiCfg),
 	}
 	l, err := net.Listen("tcp", fmt.Sprintf("%s:%d", apiCfg.Host, apiCfg.Port))
 	if err != nil {
