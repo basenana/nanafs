@@ -18,11 +18,12 @@ package metastore
 
 import (
 	"context"
+	"runtime/trace"
+	"strings"
+
 	"github.com/basenana/nanafs/pkg/metastore/db"
 	"github.com/basenana/nanafs/pkg/metastore/filters"
 	"github.com/basenana/nanafs/pkg/types"
-	"runtime/trace"
-	"strings"
 )
 
 func (s *sqlMetaStore) FilterEntries(ctx context.Context, namespace string, filter types.Filter) (EntryIterator, error) {
@@ -42,7 +43,7 @@ func (s *sqlMetaStore) FilterEntries(ctx context.Context, namespace string, filt
 		result []db.Entry
 	)
 
-	tx := s.WithNamespace(ctx, namespace)
+	tx := s.WithContext(ctx).Where("entry.namespace = ?", namespace)
 	if strings.Contains(where, "child.") {
 		tx = tx.Joins("JOIN children ON children.child_id = entry.id")
 	}
