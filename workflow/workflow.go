@@ -85,6 +85,7 @@ func New(fsCore core.Core, notify *notify.Notify, meta metastore.Meta, cfg confi
 
 	return mgr, nil
 }
+
 func (m *manager) Start(ctx context.Context) {
 	if !m.config.Enable {
 		return

@@ -61,7 +61,7 @@ func (d DocLoader) Run(ctx context.Context, request *pluginapi.Request) (*plugin
 	for i := range request.Entries {
 		en := request.Entries[i]
 		r := pluginapi.CollectManifest{ParentEntry: en.Parent, Entry: en.ID}
-		if err := d.loadEntry(ctx, request.WorkPath, &en); err != nil {
+		if err := d.loadEntry(ctx, request.WorkingPath, &en); err != nil {
 			return pluginapi.NewFailedResponse(fmt.Sprintf("load entry %d error: %s", en.ID, err.Error())), nil
 		}
 

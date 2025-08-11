@@ -22,17 +22,17 @@ import (
 )
 
 type Entry struct {
-	ID         int64
-	Parent     int64
-	Name       string
-	Kind       types.Kind
-	Size       int64
-	IsGroup    bool
+	ID      int64
+	Parent  int64
+	Name    string
+	Kind    types.Kind
+	Size    int64
+	IsGroup bool
+
+	Document   *Document
 	Properties map[string]string
-	Parameters map[string]string
 
 	Overwrite bool
-	Document  *Document
 }
 
 type EntryAttr struct {

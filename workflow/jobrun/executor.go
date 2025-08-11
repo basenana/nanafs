@@ -33,77 +33,75 @@ import (
 )
 
 const (
-	FileExecName = "file"
+	DefExecName = "default"
 )
 
 func newExecutor(ctrl *Controller, job *types.WorkflowJob) flow.Executor {
-	return &fileExecutor{
+	return &defaultExecutor{
 		job:       job,
 		pluginMgr: ctrl.pluginMgr,
 		core:      ctrl.core,
 		store:     ctrl.store,
 		workdir:   path.Join(ctrl.workdir, fmt.Sprintf("job-%s", job.Id)),
-		logger:    logger.NewLogger("fileExecutor").With(zap.String("job", job.Id)),
+		logger:    logger.NewLogger("defaultExecutor").With(zap.String("job", job.Id)),
 	}
 }
 
-type fileExecutor struct {
+type defaultExecutor struct {
 	job       *types.WorkflowJob
 	core      core.Core
 	store     metastore.EntryStore
 	pluginMgr *plugin.Manager
 
-	workdir   string
-	entryPath string
-	entryURI  string
-	targets   []*pluginapi.Entry
+	workdir string
+	Entries []*pluginapi.Entry
 
 	ctxResults pluginapi.Results
 	logger     *zap.SugaredLogger
 }
 
-var _ flow.Executor = &fileExecutor{}
+var _ flow.Executor = &defaultExecutor{}
 
-func (b *fileExecutor) Setup(ctx context.Context) (err error) {
+func (b *defaultExecutor) Setup(ctx context.Context) (err error) {
 	startAt := time.Now()
-	defer logOperationLatency(FileExecName, "setup", startAt)
+	defer logOperationLatency(DefExecName, "setup", startAt)
 
 	// init workdir and copy entry file
 	err = initWorkdir(ctx, b.workdir, b.job)
 	if err != nil {
 		b.logger.Errorw("init job workdir failed", "err", err)
-		return logOperationError(FileExecName, "setup", err)
+		return logOperationError(DefExecName, "setup", err)
 	}
 
 	b.ctxResults, err = pluginapi.NewFileBasedResults(pluginapi.ResultFilePath(b.workdir))
 	if err != nil {
 		b.logger.Errorw("init job ctx result failed", "err", err)
-		return logOperationError(FileExecName, "setup", err)
+		return logOperationError(DefExecName, "setup", err)
 	}
 
 	for _, enUri := range b.job.Targets.Entries {
 		en, err := entryWorkdirInit(ctx, b.job.Namespace, enUri, b.core, b.workdir)
 		if err != nil {
 			b.logger.Errorw("copy target file to workdir failed", "err", err, "entry", enUri)
-			return logOperationError(FileExecName, "setup", err)
+			return logOperationError(DefExecName, "setup", err)
 		}
-		b.targets = append(b.targets, en)
+		b.Entries = append(b.Entries, en)
 		b.logger.Infow("copy entry to workdir", "entry", enUri)
 	}
 
-	b.logger.Infow("job setup finish", "workdir", b.workdir, "entryPath", b.entryPath)
+	b.logger.Infow("job setup finish", "workdir", b.workdir)
 
 	return
 }
 
-func (b *fileExecutor) Exec(ctx context.Context, flow *flow.Flow, task flow.Task) (err error) {
+func (b *defaultExecutor) Exec(ctx context.Context, flow *flow.Flow, task flow.Task) (err error) {
 	t, ok := task.(*Task)
 	if !ok {
 		return fmt.Errorf("not job task")
 	}
 
 	startAt := time.Now()
-	defer logOperationLatency(FileExecName, "do_operation", startAt)
+	defer logOperationLatency(DefExecName, "do_operation", startAt)
 
 	defer func() {
 		if panicErr := utils.Recover(); panicErr != nil {
@@ -112,32 +110,35 @@ func (b *fileExecutor) Exec(ctx context.Context, flow *flow.Flow, task flow.Task
 		}
 	}()
 
-	req := newPluginRequest(b.job, t.step, b.ctxResults, b.targets...)
-	req.WorkPath = b.workdir
-	req.ContextResults = b.ctxResults
-
-	var resp *pluginapi.Response
-	resp, err = callPlugin(ctx, b.job, *t.step.Plugin, b.pluginMgr, b.store, req, b.logger)
+	var (
+		req  = newPluginRequest(b.workdir, b.job, t.step, b.ctxResults, b.Entries...)
+		resp *pluginapi.Response
+	)
+	resp, err = callPlugin(ctx, b.job, *t.step.Plugin, b.pluginMgr, req, b.logger)
 	if err != nil {
-		return logOperationError(FileExecName, "call_plugin", err)
+		return logOperationError(DefExecName, "call_plugin", err)
 	}
 
 	for k, v := range resp.Results {
 		if err = b.ctxResults.Set(k, v); err != nil {
-			return logOperationError(FileExecName, "update_context", err)
+			return logOperationError(DefExecName, "update_context", err)
 		}
+	}
+
+	for _, en := range resp.NewEntries {
+		_ = en
 	}
 
 	err = b.tryCollect(ctx, resp)
 	if err != nil {
-		return logOperationError(FileExecName, "collect_data", err)
+		return logOperationError(DefExecName, "collect_data", err)
 	}
 	return
 }
 
-func (b *fileExecutor) tryCollect(ctx context.Context, resp *pluginapi.Response) error {
+func (b *defaultExecutor) tryCollect(ctx context.Context, resp *pluginapi.Response) error {
 	startAt := time.Now()
-	defer logOperationLatency(FileExecName, "collect", startAt)
+	defer logOperationLatency(DefExecName, "collect", startAt)
 	if len(resp.NewEntries) > 0 {
 		// collect files
 		err := b.collectEntries(ctx, resp.NewEntries)
@@ -149,7 +150,7 @@ func (b *fileExecutor) tryCollect(ctx context.Context, resp *pluginapi.Response)
 	return nil
 }
 
-func (b *fileExecutor) collectEntries(ctx context.Context, manifests []pluginapi.CollectManifest) error {
+func (b *defaultExecutor) collectEntries(ctx context.Context, manifests []pluginapi.CollectManifest) error {
 	b.logger.Infow("collect files", "manifests", len(manifests))
 	var (
 		errList []error
@@ -172,32 +173,50 @@ func (b *fileExecutor) collectEntries(ctx context.Context, manifests []pluginapi
 				}
 				b.logger.Infow("collect documents", "entryId", file.ID)
 				if err = collectFile2Document(ctx, en, file.Document); err != nil {
-					return logOperationError(FileExecName, "collect", err)
+					return logOperationError(DefExecName, "collect", err)
 				}
 			}
 		}
 	}
 	if len(errList) > 0 {
 		err := fmt.Errorf("collect file to base entry failed: %s, there are %d more similar errors", errList[0], len(errList))
-		return logOperationError(FileExecName, "collect", err)
+		return logOperationError(DefExecName, "collect", err)
 	}
 	return nil
 }
 
-func (b *fileExecutor) Teardown(ctx context.Context) error {
+func (b *defaultExecutor) Teardown(ctx context.Context) error {
 	startAt := time.Now()
-	defer logOperationLatency(FileExecName, "teardown", startAt)
+	defer logOperationLatency(DefExecName, "teardown", startAt)
 	err := cleanupWorkdir(ctx, b.workdir)
 	if err != nil {
 		b.logger.Errorw("teardown failed: cleanup workdir error", "err", err)
-		_ = logOperationError(FileExecName, "teardown", err)
+		_ = logOperationError(DefExecName, "teardown", err)
 		return err
 	}
 	return nil
 }
 
+func newPluginRequest(workingPath string, job *types.WorkflowJob, step *types.WorkflowJobNode, result pluginapi.Results, entries ...*pluginapi.Entry) *pluginapi.Request {
+	req := pluginapi.NewRequest()
+	req.WorkingPath = workingPath
+	req.Namespace = job.Namespace
+	req.PluginName = step.Type
+
+	req.Parameter = map[string]string{}
+	for k, v := range step.Parameters {
+		// TODO render parameter using result
+		req.Parameter[k] = v
+	}
+
+	for _, en := range entries {
+		req.Entries = append(req.Entries, *en)
+	}
+	return req
+}
+
 func callPlugin(ctx context.Context, job *types.WorkflowJob, pcall types.PluginCall, mgr *plugin.Manager,
-	store metastore.EntryStore, req *pluginapi.Request, logger *zap.SugaredLogger) (*pluginapi.Response, error) {
+	req *pluginapi.Request, logger *zap.SugaredLogger) (*pluginapi.Response, error) {
 	resp, err := mgr.Call(ctx, job, pcall, req)
 	if err != nil {
 		err = fmt.Errorf("plugin action error: %s", err)

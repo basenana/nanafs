@@ -47,7 +47,6 @@ type WorkflowNode struct {
 	Name       string            `json:"name"`
 	Type       string            `json:"type"`
 	Parameters map[string]string `json:"parameters"`
-	Inputs     map[string]string `json:"inputs"`
 
 	Next string `json:"next,omitempty"`
 	// Deprecated
@@ -108,13 +107,15 @@ func (w *WorkflowJob) SetMessage(msg string) {
 }
 
 type WorkflowJobNode struct {
-	Node WorkflowNode `json:"node"`
-
-	StepName string      `json:"step_name"`
-	Plugin   *PluginCall `json:"plugin,omitempty"`
+	WorkflowNode
 
 	Status  string `json:"status,omitempty"`
 	Message string `json:"message,omitempty"`
+
+	// Deprecated
+	StepName string `json:"step_name"`
+	// Deprecated
+	Plugin *PluginCall `json:"plugin,omitempty"`
 }
 
 type WorkflowTarget struct {

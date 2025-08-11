@@ -17,32 +17,28 @@
 package pluginapi
 
 import (
-	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
 )
 
 type Request struct {
-	WorkPath string
+	WorkingPath string
 
-	Namespace     string
-	Entries       []Entry
-	ParentEntryId int64
-	Parameter     map[string]any
+	Namespace  string
+	Entries    []Entry
+	PluginName string
+	Parameter  map[string]string
 
 	// deprecated
-	CacheData      *CachedData
-	ContextResults Results
+	ParentEntryId int64
+	// deprecated
+	CacheData *CachedData
 }
 
 func GetParameter(key string, r *Request, spec types.PluginSpec, pcall types.PluginCall) string {
 	if len(r.Parameter) > 0 {
-		valRaw, ok := r.Parameter[key]
+		str, ok := r.Parameter[key]
 		if ok {
-			str, ok := valRaw.(string)
-			if ok {
-				return str
-			}
-			return fmt.Sprintf("%v", valRaw)
+			return str
 		}
 
 	}

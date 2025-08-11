@@ -76,7 +76,7 @@ func (w *WebpackPlugin) Version() string {
 
 func (w *WebpackPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
 	var (
-		workdir     = request.WorkPath
+		workdir     = request.WorkingPath
 		filename    = pluginapi.GetParameter(webpackParameterFilename, request, WebpackPluginSpec, w.pcall)
 		urlInfo     = pluginapi.GetParameter(webpackParameterURL, request, WebpackPluginSpec, w.pcall)
 		fileType    = pluginapi.GetParameter(webpackParameterFileType, request, WebpackPluginSpec, w.pcall)
@@ -170,7 +170,7 @@ func (w *WebpackPlugin) packFromURL(ctx context.Context, filePath, urlInfo, tgtF
 		Name:       filename,
 		Kind:       types.FileKind(filename, types.RawKind),
 		Size:       fInfo.Size(),
-		Parameters: fileParameters,
+		Properties: fileParameters,
 	}, nil
 }
 

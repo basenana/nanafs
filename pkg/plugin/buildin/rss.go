@@ -147,13 +147,11 @@ func (r *RssSourcePlugin) rssSources(request *pluginapi.Request) (src rssSource,
 			src.Headers[k] = v
 		}
 	}
-	for k, v := range request.Parameter {
-		if vstr, ok := v.(string); ok {
-			if strings.HasPrefix(k, "header_") || strings.HasPrefix(k, "HEADER_") {
-				headerKey := strings.TrimPrefix(k, "header_")
-				headerKey = strings.TrimPrefix(headerKey, "HEADER_")
-				src.Headers[k] = vstr
-			}
+	for k, vstr := range request.Parameter {
+		if strings.HasPrefix(k, "header_") || strings.HasPrefix(k, "HEADER_") {
+			headerKey := strings.TrimPrefix(k, "header_")
+			headerKey = strings.TrimPrefix(headerKey, "HEADER_")
+			src.Headers[k] = vstr
 		}
 	}
 	return
@@ -161,7 +159,7 @@ func (r *RssSourcePlugin) rssSources(request *pluginapi.Request) (src rssSource,
 
 func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, request *pluginapi.Request) ([]pluginapi.Entry, error) {
 	var (
-		workdir    = request.WorkPath
+		workdir    = request.WorkingPath
 		cachedData = request.CacheData
 		nowTime    = time.Now()
 	)
@@ -288,7 +286,7 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, r
 			Name: path.Base(filePath),
 			Kind: types.RawKind,
 			Size: fInfo.Size(),
-			Parameters: map[string]string{
+			Properties: map[string]string{
 				types.PropertyWebPageTitle:    item.Title,
 				types.PropertyWebPageURL:      item.Link,
 				types.PropertyWebPageUpdateAt: updatedAt.Format(time.RFC3339),

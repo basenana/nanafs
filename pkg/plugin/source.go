@@ -60,11 +60,11 @@ func (d *ThreeBodyPlugin) Run(ctx context.Context, request *pluginapi.Request) (
 	if request.ParentEntryId == 0 {
 		return nil, fmt.Errorf("parent id is empty")
 	}
-	if request.WorkPath == "" {
+	if request.WorkingPath == "" {
 		return nil, fmt.Errorf("workdir is empty")
 	}
 
-	result, err := d.fileGenerate(request.ParentEntryId, request.WorkPath)
+	result, err := d.fileGenerate(request.ParentEntryId, request.WorkingPath)
 	if err != nil {
 		resp := pluginapi.NewFailedResponse(fmt.Sprintf("file generate failed: %s", err))
 		return resp, nil

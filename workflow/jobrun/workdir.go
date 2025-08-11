@@ -96,7 +96,6 @@ func entryWorkdirInit(ctx context.Context, namespace, entryUri string, fsCore co
 		Size:       entry.Size,
 		IsGroup:    entry.IsGroup,
 		Properties: nil,
-		Parameters: nil,
 		Document:   nil,
 	}
 
