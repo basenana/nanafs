@@ -37,8 +37,6 @@ var _ = Describe("TestWorkflowManage", func() {
 					Plugin: &types.PluginCall{
 						PluginName: "delay",
 						Version:    "1.0",
-						Action:     "delay",
-						Parameters: map[string]string{"delay": "1s"},
 					},
 				},
 			},
@@ -100,8 +98,6 @@ var _ = Describe("TestWorkflowJobManage", func() {
 		ps  = &types.PluginCall{
 			PluginName: "delay",
 			Version:    "1.0",
-			Action:     "delay",
-			Parameters: map[string]string{"delay": "1s"},
 		}
 		wf = &types.Workflow{
 			Name:      "test-trigger-workflow-1",

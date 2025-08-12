@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils/logger"
 	"github.com/hyponet/webpage-packer/packer"
 	"go.uber.org/zap"
 	"os"
@@ -44,23 +43,12 @@ const (
 )
 
 var WebpackPluginSpec = types.PluginSpec{
-	Name:       WebpackPluginName,
-	Version:    WebpackPluginVersion,
-	Type:       types.TypeProcess,
-	Parameters: make(map[string]string),
-	Customization: []types.PluginConfig{
-		{Key: webpackParameterFilename, Default: ""},
-		{Key: webpackParameterURL, Default: ""},
-		{Key: webpackParameterFileType, Default: "webarchive"},
-		{Key: webpackParameterClutterFree, Default: "true"},
-	},
+	Name:    WebpackPluginName,
+	Version: WebpackPluginVersion,
+	Type:    types.TypeProcess,
 }
 
-type WebpackPlugin struct {
-	job    *types.WorkflowJob
-	pcall  types.PluginCall
-	logger *zap.SugaredLogger
-}
+type WebpackPlugin struct{}
 
 func (w *WebpackPlugin) Name() string {
 	return WebpackPluginName
@@ -77,15 +65,21 @@ func (w *WebpackPlugin) Version() string {
 func (w *WebpackPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
 	var (
 		workdir     = request.WorkingPath
-		filename    = pluginapi.GetParameter(webpackParameterFilename, request, WebpackPluginSpec, w.pcall)
-		urlInfo     = pluginapi.GetParameter(webpackParameterURL, request, WebpackPluginSpec, w.pcall)
-		fileType    = pluginapi.GetParameter(webpackParameterFileType, request, WebpackPluginSpec, w.pcall)
-		clutterFree = strings.ToLower(pluginapi.GetParameter(webpackParameterClutterFree, request, WebpackPluginSpec, w.pcall)) == "true"
+		group       = request.GroupEntryId
+		filename    = pluginapi.GetParameter(webpackParameterFilename, request, "")
+		urlInfo     = pluginapi.GetParameter(webpackParameterURL, request, "")
+		fileType    = pluginapi.GetParameter(webpackParameterFileType, request, "webarchive")
+		clutterFree = strings.ToLower(pluginapi.GetParameter(webpackParameterClutterFree, request, "true")) == "true"
 		filePath    = path.Join(workdir, filename)
+		logger      = pluginapi.Log(request, WebpackPluginName)
 	)
 
 	if workdir == "" {
 		return nil, fmt.Errorf("workdir is empty")
+	}
+
+	if group == 0 {
+		return pluginapi.NewFailedResponse("unknown group"), nil
 	}
 
 	if filename == "" {
@@ -100,20 +94,17 @@ func (w *WebpackPlugin) Run(ctx context.Context, request *pluginapi.Request) (*p
 		return nil, fmt.Errorf("invalid file type [%s]", fileType)
 	}
 
-	newEntry, err := w.packFromURL(ctx, filePath, urlInfo, fileType, clutterFree)
+	newEntry, err := w.packFromURL(ctx, group, filePath, urlInfo, fileType, clutterFree, logger)
 	if err != nil {
 		return pluginapi.NewFailedResponse(fmt.Sprintf("packing url %s failed: %s", urlInfo, err)), err
 	}
 
-	newManifest := pluginapi.CollectManifest{
-		ParentEntry: request.ParentEntryId,
-		NewFiles:    []pluginapi.Entry{*newEntry}}
 	resp := pluginapi.NewResponse()
-	resp.NewEntries = append(resp.NewEntries, newManifest)
+	resp.ModifyEntries = append(resp.ModifyEntries, *newEntry)
 	return resp, nil
 }
 
-func (w *WebpackPlugin) packFromURL(ctx context.Context, filePath, urlInfo, tgtFileType string, clutterFree bool) (*pluginapi.Entry, error) {
+func (w *WebpackPlugin) packFromURL(ctx context.Context, group int64, filePath, urlInfo, tgtFileType string, clutterFree bool, logger *zap.SugaredLogger) (*pluginapi.Entry, error) {
 
 	var (
 		filename       = path.Base(filePath)
@@ -129,7 +120,7 @@ func (w *WebpackPlugin) packFromURL(ctx context.Context, filePath, urlInfo, tgtF
 	fileParameters[packerPostMetaURL] = urlInfo
 
 	filename += "." + tgtFileType
-	w.logger.Infof("packing url %s to %s", urlInfo, filename)
+	logger.Infof("packing url %s to %s", urlInfo, filename)
 
 	switch tgtFileType {
 	case "webarchive":
@@ -143,7 +134,7 @@ func (w *WebpackPlugin) packFromURL(ctx context.Context, filePath, urlInfo, tgtF
 			EnablePrivateNet: enablePrivateNet,
 		})
 		if err != nil {
-			w.logger.Warnw("pack to webarchive failed", "link", urlInfo, "err", err)
+			logger.Warnw("pack to webarchive failed", "link", urlInfo, "err", err)
 			return nil, fmt.Errorf("pack to webarchive failed: %w", err)
 		}
 	case "html":
@@ -157,7 +148,7 @@ func (w *WebpackPlugin) packFromURL(ctx context.Context, filePath, urlInfo, tgtF
 			EnablePrivateNet: enablePrivateNet,
 		})
 		if err != nil {
-			w.logger.Warnw("pack to raw html file failed", "link", urlInfo, "err", err)
+			logger.Warnw("pack to raw html file failed", "link", urlInfo, "err", err)
 			return nil, fmt.Errorf("pack to html failed: %w", err)
 		}
 	}
@@ -167,17 +158,17 @@ func (w *WebpackPlugin) packFromURL(ctx context.Context, filePath, urlInfo, tgtF
 		return nil, fmt.Errorf("stat archive file error: %s", err)
 	}
 	return &pluginapi.Entry{
+		Parent:     group,
 		Name:       filename,
 		Kind:       types.FileKind(filename, types.RawKind),
 		Size:       fInfo.Size(),
+		IsGroup:    false,
+		Document:   nil,
 		Properties: fileParameters,
+		Overwrite:  false,
 	}, nil
 }
 
-func NewWebpackPlugin(job *types.WorkflowJob, pcall types.PluginCall) (*WebpackPlugin, error) {
-	return &WebpackPlugin{
-		job:    job,
-		pcall:  pcall,
-		logger: logger.NewLogger("webpackPlugin").With(zap.String("job", job.Id)),
-	}, nil
+func NewWebpackPlugin() *WebpackPlugin {
+	return &WebpackPlugin{}
 }

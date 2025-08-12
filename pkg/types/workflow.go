@@ -114,8 +114,6 @@ type WorkflowJobNode struct {
 
 	// Deprecated
 	StepName string `json:"step_name"`
-	// Deprecated
-	Plugin *PluginCall `json:"plugin,omitempty"`
 }
 
 type WorkflowTarget struct {
@@ -126,8 +124,6 @@ type WorkflowTarget struct {
 }
 
 type PluginCall struct {
-	PluginName string            `json:"plugin_name"`
-	Version    string            `json:"version"`
-	Action     string            `json:"action,omitempty"`
-	Parameters map[string]string `json:"parameters"`
+	PluginName string `json:"plugin_name"`
+	Version    string `json:"version"`
 }

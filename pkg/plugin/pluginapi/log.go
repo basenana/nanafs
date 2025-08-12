@@ -14,18 +14,15 @@
  limitations under the License.
 */
 
-package types
+package pluginapi
 
-type PluginType string
-
-const (
-	TypeSource  PluginType = "source"
-	TypeProcess PluginType = "process"
+import (
+	"github.com/basenana/nanafs/utils/logger"
+	"go.uber.org/zap"
 )
 
-// PluginSpec is Plugin Config File to load a Plugin
-type PluginSpec struct {
-	Name    string     `json:"name"`
-	Version string     `json:"version"`
-	Type    PluginType `json:"type"`
+func Log(req *Request, pluginName string) *zap.SugaredLogger {
+	return logger.NewLogger("plugin_call").With(
+		zap.String("plugin", pluginName),
+		zap.String("job", req.JobID))
 }

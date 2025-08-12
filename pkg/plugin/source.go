@@ -57,25 +57,24 @@ func (d *ThreeBodyPlugin) SourceInfo() (string, error) {
 }
 
 func (d *ThreeBodyPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
-	if request.ParentEntryId == 0 {
+	if request.GroupEntryId == 0 {
 		return nil, fmt.Errorf("parent id is empty")
 	}
 	if request.WorkingPath == "" {
 		return nil, fmt.Errorf("workdir is empty")
 	}
 
-	result, err := d.fileGenerate(request.ParentEntryId, request.WorkingPath)
+	result, err := d.fileGenerate(request.GroupEntryId, request.WorkingPath)
 	if err != nil {
 		resp := pluginapi.NewFailedResponse(fmt.Sprintf("file generate failed: %s", err))
 		return resp, nil
 	}
-	results := []pluginapi.CollectManifest{result}
 	resp := pluginapi.NewResponse()
-	resp.NewEntries = results
+	resp.ModifyEntries = append(resp.ModifyEntries, result)
 	return resp, nil
 }
 
-func (d *ThreeBodyPlugin) fileGenerate(baseEntry int64, workdir string) (pluginapi.CollectManifest, error) {
+func (d *ThreeBodyPlugin) fileGenerate(baseEntry int64, workdir string) (pluginapi.Entry, error) {
 	var (
 		crtAt    = time.Now().Unix()
 		filePath = path.Join(workdir, fmt.Sprintf("3_body_%d.txt", crtAt))
@@ -83,29 +82,18 @@ func (d *ThreeBodyPlugin) fileGenerate(baseEntry int64, workdir string) (plugina
 	)
 	err := os.WriteFile(filePath, fileData, 0655)
 	if err != nil {
-		return pluginapi.CollectManifest{}, err
+		return pluginapi.Entry{}, err
 	}
-	return pluginapi.CollectManifest{
-		ParentEntry: baseEntry,
-		NewFiles: []pluginapi.Entry{{
-			Name: path.Base(filePath),
-			Kind: types.RawKind,
-			Size: int64(len(fileData)),
-		}},
+	return pluginapi.Entry{
+		Name: path.Base(filePath),
+		Kind: types.RawKind,
+		Size: int64(len(fileData)),
 	}, nil
-}
-
-func threeBodyBuilder(job *types.WorkflowJob, pcall types.PluginCall) (Plugin, error) {
-	return &ThreeBodyPlugin{}, nil
 }
 
 func registerBuildInSourcePlugin(r *registry) {
 	r.Register(the3BodyPluginName, types.PluginSpec{Name: the3BodyPluginName, Version: the3BodyPluginVersion,
-		Type: types.TypeSource, Parameters: map[string]string{}}, threeBodyBuilder)
+		Type: types.TypeSource}, &ThreeBodyPlugin{})
 
-	r.Register(buildin.RssSourcePluginName,
-		buildin.RssSourcePluginSpec,
-		func(job *types.WorkflowJob, pcall types.PluginCall) (Plugin, error) {
-			return buildin.BuildRssSourcePlugin(job, pcall), nil
-		})
+	r.Register(buildin.RssSourcePluginName, buildin.RssSourcePluginSpec, buildin.BuildRssSourcePlugin())
 }

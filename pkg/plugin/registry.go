@@ -76,8 +76,6 @@ type Plugin interface {
 	Version() string
 }
 
-type Builder func(job *types.WorkflowJob, pcall types.PluginCall) (Plugin, error)
-
 func Init(cfg config.Workflow) (*Manager, error) {
 	r := &registry{
 		cfg:     cfg,
@@ -108,15 +106,15 @@ func (r *registry) BuildPlugin(job *types.WorkflowJob, ps types.PluginCall) (Plu
 		return nil, ErrNotFound
 	}
 	r.mux.RUnlock()
-	return p.build(job, ps)
+	return p.singleton, nil
 }
 
-func (r *registry) Register(pluginName string, spec types.PluginSpec, builder Builder) {
+func (r *registry) Register(pluginName string, spec types.PluginSpec, singleton Plugin) {
 	r.mux.Lock()
 	r.plugins[pluginName] = &pluginInfo{
-		build:   builder,
-		spec:    spec,
-		buildIn: true,
+		singleton: singleton,
+		spec:      spec,
+		buildIn:   true,
 	}
 	r.mux.Unlock()
 }
@@ -132,8 +130,8 @@ func (r *registry) List() []*pluginInfo {
 }
 
 type pluginInfo struct {
-	build   Builder
-	spec    types.PluginSpec
-	disable bool
-	buildIn bool
+	singleton Plugin
+	spec      types.PluginSpec
+	disable   bool
+	buildIn   bool
 }

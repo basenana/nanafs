@@ -168,7 +168,7 @@ func jobDetail(j *types.WorkflowJob) *WorkflowJobDetail {
 
 	for _, s := range j.Nodes {
 		jd.Steps = append(jd.Steps, &WorkflowJobDetail_JobStep{
-			Name:    s.StepName,
+			Name:    s.Name,
 			Status:  s.Status,
 			Message: s.Message,
 		})

@@ -36,7 +36,6 @@ const (
 )
 
 func assembleWorkflowJob(wf *types.Workflow, tgt types.WorkflowTarget) (*types.WorkflowJob, error) {
-	var globalParam = map[string]string{}
 	j := &types.WorkflowJob{
 		Id:        uuid.New().String(),
 		Workflow:  wf.Id,
@@ -49,16 +48,10 @@ func assembleWorkflowJob(wf *types.Workflow, tgt types.WorkflowTarget) (*types.W
 	}
 
 	for _, stepSpec := range wf.Nodes {
-		if stepSpec.Plugin != nil {
-			for k, v := range globalParam {
-				stepSpec.Plugin.Parameters[k] = v
-			}
-		}
 		j.Nodes = append(j.Nodes,
 			types.WorkflowJobNode{
 				StepName: stepSpec.Name,
 				Status:   jobrun.InitializingStatus,
-				Plugin:   stepSpec.Plugin,
 			},
 		)
 	}

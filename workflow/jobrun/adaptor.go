@@ -39,7 +39,7 @@ type Task struct {
 }
 
 func (t *Task) GetName() string {
-	return t.step.StepName
+	return t.step.Name
 }
 
 func (t *Task) GetStatus() string {

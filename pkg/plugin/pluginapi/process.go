@@ -16,25 +16,18 @@
 
 package pluginapi
 
-import (
-	"github.com/basenana/nanafs/pkg/types"
-)
-
 type Request struct {
-	WorkingPath string
+	JobID        string
+	GroupEntryId int64
+	WorkingPath  string
 
 	Namespace  string
 	Entries    []Entry
 	PluginName string
 	Parameter  map[string]string
-
-	// deprecated
-	ParentEntryId int64
-	// deprecated
-	CacheData *CachedData
 }
 
-func GetParameter(key string, r *Request, spec types.PluginSpec, pcall types.PluginCall) string {
+func GetParameter(key string, r *Request, defaultVal string) string {
 	if len(r.Parameter) > 0 {
 		str, ok := r.Parameter[key]
 		if ok {
@@ -42,19 +35,8 @@ func GetParameter(key string, r *Request, spec types.PluginSpec, pcall types.Plu
 		}
 
 	}
-	if len(pcall.Parameters) > 0 {
-		val, ok := pcall.Parameters[key]
-		if ok {
-			return val
-		}
-	}
 
-	for _, cfg := range spec.Customization {
-		if cfg.Key == key {
-			return cfg.Default
-		}
-	}
-	return ""
+	return defaultVal
 }
 
 func NewRequest() *Request {
@@ -62,10 +44,13 @@ func NewRequest() *Request {
 }
 
 type Response struct {
-	IsSucceed  bool
-	Message    string
+	IsSucceed     bool
+	Message       string
+	ModifyEntries []Entry
+	Results       map[string]any
+
+	// Deprecated
 	NewEntries []CollectManifest
-	Results    map[string]any
 }
 
 func NewResponse() *Response {

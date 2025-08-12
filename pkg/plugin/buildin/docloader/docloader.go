@@ -32,17 +32,12 @@ const (
 )
 
 var PluginSpec = types.PluginSpec{
-	Name:          PluginName,
-	Version:       PluginVersion,
-	Type:          types.TypeProcess,
-	Parameters:    make(map[string]string),
-	Customization: []types.PluginConfig{},
+	Name:    PluginName,
+	Version: PluginVersion,
+	Type:    types.TypeProcess,
 }
 
-type DocLoader struct {
-	job   *types.WorkflowJob
-	pcall types.PluginCall
-}
+type DocLoader struct{}
 
 func (d DocLoader) Name() string {
 	return PluginName
@@ -57,10 +52,9 @@ func (d DocLoader) Version() string {
 }
 
 func (d DocLoader) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
-	var result = make([]pluginapi.CollectManifest, 0, len(request.Entries))
+	var result = make([]pluginapi.Entry, 0, len(request.Entries))
 	for i := range request.Entries {
 		en := request.Entries[i]
-		r := pluginapi.CollectManifest{ParentEntry: en.Parent, Entry: en.ID}
 		if err := d.loadEntry(ctx, request.WorkingPath, &en); err != nil {
 			return pluginapi.NewFailedResponse(fmt.Sprintf("load entry %d error: %s", en.ID, err.Error())), nil
 		}
@@ -68,12 +62,11 @@ func (d DocLoader) Run(ctx context.Context, request *pluginapi.Request) (*plugin
 		if en.Document == nil {
 			continue
 		}
-		r.NewDocuments = append(r.NewDocuments, en.Document)
-		result = append(result, r)
+		result = append(result, en)
 	}
 
 	resp := pluginapi.NewResponse()
-	resp.NewEntries = append(resp.NewEntries, result...)
+	resp.ModifyEntries = append(resp.ModifyEntries, result...)
 	return resp, nil
 }
 
@@ -118,8 +111,8 @@ func (d DocLoader) loadEntry(ctx context.Context, workdir string, entry *plugina
 	return nil
 }
 
-func NewDocLoader(job *types.WorkflowJob, pcall types.PluginCall) *DocLoader {
-	return &DocLoader{job: job, pcall: pcall}
+func NewDocLoader() *DocLoader {
+	return &DocLoader{}
 }
 
 type Parser interface {

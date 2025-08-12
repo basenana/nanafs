@@ -114,7 +114,7 @@ func (b *defaultExecutor) Exec(ctx context.Context, flow *flow.Flow, task flow.T
 		req  = newPluginRequest(b.workdir, b.job, t.step, b.ctxResults, b.Entries...)
 		resp *pluginapi.Response
 	)
-	resp, err = callPlugin(ctx, b.job, *t.step.Plugin, b.pluginMgr, req, b.logger)
+	resp, err = callPlugin(ctx, t.job, t.step, b.pluginMgr, req)
 	if err != nil {
 		return logOperationError(DefExecName, "call_plugin", err)
 	}
@@ -125,21 +125,17 @@ func (b *defaultExecutor) Exec(ctx context.Context, flow *flow.Flow, task flow.T
 		}
 	}
 
-	for _, en := range resp.NewEntries {
-		_ = en
-	}
-
-	err = b.tryCollect(ctx, resp)
+	err = b.tryUpdateEntries(ctx, resp)
 	if err != nil {
 		return logOperationError(DefExecName, "collect_data", err)
 	}
 	return
 }
 
-func (b *defaultExecutor) tryCollect(ctx context.Context, resp *pluginapi.Response) error {
+func (b *defaultExecutor) tryUpdateEntries(ctx context.Context, resp *pluginapi.Response) error {
 	startAt := time.Now()
 	defer logOperationLatency(DefExecName, "collect", startAt)
-	if len(resp.NewEntries) > 0 {
+	if len(resp.ModifyEntries) > 0 {
 		// collect files
 		err := b.collectEntries(ctx, resp.NewEntries)
 		if err != nil {
@@ -199,6 +195,7 @@ func (b *defaultExecutor) Teardown(ctx context.Context) error {
 
 func newPluginRequest(workingPath string, job *types.WorkflowJob, step *types.WorkflowJobNode, result pluginapi.Results, entries ...*pluginapi.Entry) *pluginapi.Request {
 	req := pluginapi.NewRequest()
+	req.JobID = job.Id
 	req.WorkingPath = workingPath
 	req.Namespace = job.Namespace
 	req.PluginName = step.Type
@@ -210,14 +207,18 @@ func newPluginRequest(workingPath string, job *types.WorkflowJob, step *types.Wo
 	}
 
 	for _, en := range entries {
+		if en.IsGroup && req.GroupEntryId == 0 {
+			req.GroupEntryId = en.ID
+		}
 		req.Entries = append(req.Entries, *en)
 	}
 	return req
 }
 
-func callPlugin(ctx context.Context, job *types.WorkflowJob, pcall types.PluginCall, mgr *plugin.Manager,
-	req *pluginapi.Request, logger *zap.SugaredLogger) (*pluginapi.Response, error) {
-	resp, err := mgr.Call(ctx, job, pcall, req)
+func callPlugin(ctx context.Context, job *types.WorkflowJob, step *types.WorkflowJobNode, mgr *plugin.Manager,
+	req *pluginapi.Request) (*pluginapi.Response, error) {
+	pc := types.PluginCall{PluginName: step.Type}
+	resp, err := mgr.Call(ctx, job, pc, req)
 	if err != nil {
 		err = fmt.Errorf("plugin action error: %s", err)
 		return nil, err
