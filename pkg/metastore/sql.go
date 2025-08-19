@@ -1020,9 +1020,6 @@ func (s *sqlMetaStore) listWorkflowJobs(ctx context.Context, namespace string, f
 	if filter.QueueName != "" {
 		query = query.Where("queue_name = ?", filter.QueueName)
 	}
-	if filter.Executor != "" {
-		query = query.Where("executor = ?", filter.Executor)
-	}
 	if filter.Status != "" {
 		query = query.Where("status = ?", filter.Status)
 	}

@@ -185,19 +185,18 @@ func (m *manager) TriggerWorkflow(ctx context.Context, namespace string, wfId st
 		return nil, fmt.Errorf("workflow is disabled")
 	}
 
+	if attr.Timeout == 0 {
+		attr.Timeout = defaultJobTimeout
+	}
+	if attr.Queue == "" {
+		attr.Queue = workflow.QueueName
+	}
 	m.logger.Infow("receive workflow", "workflow", workflow.Name, "targets", tgt)
-	job, err := assembleWorkflowJob(workflow, tgt)
+	job, err := assembleWorkflowJob(workflow, tgt, attr)
 	if err != nil {
 		m.logger.Errorw("assemble job failed", "workflow", workflow.Name, "err", err)
 		return nil, err
 	}
-
-	if attr.Timeout == 0 {
-		attr.Timeout = defaultJobTimeout
-	}
-	job.TimeoutSeconds = int(attr.Timeout.Seconds())
-	job.TriggerReason = attr.Reason
-	job.Parameters = attr.Parameters
 
 	err = m.meta.SaveWorkflowJob(ctx, namespace, job)
 	if err != nil {

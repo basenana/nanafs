@@ -19,7 +19,6 @@ package jobrun
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/core"
 	"io"
@@ -136,7 +135,7 @@ func copyEntryToJobWorkDir(ctx context.Context, entryPath string, entry *types.E
 	return err
 }
 
-func collectFile2BaseEntry(ctx context.Context, namespace string, fsCore core.Core, baseEntryId int64, workdir string, entry *pluginapi.Entry) (*types.Entry, error) {
+func collectAndModifyEntry(ctx context.Context, namespace string, fsCore core.Core, workdir string, entry *pluginapi.Entry) error {
 	isNeedCreate := entry.ID == 0
 
 	if !isNeedCreate && !entry.Overwrite {

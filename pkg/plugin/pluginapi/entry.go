@@ -33,6 +33,7 @@ type Entry struct {
 	Properties map[string]string
 
 	Overwrite bool
+	Dirty     bool
 }
 
 type EntryAttr struct {

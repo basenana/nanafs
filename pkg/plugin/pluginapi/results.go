@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/types"
 	"os"
 	"path"
 	"sync"
@@ -28,9 +27,7 @@ import (
 
 type Results interface {
 	Set(key string, val any) error
-	SetAll(data map[string]any) error
-	IsSet(key string) bool
-	Load(key string, val any) error
+	Data() map[string]any
 }
 
 func init() {
@@ -38,7 +35,7 @@ func init() {
 }
 
 type baseMap struct {
-	results map[string][]byte
+	results map[string]any
 	mux     sync.Mutex
 }
 
@@ -55,41 +52,14 @@ func (b *baseMap) Set(key string, val any) error {
 	return nil
 }
 
-func (b *baseMap) SetAll(data map[string]any) error {
-	if len(data) == 0 {
-		return nil
-	}
-	for k := range data {
-		v := data[k]
-		if err := b.Set(k, v); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (b *baseMap) IsSet(key string) bool {
-	b.mux.Lock()
-	_, ok := b.results[key]
-	b.mux.Unlock()
-	return ok
-}
-
-func (b *baseMap) Load(key string, val any) error {
-	b.mux.Lock()
-	raw, ok := b.results[key]
-	b.mux.Unlock()
-	if !ok {
-		return types.ErrNotFound
-	}
-	buf := bytes.NewReader(raw)
-	return gob.NewDecoder(buf).Decode(val)
+func (b *baseMap) Data() map[string]any {
+	return b.results
 }
 
 type memoryBasedResults struct{ baseMap }
 
 func NewMemBasedResults() Results {
-	return &memoryBasedResults{baseMap{results: map[string][]byte{}}}
+	return &memoryBasedResults{baseMap{results: map[string]any{}}}
 }
 
 const (
@@ -113,14 +83,6 @@ func (f *fileBasedResults) Set(key string, val any) error {
 	return f.flush()
 }
 
-func (f *fileBasedResults) SetAll(data map[string]any) error {
-	err := f.baseMap.SetAll(data)
-	if err != nil {
-		return err
-	}
-	return f.flush()
-}
-
 func (f *fileBasedResults) flush() error {
 	file, err := os.OpenFile(f.filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
@@ -130,7 +92,7 @@ func (f *fileBasedResults) flush() error {
 }
 
 func NewFileBasedResults(filePath string) (Results, error) {
-	r := &fileBasedResults{baseMap: baseMap{results: map[string][]byte{}}, filePath: filePath}
+	r := &fileBasedResults{baseMap: baseMap{results: map[string]any{}}, filePath: filePath}
 	f, err := os.Open(filePath)
 	if err == nil {
 		defer f.Close()

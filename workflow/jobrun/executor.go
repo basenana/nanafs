@@ -29,6 +29,7 @@ import (
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"path"
+	"sort"
 	"time"
 )
 
@@ -39,9 +40,9 @@ const (
 func newExecutor(ctrl *Controller, job *types.WorkflowJob) flow.Executor {
 	return &defaultExecutor{
 		job:       job,
-		pluginMgr: ctrl.pluginMgr,
 		core:      ctrl.core,
 		store:     ctrl.store,
+		pluginMgr: ctrl.pluginMgr,
 		workdir:   path.Join(ctrl.workdir, fmt.Sprintf("job-%s", job.Id)),
 		logger:    logger.NewLogger("defaultExecutor").With(zap.String("job", job.Id)),
 	}
@@ -52,10 +53,9 @@ type defaultExecutor struct {
 	core      core.Core
 	store     metastore.EntryStore
 	pluginMgr *plugin.Manager
+	workdir   string
 
-	workdir string
-	Entries []*pluginapi.Entry
-
+	entries    []*pluginapi.Entry
 	ctxResults pluginapi.Results
 	logger     *zap.SugaredLogger
 }
@@ -85,7 +85,7 @@ func (b *defaultExecutor) Setup(ctx context.Context) (err error) {
 			b.logger.Errorw("copy target file to workdir failed", "err", err, "entry", enUri)
 			return logOperationError(DefExecName, "setup", err)
 		}
-		b.Entries = append(b.Entries, en)
+		b.entries = append(b.entries, en)
 		b.logger.Infow("copy entry to workdir", "entry", enUri)
 	}
 
@@ -111,7 +111,7 @@ func (b *defaultExecutor) Exec(ctx context.Context, flow *flow.Flow, task flow.T
 	}()
 
 	var (
-		req  = newPluginRequest(b.workdir, b.job, t.step, b.ctxResults, b.Entries...)
+		req  = newPluginRequest(b.workdir, b.job, t.step, b.ctxResults, b.entries...)
 		resp *pluginapi.Response
 	)
 	resp, err = callPlugin(ctx, t.job, t.step, b.pluginMgr, req)
@@ -133,49 +133,68 @@ func (b *defaultExecutor) Exec(ctx context.Context, flow *flow.Flow, task flow.T
 }
 
 func (b *defaultExecutor) tryUpdateEntries(ctx context.Context, resp *pluginapi.Response) error {
-	startAt := time.Now()
-	defer logOperationLatency(DefExecName, "collect", startAt)
-	if len(resp.ModifyEntries) > 0 {
-		// collect files
-		err := b.collectEntries(ctx, resp.NewEntries)
-		if err != nil {
-			return err
-		}
+	if len(resp.ModifyEntries) == 0 {
+		return nil
 	}
+
+	var (
+		latest     []*pluginapi.Entry
+		allEntries = make(map[string]*pluginapi.Entry)
+	)
+	for _, en := range b.entries {
+		allEntries[fmt.Sprintf("%d/%s", en.Parent, en.Name)] = en
+	}
+	for i := range resp.ModifyEntries {
+		en := resp.ModifyEntries[i]
+		en.Dirty = true
+		allEntries[fmt.Sprintf("%d/%s", en.Parent, en.Name)] = &en
+	}
+
+	for _, en := range allEntries {
+		latest = append(latest, en)
+	}
+
+	sort.Slice(latest, func(i, j int) bool {
+		if latest[i].Parent != latest[j].Parent {
+			return latest[i].Parent < latest[j].Parent
+		}
+		return latest[i].Name < latest[j].Name
+	})
+
+	b.entries = latest
 
 	return nil
 }
 
-func (b *defaultExecutor) collectEntries(ctx context.Context, manifests []pluginapi.CollectManifest) error {
-	b.logger.Infow("collect files", "manifests", len(manifests))
+func (b *defaultExecutor) collectEntries(ctx context.Context) error {
 	var (
-		errList []error
-		en      *types.Entry
-		err     error
+		entries     = b.entries
+		needCollect = false
+		errList     []error
+		err         error
 	)
-	for _, manifest := range manifests {
-		for i := range manifest.NewFiles {
-			file := &(manifest.NewFiles[i])
-			if en, err = collectFile2BaseEntry(ctx, b.job.Namespace, b.core, manifest.ParentEntry, b.workdir, file); err != nil {
-				b.logger.Errorw("collect file to base entry failed", "entry", manifest.ParentEntry, "newFile", file.Name, "err", err)
-				errList = append(errList, err)
-				continue
-			}
+	for _, en := range b.entries {
+		if en.Dirty {
+			needCollect = true
+			break
+		}
+	}
+	if !needCollect {
+		return nil
+	}
 
-			if file.Document != nil {
-				if en == nil {
-					errList = append(errList, fmt.Errorf("collect document %s error: entry id is empty", file.Document.Title))
-					continue
-				}
-				b.logger.Infow("collect documents", "entryId", file.ID)
-				if err = collectFile2Document(ctx, en, file.Document); err != nil {
-					return logOperationError(DefExecName, "collect", err)
-				}
-			}
+	startAt := time.Now()
+	defer logOperationLatency(DefExecName, "collect_entries", startAt)
+	b.logger.Infow("collect files", "entries", len(entries))
+	for _, en := range entries {
+		if err = collectAndModifyEntry(ctx, b.job.Namespace, b.core, b.workdir, en); err != nil {
+			b.logger.Errorw("collect file to base entry failed", "parent", en.Parent, "name", en.Name, "newFile", "err", err)
+			errList = append(errList, err)
+			continue
 		}
 	}
 	if len(errList) > 0 {
-		err := fmt.Errorf("collect file to base entry failed: %s, there are %d more similar errors", errList[0], len(errList))
+		err = fmt.Errorf("collect file to base entry failed: %s, there are %d more similar errors", errList[0], len(errList))
 		return logOperationError(DefExecName, "collect", err)
 	}
 	return nil
@@ -184,7 +203,13 @@ func (b *defaultExecutor) collectEntries(ctx context.Context, manifests []plugin
 func (b *defaultExecutor) Teardown(ctx context.Context) error {
 	startAt := time.Now()
 	defer logOperationLatency(DefExecName, "teardown", startAt)
-	err := cleanupWorkdir(ctx, b.workdir)
+
+	err := b.collectEntries(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = cleanupWorkdir(ctx, b.workdir)
 	if err != nil {
 		b.logger.Errorw("teardown failed: cleanup workdir error", "err", err)
 		_ = logOperationError(DefExecName, "teardown", err)
@@ -201,9 +226,9 @@ func newPluginRequest(workingPath string, job *types.WorkflowJob, step *types.Wo
 	req.PluginName = step.Type
 
 	req.Parameter = map[string]string{}
+	resultData := result.Data()
 	for k, v := range step.Parameters {
-		// TODO render parameter using result
-		req.Parameter[k] = v
+		req.Parameter[k] = renderParams(v, resultData)
 	}
 
 	for _, en := range entries {

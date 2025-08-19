@@ -17,6 +17,7 @@
 package jobrun
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -26,6 +27,8 @@ import (
 	"github.com/basenana/nanafs/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	"io"
+	"strings"
+	"text/template"
 	"time"
 )
 
@@ -134,4 +137,21 @@ func logOperationError(execName, operation string, err error) error {
 		execOperationErrorCounter.WithLabelValues(execName, operation).Inc()
 	}
 	return err
+}
+
+func renderParams(tplContent string, data map[string]interface{}) string {
+	if !strings.Contains(tplContent, "{") {
+		return tplContent
+	}
+	tpl, err := template.New("params").Parse(tplContent)
+	if err != nil {
+		return tplContent
+	}
+
+	buf := new(bytes.Buffer)
+	err = tpl.Execute(buf, data)
+	if err != nil {
+		return tplContent
+	}
+	return buf.String()
 }

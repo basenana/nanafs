@@ -35,23 +35,29 @@ const (
 	defaultJobTimeout = time.Hour * 3
 )
 
-func assembleWorkflowJob(wf *types.Workflow, tgt types.WorkflowTarget) (*types.WorkflowJob, error) {
+func assembleWorkflowJob(wf *types.Workflow, tgt types.WorkflowTarget, attr JobAttr) (*types.WorkflowJob, error) {
 	j := &types.WorkflowJob{
-		Id:        uuid.New().String(),
-		Workflow:  wf.Id,
-		Targets:   tgt,
-		Status:    jobrun.InitializingStatus,
-		Namespace: wf.Namespace,
-		QueueName: wf.QueueName,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		Id:             uuid.New().String(),
+		Namespace:      wf.Namespace,
+		Workflow:       wf.Id,
+		TriggerReason:  attr.Reason,
+		Targets:        tgt,
+		Nodes:          make([]types.WorkflowJobNode, 0, len(wf.Nodes)),
+		Parameters:     attr.Parameters,
+		Status:         jobrun.InitializingStatus,
+		Message:        "pending",
+		QueueName:      attr.Queue,
+		TimeoutSeconds: int(attr.Timeout.Seconds()),
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
 	}
 
-	for _, stepSpec := range wf.Nodes {
+	for i := range wf.Nodes {
+		node := wf.Nodes[i]
 		j.Nodes = append(j.Nodes,
 			types.WorkflowJobNode{
-				StepName: stepSpec.Name,
-				Status:   jobrun.InitializingStatus,
+				WorkflowNode: node,
+				Status:       jobrun.InitializingStatus,
 			},
 		)
 	}

@@ -298,7 +298,6 @@ type WorkflowJob struct {
 	Status        string    `gorm:"column:status;index:job_status"`
 	Message       string    `gorm:"column:message"`
 	QueueName     string    `gorm:"column:queue_name;index:job_queue"`
-	Executor      string    `gorm:"column:executor;index:job_executor"`
 	Namespace     string    `gorm:"column:namespace;index:job_ns"`
 	StartAt       time.Time `gorm:"column:start_at"`
 	FinishAt      time.Time `gorm:"column:finish_at"`
@@ -317,7 +316,6 @@ func (o *WorkflowJob) From(job *types.WorkflowJob) (*WorkflowJob, error) {
 	o.Status = job.Status
 	o.Message = job.Message
 	o.QueueName = job.QueueName
-	o.Executor = job.Executor
 	o.StartAt = job.StartAt
 	o.FinishAt = job.FinishAt
 	o.CreatedAt = job.CreatedAt
@@ -353,7 +351,6 @@ func (o *WorkflowJob) To() (*types.WorkflowJob, error) {
 		Nodes:         []types.WorkflowJobNode{},
 		Status:        o.Status,
 		Message:       o.Message,
-		Executor:      o.Executor,
 		QueueName:     o.QueueName,
 		StartAt:       o.StartAt,
 		FinishAt:      o.FinishAt,

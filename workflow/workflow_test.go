@@ -34,10 +34,6 @@ var _ = Describe("TestWorkflowManage", func() {
 			Nodes: []types.WorkflowNode{
 				{
 					Name: "step-1",
-					Plugin: &types.PluginCall{
-						PluginName: "delay",
-						Version:    "1.0",
-					},
 				},
 			},
 			QueueName: types.WorkflowQueueFile,
@@ -95,16 +91,12 @@ var _ = Describe("TestWorkflowManage", func() {
 var _ = Describe("TestWorkflowJobManage", func() {
 	var (
 		ctx = context.TODO()
-		ps  = &types.PluginCall{
-			PluginName: "delay",
-			Version:    "1.0",
-		}
-		wf = &types.Workflow{
+		wf  = &types.Workflow{
 			Name:      "test-trigger-workflow-1",
 			Namespace: namespace,
 			Nodes: []types.WorkflowNode{
-				{Name: "step-1", Plugin: ps},
-				{Name: "step-2", Plugin: ps},
+				{Name: "step-1", Type: "delay"},
+				{Name: "step-2", Type: "delay"},
 			},
 			QueueName: types.WorkflowQueueFile,
 		}

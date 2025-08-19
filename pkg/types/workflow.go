@@ -49,8 +49,6 @@ type WorkflowNode struct {
 	Parameters map[string]string `json:"parameters"`
 
 	Next string `json:"next,omitempty"`
-	// Deprecated
-	Plugin *PluginCall `json:"plugin,omitempty"`
 }
 
 type WorkflowEntryMatch struct {
@@ -81,7 +79,6 @@ type WorkflowJob struct {
 	Parameters     map[string]string `json:"parameters"`
 	Status         string            `json:"status,omitempty"`
 	Message        string            `json:"message,omitempty"`
-	Executor       string            `json:"executor"`
 	QueueName      string            `json:"queue_name"`
 	TimeoutSeconds int               `json:"timeout"`
 	StartAt        time.Time         `json:"start_at"`

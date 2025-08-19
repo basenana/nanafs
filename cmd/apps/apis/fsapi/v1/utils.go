@@ -154,7 +154,6 @@ func jobDetail(j *types.WorkflowJob) *WorkflowJobDetail {
 		TriggerReason: j.TriggerReason,
 		Status:        j.Status,
 		Message:       j.Message,
-		Executor:      j.Executor,
 		QueueName:     j.QueueName,
 		Target: &WorkflowJobDetail_JobTarget{
 			Entries: j.Targets.Entries,
