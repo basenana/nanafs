@@ -17,11 +17,13 @@
 package workflow
 
 import (
+	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/workflow/jobrun"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"os"
+	"regexp"
 	"runtime"
 	"time"
 )
@@ -89,4 +91,38 @@ func initWorkflow(namespace string, wf *types.Workflow) *types.Workflow {
 	wf.CreatedAt = time.Now()
 	wf.UpdatedAt = time.Now()
 	return wf
+}
+
+var (
+	workflowIDPattern = "^[A-zA-Z][a-zA-Z0-9-_.]{5,31}$"
+	wfIDRegexp        = regexp.MustCompile(workflowIDPattern)
+)
+
+func isValidID(idStr string) error {
+	if wfIDRegexp.MatchString(idStr) {
+		return nil
+	}
+	return fmt.Errorf("invalid ID [%s], pattern: %s", idStr, workflowIDPattern)
+}
+
+func validateWorkflowSpec(spec *types.Workflow) error {
+	if spec.Id == "" {
+		return fmt.Errorf("workflow id is empty")
+	}
+	if err := isValidID(spec.Id); err != nil {
+		return err
+	}
+	if spec.Name == "" {
+		return fmt.Errorf("workflow name is empty")
+	}
+	if spec.Namespace == "" {
+		return fmt.Errorf("workflow namespace is empty")
+	}
+
+	for _, no := range spec.Nodes {
+		if err := isValidID(no.Name); err != nil {
+			return fmt.Errorf("workflow node %s is invalid: %w", no.Name, err)
+		}
+	}
+	return nil
 }

@@ -19,9 +19,11 @@ package buildin
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"github.com/basenana/nanafs/utils"
 	"go.uber.org/zap"
+	"hash/fnv"
 	"net/url"
 	"os"
 	"path"
@@ -132,6 +134,7 @@ func (r *RssSourcePlugin) rssSources(request *pluginapi.Request, logger *zap.Sug
 			src.Headers[k] = vstr
 		}
 	}
+	src.Store = request.ContextStore
 	return
 }
 
@@ -156,7 +159,11 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, w
 		source.FileType = archiveFileTypeHtml
 	}
 
-	newEntries := make([]pluginapi.Entry, 0)
+	var (
+		newEntries = make([]pluginapi.Entry, 0)
+		links      []string
+	)
+
 	for i, item := range feed.Items {
 		if i > rssPostMaxCollect {
 			logger.Infow("soo many post need to collect, skip", "collectLimit", rssPostMaxCollect)
@@ -166,6 +173,13 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, w
 		item.Link = absoluteURL(siteURL, item.Link)
 		if item.Content == "" && item.Description != "" {
 			item.Content = item.Description
+		}
+
+		if isNew, err := source.isNew(ctx, item.Link); err != nil || !isNew {
+			if err != nil {
+				logger.Errorw("check if feed is new", "feed", source.FeedUrl, "err", err)
+			}
+			continue
 		}
 
 		logger.Infow("parse rss post", "link", item.Link)
@@ -246,6 +260,7 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, w
 			updatedAt = &nowTime
 		}
 
+		links = append(links, item.Link)
 		newEntries = append(newEntries, pluginapi.Entry{
 			Parent:  source.GroupId,
 			Name:    path.Base(filePath),
@@ -260,7 +275,8 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, w
 			Overwrite: false,
 		})
 	}
-	return newEntries, nil
+
+	return newEntries, source.record(ctx, links...)
 }
 
 func parseSiteURL(feed string) (string, error) {
@@ -290,4 +306,44 @@ type rssSource struct {
 	ClutterFree bool
 	Timeout     int
 	Headers     map[string]string
+
+	Namespace string
+	Store     pluginapi.ContextStore
+}
+
+func (s *rssSource) isNew(ctx context.Context, linkStr string) (bool, error) {
+	var (
+		k = string(fnv.New64a().Sum([]byte(linkStr)))
+		v = make(map[string]string)
+	)
+	err := s.Store.LoadWorkflowContext(ctx, s.Namespace, RssSourcePluginName, "source", k, &v)
+	if err == nil {
+		return false, nil
+	}
+
+	if !errors.Is(err, types.ErrNotFound) {
+		return false, err
+	}
+
+	v["time"] = time.Now().Format(time.RFC3339)
+	err = s.Store.SaveWorkflowContext(ctx, s.Namespace, RssSourcePluginName, "source", k, &v)
+	if err == nil {
+		return false, nil
+	}
+	return true, nil
+}
+
+func (s *rssSource) record(ctx context.Context, linkList ...string) error {
+	for _, linkStr := range linkList {
+		var (
+			k   = string(fnv.New64a().Sum([]byte(linkStr)))
+			v   = map[string]string{"time": time.Now().Format(time.RFC3339)}
+			err error
+		)
+		err = s.Store.SaveWorkflowContext(ctx, s.Namespace, RssSourcePluginName, "source", k, &v)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

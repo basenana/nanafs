@@ -38,9 +38,12 @@ type Workflow struct {
 }
 
 type WorkflowTrigger struct {
+	// entry events
 	OnCreate *WorkflowEntryMatch `json:"on_create,omitempty"`
+
+	// source plugins
 	RSS      *WorkflowRssTrigger `json:"rss,omitempty"`
-	Cron     string              `json:"cron,omitempty"`
+	Interval *int                `json:"interval,omitempty"`
 }
 
 type WorkflowNode struct {
@@ -115,9 +118,6 @@ type WorkflowJobNode struct {
 
 type WorkflowTarget struct {
 	Entries []string `json:"entries,omitempty"`
-
-	// Deprecated
-	ParentEntryID int64 `json:"parent_entry_id,omitempty"`
 }
 
 type PluginCall struct {

@@ -33,7 +33,9 @@ var _ = Describe("TestWorkflowManage", func() {
 			Namespace: namespace,
 			Nodes: []types.WorkflowNode{
 				{
-					Name: "step-1",
+					Name:       "step-1",
+					Type:       "delay",
+					Parameters: map[string]string{},
 				},
 			},
 			QueueName: types.WorkflowQueueFile,
@@ -95,12 +97,23 @@ var _ = Describe("TestWorkflowJobManage", func() {
 			Name:      "test-trigger-workflow-1",
 			Namespace: namespace,
 			Nodes: []types.WorkflowNode{
-				{Name: "step-1", Type: "delay"},
-				{Name: "step-2", Type: "delay"},
+				{
+					Name:       "step-1",
+					Type:       "delay",
+					Parameters: map[string]string{},
+					Next:       "step-2",
+				},
+				{
+					Name:       "step-2",
+					Type:       "delay",
+					Parameters: map[string]string{},
+					Next:       "step-2",
+				},
 			},
 			QueueName: types.WorkflowQueueFile,
 		}
-		en *types.Entry
+		en    *types.Entry
+		enURI = "/test_workflow.txt"
 	)
 	Context("trigger a workflow", func() {
 		It("create dummy entry should be succeed", func() {
@@ -127,7 +140,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 		var job *types.WorkflowJob
 		It("trigger workflow should be succeed", func() {
 			var err error
-			job, err = mgr.TriggerWorkflow(ctx, namespace, wf.Id, types.WorkflowTarget{Entries: []int64{en.ID}}, JobAttr{})
+			job, err = mgr.TriggerWorkflow(ctx, namespace, wf.Id, types.WorkflowTarget{Entries: []string{enURI}}, JobAttr{})
 			Expect(err).Should(BeNil())
 			Expect(job.Id).ShouldNot(BeEmpty())
 		})
@@ -151,7 +164,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 		var job *types.WorkflowJob
 		It("trigger workflow should be succeed", func() {
 			var err error
-			job, err = mgr.TriggerWorkflow(ctx, namespace, wf.Id, types.WorkflowTarget{Entries: []int64{en.ID}}, JobAttr{})
+			job, err = mgr.TriggerWorkflow(ctx, namespace, wf.Id, types.WorkflowTarget{Entries: []string{enURI}}, JobAttr{})
 			Expect(err).Should(BeNil())
 			Expect(job.Id).ShouldNot(BeEmpty())
 
@@ -217,7 +230,7 @@ var _ = Describe("TestWorkflowJobManage", func() {
 		var job *types.WorkflowJob
 		It("trigger workflow should be succeed", func() {
 			var err error
-			job, err = mgr.TriggerWorkflow(ctx, namespace, wf.Id, types.WorkflowTarget{Entries: []int64{en.ID}}, JobAttr{})
+			job, err = mgr.TriggerWorkflow(ctx, namespace, wf.Id, types.WorkflowTarget{Entries: []string{enURI}}, JobAttr{})
 			Expect(err).Should(BeNil())
 			Expect(job.Id).ShouldNot(BeEmpty())
 

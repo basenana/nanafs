@@ -19,6 +19,7 @@ package jobrun
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/core"
 	"io"
@@ -139,52 +140,47 @@ func collectAndModifyEntry(ctx context.Context, namespace string, fsCore core.Co
 	isNeedCreate := entry.ID == 0
 
 	if !isNeedCreate && !entry.Overwrite {
-		return nil, fmt.Errorf("file %s already exists", entry.Name)
+		return fmt.Errorf("file %s already exists", entry.Name)
 	}
 
 	var (
-		exist  *types.Child
 		result *types.Entry
 		err    error
 	)
-	exist, err = fsCore.FindEntry(ctx, namespace, baseEntryId, entry.Name)
+	_, err = fsCore.FindEntry(ctx, namespace, entry.Parent, entry.Name)
 	if err != nil && !errors.Is(err, types.ErrNotFound) {
-		return nil, fmt.Errorf("check new file existed error: %s", err)
+		return fmt.Errorf("check new file existed error: %s", err)
 	}
 
 	if isNeedCreate && err == nil {
 		// file already existed
-		return fsCore.GetEntry(ctx, namespace, exist.ChildID)
+		return nil
 	}
 
 	tmpFile, err := os.Open(path.Join(workdir, entry.Name))
 	if err != nil {
-		return nil, fmt.Errorf("read temporary file failed: %s", err)
+		return fmt.Errorf("read temporary file failed: %s", err)
 	}
 	defer tmpFile.Close()
 
 	if isNeedCreate {
-		result, err = fsCore.CreateEntry(ctx, namespace, baseEntryId, types.EntryAttr{Name: entry.Name, Kind: entry.Kind, Properties: nil})
+		result, err = fsCore.CreateEntry(ctx, namespace, entry.Parent, types.EntryAttr{Name: entry.Name, Kind: entry.Kind, Properties: nil})
 		if err != nil {
-			return nil, fmt.Errorf("create new entry failed: %s", err)
+			return fmt.Errorf("create new entry failed: %s", err)
 		}
 		entry.ID = result.ID
 	}
 
 	f, err := fsCore.Open(ctx, namespace, entry.ID, types.OpenAttr{Write: true, Trunc: true})
 	if err != nil {
-		return nil, fmt.Errorf("open entry file failed: %s", err)
+		return fmt.Errorf("open entry file failed: %s", err)
 	}
 	defer f.Close(ctx)
 
 	_, err = io.Copy(utils.NewWriterWithContextWriter(ctx, f), tmpFile)
 	if err != nil {
-		return nil, fmt.Errorf("copy temporary file to entry file failed: %s", err)
+		return fmt.Errorf("copy temporary file to entry file failed: %s", err)
 	}
 
-	return result, nil
-}
-
-func collectFile2Document(ctx context.Context, baseEn *types.Entry, document *pluginapi.Document) error {
 	return nil
 }

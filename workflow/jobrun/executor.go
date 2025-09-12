@@ -41,6 +41,7 @@ func newExecutor(ctrl *Controller, job *types.WorkflowJob) flow.Executor {
 	return &defaultExecutor{
 		job:       job,
 		core:      ctrl.core,
+		entry:     ctrl.store,
 		store:     ctrl.store,
 		pluginMgr: ctrl.pluginMgr,
 		workdir:   path.Join(ctrl.workdir, fmt.Sprintf("job-%s", job.Id)),
@@ -51,7 +52,8 @@ func newExecutor(ctrl *Controller, job *types.WorkflowJob) flow.Executor {
 type defaultExecutor struct {
 	job       *types.WorkflowJob
 	core      core.Core
-	store     metastore.EntryStore
+	entry     metastore.EntryStore
+	store     pluginapi.ContextStore
 	pluginMgr *plugin.Manager
 	workdir   string
 
@@ -111,7 +113,7 @@ func (b *defaultExecutor) Exec(ctx context.Context, flow *flow.Flow, task flow.T
 	}()
 
 	var (
-		req  = newPluginRequest(b.workdir, b.job, t.step, b.ctxResults, b.entries...)
+		req  = newPluginRequest(b.workdir, b.job, t.step, b.store, b.ctxResults, b.entries...)
 		resp *pluginapi.Response
 	)
 	resp, err = callPlugin(ctx, t.job, t.step, b.pluginMgr, req)
@@ -218,12 +220,13 @@ func (b *defaultExecutor) Teardown(ctx context.Context) error {
 	return nil
 }
 
-func newPluginRequest(workingPath string, job *types.WorkflowJob, step *types.WorkflowJobNode, result pluginapi.Results, entries ...*pluginapi.Entry) *pluginapi.Request {
+func newPluginRequest(workingPath string, job *types.WorkflowJob, step *types.WorkflowJobNode, store pluginapi.ContextStore, result pluginapi.Results, entries ...*pluginapi.Entry) *pluginapi.Request {
 	req := pluginapi.NewRequest()
 	req.JobID = job.Id
 	req.WorkingPath = workingPath
 	req.Namespace = job.Namespace
 	req.PluginName = step.Type
+	req.ContextStore = store
 
 	req.Parameter = map[string]string{}
 	resultData := result.Data()

@@ -73,9 +73,6 @@ var _ = BeforeSuite(func() {
 	fsCore, err = core.New(memMeta, bootCfg)
 	Expect(err).Should(BeNil())
 
-	cfg := config.NewMockConfigLoader(bootCfg)
-	Expect(err).Should(BeNil())
-
 	mgr, err = New(fsCore, notify.NewNotify(memMeta), memMeta, bootCfg.Workflow)
 	Expect(err).Should(BeNil())
 

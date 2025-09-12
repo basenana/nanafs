@@ -116,7 +116,7 @@ func (m *manager) CreateWorkflow(ctx context.Context, namespace string, workflow
 		return nil, err
 	}
 
-	m.trigger.handleWorkflowUpdate(workflow)
+	m.trigger.handleWorkflowUpdate(workflow, false)
 	return workflow, nil
 }
 
@@ -131,11 +131,15 @@ func (m *manager) UpdateWorkflow(ctx context.Context, namespace string, workflow
 		return nil, err
 	}
 
-	m.trigger.handleWorkflowUpdate(workflow)
+	m.trigger.handleWorkflowUpdate(workflow, false)
 	return workflow, nil
 }
 
 func (m *manager) DeleteWorkflow(ctx context.Context, namespace string, wfId string) error {
+	wf, err := m.meta.GetWorkflow(ctx, namespace, wfId)
+	if err != nil {
+		return err
+	}
 	jobs, err := m.ListJobs(ctx, namespace, wfId)
 	if err != nil {
 		return err
@@ -155,7 +159,7 @@ func (m *manager) DeleteWorkflow(ctx context.Context, namespace string, wfId str
 	if err != nil {
 		return err
 	}
-	m.trigger.handleWorkflowDelete(namespace, wfId)
+	m.trigger.handleWorkflowUpdate(wf, true)
 	return nil
 }
 

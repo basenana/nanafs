@@ -18,6 +18,7 @@ package pluginapi
 
 import (
 	"bytes"
+	"context"
 	"encoding/gob"
 	"fmt"
 	"os"
@@ -102,4 +103,9 @@ func NewFileBasedResults(filePath string) (Results, error) {
 		}
 	}
 	return r, nil
+}
+
+type ContextStore interface {
+	LoadWorkflowContext(ctx context.Context, namespace, source, group, key string, data any) error
+	SaveWorkflowContext(ctx context.Context, namespace, source, group, key string, data any) error
 }

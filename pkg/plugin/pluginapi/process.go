@@ -25,6 +25,8 @@ type Request struct {
 	Entries    []Entry
 	PluginName string
 	Parameter  map[string]string
+
+	ContextStore ContextStore
 }
 
 func GetParameter(key string, r *Request, defaultVal string) string {
