@@ -119,11 +119,11 @@ func (o *Entry) ToEntry() *types.Entry {
 }
 
 type Children struct {
+	Namespace string `gorm:"column:namespace;primaryKey"`
 	ParentID  int64  `gorm:"column:parent_id;primaryKey"`
-	ChildID   int64  `gorm:"column:child_id;primaryKey"`
 	Name      string `gorm:"column:name;primaryKey"`
-	Namespace string `gorm:"column:namespace;index:child_ns"`
-	Dynamic   bool   `gorm:"column:dynamic;index:child_dy"`
+	ChildID   int64  `gorm:"column:child_id;index:child_id"`
+	Dynamic   bool   `gorm:"column:dynamic"`
 }
 
 func (c *Children) From(child *types.Child) {

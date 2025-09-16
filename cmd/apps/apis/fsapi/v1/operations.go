@@ -42,7 +42,7 @@ func (s *servicesV1) getGroupTree(ctx context.Context, namespace string) (*GetGr
 	}
 	root := &GetGroupTreeResponse_GroupEntry{
 		Uri:      "/",
-		Name:     nsRoot.Name,
+		Name:     "/",
 		Children: make([]*GetGroupTreeResponse_GroupEntry, 0, len(children)),
 	}
 	for _, child := range children {

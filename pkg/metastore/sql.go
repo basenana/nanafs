@@ -439,6 +439,25 @@ func (s *sqlMetaStore) ListChildren(ctx context.Context, namespace string, paren
 	return result, nil
 }
 
+func (s *sqlMetaStore) ListParents(ctx context.Context, namespace string, childID int64) ([]*types.Child, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.ListParents").End()
+	requireLock()
+	defer releaseLock()
+	var (
+		models []db.Children
+		result []*types.Child
+	)
+	res := s.WithContext(ctx).Where("child_id = ? AND namespace = ?", childID, namespace).Find(&models)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+
+	for _, model := range models {
+		result = append(result, model.To())
+	}
+	return result, nil
+}
+
 func (s *sqlMetaStore) Open(ctx context.Context, namespace string, id int64, attr types.OpenAttr) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.Open").End()
 	requireLock()

@@ -36,11 +36,16 @@ var (
 	ErrNotFound = errors.New("PluginNotFound")
 )
 
-type Manager struct {
+type Manager interface {
+	ListPlugins() []types.PluginSpec
+	Call(ctx context.Context, ps types.PluginCall, req *pluginapi.Request) (resp *pluginapi.Response, err error)
+}
+
+type manager struct {
 	r *registry
 }
 
-func (m *Manager) ListPlugins() []types.PluginSpec {
+func (m *manager) ListPlugins() []types.PluginSpec {
 	infos := m.r.List()
 	var result = make([]types.PluginSpec, 0, len(infos))
 	for _, i := range infos {
@@ -49,7 +54,7 @@ func (m *Manager) ListPlugins() []types.PluginSpec {
 	return result
 }
 
-func (m *Manager) Call(ctx context.Context, job *types.WorkflowJob, ps types.PluginCall, req *pluginapi.Request) (resp *pluginapi.Response, err error) {
+func (m *manager) Call(ctx context.Context, ps types.PluginCall, req *pluginapi.Request) (resp *pluginapi.Response, err error) {
 	startAt := time.Now()
 	defer func() {
 		if rErr := utils.Recover(); rErr != nil {
@@ -58,7 +63,7 @@ func (m *Manager) Call(ctx context.Context, job *types.WorkflowJob, ps types.Plu
 		processCallTimeUsage.WithLabelValues(ps.PluginName).Observe(time.Since(startAt).Seconds())
 	}()
 	var plugin Plugin
-	plugin, err = m.r.BuildPlugin(job, ps)
+	plugin, err = m.r.BuildPlugin(ps)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +81,7 @@ type Plugin interface {
 	Version() string
 }
 
-func Init(cfg config.Workflow) (*Manager, error) {
+func Init(cfg config.Workflow) (Manager, error) {
 	r := &registry{
 		cfg:     cfg,
 		plugins: map[string]*pluginInfo{},
@@ -87,7 +92,7 @@ func Init(cfg config.Workflow) (*Manager, error) {
 	registerBuildInProcessPlugin(r)
 	registerBuildInSourcePlugin(r)
 
-	return &Manager{r: r}, nil
+	return &manager{r: r}, nil
 }
 
 type registry struct {
@@ -97,7 +102,7 @@ type registry struct {
 	logger  *zap.SugaredLogger
 }
 
-func (r *registry) BuildPlugin(job *types.WorkflowJob, ps types.PluginCall) (Plugin, error) {
+func (r *registry) BuildPlugin(ps types.PluginCall) (Plugin, error) {
 	r.mux.RLock()
 	p, ok := r.plugins[ps.PluginName]
 	if !ok {

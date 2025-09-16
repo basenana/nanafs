@@ -44,7 +44,7 @@ type Controller struct {
 	queue   *GroupJobQueue
 	workdir string
 
-	pluginMgr *plugin.Manager
+	pluginMgr plugin.Manager
 	core      core.Core
 	store     metastore.Meta
 	notify    *notify.Notify
@@ -292,7 +292,7 @@ func (c *Controller) getRunner(namespace, jobiD string) *runner {
 	return r
 }
 
-func NewJobController(pluginMgr *plugin.Manager, fsCore core.Core,
+func NewJobController(pluginMgr plugin.Manager, fsCore core.Core,
 	store metastore.Meta, notify *notify.Notify, workdir string) *Controller {
 	ctrl := &Controller{
 		pluginMgr: pluginMgr,

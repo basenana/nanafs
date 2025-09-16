@@ -89,8 +89,8 @@ var _ = BeforeSuite(func() {
 	var opts = []grpc.ServerOption{
 		grpc.Creds(serverCreds),
 		grpc.MaxRecvMsgSize(1024 * 1024 * 50), // 50M
-		common.WithCommonInterceptors(dep.Token, mockConfig),
-		common.WithStreamInterceptors(dep.Token),
+		common.WithCommonInterceptors(dep.Token, mockConfig.API),
+		common.WithStreamInterceptors(dep.Token, mockConfig.API),
 	}
 	testServer = grpc.NewServer(opts...)
 	_, err = InitServicesV1(testServer, dep)
@@ -111,7 +111,6 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 
 	serviceClient = &Client{
-		DocumentClient:   NewDocumentClient(conn),
 		EntriesClient:    NewEntriesClient(conn),
 		PropertiesClient: NewPropertiesClient(conn),
 		WorkflowClient:   NewWorkflowClient(conn),
@@ -130,7 +129,6 @@ var _ = AfterSuite(func() {
 })
 
 type Client struct {
-	DocumentClient
 	EntriesClient
 	PropertiesClient
 	WorkflowClient

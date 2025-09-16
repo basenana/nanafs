@@ -151,8 +151,13 @@ func (s *servicesV1) FilterEntry(ctx context.Context, request *FilterEntryReques
 				doc = nil
 			}
 		}
-		// todo
-		resp.Entries = append(resp.Entries, toEntryInfo("/filters/", en.Name, en, doc))
+
+		uri, err := core.ProbableEntryPath(ctx, s.core, en)
+		if err != nil {
+			s.logger.Errorw("guess entry uri error, hide this", "entry", en.ID, "err", err)
+			continue
+		}
+		resp.Entries = append(resp.Entries, toEntryInfo(uri, path.Base(uri), en, doc))
 	}
 
 	return resp, nil
@@ -729,7 +734,7 @@ func (s *servicesV1) caller(ctx context.Context) (*token.AuthInfo, error) {
 }
 
 func (s *servicesV1) getEntryByPath(ctx context.Context, namespace, path string) (int64, int64, error) {
-	p, e, err := core.GetEntryByPath(ctx, namespace, s.core, path)
+	p, e, err := s.core.GetEntryByPath(ctx, namespace, path)
 	if err != nil {
 		return 0, 0, status.Error(common.FsApiError(err), fmt.Sprintf("get entry failed: %s", err))
 	}

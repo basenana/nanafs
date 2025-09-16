@@ -20,9 +20,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"runtime/trace"
-
 	"go.uber.org/zap"
+	"runtime/trace"
+	"strings"
 
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/bio"
@@ -39,6 +39,7 @@ type Core interface {
 	CreateNamespace(ctx context.Context, namespace string) error
 
 	GetEntry(ctx context.Context, namespace string, id int64) (*types.Entry, error)
+	GetEntryByPath(ctx context.Context, namespace string, path string) (*types.Entry, *types.Entry, error)
 	CreateEntry(ctx context.Context, namespace string, parentId int64, attr types.EntryAttr) (*types.Entry, error)
 	UpdateEntry(ctx context.Context, namespace string, id int64, update types.UpdateEntry) (*types.Entry, error)
 	RemoveEntry(ctx context.Context, namespace string, parentId, entryId int64, entryName string, attr types.DeleteEntry) error
@@ -47,6 +48,7 @@ type Core interface {
 	ChangeEntryParent(ctx context.Context, namespace string, targetEntryId int64, overwriteEntryId *int64, oldParentId, newParentId int64, oldName, newName string, opt types.ChangeParentAttr) error
 	FindEntry(ctx context.Context, namespace string, parentId int64, name string) (*types.Child, error)
 	ListChildren(ctx context.Context, namespace string, parentId int64) ([]*types.Child, error)
+	ListParents(ctx context.Context, namespace string, childId int64) ([]*types.Child, error)
 
 	OpenGroup(ctx context.Context, namespace string, entryID int64) (Group, error)
 	Open(ctx context.Context, namespace string, entryId int64, attr types.OpenAttr) (RawFile, error)
@@ -260,6 +262,44 @@ func (c *core) GetEntry(ctx context.Context, namespace string, id int64) (*types
 	}
 
 	return en, nil
+}
+
+func (c *core) GetEntryByPath(ctx context.Context, namespace string, path string) (*types.Entry, *types.Entry, error) {
+	var (
+		crt, parent *types.Entry
+		err         error
+	)
+	parent, err = c.NamespaceRoot(ctx, namespace)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if path == "/" {
+		return parent, parent, nil
+	}
+
+	entries := strings.Split(path, "/")
+	for _, entryName := range entries {
+		if entryName == "" {
+			continue
+		}
+
+		if len(entryName) > fileNameMaxLength {
+			return nil, nil, types.ErrNameTooLong
+		}
+
+		if crt != nil {
+			parent = crt
+		}
+
+		child, err := c.FindEntry(ctx, namespace, parent.ID, entryName)
+		if err != nil {
+			return nil, nil, err
+		}
+		crt, err = c.GetEntry(ctx, namespace, child.ChildID)
+	}
+
+	return parent, crt, nil
 }
 
 func (c *core) CreateEntry(ctx context.Context, namespace string, parentId int64, attr types.EntryAttr) (*types.Entry, error) {
@@ -538,6 +578,11 @@ func (c *core) FindEntry(ctx context.Context, namespace string, parentId int64, 
 func (c *core) ListChildren(ctx context.Context, namespace string, parentId int64) ([]*types.Child, error) {
 	defer trace.StartRegion(ctx, "fs.core.ListChildren").End()
 	return c.store.ListChildren(ctx, namespace, parentId)
+}
+
+func (c *core) ListParents(ctx context.Context, namespace string, childID int64) ([]*types.Child, error) {
+	defer trace.StartRegion(ctx, "fs.core.ListParents").End()
+	return c.store.ListParents(ctx, namespace, childID)
 }
 
 func (c *core) OpenGroup(ctx context.Context, namespace string, groupId int64) (Group, error) {

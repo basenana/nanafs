@@ -54,7 +54,7 @@ type defaultExecutor struct {
 	core      core.Core
 	entry     metastore.EntryStore
 	store     pluginapi.ContextStore
-	pluginMgr *plugin.Manager
+	pluginMgr plugin.Manager
 	workdir   string
 
 	entries    []*pluginapi.Entry
@@ -116,7 +116,7 @@ func (b *defaultExecutor) Exec(ctx context.Context, flow *flow.Flow, task flow.T
 		req  = newPluginRequest(b.workdir, b.job, t.step, b.store, b.ctxResults, b.entries...)
 		resp *pluginapi.Response
 	)
-	resp, err = callPlugin(ctx, t.job, t.step, b.pluginMgr, req)
+	resp, err = callPlugin(ctx, t.step, b.pluginMgr, req)
 	if err != nil {
 		return logOperationError(DefExecName, "call_plugin", err)
 	}
@@ -243,10 +243,9 @@ func newPluginRequest(workingPath string, job *types.WorkflowJob, step *types.Wo
 	return req
 }
 
-func callPlugin(ctx context.Context, job *types.WorkflowJob, step *types.WorkflowJobNode, mgr *plugin.Manager,
-	req *pluginapi.Request) (*pluginapi.Response, error) {
+func callPlugin(ctx context.Context, step *types.WorkflowJobNode, mgr plugin.Manager, req *pluginapi.Request) (*pluginapi.Response, error) {
 	pc := types.PluginCall{PluginName: step.Type}
-	resp, err := mgr.Call(ctx, job, pc, req)
+	resp, err := mgr.Call(ctx, pc, req)
 	if err != nil {
 		err = fmt.Errorf("plugin action error: %s", err)
 		return nil, err

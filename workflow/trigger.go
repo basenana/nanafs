@@ -18,6 +18,7 @@ package workflow
 
 import (
 	"context"
+	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
@@ -260,21 +261,42 @@ func (h *triggers) usingSourcePlugin(ctx context.Context, namespace, workflow st
 
 	var (
 		trigger = wf.Trigger
-		target  = types.WorkflowTarget{}
+		targets []types.WorkflowTarget
 	)
 
 	switch {
 	case trigger.RSS != nil:
-		// TODO: filter rss group and trigger
+		it, err := h.mgr.meta.FilterEntries(ctx, namespace, types.Filter{CELPattern: `group.source == "rss"`})
+		if err != nil {
+			h.logger.Errorw("filter rss failed", "workflow", workflow, "err", err)
+			return
+		}
+
+		for it.HasNext() {
+			en, err := it.Next()
+			if err != nil {
+				h.logger.Errorw("get next rss group failed", "workflow", workflow, "err", err)
+				continue
+			}
+
+			uri, err := core.ProbableEntryPath(ctx, h.mgr.core, en)
+			if err != nil {
+				h.logger.Errorw("fetch rss group uri failed", "workflow", workflow, "err", err)
+				continue
+			}
+			targets = append(targets, types.WorkflowTarget{Entries: []string{uri}})
+		}
 	}
 
-	if len(target.Entries) > 0 {
-		h.triggerWorkflow(ctx, namespace, workflow, target, JobAttr{
-			Reason:     "interval run",
-			Queue:      "",
-			Parameters: nil,
-			Timeout:    time.Duration(interval) * time.Minute,
-		})
+	for _, target := range targets {
+		if len(target.Entries) > 0 {
+			h.triggerWorkflow(ctx, namespace, workflow, target, JobAttr{
+				Reason:     "interval run",
+				Queue:      "",
+				Parameters: nil,
+				Timeout:    time.Duration(interval) * time.Minute,
+			})
+		}
 	}
 
 }

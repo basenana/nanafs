@@ -19,12 +19,12 @@ package core
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"math"
+	"path"
 	"runtime/trace"
-	"strings"
+	"slices"
 	"time"
 
 	"go.uber.org/zap"
@@ -99,7 +99,7 @@ func (f *FileSystem) GetEntry(ctx context.Context, id int64) (*types.Entry, erro
 }
 
 func (f *FileSystem) GetEntryByPath(ctx context.Context, path string) (*types.Entry, *types.Entry, error) {
-	return GetEntryByPath(ctx, f.namespace, f.core, path)
+	return f.core.GetEntryByPath(ctx, f.namespace, path)
 }
 
 func (f *FileSystem) LookUpEntry(ctx context.Context, parent int64, name string) (*types.Entry, error) {
@@ -523,40 +523,47 @@ func (f *fsDIR) Raw() RawFile {
 
 var _ File = &fsDIR{}
 
-func GetEntryByPath(ctx context.Context, namespace string, c Core, path string) (*types.Entry, *types.Entry, error) {
-	var (
-		crt, parent *types.Entry
-		err         error
-	)
-	parent, err = c.NamespaceRoot(ctx, namespace)
+func ProbableEntryName(ctx context.Context, core Core, en *types.Entry) (string, error) {
+	refs, err := core.ListParents(ctx, en.Namespace, en.ID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load root error: %w", err)
+		return "", err
 	}
 
-	if path == "/" {
-		return parent, parent, nil
+	if len(refs) == 0 {
+		return "", types.ErrNotFound
 	}
 
-	entries := strings.Split(path, "/")
-	for _, entryName := range entries {
-		if entryName == "" {
-			continue
-		}
+	return refs[0].Name, nil
+}
 
-		if len(entryName) > fileNameMaxLength {
-			return nil, nil, types.ErrNameTooLong
-		}
+func ProbableEntryPath(ctx context.Context, core Core, en *types.Entry) (string, error) {
+	var (
+		crt   int64
+		refs  []*types.Child
+		parts []string
+	)
 
-		if crt != nil {
-			parent = crt
-		}
+	root, err := core.NamespaceRoot(ctx, en.Namespace)
+	if err != nil {
+		return "", err
+	}
 
-		child, err := c.FindEntry(ctx, namespace, parent.ID, entryName)
+	crt = en.ID
+	for crt != root.ID {
+		refs, err = core.ListParents(ctx, en.Namespace, crt)
 		if err != nil {
-			return nil, nil, err
+			return "", err
 		}
-		crt, err = c.GetEntry(ctx, namespace, child.ChildID)
-	}
 
-	return parent, crt, nil
+		if len(refs) == 0 {
+			break
+		}
+
+		crt = refs[0].ParentID
+		parts = append(parts, refs[0].Name)
+	}
+	parts = append(parts, "/")
+	slices.Reverse(parts)
+
+	return path.Join(parts...), nil
 }

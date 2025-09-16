@@ -81,7 +81,7 @@ func cleanupWorkdir(ctx context.Context, workdir string) error {
 }
 
 func entryWorkdirInit(ctx context.Context, namespace, entryUri string, fsCore core.Core, workdir string) (*pluginapi.Entry, error) {
-	_, entry, err := core.GetEntryByPath(ctx, namespace, fsCore, entryUri)
+	_, entry, err := fsCore.GetEntryByPath(ctx, namespace, entryUri)
 	if err != nil {
 		return nil, fmt.Errorf("load entry failed: %s", err)
 	}
