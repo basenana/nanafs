@@ -48,7 +48,7 @@ func Test_convertWithParameterIndexWithPG(t *testing.T) {
 			name: "DB JSON Column Key Match",
 			args: args{
 				filter: `group.source == "rss"`,
-				wanted: "group.value->>'source' = ?",
+				wanted: "egroup.value->>'source' = ?",
 			},
 		},
 		{

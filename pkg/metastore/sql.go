@@ -590,6 +590,9 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, namespace string, 
 	defer trace.StartRegion(ctx, "metastore.sql.ChangeEntryParent").End()
 	requireLock()
 	defer releaseLock()
+	if newName == "" {
+		newName = oldName
+	}
 	return s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var (
 			enModel          = &db.Entry{ID: targetEntryId}
@@ -611,10 +614,7 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, namespace string, 
 			return res.Error
 		}
 		enModel.ChangedAt = nowTime
-		if newName != "" {
-			enModel.Name = newName
-			refChild.Name = newName
-		}
+		enModel.Name = newName
 		if updateErr = updateEntryModelWithVersion(tx, enModel); updateErr != nil {
 			s.logger.Errorw("update target entry failed when change parent",
 				"entry", targetEntryId, "srcParent", oldParentID, "dstParent", newParentId, "err", updateErr)
@@ -625,14 +625,21 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, namespace string, 
 			return nil
 		}
 
-		if refChild.ParentID != newParentId {
-			if refChild.Dynamic {
-				return types.ErrNoAccess
-			}
-			refChild.ParentID = newParentId
+		if refChild.Dynamic {
+			return types.ErrNoAccess
 		}
-		res = tx.Updates(refChild)
+
+		res = tx.Delete(refChild)
 		if res.Error != nil {
+			s.logger.Errorw("delete old parent ref error", "entry", targetEntryId, "err", res.Error)
+			return res.Error
+		}
+		refChild.ParentID = newParentId
+		refChild.Name = newName
+
+		res = tx.Create(refChild)
+		if res.Error != nil {
+			s.logger.Errorw("create new parent ref error", "entry", targetEntryId, "err", res.Error)
 			return res.Error
 		}
 

@@ -49,6 +49,8 @@ func TestCore(t *testing.T) {
 	defer logger.Sync()
 	RegisterFailHandler(Fail)
 
+	logger.SetDebug(true)
+
 	var err error
 	workdir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-core-")
 	Expect(err).Should(BeNil())

@@ -43,7 +43,9 @@ type SymlinkProperties struct {
 }
 
 type GroupProperties struct {
-	Filter *Filter   `json:"filter,omitempty"`
+	Filter *Filter `json:"filter,omitempty"`
+
+	// source configs
 	Source string    `json:"source,omitempty"` // rss
 	RSS    *GroupRSS `json:"rss,omitempty"`
 }

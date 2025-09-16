@@ -328,6 +328,22 @@ func (c *core) CreateEntry(ctx context.Context, namespace string, parentId int64
 	}
 	defer c.cache.invalidEntry(namespace, parentId)
 
+	if attr.Properties != nil {
+		err = c.store.UpdateEntryProperties(ctx, namespace, types.PropertyTypeProperty, entry.ID, attr.Properties)
+		if err != nil {
+			c.logger.Errorw("update entry properties error", "err", err)
+			return nil, err
+		}
+	}
+
+	if entry.IsGroup && attr.GroupProperties != nil {
+		err = c.store.UpdateEntryProperties(ctx, namespace, types.PropertyTypeGroupAttr, entry.ID, attr.GroupProperties)
+		if err != nil {
+			c.logger.Errorw("update group properties error", "err", err)
+			return nil, err
+		}
+	}
+
 	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeCreate, entry.Namespace, entry.ID)
 	return entry, nil
 }

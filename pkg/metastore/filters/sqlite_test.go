@@ -48,7 +48,7 @@ func Test_convertWithTemplatesWithSQLite(t *testing.T) {
 			name: "DB JSON Column Key Match",
 			args: args{
 				filter: `group.source == "rss"`,
-				wanted: "JSON_EXTRACT(`group`.`value`, '$.source') = ?",
+				wanted: "JSON_EXTRACT(`egroup`.`value`, '$.source') = ?",
 			},
 		},
 		{

@@ -131,7 +131,7 @@ var _ = Describe("TestDynamicGroupEntry", func() {
 		smtGrpEn *types.Entry
 		err      error
 	)
-	Context("init source group", func() {
+	Context("init dynamic group", func() {
 		var srcGrpEn *types.Entry
 		It("init source group should be succeed", func() {
 			srcGrpEn, err = fsCore.CreateEntry(ctx, namespace, root.ID, types.EntryAttr{
@@ -142,7 +142,7 @@ var _ = Describe("TestDynamicGroupEntry", func() {
 			Expect(err).Should(BeNil())
 			Expect(srcGrpEn).ShouldNot(BeNil())
 		})
-		It("fill target file to source group should be succeed", func() {
+		It("fill target file to dynamic group should be succeed", func() {
 			_, err = fsCore.CreateEntry(ctx, namespace, srcGrpEn.ID, types.EntryAttr{
 				Name:   "filter-target-file-1.txt",
 				Kind:   types.RawKind,
@@ -150,21 +150,24 @@ var _ = Describe("TestDynamicGroupEntry", func() {
 			})
 			Expect(err).Should(BeNil())
 			_, err = fsCore.CreateEntry(ctx, namespace, srcGrpEn.ID, types.EntryAttr{
-				Name:   "filter-target-file-2.txt",
-				Kind:   types.RawKind,
-				Access: accessPermissions,
+				Name:       "filter-target-file-2.txt",
+				Kind:       types.RawKind,
+				Access:     accessPermissions,
+				Properties: &types.Properties{Tags: []string{"tag2", "tag3"}},
 			})
 			Expect(err).Should(BeNil())
 			_, err = fsCore.CreateEntry(ctx, namespace, srcGrpEn.ID, types.EntryAttr{
-				Name:   "filter-target-file-3.txt",
-				Kind:   types.RawKind,
-				Access: accessPermissions,
+				Name:       "filter-target-file-3.txt",
+				Kind:       types.RawKind,
+				Access:     accessPermissions,
+				Properties: &types.Properties{Tags: []string{"tag2", "tag4"}},
 			})
 			Expect(err).Should(BeNil())
 			_, err = fsCore.CreateEntry(ctx, namespace, srcGrpEn.ID, types.EntryAttr{
-				Name:   "filter-target-file-4.txt",
-				Kind:   types.RawKind,
-				Access: accessPermissions,
+				Name:       "filter-target-file-4.txt",
+				Kind:       types.RawKind,
+				Access:     accessPermissions,
+				Properties: &types.Properties{Tags: []string{"tag1", "tag2"}},
 			})
 			Expect(err).Should(BeNil())
 		})
@@ -176,6 +179,9 @@ var _ = Describe("TestDynamicGroupEntry", func() {
 				Name:   "test_dynamic_group",
 				Kind:   types.SmartGroupKind,
 				Access: accessPermissions,
+				GroupProperties: &types.GroupProperties{
+					Filter: &types.Filter{CELPattern: `"tag2" in tags`},
+				},
 			})
 			Expect(err).Should(BeNil())
 			Expect(smtGrpEn).ShouldNot(BeNil())

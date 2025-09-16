@@ -49,6 +49,9 @@ var (
 			ID:   storage.MemoryStorage,
 			Type: storage.MemoryStorage,
 		}},
+		Workflow: config.Workflow{
+			Enable: true,
+		},
 	}
 )
 
@@ -66,6 +69,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 	bootCfg.CacheDir = tempDir
 	bootCfg.CacheSize = 0
+	bootCfg.Workflow.JobWorkdir = tempDir
 
 	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())

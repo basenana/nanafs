@@ -18,6 +18,7 @@ package metastore
 
 import (
 	"context"
+	"fmt"
 	"path"
 
 	. "github.com/onsi/ginkgo"
@@ -134,7 +135,7 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 	Context("list a group entry all children", func() {
 		It("create group file should be succeed", func() {
 			for i := 0; i < 4; i++ {
-				en, err := types.InitNewEntry(group1, types.EntryAttr{Name: "test-file-en-1", Kind: types.RawKind})
+				en, err := types.InitNewEntry(group1, types.EntryAttr{Name: fmt.Sprintf("test-file-en-%d", i), Kind: types.RawKind})
 				Expect(err).Should(BeNil())
 				Expect(sqlite.CreateEntry(context.TODO(), namespace, group1.ID, en)).Should(BeNil())
 			}
@@ -153,15 +154,18 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 	})
 
 	Context("change a exist file entry parent group", func() {
-		var targetEn *types.Entry
+		var (
+			targetEn *types.Entry
+			enName   = "test-mv-src-raw-obj-1"
+		)
 		It("create new file be succeed", func() {
-			targetEn, err = types.InitNewEntry(group1, types.EntryAttr{Name: "test-mv-src-raw-obj-1", Kind: types.RawKind})
+			targetEn, err = types.InitNewEntry(group1, types.EntryAttr{Name: enName, Kind: types.RawKind})
 			Expect(err).Should(BeNil())
 			Expect(sqlite.CreateEntry(context.TODO(), namespace, group1.ID, targetEn)).Should(BeNil())
 		})
 
 		It("should be succeed", func() {
-			err = sqlite.ChangeEntryParent(context.TODO(), namespace, targetEn.ID, group1.ID, group2.ID, targetEn.Name, targetEn.Name, types.ChangeParentAttr{})
+			err = sqlite.ChangeEntryParent(context.TODO(), namespace, targetEn.ID, group1.ID, group2.ID, enName, enName, types.ChangeParentAttr{})
 			Expect(err).Should(BeNil())
 
 			chList, err := sqlite.ListChildren(context.TODO(), namespace, group2.ID)

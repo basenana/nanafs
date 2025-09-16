@@ -160,7 +160,7 @@ func GetParameterPlaceholder(dbType TemplateDBType, index int) string {
 // GetParameterValue returns the appropriate parameter value for the database.
 func GetParameterValue(dbType TemplateDBType, templateName string, value interface{}) interface{} {
 	switch templateName {
-	case "json_contains_element":
+	case "contains_element":
 		if dbType == SQLiteTemplate {
 			return fmt.Sprintf(`%%"%s"%%`, value)
 		}

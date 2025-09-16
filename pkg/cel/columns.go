@@ -46,7 +46,7 @@ var identify2Columns = map[string]column{
 	"marked":   {table: "document", column: "value", jsonkey: "marked", valtype: cel.BoolType},
 
 	// group properties
-	"group.source": {table: "group", column: "value", jsonkey: "source", valtype: cel.StringType},
+	"group.source": {table: "egroup", column: "value", jsonkey: "source", valtype: cel.StringType},
 }
 
 var (

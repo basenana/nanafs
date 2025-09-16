@@ -18,12 +18,10 @@ package metastore
 
 import (
 	"context"
-	"runtime/trace"
-	"strings"
-
 	"github.com/basenana/nanafs/pkg/metastore/db"
 	"github.com/basenana/nanafs/pkg/metastore/filters"
 	"github.com/basenana/nanafs/pkg/types"
+	"runtime/trace"
 )
 
 func (s *sqlMetaStore) FilterEntries(ctx context.Context, namespace string, filter types.Filter) (EntryIterator, error) {
@@ -43,19 +41,7 @@ func (s *sqlMetaStore) FilterEntries(ctx context.Context, namespace string, filt
 		result []db.Entry
 	)
 
-	tx := s.WithContext(ctx).Where("entry.namespace = ?", namespace)
-	if strings.Contains(where, "child.") {
-		tx = tx.Joins("JOIN children ON children.child_id = entry.id")
-	}
-	if strings.Contains(where, "group.") {
-		tx = tx.Joins("JOIN entry_property AS group ON group.entry = entry.id").Where("group.type = ?", types.PropertyTypeGroupAttr)
-	}
-	if strings.Contains(where, "property.") {
-		tx = tx.Joins("JOIN entry_property AS property ON property.entry = entry.id").Where("property.type = ?", types.PropertyTypeProperty)
-	}
-	if strings.Contains(where, "document.") {
-		tx = tx.Joins("JOIN entry_property AS document ON document.entry = entry.id").Where("document.type = ?", types.PropertyTypeDocument)
-	}
+	tx := filters.Join(s.WithContext(ctx).Where("entry.namespace = ?", namespace), where)
 
 	res := tx.Where(where, args...).Find(&result)
 	if res.Error != nil {
