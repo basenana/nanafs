@@ -279,7 +279,8 @@ func (s *sqlMetaStore) CreateEntry(ctx context.Context, namespace string, parent
 			return nil
 		}
 
-		res = tx.Where("id = ? AND namespace = ?", parentID, namespace).First(parentMod)
+		res = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND namespace = ?", parentID, namespace).First(parentMod)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -327,11 +328,8 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, namespace string, parent
 		nowTime   = time.Now().UnixNano()
 	)
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQuery(tx, namespace).Where("id = ?", parentID).First(parentMod)
-		if res.Error != nil {
-			return res.Error
-		}
-		res = namespaceQuery(tx, namespace).Where("id = ?", entryID).First(entryMod)
+		res := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND namespace = ?", entryID, namespace).First(entryMod)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -344,6 +342,11 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, namespace string, parent
 			return res.Error
 		}
 
+		res = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND namespace = ?", parentID, namespace).First(parentMod)
+		if res.Error != nil {
+			return res.Error
+		}
 		parentMod.ModifiedAt = nowTime
 		parentMod.ChangedAt = nowTime
 		if entryMod.IsGroup {
@@ -445,7 +448,9 @@ func (s *sqlMetaStore) Open(ctx context.Context, namespace string, id int64, att
 		nowTime = time.Now().UnixNano()
 	)
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQuery(tx, namespace).Where("id = ?", id).First(enMod)
+		res := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("namespace = ?", namespace).
+			Where("id = ?", id).First(enMod)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -479,7 +484,8 @@ func (s *sqlMetaStore) Flush(ctx context.Context, namespace string, id int64, si
 		nowTime = time.Now().UnixNano()
 	)
 	err := s.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := namespaceQuery(tx, namespace).Where("id = ?", id).First(enMod)
+		res := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND namespace = ?", id, namespace).First(enMod)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -506,12 +512,8 @@ func (s *sqlMetaStore) MirrorEntry(ctx context.Context, namespace string, entryI
 			parentModel = &db.Entry{}
 			child       = &db.Children{}
 		)
-		res := tx.Where("id = ?", entryID).First(entryModel)
-		if res.Error != nil {
-			return res.Error
-		}
 
-		res = tx.Where("parent_id = ? AND child_id = ? AND namespace = ? AND name = ?", newParentID, entryID, namespace, newName).First(child)
+		res := tx.Where("parent_id = ? AND child_id = ? AND namespace = ? AND name = ?", newParentID, entryID, namespace, newName).First(child)
 		if res.Error != nil && !errors.Is(res.Error, gorm.ErrRecordNotFound) {
 			return res.Error
 		}
@@ -520,6 +522,11 @@ func (s *sqlMetaStore) MirrorEntry(ctx context.Context, namespace string, entryI
 			return types.ErrIsExist
 		}
 
+		res = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND namespace = ?", entryID, namespace).First(entryModel)
+		if res.Error != nil {
+			return res.Error
+		}
 		oldRef := *entryModel.RefCount
 		oldRef += 1
 		entryModel.RefCount = &oldRef
@@ -530,7 +537,8 @@ func (s *sqlMetaStore) MirrorEntry(ctx context.Context, namespace string, entryI
 			return err
 		}
 
-		res = tx.Where("id = ?", newParentID).First(parentModel)
+		res = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND namespace = ?", newParentID, namespace).First(parentModel)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -572,17 +580,17 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, namespace string, 
 			nowTime          = time.Now().UnixNano()
 			updateErr        error
 		)
-		res := namespaceQuery(tx, namespace).Where("id = ?", targetEntryId).First(enModel)
-		if res.Error != nil {
-			return res.Error
-		}
-
-		res = tx.Where("parent_id = ? AND child_id = ? AND name = ? AND namespace = ?", oldParentID, targetEntryId, oldName, namespace).First(refChild)
+		res := tx.Where("parent_id = ? AND child_id = ? AND name = ? AND namespace = ?", oldParentID, targetEntryId, oldName, namespace).First(refChild)
 		if res.Error != nil {
 			s.logger.Errorw("fetch source parent error", "entry", targetEntryId, "err", res.Error)
 			return res.Error
 		}
 
+		res = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND namespace = ?", targetEntryId, namespace).First(enModel)
+		if res.Error != nil {
+			return res.Error
+		}
 		enModel.ChangedAt = nowTime
 		if newName != "" {
 			enModel.Name = newName
@@ -609,12 +617,14 @@ func (s *sqlMetaStore) ChangeEntryParent(ctx context.Context, namespace string, 
 			return res.Error
 		}
 
-		res = namespaceQuery(tx, namespace).Where("id = ?", oldParentID).First(srcParentEnModel)
+		res = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND namespace = ?", oldParentID, namespace).First(srcParentEnModel)
 		if res.Error != nil {
 			return res.Error
 		}
 		if enModel.IsGroup && oldParentID != newParentId {
-			res = namespaceQuery(tx, namespace).Where("id = ?", newParentId).First(dstParentEnModel)
+			res = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				Where("id = ? AND namespace = ?", newParentId, namespace).First(dstParentEnModel)
 			if res.Error != nil {
 				return res.Error
 			}

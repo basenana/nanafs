@@ -94,6 +94,7 @@ func (s *servicesV1) GetEntryDetail(ctx context.Context, request *GetEntryDetail
 		return nil, err
 	}
 
+	s.logger.Infow("request", "uri", request.Uri)
 	parentID, entryID, err := s.getEntryByPath(ctx, caller.Namespace, request.Uri)
 	if err != nil {
 		return nil, err
@@ -150,6 +151,7 @@ func (s *servicesV1) FilterEntry(ctx context.Context, request *FilterEntryReques
 				doc = nil
 			}
 		}
+		// todo
 		resp.Entries = append(resp.Entries, toEntryInfo("/filters/", en.Name, en, doc))
 	}
 

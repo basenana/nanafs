@@ -20,6 +20,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime/trace"
+
+	"go.uber.org/zap"
+
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/bio"
 	"github.com/basenana/nanafs/pkg/events"
@@ -27,8 +31,6 @@ import (
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
-	"go.uber.org/zap"
-	"runtime/trace"
 )
 
 type Core interface {
@@ -151,6 +153,7 @@ func (c *core) NamespaceRoot(ctx context.Context, namespace string) (*types.Entr
 
 	root, err := c.FSRoot(ctx)
 	if err != nil {
+		c.logger.Errorw("get fs root error", "err", err)
 		return nil, err
 	}
 

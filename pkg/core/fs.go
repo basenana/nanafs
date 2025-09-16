@@ -19,17 +19,20 @@ package core
 import (
 	"context"
 	"errors"
-	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
-	"github.com/basenana/nanafs/utils/logger"
-	"go.uber.org/zap"
+	"fmt"
 	"io"
 	"io/fs"
 	"math"
 	"runtime/trace"
 	"strings"
 	"time"
+
+	"go.uber.org/zap"
+
+	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
+	"github.com/basenana/nanafs/utils/logger"
 )
 
 const (
@@ -527,7 +530,7 @@ func GetEntryByPath(ctx context.Context, namespace string, c Core, path string) 
 	)
 	parent, err = c.NamespaceRoot(ctx, namespace)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("load root error: %w", err)
 	}
 
 	if path == "/" {
