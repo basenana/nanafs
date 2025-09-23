@@ -251,7 +251,7 @@ func (f *FileSystem) GetXAttr(ctx context.Context, id int64, fKey string) ([]byt
 
 	encodedVal, ok := properties[fKey]
 	if !ok {
-		return nil, types.ErrNotFound
+		return nil, nil
 	}
 
 	val, err := utils.DecodeBase64(encodedVal)

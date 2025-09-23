@@ -20,9 +20,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"go.uber.org/zap"
 	"runtime/trace"
 	"strings"
+
+	"go.uber.org/zap"
 
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/bio"
@@ -297,6 +298,9 @@ func (c *core) GetEntryByPath(ctx context.Context, namespace string, path string
 			return nil, nil, err
 		}
 		crt, err = c.GetEntry(ctx, namespace, child.ChildID)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	return parent, crt, nil

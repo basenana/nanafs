@@ -738,5 +738,13 @@ func (s *servicesV1) getEntryByPath(ctx context.Context, namespace, path string)
 	if err != nil {
 		return 0, 0, status.Error(common.FsApiError(err), fmt.Sprintf("get entry failed: %s", err))
 	}
-	return p.ID, e.ID, nil
+	var pid, eid int64
+	if p != nil {
+		pid = p.ID
+	}
+	if e != nil {
+		eid = e.ID
+	}
+
+	return pid, eid, nil
 }
