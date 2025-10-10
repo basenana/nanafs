@@ -127,6 +127,7 @@ func (c *coordinator) NextBatch(ctx context.Context) ([]string, error) {
 	if next != "" {
 		return []string{next}, nil
 	}
+	c.isFinished = true
 	return nil, nil
 }
 

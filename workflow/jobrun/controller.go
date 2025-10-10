@@ -281,8 +281,8 @@ func (c *Controller) Handle(event flow.UpdateEvent) {
 			"err", err, "job", event.Flow.ID)
 		return
 	}
-	c.logger.Infow("update workflow job status finish",
-		"job", event.Flow.ID, "status", event.Flow.Status)
+	c.logger.Infow("update workflow job status",
+		"job", event.Flow.ID, "status", event.Flow.Status, "message", event.Flow.Message)
 }
 
 func (c *Controller) getRunner(namespace, jobiD string) *runner {

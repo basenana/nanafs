@@ -94,7 +94,7 @@ func initWorkflow(namespace string, wf *types.Workflow) *types.Workflow {
 }
 
 var (
-	workflowIDPattern = "^[A-zA-Z][a-zA-Z0-9-_.]{5,36}$"
+	workflowIDPattern = "^[A-zA-Z0-9][a-zA-Z0-9-_.]{5,36}$"
 	wfIDRegexp        = regexp.MustCompile(workflowIDPattern)
 )
 
