@@ -71,8 +71,10 @@ func New(fsCore core.Core, notify *notify.Notify, meta metastore.Meta, cfg confi
 		wfLogger.Warnw("using default job root workdir", "jobWorkdir", cfg.JobWorkdir)
 	}
 
-	if err := initWorkflowJobRootWorkdir(cfg.JobWorkdir); err != nil {
-		return nil, fmt.Errorf("init workflow job root workdir error: %s", err)
+	if cfg.Enable {
+		if err := initWorkflowJobRootWorkdir(cfg.JobWorkdir); err != nil {
+			return nil, fmt.Errorf("init workflow job root workdir error: %s", err)
+		}
 	}
 
 	pluginMgr, err := plugin.Init(cfg)
