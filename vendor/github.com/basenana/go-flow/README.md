@@ -16,15 +16,15 @@ You can create a workflow directly from functions:
 ```go
 builder := flow.NewFlowBuilder("sample-flow-01")
 
-builder.Task(flow.NewFuncTask("task-1", func(ctx context.Context) error {
+builder.Function("task-1", func(ctx context.Context) error {
     fmt.Println("do something in task 1")
     return nil
 }))
-builder.Task(flow.NewFuncTask("task-2", func(ctx context.Context) error {
+builder.Function("task-2", func(ctx context.Context) error {
     fmt.Println("do something in task 2")
     return nil
 }))
-builder.Task(flow.NewFuncTask("task-3", func(ctx context.Context) error {
+builder.Function("task-3", func(ctx context.Context) error {
     fmt.Println("do something in task 3")
     return nil
 }))
@@ -79,28 +79,20 @@ For more complex tasks, workflows based on DAGs are also supported:
 ```go
 builder := flow.NewFlowBuilder("dag-flow-01").Coordinator(flow.NewDAGCoordinator())
 
-task1 := flow.NewFuncTask("task-1", func(ctx context.Context) error {
+builder.Task(flow.NewFuncTask("task-1", func(ctx context.Context) error {
     fmt.Println("do something in task 1")
     return nil
-})
-builder.Task(flow.WithDirector(task1, flow.NextTask{
-    OnSucceed: "task-3",
-    OnFailed:  "task-fail",
 }))
-
 builder.Task(flow.NewFuncTask("task-2", func(ctx context.Context) error {
     fmt.Println("do something in task 2")
     return nil
 }))
-builder.Task(flow.NewFuncTask("task-3", func(ctx context.Context) error {
+
+task3 := flow.NewFuncTask("task-3", func(ctx context.Context) error {
     fmt.Println("do something in task 3")
     return nil
-}))
-
-builder.Task(flow.NewFuncTask("task-fail", func(ctx context.Context) error {
-    fmt.Println("ops")
-    return nil
-}))
+})
+builder.Task(flow.WithDependent(task3, []string{"task-1", "task-2"}))
 
 dagFlow := builder.Finish()
 

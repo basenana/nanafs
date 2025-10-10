@@ -108,7 +108,7 @@ func (o FsOperator) Mkdir(ctx context.Context, path string, perm os.FileMode) er
 
 func (o FsOperator) OpenFile(ctx context.Context, entryPath string, flag int, perm os.FileMode) (webdav.File, error) {
 	defer trace.StartRegion(ctx, "apis.webdav.OpenFile").End()
-	userInfo := apitool.GetUserInfo(ctx)
+	userInfo := getUserInfo(ctx)
 	if userInfo == nil {
 		return nil, error2FsError(types.ErrNoAccess)
 	}
@@ -221,7 +221,7 @@ func (o FsOperator) Stat(ctx context.Context, path string) (os.FileInfo, error) 
 	return Stat(en), nil
 }
 
-func NewWebdavServer(fs *core.FileSystem, auth apitool.TokenValidator, cfg config.Webdav) (*Webdav, error) {
+func NewWebdavServer(fs *core.FileSystem, cfg config.Webdav) (*Webdav, error) {
 	log = logger.NewLogger("webdav")
 	w := FsOperator{fs: fs, cfg: cfg, logger: log}
 
@@ -237,7 +237,7 @@ func NewWebdavServer(fs *core.FileSystem, auth apitool.TokenValidator, cfg confi
 		Logger:     logger.InitWebdavLogger().Handle,
 	}
 	return &Webdav{
-		handler: apitool.BasicAuthHandler(handler, auth),
+		handler: basicAuthHandler(handler, fs.Namespace(), cfg),
 		cfg:     cfg, logger: log,
 	}, nil
 }

@@ -25,14 +25,7 @@ const (
 
 // PluginSpec is Plugin Config File to load a Plugin
 type PluginSpec struct {
-	Name          string            `json:"name"`
-	Version       string            `json:"version"`
-	Type          PluginType        `json:"type"`
-	Parameters    map[string]string `json:"parameters"`
-	Customization []PluginConfig    `json:"customization"`
-}
-
-type PluginConfig struct {
-	Key     string `json:"key"`
-	Default string `json:"default"`
+	Name    string     `json:"name"`
+	Version string     `json:"version"`
+	Type    PluginType `json:"type"`
 }

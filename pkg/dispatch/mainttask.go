@@ -108,8 +108,7 @@ func (c *entryCleanExecutor) handleEvent(evt *types.Event) error {
 		return nil
 	}
 
-	entry := evt.Data
-	if evt.Type == events.ActionTypeClose && entry.ParentID != 0 {
+	if evt.Type == events.ActionTypeClose {
 		return nil
 	}
 

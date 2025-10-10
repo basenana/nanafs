@@ -17,8 +17,6 @@
 package token
 
 import (
-	"context"
-	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/utils/logger"
 	. "github.com/onsi/ginkgo"
@@ -37,15 +35,3 @@ func TestToken(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Token Suite")
 }
-
-var _ = BeforeSuite(func() {
-	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
-	Expect(err).Should(BeNil())
-	testMeta = memMeta
-
-	cfgLoader := config.NewMockConfigLoader(config.Bootstrap{})
-
-	manager = NewTokenManager(memMeta, cfgLoader)
-	err = manager.InitBuildinCA(context.TODO())
-	Expect(err).Should(BeNil())
-})

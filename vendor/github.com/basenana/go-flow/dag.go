@@ -24,230 +24,141 @@ import (
 
 type DAGCoordinator struct {
 	// tasks contain all task
-	tasks   map[string]Task
-	towards map[string]*taskToward
+	tasks map[string]*BasicTask
 
-	// crtBatch contain current task batch need to trigger
-	crtBatch []*taskToward
+	// graph
+	pendingTasks StringSet
+	taskEdges    map[string][]string
+	preCount     map[string]int
 
-	hasFailed bool
-	hasInited bool
-	mux       sync.Mutex
+	failOP FailOperation
+	mux    sync.Mutex
 }
 
 var _ Coordinator = &DAGCoordinator{}
 
-func NewDAGCoordinator() *DAGCoordinator {
+func NewDAGCoordinator(options ...CoordinatorOption) *DAGCoordinator {
+	opt := &CoordinatorOptions{}
+	for _, optFn := range options {
+		optFn(opt)
+	}
+
+	if opt.failOP == "" {
+		opt.failOP = FailAndInterrupt
+	}
+
 	return &DAGCoordinator{
-		tasks:   make(map[string]Task),
-		towards: make(map[string]*taskToward),
+		tasks:        make(map[string]*BasicTask),
+		pendingTasks: NewStringSet(),
+		taskEdges:    map[string][]string{},
+		preCount:     map[string]int{},
+		failOP:       opt.failOP,
 	}
 }
 
 func (g *DAGCoordinator) NewTask(task Task) {
-	g.tasks[task.GetName()] = task
+	var (
+		tt = &BasicTask{
+			Name:   task.GetName(),
+			Status: task.GetStatus(),
+		}
+		depends []string
+	)
+
+	wrapper, ok := task.(*dependentWrapper)
+	if ok {
+		depends = wrapper.depends
+	}
+
+	g.mux.Lock()
+	g.tasks[tt.Name] = tt
+	g.dependTasks(tt.Name, depends)
+	g.mux.Unlock()
 }
 
 func (g *DAGCoordinator) UpdateTask(task Task) {
 	g.updateTaskStatus(task.GetName(), task.GetStatus())
 }
 
-func (g *DAGCoordinator) NextBatch(ctx context.Context) ([]Task, error) {
-	g.mux.Lock()
-	defer g.mux.Unlock()
-
-	if !g.hasInited {
-		if err := g.buildDAG(); err != nil {
-			return nil, err
-		}
-		g.hasInited = true
-	}
-
-	next := g.nextBatchTasks()
-	result := make([]Task, len(next))
-	for i, n := range next {
-		result[i] = n.task
-	}
-	return result, nil
+func (g *DAGCoordinator) Finished() bool {
+	return g.pendingTasks.Len() == 0
 }
 
 func (g *DAGCoordinator) HandleFail(task Task, err error) FailOperation {
-	return FailButContinue
+	return g.failOP
 }
 
 func (g *DAGCoordinator) updateTaskStatus(taskName, status string) {
 	g.mux.Lock()
-	defer g.mux.Unlock()
-	t, ok := g.towards[taskName]
+	t, ok := g.tasks[taskName]
+	g.mux.Unlock()
 	if !ok {
 		return
 	}
-	t.status = status
-	g.towards[taskName] = t
-	if status == FailedStatus || status == ErrorStatus {
-		g.hasFailed = true
-	}
+	t.Status = status
 	return
 }
 
-func (g *DAGCoordinator) nextBatchTasks() []*taskToward {
-	for _, t := range g.crtBatch {
-		task := g.towards[t.taskName]
-		if !IsFinishedStatus(task.status) {
-			return g.crtBatch
-		}
+func (g *DAGCoordinator) NextBatch(ctx context.Context) ([]string, error) {
+	if g.pendingTasks.Len() == 0 {
+		return nil, nil
 	}
 
-	nextBatch := make([]*taskToward, 0)
-	for _, t := range g.crtBatch {
-		if t.status == SucceedStatus && t.onSucceed != "" {
-			nextBatch = append(nextBatch, g.towards[t.onSucceed])
-		}
-		if (t.status == FailedStatus || t.status == ErrorStatus) && t.onFailed != "" {
-			nextBatch = append(nextBatch, g.towards[t.onFailed])
-		}
-	}
+	g.mux.Lock()
+	defer g.mux.Unlock()
 
-	if len(nextBatch) != 0 {
-		g.crtBatch = nextBatch
-		return g.crtBatch
-	}
-
-	return nil
-}
-
-func (g *DAGCoordinator) buildDAG() error {
-	for tname, t := range g.tasks {
-		if _, exist := g.towards[tname]; exist {
-			return fmt.Errorf("duplicate task %s definition", t.GetName())
-		}
-
-		director, ok := t.(directorWrapper)
-		if ok {
-			next := director.NextTask
-			g.towards[tname] = &taskToward{
-				taskName:  tname,
-				status:    t.GetStatus(),
-				onSucceed: next.OnSucceed,
-				onFailed:  next.OnFailed,
-				task:      director.Task,
-			}
+	var (
+		batch   = make([]string, 0)
+		skipped = false
+	)
+	for _, task := range g.pendingTasks.List() {
+		if g.preCount[task] != 0 {
 			continue
 		}
 
-		g.towards[tname] = &taskToward{
-			taskName: tname,
-			status:   t.GetStatus(),
-			task:     g.tasks[tname],
+		t, ok := g.tasks[task]
+		if !ok {
+			return nil, fmt.Errorf("task %s not found", task)
+		}
+		if t.Status == PausedStatus {
+			skipped = true
+			continue
+		}
+
+		batch = append(batch, task)
+		g.pendingTasks.Del(task)
+	}
+
+	if len(batch) == 0 {
+		if skipped {
+			return nil, nil // some task cannot run right now
+		}
+		return nil, fmt.Errorf("there is a loop in the diagram")
+	}
+
+	for _, task := range batch {
+		nextTasks := g.taskEdges[task]
+		for _, nt := range nextTasks {
+			g.preCount[nt] -= 1
 		}
 	}
 
-	for _, t := range g.towards {
-		if t.onSucceed != "" {
-			if _, exist := g.towards[t.onSucceed]; !exist {
-				return fmt.Errorf("next task after %s succeed(%s) is does not define", t.taskName, t.onSucceed)
-			}
-		}
-		if t.onFailed != "" {
-			if _, exist := g.towards[t.onFailed]; !exist {
-				return fmt.Errorf("next task after %s failed(%s) is does not define", t.taskName, t.onFailed)
-			}
-		}
-	}
-
-	firstTaskName, err := newDagChecker(g.towards).firstBatch()
-	if err != nil {
-		return err
-	}
-
-	firstTaskNameSet := NewStringSet(firstTaskName...)
-	for i, t := range g.towards {
-		if firstTaskNameSet.Has(t.taskName) {
-			g.crtBatch = append(g.crtBatch, g.towards[i])
-		}
-	}
-
-	return nil
+	return batch, nil
 }
 
-type NextTask struct {
-	OnSucceed string
-	OnFailed  string
-}
+func (g *DAGCoordinator) dependTasks(nextTask string, dependTasks []string) {
+	g.pendingTasks.Insert(nextTask)
+	for _, task := range dependTasks {
+		g.pendingTasks.Insert(task)
 
-type directorWrapper struct {
-	Task
-	NextTask
-}
-
-func WithDirector(task Task, nextTask NextTask) Task {
-	return directorWrapper{
-		Task:     task,
-		NextTask: nextTask,
-	}
-}
-
-type taskToward struct {
-	taskName  string
-	status    string
-	onSucceed string
-	onFailed  string
-	task      Task
-}
-
-type taskDep struct {
-	taskSet   StringSet
-	taskEdges map[string][]string
-	preCount  map[string]int
-}
-
-func (t *taskDep) firstBatch() ([]string, error) {
-	batches := make([][]string, 0)
-	for {
-		if t.taskSet.Len() == 0 {
-			break
-		}
-
-		batch := make([]string, 0)
-		for _, task := range t.taskSet.List() {
-			if t.preCount[task] == 0 {
-				batch = append(batch, task)
-			}
-
-			t.taskSet.Del(task)
-		}
-
-		if len(batch) == 0 {
-			return nil, fmt.Errorf("there is a loop in the diagram")
-		}
-		batches = append(batches, batch)
-
-		for _, task := range batch {
-			nextTasks := t.taskEdges[task]
-			for _, nt := range nextTasks {
-				t.preCount[nt] -= 1
-			}
-		}
-	}
-	if len(batches) == 0 {
-		return nil, fmt.Errorf("there are no executable nodes in the diagram")
-	}
-	return batches[0], nil
-}
-
-func (t *taskDep) order(firstTask string, nextTasks []string) {
-	t.taskSet.Insert(firstTask)
-	for _, task := range nextTasks {
-		t.taskSet.Insert(task)
-
-		edges, ok := t.taskEdges[firstTask]
+		edges, ok := g.taskEdges[task]
 		if !ok {
 			edges = make([]string, 0)
 		}
 
 		exist := false
 		for _, d := range edges {
-			if d == task {
+			if d == nextTask {
 				exist = true
 				break
 			}
@@ -255,29 +166,24 @@ func (t *taskDep) order(firstTask string, nextTasks []string) {
 		if exist {
 			continue
 		}
-		edges = append(edges, task)
-		t.taskEdges[firstTask] = edges
-		t.preCount[task] += 1
+		edges = append(edges, nextTask)
+		g.taskEdges[task] = edges
+		g.preCount[nextTask] += 1
 	}
 }
 
-func newDagChecker(tasks map[string]*taskToward) *taskDep {
-	c := &taskDep{
-		taskSet:   NewStringSet(),
-		taskEdges: map[string][]string{},
-		preCount:  map[string]int{},
-	}
+type dependentWrapper struct {
+	Task
+	depends []string
+}
 
-	for _, t := range tasks {
-		nextTask := make([]string, 0, 2)
-		if t.onSucceed != "" {
-			nextTask = append(nextTask, t.onSucceed)
-		}
-		if t.onFailed != "" {
-			nextTask = append(nextTask, t.onFailed)
-		}
-		c.order(t.taskName, nextTask)
-	}
+func (w *dependentWrapper) unwrapped() Task {
+	return w.Task
+}
 
-	return c
+func WithDependent(task Task, depends []string) Task {
+	return &dependentWrapper{
+		Task:    task,
+		depends: depends,
+	}
 }

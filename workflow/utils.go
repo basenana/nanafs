@@ -17,11 +17,13 @@
 package workflow
 
 import (
+	"fmt"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/workflow/jobrun"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"os"
+	"regexp"
 	"runtime"
 	"time"
 )
@@ -35,30 +37,29 @@ const (
 	defaultJobTimeout = time.Hour * 3
 )
 
-func assembleWorkflowJob(wf *types.Workflow, tgt types.WorkflowTarget) (*types.WorkflowJob, error) {
-	var globalParam = map[string]string{}
+func assembleWorkflowJob(wf *types.Workflow, tgt types.WorkflowTarget, attr JobAttr) (*types.WorkflowJob, error) {
 	j := &types.WorkflowJob{
-		Id:        uuid.New().String(),
-		Workflow:  wf.Id,
-		Target:    tgt,
-		Status:    jobrun.InitializingStatus,
-		Namespace: wf.Namespace,
-		QueueName: wf.QueueName,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		Id:             uuid.New().String(),
+		Namespace:      wf.Namespace,
+		Workflow:       wf.Id,
+		TriggerReason:  attr.Reason,
+		Targets:        tgt,
+		Nodes:          make([]types.WorkflowJobNode, 0, len(wf.Nodes)),
+		Parameters:     attr.Parameters,
+		Status:         jobrun.InitializingStatus,
+		Message:        "pending",
+		QueueName:      attr.Queue,
+		TimeoutSeconds: int(attr.Timeout.Seconds()),
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
 	}
 
-	for _, stepSpec := range wf.Steps {
-		if stepSpec.Plugin != nil {
-			for k, v := range globalParam {
-				stepSpec.Plugin.Parameters[k] = v
-			}
-		}
-		j.Steps = append(j.Steps,
-			types.WorkflowJobStep{
-				StepName: stepSpec.Name,
-				Status:   jobrun.InitializingStatus,
-				Plugin:   stepSpec.Plugin,
+	for i := range wf.Nodes {
+		node := wf.Nodes[i]
+		j.Nodes = append(j.Nodes,
+			types.WorkflowJobNode{
+				WorkflowNode: node,
+				Status:       jobrun.InitializingStatus,
 			},
 		)
 	}
@@ -85,11 +86,43 @@ func genDefaultJobRootWorkdir() (jobWorkdir string) {
 }
 
 func initWorkflow(namespace string, wf *types.Workflow) *types.Workflow {
-	if wf.Id == "" {
-		wf.Id = uuid.New().String()
-	}
+	wf.Id = uuid.New().String()
 	wf.Namespace = namespace
 	wf.CreatedAt = time.Now()
 	wf.UpdatedAt = time.Now()
 	return wf
+}
+
+var (
+	workflowIDPattern = "^[A-zA-Z0-9][a-zA-Z0-9-_.]{5,36}$"
+	wfIDRegexp        = regexp.MustCompile(workflowIDPattern)
+)
+
+func isValidID(idStr string) error {
+	if wfIDRegexp.MatchString(idStr) {
+		return nil
+	}
+	return fmt.Errorf("invalid ID [%s], pattern: %s", idStr, workflowIDPattern)
+}
+
+func validateWorkflowSpec(spec *types.Workflow) error {
+	if spec.Id == "" {
+		return fmt.Errorf("workflow id is empty")
+	}
+	if err := isValidID(spec.Id); err != nil {
+		return err
+	}
+	if spec.Name == "" {
+		return fmt.Errorf("workflow name is empty")
+	}
+	if spec.Namespace == "" {
+		return fmt.Errorf("workflow namespace is empty")
+	}
+
+	for _, no := range spec.Nodes {
+		if err := isValidID(no.Name); err != nil {
+			return fmt.Errorf("workflow node %s is invalid: %w", no.Name, err)
+		}
+	}
+	return nil
 }

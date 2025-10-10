@@ -21,7 +21,7 @@ import (
 	"errors"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/types"
-	"google.golang.org/protobuf/types/known/timestamppb"
+	"path"
 	"runtime/trace"
 	"sort"
 )
@@ -41,14 +41,15 @@ func (s *servicesV1) getGroupTree(ctx context.Context, namespace string) (*GetGr
 		return nil, err
 	}
 	root := &GetGroupTreeResponse_GroupEntry{
-		Name:     nsRoot.Name,
+		Uri:      "/",
+		Name:     "/",
 		Children: make([]*GetGroupTreeResponse_GroupEntry, 0, len(children)),
 	}
 	for _, child := range children {
 		if !child.IsGroup {
 			continue
 		}
-		grp, err := s.listGroupEntry(ctx, namespace, child.Name, child.ID)
+		grp, err := s.listGroupEntry(ctx, namespace, child.Name, path.Join(root.Uri, child.Name), child.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -57,13 +58,14 @@ func (s *servicesV1) getGroupTree(ctx context.Context, namespace string) (*GetGr
 	return root, nil
 }
 
-func (s *servicesV1) listGroupEntry(ctx context.Context, namespace string, name string, parentID int64) (*GetGroupTreeResponse_GroupEntry, error) {
-	children, err := s.listEntryChildren(ctx, namespace, parentID)
+func (s *servicesV1) listGroupEntry(ctx context.Context, namespace string, name, groupUri string, groupID int64) (*GetGroupTreeResponse_GroupEntry, error) {
+	children, err := s.listEntryChildren(ctx, namespace, groupID)
 	if err != nil {
 		return nil, err
 	}
 	result := &GetGroupTreeResponse_GroupEntry{
 		Name:     name,
+		Uri:      groupUri,
 		Children: nil,
 	}
 
@@ -73,7 +75,7 @@ func (s *servicesV1) listGroupEntry(ctx context.Context, namespace string, name 
 			if !child.IsGroup {
 				continue
 			}
-			grp, err := s.listGroupEntry(ctx, namespace, child.Name, child.ID)
+			grp, err := s.listGroupEntry(ctx, namespace, child.Name, path.Join(groupUri, child.Name), child.ID)
 			if err != nil {
 				return nil, err
 			}
@@ -83,76 +85,28 @@ func (s *servicesV1) listGroupEntry(ctx context.Context, namespace string, name 
 	return result, nil
 }
 
-func (s *servicesV1) getEntryDetails(ctx context.Context, namespace string, parent, id int64) (*EntryDetail, []*Property, error) {
+func (s *servicesV1) getEntryDetails(ctx context.Context, namespace, uri, name string, id int64) (*EntryDetail, *Property, error) {
 	en, err := s.core.GetEntry(ctx, namespace, id)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	access := &EntryDetail_Access{Uid: en.Access.UID, Gid: en.Access.GID}
-	for _, perm := range en.Access.Permissions {
-		access.Permissions = append(access.Permissions, string(perm))
-	}
-
-	ed := &EntryDetail{
-		Id:         en.ID,
-		Name:       en.Name,
-		Aliases:    en.Aliases,
-		Kind:       string(en.Kind),
-		IsGroup:    en.IsGroup,
-		Size:       en.Size,
-		Version:    en.Version,
-		Namespace:  en.Namespace,
-		Storage:    en.Storage,
-		Access:     access,
-		CreatedAt:  timestamppb.New(en.CreatedAt),
-		ChangedAt:  timestamppb.New(en.ChangedAt),
-		ModifiedAt: timestamppb.New(en.ModifiedAt),
-		AccessAt:   timestamppb.New(en.AccessAt),
-	}
-
-	properties := make(map[string]types.PropertyItem)
-	if parent > 0 {
-		parentEn, err := s.core.GetEntry(ctx, namespace, parent)
-		if err != nil {
-			// TODO
-			s.logger.Warnw("get entry parent detail failed", "entry", id, "err", err)
-		}
-
-		baseProperties, err := s.meta.ListEntryProperties(ctx, namespace, parent)
-		if err != nil {
-			return nil, nil, err
-		}
-		for k, p := range baseProperties.Fields {
-			if p.Encoded {
-				continue
-			}
-			properties[k] = p
-		}
-		ed.Parent = toEntryInfo(parentEn)
-	}
-
-	ps, err := s.meta.ListEntryProperties(ctx, namespace, id)
+	doc := types.DocumentProperties{}
+	err = s.meta.GetEntryProperties(ctx, namespace, types.PropertyTypeDocument, id, &doc)
 	if err != nil {
 		return nil, nil, err
 	}
+	details := toEntryDetail(uri, name, en, doc)
 
-	for k, p := range ps.Fields {
-		if p.Encoded {
-			continue
-		}
-		properties[k] = p
+	properties := &types.Properties{}
+	err = s.meta.GetEntryProperties(ctx, namespace, types.PropertyTypeProperty, id, &properties)
+	if err != nil {
+		return nil, nil, err
 	}
-
-	pl := make([]*Property, 0)
-	for k, item := range properties {
-		pl = append(pl, &Property{
-			Key:     k,
-			Value:   item.Value,
-			Encoded: item.Encoded,
-		})
-	}
-	return ed, pl, nil
+	return details, &Property{
+		Tags:       properties.Tags,
+		Properties: properties.Properties,
+	}, nil
 }
 
 func (s *servicesV1) listEntryChildren(ctx context.Context, namespace string, entryId int64) ([]*types.Entry, error) {
@@ -267,43 +221,8 @@ func (s *servicesV1) ChangeEntryParent(ctx context.Context, namespace string, ta
 		Exchange: opt.Exchange,
 	})
 	if err != nil {
-		s.logger.Errorw("change object parent failed", "target", targetId, "newParent", newParentId, "newName", newName, "err", err)
+		s.logger.Errorw("change entry parent failed", "target", targetId, "newParent", newParentId, "newName", newName, "err", err)
 		return err
 	}
 	return nil
-}
-
-func (s *servicesV1) queryEntryProperties(ctx context.Context, namespace string, entryID, parentID int64) ([]*Property, error) {
-	var (
-		properties types.Properties
-		err        error
-	)
-	if parentID > 0 {
-		properties, err = s.meta.ListEntryProperties(ctx, namespace, parentID)
-		if err != nil {
-			return nil, err
-		}
-		s.logger.Infow("list entry properties", "entry", entryID, "parentID", parentID, "got", len(properties.Fields))
-	}
-	entryProperties, err := s.meta.ListEntryProperties(ctx, namespace, entryID)
-	if err != nil {
-		return nil, err
-	}
-
-	if properties.Fields == nil {
-		properties.Fields = make(map[string]types.PropertyItem)
-	}
-	for k, p := range entryProperties.Fields {
-		properties.Fields[k] = p
-	}
-	result := make([]*Property, 0, len(properties.Fields))
-	for key, p := range properties.Fields {
-		result = append(result, &Property{
-			Key:     key,
-			Value:   p.Value,
-			Encoded: p.Encoded,
-		})
-	}
-
-	return result, nil
 }

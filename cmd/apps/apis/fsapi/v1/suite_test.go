@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"google.golang.org/grpc/credentials"
@@ -36,7 +35,6 @@ import (
 
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/utils/logger"
@@ -45,12 +43,12 @@ import (
 var (
 	dep           *common.Depends
 	testMeta      metastore.Meta
-	testFriday    friday.Friday
 	testServer    *grpc.Server
 	serviceClient *Client
 	mockListen    *bufconn.Listener
 
 	mockConfig = config.Bootstrap{
+		API:      config.FsApi{Noauth: true},
 		FS:       &config.FS{Owner: config.FSOwner{Uid: 0, Gid: 0}, Writeback: false},
 		Meta:     config.Meta{Type: metastore.MemoryMeta},
 		Storages: []config.Storage{{ID: "test-memory-0", Type: storage.MemoryStorage}},
@@ -69,8 +67,6 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 	testMeta = memMeta
 
-	testFriday = friday.NewMockFriday()
-
 	workdir, err := os.MkdirTemp(os.TempDir(), "ut-nanafs-fsapi-")
 	Expect(err).Should(BeNil())
 
@@ -78,14 +74,8 @@ var _ = BeforeSuite(func() {
 	mockConfig.CacheSize = 0
 
 	cl := config.NewMockConfigLoader(mockConfig)
-	_ = cl.SetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "job_workdir", workdir)
-
 	dep, err = common.InitDepends(cl, memMeta)
 	Expect(err).Should(BeNil())
-
-	// mock friday
-	dep.FridayClient = testFriday
-	dep.Document, err = document.NewManager(dep.Meta, dep.Core, dep.ConfigLoader, dep.FridayClient)
 
 	// init root
 	_, err = dep.Core.FSRoot(context.TODO())
@@ -100,8 +90,8 @@ var _ = BeforeSuite(func() {
 	var opts = []grpc.ServerOption{
 		grpc.Creds(serverCreds),
 		grpc.MaxRecvMsgSize(1024 * 1024 * 50), // 50M
-		common.WithCommonInterceptors(),
-		common.WithStreamInterceptors(),
+		common.WithCommonInterceptors(dep.Token, mockConfig.API),
+		common.WithStreamInterceptors(dep.Token, mockConfig.API),
 	}
 	testServer = grpc.NewServer(opts...)
 	_, err = InitServicesV1(testServer, dep)
@@ -122,7 +112,6 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 
 	serviceClient = &Client{
-		DocumentClient:   NewDocumentClient(conn),
 		EntriesClient:    NewEntriesClient(conn),
 		PropertiesClient: NewPropertiesClient(conn),
 		WorkflowClient:   NewWorkflowClient(conn),
@@ -141,7 +130,6 @@ var _ = AfterSuite(func() {
 })
 
 type Client struct {
-	DocumentClient
 	EntriesClient
 	PropertiesClient
 	WorkflowClient

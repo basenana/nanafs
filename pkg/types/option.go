@@ -19,13 +19,11 @@ package types
 import "time"
 
 type EntryAttr struct {
-	Name       string
-	Kind       Kind
-	Access     *Access
-	Dev        int64
-	Properties Properties
-	Labels     Labels
-	ExtendData *ExtendData
+	Name            string
+	Kind            Kind
+	Access          *Access
+	Properties      *Properties
+	GroupProperties *GroupProperties
 }
 
 type OpenAttr struct {

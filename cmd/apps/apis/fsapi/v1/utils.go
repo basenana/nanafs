@@ -18,6 +18,8 @@ package v1
 
 import (
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"path"
+	"time"
 
 	"github.com/basenana/nanafs/pkg/types"
 )
@@ -46,7 +48,7 @@ func pdKind2EntryKind(k string) types.Kind {
 
 func entryInfo(en *types.Entry) *EntryInfo {
 	return &EntryInfo{
-		Id:         en.ID,
+		Entry:      en.ID,
 		Name:       en.Name,
 		Kind:       string(en.Kind),
 		IsGroup:    en.IsGroup,
@@ -60,10 +62,9 @@ func entryInfo(en *types.Entry) *EntryInfo {
 
 func coreEntryInfo(parentID int64, name string, en *types.Entry) *EntryInfo {
 	return &EntryInfo{
-		Id:         en.ID,
+		Entry:      en.ID,
 		Name:       name,
 		Kind:       string(en.Kind),
-		ParentID:   parentID,
 		IsGroup:    en.IsGroup,
 		Size:       en.Size,
 		CreatedAt:  timestamppb.New(en.CreatedAt),
@@ -73,10 +74,11 @@ func coreEntryInfo(parentID int64, name string, en *types.Entry) *EntryInfo {
 	}
 }
 
-func toEntryInfo(en *types.Entry) *EntryInfo {
-	return &EntryInfo{
-		Id:         en.ID,
-		Name:       en.Name,
+func toEntryInfo(parentURI, name string, en *types.Entry, doc *types.DocumentProperties) *EntryInfo {
+	info := &EntryInfo{
+		Uri:        path.Join(parentURI, name),
+		Entry:      en.ID,
+		Name:       name,
 		Kind:       string(en.Kind),
 		IsGroup:    en.IsGroup,
 		Size:       en.Size,
@@ -85,55 +87,64 @@ func toEntryInfo(en *types.Entry) *EntryInfo {
 		ModifiedAt: timestamppb.New(en.ModifiedAt),
 		AccessAt:   timestamppb.New(en.AccessAt),
 	}
+
+	if doc != nil {
+		info.Document = &DocumentProperty{
+			Title:       doc.Title,
+			Author:      doc.Author,
+			Year:        doc.Year,
+			Source:      doc.Source,
+			Abstract:    doc.Abstract,
+			Keywords:    doc.Keywords,
+			Notes:       doc.Notes,
+			Unread:      doc.Unread,
+			Marked:      doc.Marked,
+			PublishAt:   timestamppb.New(time.Unix(doc.PublishAt, 0)),
+			Url:         doc.URL,
+			HeaderImage: doc.HeaderImage,
+		}
+	}
+	return info
 }
 
-func entryDetail(en, parent *types.Entry) *EntryDetail {
+func toEntryDetail(parentURI, name string, en *types.Entry, doc types.DocumentProperties) *EntryDetail {
 	access := &EntryDetail_Access{Uid: en.Access.UID, Gid: en.Access.GID}
 	for _, perm := range en.Access.Permissions {
 		access.Permissions = append(access.Permissions, string(perm))
 	}
 
 	ed := &EntryDetail{
-		Id:         en.ID,
-		Name:       en.Name,
-		Aliases:    en.Aliases,
-		Kind:       string(en.Kind),
-		IsGroup:    en.IsGroup,
-		Size:       en.Size,
-		Version:    en.Version,
-		Namespace:  en.Namespace,
-		Storage:    en.Storage,
-		Access:     access,
+		Uri:       path.Join(parentURI, name),
+		Entry:     en.ID,
+		Name:      name,
+		Aliases:   en.Aliases,
+		Kind:      string(en.Kind),
+		IsGroup:   en.IsGroup,
+		Size:      en.Size,
+		Version:   en.Version,
+		Namespace: en.Namespace,
+		Storage:   en.Storage,
+		Access:    access,
+		Document: &DocumentProperty{
+			Title:       doc.Title,
+			Author:      doc.Author,
+			Year:        doc.Year,
+			Source:      doc.Source,
+			Abstract:    doc.Abstract,
+			Keywords:    doc.Keywords,
+			Notes:       doc.Notes,
+			Unread:      doc.Unread,
+			Marked:      doc.Marked,
+			PublishAt:   timestamppb.New(time.Unix(doc.PublishAt, 0)),
+			Url:         doc.URL,
+			HeaderImage: doc.HeaderImage,
+		},
 		CreatedAt:  timestamppb.New(en.CreatedAt),
 		ChangedAt:  timestamppb.New(en.ChangedAt),
 		ModifiedAt: timestamppb.New(en.ModifiedAt),
 		AccessAt:   timestamppb.New(en.AccessAt),
 	}
-	if parent != nil {
-		ed.Parent = entryInfo(parent)
-	}
 	return ed
-}
-
-func eventInfo(evt *types.Event) *Event {
-	return &Event{
-		Id:              evt.Id,
-		Type:            evt.Type,
-		Source:          evt.Source,
-		SpecVersion:     evt.SpecVersion,
-		DataContentType: evt.DataContentType,
-		Data: &Event_EventData{
-			Id:        evt.Data.ID,
-			ParentID:  evt.Data.ParentID,
-			Kind:      string(evt.Data.Kind),
-			IsGroup:   evt.Data.IsGroup,
-			Namespace: evt.Namespace,
-		},
-		Time:     timestamppb.New(evt.Time),
-		RefID:    evt.RefID,
-		RefType:  evt.RefType,
-		Sequence: evt.Sequence,
-	}
 }
 
 func jobDetail(j *types.WorkflowJob) *WorkflowJobDetail {
@@ -143,11 +154,9 @@ func jobDetail(j *types.WorkflowJob) *WorkflowJobDetail {
 		TriggerReason: j.TriggerReason,
 		Status:        j.Status,
 		Message:       j.Message,
-		Executor:      j.Executor,
 		QueueName:     j.QueueName,
 		Target: &WorkflowJobDetail_JobTarget{
-			Entries:       j.Target.Entries,
-			ParentEntryID: j.Target.ParentEntryID,
+			Entries: j.Targets.Entries,
 		},
 		Steps:     nil,
 		CreatedAt: timestamppb.New(j.CreatedAt),
@@ -156,32 +165,14 @@ func jobDetail(j *types.WorkflowJob) *WorkflowJobDetail {
 		FinishAt:  timestamppb.New(j.FinishAt),
 	}
 
-	for _, s := range j.Steps {
+	for _, s := range j.Nodes {
 		jd.Steps = append(jd.Steps, &WorkflowJobDetail_JobStep{
-			Name:    s.StepName,
+			Name:    s.Name,
 			Status:  s.Status,
 			Message: s.Message,
 		})
 	}
 	return jd
-}
-
-func documentInfo(doc *types.Document) *DocumentInfo {
-	return &DocumentInfo{
-		Id:            doc.EntryId,
-		Name:          doc.Name,
-		EntryID:       doc.EntryId,
-		ParentEntryID: doc.ParentEntryID,
-		Source:        doc.Source,
-		Marked:        *doc.Marked,
-		Unread:        *doc.Unread,
-		Namespace:     doc.Namespace,
-		SubContent:    doc.SubContent,
-		SearchContent: doc.SearchContext,
-		HeaderImage:   doc.HeaderImage,
-		CreatedAt:     timestamppb.New(doc.CreatedAt),
-		ChangedAt:     timestamppb.New(doc.ChangedAt),
-	}
 }
 
 func setupRssConfig(config *CreateEntryRequest_RssConfig, attr *types.EntryAttr) {
@@ -210,38 +201,29 @@ func setupRssConfig(config *CreateEntryRequest_RssConfig, attr *types.EntryAttr)
 		fileType = archiveFileTypeHtml
 	}
 
-	attr.ExtendData = &types.ExtendData{
-		PlugScope: &types.PlugScope{
-			PluginName: "rss",
-			Version:    "1.0",
-			PluginType: types.TypeSource,
-			Parameters: map[string]string{
-				"feed":         config.Feed,
-				"file_type":    fileType,
-				"clutter_free": "true",
-			},
+	attr.GroupProperties = &types.GroupProperties{
+		Source: "rss",
+		RSS: &types.GroupRSS{
+			Feed:     config.Feed,
+			SiteName: config.SiteName,
+			SiteURL:  config.SiteURL,
+			FileType: fileType,
 		},
 	}
 
-	attr.Labels = types.Labels{Labels: []types.Label{
-		{
-			Key:   types.LabelKeyPluginKind,
-			Value: "source",
-		},
-		{
-			Key:   types.LabelKeyPluginName,
-			Value: "rss",
-		},
-	}}
+	if attr.Properties == nil {
+		attr.Properties = &types.Properties{}
+	}
 
-	if attr.Properties.Fields == nil {
-		attr.Properties.Fields = map[string]types.PropertyItem{}
-	}
-	if config.SiteURL != "" {
-		attr.Properties.Fields[types.PropertyWebSiteURL] = types.PropertyItem{Value: config.SiteURL}
-	}
-	if config.SiteName != "" {
-		attr.Properties.Fields[types.PropertyWebSiteName] = types.PropertyItem{Value: config.SiteName}
+	attr.Properties.SiteName = config.SiteName
+	attr.Properties.URL = config.SiteURL
+}
+
+func setupGroupFilterConfig(config *CreateEntryRequest_FilterConfig, attr *types.EntryAttr) {
+	attr.GroupProperties = &types.GroupProperties{
+		Filter: &types.Filter{
+			CELPattern: config.CelPattern,
+		},
 	}
 }
 

@@ -69,12 +69,8 @@ func (a *Access) RemovePerm(p Permission) {
 }
 
 type AccessToken struct {
-	TokenKey       string
-	SecretToken    string
 	UID            int64
 	GID            int64
-	ClientCrt      string
-	ClientKey      string
 	CertExpiration time.Time
 	LastSeenAt     time.Time
 	Namespace      string

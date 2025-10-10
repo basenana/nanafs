@@ -19,6 +19,7 @@ package docloader
 import (
 	"bytes"
 	"context"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/ledongthuc/pdf"
 	"os"
 )
@@ -40,7 +41,7 @@ func newPDFWithPassword(docPath, pass string) Parser {
 	return &PDF{docPath: docPath, password: pass}
 }
 
-func (p *PDF) Load(_ context.Context) (*FDocument, error) {
+func (p *PDF) Load(_ context.Context, doc types.DocumentProperties) (*FDocument, error) {
 	fInfo, err := os.Stat(p.docPath)
 	if err != nil {
 		return nil, err
@@ -89,10 +90,8 @@ func (p *PDF) Load(_ context.Context) (*FDocument, error) {
 	}
 
 	return &FDocument{
-		Content: buf.String(),
-		Metadata: map[string]string{
-			"org.basenana.document/type": "pdf",
-		},
+		Content:            buf.String(),
+		DocumentProperties: doc,
 	}, nil
 }
 

@@ -24,18 +24,10 @@ import (
 )
 
 type Meta interface {
-	AccessToken
 	SysConfig
 	EntryStore
 	NotificationRecorder
 	ScheduledTaskRecorder
-}
-
-type AccessToken interface {
-	GetAccessToken(ctx context.Context, tokenKey string, secretKey string) (*types.AccessToken, error)
-	CreateAccessToken(ctx context.Context, namespace string, token *types.AccessToken) error
-	UpdateAccessTokenCerts(ctx context.Context, namespace string, token *types.AccessToken) error
-	RevokeAccessToken(ctx context.Context, namespace string, tokenKey string) error
 }
 
 type SysConfig interface {
@@ -46,31 +38,25 @@ type SysConfig interface {
 
 type EntryStore interface {
 	GetEntry(ctx context.Context, namespace string, id int64) (*types.Entry, error)
-	CreateEntry(ctx context.Context, namespace string, parentID int64, newEntry *types.Entry, ed *types.ExtendData) error
-	DeleteRemovedEntry(ctx context.Context, namespace string, entryID int64) error
+	CreateEntry(ctx context.Context, namespace string, parentID int64, newEntry *types.Entry) error
 	UpdateEntry(ctx context.Context, namespace string, entry *types.Entry) error
 
 	FindEntry(ctx context.Context, namespace string, parentID int64, name string) (*types.Child, error)
 	GetChild(ctx context.Context, namespace string, parentID, id int64) (*types.Child, error)
 	ListChildren(ctx context.Context, namespace string, parentId int64) ([]*types.Child, error)
+	ListParents(ctx context.Context, namespace string, childID int64) ([]*types.Child, error)
 	FilterEntries(ctx context.Context, namespace string, filter types.Filter) (EntryIterator, error)
-	MirrorEntry(ctx context.Context, namespace string, entryID int64, newName string, newParentID int64) error
+
+	MirrorEntry(ctx context.Context, namespace string, entryID int64, newName string, newParentID int64, attr types.EntryAttr) error
 	ChangeEntryParent(ctx context.Context, namespace string, targetEntryId int64, oldParentID int64, newParentId int64, oldName string, newName string, opt types.ChangeParentAttr) error
 	RemoveEntry(ctx context.Context, namespace string, parentID, entryID int64, entryName string, attr types.DeleteEntry) error
+	DeleteRemovedEntry(ctx context.Context, namespace string, entryID int64) error
 
 	Open(ctx context.Context, namespace string, id int64, attr types.OpenAttr) (*types.Entry, error)
 	Flush(ctx context.Context, namespace string, id int64, size int64) error
 
-	GetEntryExtendData(ctx context.Context, namespace string, id int64) (types.ExtendData, error)
-	UpdateEntryExtendData(ctx context.Context, namespace string, id int64, ed types.ExtendData) error
-
-	GetEntryLabels(ctx context.Context, namespace string, id int64) (types.Labels, error)
-	UpdateEntryLabels(ctx context.Context, namespace string, id int64, labels types.Labels) error
-	ListEntryProperties(ctx context.Context, namespace string, id int64) (types.Properties, error)
-	GetEntryProperty(ctx context.Context, namespace string, id int64, key string) (types.PropertyItem, error)
-	AddEntryProperty(ctx context.Context, namespace string, id int64, key string, item types.PropertyItem) error
-	RemoveEntryProperty(ctx context.Context, namespace string, id int64, key string) error
-	UpdateEntryProperties(ctx context.Context, namespace string, id int64, properties types.Properties) error
+	GetEntryProperties(ctx context.Context, namespace string, ptype types.PropertyType, id int64, data any) error
+	UpdateEntryProperties(ctx context.Context, namespace string, ptype types.PropertyType, id int64, data any) error
 
 	NextSegmentID(ctx context.Context) (int64, error)
 	ListSegments(ctx context.Context, oid, chunkID int64, allChunk bool) ([]types.ChunkSeg, error)
@@ -94,6 +80,9 @@ type ScheduledTaskRecorder interface {
 	SaveWorkflow(ctx context.Context, namespace string, wf *types.Workflow) error
 	SaveWorkflowJob(ctx context.Context, namespace string, wf *types.WorkflowJob) error
 	DeleteWorkflowJobs(ctx context.Context, wfJobID ...string) error
+
+	LoadWorkflowContext(ctx context.Context, namespace, source, group, key string, data any) error
+	SaveWorkflowContext(ctx context.Context, namespace, source, group, key string, data any) error
 }
 
 type NotificationRecorder interface {

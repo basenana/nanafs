@@ -215,8 +215,7 @@ command:
 openssl rand -hex 16
 ```
 
-There are two ways to enable chunk page encryption.
-The first is to use the `global_encryption` in the configuration to enable global encryption:
+Use the `encryption` in the configuration to enable global encryption:
 
 ```json
 {
@@ -227,22 +226,3 @@ The first is to use the `global_encryption` in the configuration to enable globa
   }
 }
 ```
-
-The second way is to only encrypt the chunk page stored in a certain storage.
-When `global_encryption` and `storages.encryption` are configured at the same time, it will be used storage's own
-encryption configuration:
-
-```json
-{
-  "storages": [
-    {
-      "encryption": {
-        "enable": true,
-        "method": "AES",
-        "secret_key": "<secret_key>"
-      }
-    }
-  ]
-}
-```
-

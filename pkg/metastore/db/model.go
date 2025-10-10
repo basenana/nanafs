@@ -46,39 +46,20 @@ func (i SystemConfig) TableName() string {
 	return "system_config"
 }
 
-type AccessToken struct {
-	TokenKey       string    `gorm:"column:token_key;primaryKey"`
-	SecretToken    string    `gorm:"column:secret_token"`
-	UID            int64     `gorm:"column:uid;index:tk_uid"`
-	GID            int64     `gorm:"column:gid"`
-	ClientCrt      string    `gorm:"column:client_crt"`
-	ClientKey      string    `gorm:"column:client_key"`
-	CertExpiration time.Time `gorm:"column:cert_expiration"`
-	LastSeenAt     time.Time `gorm:"column:last_seen_at"`
-	Namespace      string    `gorm:"column:namespace;index:tk_ns"`
-}
-
-func (o *AccessToken) TableName() string {
-	return "access_token"
-}
-
 type Entry struct {
 	ID         int64   `gorm:"column:id;primaryKey"`
-	Name       string  `gorm:"column:name;index:obj_name"`
+	Name       string  `gorm:"column:name;index:en_name"`
 	Aliases    *string `gorm:"column:aliases"`
-	ParentID   *int64  `gorm:"column:parent_id;index:parent_id"`
 	RefCount   *int    `gorm:"column:ref_count"`
 	Kind       string  `gorm:"column:kind"`
-	KindMap    *int64  `gorm:"column:kind_map"`
-	IsGroup    bool    `gorm:"column:is_group;index:obj_isgrp"`
+	IsGroup    bool    `gorm:"column:is_group;index:en_isgrp"`
 	Size       *int64  `gorm:"column:size"`
-	Version    int64   `gorm:"column:version;index:obj_version"`
-	Dev        int64   `gorm:"column:dev"`
+	Version    int64   `gorm:"column:version;index:en_version"`
 	Owner      *int64  `gorm:"column:owner"`
 	GroupOwner *int64  `gorm:"column:group_owner"`
 	Permission *int64  `gorm:"column:permission"`
 	Storage    string  `gorm:"column:storage"`
-	Namespace  string  `gorm:"column:namespace;index:obj_ns"`
+	Namespace  string  `gorm:"column:namespace;index:en_ns"`
 	CreatedAt  int64   `gorm:"column:created_at"`
 	ChangedAt  int64   `gorm:"column:changed_at"`
 	ModifiedAt int64   `gorm:"column:modified_at"`
@@ -86,21 +67,18 @@ type Entry struct {
 }
 
 func (o *Entry) TableName() string {
-	return "object"
+	return "entry"
 }
 
 func (o *Entry) FromEntry(en *types.Entry) *Entry {
 	o.ID = en.ID
 	o.Name = en.Name
 	o.Aliases = &en.Aliases
-	o.ParentID = &en.ParentID
 	o.RefCount = &en.RefCount
 	o.Kind = string(en.Kind)
-	o.KindMap = &en.KindMap
 	o.IsGroup = en.IsGroup
 	o.Size = &en.Size
 	o.Version = en.Version
-	o.Dev = en.Dev
 	o.Storage = en.Storage
 	o.Namespace = en.Namespace
 	o.CreatedAt = en.CreatedAt.UnixNano()
@@ -120,7 +98,6 @@ func (o *Entry) ToEntry() *types.Entry {
 		Kind:       types.Kind(o.Kind),
 		IsGroup:    o.IsGroup,
 		Version:    o.Version,
-		Dev:        o.Dev,
 		Storage:    o.Storage,
 		Namespace:  o.Namespace,
 		CreatedAt:  time.Unix(0, o.CreatedAt),
@@ -132,14 +109,8 @@ func (o *Entry) ToEntry() *types.Entry {
 	if o.Aliases != nil {
 		result.Aliases = *o.Aliases
 	}
-	if o.ParentID != nil {
-		result.ParentID = *o.ParentID
-	}
 	if o.RefCount != nil {
 		result.RefCount = *o.RefCount
-	}
-	if o.KindMap != nil {
-		result.KindMap = *o.KindMap
 	}
 	if o.Size != nil {
 		result.Size = *o.Size
@@ -148,11 +119,11 @@ func (o *Entry) ToEntry() *types.Entry {
 }
 
 type Children struct {
+	Namespace string `gorm:"column:namespace;primaryKey"`
 	ParentID  int64  `gorm:"column:parent_id;primaryKey"`
-	ChildID   int64  `gorm:"column:child_id;primaryKey"`
 	Name      string `gorm:"column:name;primaryKey"`
-	Namespace string `gorm:"column:namespace;index:child_ns"`
-	Marker    string `gorm:"column:marker"`
+	ChildID   int64  `gorm:"column:child_id;index:child_id"`
+	Dynamic   bool   `gorm:"column:dynamic"`
 }
 
 func (c *Children) From(child *types.Child) {
@@ -160,7 +131,7 @@ func (c *Children) From(child *types.Child) {
 	c.ChildID = child.ChildID
 	c.Name = child.Name
 	c.Namespace = child.Namespace
-	c.Marker = child.Marker
+	c.Dynamic = child.Dynamic
 }
 
 func (c *Children) To() *types.Child {
@@ -169,7 +140,7 @@ func (c *Children) To() *types.Child {
 		ChildID:   c.ChildID,
 		Name:      c.Name,
 		Namespace: c.Namespace,
-		Marker:    c.Marker,
+		Dynamic:   c.Dynamic,
 	}
 }
 
@@ -177,76 +148,20 @@ func (c *Children) TableName() string {
 	return "children"
 }
 
-type Label struct {
-	ID        int64  `gorm:"column:id;autoIncrement"`
-	RefID     int64  `gorm:"column:ref_id;index:label_refid"`
-	RefType   string `gorm:"column:ref_type;index:label_reftype"`
-	Namespace string `gorm:"column:namespace;index:label_ns"`
-	Key       string `gorm:"column:key"`
-	Value     string `gorm:"column:value"`
-	SearchKey string `gorm:"column:search_key;index:label_search_key"`
-}
-
-func (o Label) TableName() string {
-	return "label"
-}
-
 type EntryProperty struct {
-	ID        int64  `gorm:"column:id;autoIncrement"`
-	OID       int64  `gorm:"column:oid;index:prop_oid"`
-	Name      string `gorm:"column:key;index:prop_name"`
+	Entry     int64  `gorm:"column:entry;primaryKey"`
+	Type      string `gorm:"column:type;primaryKey"`
+	Value     JSON   `gorm:"column:value;index:prop_val"`
 	Namespace string `gorm:"column:namespace;index:prop_ns"`
-	Value     string `gorm:"column:value"`
-	Encoded   bool   `gorm:"column:encoded"`
 }
 
 func (o EntryProperty) TableName() string {
-	return "object_property"
-}
-
-type EntryExtend struct {
-	ID          int64  `gorm:"column:id;primaryKey"`
-	Symlink     string `gorm:"column:symlink"`
-	GroupFilter []byte `gorm:"column:group_filter"`
-	PlugScope   []byte `gorm:"column:plug_scope"`
-}
-
-func (o *EntryExtend) TableName() string {
-	return "object_extend"
-}
-
-func (o *EntryExtend) From(ed *types.ExtendData) *EntryExtend {
-	if ed == nil {
-		return o
-	}
-	o.Symlink = ed.Symlink
-	if ed.GroupFilter != nil {
-		o.GroupFilter, _ = json.Marshal(ed.GroupFilter)
-	}
-	if ed.PlugScope != nil {
-		o.PlugScope, _ = json.Marshal(ed.PlugScope)
-	}
-	return o
-}
-
-func (o *EntryExtend) ToExtData() types.ExtendData {
-	ext := types.ExtendData{
-		Symlink:     o.Symlink,
-		GroupFilter: nil,
-		PlugScope:   nil,
-	}
-	if o.GroupFilter != nil {
-		_ = json.Unmarshal(o.GroupFilter, &ext.GroupFilter)
-	}
-	if o.PlugScope != nil {
-		_ = json.Unmarshal(o.PlugScope, &ext.PlugScope)
-	}
-	return ext
+	return "entry_property"
 }
 
 type EntryChunk struct {
 	ID       int64 `gorm:"column:id;primaryKey"`
-	OID      int64 `gorm:"column:oid;index:ck_oid"`
+	Entry    int64 `gorm:"column:entry;index:ck_eid"`
 	ChunkID  int64 `gorm:"column:chunk_id;index:ck_id"`
 	Off      int64 `gorm:"column:off"`
 	Len      int64 `gorm:"column:len"`
@@ -255,7 +170,22 @@ type EntryChunk struct {
 }
 
 func (o EntryChunk) TableName() string {
-	return "object_chunk"
+	return "entry_chunk"
+}
+
+type Project struct {
+	ID        int64     `gorm:"column:id;primaryKey"`
+	Goal      string    `gorm:"column:goal"`
+	Details   string    `gorm:"column:details"`
+	Config    JSON      `gorm:"column:config"`
+	Paused    bool      `gorm:"column:paused;index:proj_paused"`
+	Archived  bool      `gorm:"column:archived;index:proj_arched"`
+	CreatedAt time.Time `gorm:"column:created_at;index:proj_creat"`
+	UpdatedAt time.Time `gorm:"column:updated_at"`
+}
+
+func (p Project) TableName() string {
+	return "project"
 }
 
 type ScheduledTask struct {
@@ -269,7 +199,7 @@ type ScheduledTask struct {
 	CreatedTime    time.Time `gorm:"column:created_time"`
 	ExecutionTime  time.Time `gorm:"column:execution_time"`
 	ExpirationTime time.Time `gorm:"column:expiration_time"`
-	Event          string    `gorm:"column:event"`
+	Event          JSON      `gorm:"column:event"`
 }
 
 func (d ScheduledTask) TableName() string {
@@ -292,73 +222,11 @@ func (o *Notification) TableName() string {
 	return "notification"
 }
 
-type Event struct {
-	ID              string    `gorm:"column:id;primaryKey"`
-	Type            string    `gorm:"column:type;index:evt_type"`
-	Source          string    `gorm:"column:source"`
-	SpecVersion     string    `gorm:"column:specversion"`
-	RefID           int64     `gorm:"column:ref_id;index:evt_refid"`
-	RefType         string    `gorm:"column:ref_type;index:evt_reftype"`
-	DataContentType string    `gorm:"column:datacontenttype"`
-	Data            string    `gorm:"column:data"`
-	Sequence        int64     `gorm:"column:sequence;index:evt_seq"`
-	Namespace       string    `gorm:"column:namespace;index:evt_ns"`
-	Time            time.Time `gorm:"column:time;index:evt_time"`
-}
-
-func (o *Event) TableName() string {
-	return "event"
-}
-
-func (o *Event) From(event types.Event) {
-	o.ID = event.Id
-	o.Type = event.Type
-	o.Source = event.Source
-	o.SpecVersion = event.SpecVersion
-	o.RefID = event.RefID
-	o.RefType = event.RefType
-	o.DataContentType = event.DataContentType
-	o.Data = event.Data.String()
-	o.Sequence = event.Sequence
-	o.Namespace = event.Namespace
-	o.Time = event.Time
-}
-
-func (o *Event) To() (event types.Event, err error) {
-	event = types.Event{
-		Id:              o.ID,
-		Type:            o.Type,
-		Source:          o.Source,
-		SpecVersion:     o.SpecVersion,
-		Time:            o.Time,
-		Sequence:        o.Sequence,
-		Namespace:       o.Namespace,
-		RefID:           o.RefID,
-		RefType:         o.RefType,
-		DataContentType: o.DataContentType,
-		Data:            types.EventData{},
-	}
-	err = json.Unmarshal([]byte(o.Data), &(event.Data))
-	return
-}
-
-type RegisteredDevice struct {
-	ID             string    `gorm:"column:id;primaryKey"`
-	SyncedSequence int64     `gorm:"column:synced_sequence"`
-	LastSeenAt     time.Time `gorm:"column:last_seen_at"`
-	Namespace      string    `gorm:"column:namespace;index:device_ns"`
-}
-
-func (o *RegisteredDevice) TableName() string {
-	return "registered_device"
-}
-
 type Workflow struct {
 	ID              string    `gorm:"column:id;primaryKey"`
 	Name            string    `gorm:"column:name"`
-	Rule            string    `gorm:"column:rule"`
-	Cron            string    `gorm:"column:cron"`
-	Steps           string    `gorm:"column:steps"`
+	Trigger         JSON      `gorm:"column:trigger"`
+	Nodes           JSON      `gorm:"column:nodes"`
 	Enable          bool      `gorm:"column:enable;index:wf_enable"`
 	QueueName       string    `gorm:"column:queue_name;index:wf_q"`
 	Namespace       string    `gorm:"column:namespace;index:wf_ns"`
@@ -376,25 +244,22 @@ func (o *Workflow) From(wf *types.Workflow) (*Workflow, error) {
 	o.Name = wf.Name
 	o.Namespace = wf.Namespace
 	o.Enable = wf.Enable
-	o.Cron = wf.Cron
 	o.QueueName = wf.QueueName
 	o.CreatedAt = wf.CreatedAt
 	o.UpdatedAt = wf.UpdatedAt
 	o.LastTriggeredAt = wf.LastTriggeredAt
 
-	if wf.Rule != nil {
-		rawRule, err := json.Marshal(wf.Rule)
-		if err != nil {
-			return o, fmt.Errorf("marshal workflow rule config failed: %s", err)
-		}
-		o.Rule = string(rawRule)
-	}
-
-	rawSteps, err := json.Marshal(wf.Steps)
+	rawTrigger, err := json.Marshal(wf.Trigger)
 	if err != nil {
 		return o, fmt.Errorf("marshal workflow rule config failed: %s", err)
 	}
-	o.Steps = string(rawSteps)
+	o.Trigger = rawTrigger
+
+	rawSteps, err := json.Marshal(wf.Nodes)
+	if err != nil {
+		return o, fmt.Errorf("marshal workflow rule config failed: %s", err)
+	}
+	o.Nodes = rawSteps
 	return o, nil
 }
 
@@ -404,21 +269,20 @@ func (o *Workflow) To() (*types.Workflow, error) {
 		Name:            o.Name,
 		Namespace:       o.Namespace,
 		Enable:          o.Enable,
-		Cron:            o.Cron,
-		Steps:           []types.WorkflowStepSpec{},
+		Nodes:           []types.WorkflowNode{},
 		QueueName:       o.QueueName,
 		CreatedAt:       o.CreatedAt,
 		UpdatedAt:       o.UpdatedAt,
 		LastTriggeredAt: o.LastTriggeredAt,
 	}
 
-	if o.Rule != "" {
-		if err := json.Unmarshal([]byte(o.Rule), &result.Rule); err != nil {
+	if len(o.Trigger) > 0 {
+		if err := json.Unmarshal(o.Trigger, &result.Trigger); err != nil {
 			return nil, fmt.Errorf("load workflow rule config failed: %s", err)
 		}
 	}
 
-	if err := json.Unmarshal([]byte(o.Steps), &result.Steps); err != nil {
+	if err := json.Unmarshal(o.Nodes, &result.Nodes); err != nil {
 		return nil, fmt.Errorf("load workflow steps config failed: %s", err)
 	}
 	return result, nil
@@ -428,12 +292,12 @@ type WorkflowJob struct {
 	ID            string    `gorm:"column:id;autoIncrement"`
 	Workflow      string    `gorm:"column:workflow;index:job_wf_id"`
 	TriggerReason string    `gorm:"column:trigger_reason"`
-	Target        string    `gorm:"column:target"`
-	Steps         string    `gorm:"column:steps"`
+	Targets       JSON      `gorm:"column:targets"`
+	Nodes         JSON      `gorm:"column:nodes"`
+	Parameters    JSON      `gorm:"column:parameters"`
 	Status        string    `gorm:"column:status;index:job_status"`
 	Message       string    `gorm:"column:message"`
 	QueueName     string    `gorm:"column:queue_name;index:job_queue"`
-	Executor      string    `gorm:"column:executor;index:job_executor"`
 	Namespace     string    `gorm:"column:namespace;index:job_ns"`
 	StartAt       time.Time `gorm:"column:start_at"`
 	FinishAt      time.Time `gorm:"column:finish_at"`
@@ -452,24 +316,29 @@ func (o *WorkflowJob) From(job *types.WorkflowJob) (*WorkflowJob, error) {
 	o.Status = job.Status
 	o.Message = job.Message
 	o.QueueName = job.QueueName
-	o.Executor = job.Executor
 	o.StartAt = job.StartAt
 	o.FinishAt = job.FinishAt
 	o.CreatedAt = job.CreatedAt
 	o.UpdatedAt = job.UpdatedAt
 	o.Namespace = job.Namespace
 
-	rawTarget, err := json.Marshal(job.Target)
+	rawTarget, err := json.Marshal(job.Targets)
 	if err != nil {
 		return o, fmt.Errorf("marshal workflow job target failed: %s", err)
 	}
-	o.Target = string(rawTarget)
+	o.Targets = rawTarget
 
-	rawStep, err := json.Marshal(job.Steps)
+	rawPara, err := json.Marshal(job.Parameters)
 	if err != nil {
 		return o, fmt.Errorf("marshal workflow job steps failed: %s", err)
 	}
-	o.Steps = string(rawStep)
+	o.Parameters = rawPara
+
+	rawStep, err := json.Marshal(job.Nodes)
+	if err != nil {
+		return o, fmt.Errorf("marshal workflow job steps failed: %s", err)
+	}
+	o.Nodes = rawStep
 
 	return o, nil
 }
@@ -479,10 +348,9 @@ func (o *WorkflowJob) To() (*types.WorkflowJob, error) {
 		Id:            o.ID,
 		Workflow:      o.Workflow,
 		TriggerReason: o.TriggerReason,
-		Steps:         []types.WorkflowJobStep{},
+		Nodes:         []types.WorkflowJobNode{},
 		Status:        o.Status,
 		Message:       o.Message,
-		Executor:      o.Executor,
 		QueueName:     o.QueueName,
 		StartAt:       o.StartAt,
 		FinishAt:      o.FinishAt,
@@ -491,12 +359,17 @@ func (o *WorkflowJob) To() (*types.WorkflowJob, error) {
 		Namespace:     o.Namespace,
 	}
 
-	err := json.Unmarshal([]byte(o.Target), &result.Target)
+	err := json.Unmarshal(o.Targets, &result.Targets)
 	if err != nil {
 		return nil, fmt.Errorf("load workflow job target failed: %s", err)
 	}
 
-	err = json.Unmarshal([]byte(o.Steps), &result.Steps)
+	err = json.Unmarshal(o.Parameters, &result.Parameters)
+	if err != nil {
+		return nil, fmt.Errorf("load workflow job steps failed: %s", err)
+	}
+
+	err = json.Unmarshal(o.Nodes, &result.Nodes)
 	if err != nil {
 		return nil, fmt.Errorf("load workflow job steps failed: %s", err)
 	}
@@ -504,85 +377,15 @@ func (o *WorkflowJob) To() (*types.WorkflowJob, error) {
 	return result, nil
 }
 
-type Room struct {
-	ID        int64     `gorm:"column:id;primaryKey"`
-	Namespace string    `gorm:"column:namespace;index:room_namespace"`
-	Title     string    `gorm:"column:title"`
-	EntryId   int64     `gorm:"column:entry_id;index:room_entry_id"`
-	Prompt    string    `gorm:"column:prompt"`
-	History   string    `gorm:"column:history"`
-	CreatedAt time.Time `gorm:"column:created_at"`
+type WorkflowContext struct {
+	Source    string    `gorm:"column:source;primaryKey"`
+	Group     string    `gorm:"column:group;primaryKey"`
+	Key       string    `gorm:"column:key;primaryKey"`
+	Value     string    `gorm:"column:value"`
+	Namespace string    `gorm:"column:namespace;index:wfctx_namespace"`
+	UpdatedAt time.Time `gorm:"column:updated_at"`
 }
 
-func (r *Room) TableName() string { return "room" }
-
-func (r *Room) From(room *types.Room) (*Room, error) {
-	res := &Room{
-		ID:        room.ID,
-		Namespace: room.Namespace,
-		Title:     room.Title,
-		EntryId:   room.EntryId,
-		Prompt:    room.Prompt,
-		CreatedAt: room.CreatedAt,
-	}
-
-	history, err := json.Marshal(room.History)
-	if err != nil {
-		return nil, err
-	}
-	res.History = string(history)
-	return res, nil
-}
-
-func (r *Room) To() (room *types.Room, err error) {
-	room = &types.Room{
-		ID:        r.ID,
-		Namespace: r.Namespace,
-		Title:     r.Title,
-		EntryId:   r.EntryId,
-		Prompt:    r.Prompt,
-		History:   []map[string]string{},
-		CreatedAt: r.CreatedAt,
-	}
-	if r.History != "" {
-		err = json.Unmarshal([]byte(r.History), &(room.History))
-	}
-	return
-}
-
-type RoomMessage struct {
-	ID        int64     `gorm:"column:id;primaryKey"`
-	Namespace string    `gorm:"column:namespace;index:message_namespace"`
-	RoomID    int64     `gorm:"column:room_id;index:message_room_id"`
-	Sender    string    `gorm:"column:sender"`
-	Message   string    `gorm:"column:message"`
-	SendAt    time.Time `gorm:"column:send_at"`
-	CreatedAt time.Time `gorm:"column:created_at"`
-}
-
-func (r *RoomMessage) TableName() string { return "room_message" }
-
-func (r *RoomMessage) From(roomMessage *types.RoomMessage) *RoomMessage {
-	return &RoomMessage{
-		ID:        roomMessage.ID,
-		Namespace: roomMessage.Namespace,
-		RoomID:    roomMessage.RoomID,
-		Sender:    roomMessage.Sender,
-		Message:   roomMessage.Message,
-		SendAt:    roomMessage.SendAt,
-		CreatedAt: roomMessage.CreatedAt,
-	}
-}
-
-func (r *RoomMessage) To() (roomMessage *types.RoomMessage) {
-	roomMessage = &types.RoomMessage{
-		ID:        r.ID,
-		Namespace: r.Namespace,
-		RoomID:    r.RoomID,
-		Sender:    r.Sender,
-		Message:   r.Message,
-		SendAt:    r.SendAt,
-		CreatedAt: r.CreatedAt,
-	}
-	return
+func (o *WorkflowContext) TableName() string {
+	return "workflow_context"
 }

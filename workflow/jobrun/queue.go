@@ -33,7 +33,6 @@ func newQueue() *GroupJobQueue {
 	return &GroupJobQueue{
 		groups: map[string]*NamespacedJobQueue{
 			types.WorkflowQueueFile: newNamespacedQueue(),
-			types.WorkflowQueuePipe: newNamespacedQueue(),
 		},
 	}
 }

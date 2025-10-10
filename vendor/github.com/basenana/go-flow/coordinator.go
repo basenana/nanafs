@@ -21,21 +21,47 @@ import "context"
 type Coordinator interface {
 	NewTask(task Task)
 	UpdateTask(task Task)
-	NextBatch(ctx context.Context) ([]Task, error)
+	NextBatch(ctx context.Context) ([]string, error)
+	Finished() bool
 	HandleFail(task Task, err error) FailOperation
 }
 
-type pipelineCoordinator struct {
+type CoordinatorOptions struct {
+	failOP FailOperation
+}
+
+type CoordinatorOption func(*CoordinatorOptions)
+
+func WithFailOperation(op FailOperation) CoordinatorOption {
+	return func(o *CoordinatorOptions) {
+		o.failOP = op
+	}
+}
+
+type PipelineCoordinator struct {
 	idx   int
 	tasks []Task
 	op    FailOperation
 }
 
-func (p *pipelineCoordinator) NewTask(task Task) {
+func NewPipelineCoordinator(options ...CoordinatorOption) *PipelineCoordinator {
+	opt := &CoordinatorOptions{}
+	for _, optFn := range options {
+		optFn(opt)
+	}
+
+	if opt.failOP == "" {
+		opt.failOP = FailAndInterrupt
+	}
+
+	return &PipelineCoordinator{op: opt.failOP}
+}
+
+func (p *PipelineCoordinator) NewTask(task Task) {
 	p.tasks = append(p.tasks, task)
 }
 
-func (p *pipelineCoordinator) UpdateTask(task Task) {
+func (p *PipelineCoordinator) UpdateTask(task Task) {
 	crt := p.getCurrentTask()
 	if crt == nil {
 		return
@@ -46,26 +72,30 @@ func (p *pipelineCoordinator) UpdateTask(task Task) {
 	}
 }
 
-func (p *pipelineCoordinator) NextBatch(ctx context.Context) ([]Task, error) {
+func (p *PipelineCoordinator) NextBatch(ctx context.Context) ([]string, error) {
 	crt := p.getCurrentTask()
 	if crt == nil {
 		return nil, nil
 	}
-	return []Task{crt}, nil
+	return []string{crt.GetName()}, nil
 }
 
-func (p *pipelineCoordinator) HandleFail(task Task, err error) FailOperation {
+func (p *PipelineCoordinator) Finished() bool {
+	return p.idx >= len(p.tasks)
+}
+
+func (p *PipelineCoordinator) HandleFail(task Task, err error) FailOperation {
 	if p.op == "" {
 		return FailAndInterrupt
 	}
 	return p.op
 }
 
-func (p *pipelineCoordinator) getCurrentTask() Task {
+func (p *PipelineCoordinator) getCurrentTask() Task {
 	if p.idx >= len(p.tasks) {
 		return nil
 	}
 	return p.tasks[p.idx]
 }
 
-var _ Coordinator = &pipelineCoordinator{}
+var _ Coordinator = &PipelineCoordinator{}

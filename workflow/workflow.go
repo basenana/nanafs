@@ -18,7 +18,6 @@ package workflow
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/plugin"
@@ -28,7 +27,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/types"
@@ -54,47 +52,48 @@ type Workflow interface {
 }
 
 type manager struct {
-	ctrl   *jobrun.Controller
-	core   core.Core
-	docMgr document.Manager
-	notify *notify.Notify
-	meta   metastore.Meta
-	config config.Config
-	hooks  *hooks
-	logger *zap.SugaredLogger
+	ctrl    *jobrun.Controller
+	core    core.Core
+	notify  *notify.Notify
+	meta    metastore.Meta
+	config  config.Workflow
+	trigger *triggers
+	logger  *zap.SugaredLogger
 }
 
 var _ Workflow = &manager{}
 
-func New(fsCore core.Core, docMgr document.Manager, notify *notify.Notify, meta metastore.Meta, cfg config.Config) (Workflow, error) {
+func New(fsCore core.Core, notify *notify.Notify, meta metastore.Meta, cfg config.Workflow) (Workflow, error) {
 	wfLogger = logger.NewLogger("workflow")
 
-	jobWorkdir, err := cfg.GetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "job_workdir").String()
-	if err != nil && !errors.Is(err, config.ErrNotConfigured) {
-		return nil, fmt.Errorf("get workflow job workdir failed: %w", err)
-	}
-	if jobWorkdir == "" {
-		jobWorkdir = genDefaultJobRootWorkdir()
-		wfLogger.Warnw("using default job root workdir", "jobWorkdir", jobWorkdir)
+	if cfg.JobWorkdir == "" {
+		cfg.JobWorkdir = genDefaultJobRootWorkdir()
+		wfLogger.Warnw("using default job root workdir", "jobWorkdir", cfg.JobWorkdir)
 	}
 
-	if err = initWorkflowJobRootWorkdir(jobWorkdir); err != nil {
-		return nil, fmt.Errorf("init workflow job root workdir error: %s", err)
+	if cfg.Enable {
+		if err := initWorkflowJobRootWorkdir(cfg.JobWorkdir); err != nil {
+			return nil, fmt.Errorf("init workflow job root workdir error: %s", err)
+		}
 	}
 
 	pluginMgr, err := plugin.Init(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("init plugin failed %w", err)
 	}
-	flowCtrl := jobrun.NewJobController(pluginMgr, fsCore, docMgr, meta, notify, jobWorkdir)
-	mgr := &manager{ctrl: flowCtrl, core: fsCore, docMgr: docMgr, meta: meta, config: cfg, logger: wfLogger}
-	mgr.hooks = initHooks(mgr)
+	flowCtrl := jobrun.NewJobController(pluginMgr, fsCore, meta, notify, cfg.JobWorkdir)
+	mgr := &manager{ctrl: flowCtrl, core: fsCore, meta: meta, config: cfg, logger: wfLogger}
+	mgr.trigger = initTriggers(mgr)
 
 	return mgr, nil
 }
+
 func (m *manager) Start(ctx context.Context) {
+	if !m.config.Enable {
+		return
+	}
 	m.ctrl.Start(ctx)
-	m.hooks.start(ctx)
+	m.trigger.start(ctx)
 }
 
 func (m *manager) ListWorkflows(ctx context.Context, namespace string) ([]*types.Workflow, error) {
@@ -110,20 +109,16 @@ func (m *manager) GetWorkflow(ctx context.Context, namespace string, wfId string
 }
 
 func (m *manager) CreateWorkflow(ctx context.Context, namespace string, workflow *types.Workflow) (*types.Workflow, error) {
-	if workflow.Name == "" {
-		return nil, fmt.Errorf("workflow name is empty")
-	}
 	workflow = initWorkflow(namespace, workflow)
 	err := validateWorkflowSpec(workflow)
 	if err != nil {
 		return nil, err
 	}
-	workflow.System = false
 	if err = m.meta.SaveWorkflow(ctx, namespace, workflow); err != nil {
 		return nil, err
 	}
 
-	m.hooks.handleWorkflowUpdate(workflow)
+	m.trigger.handleWorkflowUpdate(workflow, false)
 	return workflow, nil
 }
 
@@ -138,11 +133,15 @@ func (m *manager) UpdateWorkflow(ctx context.Context, namespace string, workflow
 		return nil, err
 	}
 
-	m.hooks.handleWorkflowUpdate(workflow)
+	m.trigger.handleWorkflowUpdate(workflow, false)
 	return workflow, nil
 }
 
 func (m *manager) DeleteWorkflow(ctx context.Context, namespace string, wfId string) error {
+	wf, err := m.meta.GetWorkflow(ctx, namespace, wfId)
+	if err != nil {
+		return err
+	}
 	jobs, err := m.ListJobs(ctx, namespace, wfId)
 	if err != nil {
 		return err
@@ -162,7 +161,7 @@ func (m *manager) DeleteWorkflow(ctx context.Context, namespace string, wfId str
 	if err != nil {
 		return err
 	}
-	m.hooks.handleWorkflowDelete(namespace, wfId)
+	m.trigger.handleWorkflowUpdate(wf, true)
 	return nil
 }
 
@@ -188,39 +187,22 @@ func (m *manager) TriggerWorkflow(ctx context.Context, namespace string, wfId st
 		return nil, err
 	}
 
-	m.logger.Infow("receive workflow", "workflow", workflow.Name, "entryID", tgt)
-	for _, tgtEn := range tgt.Entries {
-		var en *types.Entry
-		en, err = m.core.GetEntry(ctx, namespace, tgtEn)
-		if err != nil {
-			m.logger.Errorw("query entry failed", "workflow", workflow.Name, "entryID", tgt, "err", err)
-			return nil, err
-		}
-
-		if en.IsGroup {
-			return nil, types.ErrIsGroup
-		}
-
-		if tgt.ParentEntryID == 0 {
-			tgt.ParentEntryID = en.ParentID
-		}
-
-		if tgt.ParentEntryID != en.ParentID {
-			return nil, fmt.Errorf("entry has wrong parent id")
-		}
-	}
-
-	job, err := assembleWorkflowJob(workflow, tgt)
-	if err != nil {
-		m.logger.Errorw("assemble job failed", "workflow", workflow.Name, "err", err)
-		return nil, err
+	if !m.config.Enable {
+		return nil, fmt.Errorf("workflow is disabled")
 	}
 
 	if attr.Timeout == 0 {
 		attr.Timeout = defaultJobTimeout
 	}
-	job.TimeoutSeconds = int(attr.Timeout.Seconds())
-	job.TriggerReason = attr.Reason
+	if attr.Queue == "" {
+		attr.Queue = workflow.QueueName
+	}
+	m.logger.Infow("receive workflow", "workflow", workflow.Name, "targets", tgt)
+	job, err := assembleWorkflowJob(workflow, tgt, attr)
+	if err != nil {
+		m.logger.Errorw("assemble job failed", "workflow", workflow.Name, "err", err)
+		return nil, err
+	}
 
 	err = m.meta.SaveWorkflowJob(ctx, namespace, job)
 	if err != nil {
@@ -268,7 +250,8 @@ func (m *manager) CancelWorkflowJob(ctx context.Context, namespace string, jobId
 }
 
 type JobAttr struct {
-	Reason  string
-	Queue   string
-	Timeout time.Duration
+	Reason     string
+	Queue      string
+	Parameters map[string]string
+	Timeout    time.Duration
 }

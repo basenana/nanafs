@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
 	"github.com/basenana/nanafs/pkg/core"
-	"github.com/basenana/nanafs/pkg/token"
 	"net/http"
 	"time"
 
@@ -48,18 +47,7 @@ type Server struct {
 }
 
 func (s *Server) Run(stopCh chan struct{}) {
-	apiHost, err := s.apiConfig.GetSystemConfig(context.TODO(), config.AdminApiConfigGroup, "host").String()
-	if err != nil {
-		s.logger.Errorw("query admin api host config failed, skip", "err", err)
-		return
-	}
-	apiPort, err := s.apiConfig.GetSystemConfig(context.TODO(), config.AdminApiConfigGroup, "port").Int()
-	if err != nil {
-		s.logger.Errorw("query admin api port config failed, skip", "err", err)
-		return
-	}
-
-	addr := fmt.Sprintf("%s:%d", apiHost, apiPort)
+	addr := fmt.Sprintf("127.0.0.1:8080")
 	s.logger.Infof("http server on %s", addr)
 
 	httpServer := &http.Server{
@@ -99,23 +87,8 @@ func NewHttpApiServer(apiConfig config.Config) (*Server, error) {
 	}
 
 	s.engine.GET("/_ping", s.Ping)
-
-	enableMetric, err := apiConfig.GetSystemConfig(context.TODO(), config.AdminApiConfigGroup, "enable_metric").Bool()
-	if err != nil {
-		s.logger.Warnw("query enable metric config failed, skip", "err", err)
-	}
-	enablePprof, err := apiConfig.GetSystemConfig(context.TODO(), config.AdminApiConfigGroup, "enable_pprof").Bool()
-	if err != nil {
-		s.logger.Warnw("query enable pprof config failed, skip", "err", err)
-	}
-
-	if enableMetric {
-		s.engine.GET("/metrics", gin.WrapH(promhttp.Handler()))
-	}
-
-	if enablePprof {
-		pprof.Register(s.engine)
-	}
+	s.engine.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	pprof.Register(s.engine)
 
 	return s, nil
 }
@@ -129,11 +102,11 @@ func RunFSAPI(depends *common.Depends, cfg config.Config, stopCh chan struct{}) 
 	return nil
 }
 
-func RunWebdav(fs *core.FileSystem, tokenMgr *token.Manager, cfg config.Webdav, stopCh chan struct{}) error {
+func RunWebdav(fs *core.FileSystem, cfg config.Webdav, stopCh chan struct{}) error {
 	if !cfg.Enable {
 		return nil
 	}
-	w, err := webdav.NewWebdavServer(fs, tokenMgr, cfg)
+	w, err := webdav.NewWebdavServer(fs, cfg)
 	if err != nil {
 		return fmt.Errorf("init webdav server failed: %w", err)
 	}

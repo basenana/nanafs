@@ -16,6 +16,8 @@
 
 package flow
 
+import "context"
+
 type Flow struct {
 	ID      string
 	Status  string
@@ -27,16 +29,16 @@ type Flow struct {
 	observer    []Observer
 }
 
-func (f *Flow) SetStatus(status string, message string) {
+func (f *Flow) setStatus(status string, message string) {
 	f.Status = status
 	f.Message = message
 	f.dispatch(UpdateEvent{Flow: f, Task: nil})
 }
 
-func (f *Flow) SetTaskStatue(task Task, status, msg string) {
+func (f *Flow) setTaskStatue(taskName string, status, msg string) {
 	for i, t := range f.tasks {
-		if t.GetName() == task.GetName() {
-			task = f.tasks[i]
+		if t.GetName() == taskName {
+			task := f.tasks[i]
 			if task.GetStatus() == status && task.GetMessage() == msg {
 				return
 			}
@@ -58,7 +60,7 @@ func (f *Flow) dispatch(event UpdateEvent) {
 }
 
 func NewFlowBuilder(id string) *Builder {
-	return &Builder{id: id, executor: &functionExecutor{}, coordinator: &pipelineCoordinator{}}
+	return &Builder{id: id, executor: &simpleExecutor{}, coordinator: &PipelineCoordinator{}}
 }
 
 type Builder struct {
@@ -71,6 +73,11 @@ type Builder struct {
 
 func (b *Builder) Task(task Task) *Builder {
 	b.tasks = append(b.tasks, task)
+	return b
+}
+
+func (b *Builder) Function(name string, fn func(ctx context.Context) error) *Builder {
+	b.tasks = append(b.tasks, NewFuncTask(name, fn))
 	return b
 }
 

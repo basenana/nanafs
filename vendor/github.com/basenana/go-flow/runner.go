@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -36,10 +37,11 @@ type Runner struct {
 	shotCtx    context.Context
 	cancelShot context.CancelFunc
 
+	intervenes sync.Map
+
 	fsm     *FSM
 	stopCh  chan struct{}
-	started bool
-	mux     sync.Mutex
+	started atomic.Bool
 }
 
 func (r *Runner) Start(ctx context.Context) (err error) {
@@ -49,7 +51,7 @@ func (r *Runner) Start(ctx context.Context) (err error) {
 
 	r.flowCtx, r.cancelFlow = context.WithCancel(ctx)
 	if err = r.executor.Setup(ctx); err != nil {
-		r.SetStatus(ErrorStatus, err.Error())
+		r.setStatus(ErrorStatus, err.Error())
 		return err
 	}
 
@@ -60,7 +62,7 @@ func (r *Runner) Start(ctx context.Context) (err error) {
 	}
 
 	if err = r.pushEvent2FlowFSM(statusEvent{Type: TriggerEvent}); err != nil {
-		r.SetStatus(ErrorStatus, err.Error())
+		r.setStatus(ErrorStatus, err.Error())
 		return err
 	}
 
@@ -92,16 +94,13 @@ func (r *Runner) Cancel() error {
 }
 
 func (r *Runner) handleJobRun(event statusEvent) error {
-	r.mux.Lock()
-	defer r.mux.Unlock()
-	if r.started {
+	if !r.started.CompareAndSwap(false, true) {
 		return nil
 	}
-	r.started = true
-	r.SetStatus(RunningStatus, event.Message)
+	r.setStatus(RunningStatus, event.Message)
 
 	go func() {
-		defer func() { r.started = false }()
+		defer func() { r.started.Store(false) }()
 		r.triggerFlow()
 	}()
 	return nil
@@ -153,7 +152,7 @@ func (r *Runner) triggerFlow() {
 }
 
 func (r *Runner) handleJobPause(event statusEvent) error {
-	r.SetStatus(PausingStatus, event.Message)
+	r.setStatus(PausingStatus, event.Message)
 	if r.cancelShot != nil {
 		r.cancelShot()
 	}
@@ -161,24 +160,24 @@ func (r *Runner) handleJobPause(event statusEvent) error {
 }
 
 func (r *Runner) handleJobPaused(event statusEvent) error {
-	r.SetStatus(PausedStatus, event.Message)
+	r.setStatus(PausedStatus, event.Message)
 	return nil
 }
 
 func (r *Runner) handleJobSucceed(event statusEvent) error {
-	r.SetStatus(SucceedStatus, event.Message)
+	r.setStatus(SucceedStatus, event.Message)
 	r.close()
 	return nil
 }
 
 func (r *Runner) handleJobFailed(event statusEvent) error {
-	r.SetStatus(FailedStatus, event.Message)
+	r.setStatus(FailedStatus, event.Message)
 	r.close()
 	return nil
 }
 
 func (r *Runner) handleJobCancel(event statusEvent) error {
-	r.SetStatus(CanceledStatus, event.Message)
+	r.setStatus(CanceledStatus, event.Message)
 	r.close()
 	return nil
 }
@@ -190,14 +189,34 @@ func (r *Runner) runNextBatchTask(ctx context.Context) (finish bool, err error) 
 		}
 	}()
 
-	var batch []Task
-	batch, err = r.coordinator.NextBatch(ctx)
+	var (
+		batch     []Task
+		taskNames []string
+		nextTasks = make(map[string]struct{})
+	)
+	taskNames, err = r.coordinator.NextBatch(ctx)
 	if err != nil {
 		return
 	}
 
+	for _, taskName := range taskNames {
+		nextTasks[taskName] = struct{}{}
+	}
+	for _, t := range r.tasks {
+		if IsFinishedStatus(t.GetStatus()) {
+			continue
+		}
+		if _, ok := nextTasks[t.GetName()]; ok {
+			batch = append(batch, t)
+		}
+	}
+
 	if len(batch) == 0 {
-		return true, nil
+		if r.coordinator.Finished() {
+			return true, nil
+		}
+		_ = r.pushEvent2FlowFSM(statusEvent{Type: ExecutePauseEvent, Message: "some tasks have not been executed yet and cannot be scheduled"})
+		return false, nil
 	}
 
 	wg := sync.WaitGroup{}
@@ -214,18 +233,20 @@ func (r *Runner) runNextBatchTask(ctx context.Context) (finish bool, err error) 
 }
 
 func (r *Runner) taskRun(ctx context.Context, task Task) {
-	if r.Status != RunningStatus {
+	select {
+	case <-ctx.Done():
 		return
+	default:
 	}
 
-	r.SetTaskStatue(task, RunningStatus, "")
+	r.setTaskStatue(task.GetName(), RunningStatus, "")
 	err := r.executor.Exec(ctx, r.Flow, task)
 	if err != nil {
 		r.handleTaskFail(ctx, task, err)
 		return
 	}
 
-	r.SetTaskStatue(task, SucceedStatus, "")
+	r.setTaskStatue(task.GetName(), SucceedStatus, "")
 	return
 }
 
@@ -235,15 +256,15 @@ func (r *Runner) handleTaskFail(ctx context.Context, task Task, err error) {
 	op := r.coordinator.HandleFail(task, err)
 	switch op {
 	case FailAndInterrupt:
-		r.SetTaskStatue(task, FailedStatus, msg)
+		r.setTaskStatue(task.GetName(), FailedStatus, msg)
 		_ = r.pushEvent2FlowFSM(statusEvent{Type: ExecuteFailedEvent, Message: msg})
 	case FailAndPause:
-		r.SetTaskStatue(task, PausedStatus, msg)
+		r.setTaskStatue(task.GetName(), PausedStatus, msg)
 		_ = r.pushEvent2FlowFSM(statusEvent{Type: ExecutePauseEvent, Message: msg})
 	case FailButContinue:
-		r.SetTaskStatue(task, FailedStatus, msg)
+		r.setTaskStatue(task.GetName(), FailedStatus, msg)
 	default:
-		r.SetTaskStatue(task, FailedStatus, msg)
+		r.setTaskStatue(task.GetName(), FailedStatus, msg)
 		_ = r.pushEvent2FlowFSM(statusEvent{Type: ExecuteFailedEvent, Message: msg})
 	}
 }

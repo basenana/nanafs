@@ -17,6 +17,7 @@
 package types
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/basenana/nanafs/utils"
@@ -29,11 +30,12 @@ const (
 	LabelKeyPluginKind   = LabelKeyPluginPrefix + "kind"
 	LabelKeyPluginName   = LabelKeyPluginPrefix + "name"
 
-	PropertyWebSiteName     = "org.basenana.web.site_name"
-	PropertyWebSiteURL      = "org.basenana.web.site_url"
 	PropertyWebPageURL      = "org.basenana.web.url"
 	PropertyWebPageUpdateAt = "org.basenana.web.updated_at"
 	PropertyWebPageTitle    = "org.basenana.web.title"
+
+	AllNamespace     = ""
+	DefaultNamespace = "default"
 )
 
 type SystemInfo struct {
@@ -48,11 +50,9 @@ type Entry struct {
 	Aliases    string    `json:"aliases,omitempty"`
 	RefCount   int       `json:"ref_count,omitempty"`
 	Kind       Kind      `json:"kind"`
-	KindMap    int64     `json:"kind_map"`
 	IsGroup    bool      `json:"is_group"`
 	Size       int64     `json:"size"`
 	Version    int64     `json:"version"`
-	Dev        int64     `json:"dev"`
 	Namespace  string    `json:"namespace,omitempty"`
 	Storage    string    `json:"storage"`
 	CreatedAt  time.Time `json:"created_at"`
@@ -63,14 +63,13 @@ type Entry struct {
 
 	// Deprecated
 	Name string `json:"name"`
-	// Deprecated
-	ParentID int64 `json:"parent_id"`
 }
 
 type Child struct {
 	ParentID  int64  `json:"parent_id"`
 	ChildID   int64  `json:"child_id"`
 	Name      string `json:"name"`
+	Dynamic   bool   `json:"dynamic"`
 	Namespace string `json:"namespace"`
 	Marker    string `json:"marker"`
 }
@@ -80,7 +79,6 @@ func NewEntry(name string, kind Kind) Entry {
 		ID:         utils.GenerateNewID(),
 		Name:       name,
 		Kind:       FileKind(name, kind),
-		KindMap:    0,
 		IsGroup:    IsGroup(kind),
 		Version:    1,
 		RefCount:   1,
@@ -97,67 +95,23 @@ func NewEntry(name string, kind Kind) Entry {
 	return result
 }
 
-type ExtendData struct {
-	Symlink     string     `json:"symlink,omitempty"`
-	GroupFilter *Rule      `json:"group_filter,omitempty"`
-	PlugScope   *PlugScope `json:"plug_scope,omitempty"`
-}
-
-const (
-	PlugScopeEntryName     = "entry.name"
-	PlugScopeEntryPath     = "entry.path" // relative path
-	PlugScopeWorkflowID    = "workflow.id"
-	PlugScopeWorkflowJobID = "workflow.job.id"
-)
-
-type PlugScope struct {
-	PluginName string            `json:"plugin_name"`
-	Version    string            `json:"version"`
-	PluginType PluginType        `json:"plugin_type,omitempty"`
-	Action     string            `json:"action,omitempty"`
-	Parameters map[string]string `json:"parameters"`
-}
-
-type Labels struct {
-	Labels []Label `json:"labels,omitempty"`
-}
-
-func (l Labels) Get(key string) *Label {
-	for _, label := range l.Labels {
-		if label.Key == key {
-			return &label
-		}
-	}
-	return nil
-}
-
-type Label struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
-
-type Properties struct {
-	Fields map[string]PropertyItem `json:"fields,omitempty"`
-}
-
-type PropertyItem struct {
-	Value   string `json:"value"`
-	Encoded bool   `json:"encoded"`
-}
-
 func InitNewEntry(parent *Entry, attr EntryAttr) (*Entry, error) {
 	if len(attr.Name) > entryNameMaxLength {
 		return nil, ErrNameTooLong
 	}
 
 	md := NewEntry(attr.Name, attr.Kind)
-	md.Dev = attr.Dev
-
 	if parent != nil {
-		md.ParentID = parent.ID
 		md.Storage = parent.Storage
 		md.Access = parent.Access
 		md.Namespace = parent.Namespace
+	}
+
+	switch attr.Kind {
+	case SmartGroupKind:
+		if attr.GroupProperties == nil || attr.GroupProperties.Filter == nil {
+			return nil, fmt.Errorf("invalid group properties")
+		}
 	}
 
 	if attr.Access != nil {

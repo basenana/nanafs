@@ -17,6 +17,7 @@
 package jobrun
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -26,6 +27,8 @@ import (
 	"github.com/basenana/nanafs/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	"io"
+	"strings"
+	"text/template"
 	"time"
 )
 
@@ -52,6 +55,11 @@ func init() {
 		execOperationTimeUsage,
 		execOperationErrorCounter,
 	)
+}
+
+type targetEntry struct {
+	entry  *types.Entry
+	parent *types.Entry
 }
 
 func initParentDirCacheData(ctx context.Context, namespace string, fsCore core.Core, parentEntryID int64) (*pluginapi.CachedData, error) {
@@ -120,36 +128,6 @@ func writeParentDirCacheData(ctx context.Context, namespace string, fsCore core.
 	return nil
 }
 
-func mergeParentEntryPlugScope(step, entryDef types.PlugScope) types.PlugScope {
-	if step.PluginName != entryDef.PluginName {
-		return step
-	}
-	ps := types.PlugScope{
-		PluginName: step.PluginName,
-		Version:    step.Version,
-		PluginType: step.PluginType,
-		Action:     entryDef.Action,
-		Parameters: map[string]string{},
-	}
-
-	if entryDef.Parameters != nil {
-		for k, v := range entryDef.Parameters {
-			ps.Parameters[k] = v
-		}
-	}
-
-	// do overwrite
-	if step.Action != "" {
-		ps.Action = step.Action
-	}
-	if step.Parameters != nil {
-		for k, v := range step.Parameters {
-			ps.Parameters[k] = v
-		}
-	}
-	return ps
-}
-
 func logOperationLatency(execName, operation string, startAt time.Time) {
 	execOperationTimeUsage.WithLabelValues(execName, operation).Observe(time.Since(startAt).Seconds())
 }
@@ -161,31 +139,19 @@ func logOperationError(execName, operation string, err error) error {
 	return err
 }
 
-func newPluginRequest(job *types.WorkflowJob, step *types.WorkflowJobStep, result pluginapi.Results, targets ...*types.Entry) *pluginapi.Request {
-	req := pluginapi.NewRequest()
-	req.ParentEntryId = job.Target.ParentEntryID
-	req.ContextResults = result
-	req.Namespace = job.Namespace
-
-	req.Parameter = map[string]any{}
-	for k, v := range step.Plugin.Parameters {
-		req.Parameter[k] = v
+func renderParams(tplContent string, data map[string]interface{}) string {
+	if !strings.Contains(tplContent, "{") {
+		return tplContent
 	}
-	req.Parameter[pluginapi.ResPluginName] = step.Plugin.PluginName
-	req.Parameter[pluginapi.ResPluginVersion] = step.Plugin.Version
-	req.Parameter[pluginapi.ResPluginType] = step.Plugin.PluginType
-	req.Parameter[pluginapi.ResPluginAction] = step.Plugin.Action
-	req.ParentProperties = map[string]string{}
-
-	for _, en := range targets {
-		req.Entries = append(req.Entries, pluginapi.Entry{
-			ID:         en.ID,
-			Name:       en.Name,
-			Kind:       en.Kind,
-			Size:       en.Size,
-			IsGroup:    en.IsGroup,
-			Parameters: make(map[string]string),
-		})
+	tpl, err := template.New("params").Parse(tplContent)
+	if err != nil {
+		return tplContent
 	}
-	return req
+
+	buf := new(bytes.Buffer)
+	err = tpl.Execute(buf, data)
+	if err != nil {
+		return tplContent
+	}
+	return buf.String()
 }

@@ -18,6 +18,9 @@ package docloader
 
 import (
 	"context"
+	"fmt"
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 	"github.com/hyponet/webpage-packer/packer"
 	"strings"
 )
@@ -35,19 +38,18 @@ func NewHTML(docPath string, option map[string]string) Parser {
 	return HTML{docPath: docPath}
 }
 
-func (h HTML) Load(ctx context.Context) (result *FDocument, err error) {
+func (h HTML) Load(ctx context.Context, doc types.DocumentProperties) (result *FDocument, err error) {
 	var (
-		p       packer.Packer
-		docType = "html"
+		p packer.Packer
 	)
 	switch {
 	case strings.HasSuffix(h.docPath, ".webarchive"):
 		p = packer.NewWebArchivePacker()
-		docType = "webarchive"
-
 	case strings.HasSuffix(h.docPath, ".html") ||
 		strings.HasSuffix(h.docPath, ".htm"):
 		p = packer.NewHtmlPacker()
+	default:
+		return nil, fmt.Errorf("unsupported document type: %s", h.docPath)
 	}
 
 	content, err := p.ReadContent(ctx, packer.Option{
@@ -58,8 +60,10 @@ func (h HTML) Load(ctx context.Context) (result *FDocument, err error) {
 		return nil, err
 	}
 
+	doc.Abstract = utils.GenerateContentAbstract(content)
+	doc.HeaderImage = utils.GenerateContentHeaderImage(content)
 	return &FDocument{
-		Content:  content,
-		Metadata: map[string]string{"org.basenana.document/type": docType},
+		Content:            content,
+		DocumentProperties: doc,
 	}, nil
 }

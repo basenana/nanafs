@@ -19,20 +19,21 @@ package pluginapi
 import (
 	"context"
 	"github.com/basenana/nanafs/pkg/types"
-	"time"
 )
 
 type Entry struct {
-	ID         int64
-	Name       string
-	Kind       types.Kind
-	Size       int64
-	IsGroup    bool
+	ID      int64
+	Parent  int64
+	Name    string
+	Kind    types.Kind
+	Size    int64
+	IsGroup bool
+
+	Document   *Document
 	Properties map[string]string
-	Parameters map[string]string
 
 	Overwrite bool
-	Document  *Document
+	Dirty     bool
 }
 
 type EntryAttr struct {
@@ -41,14 +42,15 @@ type EntryAttr struct {
 }
 
 type Document struct {
-	Title    string
-	Content  string
-	PublicAt time.Time
+	Content string
+	types.DocumentProperties
 }
 
 type CollectManifest struct {
-	BaseEntry int64
-	NewFiles  []Entry
+	ParentEntry  int64
+	Entry        int64
+	NewFiles     []Entry
+	NewDocuments []*Document
 }
 
 type File interface {

@@ -16,56 +16,29 @@
 
 package pluginapi
 
-import (
-	"fmt"
-	"github.com/basenana/nanafs/pkg/types"
-)
-
 type Request struct {
-	Action    string
-	Parameter map[string]any
+	JobID        string
+	GroupEntryId int64
+	WorkingPath  string
 
-	WorkPath string
+	Namespace  string
+	Entries    []Entry
+	PluginName string
+	Parameter  map[string]string
 
-	// deprecated
-	EntryId int64
-	// deprecated
-	EntryURI string
-
-	Entries          []Entry
-	ParentEntryId    int64
-	ParentProperties map[string]string
-
-	Namespace      string
-	CacheData      *CachedData
-	ContextResults Results
+	ContextStore ContextStore
 }
 
-func GetParameter(key string, r *Request, spec types.PluginSpec, scope types.PlugScope) string {
+func GetParameter(key string, r *Request, defaultVal string) string {
 	if len(r.Parameter) > 0 {
-		valRaw, ok := r.Parameter[key]
+		str, ok := r.Parameter[key]
 		if ok {
-			str, ok := valRaw.(string)
-			if ok {
-				return str
-			}
-			return fmt.Sprintf("%v", valRaw)
+			return str
 		}
 
 	}
-	if len(scope.Parameters) > 0 {
-		val, ok := scope.Parameters[key]
-		if ok {
-			return val
-		}
-	}
 
-	for _, cfg := range spec.Customization {
-		if cfg.Key == key {
-			return cfg.Default
-		}
-	}
-	return ""
+	return defaultVal
 }
 
 func NewRequest() *Request {
@@ -73,10 +46,13 @@ func NewRequest() *Request {
 }
 
 type Response struct {
-	IsSucceed  bool
-	Message    string
+	IsSucceed     bool
+	Message       string
+	ModifyEntries []Entry
+	Results       map[string]any
+
+	// Deprecated
 	NewEntries []CollectManifest
-	Results    map[string]any
 }
 
 func NewResponse() *Response {

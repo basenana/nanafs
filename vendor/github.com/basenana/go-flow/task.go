@@ -86,22 +86,31 @@ type Runnable interface {
 	Run(ctx context.Context) error
 }
 
-type functionExecutor struct{}
+type wrapper interface {
+	unwrapped() Task
+}
 
-var _ Executor = &functionExecutor{}
+type simpleExecutor struct{}
 
-func (s *functionExecutor) Exec(ctx context.Context, flow *Flow, task Task) error {
+var _ Executor = &simpleExecutor{}
+
+func (s *simpleExecutor) Exec(ctx context.Context, flow *Flow, task Task) error {
+	w, ok := task.(wrapper)
+	if ok {
+		task = w.unwrapped()
+	}
+
 	t, ok := task.(Runnable)
 	if !ok {
-		return fmt.Errorf("not a function")
+		return fmt.Errorf("not a runable task")
 	}
 	return t.Run(ctx)
 }
 
-func (s *functionExecutor) Setup(ctx context.Context) error {
+func (s *simpleExecutor) Setup(ctx context.Context) error {
 	return nil
 }
 
-func (s *functionExecutor) Teardown(ctx context.Context) error {
+func (s *simpleExecutor) Teardown(ctx context.Context) error {
 	return nil
 }

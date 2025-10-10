@@ -36,11 +36,16 @@ var (
 	ErrNotFound = errors.New("PluginNotFound")
 )
 
-type Manager struct {
+type Manager interface {
+	ListPlugins() []types.PluginSpec
+	Call(ctx context.Context, ps types.PluginCall, req *pluginapi.Request) (resp *pluginapi.Response, err error)
+}
+
+type manager struct {
 	r *registry
 }
 
-func (m *Manager) ListPlugins() []types.PluginSpec {
+func (m *manager) ListPlugins() []types.PluginSpec {
 	infos := m.r.List()
 	var result = make([]types.PluginSpec, 0, len(infos))
 	for _, i := range infos {
@@ -49,7 +54,7 @@ func (m *Manager) ListPlugins() []types.PluginSpec {
 	return result
 }
 
-func (m *Manager) Call(ctx context.Context, job *types.WorkflowJob, ps types.PlugScope, req *pluginapi.Request) (resp *pluginapi.Response, err error) {
+func (m *manager) Call(ctx context.Context, ps types.PluginCall, req *pluginapi.Request) (resp *pluginapi.Response, err error) {
 	startAt := time.Now()
 	defer func() {
 		if rErr := utils.Recover(); rErr != nil {
@@ -58,7 +63,7 @@ func (m *Manager) Call(ctx context.Context, job *types.WorkflowJob, ps types.Plu
 		processCallTimeUsage.WithLabelValues(ps.PluginName).Observe(time.Since(startAt).Seconds())
 	}()
 	var plugin Plugin
-	plugin, err = m.r.BuildPlugin(job, ps)
+	plugin, err = m.r.BuildPlugin(ps)
 	if err != nil {
 		return nil, err
 	}
@@ -76,9 +81,7 @@ type Plugin interface {
 	Version() string
 }
 
-type Builder func(job *types.WorkflowJob, scope types.PlugScope) (Plugin, error)
-
-func Init(cfg config.Config) (*Manager, error) {
+func Init(cfg config.Workflow) (Manager, error) {
 	r := &registry{
 		cfg:     cfg,
 		plugins: map[string]*pluginInfo{},
@@ -89,17 +92,17 @@ func Init(cfg config.Config) (*Manager, error) {
 	registerBuildInProcessPlugin(r)
 	registerBuildInSourcePlugin(r)
 
-	return &Manager{r: r}, nil
+	return &manager{r: r}, nil
 }
 
 type registry struct {
 	plugins map[string]*pluginInfo
-	cfg     config.Config
+	cfg     config.Workflow
 	mux     sync.RWMutex
 	logger  *zap.SugaredLogger
 }
 
-func (r *registry) BuildPlugin(job *types.WorkflowJob, ps types.PlugScope) (Plugin, error) {
+func (r *registry) BuildPlugin(ps types.PluginCall) (Plugin, error) {
 	r.mux.RLock()
 	p, ok := r.plugins[ps.PluginName]
 	if !ok {
@@ -108,15 +111,15 @@ func (r *registry) BuildPlugin(job *types.WorkflowJob, ps types.PlugScope) (Plug
 		return nil, ErrNotFound
 	}
 	r.mux.RUnlock()
-	return p.build(job, ps)
+	return p.singleton, nil
 }
 
-func (r *registry) Register(pluginName string, spec types.PluginSpec, builder Builder) {
+func (r *registry) Register(pluginName string, spec types.PluginSpec, singleton Plugin) {
 	r.mux.Lock()
 	r.plugins[pluginName] = &pluginInfo{
-		build:   builder,
-		spec:    spec,
-		buildIn: true,
+		singleton: singleton,
+		spec:      spec,
+		buildIn:   true,
 	}
 	r.mux.Unlock()
 }
@@ -132,8 +135,8 @@ func (r *registry) List() []*pluginInfo {
 }
 
 type pluginInfo struct {
-	build   Builder
-	spec    types.PluginSpec
-	disable bool
-	buildIn bool
+	singleton Plugin
+	spec      types.PluginSpec
+	disable   bool
+	buildIn   bool
 }

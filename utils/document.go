@@ -39,8 +39,8 @@ func ContentTrim(contentType, content string) string {
 	return content
 }
 
-func GenerateContentSubContent(content string) string {
-	if subContent, err := slowPathContentSubContent([]byte(content)); err == nil {
+func GenerateContentAbstract(content string) string {
+	if subContent, err := slowPathContentSubContent([]byte(content)); err == nil && len(subContent) > 100 {
 		return subContent
 	}
 
@@ -89,4 +89,45 @@ func trimDocumentContent(str string, m int) string {
 		return string(runes[:m])
 	}
 	return str
+}
+
+func GenerateContentHeaderImage(content string) string {
+	query, err := goquery.NewDocumentFromReader(bytes.NewReader([]byte(content)))
+	if err != nil {
+		return ""
+	}
+
+	var imageURL string
+	query.Find("img").EachWithBreak(func(i int, selection *goquery.Selection) bool {
+		var (
+			srcVal    string
+			isExisted bool
+		)
+		srcVal, isExisted = selection.Attr("src")
+		if isExisted && strings.HasPrefix(srcVal, "http") {
+			imageURL = srcVal
+			return true
+		}
+
+		srcVal, isExisted = selection.Attr("data-src")
+		if isExisted && strings.HasPrefix(srcVal, "http") {
+			imageURL = srcVal
+			return true
+		}
+
+		srcVal, isExisted = selection.Attr("data-src-retina")
+		if isExisted && strings.HasPrefix(srcVal, "http") {
+			imageURL = srcVal
+			return true
+		}
+
+		srcVal, isExisted = selection.Attr("data-original")
+		if isExisted && strings.HasPrefix(srcVal, "http") {
+			imageURL = srcVal
+			return true
+		}
+		return false
+	})
+
+	return imageURL
 }

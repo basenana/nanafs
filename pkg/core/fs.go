@@ -18,19 +18,21 @@ package core
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
+	"io"
+	"io/fs"
+	"math"
+	"path"
+	"runtime/trace"
+	"slices"
+	"time"
+
+	"go.uber.org/zap"
+
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
-	"go.uber.org/zap"
-	"io"
-	"io/fs"
-	"math"
-	"runtime/trace"
-	"strings"
-	"time"
 )
 
 const (
@@ -56,6 +58,10 @@ func NewFileSystem(core Core, store metastore.Meta, namespace string) (*FileSyst
 		namespace: namespace,
 		logger:    logger.NewLogger("core.fs"),
 	}, nil
+}
+
+func (f *FileSystem) Namespace() string {
+	return f.namespace
 }
 
 func (f *FileSystem) FsInfo(ctx context.Context) Info {
@@ -93,36 +99,7 @@ func (f *FileSystem) GetEntry(ctx context.Context, id int64) (*types.Entry, erro
 }
 
 func (f *FileSystem) GetEntryByPath(ctx context.Context, path string) (*types.Entry, *types.Entry, error) {
-	var (
-		crt, parent *types.Entry
-		err         error
-	)
-	parent, err = f.Root(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if path == "/" {
-		return parent, parent, nil
-	}
-
-	entries := strings.Split(path, "/")
-	for _, entryName := range entries {
-		if entryName == "" {
-			continue
-		}
-
-		if crt != nil {
-			parent = crt
-		}
-
-		crt, err = f.LookUpEntry(ctx, parent.ID, entryName)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
-	return parent, crt, nil
+	return f.core.GetEntryByPath(ctx, f.namespace, path)
 }
 
 func (f *FileSystem) LookUpEntry(ctx context.Context, parent int64, name string) (*types.Entry, error) {
@@ -266,33 +243,48 @@ func (f *FileSystem) Rename(ctx context.Context, targetId, oldParentId, newParen
 // MARK: xattr
 
 func (f *FileSystem) GetXAttr(ctx context.Context, id int64, fKey string) ([]byte, error) {
-	p, err := f.store.GetEntryProperty(ctx, f.namespace, id, fKey)
+	properties := make(types.AttrProperties)
+	err := f.store.GetEntryProperties(ctx, f.namespace, types.PropertyTypeAttr, id, &properties)
 	if err != nil {
 		return nil, err
 	}
 
-	val := []byte(p.Value)
-	if p.Encoded {
-		val, err = base64.StdEncoding.DecodeString(p.Value)
-		if err != nil {
-			return nil, err
-		}
+	encodedVal, ok := properties[fKey]
+	if !ok {
+		return nil, nil
+	}
+
+	val, err := utils.DecodeBase64(encodedVal)
+	if err != nil {
+		return nil, err
 	}
 	return val, nil
 }
 
 func (f *FileSystem) SetXAttr(ctx context.Context, id int64, fKey string, fVal []byte) error {
-	if err := f.store.AddEntryProperty(ctx, f.namespace, id, fKey, types.PropertyItem{Value: utils.EncodeBase64(fVal), Encoded: true}); err != nil {
+	properties := make(types.AttrProperties)
+	err := f.store.GetEntryProperties(ctx, f.namespace, types.PropertyTypeAttr, id, &properties)
+	if err != nil {
 		return err
 	}
-	return nil
+
+	properties[fKey] = utils.EncodeBase64(fVal)
+	return f.store.UpdateEntryProperties(ctx, f.namespace, types.PropertyTypeAttr, id, &properties)
 }
 
 func (f *FileSystem) RemoveXAttr(ctx context.Context, id int64, fKey string) error {
-	if err := f.store.RemoveEntryProperty(ctx, f.namespace, id, fKey); err != nil {
+	properties := make(types.AttrProperties)
+	err := f.store.GetEntryProperties(ctx, f.namespace, types.PropertyTypeAttr, id, &properties)
+	if err != nil {
 		return err
 	}
-	return nil
+
+	if _, ok := properties[fKey]; !ok {
+		return types.ErrNotFound
+	}
+
+	delete(properties, fKey)
+	return f.store.UpdateEntryProperties(ctx, f.namespace, types.PropertyTypeAttr, id, &properties)
 }
 
 // MARK: file
@@ -530,3 +522,48 @@ func (f *fsDIR) Raw() RawFile {
 }
 
 var _ File = &fsDIR{}
+
+func ProbableEntryName(ctx context.Context, core Core, en *types.Entry) (string, error) {
+	refs, err := core.ListParents(ctx, en.Namespace, en.ID)
+	if err != nil {
+		return "", err
+	}
+
+	if len(refs) == 0 {
+		return "", types.ErrNotFound
+	}
+
+	return refs[0].Name, nil
+}
+
+func ProbableEntryPath(ctx context.Context, core Core, en *types.Entry) (string, error) {
+	var (
+		crt   int64
+		refs  []*types.Child
+		parts []string
+	)
+
+	root, err := core.NamespaceRoot(ctx, en.Namespace)
+	if err != nil {
+		return "", err
+	}
+
+	crt = en.ID
+	for crt != root.ID {
+		refs, err = core.ListParents(ctx, en.Namespace, crt)
+		if err != nil {
+			return "", err
+		}
+
+		if len(refs) == 0 {
+			break
+		}
+
+		crt = refs[0].ParentID
+		parts = append(parts, refs[0].Name)
+	}
+	parts = append(parts, "/")
+	slices.Reverse(parts)
+
+	return path.Join(parts...), nil
+}

@@ -19,31 +19,29 @@ package v1
 import (
 	"context"
 	"errors"
-	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/core"
-	"github.com/basenana/nanafs/pkg/document"
-	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/pkg/notify"
-	"github.com/basenana/nanafs/pkg/token"
+	"fmt"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
+	"path"
 	"time"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/timestamppb"
-
-	"github.com/basenana/nanafs/workflow"
 
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
+	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/core"
+	"github.com/basenana/nanafs/pkg/metastore"
+	"github.com/basenana/nanafs/pkg/notify"
+	"github.com/basenana/nanafs/pkg/token"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
+	"github.com/basenana/nanafs/workflow"
 )
 
 type ServicesV1 interface {
-	AuthServer
-	DocumentServer
 	EntriesServer
 	PropertiesServer
 	NotifyServer
@@ -54,17 +52,12 @@ func InitServicesV1(server *grpc.Server, depends *common.Depends) (ServicesV1, e
 	s := &servicesV1{
 		meta:      depends.Meta,
 		core:      depends.Core,
-		doc:       depends.Document,
-		token:     depends.Token,
 		workflow:  depends.Workflow,
-		caller:    common.CallerAuth,
 		notify:    depends.Notify,
 		cfgLoader: depends.ConfigLoader,
 		logger:    logger.NewLogger("fsapi"),
 	}
 
-	RegisterAuthServer(server, s)
-	RegisterDocumentServer(server, s)
 	RegisterEntriesServer(server, s)
 	RegisterPropertiesServer(server, s)
 	RegisterNotifyServer(server, s)
@@ -75,10 +68,7 @@ func InitServicesV1(server *grpc.Server, depends *common.Depends) (ServicesV1, e
 type servicesV1 struct {
 	meta      metastore.Meta
 	core      core.Core
-	doc       document.Manager
-	token     *token.Manager
 	workflow  workflow.Workflow
-	caller    common.CallerAuthGetter
 	notify    *notify.Notify
 	cfgLoader config.Config
 	logger    *zap.SugaredLogger
@@ -86,268 +76,11 @@ type servicesV1 struct {
 
 var _ ServicesV1 = &servicesV1{}
 
-func (s *servicesV1) AccessToken(ctx context.Context, request *AccessTokenRequest) (*AccessTokenResponse, error) {
-	token, err := s.token.AccessToken(ctx, request.AccessTokenKey, request.SecretToken)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "access token error")
-	}
-	return &AccessTokenResponse{
-		Namespace:      token.Namespace,
-		UID:            token.UID,
-		GID:            token.GID,
-		ClientCrt:      token.ClientCrt,
-		ClientKey:      token.ClientKey,
-		CertExpiration: timestamppb.New(token.CertExpiration),
-	}, nil
-}
-
-func (s *servicesV1) ListDocuments(ctx context.Context, request *ListDocumentsRequest) (*ListDocumentsResponse, error) {
-	caller := s.caller(ctx)
-	if !caller.Authenticated {
-		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
-	}
-
-	filter := types.DocFilter{ParentID: request.ParentID}
-	if request.Filter != nil {
-		filter.FuzzyName = request.Filter.FuzzyName
-		filter.Source = request.Filter.Source
-		if request.Filter.Marked {
-			filter.Marked = &request.Filter.Marked
-		}
-		if request.Filter.Unread {
-			filter.Unread = &request.Filter.Unread
-		}
-		if request.Filter.Search != "" {
-			filter.Search = request.Filter.Search
-		}
-		if request.Filter.CreatedAtStart != nil {
-			createdStart := request.Filter.CreatedAtStart.AsTime()
-			filter.CreatedAtStart = &createdStart
-		}
-		if request.Filter.CreatedAtEnd != nil {
-			t := request.Filter.CreatedAtEnd.AsTime()
-			filter.CreatedAtEnd = &t
-		}
-		if request.Filter.ChangedAtStart != nil {
-			t := request.Filter.ChangedAtStart.AsTime()
-			filter.ChangedAtStart = &t
-		}
-		if request.Filter.ChangedAtEnd != nil {
-			t := request.Filter.ChangedAtEnd.AsTime()
-			filter.ChangedAtEnd = &t
-		}
-	}
-	if request.Pagination != nil {
-		ctx = types.WithPagination(ctx, types.NewPagination(request.Pagination.Page, request.Pagination.PageSize))
-	} else {
-		ctx = types.WithPagination(ctx, types.NewPagination(1, 20))
-	}
-	order := types.DocumentOrder{
-		Order: types.DocOrder(request.Order),
-		Desc:  request.OrderDesc,
-	}
-
-	docList, err := s.doc.ListDocuments(ctx, caller.Namespace, filter, &order)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "filter document failed")
-	}
-	resp := &ListDocumentsResponse{Documents: make([]*DocumentInfo, 0, len(docList))}
-	for _, doc := range docList {
-		properties, err := s.queryEntryProperties(ctx, caller.Namespace, doc.EntryId, doc.ParentEntryID)
-		if err != nil {
-			return nil, status.Error(common.FsApiError(err), "query entry properties failed")
-		}
-		docInfo := documentInfo(doc)
-		docInfo.Properties = properties
-		parentEn, err := s.core.GetEntry(ctx, doc.Namespace, doc.ParentEntryID)
-		if err != nil {
-			return nil, status.Error(common.FsApiError(err), "query parent entry failed")
-		}
-		docInfo.Parent = entryInfo(parentEn)
-		resp.Documents = append(resp.Documents, docInfo)
-	}
-	return resp, nil
-}
-
-func (s *servicesV1) GetDocumentParents(ctx context.Context, request *GetDocumentParentsRequest) (*GetDocumentParentsResponse, error) {
-	caller := s.caller(ctx)
-	if !caller.Authenticated {
-		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
-	}
-	filter := types.DocFilter{}
-	if request.Filter != nil {
-		filter.FuzzyName = request.Filter.FuzzyName
-		filter.Source = request.Filter.Source
-		if request.Filter.Marked {
-			filter.Marked = &request.Filter.Marked
-		}
-		if request.Filter.Unread {
-			filter.Unread = &request.Filter.Unread
-		}
-		if request.Filter.CreatedAtStart != nil {
-			createdStart := request.Filter.CreatedAtStart.AsTime()
-			filter.CreatedAtStart = &createdStart
-		}
-		if request.Filter.CreatedAtEnd != nil {
-			t := request.Filter.CreatedAtEnd.AsTime()
-			filter.CreatedAtEnd = &t
-		}
-		if request.Filter.ChangedAtStart != nil {
-			t := request.Filter.ChangedAtStart.AsTime()
-			filter.ChangedAtStart = &t
-		}
-		if request.Filter.ChangedAtEnd != nil {
-			t := request.Filter.ChangedAtEnd.AsTime()
-			filter.ChangedAtEnd = &t
-		}
-	}
-	entries, err := s.doc.ListDocumentGroups(ctx, caller.Namespace, request.ParentId, filter)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query groups of documents parent failed")
-	}
-
-	resp := &GetDocumentParentsResponse{}
-	for _, en := range entries {
-		resp.Entries = append(resp.Entries, entryInfo(en))
-	}
-	return resp, nil
-}
-
-func (s *servicesV1) GetDocumentDetail(ctx context.Context, request *GetDocumentDetailRequest) (*GetDocumentDetailResponse, error) {
-	caller := s.caller(ctx)
-	if !caller.Authenticated {
-		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
-	}
-
-	if request.DocumentID == 0 && request.EntryID == 0 {
-		return nil, status.Error(codes.InvalidArgument, "entry id and document are all empty")
-	}
-	var (
-		doc        *types.Document
-		en         *types.Entry
-		properties []*Property
-		err        error
-	)
-	if request.DocumentID != 0 {
-		doc, err = s.doc.GetDocument(ctx, caller.Namespace, request.DocumentID)
-		if err != nil {
-			return nil, status.Error(common.FsApiError(err), "query document with document id failed")
-		}
-	}
-	if request.EntryID != 0 {
-		doc, err = s.doc.GetDocumentByEntryId(ctx, caller.Namespace, request.EntryID)
-		if err != nil {
-			return nil, status.Error(common.FsApiError(err), "query document with entry id failed")
-		}
-		properties, err = s.queryEntryProperties(ctx, caller.Namespace, request.EntryID, doc.ParentEntryID)
-		if err != nil {
-			return nil, status.Error(common.FsApiError(err), "query entry properties failed")
-		}
-	}
-	if doc == nil {
-		return nil, status.Error(common.FsApiError(err), "document not found")
-	}
-
-	en, err = s.core.GetEntry(ctx, doc.Namespace, doc.EntryId)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query entry of document failed")
-	}
-
-	return &GetDocumentDetailResponse{
-		Document: &DocumentDescribe{
-			Id:            doc.EntryId,
-			Name:          doc.Name,
-			EntryID:       doc.EntryId,
-			ParentEntryID: doc.ParentEntryID,
-			Source:        doc.Source,
-			Marked:        *doc.Marked,
-			Unread:        *doc.Unread,
-			Namespace:     doc.Namespace,
-			HtmlContent:   doc.Content,
-			Summary:       doc.Summary,
-			EntryInfo:     entryInfo(en),
-			CreatedAt:     timestamppb.New(doc.CreatedAt),
-			ChangedAt:     timestamppb.New(doc.ChangedAt),
-		},
-		Properties: properties,
-	}, nil
-}
-
-func (s *servicesV1) UpdateDocument(ctx context.Context, request *UpdateDocumentRequest) (*UpdateDocumentResponse, error) {
-	if request.Document == nil {
-		return nil, status.Error(codes.InvalidArgument, "document is empty")
-	}
-	doc := request.Document
-	if doc.Id == 0 {
-		return nil, status.Error(codes.InvalidArgument, "document id is empty")
-	}
-	newDoc := &types.Document{
-		EntryId:       doc.Id,
-		Name:          doc.Name,
-		ParentEntryID: doc.ParentEntryID,
-		Source:        doc.Source,
-		Content:       doc.HtmlContent,
-		Summary:       doc.Summary,
-	}
-	t := true
-	f := false
-	switch request.SetMark {
-	case UpdateDocumentRequest_Marked:
-		newDoc.Marked = &t
-	case UpdateDocumentRequest_Unmarked:
-		newDoc.Marked = &f
-	case UpdateDocumentRequest_Read:
-		newDoc.Unread = &f
-	case UpdateDocumentRequest_Unread:
-		newDoc.Unread = &t
-	}
-	err := s.doc.UpdateDocument(ctx, newDoc)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "update document failed")
-	}
-	return &UpdateDocumentResponse{Document: doc}, nil
-}
-
-func (s *servicesV1) SearchDocuments(ctx context.Context, request *SearchDocumentsRequest) (*SearchDocumentsResponse, error) {
-	caller := s.caller(ctx)
-	if !caller.Authenticated {
-		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
-	}
-
-	if len(request.Query) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "query is empty")
-	}
-	docList, err := s.doc.QueryDocuments(ctx, caller.Namespace, request.Query)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "search document failed")
-	}
-
-	resp := &SearchDocumentsResponse{}
-	for _, doc := range docList {
-		resp.Documents = append(resp.Documents, &DocumentInfo{
-			Id:            doc.EntryId,
-			Name:          doc.Name,
-			EntryID:       doc.EntryId,
-			ParentEntryID: doc.ParentEntryID,
-			Source:        doc.Source,
-			Marked:        *doc.Marked,
-			Unread:        *doc.Unread,
-			Namespace:     doc.Namespace,
-			SubContent:    doc.SubContent,
-			HeaderImage:   doc.HeaderImage,
-			CreatedAt:     timestamppb.New(doc.CreatedAt),
-			ChangedAt:     timestamppb.New(doc.ChangedAt),
-		})
-	}
-	return resp, nil
-}
-
 func (s *servicesV1) GroupTree(ctx context.Context, request *GetGroupTreeRequest) (*GetGroupTreeResponse, error) {
-	caller := s.caller(ctx)
-	if !caller.Authenticated {
-		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	caller, err := s.caller(ctx)
+	if err != nil {
+		return nil, err
 	}
-
 	root, err := s.getGroupTree(ctx, caller.Namespace)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query root entry failed")
@@ -356,40 +89,18 @@ func (s *servicesV1) GroupTree(ctx context.Context, request *GetGroupTreeRequest
 	return resp, nil
 }
 
-func (s *servicesV1) FindEntryDetail(ctx context.Context, request *FindEntryDetailRequest) (*GetEntryDetailResponse, error) {
-	var (
-		en  *types.Entry
-		err error
-	)
-
-	caller := s.caller(ctx)
-	if !caller.Authenticated {
-		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
-	}
-
-	if !request.Root {
-		return nil, status.Errorf(codes.InvalidArgument, "root entry only")
-	}
-
-	en, err = s.core.NamespaceRoot(ctx, caller.Namespace)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query root entry failed")
-	}
-
-	details, properties, err := s.getEntryDetails(ctx, caller.Namespace, 0, en.ID)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query entry details failed")
-	}
-	return &GetEntryDetailResponse{Entry: details, Properties: properties}, nil
-}
-
 func (s *servicesV1) GetEntryDetail(ctx context.Context, request *GetEntryDetailRequest) (*GetEntryDetailResponse, error) {
-	caller := s.caller(ctx)
-	if !caller.Authenticated {
-		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	caller, err := s.caller(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	child, err := s.meta.GetChild(ctx, caller.Namespace, request.ParentID, request.EntryID)
+	s.logger.Infow("request", "uri", request.Uri)
+	parentID, entryID, err := s.getEntryByPath(ctx, caller.Namespace, request.Uri)
+	if err != nil {
+		return nil, err
+	}
+	child, err := s.meta.GetChild(ctx, caller.Namespace, parentID, entryID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "get child failed")
 	}
@@ -403,37 +114,74 @@ func (s *servicesV1) GetEntryDetail(ctx context.Context, request *GetEntryDetail
 		return nil, status.Error(common.FsApiError(err), "has no permission")
 	}
 
-	if child.ParentID != core.RootEntryID {
-		_, err = s.core.GetEntry(ctx, caller.Namespace, child.ParentID)
-		if err != nil {
-			return nil, status.Error(common.FsApiError(err), "query entry parent failed")
-		}
-	}
-
-	detail, properties, err := s.getEntryDetails(ctx, caller.Namespace, child.ParentID, child.ChildID)
+	parentURI, name := path.Split(request.Uri)
+	detail, properties, err := s.getEntryDetails(ctx, caller.Namespace, parentURI, name, child.ChildID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry details failed")
 	}
 	return &GetEntryDetailResponse{Entry: detail, Properties: properties}, nil
 }
 
-func (s *servicesV1) CreateEntry(ctx context.Context, request *CreateEntryRequest) (*CreateEntryResponse, error) {
-	caller := s.caller(ctx)
-	if !caller.Authenticated {
-		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+func (s *servicesV1) FilterEntry(ctx context.Context, request *FilterEntryRequest) (*ListEntriesResponse, error) {
+	caller, err := s.caller(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	if request.ParentID == 0 {
-		return nil, status.Error(codes.InvalidArgument, "parent id is 0")
+	it, err := s.meta.FilterEntries(ctx, caller.Namespace, types.Filter{CELPattern: request.CelPattern})
+	if err != nil {
+		s.logger.Errorw("list static children failed", "err", err)
+		return nil, err
 	}
-	if len(request.Name) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "entry name is empty")
+
+	var (
+		resp = &ListEntriesResponse{}
+		doc  *types.DocumentProperties
+	)
+
+	for it.HasNext() {
+		en, err := it.Next()
+		if err != nil {
+			return nil, err
+		}
+
+		if !en.IsGroup {
+			doc = &types.DocumentProperties{}
+			if err = s.meta.GetEntryProperties(ctx, caller.Namespace, types.PropertyTypeDocument, en.ID, doc); err != nil {
+				s.logger.Errorw("get entry document properties failed", "entry", en.ID, "err", err)
+				doc = nil
+			}
+		}
+
+		uri, err := core.ProbableEntryPath(ctx, s.core, en)
+		if err != nil {
+			s.logger.Errorw("guess entry uri error, hide this", "entry", en.ID, "err", err)
+			continue
+		}
+		resp.Entries = append(resp.Entries, toEntryInfo(uri, path.Base(uri), en, doc))
 	}
+
+	return resp, nil
+}
+
+func (s *servicesV1) CreateEntry(ctx context.Context, request *CreateEntryRequest) (*CreateEntryResponse, error) {
+	caller, err := s.caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	parentURI, name := path.Split(request.Uri)
+
+	_, parentID, err := s.getEntryByPath(ctx, caller.Namespace, parentURI)
+	if err != nil {
+		return nil, err
+	}
+
 	if request.Kind == "" {
 		return nil, status.Error(codes.InvalidArgument, "entry has unknown kind")
 	}
 
-	parent, err := s.core.GetEntry(ctx, caller.Namespace, request.ParentID)
+	parent, err := s.core.GetEntry(ctx, caller.Namespace, parentID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry parent failed")
 	}
@@ -444,33 +192,46 @@ func (s *servicesV1) CreateEntry(ctx context.Context, request *CreateEntryReques
 	}
 
 	attr := types.EntryAttr{
-		Name:   request.Name,
+		Name:   name,
 		Kind:   pdKind2EntryKind(request.Kind),
 		Access: &parent.Access,
-		Dev:    parent.Dev,
 	}
-	if request.Rss != nil {
-		s.logger.Infow("setup rss feed to dir", "feed", request.Rss.Feed, "siteName", request.Rss.SiteName)
-		setupRssConfig(request.Rss, &attr)
+
+	switch cfg := request.GroupConfig.(type) {
+	case *CreateEntryRequest_Rss:
+		s.logger.Infow("setup rss feed to dir", "feed", cfg.Rss.Feed, "siteName", cfg.Rss.SiteName)
+		setupRssConfig(cfg.Rss, &attr)
+	case *CreateEntryRequest_Filter:
+		s.logger.Infow("setup group filter", "cel", cfg.Filter.CelPattern)
+		setupGroupFilterConfig(cfg.Filter, &attr)
 	}
-	en, err := s.core.CreateEntry(ctx, caller.Namespace, request.ParentID, attr)
+
+	en, err := s.core.CreateEntry(ctx, caller.Namespace, parentID, attr)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "create entry failed")
 	}
-	return &CreateEntryResponse{Entry: coreEntryInfo(parent.ID, request.Name, en)}, nil
+
+	if attr.Properties != nil {
+		if err = s.meta.UpdateEntryProperties(ctx, caller.Namespace, types.PropertyTypeProperty, en.ID, attr.Properties); err != nil {
+			return nil, err
+		}
+	}
+
+	return &CreateEntryResponse{Entry: toEntryInfo(parentURI, name, en, nil)}, nil
 }
 
 func (s *servicesV1) UpdateEntry(ctx context.Context, request *UpdateEntryRequest) (*UpdateEntryResponse, error) {
-	caller := s.caller(ctx)
-	if !caller.Authenticated {
-		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	caller, err := s.caller(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	if request.EntryID == 0 {
-		return nil, status.Error(codes.InvalidArgument, "entry id is 0")
+	parentID, entryID, err := s.getEntryByPath(ctx, caller.Namespace, request.Uri)
+	if err != nil {
+		return nil, err
 	}
 
-	en, err := s.core.GetEntry(ctx, caller.Namespace, request.EntryID)
+	en, err := s.core.GetEntry(ctx, caller.Namespace, entryID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
@@ -480,7 +241,7 @@ func (s *servicesV1) UpdateEntry(ctx context.Context, request *UpdateEntryReques
 		return nil, status.Error(common.FsApiError(err), "has no permission")
 	}
 
-	_, err = s.core.GetEntry(ctx, caller.Namespace, en.ParentID)
+	_, err = s.core.GetEntry(ctx, caller.Namespace, parentID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry parent failed")
 	}
@@ -497,7 +258,8 @@ func (s *servicesV1) UpdateEntry(ctx context.Context, request *UpdateEntryReques
 		return nil, status.Error(common.FsApiError(err), "update entry failed")
 	}
 
-	detail, _, err := s.getEntryDetails(ctx, caller.Namespace, 0, en.ID)
+	parentURI, name := path.Split(request.Uri)
+	detail, _, err := s.getEntryDetails(ctx, caller.Namespace, parentURI, name, en.ID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry detail failed")
 	}
@@ -505,15 +267,22 @@ func (s *servicesV1) UpdateEntry(ctx context.Context, request *UpdateEntryReques
 }
 
 func (s *servicesV1) DeleteEntry(ctx context.Context, request *DeleteEntryRequest) (*DeleteEntryResponse, error) {
-	caller := s.caller(ctx)
-	if !caller.Authenticated {
-		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
-	}
-	en, err := s.deleteEntry(ctx, caller.Namespace, caller.UID, request.ParentID, request.EntryID, request.EntryName)
+	caller, err := s.caller(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return &DeleteEntryResponse{Entry: toEntryInfo(en)}, nil
+
+	parentID, entryID, err := s.getEntryByPath(ctx, caller.Namespace, request.Uri)
+	if err != nil {
+		return nil, err
+	}
+	en, err := s.deleteEntry(ctx, caller.Namespace, caller.UID, parentID, entryID, path.Base(request.Uri))
+	if err != nil {
+		return nil, err
+	}
+
+	parentURI, name := path.Split(request.Uri)
+	return &DeleteEntryResponse{Entry: toEntryInfo(parentURI, name, en, nil)}, nil
 }
 
 func (s *servicesV1) deleteEntry(ctx context.Context, namespace string, uid, parentID, entryId int64, name string) (en *types.Entry, err error) {
@@ -554,85 +323,85 @@ func (s *servicesV1) deleteEntry(ctx context.Context, namespace string, uid, par
 }
 
 func (s *servicesV1) DeleteEntries(ctx context.Context, request *DeleteEntriesRequest) (*DeleteEntriesResponse, error) {
-	caller := s.caller(ctx)
-	if !caller.Authenticated {
-		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	caller, err := s.caller(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	entryIds := make([]int64, 0, len(request.Entries))
-	for _, entry := range request.Entries {
-		en, err := s.deleteEntry(ctx, caller.Namespace, caller.UID, entry.ParentID, entry.EntryID, entry.EntryName)
+	deleted := make([]string, 0, len(request.UriList))
+	for _, entryURI := range request.UriList {
+		parentID, entryID, err := s.getEntryByPath(ctx, caller.Namespace, entryURI)
 		if err != nil {
-			return nil, err
+			return &DeleteEntriesResponse{Deleted: deleted}, err
 		}
-		entryIds = append(entryIds, en.ID)
+		_, err = s.deleteEntry(ctx, caller.Namespace, caller.UID, parentID, entryID, path.Base(entryURI))
+		if err != nil {
+			return &DeleteEntriesResponse{Deleted: deleted}, err
+		}
+		deleted = append(deleted, entryURI)
 	}
-	return &DeleteEntriesResponse{EntryIDs: entryIds}, nil
+	return &DeleteEntriesResponse{Deleted: deleted}, nil
 }
 
-func (s *servicesV1) ListGroupChildren(ctx context.Context, request *ListGroupChildrenRequest) (*ListGroupChildrenResponse, error) {
-	caller := s.caller(ctx)
-	if !caller.Authenticated {
-		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+func (s *servicesV1) ListGroupChildren(ctx context.Context, request *ListGroupChildrenRequest) (*ListEntriesResponse, error) {
+	caller, err := s.caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	_, parentID, err := s.getEntryByPath(ctx, caller.Namespace, request.ParentURI)
+	if err != nil {
+		return nil, err
 	}
 
 	if request.Pagination != nil {
 		ctx = types.WithPagination(ctx, types.NewPagination(request.Pagination.Page, request.Pagination.PageSize))
 	}
-	filter := types.Filter{}
-	if request.Filter != nil {
-		filter.FuzzyName = request.Filter.FuzzyName
-		filter.Kind = types.Kind(request.Filter.Kind)
-		t := true
-		f := false
-		switch request.Filter.IsGroup {
-		case EntryFilter_All:
-			filter.IsGroup = nil
-		case EntryFilter_Group:
-			filter.IsGroup = &t
-		case EntryFilter_File:
-			filter.IsGroup = &f
-		}
-		if request.Filter.CreatedAtStart != nil {
-			createdStart := request.Filter.CreatedAtStart.AsTime()
-			filter.CreatedAtStart = &createdStart
-		}
-		if request.Filter.CreatedAtEnd != nil {
-			ct := request.Filter.CreatedAtEnd.AsTime()
-			filter.CreatedAtEnd = &ct
-		}
-		if request.Filter.ModifiedAtStart != nil {
-			ct := request.Filter.ModifiedAtStart.AsTime()
-			filter.ModifiedAtStart = &ct
-		}
-		if request.Filter.ModifiedAtEnd != nil {
-			ct := request.Filter.ModifiedAtEnd.AsTime()
-			filter.ModifiedAtEnd = &ct
-		}
-	}
 	//order := EntryOrder{
 	//	Order: EnOrder(request.Order),
 	//	Desc:  request.OrderDesc,
 	//}
-	children, err := s.listEntryChildren(ctx, caller.Namespace, request.ParentID)
+	children, err := s.listEntryChildren(ctx, caller.Namespace, parentID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "list children failed")
 	}
 
-	resp := &ListGroupChildrenResponse{}
+	var (
+		resp = &ListEntriesResponse{}
+		doc  *types.DocumentProperties
+	)
 	for _, en := range children {
-		resp.Entries = append(resp.Entries, toEntryInfo(en))
+		if !en.IsGroup {
+			doc = &types.DocumentProperties{}
+			if err = s.meta.GetEntryProperties(ctx, caller.Namespace, types.PropertyTypeDocument, en.ID, doc); err != nil {
+				s.logger.Errorw("get entry document properties failed", "entry", en.ID, "err", err)
+				doc = nil
+			}
+		}
+		resp.Entries = append(resp.Entries, toEntryInfo(request.ParentURI, en.Name, en, doc))
 	}
 	return resp, nil
 }
 
 func (s *servicesV1) ChangeParent(ctx context.Context, request *ChangeParentRequest) (*ChangeParentResponse, error) {
-	caller := s.caller(ctx)
-	if !caller.Authenticated {
-		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	caller, err := s.caller(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	en, err := s.core.GetEntry(ctx, caller.Namespace, request.EntryID)
+	oldName := path.Base(request.EntryURI)
+	oldParentID, entryID, err := s.getEntryByPath(ctx, caller.Namespace, request.EntryURI)
+	if err != nil {
+		return nil, err
+	}
+
+	newParentURI, newName := path.Split(request.NewEntryURI)
+	_, newParentID, err := s.getEntryByPath(ctx, caller.Namespace, newParentURI)
+	if err != nil {
+		return nil, err
+	}
+
+	en, err := s.core.GetEntry(ctx, caller.Namespace, entryID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
@@ -641,7 +410,7 @@ func (s *servicesV1) ChangeParent(ctx context.Context, request *ChangeParentRequ
 		return nil, status.Error(common.FsApiError(err), "has no permission")
 	}
 
-	newParent, err := s.core.GetEntry(ctx, caller.Namespace, request.NewParentID)
+	newParent, err := s.core.GetEntry(ctx, caller.Namespace, newParentID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
@@ -652,11 +421,7 @@ func (s *servicesV1) ChangeParent(ctx context.Context, request *ChangeParentRequ
 
 	var (
 		existObjId *int64
-		newName    = en.Name
 	)
-	if request.NewName != "" {
-		newName = request.NewName
-	}
 	existObj, err := s.core.FindEntry(ctx, caller.Namespace, newParent.ID, newName)
 	if err != nil {
 		if !errors.Is(err, types.ErrNotFound) {
@@ -670,7 +435,7 @@ func (s *servicesV1) ChangeParent(ctx context.Context, request *ChangeParentRequ
 	if request.Option == nil {
 		request.Option = &ChangeParentRequest_Option{}
 	}
-	err = s.core.ChangeEntryParent(ctx, caller.Namespace, request.EntryID, existObjId, en.ParentID, request.NewParentID, en.Name, request.NewName, types.ChangeParentAttr{
+	err = s.core.ChangeEntryParent(ctx, caller.Namespace, entryID, existObjId, oldParentID, newParentID, oldName, newName, types.ChangeParentAttr{
 		Uid:      caller.UID,
 		Gid:      caller.GID,
 		Replace:  request.Option.Replace,
@@ -680,11 +445,11 @@ func (s *servicesV1) ChangeParent(ctx context.Context, request *ChangeParentRequ
 		return nil, status.Error(common.FsApiError(err), "change entry parent failed")
 	}
 
-	en, err = s.core.GetEntry(ctx, caller.Namespace, request.EntryID)
+	en, err = s.core.GetEntry(ctx, caller.Namespace, entryID)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
-	return &ChangeParentResponse{Entry: toEntryInfo(en)}, nil
+	return &ChangeParentResponse{Entry: toEntryInfo(newParentURI, newName, en, nil)}, nil
 }
 
 func (s *servicesV1) WriteFile(reader Entries_WriteFileServer) error {
@@ -695,11 +460,10 @@ func (s *servicesV1) WriteFile(reader Entries_WriteFileServer) error {
 		file      core.RawFile
 	)
 
-	caller := s.caller(ctx)
-	if !caller.Authenticated {
-		return status.Error(codes.Unauthenticated, "unauthenticated")
+	caller, err := s.caller(ctx)
+	if err != nil {
+		return err
 	}
-
 	defer func() {
 		if file != nil {
 			_ = file.Close(context.Background())
@@ -720,9 +484,9 @@ func (s *servicesV1) WriteFile(reader Entries_WriteFileServer) error {
 			break
 		}
 
-		if writeRequest.EntryID != accessEn {
-			s.logger.Debugw("handle write data to file", "entry", writeRequest.EntryID)
-			en, err := s.core.GetEntry(ctx, caller.Namespace, writeRequest.EntryID)
+		if writeRequest.Entry != accessEn {
+			s.logger.Debugw("handle write data to file", "entry", writeRequest.Entry)
+			en, err := s.core.GetEntry(ctx, caller.Namespace, writeRequest.Entry)
 			if err != nil {
 				return status.Error(common.FsApiError(err), "query entry failed")
 			}
@@ -731,7 +495,7 @@ func (s *servicesV1) WriteFile(reader Entries_WriteFileServer) error {
 			if err != nil {
 				return status.Error(common.FsApiError(err), "has no permission")
 			}
-			accessEn = writeRequest.EntryID
+			accessEn = writeRequest.Entry
 			s.logger.Infow("start to write data", "entry", accessEn)
 		}
 
@@ -766,12 +530,11 @@ func (s *servicesV1) ReadFile(request *ReadFileRequest, writer Entries_ReadFileS
 		readOnce int64
 	)
 
-	caller := s.caller(ctx)
-	if !caller.Authenticated {
-		return status.Error(codes.Unauthenticated, "unauthenticated")
+	caller, err := s.caller(ctx)
+	if err != nil {
+		return err
 	}
-
-	en, err := s.core.GetEntry(ctx, caller.Namespace, request.EntryID)
+	en, err := s.core.GetEntry(ctx, caller.Namespace, request.Entry)
 	if err != nil {
 		return status.Error(common.FsApiError(err), "query entry failed")
 	}
@@ -781,7 +544,7 @@ func (s *servicesV1) ReadFile(request *ReadFileRequest, writer Entries_ReadFileS
 		return status.Error(common.FsApiError(err), "has no permission")
 	}
 
-	file, err := s.core.Open(ctx, caller.Namespace, request.EntryID, types.OpenAttr{Read: true})
+	file, err := s.core.Open(ctx, caller.Namespace, request.Entry, types.OpenAttr{Read: true})
 	if err != nil {
 		return status.Error(common.FsApiError(err), "open file failed")
 	}
@@ -810,95 +573,88 @@ func (s *servicesV1) ReadFile(request *ReadFileRequest, writer Entries_ReadFileS
 	return nil
 }
 
-func (s *servicesV1) AddProperty(ctx context.Context, request *AddPropertyRequest) (*AddPropertyResponse, error) {
-	caller := s.caller(ctx)
-	if !caller.Authenticated {
-		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
-	}
-
-	en, err := s.core.GetEntry(ctx, caller.Namespace, request.EntryID)
+func (s *servicesV1) UpdateDocumentProperty(ctx context.Context, request *UpdateDocumentPropertyRequest) (*GetDocumentPropertiesResponse, error) {
+	caller, err := s.caller(ctx)
 	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query entry failed")
+		return nil, err
 	}
-	err = s.meta.AddEntryProperty(ctx, caller.Namespace, en.ID, request.Key, types.PropertyItem{Value: request.Value, Encoded: false})
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "add entry extend field failed")
-	}
-
-	en, err = s.core.GetEntry(ctx, caller.Namespace, request.EntryID)
+	en, err := s.core.GetEntry(ctx, caller.Namespace, request.Entry)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
 
-	properties, err := s.queryEntryProperties(ctx, caller.Namespace, en.ID, 0)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query entry properties failed")
+	if en.IsGroup {
+		return nil, status.Error(common.FsApiError(types.ErrIsGroup), "group has no document properties")
 	}
-	return &AddPropertyResponse{
-		Entry:      toEntryInfo(en),
-		Properties: properties,
+
+	properties := &types.DocumentProperties{}
+	err = s.meta.GetEntryProperties(ctx, caller.Namespace, types.PropertyTypeDocument, en.ID, &properties)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "fetch entry properties failed")
+	}
+
+	switch mark := request.Mark.(type) {
+	case *UpdateDocumentPropertyRequest_Unread:
+		properties.Unread = mark.Unread
+	case *UpdateDocumentPropertyRequest_Marked:
+		properties.Marked = mark.Marked
+	}
+
+	err = s.meta.UpdateEntryProperties(ctx, caller.Namespace, types.PropertyTypeDocument, en.ID, &properties)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "update entry properties failed")
+	}
+
+	return &GetDocumentPropertiesResponse{
+		Properties: &DocumentProperty{
+			Title:       properties.Title,
+			Author:      properties.Author,
+			Year:        properties.Year,
+			Source:      properties.Source,
+			Abstract:    properties.Abstract,
+			Keywords:    properties.Keywords,
+			Notes:       properties.Notes,
+			Unread:      properties.Unread,
+			Marked:      properties.Marked,
+			PublishAt:   timestamppb.New(time.Unix(properties.PublishAt, 0)),
+			Url:         properties.URL,
+			HeaderImage: properties.HeaderImage,
+		},
 	}, nil
 }
 
-func (s *servicesV1) UpdateProperty(ctx context.Context, request *UpdatePropertyRequest) (*UpdatePropertyResponse, error) {
-	caller := s.caller(ctx)
-	if !caller.Authenticated {
-		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+func (s *servicesV1) UpdateProperty(ctx context.Context, request *UpdatePropertyRequest) (*GetPropertiesResponse, error) {
+	caller, err := s.caller(ctx)
+	if err != nil {
+		return nil, err
 	}
-
-	en, err := s.core.GetEntry(ctx, caller.Namespace, request.EntryID)
+	en, err := s.core.GetEntry(ctx, caller.Namespace, request.Entry)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "query entry failed")
 	}
 
-	err = s.meta.AddEntryProperty(ctx, caller.Namespace, en.ID, request.Key, types.PropertyItem{Value: request.Value, Encoded: false})
+	properties := &types.Properties{}
+	err = s.meta.GetEntryProperties(ctx, caller.Namespace, types.PropertyTypeProperty, en.ID, &properties)
 	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "set entry extend field failed")
+		return nil, status.Error(common.FsApiError(err), "fetch entry properties failed")
 	}
 
-	en, err = s.core.GetEntry(ctx, caller.Namespace, request.EntryID)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query entry failed")
-	}
-	properties, err := s.queryEntryProperties(ctx, caller.Namespace, en.ID, en.ParentID)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query entry properties failed")
+	update := request.Properties
+	if update != nil {
+		properties.Tags = update.Tags
+		properties.Properties = update.Properties
 	}
 
-	return &UpdatePropertyResponse{
-		Entry:      toEntryInfo(en),
-		Properties: properties,
-	}, nil
-}
-
-func (s *servicesV1) DeleteProperty(ctx context.Context, request *DeletePropertyRequest) (*DeletePropertyResponse, error) {
-	caller := s.caller(ctx)
-	if !caller.Authenticated {
-		return nil, status.Error(codes.Unauthenticated, "unauthenticated")
+	err = s.meta.UpdateEntryProperties(ctx, caller.Namespace, types.PropertyTypeProperty, en.ID, &properties)
+	if err != nil {
+		return nil, status.Error(common.FsApiError(err), "update entry properties failed")
 	}
 
-	en, err := s.core.GetEntry(ctx, caller.Namespace, request.EntryID)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query entry failed")
-	}
-	err = s.meta.RemoveEntryProperty(ctx, caller.Namespace, en.ID, request.Key)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "set entry extend field failed")
-	}
-
-	en, err = s.core.GetEntry(ctx, caller.Namespace, request.EntryID)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query entry failed")
-	}
-	properties, err := s.queryEntryProperties(ctx, caller.Namespace, en.ID, en.ParentID)
-	if err != nil {
-		return nil, status.Error(common.FsApiError(err), "query entry properties failed")
-	}
-
-	return &DeletePropertyResponse{
-		Entry:      toEntryInfo(en),
-		Properties: properties,
-	}, nil
+	resp := &GetPropertiesResponse{Properties: &Property{
+		Tags:       properties.Tags,
+		Properties: properties.Properties,
+	}}
+	return resp, nil
 }
 
 func (s *servicesV1) ListMessages(ctx context.Context, request *ListMessagesRequest) (*ListMessagesResponse, error) {
@@ -912,11 +668,10 @@ func (s *servicesV1) ReadMessages(ctx context.Context, request *ReadMessagesRequ
 }
 
 func (s *servicesV1) ListWorkflows(ctx context.Context, request *ListWorkflowsRequest) (*ListWorkflowsResponse, error) {
-	caller := s.caller(ctx)
-	if !caller.Authenticated {
-		return nil, status.Errorf(codes.Unauthenticated, "unauthenticated")
+	caller, err := s.caller(ctx)
+	if err != nil {
+		return nil, err
 	}
-
 	workflowList, err := s.workflow.ListWorkflows(ctx, caller.Namespace)
 	if err != nil {
 		s.logger.Errorw("list workflow failed", "err", err)
@@ -931,11 +686,10 @@ func (s *servicesV1) ListWorkflows(ctx context.Context, request *ListWorkflowsRe
 }
 
 func (s *servicesV1) ListWorkflowJobs(ctx context.Context, request *ListWorkflowJobsRequest) (*ListWorkflowJobsResponse, error) {
-	caller := s.caller(ctx)
-	if !caller.Authenticated {
-		return nil, status.Errorf(codes.Unauthenticated, "unauthenticated")
+	caller, err := s.caller(ctx)
+	if err != nil {
+		return nil, err
 	}
-
 	if request.WorkflowID == "" {
 		return nil, status.Error(codes.InvalidArgument, "invalid workflow id")
 	}
@@ -954,9 +708,9 @@ func (s *servicesV1) ListWorkflowJobs(ctx context.Context, request *ListWorkflow
 }
 
 func (s *servicesV1) TriggerWorkflow(ctx context.Context, request *TriggerWorkflowRequest) (*TriggerWorkflowResponse, error) {
-	caller := s.caller(ctx)
-	if !caller.Authenticated {
-		return nil, status.Errorf(codes.Unauthenticated, "unauthenticated")
+	caller, err := s.caller(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	if request.WorkflowID == "" {
@@ -979,11 +733,35 @@ func (s *servicesV1) TriggerWorkflow(ctx context.Context, request *TriggerWorkfl
 	}
 
 	job, err := s.workflow.TriggerWorkflow(ctx, caller.Namespace, request.WorkflowID,
-		types.WorkflowTarget{Entries: []int64{request.Target.EntryID}, ParentEntryID: request.Target.ParentEntryID},
+		types.WorkflowTarget{Entries: []string{request.Target.Uri}},
 		workflow.JobAttr{Reason: request.Attr.Reason, Timeout: time.Second * time.Duration(request.Attr.Timeout)},
 	)
 	if err != nil {
 		return nil, status.Error(common.FsApiError(err), "trigger workflow failed")
 	}
 	return &TriggerWorkflowResponse{JobID: job.Id}, nil
+}
+
+func (s *servicesV1) caller(ctx context.Context) (*token.AuthInfo, error) {
+	ai := common.Auth(ctx)
+	if ai == nil {
+		return nil, status.Errorf(codes.Unauthenticated, "unauthenticated")
+	}
+	return ai, nil
+}
+
+func (s *servicesV1) getEntryByPath(ctx context.Context, namespace, path string) (int64, int64, error) {
+	p, e, err := s.core.GetEntryByPath(ctx, namespace, path)
+	if err != nil {
+		return 0, 0, status.Error(common.FsApiError(err), fmt.Sprintf("get entry failed: %s", err))
+	}
+	var pid, eid int64
+	if p != nil {
+		pid = p.ID
+	}
+	if e != nil {
+		eid = e.ID
+	}
+
+	return pid, eid, nil
 }

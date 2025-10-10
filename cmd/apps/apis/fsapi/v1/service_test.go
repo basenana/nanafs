@@ -18,8 +18,9 @@ package v1
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/core"
+	"google.golang.org/grpc/metadata"
 	"io"
+	"path"
 	"time"
 
 	"github.com/basenana/nanafs/utils"
@@ -37,68 +38,65 @@ import (
 
 var _ = Describe("testEntriesService-CRUD", func() {
 	var (
-		ctx     = context.TODO()
-		groupID int64
-		fileID  int64
+		md       = metadata.Pairs("X-Namespace-Admin", types.DefaultNamespace)
+		ctx      = metadata.NewOutgoingContext(context.Background(), md)
+		groupUri string
+		fileUri  string
 
-		groupID2 int64
-		fileID2  int64
+		groupUri2 string
+		fileUri2  string
 	)
 
 	Context("test create entry", func() {
 		It("create group should be succeed", func() {
 			resp, err := serviceClient.CreateEntry(ctx, &CreateEntryRequest{
-				ParentID: core.RootEntryID,
-				Name:     "test-group-1",
-				Kind:     types.GroupKind,
+				Uri:  "/test-group-1",
+				Kind: types.GroupKind,
 			}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
 			Expect(resp.Entry.Name).Should(Equal("test-group-1"))
-			groupID = resp.Entry.Id
+			groupUri = resp.Entry.Uri
 
 			resp, err = serviceClient.CreateEntry(ctx, &CreateEntryRequest{
-				ParentID: core.RootEntryID,
-				Name:     "test-group-2",
-				Kind:     types.GroupKind,
+				Uri:  "/test-group-2",
+				Kind: types.GroupKind,
 			}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
-			groupID2 = resp.Entry.Id
+			groupUri2 = resp.Entry.Uri
 		})
 		It("create child file should be succeed", func() {
 			resp, err := serviceClient.CreateEntry(ctx, &CreateEntryRequest{
-				ParentID: groupID,
-				Name:     "test-file-1",
-				Kind:     types.RawKind,
+				Uri:  path.Join(groupUri, "test-file-1"),
+				Kind: types.RawKind,
 			}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
-			fileID = resp.Entry.Id
+			fileUri = resp.Entry.Uri
 
 			resp, err = serviceClient.CreateEntry(ctx, &CreateEntryRequest{
-				ParentID: groupID,
-				Name:     "test-file-2",
-				Kind:     types.RawKind,
+				Uri:  path.Join(groupUri, "test-file-2"),
+				Kind: types.RawKind,
 			}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
-			fileID2 = resp.Entry.Id
+			fileUri2 = resp.Entry.Uri
 		})
 		It("list child should be succeed", func() {
-			resp, err := serviceClient.ListGroupChildren(ctx, &ListGroupChildrenRequest{ParentID: groupID}, grpc.UseCompressor(gzip.Name))
+			resp, err := serviceClient.ListGroupChildren(ctx, &ListGroupChildrenRequest{ParentURI: groupUri}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
 			Expect(len(resp.Entries) > 0).Should(BeTrue())
 		})
 		It("get detail should be succeed", func() {
-			resp, err := serviceClient.GetEntryDetail(ctx, &GetEntryDetailRequest{EntryID: fileID, ParentID: groupID}, grpc.UseCompressor(gzip.Name))
+			resp, err := serviceClient.GetEntryDetail(ctx, &GetEntryDetailRequest{Uri: fileUri}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
 			Expect(resp.Entry.Name).Should(Equal("test-file-1"))
 		})
 	})
 	Context("test move entry", func() {
 		It("move should be succeed", func() {
-			_, err := serviceClient.ChangeParent(ctx, &ChangeParentRequest{EntryID: fileID2, NewParentID: groupID2}, grpc.UseCompressor(gzip.Name))
+			_, err := serviceClient.ChangeParent(ctx, &ChangeParentRequest{EntryURI: fileUri2, NewEntryURI: path.Join(groupUri2, path.Base(fileUri2))}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
 		})
 		It("list child should be succeed", func() {
-			resp, err := serviceClient.ListGroupChildren(ctx, &ListGroupChildrenRequest{ParentID: groupID2}, grpc.UseCompressor(gzip.Name))
+			resp, err := serviceClient.ListGroupChildren(ctx, &ListGroupChildrenRequest{ParentURI: groupUri2}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
 			Expect(len(resp.Entries) > 0).Should(BeTrue())
 		})
@@ -106,13 +104,13 @@ var _ = Describe("testEntriesService-CRUD", func() {
 	Context("test update entry", func() {
 		It("update should be succeed", func() {
 			_, err := serviceClient.UpdateEntry(ctx, &UpdateEntryRequest{
-				EntryID: fileID,
+				Uri:     fileUri,
 				Aliases: "test aliases",
 			}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
 		})
 		It("get detail should be succeed", func() {
-			resp, err := serviceClient.GetEntryDetail(ctx, &GetEntryDetailRequest{EntryID: fileID, ParentID: groupID}, grpc.UseCompressor(gzip.Name))
+			resp, err := serviceClient.GetEntryDetail(ctx, &GetEntryDetailRequest{Uri: fileUri}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
 			Expect(resp.Entry.Aliases).Should(Equal("test aliases"))
 		})
@@ -120,19 +118,17 @@ var _ = Describe("testEntriesService-CRUD", func() {
 	Context("test delete entry", func() {
 		It("delete should be succeed", func() {
 			_, err := serviceClient.DeleteEntry(ctx, &DeleteEntryRequest{
-				EntryID:   fileID,
-				ParentID:  groupID,
-				EntryName: "test-file-1",
+				Uri: fileUri,
 			}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
 		})
 		It("get detail should be notfound", func() {
-			_, err := serviceClient.GetEntryDetail(ctx, &GetEntryDetailRequest{EntryID: fileID}, grpc.UseCompressor(gzip.Name))
+			_, err := serviceClient.GetEntryDetail(ctx, &GetEntryDetailRequest{Uri: fileUri}, grpc.UseCompressor(gzip.Name))
 			s, _ := status.FromError(err)
 			Expect(s.Code()).Should(Equal(codes.NotFound))
 		})
 		It("list children should be empty", func() {
-			resp, err := serviceClient.ListGroupChildren(ctx, &ListGroupChildrenRequest{ParentID: groupID}, grpc.UseCompressor(gzip.Name))
+			resp, err := serviceClient.ListGroupChildren(ctx, &ListGroupChildrenRequest{ParentURI: groupUri}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
 			Expect(len(resp.Entries)).Should(Equal(0))
 		})
@@ -141,7 +137,8 @@ var _ = Describe("testEntriesService-CRUD", func() {
 
 var _ = Describe("testEntriesService-FileIO", func() {
 	var (
-		ctx    = context.TODO()
+		md     = metadata.Pairs("X-Namespace-Admin", types.DefaultNamespace)
+		ctx    = metadata.NewOutgoingContext(context.Background(), md)
 		data   = []byte("hello world!\n")
 		fileID int64
 	)
@@ -149,12 +146,11 @@ var _ = Describe("testEntriesService-FileIO", func() {
 	Context("write new file", func() {
 		It("create new file should be succeed", func() {
 			resp, err := serviceClient.CreateEntry(ctx, &CreateEntryRequest{
-				ParentID: core.RootEntryID,
-				Name:     "test-bio-file-1",
-				Kind:     types.RawKind,
+				Uri:  "/test-bio-file-1",
+				Kind: types.RawKind,
 			}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
-			fileID = resp.Entry.Id
+			fileID = resp.Entry.Entry
 		})
 		It("write should be succeed", func() {
 			var off int64 = 0
@@ -162,10 +158,10 @@ var _ = Describe("testEntriesService-FileIO", func() {
 			Expect(err).Should(BeNil())
 			for i := 0; i < 3; i++ {
 				err = writer.Send(&WriteFileRequest{
-					EntryID: fileID,
-					Off:     off,
-					Len:     int64(len(data)),
-					Data:    data,
+					Entry: fileID,
+					Off:   off,
+					Len:   int64(len(data)),
+					Data:  data,
 				})
 				Expect(err).Should(BeNil())
 				off += int64(len(data))
@@ -181,9 +177,9 @@ var _ = Describe("testEntriesService-FileIO", func() {
 				content []byte
 			)
 			reader, err := serviceClient.ReadFile(ctx, &ReadFileRequest{
-				EntryID: fileID,
-				Off:     off,
-				Len:     int64(len(buf)),
+				Entry: fileID,
+				Off:   off,
+				Len:   int64(len(buf)),
 			})
 			Expect(err).Should(BeNil())
 
@@ -205,10 +201,10 @@ var _ = Describe("testEntriesService-FileIO", func() {
 			writer, err := serviceClient.WriteFile(ctx)
 			Expect(err).Should(BeNil())
 			err = writer.Send(&WriteFileRequest{
-				EntryID: fileID,
-				Off:     int64(len(data)),
-				Len:     int64(len(newData)),
-				Data:    newData,
+				Entry: fileID,
+				Off:   int64(len(data)),
+				Len:   int64(len(newData)),
+				Data:  newData,
 			})
 			Expect(err).Should(BeNil())
 			resp, err := writer.CloseAndRecv()
@@ -222,9 +218,9 @@ var _ = Describe("testEntriesService-FileIO", func() {
 				content []byte
 			)
 			reader, err := serviceClient.ReadFile(ctx, &ReadFileRequest{
-				EntryID: fileID,
-				Off:     off,
-				Len:     int64(len(buf)),
+				Entry: fileID,
+				Off:   off,
+				Len:   int64(len(buf)),
 			})
 			Expect(err).Should(BeNil())
 
@@ -244,140 +240,60 @@ var _ = Describe("testEntriesService-FileIO", func() {
 
 var _ = Describe("testEntryPropertiesService", func() {
 	var (
-		ctx     = context.TODO()
-		entryID int64
+		md       = metadata.Pairs("X-Namespace-Admin", types.DefaultNamespace)
+		ctx      = metadata.NewOutgoingContext(context.Background(), md)
+		entryID  int64
+		entryURI string
 	)
 
 	Context("test add property", func() {
 		It("init entry should be succeed", func() {
 			resp, err := serviceClient.CreateEntry(ctx, &CreateEntryRequest{
-				ParentID: core.RootEntryID,
-				Name:     "test-file-property-1",
-				Kind:     types.RawKind,
+				Uri:  "/test-file-property-1",
+				Kind: types.RawKind,
 			}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
-			entryID = resp.Entry.Id
+			entryID = resp.Entry.Entry
+			entryURI = resp.Entry.Uri
 		})
 		It("add should be succeed", func() {
-			resp, err := serviceClient.AddProperty(ctx, &AddPropertyRequest{
-				EntryID: entryID,
-				Key:     "test.key",
-				Value:   "value1",
+			resp, err := serviceClient.UpdateProperty(ctx, &UpdatePropertyRequest{
+				Entry: entryID,
+				Properties: &Property{
+					Tags:       []string{"tag1", "tag2"},
+					Properties: map[string]string{"key": "value"},
+				},
 			}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
-			Expect(len(resp.Properties) > 0).Should(BeTrue())
+			Expect(len(resp.Properties.Tags) > 0).Should(BeTrue())
+			Expect(len(resp.Properties.Properties) > 0).Should(BeTrue())
 		})
 		It("get entry details should be succeed", func() {
-			resp, err := serviceClient.GetEntryDetail(ctx, &GetEntryDetailRequest{EntryID: entryID, ParentID: core.RootEntryID}, grpc.UseCompressor(gzip.Name))
+			resp, err := serviceClient.GetEntryDetail(ctx, &GetEntryDetailRequest{Uri: entryURI}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
-			Expect(len(resp.Properties) > 0).Should(BeTrue())
+			Expect(len(resp.Properties.Tags) > 0).Should(BeTrue())
+			Expect(len(resp.Properties.Properties) > 0).Should(BeTrue())
 		})
 	})
-	Context("test update property", func() {
+	Context("test update document property", func() {
 		It("update should be succeed", func() {
-			resp, err := serviceClient.UpdateProperty(ctx, &UpdatePropertyRequest{
-				EntryID: entryID,
-				Key:     "test.key",
-				Value:   "value2",
+			resp, err := serviceClient.UpdateDocumentProperty(ctx, &UpdateDocumentPropertyRequest{
+				Entry: entryID,
+				Mark:  &UpdateDocumentPropertyRequest_Unread{Unread: true},
 			}, grpc.UseCompressor(gzip.Name))
 			Expect(err).Should(BeNil())
-			Expect(len(resp.Properties) > 0).Should(BeTrue())
+			Expect(resp.Properties.Unread).Should(BeTrue())
 		})
 		It("get entry details should be succeed", func() {
 			Expect(nil).Should(BeNil())
-		})
-	})
-	Context("test delete property", func() {
-		It("delete should be succeed", func() {
-			resp, err := serviceClient.DeleteProperty(ctx, &DeletePropertyRequest{
-				EntryID: entryID,
-				Key:     "test.key",
-			}, grpc.UseCompressor(gzip.Name))
-			Expect(err).Should(BeNil())
-			Expect(len(resp.Properties)).Should(Equal(0))
-		})
-		It("get entry details should be succeed", func() {
-			resp, err := serviceClient.GetEntryDetail(ctx, &GetEntryDetailRequest{EntryID: entryID, ParentID: core.RootEntryID}, grpc.UseCompressor(gzip.Name))
-			Expect(err).Should(BeNil())
-			Expect(len(resp.Properties)).Should(Equal(0))
-		})
-	})
-})
-
-var _ = Describe("testDocumentsService-ReadView", func() {
-	var (
-		ctx      = context.TODO()
-		groupID1 int64
-		groupID2 int64
-	)
-
-	Context("test get document details", func() {
-		It("init documents should be succeed", func() {
-			var (
-				err error
-				t   = true
-				f   = false
-			)
-			resp, err := serviceClient.CreateEntry(ctx, &CreateEntryRequest{
-				ParentID: core.RootEntryID,
-				Name:     "test-doc-group-1",
-				Kind:     types.GroupKind,
-			}, grpc.UseCompressor(gzip.Name))
-			Expect(err).Should(BeNil())
-			Expect(resp.Entry.Name).Should(Equal("test-doc-group-1"))
-			groupID1 = resp.Entry.Id
-			resp, err = serviceClient.CreateEntry(ctx, &CreateEntryRequest{
-				ParentID: core.RootEntryID,
-				Name:     "test-doc-group-2",
-				Kind:     types.GroupKind,
-			}, grpc.UseCompressor(gzip.Name))
-			Expect(err).Should(BeNil())
-			Expect(resp.Entry.Name).Should(Equal("test-doc-group-2"))
-			groupID2 = resp.Entry.Id
-			err = testFriday.CreateDocument(ctx, &types.Document{
-				EntryId: 100, Name: "test document 1", Namespace: types.DefaultNamespace, ParentEntryID: groupID1, Source: "unittest",
-				Content: "test document", Marked: &f, Unread: &f,
-				CreatedAt: time.Now(), ChangedAt: time.Now()})
-			Expect(err).Should(BeNil())
-			err = testFriday.CreateDocument(ctx, &types.Document{
-				EntryId: 101, Name: "test document unread 1", Namespace: types.DefaultNamespace, ParentEntryID: groupID1, Source: "unittest",
-				Content: "test document", Marked: &f, Unread: &t,
-				CreatedAt: time.Now(), ChangedAt: time.Now()})
-			Expect(err).Should(BeNil())
-			err = testFriday.CreateDocument(ctx, &types.Document{
-				EntryId: 102, Name: "test document unread 1", Namespace: types.DefaultNamespace, ParentEntryID: groupID2, Source: "unittest",
-				Content: "test document", Marked: &t, Unread: &f,
-				CreatedAt: time.Now(), ChangedAt: time.Now()})
-			Expect(err).Should(BeNil())
-		})
-	})
-	Context("list document", func() {
-		It("list all should be succeed", func() {
-			resp, err := serviceClient.ListDocuments(ctx, &ListDocumentsRequest{ListAll: true}, grpc.UseCompressor(gzip.Name))
-			Expect(err).Should(BeNil())
-			Expect(len(resp.Documents)).Should(Equal(3))
-		})
-		It("list marked should be succeed", func() {
-			resp, err := serviceClient.ListDocuments(ctx, &ListDocumentsRequest{Filter: &DocumentFilter{Marked: true}}, grpc.UseCompressor(gzip.Name))
-			Expect(err).Should(BeNil())
-			Expect(len(resp.Documents)).Should(Equal(1))
-		})
-		It("list unread should be succeed", func() {
-			resp, err := serviceClient.ListDocuments(ctx, &ListDocumentsRequest{Filter: &DocumentFilter{Unread: true}}, grpc.UseCompressor(gzip.Name))
-			Expect(err).Should(BeNil())
-			Expect(len(resp.Documents)).Should(Equal(1))
-		})
-		It("list by parent id should be succeed", func() {
-			resp, err := serviceClient.ListDocuments(ctx, &ListDocumentsRequest{ParentID: groupID2}, grpc.UseCompressor(gzip.Name))
-			Expect(err).Should(BeNil())
-			Expect(len(resp.Documents)).Should(Equal(1))
 		})
 	})
 })
 
 var _ = Describe("testWorkflowService", func() {
 	var (
-		ctx  = context.TODO()
+		md   = metadata.Pairs("X-Namespace-Admin", types.DefaultNamespace)
+		ctx  = metadata.NewOutgoingContext(context.Background(), md)
 		wfID = "mock-workflow-1"
 	)
 
@@ -400,7 +316,7 @@ var _ = Describe("testWorkflowService", func() {
 					Namespace:     types.DefaultNamespace,
 					Workflow:      wfID,
 					TriggerReason: "mock",
-					Steps:         make([]types.WorkflowJobStep, 0),
+					Nodes:         make([]types.WorkflowJobNode, 0),
 					Status:        jobrun.SucceedStatus,
 					StartAt:       time.Now(),
 					FinishAt:      time.Now(),

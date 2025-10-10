@@ -19,6 +19,7 @@ package docloader
 import (
 	"bytes"
 	"context"
+	"github.com/basenana/nanafs/pkg/types"
 	"io"
 	"os"
 )
@@ -33,7 +34,7 @@ type Text struct {
 
 func NewText(docPath string, option map[string]string) Parser { return Text{docPath: docPath} }
 
-func (l Text) Load(_ context.Context) (*FDocument, error) {
+func (l Text) Load(_ context.Context, doc types.DocumentProperties) (*FDocument, error) {
 	f, err := os.Open(l.docPath)
 	if err != nil {
 		return nil, err
@@ -47,9 +48,7 @@ func (l Text) Load(_ context.Context) (*FDocument, error) {
 	}
 
 	return &FDocument{
-		Content: buf.String(),
-		Metadata: map[string]string{
-			"org.basenana.document/type": "text",
-		},
+		Content:            buf.String(),
+		DocumentProperties: doc,
 	}, nil
 }

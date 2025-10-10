@@ -21,8 +21,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/basenana/nanafs/pkg/rule"
-
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
@@ -51,6 +49,8 @@ func TestCore(t *testing.T) {
 	defer logger.Sync()
 	RegisterFailHandler(Fail)
 
+	logger.SetDebug(true)
+
 	var err error
 	workdir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-core-")
 	Expect(err).Should(BeNil())
@@ -68,9 +68,6 @@ var _ = BeforeSuite(func() {
 	metaStoreObj = memMeta
 	fsCore, err = New(metaStoreObj, bootCfg)
 	Expect(err).Should(BeNil())
-
-	// init rule based query
-	rule.InitQuery(memMeta)
 
 	// init root
 	root, err = fsCore.FSRoot(context.TODO())

@@ -52,7 +52,6 @@ func initRootEntry() *types.Entry {
 	}
 	root, _ := types.InitNewEntry(nil, types.EntryAttr{Name: RootEntryName, Kind: types.GroupKind, Access: acc})
 	root.ID = RootEntryID
-	root.ParentID = root.ID
 	root.Namespace = types.DefaultNamespace
 	return root
 }
@@ -70,7 +69,6 @@ func initNamespaceRootEntry(root *types.Entry, ns string) *types.Entry {
 	}
 	nsRoot, _ := types.InitNewEntry(root, types.EntryAttr{Name: ns, Kind: types.GroupKind, Access: acc})
 	nsRoot.Namespace = ns
-	nsRoot.ParentID = root.ID
 	return nsRoot
 }
 

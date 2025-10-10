@@ -17,9 +17,8 @@
 package events
 
 var (
-	TopicNamespaceEntry    = "action.entry."
-	TopicNamespaceFile     = "action.file."
-	TopicNamespaceDocument = "action.document."
+	TopicNamespaceEntry = "action.entry."
+	TopicNamespaceFile  = "action.file."
 
 	ActionTypeCreate       = "create"
 	ActionTypeUpdate       = "update"

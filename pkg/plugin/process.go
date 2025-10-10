@@ -38,19 +38,12 @@ const (
 )
 
 var DelayProcessPluginSpec = types.PluginSpec{
-	Name:       delayPluginName,
-	Version:    delayPluginVersion,
-	Type:       types.TypeProcess,
-	Parameters: make(map[string]string),
-	Customization: []types.PluginConfig{
-		{Key: "delay", Default: ""},
-		{Key: "until", Default: ""},
-	},
+	Name:    delayPluginName,
+	Version: delayPluginVersion,
+	Type:    types.TypeProcess,
 }
 
-type DelayProcessPlugin struct {
-	scope types.PlugScope
-}
+type DelayProcessPlugin struct{}
 
 var _ ProcessPlugin = &DelayProcessPlugin{}
 
@@ -68,30 +61,30 @@ func (d *DelayProcessPlugin) Version() string {
 
 func (d *DelayProcessPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
 	var (
-		until   time.Time
-		nowTime = time.Now()
+		until            time.Time
+		nowTime          = time.Now()
+		delayDurationStr = pluginapi.GetParameter("delay", request, "")
+		untilStr         = pluginapi.GetParameter("until", request, "")
 	)
 
-	switch request.Action {
+	switch {
 
-	case "delay":
-		delayDurationStr := pluginapi.GetParameter("delay", request, DelayProcessPluginSpec, d.scope)
+	case delayDurationStr != "":
 		duration, err := time.ParseDuration(delayDurationStr)
 		if err != nil {
 			return nil, fmt.Errorf("parse delay duration [%s] failed: %s", delayDurationStr, err)
 		}
 		until = time.Now().Add(duration)
 
-	case "until":
+	case untilStr != "":
 		var err error
-		untilStr := pluginapi.GetParameter("until", request, DelayProcessPluginSpec, d.scope)
 		until, err = time.Parse(untilStr, time.RFC3339)
 		if err != nil {
 			return nil, fmt.Errorf("parse delay until [%s] failed: %s", untilStr, err)
 		}
 
 	default:
-		return pluginapi.NewFailedResponse(fmt.Sprintf("unknown action: %s", request.Action)), nil
+		return pluginapi.NewFailedResponse(fmt.Sprintf("unknown action")), nil
 	}
 
 	if nowTime.Before(until) {
@@ -109,27 +102,7 @@ func (d *DelayProcessPlugin) Run(ctx context.Context, request *pluginapi.Request
 }
 
 func registerBuildInProcessPlugin(r *registry) {
-	r.Register(
-		delayPluginName,
-		DelayProcessPluginSpec,
-		func(job *types.WorkflowJob, scope types.PlugScope) (Plugin, error) {
-			return &DelayProcessPlugin{scope: scope}, nil
-		},
-	)
-
-	r.Register(
-		docloader.PluginName,
-		docloader.PluginSpec,
-		func(job *types.WorkflowJob, scope types.PlugScope) (Plugin, error) {
-			return docloader.NewDocLoader(job, scope), nil
-		},
-	)
-
-	r.Register(
-		buildin.WebpackPluginName,
-		buildin.WebpackPluginSpec,
-		func(job *types.WorkflowJob, scope types.PlugScope) (Plugin, error) {
-			return buildin.NewWebpackPlugin(job, scope)
-		},
-	)
+	r.Register(delayPluginName, DelayProcessPluginSpec, &DelayProcessPlugin{})
+	r.Register(docloader.PluginName, docloader.PluginSpec, docloader.NewDocLoader())
+	r.Register(buildin.WebpackPluginName, buildin.WebpackPluginSpec, buildin.NewWebpackPlugin())
 }

@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"github.com/basenana/go-flow"
 	"github.com/basenana/nanafs/pkg/core"
-	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/plugin"
@@ -45,9 +44,8 @@ type Controller struct {
 	queue   *GroupJobQueue
 	workdir string
 
-	pluginMgr *plugin.Manager
+	pluginMgr plugin.Manager
 	core      core.Core
-	docMgr    document.Manager
 	store     metastore.Meta
 	notify    *notify.Notify
 
@@ -72,7 +70,6 @@ func (c *Controller) Start(ctx context.Context) {
 	}
 
 	go c.jobWorkQueueIterator(ctx, types.WorkflowQueueFile, 10)
-	go c.jobWorkQueueIterator(ctx, types.WorkflowQueuePipe, 50)
 
 	if err := c.rescanRunnableJob(ctx); err != nil {
 		c.logger.Errorw("rescanle runable job failed", "err", err)
@@ -136,7 +133,6 @@ func (c *Controller) handleNextJob(namespace, jobID string) {
 	}
 
 	f := workflowJob2Flow(c, job)
-	ctx = types.WithNamespace(ctx, types.NewNamespace(job.Namespace))
 	c.logger.Infow("ns in ctx before start", "namespace", job.Namespace, "job", jobID)
 	ctx = utils.NewWorkflowJobContext(ctx, job.Id)
 
@@ -160,9 +156,7 @@ func (c *Controller) handleNextJob(namespace, jobID string) {
 		job.TimeoutSeconds = 60 * 60 * 3 // 3H
 	}
 
-	// FIXME: delete this
-	nsCtx := types.WithNamespace(ctx, types.NewNamespace(job.Namespace))
-	jobCtx, canF := context.WithTimeout(nsCtx, time.Duration(job.TimeoutSeconds)*time.Second)
+	jobCtx, canF := context.WithTimeout(ctx, time.Duration(job.TimeoutSeconds)*time.Second)
 	defer canF()
 
 	c.logger.Infof("trigger flow %s %s", namespace, job.Id)
@@ -273,12 +267,12 @@ func (c *Controller) Handle(event flow.UpdateEvent) {
 	job.Message = event.Flow.Message
 
 	if event.Task != nil {
-		for i, step := range job.Steps {
-			if step.StepName != event.Task.GetName() {
+		for i, step := range job.Nodes {
+			if step.Name != event.Task.GetName() {
 				continue
 			}
-			job.Steps[i].Status = event.Task.GetName()
-			job.Steps[i].Message = event.Task.GetMessage()
+			job.Nodes[i].Status = event.Task.GetName()
+			job.Nodes[i].Message = event.Task.GetMessage()
 		}
 	}
 
@@ -287,8 +281,8 @@ func (c *Controller) Handle(event flow.UpdateEvent) {
 			"err", err, "job", event.Flow.ID)
 		return
 	}
-	c.logger.Infow("update workflow job status finish",
-		"job", event.Flow.ID, "status", event.Flow.Status)
+	c.logger.Infow("update workflow job status",
+		"job", event.Flow.ID, "status", event.Flow.Status, "message", event.Flow.Message)
 }
 
 func (c *Controller) getRunner(namespace, jobiD string) *runner {
@@ -298,12 +292,11 @@ func (c *Controller) getRunner(namespace, jobiD string) *runner {
 	return r
 }
 
-func NewJobController(pluginMgr *plugin.Manager, fsCore core.Core, docMgr document.Manager,
+func NewJobController(pluginMgr plugin.Manager, fsCore core.Core,
 	store metastore.Meta, notify *notify.Notify, workdir string) *Controller {
 	ctrl := &Controller{
 		pluginMgr: pluginMgr,
 		core:      fsCore,
-		docMgr:    docMgr,
 		store:     store,
 		notify:    notify,
 		workdir:   workdir,

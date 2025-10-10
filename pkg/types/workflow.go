@@ -22,27 +22,54 @@ import (
 
 const (
 	WorkflowQueueFile = "file"
-	WorkflowQueuePipe = "pipe"
 )
 
 type Workflow struct {
-	Id              string             `json:"id"`
-	Name            string             `json:"name"`
-	Namespace       string             `json:"namespace"`
-	Rule            *Rule              `json:"rule,omitempty"`
-	Cron            string             `json:"cron,omitempty"`
-	Steps           []WorkflowStepSpec `json:"steps,omitempty"`
-	Enable          bool               `json:"enable"`
-	System          bool               `json:"system"`
-	QueueName       string             `json:"queue_name"`
-	CreatedAt       time.Time          `json:"created_at,omitempty"`
-	UpdatedAt       time.Time          `json:"updated_at,omitempty"`
-	LastTriggeredAt time.Time          `json:"last_triggered_at,omitempty"`
+	Id              string          `json:"id"`
+	Namespace       string          `json:"namespace"`
+	Name            string          `json:"name"`
+	Trigger         WorkflowTrigger `json:"trigger"`
+	Nodes           []WorkflowNode  `json:"nodes"`
+	Enable          bool            `json:"enable"`
+	QueueName       string          `json:"queue_Name"`
+	CreatedAt       time.Time       `json:"created_at,omitempty"`
+	UpdatedAt       time.Time       `json:"updated_at,omitempty"`
+	LastTriggeredAt time.Time       `json:"last_triggered_at,omitempty"`
 }
 
-type WorkflowStepSpec struct {
-	Name   string     `json:"name"`
-	Plugin *PlugScope `json:"plugin,omitempty"`
+type WorkflowTrigger struct {
+	// entry events
+	OnCreate *WorkflowEntryMatch `json:"on_create,omitempty"`
+
+	// source plugins
+	RSS      *WorkflowRssTrigger `json:"rss,omitempty"`
+	Interval *int                `json:"interval,omitempty"`
+}
+
+type WorkflowNode struct {
+	Name       string            `json:"name"`
+	Type       string            `json:"type"`
+	Parameters map[string]string `json:"parameters"`
+
+	Next string `json:"next,omitempty"`
+}
+
+type WorkflowEntryMatch struct {
+	// File
+	FileTypes       string `json:"file_types,omitempty"`
+	FileNamePattern string `json:"file_name_pattern"`
+	MinFileSize     int    `json:"min_file_size,omitempty"`
+	MaxFileSize     int    `json:"max_file_size,omitempty"`
+
+	// Tree
+	ParentID int64 `json:"parent_id,omitempty"`
+
+	// Properties
+	CELPattern string `json:"cel_pattern,omitempty"`
+}
+
+type WorkflowRssTrigger struct {
+	CheckInterval int `json:"check_interval,omitempty"`
 }
 
 type WorkflowJob struct {
@@ -50,11 +77,11 @@ type WorkflowJob struct {
 	Namespace      string            `json:"namespace"`
 	Workflow       string            `json:"workflow"`
 	TriggerReason  string            `json:"trigger_reason,omitempty"`
-	Target         WorkflowTarget    `json:"target"`
-	Steps          []WorkflowJobStep `json:"steps"`
+	Targets        WorkflowTarget    `json:"targets"`
+	Nodes          []WorkflowJobNode `json:"nodes"`
+	Parameters     map[string]string `json:"parameters"`
 	Status         string            `json:"status,omitempty"`
 	Message        string            `json:"message,omitempty"`
-	Executor       string            `json:"executor"`
 	QueueName      string            `json:"queue_name"`
 	TimeoutSeconds int               `json:"timeout"`
 	StartAt        time.Time         `json:"start_at"`
@@ -79,17 +106,21 @@ func (w *WorkflowJob) SetMessage(msg string) {
 	w.Message = msg
 }
 
-type WorkflowJobStep struct {
-	StepName string     `json:"step_name"`
-	Message  string     `json:"message,omitempty"`
-	Status   string     `json:"status,omitempty"`
-	Plugin   *PlugScope `json:"plugin,omitempty"`
+type WorkflowJobNode struct {
+	WorkflowNode
+
+	Status  string `json:"status,omitempty"`
+	Message string `json:"message,omitempty"`
+
+	// Deprecated
+	StepName string `json:"step_name"`
 }
 
 type WorkflowTarget struct {
-	Entries       []int64 `json:"entries,omitempty"`
-	ParentEntryID int64   `json:"parent_entry_id,omitempty"`
+	Entries []string `json:"entries,omitempty"`
 }
 
-type WorkflowEntryResult struct {
+type PluginCall struct {
+	PluginName string `json:"plugin_name"`
+	Version    string `json:"version"`
 }

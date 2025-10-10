@@ -19,13 +19,11 @@ package docloader
 import (
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
+	"github.com/basenana/nanafs/pkg/types"
 	"path"
 	"path/filepath"
 	"strings"
-	"time"
-
-	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
-	"github.com/basenana/nanafs/pkg/types"
 )
 
 const (
@@ -34,17 +32,12 @@ const (
 )
 
 var PluginSpec = types.PluginSpec{
-	Name:          PluginName,
-	Version:       PluginVersion,
-	Type:          types.TypeProcess,
-	Parameters:    make(map[string]string),
-	Customization: []types.PluginConfig{},
+	Name:    PluginName,
+	Version: PluginVersion,
+	Type:    types.TypeProcess,
 }
 
-type DocLoader struct {
-	job   *types.WorkflowJob
-	scope types.PlugScope
-}
+type DocLoader struct{}
 
 func (d DocLoader) Name() string {
 	return PluginName
@@ -59,20 +52,21 @@ func (d DocLoader) Version() string {
 }
 
 func (d DocLoader) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
-	var result = pluginapi.CollectManifest{BaseEntry: request.ParentEntryId}
+	var result = make([]pluginapi.Entry, 0, len(request.Entries))
 	for i := range request.Entries {
 		en := request.Entries[i]
-		if err := d.loadEntry(ctx, request.WorkPath, &en); err != nil {
+		if err := d.loadEntry(ctx, request.WorkingPath, &en); err != nil {
 			return pluginapi.NewFailedResponse(fmt.Sprintf("load entry %d error: %s", en.ID, err.Error())), nil
 		}
 
-		if en.Document != nil {
-			result.NewFiles = append(result.NewFiles, en)
+		if en.Document == nil {
+			continue
 		}
+		result = append(result, en)
 	}
 
 	resp := pluginapi.NewResponse()
-	resp.NewEntries = append(resp.NewEntries, result)
+	resp.ModifyEntries = append(resp.ModifyEntries, result...)
 	return resp, nil
 }
 
@@ -97,31 +91,32 @@ func (d DocLoader) loadEntry(ctx context.Context, workdir string, entry *plugina
 		return fmt.Errorf("load %s file unsupported", fileExt)
 	}
 
-	document, err := p.Load(ctx)
+	document, err := p.Load(ctx, entry.Document.DocumentProperties)
 	if err != nil {
 		return fmt.Errorf("load file %s failed: %w", entryPath, err)
 	}
 
-	title := strings.TrimSpace(strings.TrimSuffix(entry.Name, fileExt))
 	entry.Document = &pluginapi.Document{
-		Title:    title,
-		Content:  document.Content,
-		PublicAt: document.PublicAt,
+		Content:            document.Content,
+		DocumentProperties: document.DocumentProperties,
 	}
 
-	for k, v := range document.Metadata {
-		entry.Parameters[k] = v
+	// some default setting
+	if entry.Document.Title == "" {
+		title := strings.TrimSpace(strings.TrimSuffix(entry.Name, fileExt))
+		entry.Document.Title = title
 	}
+	entry.Document.Unread = true
 
 	return nil
 }
 
-func NewDocLoader(job *types.WorkflowJob, scope types.PlugScope) *DocLoader {
-	return &DocLoader{job: job, scope: scope}
+func NewDocLoader() *DocLoader {
+	return &DocLoader{}
 }
 
 type Parser interface {
-	Load(ctx context.Context) (result *FDocument, err error)
+	Load(ctx context.Context, doc types.DocumentProperties) (result *FDocument, err error)
 }
 
 type parserBuilder func(docPath string, docOption map[string]string) Parser
@@ -136,8 +131,7 @@ var (
 )
 
 type FDocument struct {
-	Title    string
-	Content  string
-	PublicAt time.Time
-	Metadata map[string]string
+	types.DocumentProperties
+	Content string
+	Extra   map[string]string
 }

@@ -46,10 +46,6 @@ func init() {
 	}
 }
 
-type executor interface {
-	execute(ctx context.Context, task *types.ScheduledTask) error
-}
-
 type routineTask func(ctx context.Context) error
 
 type Dispatcher struct {
@@ -108,7 +104,6 @@ func (d *Dispatcher) dispatch(ctx context.Context, taskID string, exec executor,
 	task.Status = types.ScheduledTaskExecuting
 	task.ExecutionTime = time.Now()
 
-	ctx = types.WithNamespace(ctx, types.NewNamespace(task.Namespace))
 	if err := d.recorder.SaveTask(ctx, task); err != nil {
 		taskExecutionErrorCounter.Inc()
 		return err

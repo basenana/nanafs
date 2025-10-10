@@ -17,17 +17,16 @@
 package fsapi
 
 import (
-	"crypto/tls"
 	"fmt"
+	"net"
+
+	"google.golang.org/grpc"
+	_ "google.golang.org/grpc/encoding/gzip"
+
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
 	v1 "github.com/basenana/nanafs/cmd/apps/apis/fsapi/v1"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/utils/logger"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"net"
-
-	_ "google.golang.org/grpc/encoding/gzip"
 )
 
 type Server struct {
@@ -56,37 +55,10 @@ func New(depends *common.Depends, cfg config.Config) (*Server, error) {
 		return nil, fmt.Errorf("no api enabled")
 	}
 
-	rootCaPool, err := common.ReadRootCAs(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("load root ca error: %w", err)
-	}
-	clientCaPool, err := common.ReadClientCAs(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("load client ca error: %w", err)
-	}
-	certificate, err := common.EnsureServerX509KeyPair(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("load cert/key file error: %w", err)
-	}
-
-	serviceName, err := common.ServiceName(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("load service name error: %w", err)
-	}
-
-	creds := credentials.NewTLS(&tls.Config{
-		Certificates: []tls.Certificate{*certificate},
-		ServerName:   serviceName,
-		RootCAs:      rootCaPool,
-		ClientCAs:    clientCaPool,
-		ClientAuth:   tls.VerifyClientCertIfGiven,
-	})
-
 	var opts = []grpc.ServerOption{
-		grpc.Creds(creds),
 		grpc.MaxRecvMsgSize(1024 * 1024 * 50), // 50M
-		common.WithCommonInterceptors(),
-		common.WithStreamInterceptors(),
+		common.WithCommonInterceptors(depends.Token, apiCfg),
+		common.WithStreamInterceptors(depends.Token, apiCfg),
 	}
 	l, err := net.Listen("tcp", fmt.Sprintf("%s:%d", apiCfg.Host, apiCfg.Port))
 	if err != nil {

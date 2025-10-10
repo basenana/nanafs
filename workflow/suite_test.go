@@ -24,13 +24,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/basenana/nanafs/pkg/friday"
-	"github.com/basenana/nanafs/pkg/rule"
-
 	testcfg "github.com/onsi/ginkgo/config"
 
 	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/document"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/storage"
@@ -44,7 +40,6 @@ var (
 	stopCh    = make(chan struct{})
 	tempDir   string
 	fsCore    core.Core
-	docMgr    document.Manager
 	mgr       Workflow
 	namespace = types.DefaultNamespace
 
@@ -54,6 +49,9 @@ var (
 			ID:   storage.MemoryStorage,
 			Type: storage.MemoryStorage,
 		}},
+		Workflow: config.Workflow{
+			Enable: true,
+		},
 	}
 )
 
@@ -71,23 +69,15 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 	bootCfg.CacheDir = tempDir
 	bootCfg.CacheSize = 0
+	bootCfg.Workflow.JobWorkdir = tempDir
 
 	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())
 
-	rule.InitQuery(memMeta)
-
 	fsCore, err = core.New(memMeta, bootCfg)
 	Expect(err).Should(BeNil())
 
-	cfg := config.NewMockConfigLoader(bootCfg)
-	err = cfg.SetSystemConfig(context.TODO(), config.WorkflowConfigGroup, "job_workdir", tempDir)
-	Expect(err).Should(BeNil())
-
-	docMgr, err = document.NewManager(memMeta, fsCore, cfg, friday.NewMockFriday())
-	Expect(err).Should(BeNil())
-
-	mgr, err = New(fsCore, docMgr, notify.NewNotify(memMeta), memMeta, cfg)
+	mgr, err = New(fsCore, notify.NewNotify(memMeta), memMeta, bootCfg.Workflow)
 	Expect(err).Should(BeNil())
 
 	ctx, canF := context.WithCancel(context.Background())

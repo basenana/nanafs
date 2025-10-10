@@ -17,15 +17,11 @@
 package common
 
 import (
-	"context"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/dispatch"
-	"github.com/basenana/nanafs/pkg/document"
-	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
-	"github.com/basenana/nanafs/pkg/rule"
 	"github.com/basenana/nanafs/pkg/token"
 	"github.com/basenana/nanafs/workflow"
 )
@@ -35,8 +31,6 @@ type Depends struct {
 	Workflow     workflow.Workflow
 	Dispatcher   *dispatch.Dispatcher
 	Notify       *notify.Notify
-	Document     document.Manager
-	FridayClient friday.Friday
 	Token        *token.Manager
 	ConfigLoader config.Config
 	Core         core.Core
@@ -48,26 +42,19 @@ func InitDepends(loader config.Config, meta metastore.Meta) (*Depends, error) {
 		err  error
 	)
 
-	dep := &Depends{Meta: meta, ConfigLoader: loader}
-	dep.Token = token.NewTokenManager(meta, loader)
-	if tokenErr := dep.Token.InitBuildinCA(context.Background()); tokenErr != nil {
-		return nil, tokenErr
+	dep := &Depends{
+		Meta:         meta,
+		Notify:       notify.NewNotify(meta),
+		Token:        token.NewTokenManager(loader),
+		ConfigLoader: loader,
 	}
-
-	dep.Notify = notify.NewNotify(meta)
 
 	dep.Core, err = core.New(meta, bCfg)
 	if err != nil {
 		return nil, err
 	}
 
-	dep.FridayClient = friday.NewFridayClient(bCfg.FridayConfig)
-	dep.Document, err = document.NewManager(meta, dep.Core, loader, dep.FridayClient)
-	if err != nil {
-		return nil, err
-	}
-
-	dep.Workflow, err = workflow.New(dep.Core, dep.Document, dep.Notify, meta, loader)
+	dep.Workflow, err = workflow.New(dep.Core, dep.Notify, meta, bCfg.Workflow)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +63,5 @@ func InitDepends(loader config.Config, meta metastore.Meta) (*Depends, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	rule.InitQuery(meta)
 	return dep, nil
 }

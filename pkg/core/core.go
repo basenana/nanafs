@@ -20,6 +20,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime/trace"
+	"strings"
+
+	"go.uber.org/zap"
+
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/bio"
 	"github.com/basenana/nanafs/pkg/events"
@@ -27,8 +32,6 @@ import (
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
-	"go.uber.org/zap"
-	"runtime/trace"
 )
 
 type Core interface {
@@ -37,6 +40,7 @@ type Core interface {
 	CreateNamespace(ctx context.Context, namespace string) error
 
 	GetEntry(ctx context.Context, namespace string, id int64) (*types.Entry, error)
+	GetEntryByPath(ctx context.Context, namespace string, path string) (*types.Entry, *types.Entry, error)
 	CreateEntry(ctx context.Context, namespace string, parentId int64, attr types.EntryAttr) (*types.Entry, error)
 	UpdateEntry(ctx context.Context, namespace string, id int64, update types.UpdateEntry) (*types.Entry, error)
 	RemoveEntry(ctx context.Context, namespace string, parentId, entryId int64, entryName string, attr types.DeleteEntry) error
@@ -45,6 +49,7 @@ type Core interface {
 	ChangeEntryParent(ctx context.Context, namespace string, targetEntryId int64, overwriteEntryId *int64, oldParentId, newParentId int64, oldName, newName string, opt types.ChangeParentAttr) error
 	FindEntry(ctx context.Context, namespace string, parentId int64, name string) (*types.Child, error)
 	ListChildren(ctx context.Context, namespace string, parentId int64) ([]*types.Child, error)
+	ListParents(ctx context.Context, namespace string, childId int64) ([]*types.Child, error)
 
 	OpenGroup(ctx context.Context, namespace string, entryID int64) (Group, error)
 	Open(ctx context.Context, namespace string, entryId int64, attr types.OpenAttr) (RawFile, error)
@@ -129,7 +134,7 @@ func (c *core) FSRoot(ctx context.Context) (*types.Entry, error) {
 	}
 
 	if !errors.Is(err, types.ErrNotFound) {
-		c.logger.Errorw("load root object error", "err", err.Error())
+		c.logger.Errorw("load root entry error", "err", err.Error())
 		return nil, err
 	}
 	root = initRootEntry()
@@ -137,7 +142,7 @@ func (c *core) FSRoot(ctx context.Context) (*types.Entry, error) {
 	root.Access.GID = c.fsOwnerGid
 	root.Storage = c.defaultStorage.ID()
 
-	err = c.store.CreateEntry(ctx, types.DefaultNamespace, 0, root, nil)
+	err = c.store.CreateEntry(ctx, types.DefaultNamespace, 0, root)
 	if err != nil {
 		c.logger.Errorw("create root entry failed", "err", err)
 		return nil, err
@@ -151,6 +156,7 @@ func (c *core) NamespaceRoot(ctx context.Context, namespace string) (*types.Entr
 
 	root, err := c.FSRoot(ctx)
 	if err != nil {
+		c.logger.Errorw("get fs root error", "err", err)
 		return nil, err
 	}
 
@@ -164,18 +170,18 @@ func (c *core) NamespaceRoot(ctx context.Context, namespace string) (*types.Entr
 	)
 	nsChild, err = c.store.FindEntry(ctx, namespace, root.ID, namespace)
 	if err != nil {
-		c.logger.Errorw("load ns child object error", "namespace", namespace, "err", err)
+		c.logger.Errorw("load ns child entry error", "namespace", namespace, "err", err)
 		return nil, err
 	}
 
 	nsRoot, err = c.getEntry(ctx, namespace, nsChild.ChildID)
 	if err != nil {
-		c.logger.Errorw("load ns root object error", "namespace", namespace, "err", err)
+		c.logger.Errorw("load ns root entry error", "namespace", namespace, "err", err)
 		return nil, err
 	}
 
 	if nsRoot.Namespace != namespace {
-		c.logger.Errorw("find ns root object error", "err", "namespace not match")
+		c.logger.Errorw("find ns root entry error", "err", "namespace not match")
 		return nil, types.ErrNotFound
 	}
 	return nsRoot, nil
@@ -191,7 +197,7 @@ func (c *core) CreateNamespace(ctx context.Context, namespace string) error {
 
 	root, err := c.getEntry(ctx, types.DefaultNamespace, RootEntryID)
 	if err != nil {
-		c.logger.Errorw("load root object error", "err", err.Error())
+		c.logger.Errorw("load root entry error", "err", err.Error())
 		return err
 	}
 
@@ -201,7 +207,7 @@ func (c *core) CreateNamespace(ctx context.Context, namespace string) error {
 	nsRoot.Access.GID = c.fsOwnerGid
 	nsRoot.Storage = c.defaultStorage.ID()
 
-	err = c.store.CreateEntry(ctx, types.DefaultNamespace, RootEntryID, nsRoot, nil)
+	err = c.store.CreateEntry(ctx, types.DefaultNamespace, RootEntryID, nsRoot)
 	if err != nil {
 		c.logger.Errorw("create root entry failed", "err", err)
 		return err
@@ -259,6 +265,47 @@ func (c *core) GetEntry(ctx context.Context, namespace string, id int64) (*types
 	return en, nil
 }
 
+func (c *core) GetEntryByPath(ctx context.Context, namespace string, path string) (*types.Entry, *types.Entry, error) {
+	var (
+		crt, parent *types.Entry
+		err         error
+	)
+	parent, err = c.NamespaceRoot(ctx, namespace)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if path == "/" {
+		return parent, parent, nil
+	}
+
+	entries := strings.Split(path, "/")
+	for _, entryName := range entries {
+		if entryName == "" {
+			continue
+		}
+
+		if len(entryName) > fileNameMaxLength {
+			return nil, nil, types.ErrNameTooLong
+		}
+
+		if crt != nil {
+			parent = crt
+		}
+
+		child, err := c.FindEntry(ctx, namespace, parent.ID, entryName)
+		if err != nil {
+			return nil, nil, err
+		}
+		crt, err = c.GetEntry(ctx, namespace, child.ChildID)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return parent, crt, nil
+}
+
 func (c *core) CreateEntry(ctx context.Context, namespace string, parentId int64, attr types.EntryAttr) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "fs.core.CreateEntry").End()
 	existed, err := c.store.FindEntry(ctx, namespace, parentId, attr.Name)
@@ -279,22 +326,24 @@ func (c *core) CreateEntry(ctx context.Context, namespace string, parentId int64
 		return nil, err
 	}
 
-	err = c.store.CreateEntry(ctx, namespace, parentId, entry, attr.ExtendData)
+	err = c.store.CreateEntry(ctx, namespace, parentId, entry)
 	if err != nil {
 		return nil, err
 	}
 	defer c.cache.invalidEntry(namespace, parentId)
 
-	if len(attr.Labels.Labels) > 0 {
-		if err = c.store.UpdateEntryLabels(ctx, namespace, entry.ID, attr.Labels); err != nil {
-			_ = c.store.RemoveEntry(ctx, namespace, parentId, entry.ID, attr.Name, types.DeleteEntry{})
+	if attr.Properties != nil {
+		err = c.store.UpdateEntryProperties(ctx, namespace, types.PropertyTypeProperty, entry.ID, attr.Properties)
+		if err != nil {
+			c.logger.Errorw("update entry properties error", "err", err)
 			return nil, err
 		}
 	}
 
-	if len(attr.Properties.Fields) > 0 {
-		if err = c.store.UpdateEntryProperties(ctx, namespace, entry.ID, attr.Properties); err != nil {
-			_ = c.store.RemoveEntry(ctx, namespace, parentId, entry.ID, attr.Name, types.DeleteEntry{})
+	if entry.IsGroup && attr.GroupProperties != nil {
+		err = c.store.UpdateEntryProperties(ctx, namespace, types.PropertyTypeGroupAttr, entry.ID, attr.GroupProperties)
+		if err != nil {
+			c.logger.Errorw("update group properties error", "err", err)
 			return nil, err
 		}
 	}
@@ -431,8 +480,8 @@ func (c *core) MirrorEntry(ctx context.Context, namespace string, srcId, dstPare
 		name = attr.Name
 	}
 
-	if err = c.store.MirrorEntry(ctx, namespace, srcId, name, dstParentId); err != nil {
-		c.logger.Errorw("update dst parent object ref count error", "srcEntry", srcId, "dstParent", dstParentId, "err", err.Error())
+	if err = c.store.MirrorEntry(ctx, namespace, srcId, name, dstParentId, attr); err != nil {
+		c.logger.Errorw("update dst parent entry ref count error", "srcEntry", srcId, "dstParent", dstParentId, "err", err.Error())
 		return nil, err
 	}
 	c.cache.invalidEntry(namespace, srcId, dstParentId)
@@ -492,7 +541,7 @@ func (c *core) ChangeEntryParent(ctx context.Context, namespace string, targetEn
 
 	err = c.store.ChangeEntryParent(ctx, namespace, targetEntryId, oldParentId, newParentId, oldName, newName, opt)
 	if err != nil {
-		c.logger.Errorw("change object parent failed", "entry", target.ID, "newParent", newParentId, "newName", newName, "err", err)
+		c.logger.Errorw("change entry parent failed", "entry", target.ID, "newParent", newParentId, "newName", newName, "err", err)
 		return err
 	}
 	c.cache.invalidChild(namespace, oldParentId, oldName)
@@ -551,6 +600,11 @@ func (c *core) ListChildren(ctx context.Context, namespace string, parentId int6
 	return c.store.ListChildren(ctx, namespace, parentId)
 }
 
+func (c *core) ListParents(ctx context.Context, namespace string, childID int64) ([]*types.Child, error) {
+	defer trace.StartRegion(ctx, "fs.core.ListParents").End()
+	return c.store.ListParents(ctx, namespace, childID)
+}
+
 func (c *core) OpenGroup(ctx context.Context, namespace string, groupId int64) (Group, error) {
 	defer trace.StartRegion(ctx, "fs.core.OpenGroup").End()
 	entry, err := c.GetEntry(ctx, namespace, groupId)
@@ -564,17 +618,20 @@ func (c *core) OpenGroup(ctx context.Context, namespace string, groupId int64) (
 		stdGrp       = &stdGroup{entryID: entry.ID, name: entry.Name, namespace: namespace, core: c, store: c.store}
 		grp    Group = stdGrp
 	)
+
 	switch entry.Kind {
 	case types.SmartGroupKind:
-		ed, err := c.store.GetEntryExtendData(ctx, namespace, groupId)
+		gattr := &types.GroupProperties{}
+		err = c.store.GetEntryProperties(ctx, namespace, types.PropertyTypeGroupAttr, groupId, gattr)
 		if err != nil {
 			c.logger.Errorw("query dynamic group extend data failed", "err", err)
 			return nil, err
 		}
-		if ed.GroupFilter != nil {
+
+		if gattr.Filter != nil {
 			grp = &dynamicGroup{
 				std:       stdGrp,
-				rule:      *ed.GroupFilter,
+				filter:    *gattr.Filter,
 				baseEntry: groupId,
 				logger:    logger.NewLogger("dynamicGroup").With(zap.Int64("group", groupId)),
 			}

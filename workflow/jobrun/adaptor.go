@@ -17,9 +17,11 @@
 package jobrun
 
 import (
+	"context"
 	"github.com/basenana/go-flow"
 	"github.com/basenana/nanafs/pkg/types"
 	"strings"
+	"sync"
 )
 
 var (
@@ -35,11 +37,11 @@ var (
 
 type Task struct {
 	job  *types.WorkflowJob
-	step *types.WorkflowJobStep
+	step *types.WorkflowJobNode
 }
 
 func (t *Task) GetName() string {
-	return t.step.StepName
+	return t.step.Name
 }
 
 func (t *Task) GetStatus() string {
@@ -58,7 +60,7 @@ func (t *Task) SetMessage(s string) {
 	t.step.Message = s
 }
 
-func newTask(job *types.WorkflowJob, step *types.WorkflowJobStep) flow.Task {
+func newTask(job *types.WorkflowJob, step *types.WorkflowJobNode) flow.Task {
 	return &Task{job: job, step: step}
 }
 
@@ -82,13 +84,72 @@ func NewJobID(flowID string) (jid JobID) {
 	return
 }
 
+type coordinator struct {
+	next       map[string]string
+	mux        sync.Mutex
+	crt        string
+	isFinished bool
+}
+
+func (c *coordinator) NewTask(task flow.Task) {
+	t, ok := task.(*Task)
+	if !ok {
+		return
+	}
+
+	if c.crt == "" {
+		c.crt = t.GetName()
+	}
+
+	c.mux.Lock()
+	c.next[t.GetName()] = t.step.Next
+	c.mux.Unlock()
+}
+
+func (c *coordinator) UpdateTask(task flow.Task) {
+	t, ok := task.(*Task)
+	if !ok {
+		return
+	}
+
+	tname := t.GetName()
+	c.mux.Lock()
+	if task.GetStatus() == SucceedStatus {
+		c.crt = c.next[tname]
+	}
+	c.mux.Unlock()
+}
+
+func (c *coordinator) NextBatch(ctx context.Context) ([]string, error) {
+	c.mux.Lock()
+	next := c.next[c.crt]
+	c.mux.Unlock()
+	if next != "" {
+		return []string{next}, nil
+	}
+	c.isFinished = true
+	return nil, nil
+}
+
+func (c *coordinator) Finished() bool {
+	return c.isFinished
+}
+
+func (c *coordinator) HandleFail(task flow.Task, err error) flow.FailOperation {
+	c.isFinished = true
+	return flow.FailAndInterrupt
+}
+
+var _ flow.Coordinator = &coordinator{}
+
 func workflowJob2Flow(ctrl *Controller, job *types.WorkflowJob) *flow.Flow {
 	fb := flow.NewFlowBuilder(JobID{namespace: job.Namespace, id: job.Id}.FlowID()).
+		Coordinator(&coordinator{next: make(map[string]string)}).
 		Executor(newExecutor(ctrl, job)).
 		Observer(ctrl)
 
-	for i := range job.Steps {
-		fb.Task(newTask(job, &job.Steps[i]))
+	for i := range job.Nodes {
+		fb.Task(newTask(job, &job.Nodes[i]))
 	}
 
 	return fb.Finish()

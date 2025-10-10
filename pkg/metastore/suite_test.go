@@ -36,6 +36,7 @@ func TestMetaStore(t *testing.T) {
 
 	logger.InitLogger()
 	defer logger.Sync()
+	logger.SetDebug(true)
 
 	var err error
 	workdir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-storage-")

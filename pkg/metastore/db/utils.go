@@ -30,6 +30,8 @@ func SqlError2Error(err error) error {
 	switch err {
 	case gorm.ErrRecordNotFound:
 		return types.ErrNotFound
+	case gorm.ErrDuplicatedKey:
+		return types.ErrIsExist
 	default:
 		return err
 	}
