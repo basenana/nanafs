@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
 	"path"
 	"time"
@@ -604,7 +605,22 @@ func (s *servicesV1) UpdateDocumentProperty(ctx context.Context, request *Update
 		return nil, status.Error(common.FsApiError(err), "update entry properties failed")
 	}
 
-	return &GetDocumentPropertiesResponse{}, nil
+	return &GetDocumentPropertiesResponse{
+		Properties: &DocumentProperty{
+			Title:       properties.Title,
+			Author:      properties.Author,
+			Year:        properties.Year,
+			Source:      properties.Source,
+			Abstract:    properties.Abstract,
+			Keywords:    properties.Keywords,
+			Notes:       properties.Notes,
+			Unread:      properties.Unread,
+			Marked:      properties.Marked,
+			PublishAt:   timestamppb.New(time.Unix(properties.PublishAt, 0)),
+			Url:         properties.URL,
+			HeaderImage: properties.HeaderImage,
+		},
+	}, nil
 }
 
 func (s *servicesV1) UpdateProperty(ctx context.Context, request *UpdatePropertyRequest) (*GetPropertiesResponse, error) {
@@ -635,6 +651,7 @@ func (s *servicesV1) UpdateProperty(ctx context.Context, request *UpdateProperty
 	}
 
 	resp := &GetPropertiesResponse{Properties: &Property{
+		Tags:       properties.Tags,
 		Properties: properties.Properties,
 	}}
 	return resp, nil

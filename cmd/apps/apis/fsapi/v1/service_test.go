@@ -18,6 +18,7 @@ package v1
 
 import (
 	"context"
+	"google.golang.org/grpc/metadata"
 	"io"
 	"path"
 	"time"
@@ -37,7 +38,8 @@ import (
 
 var _ = Describe("testEntriesService-CRUD", func() {
 	var (
-		ctx      = context.TODO()
+		md       = metadata.Pairs("X-Namespace-Admin", types.DefaultNamespace)
+		ctx      = metadata.NewOutgoingContext(context.Background(), md)
 		groupUri string
 		fileUri  string
 
@@ -135,7 +137,8 @@ var _ = Describe("testEntriesService-CRUD", func() {
 
 var _ = Describe("testEntriesService-FileIO", func() {
 	var (
-		ctx    = context.TODO()
+		md     = metadata.Pairs("X-Namespace-Admin", types.DefaultNamespace)
+		ctx    = metadata.NewOutgoingContext(context.Background(), md)
 		data   = []byte("hello world!\n")
 		fileID int64
 	)
@@ -237,7 +240,8 @@ var _ = Describe("testEntriesService-FileIO", func() {
 
 var _ = Describe("testEntryPropertiesService", func() {
 	var (
-		ctx      = context.TODO()
+		md       = metadata.Pairs("X-Namespace-Admin", types.DefaultNamespace)
+		ctx      = metadata.NewOutgoingContext(context.Background(), md)
 		entryID  int64
 		entryURI string
 	)
@@ -288,7 +292,8 @@ var _ = Describe("testEntryPropertiesService", func() {
 
 var _ = Describe("testWorkflowService", func() {
 	var (
-		ctx  = context.TODO()
+		md   = metadata.Pairs("X-Namespace-Admin", types.DefaultNamespace)
+		ctx  = metadata.NewOutgoingContext(context.Background(), md)
 		wfID = "mock-workflow-1"
 	)
 
