@@ -15,5 +15,6 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o na
 
 FROM registry.cn-hangzhou.aliyuncs.com/ihypo/busybox:1.34.0
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
-COPY --from=builder /workspace/nanafs /usr/bin
+COPY --from=builder /workspace/nanafs /usr/bin/
+RUN mkdir -p /var/lib/nanafs
 ENV TZ=Asia/Shanghai

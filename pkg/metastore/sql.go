@@ -279,8 +279,7 @@ func (s *sqlMetaStore) CreateEntry(ctx context.Context, namespace string, parent
 			return nil
 		}
 
-		res = tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("id = ? AND namespace = ?", parentID, namespace).First(parentMod)
+		res = tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", parentID).First(parentMod)
 		if res.Error != nil {
 			return res.Error
 		}

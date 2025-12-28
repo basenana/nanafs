@@ -160,10 +160,6 @@ func (c *core) NamespaceRoot(ctx context.Context, namespace string) (*types.Entr
 		return nil, err
 	}
 
-	if namespace == types.DefaultNamespace {
-		return root, nil
-	}
-
 	var (
 		nsChild *types.Child
 		nsRoot  *types.Entry

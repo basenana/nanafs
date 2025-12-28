@@ -68,9 +68,7 @@ type WorkflowEntryMatch struct {
 	CELPattern string `json:"cel_pattern,omitempty"`
 }
 
-type WorkflowRssTrigger struct {
-	CheckInterval int `json:"check_interval,omitempty"`
-}
+type WorkflowRssTrigger struct{}
 
 type WorkflowJob struct {
 	Id             string            `json:"id"`

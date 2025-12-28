@@ -19,6 +19,7 @@ package apps
 import (
 	"context"
 	"fmt"
+	"github.com/basenana/nanafs/workflow"
 	"time"
 
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
@@ -102,11 +103,11 @@ func run(depends *common.Depends, cfg config.Config, stopCh chan struct{}) {
 	ctx, canF := context.WithCancel(context.Background())
 	defer canF()
 
-	depends.Workflow.Start(ctx)
 	defaultFS, err := core.NewFileSystem(depends.Core, depends.Meta, types.DefaultNamespace)
 	if err != nil {
 		log.Panic("failed to create default filesystem")
 	}
+	depends.Workflow.Start(ctx)
 
 	if boot.API.Enable {
 		err = apis.RunFSAPI(depends, cfg, stopCh)
@@ -127,6 +128,8 @@ func run(depends *common.Depends, cfg config.Config, stopCh chan struct{}) {
 			log.Panicw("run fuse failed", "err", err)
 		}
 	}
+
+	createNamespace(ctx, depends.Core, depends.Workflow, "hypo")
 
 	log.Info("started")
 	<-shutdown
@@ -188,3 +191,23 @@ var versionCmd = &cobra.Command{
 //		}
 //	},
 //}
+
+func createNamespace(ctx context.Context, core core.Core, wfMgr workflow.Workflow, namespace string) error {
+	log := logger.NewLogger("nanafs.namespace")
+	err := core.CreateNamespace(ctx, namespace)
+	if err != nil {
+		log.Errorw("create namespace failed", "err", err)
+		return err
+	}
+
+	wfList := workflow.NewDefaultsWorkflows(namespace)
+	for _, wf := range wfList {
+		_, err = wfMgr.CreateWorkflow(ctx, namespace, wf)
+		if err != nil {
+			log.Errorw("create workflow failed", "workflow", wf.Name, "err", err)
+			return err
+		}
+	}
+
+	return nil
+}
