@@ -19,8 +19,9 @@ package apps
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/workflow"
 	"time"
+
+	"github.com/basenana/nanafs/workflow"
 
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
 	"github.com/basenana/nanafs/pkg/core"
@@ -39,7 +40,7 @@ import (
 func init() {
 	RootCmd.AddCommand(daemonCmd)
 	RootCmd.AddCommand(versionCmd)
-	//RootCmd.AddCommand(NamespaceCmd)
+	RootCmd.AddCommand(NamespaceCmd)
 }
 
 var RootCmd = &cobra.Command{
@@ -129,8 +130,6 @@ func run(depends *common.Depends, cfg config.Config, stopCh chan struct{}) {
 		}
 	}
 
-	createNamespace(ctx, depends.Core, depends.Workflow, "hypo")
-
 	log.Info("started")
 	<-shutdown
 	time.Sleep(time.Second * 5)
@@ -147,50 +146,48 @@ var versionCmd = &cobra.Command{
 	},
 }
 
-//var NamespaceCmd = &cobra.Command{
-//	Use:   "namespace",
-//	Short: "create namespace",
-//	Run: func(cmd *cobra.Command, args []string) {
-//		loader := config.NewConfigLoader()
-//		cfg, err := loader.GetBootstrapConfig()
-//		if err != nil {
-//			panic(err)
-//		}
-//
-//		if cfg.Debug {
-//			logger.SetDebug(cfg.Debug)
-//		}
-//
-//		meta, err := metastore.NewMetaStorage(cfg.Meta.Type, cfg.Meta)
-//		if err != nil {
-//			panic(err)
-//		}
-//
-//		err = loader.InitCMDB(meta)
-//		if err != nil {
-//			panic(err)
-//		}
-//
-//		if len(cfg.Storages) == 0 {
-//			panic("storage must config")
-//		}
-//
-//		bio.InitPageCache(cfg.FS)
-//		storage.InitLocalCache(cfg)
-//
-//		fridayClient := friday.NewFridayClient(cfg.FridayConfig)
-//
-//		ctrl, err := controller.New(loader, meta, fridayClient)
-//		if err != nil {
-//			panic(err)
-//		}
-//
-//		_, err = ctrl.CreateNamespace(context.Background(), args[0])
-//		if err != nil {
-//			panic(err)
-//		}
-//	},
-//}
+var NamespaceCmd = &cobra.Command{
+	Use:   "namespace",
+	Short: "create namespace",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		loader, err := config.NewConfigLoader()
+		if err != nil {
+			panic(err)
+		}
+
+		boot := loader.GetBootstrapConfig()
+		if boot.Debug {
+			logger.SetDebug(boot.Debug)
+		}
+
+		meta, err := metastore.NewMetaStorage(boot.Meta.Type, boot.Meta)
+		if err != nil {
+			panic(err)
+		}
+
+		if err = loader.RegisterCMDB(meta); err != nil {
+			panic(err)
+		}
+
+		if len(boot.Storages) == 0 {
+			panic("storage must config")
+		}
+
+		depends, err := common.InitDepends(loader, meta)
+		if err != nil {
+			panic(err)
+		}
+
+		ctx := context.Background()
+		namespace := args[0]
+		err = createNamespace(ctx, depends.Core, depends.Workflow, namespace)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Namespace '%s' created successfully\n", namespace)
+	},
+}
 
 func createNamespace(ctx context.Context, core core.Core, wfMgr workflow.Workflow, namespace string) error {
 	log := logger.NewLogger("nanafs.namespace")
