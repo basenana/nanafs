@@ -38,7 +38,7 @@ import (
 
 var _ = Describe("testEntriesService-CRUD", func() {
 	var (
-		md       = metadata.Pairs("X-Namespace-Admin", types.DefaultNamespace)
+		md       = metadata.Pairs("X-Namespace", types.DefaultNamespace, "X-Uid", "0", "X-Gid", "0")
 		ctx      = metadata.NewOutgoingContext(context.Background(), md)
 		groupUri string
 		fileUri  string
@@ -137,7 +137,7 @@ var _ = Describe("testEntriesService-CRUD", func() {
 
 var _ = Describe("testEntriesService-FileIO", func() {
 	var (
-		md     = metadata.Pairs("X-Namespace-Admin", types.DefaultNamespace)
+		md     = metadata.Pairs("X-Namespace", types.DefaultNamespace, "X-Uid", "0", "X-Gid", "0")
 		ctx    = metadata.NewOutgoingContext(context.Background(), md)
 		data   = []byte("hello world!\n")
 		fileID int64
@@ -240,7 +240,7 @@ var _ = Describe("testEntriesService-FileIO", func() {
 
 var _ = Describe("testEntryPropertiesService", func() {
 	var (
-		md       = metadata.Pairs("X-Namespace-Admin", types.DefaultNamespace)
+		md       = metadata.Pairs("X-Namespace", types.DefaultNamespace, "X-Uid", "0", "X-Gid", "0")
 		ctx      = metadata.NewOutgoingContext(context.Background(), md)
 		entryID  int64
 		entryURI string
@@ -292,7 +292,7 @@ var _ = Describe("testEntryPropertiesService", func() {
 
 var _ = Describe("testWorkflowService", func() {
 	var (
-		md   = metadata.Pairs("X-Namespace-Admin", types.DefaultNamespace)
+		md   = metadata.Pairs("X-Namespace", types.DefaultNamespace, "X-Uid", "0", "X-Gid", "0")
 		ctx  = metadata.NewOutgoingContext(context.Background(), md)
 		wfID = "mock-workflow-1"
 	)

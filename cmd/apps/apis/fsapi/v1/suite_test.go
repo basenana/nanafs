@@ -81,6 +81,10 @@ var _ = BeforeSuite(func() {
 	_, err = dep.Core.FSRoot(context.TODO())
 	Expect(err).Should(BeNil())
 
+	// init default namespace
+	err = dep.Core.CreateNamespace(context.TODO(), types.DefaultNamespace)
+	Expect(err).Should(BeNil())
+
 	buffer := 1024 * 1024
 	mockListen = bufconn.Listen(buffer)
 
@@ -90,8 +94,8 @@ var _ = BeforeSuite(func() {
 	var opts = []grpc.ServerOption{
 		grpc.Creds(serverCreds),
 		grpc.MaxRecvMsgSize(1024 * 1024 * 50), // 50M
-		common.WithCommonInterceptors(dep.Token, mockConfig.API),
-		common.WithStreamInterceptors(dep.Token, mockConfig.API),
+		common.WithCommonInterceptors(),
+		common.WithStreamInterceptors(),
 	}
 	testServer = grpc.NewServer(opts...)
 	_, err = InitServicesV1(testServer, dep)

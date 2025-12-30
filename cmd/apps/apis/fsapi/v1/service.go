@@ -35,7 +35,6 @@ import (
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
-	"github.com/basenana/nanafs/pkg/token"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/basenana/nanafs/workflow"
@@ -742,12 +741,12 @@ func (s *servicesV1) TriggerWorkflow(ctx context.Context, request *TriggerWorkfl
 	return &TriggerWorkflowResponse{JobID: job.Id}, nil
 }
 
-func (s *servicesV1) caller(ctx context.Context) (*token.AuthInfo, error) {
-	ai := common.Auth(ctx)
-	if ai == nil {
-		return nil, status.Errorf(codes.Unauthenticated, "unauthenticated")
+func (s *servicesV1) caller(ctx context.Context) (*common.CallerInfo, error) {
+	caller := common.Caller(ctx)
+	if caller == nil {
+		return nil, status.Errorf(codes.Unauthenticated, "missing caller info")
 	}
-	return ai, nil
+	return caller, nil
 }
 
 func (s *servicesV1) getEntryByPath(ctx context.Context, namespace, path string) (int64, int64, error) {

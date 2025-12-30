@@ -57,8 +57,8 @@ func New(depends *common.Depends, cfg config.Config) (*Server, error) {
 
 	var opts = []grpc.ServerOption{
 		grpc.MaxRecvMsgSize(1024 * 1024 * 50), // 50M
-		common.WithCommonInterceptors(depends.Token, apiCfg),
-		common.WithStreamInterceptors(depends.Token, apiCfg),
+		common.WithCommonInterceptors(),
+		common.WithStreamInterceptors(),
 	}
 	l, err := net.Listen("tcp", fmt.Sprintf("%s:%d", apiCfg.Host, apiCfg.Port))
 	if err != nil {

@@ -22,7 +22,6 @@ import (
 	"github.com/basenana/nanafs/pkg/dispatch"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
-	"github.com/basenana/nanafs/pkg/token"
 	"github.com/basenana/nanafs/workflow"
 )
 
@@ -31,7 +30,6 @@ type Depends struct {
 	Workflow     workflow.Workflow
 	Dispatcher   *dispatch.Dispatcher
 	Notify       *notify.Notify
-	Token        *token.Manager
 	ConfigLoader config.Config
 	Core         core.Core
 }
@@ -45,7 +43,6 @@ func InitDepends(loader config.Config, meta metastore.Meta) (*Depends, error) {
 	dep := &Depends{
 		Meta:         meta,
 		Notify:       notify.NewNotify(meta),
-		Token:        token.NewTokenManager(loader),
 		ConfigLoader: loader,
 	}
 

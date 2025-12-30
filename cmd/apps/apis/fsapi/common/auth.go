@@ -18,38 +18,65 @@ package common
 
 import (
 	"context"
-	"errors"
-	"strings"
+	"strconv"
 
 	"google.golang.org/grpc/metadata"
-
-	"github.com/basenana/nanafs/pkg/token"
 )
 
-func getNamespaceFromMetadata(md metadata.MD) string {
-	authorizationHeaders := md.Get("X-Namespace-Admin")
-	if len(authorizationHeaders) == 0 {
+type CallerInfo struct {
+	Namespace string
+	UID       int64
+	GID       int64
+}
+
+const (
+	headerNamespace = "X-Namespace"
+	headerUID       = "X-Uid"
+	headerGID       = "X-Gid"
+)
+
+func getFromMetadata(md metadata.MD, key string) string {
+	vals := md.Get(key)
+	if len(vals) == 0 {
 		return ""
 	}
-	return authorizationHeaders[0]
+	return vals[0]
 }
 
-func getAccessTokenFromMetadata(md metadata.MD) (string, error) {
-	authorizationHeaders := md.Get("Authorization")
-	if len(authorizationHeaders) == 0 {
-		return "", errors.New("authorization header not found")
+func getInt64FromMetadata(md metadata.MD, key string) int64 {
+	val := getFromMetadata(md, key)
+	if val == "" {
+		return 0
 	}
-	authHeaderParts := strings.Fields(authorizationHeaders[0])
-	if len(authHeaderParts) != 2 || strings.ToLower(authHeaderParts[0]) != "bearer" {
-		return "", errors.New("authorization header format must be Bearer {token}")
+	v, err := strconv.ParseInt(val, 10, 64)
+	if err != nil {
+		return 0
 	}
-	return authHeaderParts[1], nil
+	return v
 }
 
-func Auth(ctx context.Context) *token.AuthInfo {
-	raw := ctx.Value(authInfoContextKey)
+func NamespaceFromMetadata(md metadata.MD) string {
+	return getFromMetadata(md, headerNamespace)
+}
+
+func UIDFromMetadata(md metadata.MD) int64 {
+	return getInt64FromMetadata(md, headerUID)
+}
+
+func GIDFromMetadata(md metadata.MD) int64 {
+	return getInt64FromMetadata(md, headerGID)
+}
+
+const callerInfoContextKey = "caller.info"
+
+func WithCallerInfo(ctx context.Context, info *CallerInfo) context.Context {
+	return context.WithValue(ctx, callerInfoContextKey, info)
+}
+
+func Caller(ctx context.Context) *CallerInfo {
+	raw := ctx.Value(callerInfoContextKey)
 	if raw == nil {
 		return nil
 	}
-	return raw.(*token.AuthInfo)
+	return raw.(*CallerInfo)
 }
