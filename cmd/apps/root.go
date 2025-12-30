@@ -112,7 +112,7 @@ func run(depends *common.Depends, cfg config.Config, stopCh chan struct{}) {
 	if boot.API.Enable {
 		err = apis.RunFSAPI(depends, cfg, stopCh)
 		if err != nil {
-			log.Panicw("run fspi failed", "err", err)
+			log.Panicw("run fsapi failed", "err", err)
 		}
 	}
 	if boot.Webdav.Enable {
