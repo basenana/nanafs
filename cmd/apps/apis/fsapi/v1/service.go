@@ -20,10 +20,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
 	"path"
 	"time"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -35,7 +36,6 @@ import (
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
-	"github.com/basenana/nanafs/pkg/token"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/basenana/nanafs/workflow"
@@ -50,12 +50,12 @@ type ServicesV1 interface {
 
 func InitServicesV1(server *grpc.Server, depends *common.Depends) (ServicesV1, error) {
 	s := &servicesV1{
-		meta:      depends.Meta,
-		core:      depends.Core,
-		workflow:  depends.Workflow,
-		notify:    depends.Notify,
-		cfgLoader: depends.ConfigLoader,
-		logger:    logger.NewLogger("fsapi"),
+		meta:     depends.Meta,
+		core:     depends.Core,
+		workflow: depends.Workflow,
+		notify:   depends.Notify,
+		cfg:      depends.Config,
+		logger:   logger.NewLogger("fsapi"),
 	}
 
 	RegisterEntriesServer(server, s)
@@ -66,12 +66,12 @@ func InitServicesV1(server *grpc.Server, depends *common.Depends) (ServicesV1, e
 }
 
 type servicesV1 struct {
-	meta      metastore.Meta
-	core      core.Core
-	workflow  workflow.Workflow
-	notify    *notify.Notify
-	cfgLoader config.Config
-	logger    *zap.SugaredLogger
+	meta     metastore.Meta
+	core     core.Core
+	workflow workflow.Workflow
+	notify   *notify.Notify
+	cfg      config.Config
+	logger   *zap.SugaredLogger
 }
 
 var _ ServicesV1 = &servicesV1{}
@@ -742,12 +742,12 @@ func (s *servicesV1) TriggerWorkflow(ctx context.Context, request *TriggerWorkfl
 	return &TriggerWorkflowResponse{JobID: job.Id}, nil
 }
 
-func (s *servicesV1) caller(ctx context.Context) (*token.AuthInfo, error) {
-	ai := common.Auth(ctx)
-	if ai == nil {
-		return nil, status.Errorf(codes.Unauthenticated, "unauthenticated")
+func (s *servicesV1) caller(ctx context.Context) (*common.CallerInfo, error) {
+	caller := common.Caller(ctx)
+	if caller == nil {
+		return nil, status.Errorf(codes.Unauthenticated, "missing caller info")
 	}
-	return ai, nil
+	return caller, nil
 }
 
 func (s *servicesV1) getEntryByPath(ctx context.Context, namespace, path string) (int64, int64, error) {

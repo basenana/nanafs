@@ -2,6 +2,34 @@
 
 <p align="right">[ <a href="https://github.com/basenana/nanafs/blob/main/docs/configuration.md">English</a> | 简体中文 ]</p>
 
+## API 服务
+
+您可以配置 API 服务来启用 REST API：
+
+```json
+{
+  "api": {
+    "enable": true,
+    "host": "127.0.0.1",
+    "port": 8080,
+    "server_name": "nanafs",
+    "token_secret": "your-secret-key",
+    "noauth": false
+  }
+}
+```
+
+**字段说明：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `enable` | bool | 启用 API 服务 |
+| `host` | string | 绑定地址 |
+| `port` | int | 端口号 |
+| `server_name` | string | 服务器名称 |
+| `token_secret` | string | JWT 令牌密钥 |
+| `noauth` | bool | 禁用认证 |
+
 ## FUSE
 
 如果想要使用 POSIX 文件系统的方式使用 NanaFS，你需要安装 FUSE 库来处理。但如果你仅使用 API 或 WebDAV，FUSE 配置是可选项。
@@ -18,24 +46,39 @@ sudo apt-get install -y libfuse3-dev fuse3 libssl-dev
 brew install --cask osxfuse
 ```
 
-最后，您可以配置 `fuse=true` 并配置挂载点路径以开启 FUSE 服务：
+最后，您可以配置 `fuse.enable=true` 并配置挂载点路径以开启 FUSE 服务：
 
 ```json
 {
   "fuse": {
     "enable": true,
     "root_path": "/your/path/to/mount",
-    "display_name": "nanafs"
+    "mount_options": ["allow_other"],
+    "display_name": "nanafs",
+    "verbose_log": false,
+    "entry_timeout": 60,
+    "attr_timeout": 60
   }
 }
 ```
+
+**字段说明：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `enable` | bool | 启用 FUSE 服务 |
+| `root_path` | string | 挂载点路径 |
+| `mount_options` | []string | FUSE 挂载选项 |
+| `display_name` | string | 显示名称 |
+| `verbose_log` | bool | 启用详细日志 |
+| `entry_timeout` | int | 条目缓存超时（秒） |
+| `attr_timeout` | int | 属性缓存超时（秒） |
 
 ## WebDAV
 
 您可以配置 `webdav.enable=true` 以及相关网络、用户配置以开启 WebDAV 服务：
 
 ```json
-
 {
   "webdav": {
     "enable": true,
@@ -56,6 +99,18 @@ brew install --cask osxfuse
 ## 元数据服务
 
 NanaFS 依赖于一个元数据服务来持久化系统内的元数据和其他结构化数据。您可以使用常见的数据库作为元数据服务。
+
+### Memory
+
+Memory 元数据仅用于测试用途。数据将在重启后丢失。
+
+```json
+{
+  "meta": {
+    "type": "memory"
+  }
+}
+```
 
 ### SQLite
 
@@ -141,12 +196,23 @@ NanaFS 支持配置多个后端存储，每个后端存储由唯一的 `id` 区�
         "endpoint": "",
         "access_key_id": "",
         "secret_access_key": "",
-        "bucket_name": ""
+        "bucket_name": "",
+        "location": "",
+        "token": "",
+        "use_ssl": false
       }
     }
   ]
 }
 ```
+
+**补充字段说明：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `location` | string | MinIO 区域 |
+| `token` | string | MinIO 令牌 |
+| `use_ssl` | bool | 使用 SSL 连接 |
 
 ### OSS
 
@@ -192,6 +258,22 @@ Bucket 中。
 }
 ```
 
+### Memory
+
+`type=memory` 是基于内存的存储方式。数据存储在内存中，重启后会丢失。
+此存储类型仅用于测试用途。
+
+```json
+{
+  "storages": [
+    {
+      "id": "memory-0",
+      "type": "memory"
+    }
+  ]
+}
+```
+
 ## 数据块加密
 
 注意事项：
@@ -217,3 +299,73 @@ openssl rand -hex 16
   }
 }
 ```
+
+## 工作流
+
+NanaFS 提供了工作流引擎来自动化文件处理任务。
+
+```json
+{
+  "workflow": {
+    "enable": true,
+    "job_workdir": "/tmp/nanafs-jobs",
+    "integration": {
+      "document_webhook": ""
+    }
+  }
+}
+```
+
+**字段说明：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `enable` | bool | 启用工作流引擎 |
+| `job_workdir` | string | 任务工作目录 |
+| `integration.document_webhook` | string | 文档集成 Webhook URL |
+
+## 文件系统
+
+配置 FUSE 文件系统选项：
+
+```json
+{
+  "fs": {
+    "owner": {
+      "uid": 1000,
+      "gid": 1000
+    },
+    "writeback": false,
+    "page_size": 4096
+  }
+}
+```
+
+**字段说明：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `owner.uid` | int64 | 文件所有者用户 ID |
+| `owner.gid` | int64 | 文件所有者组 ID |
+| `writeback` | bool | 启用写回模式 |
+| `page_size` | int | 缓存页面大小 |
+
+## 缓存
+
+配置本地缓存以提升性能：
+
+```json
+{
+  "cache_dir": "/tmp/nanafs-cache",
+  "cache_size": 1024,
+  "debug": false
+}
+```
+
+**字段说明：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `cache_dir` | string | 缓存目录路径 |
+| `cache_size` | int | 缓存大小（MB，0 表示无限制） |
+| `debug` | bool | 启用调试模式 |

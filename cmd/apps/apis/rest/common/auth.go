@@ -18,9 +18,10 @@ package common
 
 import (
 	"context"
+	"net/http"
 	"strconv"
 
-	"google.golang.org/grpc/metadata"
+	"github.com/gin-gonic/gin"
 )
 
 type CallerInfo struct {
@@ -35,38 +36,6 @@ const (
 	headerGID       = "X-Gid"
 )
 
-func getFromMetadata(md metadata.MD, key string) string {
-	vals := md.Get(key)
-	if len(vals) == 0 {
-		return ""
-	}
-	return vals[0]
-}
-
-func getInt64FromMetadata(md metadata.MD, key string) int64 {
-	val := getFromMetadata(md, key)
-	if val == "" {
-		return 0
-	}
-	v, err := strconv.ParseInt(val, 10, 64)
-	if err != nil {
-		return 0
-	}
-	return v
-}
-
-func NamespaceFromMetadata(md metadata.MD) string {
-	return getFromMetadata(md, headerNamespace)
-}
-
-func UIDFromMetadata(md metadata.MD) int64 {
-	return getInt64FromMetadata(md, headerUID)
-}
-
-func GIDFromMetadata(md metadata.MD) int64 {
-	return getInt64FromMetadata(md, headerGID)
-}
-
 const callerInfoContextKey = "caller.info"
 
 func WithCallerInfo(ctx context.Context, info *CallerInfo) context.Context {
@@ -79,4 +48,33 @@ func Caller(ctx context.Context) *CallerInfo {
 		return nil
 	}
 	return raw.(*CallerInfo)
+}
+
+func AuthMiddleware() gin.HandlerFunc {
+	return func(gCtx *gin.Context) {
+		ns := gCtx.GetHeader(headerNamespace)
+		if ns == "" {
+			gCtx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "missing X-Namespace header",
+			})
+			return
+		}
+
+		uidStr := gCtx.GetHeader(headerUID)
+		gidStr := gCtx.GetHeader(headerGID)
+
+		uid, _ := strconv.ParseInt(uidStr, 10, 64)
+		gid, _ := strconv.ParseInt(gidStr, 10, 64)
+
+		caller := &CallerInfo{
+			Namespace: ns,
+			UID:       uid,
+			GID:       gid,
+		}
+
+		ctx := WithCallerInfo(gCtx.Request.Context(), caller)
+		gCtx.Request = gCtx.Request.WithContext(ctx)
+
+		gCtx.Next()
+	}
 }

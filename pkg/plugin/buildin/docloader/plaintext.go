@@ -19,20 +19,22 @@ package docloader
 import (
 	"bytes"
 	"context"
-	"github.com/basenana/nanafs/pkg/types"
 	"io"
 	"os"
+	"strings"
+
+	"github.com/basenana/nanafs/pkg/types"
 )
 
-const (
-	textParser = "text"
-)
+const textParser = "text"
 
 type Text struct {
 	docPath string
 }
 
-func NewText(docPath string, option map[string]string) Parser { return Text{docPath: docPath} }
+func NewText(docPath string, option map[string]string) Parser {
+	return Text{docPath: docPath}
+}
 
 func (l Text) Load(_ context.Context, doc types.DocumentProperties) (*FDocument, error) {
 	f, err := os.Open(l.docPath)
@@ -42,13 +44,71 @@ func (l Text) Load(_ context.Context, doc types.DocumentProperties) (*FDocument,
 	defer f.Close()
 
 	buf := new(bytes.Buffer)
-	_, err = io.Copy(buf, f)
-	if err != nil {
+	if _, err := io.Copy(buf, f); err != nil {
 		return nil, err
+	}
+
+	doc = extractFileNameMetadata(l.docPath, doc)
+	doc = extractTextContentMetadata(buf.String(), doc)
+
+	if doc.PublishAt == 0 {
+		if info, err := os.Stat(l.docPath); err == nil {
+			doc.PublishAt = info.ModTime().Unix()
+		}
 	}
 
 	return &FDocument{
 		Content:            buf.String(),
 		DocumentProperties: doc,
 	}, nil
+}
+
+func extractTextContentMetadata(content string, doc types.DocumentProperties) types.DocumentProperties {
+	lines := strings.Split(content, "\n")
+	if len(lines) == 0 {
+		return doc
+	}
+
+	if doc.Title == "" {
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			if strings.HasPrefix(line, "# ") {
+				doc.Title = strings.TrimSpace(strings.TrimPrefix(line, "# "))
+				break
+			}
+			if len(line) < 100 && !strings.ContainsAny(line, " \t") {
+				continue
+			}
+			doc.Title = line
+			break
+		}
+	}
+
+	if doc.Abstract == "" {
+		var paragraphs []string
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				if len(paragraphs) > 0 {
+					break
+				}
+				continue
+			}
+			if strings.HasPrefix(line, "#") {
+				continue
+			}
+			paragraphs = append(paragraphs, line)
+			if len(paragraphs) >= 2 {
+				break
+			}
+		}
+		if len(paragraphs) > 0 {
+			doc.Abstract = strings.Join(paragraphs, "\n")
+		}
+	}
+
+	return doc
 }

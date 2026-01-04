@@ -106,7 +106,7 @@ type core struct {
 	metastore      metastore.Meta
 	defaultStorage storage.Storage
 	storages       map[string]storage.Storage
-	cfgLoader      config.Config
+	cfg            config.Config
 	fsOwnerUid     int64
 	fsOwnerGid     int64
 	fsWriteback    bool
@@ -158,10 +158,6 @@ func (c *core) NamespaceRoot(ctx context.Context, namespace string) (*types.Entr
 	if err != nil {
 		c.logger.Errorw("get fs root error", "err", err)
 		return nil, err
-	}
-
-	if namespace == types.DefaultNamespace {
-		return root, nil
 	}
 
 	var (

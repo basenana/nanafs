@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/basenana/nanafs/workflow"
+
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/types"
@@ -38,7 +40,7 @@ import (
 func init() {
 	RootCmd.AddCommand(daemonCmd)
 	RootCmd.AddCommand(versionCmd)
-	//RootCmd.AddCommand(NamespaceCmd)
+	RootCmd.AddCommand(NamespaceCmd)
 }
 
 var RootCmd = &cobra.Command{
@@ -61,12 +63,12 @@ var daemonCmd = &cobra.Command{
 
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		loader, err := config.NewConfigLoader()
+		cfg, err := config.NewConfig()
 		if err != nil {
 			panic(err)
 		}
 
-		boot := loader.GetBootstrapConfig()
+		boot := cfg.GetBootstrapConfig()
 		if boot.Debug {
 			logger.SetDebug(boot.Debug)
 		}
@@ -79,16 +81,16 @@ var daemonCmd = &cobra.Command{
 			panic("storage must config")
 		}
 
-		if err = loader.RegisterCMDB(meta); err != nil {
+		if err = cfg.RegisterCMDB(meta); err != nil {
 			panic(err)
 		}
-		depends, err := common.InitDepends(loader, meta)
+		depends, err := common.InitDepends(cfg, meta)
 		if err != nil {
 			panic(err)
 		}
 
 		stop := utils.HandleTerminalSignal()
-		run(depends, loader, stop)
+		run(depends, cfg, stop)
 	},
 }
 
@@ -102,16 +104,16 @@ func run(depends *common.Depends, cfg config.Config, stopCh chan struct{}) {
 	ctx, canF := context.WithCancel(context.Background())
 	defer canF()
 
-	depends.Workflow.Start(ctx)
 	defaultFS, err := core.NewFileSystem(depends.Core, depends.Meta, types.DefaultNamespace)
 	if err != nil {
 		log.Panic("failed to create default filesystem")
 	}
+	depends.Workflow.Start(ctx)
 
 	if boot.API.Enable {
 		err = apis.RunFSAPI(depends, cfg, stopCh)
 		if err != nil {
-			log.Panicw("run fspi failed", "err", err)
+			log.Panicw("run fsapi failed", "err", err)
 		}
 	}
 	if boot.Webdav.Enable {
@@ -144,47 +146,65 @@ var versionCmd = &cobra.Command{
 	},
 }
 
-//var NamespaceCmd = &cobra.Command{
-//	Use:   "namespace",
-//	Short: "create namespace",
-//	Run: func(cmd *cobra.Command, args []string) {
-//		loader := config.NewConfigLoader()
-//		cfg, err := loader.GetBootstrapConfig()
-//		if err != nil {
-//			panic(err)
-//		}
-//
-//		if cfg.Debug {
-//			logger.SetDebug(cfg.Debug)
-//		}
-//
-//		meta, err := metastore.NewMetaStorage(cfg.Meta.Type, cfg.Meta)
-//		if err != nil {
-//			panic(err)
-//		}
-//
-//		err = loader.InitCMDB(meta)
-//		if err != nil {
-//			panic(err)
-//		}
-//
-//		if len(cfg.Storages) == 0 {
-//			panic("storage must config")
-//		}
-//
-//		bio.InitPageCache(cfg.FS)
-//		storage.InitLocalCache(cfg)
-//
-//		fridayClient := friday.NewFridayClient(cfg.FridayConfig)
-//
-//		ctrl, err := controller.New(loader, meta, fridayClient)
-//		if err != nil {
-//			panic(err)
-//		}
-//
-//		_, err = ctrl.CreateNamespace(context.Background(), args[0])
-//		if err != nil {
-//			panic(err)
-//		}
-//	},
-//}
+var NamespaceCmd = &cobra.Command{
+	Use:   "namespace",
+	Short: "create namespace",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		cfg, err := config.NewConfig()
+		if err != nil {
+			panic(err)
+		}
+
+		boot := cfg.GetBootstrapConfig()
+		if boot.Debug {
+			logger.SetDebug(boot.Debug)
+		}
+
+		meta, err := metastore.NewMetaStorage(boot.Meta.Type, boot.Meta)
+		if err != nil {
+			panic(err)
+		}
+
+		if err = cfg.RegisterCMDB(meta); err != nil {
+			panic(err)
+		}
+
+		if len(boot.Storages) == 0 {
+			panic("storage must config")
+		}
+
+		depends, err := common.InitDepends(cfg, meta)
+		if err != nil {
+			panic(err)
+		}
+
+		ctx := context.Background()
+		namespace := args[0]
+		err = createNamespace(ctx, depends.Core, depends.Workflow, namespace)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Namespace '%s' created successfully\n", namespace)
+	},
+}
+
+func createNamespace(ctx context.Context, core core.Core, wfMgr workflow.Workflow, namespace string) error {
+	log := logger.NewLogger("nanafs.namespace")
+	err := core.CreateNamespace(ctx, namespace)
+	if err != nil {
+		log.Errorw("create namespace failed", "err", err)
+		return err
+	}
+
+	wfList := workflow.NewDefaultsWorkflows(namespace)
+	for _, wf := range wfList {
+		_, err = wfMgr.CreateWorkflow(ctx, namespace, wf)
+		if err != nil {
+			log.Errorw("create workflow failed", "workflow", wf.Name, "err", err)
+			return err
+		}
+	}
+
+	return nil
+}

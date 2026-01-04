@@ -2,6 +2,34 @@
 
 <p align="right">[ English | <a href="https://github.com/basenana/nanafs/blob/main/docs/configuration_zh.md">简体中文</a> ]</p>
 
+## API Service
+
+You can configure the API service to enable the REST API:
+
+```json
+{
+  "api": {
+    "enable": true,
+    "host": "127.0.0.1",
+    "port": 8080,
+    "server_name": "nanafs",
+    "token_secret": "your-secret-key",
+    "noauth": false
+  }
+}
+```
+
+**Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enable` | bool | Enable the API service |
+| `host` | string | Bind address |
+| `port` | int | Port number |
+| `server_name` | string | Server name |
+| `token_secret` | string | JWT token secret |
+| `noauth` | bool | Disable authentication |
+
 ## FUSE
 
 If you want to use NanaFS with the POSIX file system, you need to install the FUSE library to work. But if you only use
@@ -19,17 +47,33 @@ For MacOS, you can use brew and other package management to install FUSE depende
 brew install --cask osxfuse
 ```
 
-Finally, you can configure `fuse=true` and configure the mount point path to enable FUSE service:
+Finally, you can configure `fuse.enable=true` and configure the mount point path to enable FUSE service:
 
 ```json
 {
   "fuse": {
     "enable": true,
     "root_path": "/your/path/to/mount",
-    "display_name": "nanafs"
+    "mount_options": ["allow_other"],
+    "display_name": "nanafs",
+    "verbose_log": false,
+    "entry_timeout": 60,
+    "attr_timeout": 60
   }
 }
 ```
+
+**Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enable` | bool | Enable FUSE service |
+| `root_path` | string | Mount point path |
+| `mount_options` | []string | FUSE mount options |
+| `display_name` | string | Display name |
+| `verbose_log` | bool | Enable verbose logging |
+| `entry_timeout` | int | Entry cache timeout (seconds) |
+| `attr_timeout` | int | Attribute cache timeout (seconds) |
 
 ## WebDAV
 
@@ -57,6 +101,18 @@ You can configure `webdav.enable=true` and related network user configuration to
 
 NanaFS relies on a metadata service to persist metadata and other structured data within the system. You can use common
 databases as metadata services.
+
+### Memory
+
+Memory metadata is for testing purposes only. Data will be lost after restart.
+
+```json
+{
+  "meta": {
+    "type": "memory"
+  }
+}
+```
 
 ### SQLite
 
@@ -147,12 +203,23 @@ Bucket.
         "endpoint": "",
         "access_key_id": "",
         "secret_access_key": "",
-        "bucket_name": ""
+        "bucket_name": "",
+        "location": "",
+        "token": "",
+        "use_ssl": false
       }
     }
   ]
 }
 ```
+
+**Additional Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `location` | string | MinIO location |
+| `token` | string | MinIO token |
+| `use_ssl` | bool | Use SSL connection |
 
 ### OSS
 
@@ -198,6 +265,22 @@ configuration, the data in NanaFS is stored in the remote storage system via the
 }
 ```
 
+### Memory
+
+`type=memory` is a memory-based storage method. Data is stored in memory and will be lost after restart.
+This storage type is for testing purposes only.
+
+```json
+{
+  "storages": [
+    {
+      "id": "memory-0",
+      "type": "memory"
+    }
+  ]
+}
+```
+
 ## Encryption
 
 Notice:
@@ -219,10 +302,80 @@ Use the `encryption` in the configuration to enable global encryption:
 
 ```json
 {
-  "global_encryption": {
+  "encryption": {
     "enable": true,
     "method": "AES",
     "secret_key": "<secret_key>"
   }
 }
 ```
+
+## Workflow
+
+NanaFS provides a workflow engine for automating file processing tasks.
+
+```json
+{
+  "workflow": {
+    "enable": true,
+    "job_workdir": "/tmp/nanafs-jobs",
+    "integration": {
+      "document_webhook": ""
+    }
+  }
+}
+```
+
+**Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enable` | bool | Enable workflow engine |
+| `job_workdir` | string | Working directory for jobs |
+| `integration.document_webhook` | string | Webhook URL for document integration |
+
+## File System
+
+Configure FUSE file system options:
+
+```json
+{
+  "fs": {
+    "owner": {
+      "uid": 1000,
+      "gid": 1000
+    },
+    "writeback": false,
+    "page_size": 4096
+  }
+}
+```
+
+**Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `owner.uid` | int64 | File owner user ID |
+| `owner.gid` | int64 | File owner group ID |
+| `writeback` | bool | Enable writeback mode |
+| `page_size` | int | Page size for caching |
+
+## Cache
+
+Configure local cache for better performance:
+
+```json
+{
+  "cache_dir": "/tmp/nanafs-cache",
+  "cache_size": 1024,
+  "debug": false
+}
+```
+
+**Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `cache_dir` | string | Cache directory path |
+| `cache_size` | int | Cache size in MB (0 for unlimited) |
+| `debug` | bool | Enable debug mode |

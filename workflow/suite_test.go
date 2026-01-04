@@ -18,11 +18,12 @@ package workflow
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/core"
-	"github.com/basenana/nanafs/pkg/types"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/basenana/nanafs/pkg/core"
+	"github.com/basenana/nanafs/pkg/types"
 
 	testcfg "github.com/onsi/ginkgo/config"
 
@@ -75,6 +76,9 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 
 	fsCore, err = core.New(memMeta, bootCfg)
+	Expect(err).Should(BeNil())
+
+	err = fsCore.CreateNamespace(context.Background(), namespace)
 	Expect(err).Should(BeNil())
 
 	mgr, err = New(fsCore, notify.NewNotify(memMeta), memMeta, bootCfg.Workflow)

@@ -19,11 +19,12 @@ package docloader
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
-	"github.com/basenana/nanafs/pkg/types"
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 const (
@@ -87,6 +88,8 @@ func (d DocLoader) loadEntry(ctx context.Context, workdir string, entry *plugina
 		p = buildInLoaders[htmlParser](entryPath, parseOption)
 	case ".webarchive":
 		p = buildInLoaders[webArchiveParser](entryPath, parseOption)
+	case ".epub":
+		p = buildInLoaders[epubParser](entryPath, parseOption)
 	default:
 		return fmt.Errorf("load %s file unsupported", fileExt)
 	}
@@ -127,6 +130,7 @@ var (
 		pdfParser:        NewPDF,
 		htmlParser:       NewHTML,
 		webArchiveParser: NewHTML,
+		epubParser:       NewEPUB,
 	}
 )
 

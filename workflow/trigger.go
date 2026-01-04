@@ -18,15 +18,17 @@ package workflow
 
 import (
 	"context"
+	"sync"
+	"time"
+
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/events"
+	"github.com/basenana/nanafs/pkg/cel"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/basenana/nanafs/workflow/jobrun"
 	"github.com/hyponet/eventbus"
 	"go.uber.org/zap"
-	"sync"
-	"time"
 )
 
 type triggers struct {
@@ -137,21 +139,35 @@ func (h *triggers) handleEntryCreate(evt *types.Event) {
 	}
 
 	ctx := context.Background()
-	_, err := h.mgr.core.GetEntry(ctx, evt.Namespace, evt.RefID)
+	entry, err := h.mgr.core.GetEntry(ctx, evt.Namespace, evt.RefID)
 	if err != nil {
 		h.logger.Errorw("[handleEntryCreate] get entry failed", "entry", evt.RefID, "err", err)
 		return
 	}
-	for wfID, _ := range nsHooks.matches {
-		// TODO: fix match
-		//if !rule.Filter(&hook.rule, en, nil, nil) {
-		//	continue
-		//}
+
+	nsHooks.mux.Lock()
+	defer nsHooks.mux.Unlock()
+
+	for wfID, hook := range nsHooks.matches {
+		if hook.onCreate == nil {
+			continue
+		}
+
+		matched, err := cel.EntryMatch(ctx, entry, hook.onCreate)
+		if err != nil {
+			h.logger.Errorw("[handleEntryCreate] match entry failed", "workflow", wfID, "entry", entry.ID, "err", err)
+			continue
+		}
+		if !matched {
+			h.logger.Debugw("[handleEntryCreate] entry not match rule", "workflow", wfID, "entry", entry.ID)
+			continue
+		}
 
 		if err = h.workflowJobDelay(ctx, evt.Namespace, wfID, evt.Data.URI, "entry created"); err != nil {
 			h.logger.Errorw("[handleEntryCreate] trigger workflow failed", "namespace", evt.Namespace, "wfID", wfID, "entry", evt.RefID, "err", err)
 			continue
 		}
+		h.logger.Infow("[handleEntryCreate] workflow triggered", "namespace", evt.Namespace, "wfID", wfID, "entry", entry.ID)
 	}
 	return
 }
@@ -167,9 +183,29 @@ func (h *triggers) workflowJobDelay(ctx context.Context, namespace, wf, entryURI
 }
 
 func (h *triggers) filterAndRunCronWorkflow(ctx context.Context, wf *types.Workflow) error {
-	var (
-		entries []*types.Entry
-	)
+	if wf.Trigger.OnCreate == nil {
+		return nil
+	}
+
+	celPattern := cel.BuildCELFilterFromMatch(wf.Trigger.OnCreate)
+	filter := types.Filter{CELPattern: celPattern}
+
+	it, err := h.mgr.meta.FilterEntries(ctx, wf.Namespace, filter)
+	if err != nil {
+		h.logger.Errorw("[filterAndRunCronWorkflow] filter entries failed", "workflow", wf.Id, "err", err)
+		return err
+	}
+
+	var entries []*types.Entry
+	for it.HasNext() {
+		en, err := it.Next()
+		if err != nil {
+			h.logger.Errorw("[filterAndRunCronWorkflow] get next entry failed", "workflow", wf.Id, "err", err)
+			continue
+		}
+		entries = append(entries, en)
+	}
+
 	h.logger.Infow("[filterAndRunCronWorkflow] query entries with wf rule", "workflow", wf.Id, "entries", len(entries))
 
 	for _, en := range entries {
@@ -180,6 +216,16 @@ func (h *triggers) filterAndRunCronWorkflow(ctx context.Context, wf *types.Workf
 
 		if !en.IsGroup {
 			h.logger.Warnw("[filterAndRunCronWorkflow] only group entry support cron run", "entry", en.ID, "namespace", en.Namespace)
+			continue
+		}
+
+		matched, err := cel.EntryMatch(ctx, en, wf.Trigger.OnCreate)
+		if err != nil {
+			h.logger.Errorw("[filterAndRunCronWorkflow] match entry failed", "workflow", wf.Id, "entry", en.ID, "err", err)
+			continue
+		}
+		if !matched {
+			h.logger.Debugw("[filterAndRunCronWorkflow] entry not match rule", "workflow", wf.Id, "entry", en.ID)
 			continue
 		}
 
@@ -200,6 +246,17 @@ func (h *triggers) filterAndRunCronWorkflow(ctx context.Context, wf *types.Workf
 		if needSkip {
 			continue
 		}
+
+		uri, err := core.ProbableEntryPath(ctx, h.mgr.core, en)
+		if err != nil {
+			h.logger.Errorw("[filterAndRunCronWorkflow] fetch entry uri failed", "workflow", wf.Id, "entry", en.ID, "err", err)
+			continue
+		}
+		if err = h.workflowJobDelay(ctx, wf.Namespace, wf.Id, uri, "cron run"); err != nil {
+			h.logger.Errorw("[filterAndRunCronWorkflow] trigger workflow failed", "namespace", wf.Namespace, "wfID", wf.Id, "entry", en.ID, "err", err)
+			continue
+		}
+		h.logger.Infow("[filterAndRunCronWorkflow] workflow triggered", "namespace", wf.Namespace, "wfID", wf.Id, "entry", en.ID)
 	}
 	return nil
 }

@@ -73,25 +73,29 @@ var _ = BeforeSuite(func() {
 	mockConfig.CacheDir = workdir
 	mockConfig.CacheSize = 0
 
-	cl := config.NewMockConfigLoader(mockConfig)
-	dep, err = common.InitDepends(cl, memMeta)
+	cfg := config.NewMockConfig(mockConfig)
+	dep, err = common.InitDepends(cfg, memMeta)
 	Expect(err).Should(BeNil())
 
 	// init root
 	_, err = dep.Core.FSRoot(context.TODO())
 	Expect(err).Should(BeNil())
 
+	// init default namespace
+	err = dep.Core.CreateNamespace(context.TODO(), types.DefaultNamespace)
+	Expect(err).Should(BeNil())
+
 	buffer := 1024 * 1024
 	mockListen = bufconn.Listen(buffer)
 
 	// TODO: use token mgr
-	serverCreds, clientCreds, err := setupCerts(cl)
+	serverCreds, clientCreds, err := setupCerts(cfg)
 	Expect(err).Should(BeNil())
 	var opts = []grpc.ServerOption{
 		grpc.Creds(serverCreds),
 		grpc.MaxRecvMsgSize(1024 * 1024 * 50), // 50M
-		common.WithCommonInterceptors(dep.Token, mockConfig.API),
-		common.WithStreamInterceptors(dep.Token, mockConfig.API),
+		common.WithCommonInterceptors(),
+		common.WithStreamInterceptors(),
 	}
 	testServer = grpc.NewServer(opts...)
 	_, err = InitServicesV1(testServer, dep)
