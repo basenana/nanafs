@@ -26,6 +26,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/basenana/nanafs/pkg/cmdb"
 )
 
 var FilePath string
@@ -36,16 +38,24 @@ var (
 
 type Config interface {
 	GetBootstrapConfig() Bootstrap
-	RegisterCMDB(cmdb CMDB) error
+	RegisterCMDB(cmdb cmdb.CMDB) error
 	SetSystemConfig(ctx context.Context, group, name string, value any) error
 	GetSystemConfig(ctx context.Context, group, name string) Value
+	GetNamespacedConfig(ctx context.Context, namespace, group, name string) Value
+	SetNamespacedConfig(ctx context.Context, namespace, group, name string, value any) error
 }
 
 type configWrapper struct {
-	cmdb   CMDB
-	cached map[cacheConfigKey]*Value
+	cmdb   cmdb.CMDB
+	cached map[cmdbCacheKey]*Value
 	bCfg   *Bootstrap
 	mux    sync.RWMutex
+}
+
+type cmdbCacheKey struct {
+	namespace string
+	group     string
+	name      string
 }
 
 func (c *configWrapper) initBootstrapConfig() error {
@@ -87,12 +97,20 @@ func (c *configWrapper) GetBootstrapConfig() Bootstrap {
 	return *c.bCfg
 }
 
-func (c *configWrapper) RegisterCMDB(cmdb CMDB) error {
-	c.cmdb = cmdb
-	return setCMDBDefaultConfigs(cmdb)
+func (c *configWrapper) RegisterCMDB(m cmdb.CMDB) error {
+	c.cmdb = m
+	return cmdb.SetCMDBDefaultConfigs(m)
 }
 
 func (c *configWrapper) SetSystemConfig(ctx context.Context, group, name string, value any) error {
+	return c.SetNamespacedConfig(ctx, "", group, name, value)
+}
+
+func (c *configWrapper) GetSystemConfig(ctx context.Context, group, name string) Value {
+	return c.GetNamespacedConfig(ctx, "", group, name)
+}
+
+func (c *configWrapper) SetNamespacedConfig(ctx context.Context, namespace, group, name string, value any) error {
 	var record = Value{Group: group, Name: name}
 	switch fmtVal := value.(type) {
 	case string:
@@ -114,15 +132,15 @@ func (c *configWrapper) SetSystemConfig(ctx context.Context, group, name string,
 	}
 
 	c.mux.Lock()
-	delete(c.cached, cacheConfigKey{namespace: "", group: group, name: name})
+	delete(c.cached, cmdbCacheKey{namespace: namespace, group: group, name: name})
 	c.mux.Unlock()
 
-	return c.cmdb.SetConfigValue(ctx, "", group, name, record.Value)
+	return c.cmdb.SetConfigValue(ctx, namespace, group, name, record.Value)
 }
 
-func (c *configWrapper) GetSystemConfig(ctx context.Context, group, name string) Value {
+func (c *configWrapper) GetNamespacedConfig(ctx context.Context, namespace, group, name string) Value {
 	c.mux.RLock()
-	cachedRecord := c.cached[cacheConfigKey{namespace: "", group: group, name: name}]
+	cachedRecord := c.cached[cmdbCacheKey{namespace: namespace, group: group, name: name}]
 	c.mux.RUnlock()
 
 	if cachedRecord != nil &&
@@ -135,8 +153,8 @@ func (c *configWrapper) GetSystemConfig(ctx context.Context, group, name string)
 		record.Error = fmt.Errorf("cmdb not init")
 		return record
 	}
-	record.Value, record.Error = c.cmdb.GetConfigValue(ctx, "", group, name)
-	if record.Error != nil && isConfigNotFound(record.Error) {
+	record.Value, record.Error = c.cmdb.GetConfigValue(ctx, namespace, group, name)
+	if record.Error != nil && cmdb.IsConfigNotFound(record.Error) {
 		record.Error = ErrNotConfigured
 	}
 
@@ -147,22 +165,22 @@ func (c *configWrapper) GetSystemConfig(ctx context.Context, group, name string)
 	exp := time.Now().Add(time.Minute * 15)
 	record.expiration = &exp
 	c.mux.Lock()
-	c.cached[cacheConfigKey{namespace: "", group: group, name: name}] = &record
+	c.cached[cmdbCacheKey{namespace: namespace, group: group, name: name}] = &record
 	c.mux.Unlock()
 
 	return record
 }
 
-func NewConfigLoader() (Config, error) {
-	l := &configWrapper{cmdb: NewMemCmdb(), cached: make(map[cacheConfigKey]*Value)}
-	_ = setCMDBDefaultConfigs(l.cmdb)
-	return l, l.initBootstrapConfig()
+func NewConfig() (Config, error) {
+	cfg := &configWrapper{cmdb: cmdb.NewMemCmdb(), cached: make(map[cmdbCacheKey]*Value)}
+	_ = cmdb.SetCMDBDefaultConfigs(cfg.cmdb)
+	return cfg, cfg.initBootstrapConfig()
 }
 
-func NewMockConfigLoader(b Bootstrap) Config {
-	l := &configWrapper{cmdb: NewMemCmdb(), cached: make(map[cacheConfigKey]*Value), bCfg: &b}
-	_ = setCMDBDefaultConfigs(l.cmdb)
-	return l
+func NewMockConfig(b Bootstrap) Config {
+	cfg := &configWrapper{cmdb: cmdb.NewMemCmdb(), cached: make(map[cmdbCacheKey]*Value), bCfg: &b}
+	_ = cmdb.SetCMDBDefaultConfigs(cfg.cmdb)
+	return cfg
 }
 
 type Value struct {

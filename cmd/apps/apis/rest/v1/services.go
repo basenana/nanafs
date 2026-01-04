@@ -17,6 +17,7 @@
 package v1
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -32,22 +33,22 @@ import (
 )
 
 type ServicesV1 struct {
-	meta      metastore.Meta
-	core      core.Core
-	workflow  workflow.Workflow
-	notify    *notify.Notify
-	cfgLoader config.Config
-	logger    *zap.SugaredLogger
+	meta     metastore.Meta
+	core     core.Core
+	workflow workflow.Workflow
+	notify   *notify.Notify
+	cfg      config.Config
+	logger   *zap.SugaredLogger
 }
 
 func NewServicesV1(engine *gin.Engine, depends *common.Depends) (*ServicesV1, error) {
 	s := &ServicesV1{
-		meta:      depends.Meta,
-		core:      depends.Core,
-		workflow:  depends.Workflow,
-		notify:    depends.Notify,
-		cfgLoader: depends.ConfigLoader,
-		logger:    logger.NewLogger("rest"),
+		meta:     depends.Meta,
+		core:     depends.Core,
+		workflow: depends.Workflow,
+		notify:   depends.Notify,
+		cfg:      depends.Config,
+		logger:   logger.NewLogger("rest"),
 	}
 
 	engine.Use(common.AuthMiddleware())
@@ -58,7 +59,7 @@ func NewServicesV1(engine *gin.Engine, depends *common.Depends) (*ServicesV1, er
 func (s *ServicesV1) caller(ctx *gin.Context) (*common.CallerInfo, error) {
 	caller := common.Caller(ctx.Request.Context())
 	if caller == nil {
-		return nil, nil
+		return nil, errors.New("unauthorized: missing caller info")
 	}
 	return caller, nil
 }

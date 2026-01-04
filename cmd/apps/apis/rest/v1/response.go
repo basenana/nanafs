@@ -24,17 +24,17 @@ import (
 
 // EntryInfo 条目信息
 type EntryInfo struct {
-	URI        string             `json:"uri"`
-	Entry      int64              `json:"entry"`
-	Name       string             `json:"name"`
-	Kind       string             `json:"kind"`
-	IsGroup    bool               `json:"isGroup"`
-	Size       int64              `json:"size"`
-	Document   *DocumentProperty  `json:"document,omitempty"`
-	CreatedAt  time.Time          `json:"createdAt"`
-	ChangedAt  time.Time          `json:"changedAt"`
-	ModifiedAt time.Time          `json:"modifiedAt"`
-	AccessAt   time.Time          `json:"accessAt"`
+	URI        string            `json:"uri"`
+	Entry      int64             `json:"entry"`
+	Name       string            `json:"name"`
+	Kind       string            `json:"kind"`
+	IsGroup    bool              `json:"is_group"`
+	Size       int64             `json:"size"`
+	Document   *DocumentProperty `json:"document,omitempty"`
+	CreatedAt  time.Time         `json:"created_at"`
+	ChangedAt  time.Time         `json:"changed_at"`
+	ModifiedAt time.Time         `json:"modified_at"`
+	AccessAt   time.Time         `json:"access_at"`
 }
 
 // EntryDetail 条目详情
@@ -44,17 +44,18 @@ type EntryDetail struct {
 	Name      string            `json:"name"`
 	Aliases   string            `json:"aliases"`
 	Kind      string            `json:"kind"`
-	IsGroup   bool              `json:"isGroup"`
+	IsGroup   bool              `json:"is_group"`
 	Size      int64             `json:"size"`
 	Version   int64             `json:"version"`
 	Namespace string            `json:"namespace"`
 	Storage   string            `json:"storage"`
 	Access    *Access           `json:"access"`
+	Property  *Property         `json:"property"`
 	Document  *DocumentProperty `json:"document,omitempty"`
-	CreatedAt time.Time         `json:"createdAt"`
-	ChangedAt time.Time         `json:"changedAt"`
-	ModifiedAt time.Time        `json:"modifiedAt"`
-	AccessAt  time.Time         `json:"accessAt"`
+	CreatedAt time.Time         `json:"created_at"`
+	ChangedAt time.Time         `json:"changed_at"`
+	ModifiedAt time.Time        `json:"modified_at"`
+	AccessAt  time.Time         `json:"access_at"`
 }
 
 // Access 访问权限
@@ -66,18 +67,18 @@ type Access struct {
 
 // DocumentProperty 文档属性
 type DocumentProperty struct {
-	Title       string   `json:"title"`
-	Author      string   `json:"author"`
-	Year        string   `json:"year"`
-	Source      string   `json:"source"`
-	Abstract    string   `json:"abstract"`
-	Keywords    []string `json:"keywords"`
-	Notes       string   `json:"notes"`
-	Unread      bool     `json:"unread"`
-	Marked      bool     `json:"marked"`
-	PublishAt   time.Time `json:"publishAt"`
-	URL         string   `json:"url"`
-	HeaderImage string   `json:"headerImage"`
+	Title       string    `json:"title"`
+	Author      string    `json:"author"`
+	Year        string    `json:"year"`
+	Source      string    `json:"source"`
+	Abstract    string    `json:"abstract"`
+	Keywords    []string  `json:"keywords"`
+	Notes       string    `json:"notes"`
+	Unread      bool      `json:"unread"`
+	Marked      bool      `json:"marked"`
+	PublishAt   time.Time `json:"publish_at"`
+	URL         string    `json:"url"`
+	HeaderImage string    `json:"header_image"`
 }
 
 // Property 属性
@@ -114,10 +115,10 @@ type Message struct {
 type WorkflowInfo struct {
 	ID              string    `json:"id"`
 	Name            string    `json:"name"`
-	QueueName       string    `json:"queueName"`
-	CreatedAt       time.Time `json:"createdAt"`
-	UpdatedAt       time.Time `json:"updatedAt"`
-	LastTriggeredAt time.Time `json:"lastTriggeredAt"`
+	QueueName       string    `json:"queue_name"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	LastTriggeredAt time.Time `json:"last_triggered_at"`
 }
 
 // WorkflowJobStep 工作流作业步骤
@@ -136,16 +137,16 @@ type WorkflowJobTarget struct {
 type WorkflowJobDetail struct {
 	ID            string             `json:"id"`
 	Workflow      string             `json:"workflow"`
-	TriggerReason string             `json:"triggerReason"`
+	TriggerReason string             `json:"trigger_reason"`
 	Status        string             `json:"status"`
 	Message       string             `json:"message"`
-	QueueName     string             `json:"queueName"`
+	QueueName     string             `json:"queue_name"`
 	Target        *WorkflowJobTarget `json:"target"`
 	Steps         []*WorkflowJobStep `json:"steps"`
-	CreatedAt     time.Time          `json:"createdAt"`
-	UpdatedAt     time.Time          `json:"updatedAt"`
-	StartAt       time.Time          `json:"startAt"`
-	FinishAt      time.Time          `json:"finishAt"`
+	CreatedAt     time.Time          `json:"created_at"`
+	UpdatedAt     time.Time          `json:"updated_at"`
+	StartAt       time.Time          `json:"start_at"`
+	FinishAt      time.Time          `json:"finish_at"`
 }
 
 // DeleteEntriesResponse 批量删除响应
@@ -186,7 +187,7 @@ type ListWorkflowJobsResponse struct {
 
 // TriggerWorkflowResponse 触发工作流响应
 type TriggerWorkflowResponse struct {
-	JobID string `json:"jobId"`
+	JobID string `json:"job_id"`
 }
 
 // Helpers for converting from types package
@@ -224,7 +225,7 @@ func toEntryInfo(parentURI, name string, en *types.Entry, doc *types.DocumentPro
 	return info
 }
 
-func toEntryDetail(parentURI, name string, en *types.Entry, doc types.DocumentProperties) *EntryDetail {
+func toEntryDetail(parentURI, name string, en *types.Entry, doc types.DocumentProperties, prop *Property) *EntryDetail {
 	access := &Access{
 		UID:         en.Access.UID,
 		GID:         en.Access.GID,
@@ -246,6 +247,7 @@ func toEntryDetail(parentURI, name string, en *types.Entry, doc types.DocumentPr
 		Namespace: en.Namespace,
 		Storage:   en.Storage,
 		Access:    access,
+		Property:  prop,
 		Document: &DocumentProperty{
 			Title:       doc.Title,
 			Author:      doc.Author,

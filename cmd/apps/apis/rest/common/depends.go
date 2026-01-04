@@ -26,24 +26,24 @@ import (
 )
 
 type Depends struct {
-	Meta         metastore.Meta
-	Workflow     workflow.Workflow
-	Dispatcher   *dispatch.Dispatcher
-	Notify       *notify.Notify
-	ConfigLoader config.Config
-	Core         core.Core
+	Meta       metastore.Meta
+	Workflow   workflow.Workflow
+	Dispatcher *dispatch.Dispatcher
+	Notify     *notify.Notify
+	Config     config.Config
+	Core       core.Core
 }
 
-func InitDepends(loader config.Config, meta metastore.Meta) (*Depends, error) {
+func InitDepends(cfg config.Config, meta metastore.Meta) (*Depends, error) {
 	var (
-		bCfg = loader.GetBootstrapConfig()
+		bCfg = cfg.GetBootstrapConfig()
 		err  error
 	)
 
 	dep := &Depends{
-		Meta:         meta,
-		Notify:       notify.NewNotify(meta),
-		ConfigLoader: loader,
+		Meta:   meta,
+		Notify: notify.NewNotify(meta),
+		Config: cfg,
 	}
 
 	dep.Core, err = core.New(meta, bCfg)

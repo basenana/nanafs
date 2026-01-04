@@ -14,14 +14,15 @@
  limitations under the License.
 */
 
-package config
+package cmdb
 
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/utils/logger"
 	"strings"
 	"sync"
+
+	"github.com/basenana/nanafs/utils/logger"
 )
 
 const (
@@ -72,11 +73,18 @@ type cacheConfigKey struct {
 	name      string
 }
 
+type Value struct {
+	Group string
+	Name  string
+	Value string
+	Error error
+}
+
 var (
 	defaultConfigValues []Value = []Value{}
 )
 
-func setCMDBDefaultConfigs(db CMDB) error {
+func SetCMDBDefaultConfigs(db CMDB) error {
 	var (
 		ctx       context.Context = context.Background()
 		cfgLogger                 = logger.NewLogger("defaultConfig")
@@ -87,7 +95,7 @@ func setCMDBDefaultConfigs(db CMDB) error {
 			continue
 		}
 
-		if !isConfigNotFound(err) {
+		if !IsConfigNotFound(err) {
 			return fmt.Errorf("get default config %s.%s failed %w", defaultVal.Group, defaultVal.Name, err)
 		}
 
@@ -99,7 +107,7 @@ func setCMDBDefaultConfigs(db CMDB) error {
 	return nil
 }
 
-func isConfigNotFound(err error) bool {
+func IsConfigNotFound(err error) bool {
 	if err == nil {
 		return false
 	}

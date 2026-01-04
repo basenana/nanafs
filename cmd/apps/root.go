@@ -63,12 +63,12 @@ var daemonCmd = &cobra.Command{
 
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		loader, err := config.NewConfigLoader()
+		cfg, err := config.NewConfig()
 		if err != nil {
 			panic(err)
 		}
 
-		boot := loader.GetBootstrapConfig()
+		boot := cfg.GetBootstrapConfig()
 		if boot.Debug {
 			logger.SetDebug(boot.Debug)
 		}
@@ -81,16 +81,16 @@ var daemonCmd = &cobra.Command{
 			panic("storage must config")
 		}
 
-		if err = loader.RegisterCMDB(meta); err != nil {
+		if err = cfg.RegisterCMDB(meta); err != nil {
 			panic(err)
 		}
-		depends, err := common.InitDepends(loader, meta)
+		depends, err := common.InitDepends(cfg, meta)
 		if err != nil {
 			panic(err)
 		}
 
 		stop := utils.HandleTerminalSignal()
-		run(depends, loader, stop)
+		run(depends, cfg, stop)
 	},
 }
 
@@ -151,12 +151,12 @@ var NamespaceCmd = &cobra.Command{
 	Short: "create namespace",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		loader, err := config.NewConfigLoader()
+		cfg, err := config.NewConfig()
 		if err != nil {
 			panic(err)
 		}
 
-		boot := loader.GetBootstrapConfig()
+		boot := cfg.GetBootstrapConfig()
 		if boot.Debug {
 			logger.SetDebug(boot.Debug)
 		}
@@ -166,7 +166,7 @@ var NamespaceCmd = &cobra.Command{
 			panic(err)
 		}
 
-		if err = loader.RegisterCMDB(meta); err != nil {
+		if err = cfg.RegisterCMDB(meta); err != nil {
 			panic(err)
 		}
 
@@ -174,7 +174,7 @@ var NamespaceCmd = &cobra.Command{
 			panic("storage must config")
 		}
 
-		depends, err := common.InitDepends(loader, meta)
+		depends, err := common.InitDepends(cfg, meta)
 		if err != nil {
 			panic(err)
 		}

@@ -39,7 +39,7 @@ func TestPlugin(t *testing.T) {
 var _ = BeforeSuite(func() {
 	// init plugin registry
 	var err error
-	cfgLoader := config.NewMockConfigLoader(config.Bootstrap{})
-	mgr, err = Init(cfgLoader.GetBootstrapConfig().Workflow)
+	cfg := config.NewMockConfig(config.Bootstrap{})
+	mgr, err = Init(cfg.GetBootstrapConfig().Workflow)
 	Expect(err).Should(BeNil())
 })

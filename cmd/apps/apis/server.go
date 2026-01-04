@@ -107,12 +107,12 @@ func RunWebdav(fs *core.FileSystem, cfg config.Webdav, stopCh chan struct{}) err
 
 func RunFSAPI(depends *common.Depends, cfg config.Config, stopCh chan struct{}) error {
 	restDepends := &restcommon.Depends{
-		Meta:         depends.Meta,
-		Workflow:     depends.Workflow,
-		Dispatcher:   depends.Dispatcher,
-		Notify:       depends.Notify,
-		ConfigLoader: depends.ConfigLoader,
-		Core:         depends.Core,
+		Meta:       depends.Meta,
+		Workflow:   depends.Workflow,
+		Dispatcher: depends.Dispatcher,
+		Notify:     depends.Notify,
+		Config:     depends.Config,
+		Core:       depends.Core,
 	}
 	s, err := rest.New(restDepends, cfg)
 	if err != nil {

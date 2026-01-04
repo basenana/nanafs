@@ -73,8 +73,8 @@ var _ = BeforeSuite(func() {
 	mockConfig.CacheDir = workdir
 	mockConfig.CacheSize = 0
 
-	cl := config.NewMockConfigLoader(mockConfig)
-	dep, err = common.InitDepends(cl, memMeta)
+	cfg := config.NewMockConfig(mockConfig)
+	dep, err = common.InitDepends(cfg, memMeta)
 	Expect(err).Should(BeNil())
 
 	// init root
@@ -89,7 +89,7 @@ var _ = BeforeSuite(func() {
 	mockListen = bufconn.Listen(buffer)
 
 	// TODO: use token mgr
-	serverCreds, clientCreds, err := setupCerts(cl)
+	serverCreds, clientCreds, err := setupCerts(cfg)
 	Expect(err).Should(BeNil())
 	var opts = []grpc.ServerOption{
 		grpc.Creds(serverCreds),

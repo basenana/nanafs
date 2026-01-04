@@ -20,10 +20,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
 	"path"
 	"time"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -49,12 +50,12 @@ type ServicesV1 interface {
 
 func InitServicesV1(server *grpc.Server, depends *common.Depends) (ServicesV1, error) {
 	s := &servicesV1{
-		meta:      depends.Meta,
-		core:      depends.Core,
-		workflow:  depends.Workflow,
-		notify:    depends.Notify,
-		cfgLoader: depends.ConfigLoader,
-		logger:    logger.NewLogger("fsapi"),
+		meta:     depends.Meta,
+		core:     depends.Core,
+		workflow: depends.Workflow,
+		notify:   depends.Notify,
+		cfg:      depends.Config,
+		logger:   logger.NewLogger("fsapi"),
 	}
 
 	RegisterEntriesServer(server, s)
@@ -65,12 +66,12 @@ func InitServicesV1(server *grpc.Server, depends *common.Depends) (ServicesV1, e
 }
 
 type servicesV1 struct {
-	meta      metastore.Meta
-	core      core.Core
-	workflow  workflow.Workflow
-	notify    *notify.Notify
-	cfgLoader config.Config
-	logger    *zap.SugaredLogger
+	meta     metastore.Meta
+	core     core.Core
+	workflow workflow.Workflow
+	notify   *notify.Notify
+	cfg      config.Config
+	logger   *zap.SugaredLogger
 }
 
 var _ ServicesV1 = &servicesV1{}

@@ -18,21 +18,21 @@ package v1
 
 // CreateEntryRequest 创建条目请求
 type CreateEntryRequest struct {
-	URI  string         `json:"uri" binding:"required"`
-	Kind string         `json:"kind"`
-	Rss  *RssConfig     `json:"rss"`
-	Filter *FilterConfig `json:"filter"`
+	URI    string         `json:"uri" binding:"required"`
+	Kind   string         `json:"kind"`
+	Rss    *RssConfig     `json:"rss"`
+	Filter *FilterConfig  `json:"filter"`
 }
 
 type RssConfig struct {
 	Feed     string `json:"feed"`
-	SiteName string `json:"siteName"`
-	SiteURL  string `json:"siteUrl"`
-	FileType string `json:"fileType"`
+	SiteName string `json:"site_name"`
+	SiteURL  string `json:"site_url"`
+	FileType string `json:"file_type"`
 }
 
 type FilterConfig struct {
-	CELPattern string `json:"celPattern"`
+	CELPattern string `json:"cel_pattern"`
 }
 
 // UpdateEntryRequest 更新条目请求
@@ -43,15 +43,15 @@ type UpdateEntryRequest struct {
 
 // ChangeParentRequest 更改父级请求
 type ChangeParentRequest struct {
-	EntryURI   string `json:"entryUri" binding:"required"`
-	NewEntryURI string `json:"newEntryUri" binding:"required"`
-	Replace    bool   `json:"replace"`
-	Exchange   bool   `json:"exchange"`
+	EntryURI    string `json:"entry_uri" binding:"required"`
+	NewEntryURI string `json:"new_entry_uri" binding:"required"`
+	Replace     bool   `json:"replace"`
+	Exchange    bool   `json:"exchange"`
 }
 
 // DeleteEntriesRequest 批量删除请求
 type DeleteEntriesRequest struct {
-	URIList []string `json:"uriList" binding:"required"`
+	URIList []string `json:"uri_list" binding:"required"`
 }
 
 // ListGroupChildrenRequest 列出组子项请求
@@ -64,7 +64,7 @@ type ListGroupChildrenRequest struct {
 
 // FilterEntryRequest 过滤条目请求
 type FilterEntryRequest struct {
-	CELPattern string `json:"celPattern" binding:"required"`
+	CELPattern string `json:"cel_pattern" binding:"required"`
 }
 
 // UpdatePropertyRequest 更新属性请求
@@ -86,17 +86,17 @@ type ListMessagesRequest struct {
 
 // ReadMessagesRequest 读取消息请求
 type ReadMessagesRequest struct {
-	MessageIDList []string `json:"messageIdList" binding:"required"`
+	MessageIDList []string `json:"message_id_list" binding:"required"`
 }
 
 // ListWorkflowJobsRequest 列出工作流作业请求
 type ListWorkflowJobsRequest struct {
-	WorkflowID string `form:"workflowId"`
+	WorkflowID string `form:"workflow_id"`
 }
 
 // TriggerWorkflowRequest 触发工作流请求
 type TriggerWorkflowRequest struct {
-	WorkflowID string            `json:"workflowId" binding:"required"`
+	WorkflowID string            `json:"workflow_id" binding:"required"`
 	URI        string            `json:"uri"`
 	Reason     string            `json:"reason"`
 	Timeout    int64             `json:"timeout"`

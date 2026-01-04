@@ -23,35 +23,35 @@ import (
 func RegisterRoutes(engine *gin.Engine, s *ServicesV1) {
 	v1 := engine.Group("/api/v1")
 	{
-		// Entries
+		// Entries - support ?uri= or ?id= query parameters
 		entries := v1.Group("/entries")
 		{
-			entries.GET("/:uri", s.GetEntryDetail)
 			entries.POST("", s.CreateEntry)
 			entries.POST("/search", s.FilterEntry)
-			entries.PUT("/:uri", s.UpdateEntry)
-			entries.DELETE("/:uri", s.DeleteEntry)
 			entries.POST("/batch-delete", s.DeleteEntries)
-			entries.PUT("/:uri/parent", s.ChangeParent)
-			entries.PUT("/:uri/properties", s.UpdateProperty)
-			entries.PUT("/:uri/document", s.UpdateDocumentProperty)
+			entries.DELETE("", s.DeleteEntry)
+
+			// Routes supporting ?uri= or ?id= query parameters
+			entries.GET("/details", s.EntryDetails)
+			entries.PUT("", s.UpdateEntry)
+			entries.PUT("/parent", s.EntryParent)
+			entries.PUT("/property", s.UpdateProperty)
+			entries.PUT("/document", s.UpdateDocumentProperty)
 		}
 
-		// Groups
+		// Groups - support ?uri= query parameter
 		groups := v1.Group("/groups")
 		{
-			groups.GET("/:uri/children", s.ListGroupChildren)
+			groups.GET("/children", s.ListGroupChildren)
+			groups.GET("/tree", s.GroupTree)
 		}
 
-		// Files
+		// Files - support ?uri= or ?id= query parameters
 		files := v1.Group("/files")
 		{
-			files.GET("/:entry/content", s.ReadFile)
-			files.POST("/:entry/content", s.WriteFile)
+			files.GET("/content", s.ReadFile)
+			files.POST("/content", s.WriteFile)
 		}
-
-		// Tree
-		v1.GET("/tree", s.GroupTree)
 
 		// Messages
 		v1.GET("/messages", s.ListMessages)

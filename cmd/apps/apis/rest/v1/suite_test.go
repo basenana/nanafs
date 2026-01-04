@@ -71,8 +71,8 @@ var _ = BeforeSuite(func() {
 		CacheSize: 0,
 	}
 
-	cl := config.NewMockConfigLoader(testCfg)
-	dep, err = common.InitDepends(cl, memMeta)
+	cfg := config.NewMockConfig(testCfg)
+	dep, err = common.InitDepends(cfg, memMeta)
 	Expect(err).Should(BeNil())
 
 	// init root

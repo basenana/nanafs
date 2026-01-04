@@ -29,18 +29,95 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/basenana/nanafs/cmd/apps/apis/apitool"
+	"github.com/basenana/nanafs/cmd/apps/apis/rest/common"
 	"github.com/basenana/nanafs/pkg/core"
+	corefs "github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/workflow"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-// GroupTree retrieves the group tree structure
-func (s *ServicesV1) GroupTree(ctx *gin.Context) {
+func (s *ServicesV1) requireCaller(ctx *gin.Context) *common.CallerInfo {
 	caller, err := s.caller(ctx)
 	if err != nil {
 		apitool.ErrorResponse(ctx, err)
+		return nil
+	}
+	return caller
+}
+
+func (s *ServicesV1) requireEntryWithPermission(ctx *gin.Context, caller *common.CallerInfo, perms ...types.Permission) (*types.Entry, string) {
+	// Support getting entry from query parameters: ?uri= or ?id=
+	// Returns the entry and its URI. If no URI was provided, uses core.ProbableEntryPath
+	uri := ctx.Query("uri")
+	idStr := ctx.Query("id")
+
+	var en *types.Entry
+	var err error
+
+	if uri != "" {
+		_, en, err = s.core.GetEntryByPath(ctx.Request.Context(), caller.Namespace, uri)
+	} else if idStr != "" {
+		id, parseErr := strconv.ParseInt(idStr, 10, 64)
+		if parseErr != nil {
+			apitool.ErrorResponse(ctx, errors.New("invalid id format"))
+			return nil, ""
+		}
+		en, err = s.core.GetEntry(ctx.Request.Context(), caller.Namespace, id)
+	} else {
+		// Neither uri nor id provided
+		apitool.ErrorResponse(ctx, errors.New("missing uri or id parameter"))
+		return nil, ""
+	}
+
+	if err != nil {
+		apitool.ErrorResponse(ctx, err)
+		return nil, ""
+	}
+
+	if !s.checkPermission(ctx, caller, en, perms...) {
+		return nil, ""
+	}
+
+	// If no URI was provided, get the probable path
+	if uri == "" {
+		uri, err = corefs.ProbableEntryPath(ctx.Request.Context(), s.core, en)
+		if err != nil {
+			uri = ""
+		}
+	}
+
+	return en, uri
+}
+
+// checkPermission checks if caller has all the required permissions
+func (s *ServicesV1) checkPermission(ctx *gin.Context, caller *common.CallerInfo, en *types.Entry, perms ...types.Permission) bool {
+	err := core.HasAllPermissions(en.Access, caller.UID, caller.GID, perms...)
+	if err != nil {
+		apitool.ErrorResponse(ctx, err)
+		return false
+	}
+	return true
+}
+
+// getDocumentProperty retrieves document properties for an entry
+func (s *ServicesV1) getDocumentProperty(ctx context.Context, namespace string, en *types.Entry) *types.DocumentProperties {
+	if en.IsGroup {
+		return nil
+	}
+	doc := &types.DocumentProperties{}
+	if err := s.meta.GetEntryProperties(ctx, namespace, types.PropertyTypeDocument, en.ID, doc); err != nil {
+		s.logger.Errorw("get entry document properties failed", "entry", en.ID, "err", err)
+		return nil
+	}
+	return doc
+}
+
+// GroupTree retrieves the group tree structure
+func (s *ServicesV1) GroupTree(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
 		return
 	}
 
@@ -124,41 +201,21 @@ func (s *ServicesV1) listEntryChildren(ctx context.Context, namespace string, en
 
 // GetEntryDetail retrieves entry details by URI
 func (s *ServicesV1) GetEntryDetail(ctx *gin.Context) {
-	caller, err := s.caller(ctx)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+	caller := s.requireCaller(ctx)
+	if caller == nil {
 		return
 	}
 
 	uri := ctx.Param("uri")
 	s.logger.Infow("request", "uri", uri)
 
-	parentID, entryID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, uri)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
-		return
-	}
-
-	child, err := s.meta.GetChild(ctx.Request.Context(), caller.Namespace, parentID, entryID)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
-		return
-	}
-
-	en, err := s.core.GetEntry(ctx.Request.Context(), caller.Namespace, child.ChildID)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
-		return
-	}
-
-	err = core.HasAllPermissions(en.Access, caller.UID, caller.GID, types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+	en, _ := s.requireEntryWithPermission(ctx, caller, types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead)
+	if en == nil {
 		return
 	}
 
 	parentURI, name := path.Split(uri)
-	detail, _, err := s.getEntryDetails(ctx.Request.Context(), caller.Namespace, parentURI, name, child.ChildID)
+	detail, err := s.getEntryDetails(ctx.Request.Context(), caller.Namespace, parentURI, name, en.ID)
 	if err != nil {
 		apitool.ErrorResponse(ctx, err)
 		return
@@ -167,35 +224,36 @@ func (s *ServicesV1) GetEntryDetail(ctx *gin.Context) {
 	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"entry": detail})
 }
 
-func (s *ServicesV1) getEntryDetails(ctx context.Context, namespace, uri, name string, id int64) (*EntryDetail, *Property, error) {
+func (s *ServicesV1) getEntryDetails(ctx context.Context, namespace, uri, name string, id int64) (*EntryDetail, error) {
 	en, err := s.core.GetEntry(ctx, namespace, id)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	doc := types.DocumentProperties{}
 	err = s.meta.GetEntryProperties(ctx, namespace, types.PropertyTypeDocument, id, &doc)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	details := toEntryDetail(uri, name, en, doc)
 
 	properties := &types.Properties{}
 	err = s.meta.GetEntryProperties(ctx, namespace, types.PropertyTypeProperty, id, properties)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return details, &Property{
+	prop := &Property{
 		Tags:       properties.Tags,
 		Properties: properties.Properties,
-	}, nil
+	}
+
+	details := toEntryDetail(uri, name, en, doc, prop)
+	return details, nil
 }
 
 // CreateEntry creates a new entry
 func (s *ServicesV1) CreateEntry(ctx *gin.Context) {
-	caller, err := s.caller(ctx)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+	caller := s.requireCaller(ctx)
+	if caller == nil {
 		return
 	}
 
@@ -282,16 +340,9 @@ func (s *ServicesV1) setupRssConfig(config *RssConfig, attr *types.EntryAttr) {
 		return
 	}
 
-	fileType := "html"
-	switch config.FileType {
-	case "url":
-		fileType = "url"
-	case "html":
+	fileType := config.FileType
+	if fileType == "" {
 		fileType = "html"
-	case "rawhtml":
-		fileType = "rawhtml"
-	case "webarchive":
-		fileType = "webarchive"
 	}
 
 	attr.GroupProperties = &types.GroupProperties{
@@ -320,36 +371,21 @@ func (s *ServicesV1) setupGroupFilterConfig(config *FilterConfig, attr *types.En
 	}
 }
 
-// UpdateEntry updates an existing entry
+// UpdateEntry updates an existing entry - 支持 ?uri= 或 ?id=
 func (s *ServicesV1) UpdateEntry(ctx *gin.Context) {
-	caller, err := s.caller(ctx)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+	caller := s.requireCaller(ctx)
+	if caller == nil {
 		return
 	}
 
-	uri := ctx.Param("uri")
 	var req UpdateEntryRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		apitool.ErrorResponse(ctx, err)
 		return
 	}
 
-	_, entryID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, uri)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
-		return
-	}
-
-	en, err := s.core.GetEntry(ctx.Request.Context(), caller.Namespace, entryID)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
-		return
-	}
-
-	err = core.HasAllPermissions(en.Access, caller.UID, caller.GID, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+	en, uri := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	if en == nil {
 		return
 	}
 
@@ -360,45 +396,58 @@ func (s *ServicesV1) UpdateEntry(ctx *gin.Context) {
 	if req.Aliases != "" {
 		update.Aliases = &req.Aliases
 	}
-	en, err = s.core.UpdateEntry(ctx.Request.Context(), caller.Namespace, en.ID, update)
+	en, err := s.core.UpdateEntry(ctx.Request.Context(), caller.Namespace, en.ID, update)
 	if err != nil {
 		apitool.ErrorResponse(ctx, err)
 		return
 	}
 
-	parentURI, name := path.Split(uri)
-	detail, _, err := s.getEntryDetails(ctx.Request.Context(), caller.Namespace, parentURI, name, en.ID)
+	// Get parent URI for response - use query uri if available, otherwise try to get from entry
+	parentURI := uri
+	if parentURI == "" {
+		// Try to get the path from the entry's parent relationship
+		parentURI = ""
+	}
+	// If we have a uri, use it; otherwise, we need to construct one
+	if parentURI == "" {
+		parentURI = "/"
+	}
+	detail, err := s.getEntryDetails(ctx.Request.Context(), caller.Namespace, path.Dir(parentURI), path.Base(parentURI), en.ID)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		// If we can't get details, return the updated entry without full details
+		apitool.JsonResponse(ctx, http.StatusOK, gin.H{"entry": toEntryInfo("", en.Name, en, nil)})
 		return
 	}
 
 	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"entry": detail})
 }
 
-// DeleteEntry deletes a single entry
+// DeleteEntry deletes a single entry - 支持 ?uri= 或 ?id=
 func (s *ServicesV1) DeleteEntry(ctx *gin.Context) {
-	caller, err := s.caller(ctx)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+	caller := s.requireCaller(ctx)
+	if caller == nil {
 		return
 	}
 
-	uri := ctx.Param("uri")
+	en, uri := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	if en == nil {
+		return
+	}
+
 	parentID, entryID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, uri)
 	if err != nil {
 		apitool.ErrorResponse(ctx, err)
 		return
 	}
 
-	en, err := s.deleteEntry(ctx.Request.Context(), caller.Namespace, caller.UID, parentID, entryID, path.Base(uri))
+	deletedEntry, err := s.deleteEntry(ctx.Request.Context(), caller.Namespace, caller.UID, parentID, entryID, path.Base(uri))
 	if err != nil {
 		apitool.ErrorResponse(ctx, err)
 		return
 	}
 
 	parentURI, name := path.Split(uri)
-	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"entry": toEntryInfo(parentURI, name, en, nil)})
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"entry": toEntryInfo(parentURI, name, deletedEntry, nil)})
 }
 
 func (s *ServicesV1) deleteEntry(ctx context.Context, namespace string, uid, parentID, entryID int64, name string) (*types.Entry, error) {
@@ -436,9 +485,8 @@ func (s *ServicesV1) deleteEntry(ctx context.Context, namespace string, uid, par
 
 // DeleteEntries performs batch deletion of entries
 func (s *ServicesV1) DeleteEntries(ctx *gin.Context) {
-	caller, err := s.caller(ctx)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+	caller := s.requireCaller(ctx)
+	if caller == nil {
 		return
 	}
 
@@ -475,15 +523,14 @@ func (s *ServicesV1) DeleteEntries(ctx *gin.Context) {
 	})
 }
 
-// ListGroupChildren lists children of a group
+// ListGroupChildren lists children of a group - support ?uri= query parameter
 func (s *ServicesV1) ListGroupChildren(ctx *gin.Context) {
-	caller, err := s.caller(ctx)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+	caller := s.requireCaller(ctx)
+	if caller == nil {
 		return
 	}
 
-	uri := ctx.Param("uri")
+	uri := ctx.Query("uri")
 	_, parentID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, uri)
 	if err != nil {
 		apitool.ErrorResponse(ctx, err)
@@ -498,14 +545,7 @@ func (s *ServicesV1) ListGroupChildren(ctx *gin.Context) {
 
 	entries := make([]*EntryInfo, 0, len(children))
 	for _, en := range children {
-		var doc *types.DocumentProperties
-		if !en.IsGroup {
-			doc = &types.DocumentProperties{}
-			if err = s.meta.GetEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeDocument, en.ID, doc); err != nil {
-				s.logger.Errorw("get entry document properties failed", "entry", en.ID, "err", err)
-				doc = nil
-			}
-		}
+		doc := s.getDocumentProperty(ctx.Request.Context(), caller.Namespace, en)
 		entries = append(entries, toEntryInfo(uri, en.Name, en, doc))
 	}
 
@@ -514,9 +554,8 @@ func (s *ServicesV1) ListGroupChildren(ctx *gin.Context) {
 
 // ChangeParent moves an entry to a new parent
 func (s *ServicesV1) ChangeParent(ctx *gin.Context) {
-	caller, err := s.caller(ctx)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+	caller := s.requireCaller(ctx)
+	if caller == nil {
 		return
 	}
 
@@ -594,9 +633,8 @@ func (s *ServicesV1) ChangeParent(ctx *gin.Context) {
 
 // FilterEntry filters entries using CEL pattern
 func (s *ServicesV1) FilterEntry(ctx *gin.Context) {
-	caller, err := s.caller(ctx)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+	caller := s.requireCaller(ctx)
+	if caller == nil {
 		return
 	}
 
@@ -621,14 +659,7 @@ func (s *ServicesV1) FilterEntry(ctx *gin.Context) {
 			return
 		}
 
-		var doc *types.DocumentProperties
-		if !en.IsGroup {
-			doc = &types.DocumentProperties{}
-			if err = s.meta.GetEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeDocument, en.ID, doc); err != nil {
-				s.logger.Errorw("get entry document properties failed", "entry", en.ID, "err", err)
-				doc = nil
-			}
-		}
+		doc := s.getDocumentProperty(ctx.Request.Context(), caller.Namespace, en)
 
 		uri, err := core.ProbableEntryPath(ctx.Request.Context(), s.core, en)
 		if err != nil {
@@ -641,18 +672,19 @@ func (s *ServicesV1) FilterEntry(ctx *gin.Context) {
 	apitool.JsonResponse(ctx, http.StatusOK, &ListEntriesResponse{Entries: entries})
 }
 
-// WriteFile writes file content via multipart upload
+// WriteFile writes file content via multipart upload - 支持 ?uri= 或 ?id=
 func (s *ServicesV1) WriteFile(ctx *gin.Context) {
-	caller, err := s.caller(ctx)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+	caller := s.requireCaller(ctx)
+	if caller == nil {
 		return
 	}
 
-	entryIDStr := ctx.Param("entry")
-	entryIDInt, _ := strconv.ParseInt(entryIDStr, 10, 64)
+	en, _ := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermOwnerWrite, types.PermOwnerWrite)
+	if en == nil {
+		return
+	}
 
-	file, err := s.core.Open(ctx.Request.Context(), caller.Namespace, entryIDInt, types.OpenAttr{Write: true})
+	file, err := s.core.Open(ctx.Request.Context(), caller.Namespace, en.ID, types.OpenAttr{Write: true})
 	if err != nil {
 		apitool.ErrorResponse(ctx, err)
 		return
@@ -698,30 +730,19 @@ func (s *ServicesV1) WriteFile(ctx *gin.Context) {
 	apitool.JsonResponse(ctx, http.StatusOK, &WriteFileResponse{Len: int64(len(data))})
 }
 
-// ReadFile reads file content
+// ReadFile reads file content - 支持 ?uri= 或 ?id=
 func (s *ServicesV1) ReadFile(ctx *gin.Context) {
-	caller, err := s.caller(ctx)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+	caller := s.requireCaller(ctx)
+	if caller == nil {
 		return
 	}
 
-	entryIDStr := ctx.Param("entry")
-	entryIDInt, _ := strconv.ParseInt(entryIDStr, 10, 64)
-
-	en, err := s.core.GetEntry(ctx.Request.Context(), caller.Namespace, entryIDInt)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+	en, _ := s.requireEntryWithPermission(ctx, caller, types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead)
+	if en == nil {
 		return
 	}
 
-	err = core.HasAllPermissions(en.Access, caller.UID, caller.GID, types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
-		return
-	}
-
-	file, err := s.core.Open(ctx.Request.Context(), caller.Namespace, entryIDInt, types.OpenAttr{Read: true})
+	file, err := s.core.Open(ctx.Request.Context(), caller.Namespace, en.ID, types.OpenAttr{Read: true})
 	if err != nil {
 		apitool.ErrorResponse(ctx, err)
 		return
@@ -740,33 +761,24 @@ func (s *ServicesV1) ReadFile(ctx *gin.Context) {
 
 // UpdateProperty updates entry properties
 func (s *ServicesV1) UpdateProperty(ctx *gin.Context) {
-	caller, err := s.caller(ctx)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+	caller := s.requireCaller(ctx)
+	if caller == nil {
 		return
 	}
 
-	uri := ctx.Param("uri")
 	var req UpdatePropertyRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		apitool.ErrorResponse(ctx, err)
 		return
 	}
 
-	_, entryID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, uri)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
-		return
-	}
-
-	en, err := s.core.GetEntry(ctx.Request.Context(), caller.Namespace, entryID)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+	en, _ := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	if en == nil {
 		return
 	}
 
 	properties := &types.Properties{}
-	err = s.meta.GetEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeProperty, en.ID, properties)
+	err := s.meta.GetEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeProperty, en.ID, properties)
 	if err != nil {
 		apitool.ErrorResponse(ctx, err)
 		return
@@ -791,28 +803,19 @@ func (s *ServicesV1) UpdateProperty(ctx *gin.Context) {
 
 // UpdateDocumentProperty updates document-specific properties
 func (s *ServicesV1) UpdateDocumentProperty(ctx *gin.Context) {
-	caller, err := s.caller(ctx)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+	caller := s.requireCaller(ctx)
+	if caller == nil {
 		return
 	}
 
-	uri := ctx.Param("uri")
 	var req UpdateDocumentPropertyRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		apitool.ErrorResponse(ctx, err)
 		return
 	}
 
-	_, entryID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, uri)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
-		return
-	}
-
-	en, err := s.core.GetEntry(ctx.Request.Context(), caller.Namespace, entryID)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+	en, _ := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	if en == nil {
 		return
 	}
 
@@ -822,7 +825,7 @@ func (s *ServicesV1) UpdateDocumentProperty(ctx *gin.Context) {
 	}
 
 	properties := &types.DocumentProperties{}
-	err = s.meta.GetEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeDocument, en.ID, properties)
+	err := s.meta.GetEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeDocument, en.ID, properties)
 	if err != nil {
 		apitool.ErrorResponse(ctx, err)
 		return
@@ -857,9 +860,8 @@ func (s *ServicesV1) UpdateDocumentProperty(ctx *gin.Context) {
 
 // ListMessages retrieves notifications/messages
 func (s *ServicesV1) ListMessages(ctx *gin.Context) {
-	caller, err := s.caller(ctx)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+	caller := s.requireCaller(ctx)
+	if caller == nil {
 		return
 	}
 
@@ -893,9 +895,8 @@ func (s *ServicesV1) ListMessages(ctx *gin.Context) {
 
 // ReadMessages marks messages as read
 func (s *ServicesV1) ReadMessages(ctx *gin.Context) {
-	caller, err := s.caller(ctx)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+	caller := s.requireCaller(ctx)
+	if caller == nil {
 		return
 	}
 
@@ -917,9 +918,8 @@ func (s *ServicesV1) ReadMessages(ctx *gin.Context) {
 
 // ListWorkflows retrieves available workflows
 func (s *ServicesV1) ListWorkflows(ctx *gin.Context) {
-	caller, err := s.caller(ctx)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+	caller := s.requireCaller(ctx)
+	if caller == nil {
 		return
 	}
 
@@ -940,9 +940,8 @@ func (s *ServicesV1) ListWorkflows(ctx *gin.Context) {
 
 // ListWorkflowJobs retrieves jobs for a specific workflow
 func (s *ServicesV1) ListWorkflowJobs(ctx *gin.Context) {
-	caller, err := s.caller(ctx)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+	caller := s.requireCaller(ctx)
+	if caller == nil {
 		return
 	}
 
@@ -969,9 +968,8 @@ func (s *ServicesV1) ListWorkflowJobs(ctx *gin.Context) {
 
 // TriggerWorkflow 触发工作流
 func (s *ServicesV1) TriggerWorkflow(ctx *gin.Context) {
-	caller, err := s.caller(ctx)
-	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+	caller := s.requireCaller(ctx)
+	if caller == nil {
 		return
 	}
 
@@ -988,7 +986,7 @@ func (s *ServicesV1) TriggerWorkflow(ctx *gin.Context) {
 	}
 
 	s.logger.Infow("trigger workflow", "workflow", workflowID)
-	_, err = s.workflow.GetWorkflow(ctx.Request.Context(), caller.Namespace, workflowID)
+	_, err := s.workflow.GetWorkflow(ctx.Request.Context(), caller.Namespace, workflowID)
 	if err != nil {
 		apitool.ErrorResponse(ctx, err)
 		return
@@ -1011,8 +1009,11 @@ func (s *ServicesV1) TriggerWorkflow(ctx *gin.Context) {
 	apitool.JsonResponse(ctx, http.StatusOK, &TriggerWorkflowResponse{JobID: job.Id})
 }
 
-func (s *ServicesV1) getEntryByPath(ctx context.Context, namespace, p string) (int64, int64, error) {
-	par, e, err := s.core.GetEntryByPath(ctx, namespace, p)
+func (s *ServicesV1) getEntryByPath(ctx context.Context, namespace, uri string) (int64, int64, error) {
+	if uri == "" {
+		return 0, 0, errors.New("invalid uri")
+	}
+	par, e, err := s.core.GetEntryByPath(ctx, namespace, uri)
 	if err != nil {
 		return 0, 0, status.Error(codes.Unknown, "get entry failed: "+err.Error())
 	}
@@ -1024,4 +1025,273 @@ func (s *ServicesV1) getEntryByPath(ctx context.Context, namespace, p string) (i
 		eid = e.ID
 	}
 	return pid, eid, nil
+}
+
+// EntryDetails 获取 entry 详情 - 支持 ?uri= 或 ?id=
+func (s *ServicesV1) EntryDetails(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	en, uri := s.requireEntryWithPermission(ctx, caller, types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead)
+	if en == nil {
+		return
+	}
+
+	parentURI, name := path.Split(uri)
+	detail, err := s.getEntryDetails(ctx.Request.Context(), caller.Namespace, parentURI, name, en.ID)
+	if err != nil {
+		apitool.ErrorResponse(ctx, err)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"entry": detail})
+}
+
+// EntryChildren 列出子项 - 支持 ?uri= 或 ?id=
+func (s *ServicesV1) EntryChildren(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	en, uri := s.requireEntryWithPermission(ctx, caller, types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead)
+	if en == nil {
+		return
+	}
+
+	children, err := s.listEntryChildren(ctx.Request.Context(), caller.Namespace, en.ID)
+	if err != nil {
+		apitool.ErrorResponse(ctx, err)
+		return
+	}
+
+	entries := make([]*EntryInfo, 0, len(children))
+	for _, child := range children {
+		doc := s.getDocumentProperty(ctx.Request.Context(), caller.Namespace, child)
+		entries = append(entries, toEntryInfo(uri, child.Name, child, doc))
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, &ListEntriesResponse{Entries: entries})
+}
+
+// EntryParent 更改父级 - 支持 ?uri= 或 ?id= 和 ?new_uri= 或 ?new_id=
+func (s *ServicesV1) EntryParent(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	// Support query parameters for target entry
+	newEntryURI := ctx.Query("new_uri")
+
+	// Get entry being moved
+	en, entryURI := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	if en == nil {
+		return
+	}
+
+	// If new_uri not from query, try reading from body
+	if newEntryURI == "" {
+		var req ChangeParentRequest
+		if err := ctx.ShouldBindJSON(&req); err == nil {
+			newEntryURI = req.NewEntryURI
+		}
+	}
+
+	if newEntryURI == "" {
+		apitool.ErrorResponse(ctx, errors.New("missing new_entry_uri"))
+		return
+	}
+
+	// Use the core.ChangeEntryParent directly
+	oldName := path.Base(entryURI)
+	oldParentID, entryID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, entryURI)
+	if err != nil {
+		apitool.ErrorResponse(ctx, err)
+		return
+	}
+
+	newParentURI, newName := path.Split(newEntryURI)
+	_, newParentID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, newParentURI)
+	if err != nil {
+		apitool.ErrorResponse(ctx, err)
+		return
+	}
+
+	en, err = s.core.GetEntry(ctx.Request.Context(), caller.Namespace, entryID)
+	if err != nil {
+		apitool.ErrorResponse(ctx, err)
+		return
+	}
+	err = core.HasAllPermissions(en.Access, caller.UID, caller.GID, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	if err != nil {
+		apitool.ErrorResponse(ctx, err)
+		return
+	}
+
+	newParent, err := s.core.GetEntry(ctx.Request.Context(), caller.Namespace, newParentID)
+	if err != nil {
+		apitool.ErrorResponse(ctx, err)
+		return
+	}
+	err = core.HasAllPermissions(newParent.Access, caller.UID, caller.GID, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	if err != nil {
+		apitool.ErrorResponse(ctx, err)
+		return
+	}
+
+	var existObjID *int64
+	existObj, err := s.core.FindEntry(ctx.Request.Context(), caller.Namespace, newParentID, newName)
+	if err != nil && !errors.Is(err, types.ErrNotFound) {
+		apitool.ErrorResponse(ctx, err)
+		return
+	}
+	if existObj != nil {
+		existObjID = &existObj.ChildID
+	}
+
+	s.logger.Debugw("change parent", "oldParent", oldParentID, "newParent", newParentID, "entry", entryID)
+	err = s.core.ChangeEntryParent(ctx.Request.Context(), caller.Namespace, entryID, existObjID, oldParentID, newParentID, oldName, newName, types.ChangeParentAttr{
+		Uid: caller.UID,
+		Gid: caller.GID,
+	})
+	if err != nil {
+		apitool.ErrorResponse(ctx, err)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"entry": toEntryInfo(newParentURI, newName, en, nil)})
+}
+
+// EntryProperty 更新属性 - 支持 ?uri= 或 ?id=
+func (s *ServicesV1) EntryProperty(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	var req UpdatePropertyRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		apitool.ErrorResponse(ctx, err)
+		return
+	}
+
+	en, _ := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	if en == nil {
+		return
+	}
+
+	properties := &types.Properties{}
+	err := s.meta.GetEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeProperty, en.ID, properties)
+	if err != nil {
+		apitool.ErrorResponse(ctx, err)
+		return
+	}
+
+	properties.Tags = req.Tags
+	properties.Properties = req.Properties
+
+	err = s.meta.UpdateEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeProperty, en.ID, properties)
+	if err != nil {
+		apitool.ErrorResponse(ctx, err)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{
+		"properties": &Property{
+			Tags:       properties.Tags,
+			Properties: properties.Properties,
+		},
+	})
+}
+
+// EntryDocument 更新文档属性 - 支持 ?uri= 或 ?id=
+func (s *ServicesV1) EntryDocument(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	var req UpdateDocumentPropertyRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		apitool.ErrorResponse(ctx, err)
+		return
+	}
+
+	en, _ := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	if en == nil {
+		return
+	}
+
+	if en.IsGroup {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "group has no document properties"})
+		return
+	}
+
+	properties := &types.DocumentProperties{}
+	err := s.meta.GetEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeDocument, en.ID, properties)
+	if err != nil {
+		apitool.ErrorResponse(ctx, err)
+		return
+	}
+
+	if req.Unread {
+		properties.Unread = true
+	}
+	if req.Marked {
+		properties.Marked = true
+	}
+
+	err = s.meta.UpdateEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeDocument, en.ID, properties)
+	if err != nil {
+		apitool.ErrorResponse(ctx, err)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{
+		"properties": &DocumentProperty{
+			Title:       properties.Title,
+			Author:      properties.Author,
+			Year:        properties.Year,
+			Source:      properties.Source,
+			Abstract:    properties.Abstract,
+			Keywords:    properties.Keywords,
+			Notes:       properties.Notes,
+			Unread:      properties.Unread,
+			Marked:      properties.Marked,
+			PublishAt:   time.Unix(properties.PublishAt, 0),
+			URL:         properties.URL,
+			HeaderImage: properties.HeaderImage,
+		},
+	})
+}
+
+// EntryDelete 删除 entry - 支持 ?uri= 或 ?id=
+func (s *ServicesV1) EntryDelete(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	en, uri := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	if en == nil {
+		return
+	}
+
+	parentID, entryID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, uri)
+	if err != nil {
+		apitool.ErrorResponse(ctx, err)
+		return
+	}
+
+	deletedEntry, err := s.deleteEntry(ctx.Request.Context(), caller.Namespace, caller.UID, parentID, entryID, path.Base(uri))
+	if err != nil {
+		apitool.ErrorResponse(ctx, err)
+		return
+	}
+
+	parentURI, name := path.Split(uri)
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"entry": toEntryInfo(parentURI, name, deletedEntry, nil)})
 }

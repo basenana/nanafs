@@ -106,7 +106,7 @@ type core struct {
 	metastore      metastore.Meta
 	defaultStorage storage.Storage
 	storages       map[string]storage.Storage
-	cfgLoader      config.Config
+	cfg            config.Config
 	fsOwnerUid     int64
 	fsOwnerGid     int64
 	fsWriteback    bool

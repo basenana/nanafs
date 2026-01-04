@@ -1,0 +1,643 @@
+# NanaFS REST API Reference
+
+## Overview
+
+NanaFS provides a RESTful API built with [Gin](https://gin-gonic.com/) framework. All API endpoints are prefixed with `/api/v1/` unless otherwise specified.
+
+## Base URL
+
+```
+http://localhost:8080/api/v1
+```
+
+## Authentication
+
+Currently, authentication is handled via middleware. Refer to configuration for authentication settings.
+
+---
+
+## Endpoints
+
+### 1. Health Check
+
+#### GET /_ping
+
+Health check endpoint for load balancers and monitoring.
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "time": "2024-01-01T00:00:00Z"
+}
+```
+
+---
+
+### 2. Entries (条目管理)
+
+Entries are the core resource in NanaFS, representing files, groups, and other entities.
+
+All entry-related endpoints support two access patterns:
+- **By URI**: Use `?uri=/path/to/entry` query parameter
+- **By ID**: Use `?id=12345` query parameter
+
+#### GET /api/v1/entries/details
+
+Retrieve details of a specific entry.
+
+**Query Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `uri` | string | Entry URI path (e.g., `/inbox/tasks/task-001`) |
+| `id` | int64 | Entry ID |
+
+**Response**
+
+```json
+{
+  "entry": {
+    "uri": "/inbox",
+    "entry": 1001,
+    "name": "Inbox",
+    "aliases": "",
+    "kind": "group",
+    "is_group": true,
+    "size": 0,
+    "version": 1,
+    "namespace": "default",
+    "storage": "local",
+    "access": {
+      "uid": 1000,
+      "gid": 1000,
+      "permissions": ["owner_read", "owner_write", "group_read", "group_write", "others_read"]
+    },
+    "property": null,
+    "document": null,
+    "created_at": "2024-01-01T00:00:00Z",
+    "changed_at": "2024-01-01T00:00:00Z",
+    "modified_at": "2024-01-01T00:00:00Z",
+    "access_at": "2024-01-01T00:00:00Z"
+  }
+}
+```
+
+#### POST /api/v1/entries
+
+Create a new entry.
+
+**Request Body:**
+```json
+{
+  "uri": "/inbox/tasks/task-001",
+  "kind": "raw",
+  "rss": null,
+  "filter": null
+}
+```
+
+**Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `uri` | string | yes | Entry URI path |
+| `kind` | string | no | Entry type: `raw`, `group`, `smart_group`, `fifo`, `socket`, `sym_link`, `blk_dev`, `char_dev`, `external_group` |
+| `rss` | object | no | RSS subscription config |
+| `filter` | object | no | Filter config for smart groups |
+
+**RSS Config:**
+```json
+{
+  "feed": "https://example.com/feed.xml",
+  "site_name": "Example Site",
+  "site_url": "https://example.com",
+  "file_type": "html"
+}
+```
+
+**Filter Config:**
+```json
+{
+  "cel_pattern": "entry.kind == 'raw'"
+}
+```
+
+**Response:**
+```json
+{
+  "entry": {
+    "uri": "/inbox/tasks/task-001",
+    "entry": 1002,
+    "name": "task-001",
+    "kind": "raw",
+    "is_group": false,
+    "size": 0,
+    "created_at": "2024-01-01T00:00:00Z",
+    "changed_at": "2024-01-01T00:00:00Z",
+    "modified_at": "2024-01-01T00:00:00Z",
+    "access_at": "2024-01-01T00:00:00Z"
+  }
+}
+```
+
+#### POST /api/v1/entries/search
+
+Filter entries using CEL (Common Expression Language) patterns.
+
+**Request Body:**
+```json
+{
+  "cel_pattern": "entry.kind == 'raw'"
+}
+```
+
+**Response:**
+```json
+{
+  "entries": [
+    {
+      "uri": "/inbox/tasks/task-001",
+      "entry": 1002,
+      "name": "task-001",
+      "kind": "raw",
+      "is_group": false,
+      "size": 0,
+      "created_at": "2024-01-01T00:00:00Z",
+      "changed_at": "2024-01-01T00:00:00Z",
+      "modified_at": "2024-01-01T00:00:00Z",
+      "access_at": "2024-01-01T00:00:00Z"
+    }
+  ]
+}
+```
+
+#### PUT /api/v1/entries
+
+Update entry attributes. Supports `?uri=` or `?id=` query parameters.
+
+**Query Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `uri` | string | Entry URI path |
+| `id` | int64 | Entry ID |
+
+**Request Body:**
+```json
+{
+  "name": "Updated Name",
+  "aliases": "alias1,alias2"
+}
+```
+
+**Response:**
+```json
+{
+  "entry": {
+    "uri": "/inbox/tasks/updated-name",
+    "entry": 1002,
+    "name": "Updated Name",
+    "kind": "raw",
+    "is_group": false,
+    "size": 0,
+    "created_at": "2024-01-01T00:00:00Z",
+    "changed_at": "2024-01-01T00:00:00Z",
+    "modified_at": "2024-01-01T00:00:00Z",
+    "access_at": "2024-01-01T00:00:00Z"
+  }
+}
+```
+
+#### DELETE /api/v1/entries
+
+Delete a single entry. Supports `?uri=` or `?id=` query parameters.
+
+**Query Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `uri` | string | Entry URI path |
+| `id` | int64 | Entry ID |
+
+**Response:**
+```json
+{
+  "entry": {
+    "uri": "/inbox/tasks/task-001",
+    "entry": 1002
+  }
+}
+```
+
+#### POST /api/v1/entries/batch-delete
+
+Delete multiple entries at once.
+
+**Request Body:**
+```json
+{
+  "uri_list": [
+    "/inbox/tasks/task-001",
+    "/inbox/tasks/task-002"
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "deleted": [
+    "/inbox/tasks/task-001",
+    "/inbox/tasks/task-002"
+  ],
+  "message": "Successfully deleted 2 entries"
+}
+```
+
+#### PUT /api/v1/entries/parent
+
+Change an entry's parent group. Supports `?uri=` or `?id=` for the entry to move, and `new_uri=` for the new parent.
+
+**Query Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `uri` | string | Entry URI to move |
+| `id` | int64 | Entry ID to move |
+| `new_uri` | string | New parent URI (required) |
+
+**Request Body:**
+```json
+{
+  "new_entry_uri": "/projects/active",
+  "replace": false,
+  "exchange": false
+}
+```
+
+**Response:**
+```json
+{
+  "entry": {
+    "uri": "/projects/active/task-001",
+    "entry": 1002,
+    "name": "task-001",
+    "kind": "raw",
+    "is_group": false,
+    "size": 0,
+    "created_at": "2024-01-01T00:00:00Z",
+    "changed_at": "2024-01-01T00:00:00Z",
+    "modified_at": "2024-01-01T00:00:00Z",
+    "access_at": "2024-01-01T00:00:00Z"
+  }
+}
+```
+
+#### PUT /api/v1/entries/property
+
+Update tags and custom properties. Supports `?uri=` or `?id=` query parameters.
+
+**Query Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `uri` | string | Entry URI path |
+| `id` | int64 | Entry ID |
+
+**Request Body:**
+```json
+{
+  "tags": ["important", "review"],
+  "properties": {
+    "priority": "high",
+    "due_date": "2024-01-15"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "properties": {
+    "tags": ["important", "review"],
+    "properties": {
+      "priority": "high",
+      "due_date": "2024-01-15"
+    }
+  }
+}
+```
+
+#### PUT /api/v1/entries/document
+
+Update document-specific properties. Supports `?uri=` or `?id=` query parameters.
+
+**Query Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `uri` | string | Entry URI path |
+| `id` | int64 | Entry ID |
+
+**Request Body:**
+```json
+{
+  "unread": true,
+  "marked": false
+}
+```
+
+**Response:**
+```json
+{
+  "properties": {
+    "title": "Document Title",
+    "author": "John Doe",
+    "year": "2024",
+    "source": "https://example.com",
+    "abstract": "...",
+    "keywords": ["tag1", "tag2"],
+    "notes": "",
+    "unread": true,
+    "marked": false,
+    "publish_at": "2024-01-01T00:00:00Z",
+    "url": "https://example.com/article",
+    "header_image": ""
+  }
+}
+```
+
+---
+
+### 3. Groups (组管理)
+
+#### GET /api/v1/groups/children
+
+List all children of a group. Supports `?uri=` or `?id=` query parameters.
+
+**Query Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `uri` | string | Group URI path |
+| `id` | int64 | Group ID |
+| `offset` | int | Pagination offset (default: 0) |
+| `limit` | int | Pagination limit (default: 20) |
+| `order` | string | Sort field (default: `changed_at`) |
+| `desc` | bool | Sort descending (default: true) |
+
+**Response**
+```json
+{
+  "entries": [
+    {
+      "uri": "/inbox/tasks/task-001",
+      "entry": 1002,
+      "name": "task-001",
+      "kind": "raw",
+      "is_group": false,
+      "size": 0,
+      "created_at": "2024-01-01T00:00:00Z",
+      "changed_at": "2024-01-01T00:00:00Z",
+      "modified_at": "2024-01-01T00:00:00Z",
+      "access_at": "2024-01-01T00:00:00Z"
+    }
+  ]
+}
+```
+
+#### GET /api/v1/groups/tree
+
+Get the complete group tree structure.
+
+**Response:**
+```json
+{
+  "root": {
+    "name": "root",
+    "uri": "/",
+    "children": [
+      {
+        "name": "inbox",
+        "uri": "/inbox",
+        "children": [
+          {
+            "name": "tasks",
+            "uri": "/inbox/tasks",
+            "children": []
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 4. Files (文件操作)
+
+#### GET /api/v1/files/content
+
+Read file content. Supports `?uri=` or `?id=` query parameters.
+
+**Query Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `uri` | string | File URI path |
+| `id` | int64 | File ID |
+
+**Response:** `application/octet-stream`
+
+#### POST /api/v1/files/content
+
+Upload/write file content. Supports `?uri=` or `?id=` query parameters.
+
+**Content-Type:** `multipart/form-data`
+
+**Form Field:** `file` (the file to upload)
+
+**Query Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `uri` | string | File URI path |
+| `id` | int64 | File ID |
+
+**Response:**
+```json
+{
+  "len": 1024
+}
+```
+
+---
+
+### 5. Messages (消息/通知)
+
+#### GET /api/v1/messages
+
+List messages/notifications.
+
+**Query Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `all` | bool | Include all messages (including read) |
+
+**Response**
+```json
+{
+  "messages": [
+    {
+      "id": "msg-001",
+      "title": "Workflow Completed",
+      "message": "File processing finished",
+      "type": "info",
+      "source": "workflow",
+      "action": "view",
+      "status": "unread",
+      "time": "2024-01-01T00:00:00Z"
+    }
+  ]
+}
+```
+
+#### POST /api/v1/messages/read
+
+Mark messages as read.
+
+**Request Body:**
+```json
+{
+  "message_id_list": ["msg-001", "msg-002"]
+}
+```
+
+**Response:**
+```json
+{
+  "success": true
+}
+```
+
+---
+
+### 6. Workflows (工作流)
+
+#### GET /api/v1/workflows
+
+List all workflows.
+
+**Response:**
+```json
+{
+  "workflows": [
+    {
+      "id": "wf-001",
+      "name": "Process RSS",
+      "queue_name": "rss-processing",
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z",
+      "last_triggered_at": "2024-01-02T00:00:00Z"
+    }
+  ]
+}
+```
+
+#### GET /api/v1/workflows/:id/jobs
+
+List jobs for a specific workflow.
+
+**Response:**
+```json
+{
+  "jobs": [
+    {
+      "id": "job-001",
+      "workflow": "wf-001",
+      "trigger_reason": "manual",
+      "status": "completed",
+      "message": "",
+      "queue_name": "rss-processing",
+      "target": {
+        "entries": ["/inbox/rss/feed-001"]
+      },
+      "steps": [
+        {
+          "name": "fetch",
+          "status": "completed",
+          "message": ""
+        },
+        {
+          "name": "parse",
+          "status": "completed",
+          "message": ""
+        }
+      ],
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z",
+      "start_at": "2024-01-01T00:00:00Z",
+      "finish_at": "2024-01-01T00:01:00Z"
+    }
+  ]
+}
+```
+
+#### POST /api/v1/workflows/:id/trigger
+
+Manually trigger a workflow.
+
+**Request Body:**
+```json
+{
+  "workflow_id": "wf-001",
+  "uri": "/inbox/rss/feed-001",
+  "reason": "manual trigger",
+  "timeout": 300
+}
+```
+
+**Response:**
+```json
+{
+  "job_id": "job-002"
+}
+```
+
+---
+
+## Error Responses
+
+All errors follow a consistent format:
+
+```json
+{
+  "error": "Error message describing the problem"
+}
+```
+
+**Common HTTP Status Codes**
+
+| Code | Description |
+|------|-------------|
+| 200 | OK - Request successful |
+| 201 | Created - Resource created successfully |
+| 400 | Bad Request - Invalid parameters |
+| 401 | Unauthorized - Authentication required |
+| 404 | Not Found - Resource does not exist |
+| 500 | Internal Server Error |
+
+---
+
+## Rate Limiting
+
+Currently, no rate limiting is enforced. Production deployments should configure rate limiting at the load balancer level.
+
+---
+
+## Versioning
+
+The API uses path versioning (`/api/v1/`). Breaking changes will be introduced in new versions (e.g., `/api/v2/`).
