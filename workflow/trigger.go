@@ -23,7 +23,7 @@ import (
 
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/events"
-	"github.com/basenana/nanafs/pkg/matcher"
+	"github.com/basenana/nanafs/pkg/cel"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/basenana/nanafs/workflow/jobrun"
@@ -153,7 +153,7 @@ func (h *triggers) handleEntryCreate(evt *types.Event) {
 			continue
 		}
 
-		matched, err := matcher.EntryMatch(ctx, entry, hook.onCreate)
+		matched, err := cel.EntryMatch(ctx, entry, hook.onCreate)
 		if err != nil {
 			h.logger.Errorw("[handleEntryCreate] match entry failed", "workflow", wfID, "entry", entry.ID, "err", err)
 			continue
@@ -187,7 +187,7 @@ func (h *triggers) filterAndRunCronWorkflow(ctx context.Context, wf *types.Workf
 		return nil
 	}
 
-	celPattern := matcher.BuildCELFilterFromMatch(wf.Trigger.OnCreate)
+	celPattern := cel.BuildCELFilterFromMatch(wf.Trigger.OnCreate)
 	filter := types.Filter{CELPattern: celPattern}
 
 	it, err := h.mgr.meta.FilterEntries(ctx, wf.Namespace, filter)
@@ -219,7 +219,7 @@ func (h *triggers) filterAndRunCronWorkflow(ctx context.Context, wf *types.Workf
 			continue
 		}
 
-		matched, err := matcher.EntryMatch(ctx, en, wf.Trigger.OnCreate)
+		matched, err := cel.EntryMatch(ctx, en, wf.Trigger.OnCreate)
 		if err != nil {
 			h.logger.Errorw("[filterAndRunCronWorkflow] match entry failed", "workflow", wf.Id, "entry", en.ID, "err", err)
 			continue

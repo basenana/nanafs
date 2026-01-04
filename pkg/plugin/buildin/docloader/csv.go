@@ -22,14 +22,11 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/types"
 	"io"
 	"os"
 	"strings"
-)
 
-const (
-	csvLoader = "csv"
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 type CSV struct {
@@ -47,11 +44,10 @@ func (c CSV) Load(_ context.Context, doc types.DocumentProperties) (*FDocument, 
 	}
 	defer f.Close()
 
-	var header []string
-	var rown int
-
 	rd := csv.NewReader(f)
 	buf := bytes.Buffer{}
+
+	var header []string
 	for {
 		row, err := rd.Read()
 		if errors.Is(err, io.EOF) {
@@ -60,20 +56,34 @@ func (c CSV) Load(_ context.Context, doc types.DocumentProperties) (*FDocument, 
 		if err != nil {
 			return nil, err
 		}
+
 		if len(header) == 0 {
-			header = append(header, row...)
+			header = row
 			continue
 		}
 
 		var content []string
 		for i, value := range row {
-			line := fmt.Sprintf("%s: %s", header[i], value)
-			content = append(content, line)
+			if i < len(header) {
+				content = append(content, fmt.Sprintf("%s: %s", header[i], value))
+			}
 		}
-
-		rown++
+		if buf.Len() > 0 {
+			buf.WriteString("\n")
+		}
 		buf.WriteString(strings.Join(content, "\t"))
-		// TODO: using HTML fmt?
+	}
+
+	doc = extractFileNameMetadata(c.docPath, doc)
+
+	if doc.PublishAt == 0 {
+		if info, err := os.Stat(c.docPath); err == nil {
+			doc.PublishAt = info.ModTime().Unix()
+		}
+	}
+
+	if doc.Abstract == "" {
+		doc.Abstract = fmt.Sprintf("CSV file with %d columns", len(header))
 	}
 
 	return &FDocument{

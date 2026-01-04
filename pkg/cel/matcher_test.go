@@ -14,7 +14,7 @@
  limitations under the License.
 */
 
-package matcher
+package cel
 
 import (
 	"context"
