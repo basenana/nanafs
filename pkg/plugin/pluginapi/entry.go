@@ -18,12 +18,14 @@ package pluginapi
 
 import (
 	"context"
+
 	"github.com/basenana/nanafs/pkg/types"
 )
 
 type Entry struct {
 	ID      int64
 	Parent  int64
+	Path    string
 	Name    string
 	Kind    types.Kind
 	Size    int64

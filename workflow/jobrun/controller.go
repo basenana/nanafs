@@ -271,7 +271,7 @@ func (c *Controller) Handle(event flow.UpdateEvent) {
 			if step.Name != event.Task.GetName() {
 				continue
 			}
-			job.Nodes[i].Status = event.Task.GetName()
+			job.Nodes[i].Status = event.Task.GetStatus()
 			job.Nodes[i].Message = event.Task.GetMessage()
 		}
 	}

@@ -18,10 +18,11 @@ package jobrun
 
 import (
 	"context"
-	"github.com/basenana/go-flow"
-	"github.com/basenana/nanafs/pkg/types"
 	"strings"
 	"sync"
+
+	"github.com/basenana/go-flow"
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 var (
@@ -58,6 +59,14 @@ func (t *Task) GetMessage() string {
 
 func (t *Task) SetMessage(s string) {
 	t.step.Message = s
+}
+
+func (t *Task) GetBranchNext() string {
+	return t.step.BranchNext
+}
+
+func (t *Task) SetBranchNext(s string) {
+	t.step.BranchNext = s
 }
 
 func newTask(job *types.WorkflowJob, step *types.WorkflowJobNode) flow.Task {
@@ -97,13 +106,14 @@ func (c *coordinator) NewTask(task flow.Task) {
 		return
 	}
 
+	c.mux.Lock()
+	defer c.mux.Unlock()
+
 	if c.crt == "" {
 		c.crt = t.GetName()
 	}
 
-	c.mux.Lock()
 	c.next[t.GetName()] = t.step.Next
-	c.mux.Unlock()
 }
 
 func (c *coordinator) UpdateTask(task flow.Task) {
@@ -114,28 +124,37 @@ func (c *coordinator) UpdateTask(task flow.Task) {
 
 	tname := t.GetName()
 	c.mux.Lock()
-	if task.GetStatus() == SucceedStatus {
-		c.crt = c.next[tname]
+	defer c.mux.Unlock()
+
+	if task.GetStatus() != SucceedStatus {
+		return
 	}
-	c.mux.Unlock()
+
+	if t.GetBranchNext() != "" {
+		c.crt = t.GetBranchNext()
+		return
+	}
+
+	c.crt = c.next[tname]
 }
 
-func (c *coordinator) NextBatch(ctx context.Context) ([]string, error) {
+func (c *coordinator) NextBatch(context.Context) ([]string, error) {
 	c.mux.Lock()
-	next := c.next[c.crt]
-	c.mux.Unlock()
-	if next != "" {
-		return []string{next}, nil
+	defer c.mux.Unlock()
+
+	if c.crt == "" {
+		c.isFinished = true
+		return nil, nil
 	}
-	c.isFinished = true
-	return nil, nil
+
+	return []string{c.crt}, nil
 }
 
 func (c *coordinator) Finished() bool {
 	return c.isFinished
 }
 
-func (c *coordinator) HandleFail(task flow.Task, err error) flow.FailOperation {
+func (c *coordinator) HandleFail(flow.Task, error) flow.FailOperation {
 	c.isFinished = true
 	return flow.FailAndInterrupt
 }

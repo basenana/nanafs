@@ -41,7 +41,7 @@ import (
 func (s *ServicesV1) requireCaller(ctx *gin.Context) *common.CallerInfo {
 	caller, err := s.caller(ctx)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return nil
 	}
 	return caller
@@ -61,18 +61,18 @@ func (s *ServicesV1) requireEntryWithPermission(ctx *gin.Context, caller *common
 	} else if idStr != "" {
 		id, parseErr := strconv.ParseInt(idStr, 10, 64)
 		if parseErr != nil {
-			apitool.ErrorResponse(ctx, errors.New("invalid id format"))
+			apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("invalid id format"))
 			return nil, ""
 		}
 		en, err = s.core.GetEntry(ctx.Request.Context(), caller.Namespace, id)
 	} else {
 		// Neither uri nor id provided
-		apitool.ErrorResponse(ctx, errors.New("missing uri or id parameter"))
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("missing uri or id parameter"))
 		return nil, ""
 	}
 
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return nil, ""
 	}
 
@@ -95,7 +95,7 @@ func (s *ServicesV1) requireEntryWithPermission(ctx *gin.Context, caller *common
 func (s *ServicesV1) checkPermission(ctx *gin.Context, caller *common.CallerInfo, en *types.Entry, perms ...types.Permission) bool {
 	err := core.HasAllPermissions(en.Access, caller.UID, caller.GID, perms...)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return false
 	}
 	return true
@@ -123,13 +123,13 @@ func (s *ServicesV1) GroupTree(ctx *gin.Context) {
 
 	nsRoot, err := s.core.NamespaceRoot(ctx.Request.Context(), caller.Namespace)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
 	children, err := s.listEntryChildren(ctx.Request.Context(), caller.Namespace, nsRoot.ID)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -145,7 +145,7 @@ func (s *ServicesV1) GroupTree(ctx *gin.Context) {
 		}
 		grp, err := s.listGroupEntry(ctx.Request.Context(), caller.Namespace, child.Name, path.Join(root.URI, child.Name), child.ID)
 		if err != nil {
-			apitool.ErrorResponse(ctx, err)
+			apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 			return
 		}
 		root.Children = append(root.Children, grp)
@@ -217,7 +217,7 @@ func (s *ServicesV1) GetEntryDetail(ctx *gin.Context) {
 	parentURI, name := path.Split(uri)
 	detail, err := s.getEntryDetails(ctx.Request.Context(), caller.Namespace, parentURI, name, en.ID)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -259,14 +259,14 @@ func (s *ServicesV1) CreateEntry(ctx *gin.Context) {
 
 	var req CreateEntryRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
 	parentURI, name := path.Split(req.URI)
 	_, parentID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, parentURI)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -277,13 +277,13 @@ func (s *ServicesV1) CreateEntry(ctx *gin.Context) {
 
 	parent, err := s.core.GetEntry(ctx.Request.Context(), caller.Namespace, parentID)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
 	err = core.HasAllPermissions(parent.Access, caller.UID, caller.GID, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -302,13 +302,13 @@ func (s *ServicesV1) CreateEntry(ctx *gin.Context) {
 
 	en, err := s.core.CreateEntry(ctx.Request.Context(), caller.Namespace, parentID, attr)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
 	if attr.Properties != nil {
 		if err = s.meta.UpdateEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeProperty, en.ID, attr.Properties); err != nil {
-			apitool.ErrorResponse(ctx, err)
+			apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 			return
 		}
 	}
@@ -380,7 +380,7 @@ func (s *ServicesV1) UpdateEntry(ctx *gin.Context) {
 
 	var req UpdateEntryRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -398,7 +398,7 @@ func (s *ServicesV1) UpdateEntry(ctx *gin.Context) {
 	}
 	en, err := s.core.UpdateEntry(ctx.Request.Context(), caller.Namespace, en.ID, update)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -436,13 +436,13 @@ func (s *ServicesV1) DeleteEntry(ctx *gin.Context) {
 
 	parentID, entryID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, uri)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
 	deletedEntry, err := s.deleteEntry(ctx.Request.Context(), caller.Namespace, caller.UID, parentID, entryID, path.Base(uri))
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -492,7 +492,7 @@ func (s *ServicesV1) DeleteEntries(ctx *gin.Context) {
 
 	var req DeleteEntriesRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -513,7 +513,7 @@ func (s *ServicesV1) DeleteEntries(ctx *gin.Context) {
 	}
 
 	if lastErr != nil && len(deleted) == 0 {
-		apitool.ErrorResponse(ctx, lastErr)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", lastErr)
 		return
 	}
 
@@ -533,13 +533,13 @@ func (s *ServicesV1) ListGroupChildren(ctx *gin.Context) {
 	uri := ctx.Query("uri")
 	_, parentID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, uri)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
 	children, err := s.listEntryChildren(ctx.Request.Context(), caller.Namespace, parentID)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -561,50 +561,50 @@ func (s *ServicesV1) ChangeParent(ctx *gin.Context) {
 
 	var req ChangeParentRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
 	oldName := path.Base(req.EntryURI)
 	oldParentID, entryID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, req.EntryURI)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
 	newParentURI, newName := path.Split(req.NewEntryURI)
 	_, newParentID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, newParentURI)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
 	en, err := s.core.GetEntry(ctx.Request.Context(), caller.Namespace, entryID)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 	err = core.HasAllPermissions(en.Access, caller.UID, caller.GID, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
 	newParent, err := s.core.GetEntry(ctx.Request.Context(), caller.Namespace, newParentID)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 	err = core.HasAllPermissions(newParent.Access, caller.UID, caller.GID, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
 	var existObjID *int64
 	existObj, err := s.core.FindEntry(ctx.Request.Context(), caller.Namespace, newParentID, newName)
 	if err != nil && !errors.Is(err, types.ErrNotFound) {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 	if existObj != nil {
@@ -618,13 +618,13 @@ func (s *ServicesV1) ChangeParent(ctx *gin.Context) {
 		Exchange: req.Exchange,
 	})
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
 	en, err = s.core.GetEntry(ctx.Request.Context(), caller.Namespace, entryID)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -640,14 +640,14 @@ func (s *ServicesV1) FilterEntry(ctx *gin.Context) {
 
 	var req FilterEntryRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
 	it, err := s.meta.FilterEntries(ctx.Request.Context(), caller.Namespace, types.Filter{CELPattern: req.CELPattern})
 	if err != nil {
 		s.logger.Errorw("list static children failed", "err", err)
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -655,7 +655,7 @@ func (s *ServicesV1) FilterEntry(ctx *gin.Context) {
 	for it.HasNext() {
 		en, err := it.Next()
 		if err != nil {
-			apitool.ErrorResponse(ctx, err)
+			apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 			return
 		}
 
@@ -686,14 +686,14 @@ func (s *ServicesV1) WriteFile(ctx *gin.Context) {
 
 	file, err := s.core.Open(ctx.Request.Context(), caller.Namespace, en.ID, types.OpenAttr{Write: true})
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 	defer file.Close(ctx.Request.Context())
 
 	form, err := ctx.MultipartForm()
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -705,25 +705,25 @@ func (s *ServicesV1) WriteFile(ctx *gin.Context) {
 
 	src, err := fileHeader[0].Open()
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 	defer src.Close()
 
 	data, err := io.ReadAll(src)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
 	_, err = file.WriteAt(ctx.Request.Context(), data, 0)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
 	if err := file.Flush(ctx.Request.Context()); err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -744,7 +744,7 @@ func (s *ServicesV1) ReadFile(ctx *gin.Context) {
 
 	file, err := s.core.Open(ctx.Request.Context(), caller.Namespace, en.ID, types.OpenAttr{Read: true})
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 	defer file.Close(ctx.Request.Context())
@@ -752,7 +752,7 @@ func (s *ServicesV1) ReadFile(ctx *gin.Context) {
 	data := make([]byte, en.Size)
 	_, err = file.ReadAt(ctx.Request.Context(), data, 0)
 	if err != nil && err != io.EOF {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -768,7 +768,7 @@ func (s *ServicesV1) UpdateProperty(ctx *gin.Context) {
 
 	var req UpdatePropertyRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -780,7 +780,7 @@ func (s *ServicesV1) UpdateProperty(ctx *gin.Context) {
 	properties := &types.Properties{}
 	err := s.meta.GetEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeProperty, en.ID, properties)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -789,7 +789,7 @@ func (s *ServicesV1) UpdateProperty(ctx *gin.Context) {
 
 	err = s.meta.UpdateEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeProperty, en.ID, properties)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -810,7 +810,7 @@ func (s *ServicesV1) UpdateDocumentProperty(ctx *gin.Context) {
 
 	var req UpdateDocumentPropertyRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -827,7 +827,7 @@ func (s *ServicesV1) UpdateDocumentProperty(ctx *gin.Context) {
 	properties := &types.DocumentProperties{}
 	err := s.meta.GetEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeDocument, en.ID, properties)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -836,7 +836,7 @@ func (s *ServicesV1) UpdateDocumentProperty(ctx *gin.Context) {
 
 	err = s.meta.UpdateEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeDocument, en.ID, properties)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -869,7 +869,7 @@ func (s *ServicesV1) ListMessages(ctx *gin.Context) {
 
 	notifications, err := s.notify.ListNotifications(ctx.Request.Context(), caller.Namespace)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -902,13 +902,13 @@ func (s *ServicesV1) ReadMessages(ctx *gin.Context) {
 
 	var req ReadMessagesRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
 	for _, id := range req.MessageIDList {
 		if err := s.notify.MarkRead(ctx.Request.Context(), caller.Namespace, id); err != nil {
-			apitool.ErrorResponse(ctx, err)
+			apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 			return
 		}
 	}
@@ -926,7 +926,7 @@ func (s *ServicesV1) ListWorkflows(ctx *gin.Context) {
 	workflowList, err := s.workflow.ListWorkflows(ctx.Request.Context(), caller.Namespace)
 	if err != nil {
 		s.logger.Errorw("list workflow failed", "err", err)
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -954,7 +954,7 @@ func (s *ServicesV1) ListWorkflowJobs(ctx *gin.Context) {
 	jobs, err := s.workflow.ListJobs(ctx.Request.Context(), caller.Namespace, workflowID)
 	if err != nil {
 		s.logger.Errorw("list workflow job failed", "err", err)
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -975,7 +975,7 @@ func (s *ServicesV1) TriggerWorkflow(ctx *gin.Context) {
 
 	var req TriggerWorkflowRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -988,7 +988,7 @@ func (s *ServicesV1) TriggerWorkflow(ctx *gin.Context) {
 	s.logger.Infow("trigger workflow", "workflow", workflowID)
 	_, err := s.workflow.GetWorkflow(ctx.Request.Context(), caller.Namespace, workflowID)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -1002,11 +1002,226 @@ func (s *ServicesV1) TriggerWorkflow(ctx *gin.Context) {
 		workflow.JobAttr{Reason: req.Reason, Timeout: timeout},
 	)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
 	apitool.JsonResponse(ctx, http.StatusOK, &TriggerWorkflowResponse{JobID: job.Id})
+}
+
+// CreateWorkflow creates a new workflow
+func (s *ServicesV1) CreateWorkflow(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	var req CreateWorkflowRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	workflow := &types.Workflow{
+		Name:      req.Name,
+		Trigger:   req.Trigger,
+		Nodes:     req.Nodes,
+		Enable:    req.Enable,
+		QueueName: req.QueueName,
+	}
+
+	result, err := s.workflow.CreateWorkflow(ctx.Request.Context(), caller.Namespace, workflow)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusCreated, gin.H{"workflow": toWorkflowInfo(result)})
+}
+
+// GetWorkflow retrieves a specific workflow
+func (s *ServicesV1) GetWorkflow(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	workflowID := ctx.Param("id")
+	if workflowID == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid workflow id"})
+		return
+	}
+
+	workflow, err := s.workflow.GetWorkflow(ctx.Request.Context(), caller.Namespace, workflowID)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusNotFound, "NOT_FOUND", err)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"workflow": toWorkflowInfo(workflow)})
+}
+
+// UpdateWorkflow updates an existing workflow
+func (s *ServicesV1) UpdateWorkflow(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	workflowID := ctx.Param("id")
+	if workflowID == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid workflow id"})
+		return
+	}
+
+	var req UpdateWorkflowRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	// Get existing workflow
+	existing, err := s.workflow.GetWorkflow(ctx.Request.Context(), caller.Namespace, workflowID)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusNotFound, "NOT_FOUND", err)
+		return
+	}
+
+	// Update fields
+	if req.Name != "" {
+		existing.Name = req.Name
+	}
+	if req.Trigger.LocalFileWatch != nil || req.Trigger.RSS != nil || req.Trigger.Interval != nil {
+		existing.Trigger = req.Trigger
+	}
+	if len(req.Nodes) > 0 {
+		existing.Nodes = req.Nodes
+	}
+	if req.Enable != nil {
+		existing.Enable = *req.Enable
+	}
+	if req.QueueName != "" {
+		existing.QueueName = req.QueueName
+	}
+
+	result, err := s.workflow.UpdateWorkflow(ctx.Request.Context(), caller.Namespace, existing)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"workflow": toWorkflowInfo(result)})
+}
+
+// DeleteWorkflow deletes a workflow
+func (s *ServicesV1) DeleteWorkflow(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	workflowID := ctx.Param("id")
+	if workflowID == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid workflow id"})
+		return
+	}
+
+	err := s.workflow.DeleteWorkflow(ctx.Request.Context(), caller.Namespace, workflowID)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"message": "workflow deleted"})
+}
+
+// GetJob retrieves a specific job
+func (s *ServicesV1) GetJob(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	workflowID := ctx.Param("id")
+	jobID := ctx.Param("jobId")
+	if workflowID == "" || jobID == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid workflow id or job id"})
+		return
+	}
+
+	job, err := s.workflow.GetJob(ctx.Request.Context(), caller.Namespace, workflowID, jobID)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusNotFound, "NOT_FOUND", err)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"job": toWorkflowJobDetail(job)})
+}
+
+// PauseJob pauses a running job
+func (s *ServicesV1) PauseJob(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	jobID := ctx.Param("jobId")
+	if jobID == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid job id"})
+		return
+	}
+
+	err := s.workflow.PauseWorkflowJob(ctx.Request.Context(), caller.Namespace, jobID)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"message": "job paused"})
+}
+
+// ResumeJob resumes a paused job
+func (s *ServicesV1) ResumeJob(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	jobID := ctx.Param("jobId")
+	if jobID == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid job id"})
+		return
+	}
+
+	err := s.workflow.ResumeWorkflowJob(ctx.Request.Context(), caller.Namespace, jobID)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"message": "job resumed"})
+}
+
+// CancelJob cancels a job
+func (s *ServicesV1) CancelJob(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	jobID := ctx.Param("jobId")
+	if jobID == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid job id"})
+		return
+	}
+
+	err := s.workflow.CancelWorkflowJob(ctx.Request.Context(), caller.Namespace, jobID)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"message": "job cancelled"})
 }
 
 func (s *ServicesV1) getEntryByPath(ctx context.Context, namespace, uri string) (int64, int64, error) {
@@ -1042,7 +1257,7 @@ func (s *ServicesV1) EntryDetails(ctx *gin.Context) {
 	parentURI, name := path.Split(uri)
 	detail, err := s.getEntryDetails(ctx.Request.Context(), caller.Namespace, parentURI, name, en.ID)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -1063,7 +1278,7 @@ func (s *ServicesV1) EntryChildren(ctx *gin.Context) {
 
 	children, err := s.listEntryChildren(ctx.Request.Context(), caller.Namespace, en.ID)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -1101,7 +1316,7 @@ func (s *ServicesV1) EntryParent(ctx *gin.Context) {
 	}
 
 	if newEntryURI == "" {
-		apitool.ErrorResponse(ctx, errors.New("missing new_entry_uri"))
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("missing new_entry_uri"))
 		return
 	}
 
@@ -1109,43 +1324,43 @@ func (s *ServicesV1) EntryParent(ctx *gin.Context) {
 	oldName := path.Base(entryURI)
 	oldParentID, entryID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, entryURI)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
 	newParentURI, newName := path.Split(newEntryURI)
 	_, newParentID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, newParentURI)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
 	en, err = s.core.GetEntry(ctx.Request.Context(), caller.Namespace, entryID)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 	err = core.HasAllPermissions(en.Access, caller.UID, caller.GID, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
 	newParent, err := s.core.GetEntry(ctx.Request.Context(), caller.Namespace, newParentID)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 	err = core.HasAllPermissions(newParent.Access, caller.UID, caller.GID, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
 	var existObjID *int64
 	existObj, err := s.core.FindEntry(ctx.Request.Context(), caller.Namespace, newParentID, newName)
 	if err != nil && !errors.Is(err, types.ErrNotFound) {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 	if existObj != nil {
@@ -1158,7 +1373,7 @@ func (s *ServicesV1) EntryParent(ctx *gin.Context) {
 		Gid: caller.GID,
 	})
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -1174,7 +1389,7 @@ func (s *ServicesV1) EntryProperty(ctx *gin.Context) {
 
 	var req UpdatePropertyRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -1186,7 +1401,7 @@ func (s *ServicesV1) EntryProperty(ctx *gin.Context) {
 	properties := &types.Properties{}
 	err := s.meta.GetEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeProperty, en.ID, properties)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -1195,7 +1410,7 @@ func (s *ServicesV1) EntryProperty(ctx *gin.Context) {
 
 	err = s.meta.UpdateEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeProperty, en.ID, properties)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -1216,7 +1431,7 @@ func (s *ServicesV1) EntryDocument(ctx *gin.Context) {
 
 	var req UpdateDocumentPropertyRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -1233,7 +1448,7 @@ func (s *ServicesV1) EntryDocument(ctx *gin.Context) {
 	properties := &types.DocumentProperties{}
 	err := s.meta.GetEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeDocument, en.ID, properties)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -1246,7 +1461,7 @@ func (s *ServicesV1) EntryDocument(ctx *gin.Context) {
 
 	err = s.meta.UpdateEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeDocument, en.ID, properties)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
@@ -1282,16 +1497,107 @@ func (s *ServicesV1) EntryDelete(ctx *gin.Context) {
 
 	parentID, entryID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, uri)
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
 	deletedEntry, err := s.deleteEntry(ctx.Request.Context(), caller.Namespace, caller.UID, parentID, entryID, path.Base(uri))
 	if err != nil {
-		apitool.ErrorResponse(ctx, err)
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
 	parentURI, name := path.Split(uri)
 	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"entry": toEntryInfo(parentURI, name, deletedEntry, nil)})
+}
+
+// GetConfig 获取单个配置
+func (s *ServicesV1) GetConfig(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	group := ctx.Param("group")
+	name := ctx.Param("name")
+
+	value, err := s.meta.GetConfigValue(ctx.Request.Context(), caller.Namespace, group, name)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusNotFound, "CONFIG_NOT_FOUND", err)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{
+		"group": group,
+		"name":  name,
+		"value": value,
+	})
+}
+
+// SetConfig 设置配置
+func (s *ServicesV1) SetConfig(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	group := ctx.Param("group")
+	name := ctx.Param("name")
+
+	var req SetConfigRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	if err := s.meta.SetConfigValue(ctx.Request.Context(), caller.Namespace, group, name, req.Value); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusInternalServerError, "SET_CONFIG_FAILED", err)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{
+		"group": group,
+		"name":  name,
+		"value": req.Value,
+	})
+}
+
+// ListConfig 按 group 列出配置
+func (s *ServicesV1) ListConfig(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	group := ctx.Param("group")
+
+	items, err := s.meta.ListConfigValues(ctx.Request.Context(), caller.Namespace, group)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusInternalServerError, "LIST_CONFIG_FAILED", err)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, &ListConfigResponse{Items: items})
+}
+
+// DeleteConfig 删除配置
+func (s *ServicesV1) DeleteConfig(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	group := ctx.Param("group")
+	name := ctx.Param("name")
+
+	if err := s.meta.DeleteConfigValue(ctx.Request.Context(), caller.Namespace, group, name); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusInternalServerError, "DELETE_CONFIG_FAILED", err)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{
+		"group":   group,
+		"name":    name,
+		"deleted": true,
+	})
 }

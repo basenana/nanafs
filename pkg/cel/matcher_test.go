@@ -39,10 +39,10 @@ func TestEntryMatch(t *testing.T) {
 			ModifiedAt: time.Now(),
 			AccessAt:   time.Now(),
 		}
-		match *types.WorkflowEntryMatch
+		match *types.WorkflowLocalFileWatch
 	)
 
-	match = &types.WorkflowEntryMatch{}
+	match = &types.WorkflowLocalFileWatch{}
 	matched, err := EntryMatch(ctx, entry, match)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
@@ -51,9 +51,9 @@ func TestEntryMatch(t *testing.T) {
 		t.Error("expected to match when no conditions set")
 	}
 
-	// FileNamePattern tests
-	t.Run("FileNamePattern exact match", func(t *testing.T) {
-		match.FileNamePattern = "test.txt"
+	// FilePattern tests
+	t.Run("FilePattern exact match", func(t *testing.T) {
+		match.FilePattern = "test.txt"
 		matched, err := EntryMatch(ctx, entry, match)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
@@ -63,8 +63,8 @@ func TestEntryMatch(t *testing.T) {
 		}
 	})
 
-	t.Run("FileNamePattern glob *", func(t *testing.T) {
-		match.FileNamePattern = "*.txt"
+	t.Run("FilePattern glob *", func(t *testing.T) {
+		match.FilePattern = "*.txt"
 		matched, err := EntryMatch(ctx, entry, match)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
@@ -74,8 +74,8 @@ func TestEntryMatch(t *testing.T) {
 		}
 	})
 
-	t.Run("FileNamePattern no match", func(t *testing.T) {
-		match.FileNamePattern = "*.pdf"
+	t.Run("FilePattern no match", func(t *testing.T) {
+		match.FilePattern = "*.pdf"
 		matched, err := EntryMatch(ctx, entry, match)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
@@ -87,7 +87,7 @@ func TestEntryMatch(t *testing.T) {
 
 	// FileTypes tests
 	t.Run("FileTypes single", func(t *testing.T) {
-		match.FileNamePattern = ""
+		match.FilePattern = ""
 		match.FileTypes = "txt"
 		matched, err := EntryMatch(ctx, entry, match)
 		if err != nil {
@@ -192,7 +192,7 @@ func TestEntryMatch(t *testing.T) {
 
 	// Combined conditions
 	t.Run("combined conditions match", func(t *testing.T) {
-		match.FileNamePattern = "*.txt"
+		match.FilePattern = "*.txt"
 		match.MinFileSize = 500
 		match.CELPattern = "size < 2000"
 		matched, err := EntryMatch(ctx, entry, match)
@@ -205,7 +205,7 @@ func TestEntryMatch(t *testing.T) {
 	})
 
 	t.Run("combined conditions no match", func(t *testing.T) {
-		match.FileNamePattern = "*.pdf"
+		match.FilePattern = "*.pdf"
 		match.MinFileSize = 500
 		matched, err := EntryMatch(ctx, entry, match)
 		if err != nil {
@@ -270,38 +270,31 @@ func TestEvalCEL(t *testing.T) {
 func TestBuildCELFilterFromMatch(t *testing.T) {
 	tests := []struct {
 		name   string
-		match  *types.WorkflowEntryMatch
+		match  *types.WorkflowLocalFileWatch
 		want   string
 	}{
 		{
 			name:   "empty match",
-			match:  &types.WorkflowEntryMatch{},
+			match:  &types.WorkflowLocalFileWatch{},
 			want:   "",
 		},
 		{
 			name: "file types returns empty",
-			match: &types.WorkflowEntryMatch{
+			match: &types.WorkflowLocalFileWatch{
 				FileTypes: "txt",
 			},
 			want: "",
 		},
 		{
-			name: "parent ID returns empty",
-			match: &types.WorkflowEntryMatch{
-				ParentID: 100,
-			},
-			want: "",
-		},
-		{
-			name: "file name pattern",
-			match: &types.WorkflowEntryMatch{
-				FileNamePattern: "*.txt",
+			name: "file pattern",
+			match: &types.WorkflowLocalFileWatch{
+				FilePattern: "*.txt",
 			},
 			want: "name LIKE '%.txt'",
 		},
 		{
 			name: "size range",
-			match: &types.WorkflowEntryMatch{
+			match: &types.WorkflowLocalFileWatch{
 				MinFileSize: 100,
 				MaxFileSize: 1000,
 			},
@@ -309,10 +302,10 @@ func TestBuildCELFilterFromMatch(t *testing.T) {
 		},
 		{
 			name: "combined conditions",
-			match: &types.WorkflowEntryMatch{
-				FileNamePattern: "*.txt",
-				MinFileSize:     100,
-				CELPattern:      "size < 2000",
+			match: &types.WorkflowLocalFileWatch{
+				FilePattern: "*.txt",
+				MinFileSize: 100,
+				CELPattern:  "size < 2000",
 			},
 			want: "name LIKE '%.txt' && size >= 100 && size < 2000",
 		},

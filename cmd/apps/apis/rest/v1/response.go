@@ -281,6 +281,19 @@ func toWorkflowInfo(w *types.Workflow) *WorkflowInfo {
 	}
 }
 
+// ConfigResponse 配置响应
+type ConfigResponse struct {
+	Group     string    `json:"group"`
+	Name      string    `json:"name"`
+	Value     string    `json:"value"`
+	ChangedAt time.Time `json:"changed_at"`
+}
+
+// ListConfigResponse 列出配置响应
+type ListConfigResponse struct {
+	Items []types.ConfigItem `json:"items"`
+}
+
 func toWorkflowJobDetail(j *types.WorkflowJob) *WorkflowJobDetail {
 	jd := &WorkflowJobDetail{
 		ID:            j.Id,

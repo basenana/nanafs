@@ -25,39 +25,15 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/basenana/nanafs/cmd/apps/apis/rest/common"
-	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils/logger"
 	"github.com/gin-gonic/gin"
 )
 
 var _ = Describe("REST V1 Entries API - CRUD Operations", func() {
-	var (
-		router   *gin.Engine
-		services *ServicesV1
-	)
+	var router *gin.Engine
 
 	BeforeEach(func() {
-		gin.SetMode(gin.TestMode)
-		router = gin.New()
-
-		cfg := config.NewMockConfig(testCfg)
-		var err error
-		dep, err := common.InitDepends(cfg, testMeta)
-		Expect(err).Should(BeNil())
-
-		services = &ServicesV1{
-			meta:     dep.Meta,
-			core:     dep.Core,
-			workflow: dep.Workflow,
-			notify:   dep.Notify,
-			cfg:      dep.Config,
-			logger:   logger.NewLogger("rest-test"),
-		}
-
-		router.Use(common.AuthMiddleware())
-		RegisterRoutes(router, services)
+		router = testRouter.Router
 	})
 
 	AfterEach(func() {
@@ -310,31 +286,10 @@ var _ = Describe("REST V1 Entries API - CRUD Operations", func() {
 })
 
 var _ = Describe("REST V1 Properties API", func() {
-	var (
-		router   *gin.Engine
-		services *ServicesV1
-	)
+	var router *gin.Engine
 
 	BeforeEach(func() {
-		gin.SetMode(gin.TestMode)
-		router = gin.New()
-
-		cfg := config.NewMockConfig(testCfg)
-		var err error
-		dep, err := common.InitDepends(cfg, testMeta)
-		Expect(err).Should(BeNil())
-
-		services = &ServicesV1{
-			meta:     dep.Meta,
-			core:     dep.Core,
-			workflow: dep.Workflow,
-			notify:   dep.Notify,
-			cfg:      dep.Config,
-			logger:   logger.NewLogger("rest-test"),
-		}
-
-		router.Use(common.AuthMiddleware())
-		RegisterRoutes(router, services)
+		router = testRouter.Router
 
 		// Create test entry
 		createReq := CreateEntryRequest{
@@ -397,35 +352,505 @@ var _ = Describe("REST V1 Properties API", func() {
 })
 
 var _ = Describe("REST V1 Workflow API", func() {
-	var (
-		router   *gin.Engine
-		services *ServicesV1
-	)
+	var router *gin.Engine
 
 	BeforeEach(func() {
-		gin.SetMode(gin.TestMode)
-		router = gin.New()
+		router = testRouter.Router
+	})
 
-		cfg := config.NewMockConfig(testCfg)
-		var err error
-		dep, err := common.InitDepends(cfg, testMeta)
-		Expect(err).Should(BeNil())
+	Describe("CreateWorkflow", func() {
+		It("should create a new workflow", func() {
+			reqBody := CreateWorkflowRequest{
+				Name:      "test-workflow",
+				Enable:    true,
+				QueueName: "default",
+			}
+			jsonBody, _ := json.Marshal(reqBody)
 
-		services = &ServicesV1{
-			meta:     dep.Meta,
-			core:     dep.Core,
-			workflow: dep.Workflow,
-			notify:   dep.Notify,
-			cfg:      dep.Config,
-			logger:   logger.NewLogger("rest-test"),
-		}
+			req, err := http.NewRequest("POST", "/api/v1/workflows", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
 
-		router.Use(common.AuthMiddleware())
-		RegisterRoutes(router, services)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusCreated))
+		})
+
+		It("should return error for missing name", func() {
+			reqBody := CreateWorkflowRequest{
+				Enable: true,
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+
+			req, err := http.NewRequest("POST", "/api/v1/workflows", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusBadRequest))
+		})
+	})
+
+	Describe("GetWorkflow", func() {
+		BeforeEach(func() {
+			// Create a workflow first
+			reqBody := CreateWorkflowRequest{
+				Name:      "test-workflow-for-get",
+				Enable:    true,
+				QueueName: "default",
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+
+			req, err := http.NewRequest("POST", "/api/v1/workflows", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			Expect(w.Code).To(Equal(http.StatusCreated))
+		})
+
+		It("should get a workflow by id", func() {
+			req, err := http.NewRequest("GET", "/api/v1/workflows/wf-1", nil)
+			Expect(err).Should(BeNil())
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should return 404 for non-existent workflow", func() {
+			req, err := http.NewRequest("GET", "/api/v1/workflows/non-existent", nil)
+			Expect(err).Should(BeNil())
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusNotFound))
+		})
+	})
+
+	Describe("UpdateWorkflow", func() {
+		BeforeEach(func() {
+			reqBody := CreateWorkflowRequest{
+				Name:      "workflow-to-update",
+				Enable:    false,
+				QueueName: "default",
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+
+			req, err := http.NewRequest("POST", "/api/v1/workflows", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			Expect(w.Code).To(Equal(http.StatusCreated))
+		})
+
+		It("should update a workflow", func() {
+			reqBody := UpdateWorkflowRequest{
+				Name:   "updated-name",
+				Enable: BoolPtr(true),
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+
+			req, err := http.NewRequest("PUT", "/api/v1/workflows/wf-1", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should return 404 for non-existent workflow", func() {
+			reqBody := UpdateWorkflowRequest{
+				Name: "updated-name",
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+
+			req, err := http.NewRequest("PUT", "/api/v1/workflows/non-existent", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusNotFound))
+		})
+	})
+
+	Describe("DeleteWorkflow", func() {
+		BeforeEach(func() {
+			reqBody := CreateWorkflowRequest{
+				Name:      "workflow-to-delete",
+				Enable:    true,
+				QueueName: "default",
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+
+			req, err := http.NewRequest("POST", "/api/v1/workflows", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			Expect(w.Code).To(Equal(http.StatusCreated))
+		})
+
+		It("should delete a workflow", func() {
+			req, err := http.NewRequest("DELETE", "/api/v1/workflows/wf-1", nil)
+			Expect(err).Should(BeNil())
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should return 404 for non-existent workflow", func() {
+			req, err := http.NewRequest("DELETE", "/api/v1/workflows/non-existent", nil)
+			Expect(err).Should(BeNil())
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusBadRequest))
+		})
+	})
+
+	Describe("Workflow CRUD Full Flow", func() {
+		It("should create, get, update, and delete workflow", func() {
+			// Create
+			createReq := CreateWorkflowRequest{
+				Name:      "full-flow-workflow",
+				Enable:    true,
+				QueueName: "default",
+			}
+			createJson, _ := json.Marshal(createReq)
+			createHttpReq, _ := http.NewRequest("POST", "/api/v1/workflows", bytes.NewBuffer(createJson))
+			createHttpReq.Header.Set("Content-Type", "application/json")
+			createHttpReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			createW := httptest.NewRecorder()
+			router.ServeHTTP(createW, createHttpReq)
+			Expect(createW.Code).To(Equal(http.StatusCreated))
+
+			// Get
+			getReq, _ := http.NewRequest("GET", "/api/v1/workflows/wf-1", nil)
+			getReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			getW := httptest.NewRecorder()
+			router.ServeHTTP(getW, getReq)
+			Expect(getW.Code).To(Equal(http.StatusOK))
+
+			// Update
+			updateReq := UpdateWorkflowRequest{
+				Name:   "updated-full-flow-workflow",
+				Enable: BoolPtr(false),
+			}
+			updateJson, _ := json.Marshal(updateReq)
+			updateHttpReq, _ := http.NewRequest("PUT", "/api/v1/workflows/wf-1", bytes.NewBuffer(updateJson))
+			updateHttpReq.Header.Set("Content-Type", "application/json")
+			updateHttpReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			updateW := httptest.NewRecorder()
+			router.ServeHTTP(updateW, updateHttpReq)
+			Expect(updateW.Code).To(Equal(http.StatusOK))
+
+			// Delete
+			delReq, _ := http.NewRequest("DELETE", "/api/v1/workflows/wf-1", nil)
+			delReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			delW := httptest.NewRecorder()
+			router.ServeHTTP(delW, delReq)
+			Expect(delW.Code).To(Equal(http.StatusOK))
+		})
+	})
+
+	Describe("GetJob", func() {
+		BeforeEach(func() {
+			// Create workflow first
+			createReq := CreateWorkflowRequest{
+				Name:      "workflow-for-job",
+				Enable:    true,
+				QueueName: "default",
+			}
+			createJson, _ := json.Marshal(createReq)
+			createHttpReq, _ := http.NewRequest("POST", "/api/v1/workflows", bytes.NewBuffer(createJson))
+			createHttpReq.Header.Set("Content-Type", "application/json")
+			createHttpReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			createW := httptest.NewRecorder()
+			router.ServeHTTP(createW, createHttpReq)
+
+			// Trigger a job
+			triggerReq := TriggerWorkflowRequest{
+				URI:    "/test-entry",
+				Reason: "test",
+			}
+			triggerJson, _ := json.Marshal(triggerReq)
+			triggerHttpReq, _ := http.NewRequest("POST", "/api/v1/workflows/wf-1/trigger", bytes.NewBuffer(triggerJson))
+			triggerHttpReq.Header.Set("Content-Type", "application/json")
+			triggerHttpReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			triggerW := httptest.NewRecorder()
+			router.ServeHTTP(triggerW, triggerHttpReq)
+			Expect(triggerW.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should get a job by id", func() {
+			req, err := http.NewRequest("GET", "/api/v1/workflows/wf-1/jobs/job-1", nil)
+			Expect(err).Should(BeNil())
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should return 404 for non-existent job", func() {
+			req, err := http.NewRequest("GET", "/api/v1/workflows/wf-1/jobs/non-existent", nil)
+			Expect(err).Should(BeNil())
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusNotFound))
+		})
+	})
+
+	Describe("PauseJob", func() {
+		BeforeEach(func() {
+			// Create workflow and trigger job
+			createReq := CreateWorkflowRequest{
+				Name:      "workflow-for-pause",
+				Enable:    true,
+				QueueName: "default",
+			}
+			createJson, _ := json.Marshal(createReq)
+			createHttpReq, _ := http.NewRequest("POST", "/api/v1/workflows", bytes.NewBuffer(createJson))
+			createHttpReq.Header.Set("Content-Type", "application/json")
+			createHttpReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			createW := httptest.NewRecorder()
+			router.ServeHTTP(createW, createHttpReq)
+
+			triggerReq := TriggerWorkflowRequest{
+				URI:    "/test-entry",
+				Reason: "test",
+			}
+			triggerJson, _ := json.Marshal(triggerReq)
+			triggerHttpReq, _ := http.NewRequest("POST", "/api/v1/workflows/wf-1/trigger", bytes.NewBuffer(triggerJson))
+			triggerHttpReq.Header.Set("Content-Type", "application/json")
+			triggerHttpReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			triggerW := httptest.NewRecorder()
+			router.ServeHTTP(triggerW, triggerHttpReq)
+		})
+
+		It("should pause a running job", func() {
+			req, err := http.NewRequest("POST", "/api/v1/workflows/wf-1/jobs/job-1/pause", nil)
+			Expect(err).Should(BeNil())
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should return error for non-existent job", func() {
+			req, err := http.NewRequest("POST", "/api/v1/workflows/wf-1/jobs/non-existent/pause", nil)
+			Expect(err).Should(BeNil())
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusBadRequest))
+		})
+	})
+
+	Describe("ResumeJob", func() {
+		BeforeEach(func() {
+			// Create workflow, trigger job, and pause it
+			createReq := CreateWorkflowRequest{
+				Name:      "workflow-for-resume",
+				Enable:    true,
+				QueueName: "default",
+			}
+			createJson, _ := json.Marshal(createReq)
+			createHttpReq, _ := http.NewRequest("POST", "/api/v1/workflows", bytes.NewBuffer(createJson))
+			createHttpReq.Header.Set("Content-Type", "application/json")
+			createHttpReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			createW := httptest.NewRecorder()
+			router.ServeHTTP(createW, createHttpReq)
+
+			triggerReq := TriggerWorkflowRequest{
+				URI:    "/test-entry",
+				Reason: "test",
+			}
+			triggerJson, _ := json.Marshal(triggerReq)
+			triggerHttpReq, _ := http.NewRequest("POST", "/api/v1/workflows/wf-1/trigger", bytes.NewBuffer(triggerJson))
+			triggerHttpReq.Header.Set("Content-Type", "application/json")
+			triggerHttpReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			triggerW := httptest.NewRecorder()
+			router.ServeHTTP(triggerW, triggerHttpReq)
+
+			// Pause the job
+			pauseReq, _ := http.NewRequest("POST", "/api/v1/workflows/wf-1/jobs/job-1/pause", nil)
+			pauseReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			pauseW := httptest.NewRecorder()
+			router.ServeHTTP(pauseW, pauseReq)
+		})
+
+		It("should resume a paused job", func() {
+			req, err := http.NewRequest("POST", "/api/v1/workflows/wf-1/jobs/job-1/resume", nil)
+			Expect(err).Should(BeNil())
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should return error for non-existent job", func() {
+			req, err := http.NewRequest("POST", "/api/v1/workflows/wf-1/jobs/non-existent/resume", nil)
+			Expect(err).Should(BeNil())
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusBadRequest))
+		})
+	})
+
+	Describe("CancelJob", func() {
+		BeforeEach(func() {
+			createReq := CreateWorkflowRequest{
+				Name:      "workflow-for-cancel",
+				Enable:    true,
+				QueueName: "default",
+			}
+			createJson, _ := json.Marshal(createReq)
+			createHttpReq, _ := http.NewRequest("POST", "/api/v1/workflows", bytes.NewBuffer(createJson))
+			createHttpReq.Header.Set("Content-Type", "application/json")
+			createHttpReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			createW := httptest.NewRecorder()
+			router.ServeHTTP(createW, createHttpReq)
+
+			triggerReq := TriggerWorkflowRequest{
+				URI:    "/test-entry",
+				Reason: "test",
+			}
+			triggerJson, _ := json.Marshal(triggerReq)
+			triggerHttpReq, _ := http.NewRequest("POST", "/api/v1/workflows/wf-1/trigger", bytes.NewBuffer(triggerJson))
+			triggerHttpReq.Header.Set("Content-Type", "application/json")
+			triggerHttpReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			triggerW := httptest.NewRecorder()
+			router.ServeHTTP(triggerW, triggerHttpReq)
+		})
+
+		It("should cancel a running job", func() {
+			req, err := http.NewRequest("POST", "/api/v1/workflows/wf-1/jobs/job-1/cancel", nil)
+			Expect(err).Should(BeNil())
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should return error for non-existent job", func() {
+			req, err := http.NewRequest("POST", "/api/v1/workflows/wf-1/jobs/non-existent/cancel", nil)
+			Expect(err).Should(BeNil())
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusBadRequest))
+		})
+	})
+
+	Describe("Job Operations Full Flow", func() {
+		BeforeEach(func() {
+			createReq := CreateWorkflowRequest{
+				Name:      "workflow-full-job-flow",
+				Enable:    true,
+				QueueName: "default",
+			}
+			createJson, _ := json.Marshal(createReq)
+			createHttpReq, _ := http.NewRequest("POST", "/api/v1/workflows", bytes.NewBuffer(createJson))
+			createHttpReq.Header.Set("Content-Type", "application/json")
+			createHttpReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			createW := httptest.NewRecorder()
+			router.ServeHTTP(createW, createHttpReq)
+		})
+
+		It("should trigger, get, pause, resume, and cancel job", func() {
+			// Trigger
+			triggerReq := TriggerWorkflowRequest{
+				URI:    "/test-entry",
+				Reason: "full flow test",
+			}
+			triggerJson, _ := json.Marshal(triggerReq)
+			triggerHttpReq, _ := http.NewRequest("POST", "/api/v1/workflows/wf-1/trigger", bytes.NewBuffer(triggerJson))
+			triggerHttpReq.Header.Set("Content-Type", "application/json")
+			triggerHttpReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			triggerW := httptest.NewRecorder()
+			router.ServeHTTP(triggerW, triggerHttpReq)
+			Expect(triggerW.Code).To(Equal(http.StatusOK))
+
+			// Get Job
+			getJobReq, _ := http.NewRequest("GET", "/api/v1/workflows/wf-1/jobs/job-1", nil)
+			getJobReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			getJobW := httptest.NewRecorder()
+			router.ServeHTTP(getJobW, getJobReq)
+			Expect(getJobW.Code).To(Equal(http.StatusOK))
+
+			// Pause
+			pauseReq, _ := http.NewRequest("POST", "/api/v1/workflows/wf-1/jobs/job-1/pause", nil)
+			pauseReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			pauseW := httptest.NewRecorder()
+			router.ServeHTTP(pauseW, pauseReq)
+			Expect(pauseW.Code).To(Equal(http.StatusOK))
+
+			// Resume
+			resumeReq, _ := http.NewRequest("POST", "/api/v1/workflows/wf-1/jobs/job-1/resume", nil)
+			resumeReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			resumeW := httptest.NewRecorder()
+			router.ServeHTTP(resumeW, resumeReq)
+			Expect(resumeW.Code).To(Equal(http.StatusOK))
+
+			// Cancel
+			cancelReq, _ := http.NewRequest("POST", "/api/v1/workflows/wf-1/jobs/job-1/cancel", nil)
+			cancelReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			cancelW := httptest.NewRecorder()
+			router.ServeHTTP(cancelW, cancelReq)
+			Expect(cancelW.Code).To(Equal(http.StatusOK))
+		})
 	})
 
 	Describe("ListWorkflows", func() {
 		It("should return empty list when no workflows", func() {
+			testRouter.MockWorkflow.workflows = make(map[string]*types.Workflow)
+
 			req, err := http.NewRequest("GET", "/api/v1/workflows", nil)
 			Expect(err).Should(BeNil())
 			req.Header.Set("X-Namespace", types.DefaultNamespace)
@@ -435,30 +860,63 @@ var _ = Describe("REST V1 Workflow API", func() {
 
 			Expect(w.Code).To(Equal(http.StatusOK))
 		})
-	})
 
-	Describe("ListWorkflowJobs", func() {
-		It("should return empty list for non-existent workflow", func() {
-			req, err := http.NewRequest("GET", "/api/v1/workflows/non-existent/jobs", nil)
+		It("should return list of workflows", func() {
+			// Create a workflow
+			reqBody := CreateWorkflowRequest{
+				Name:      "test-workflow",
+				Enable:    true,
+				QueueName: "default",
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+
+			req, err := http.NewRequest("POST", "/api/v1/workflows", bytes.NewBuffer(jsonBody))
 			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Namespace", types.DefaultNamespace)
 
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
+			Expect(w.Code).To(Equal(http.StatusCreated))
 
-			// Returns empty list for non-existent workflow
-			Expect(w.Code).To(Equal(http.StatusOK))
+			// List workflows
+			listReq, err := http.NewRequest("GET", "/api/v1/workflows", nil)
+			Expect(err).Should(BeNil())
+			listReq.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			listW := httptest.NewRecorder()
+			router.ServeHTTP(listW, listReq)
+
+			Expect(listW.Code).To(Equal(http.StatusOK))
 		})
 	})
 
 	Describe("TriggerWorkflow", func() {
-		It("should return error for non-existent workflow", func() {
-			reqBody := TriggerWorkflowRequest{
-				URI: "/test-entry",
+		BeforeEach(func() {
+			reqBody := CreateWorkflowRequest{
+				Name:      "workflow-for-trigger",
+				Enable:    true,
+				QueueName: "default",
 			}
 			jsonBody, _ := json.Marshal(reqBody)
 
-			req, err := http.NewRequest("POST", "/api/v1/workflows/test-workflow/trigger", bytes.NewBuffer(jsonBody))
+			req, err := http.NewRequest("POST", "/api/v1/workflows", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+		})
+
+		It("should trigger a workflow", func() {
+			reqBody := TriggerWorkflowRequest{
+				URI:    "/test-entry",
+				Reason: "manual trigger",
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+
+			req, err := http.NewRequest("POST", "/api/v1/workflows/wf-1/trigger", bytes.NewBuffer(jsonBody))
 			Expect(err).Should(BeNil())
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Namespace", types.DefaultNamespace)
@@ -466,37 +924,21 @@ var _ = Describe("REST V1 Workflow API", func() {
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 
-			Expect(w.Code).To(Equal(http.StatusInternalServerError))
+			Expect(w.Code).To(Equal(http.StatusOK))
 		})
 	})
 })
 
+// Helper function to get pointer to bool
+func BoolPtr(b bool) *bool {
+	return &b
+}
+
 var _ = Describe("REST V1 Notify API", func() {
-	var (
-		router   *gin.Engine
-		services *ServicesV1
-	)
+	var router *gin.Engine
 
 	BeforeEach(func() {
-		gin.SetMode(gin.TestMode)
-		router = gin.New()
-
-		cfg := config.NewMockConfig(testCfg)
-		var err error
-		dep, err := common.InitDepends(cfg, testMeta)
-		Expect(err).Should(BeNil())
-
-		services = &ServicesV1{
-			meta:     dep.Meta,
-			core:     dep.Core,
-			workflow: dep.Workflow,
-			notify:   dep.Notify,
-			cfg:      dep.Config,
-			logger:   logger.NewLogger("rest-test"),
-		}
-
-		router.Use(common.AuthMiddleware())
-		RegisterRoutes(router, services)
+		router = testRouter.Router
 	})
 
 	Describe("ListMessages", func() {
@@ -535,31 +977,10 @@ var _ = Describe("REST V1 Notify API", func() {
 })
 
 var _ = Describe("REST V1 Tree API", func() {
-	var (
-		router   *gin.Engine
-		services *ServicesV1
-	)
+	var router *gin.Engine
 
 	BeforeEach(func() {
-		gin.SetMode(gin.TestMode)
-		router = gin.New()
-
-		cfg := config.NewMockConfig(testCfg)
-		var err error
-		dep, err := common.InitDepends(cfg, testMeta)
-		Expect(err).Should(BeNil())
-
-		services = &ServicesV1{
-			meta:     dep.Meta,
-			core:     dep.Core,
-			workflow: dep.Workflow,
-			notify:   dep.Notify,
-			cfg:      dep.Config,
-			logger:   logger.NewLogger("rest-test"),
-		}
-
-		router.Use(common.AuthMiddleware())
-		RegisterRoutes(router, services)
+		router = testRouter.Router
 	})
 
 	Describe("GroupTree", func() {
@@ -611,31 +1032,10 @@ var _ = Describe("REST V1 Tree API", func() {
 })
 
 var _ = Describe("REST V1 Filter API", func() {
-	var (
-		router   *gin.Engine
-		services *ServicesV1
-	)
+	var router *gin.Engine
 
 	BeforeEach(func() {
-		gin.SetMode(gin.TestMode)
-		router = gin.New()
-
-		cfg := config.NewMockConfig(testCfg)
-		var err error
-		dep, err := common.InitDepends(cfg, testMeta)
-		Expect(err).Should(BeNil())
-
-		services = &ServicesV1{
-			meta:     dep.Meta,
-			core:     dep.Core,
-			workflow: dep.Workflow,
-			notify:   dep.Notify,
-			cfg:      dep.Config,
-			logger:   logger.NewLogger("rest-test"),
-		}
-
-		router.Use(common.AuthMiddleware())
-		RegisterRoutes(router, services)
+		router = testRouter.Router
 	})
 
 	Describe("FilterEntry", func() {
@@ -660,31 +1060,12 @@ var _ = Describe("REST V1 Filter API", func() {
 })
 
 var _ = Describe("REST V1 DeleteEntries Batch API", func() {
-	var (
-		router   *gin.Engine
-		services *ServicesV1
-	)
+	var router *gin.Engine
 
 	BeforeEach(func() {
-		gin.SetMode(gin.TestMode)
-		router = gin.New()
-
-		cfg := config.NewMockConfig(testCfg)
-		var err error
-		dep, err := common.InitDepends(cfg, testMeta)
-		Expect(err).Should(BeNil())
-
-		services = &ServicesV1{
-			meta:     dep.Meta,
-			core:     dep.Core,
-			workflow: dep.Workflow,
-			notify:   dep.Notify,
-			cfg:      dep.Config,
-			logger:   logger.NewLogger("rest-test"),
-		}
-
-		router.Use(common.AuthMiddleware())
-		RegisterRoutes(router, services)
+		router = testRouter.Router
+		testRouter.MockWorkflow.workflows = make(map[string]*types.Workflow)
+		testRouter.MockWorkflow.jobs = make(map[string]*types.WorkflowJob)
 
 		// Create test entries
 		for _, uri := range []string{"/batch-test1", "/batch-test2"} {
@@ -740,31 +1121,10 @@ var _ = Describe("REST V1 DeleteEntries Batch API", func() {
 })
 
 var _ = Describe("REST V1 File API", func() {
-	var (
-		router   *gin.Engine
-		services *ServicesV1
-	)
+	var router *gin.Engine
 
 	BeforeEach(func() {
-		gin.SetMode(gin.TestMode)
-		router = gin.New()
-
-		cfg := config.NewMockConfig(testCfg)
-		var err error
-		dep, err := common.InitDepends(cfg, testMeta)
-		Expect(err).Should(BeNil())
-
-		services = &ServicesV1{
-			meta:     dep.Meta,
-			core:     dep.Core,
-			workflow: dep.Workflow,
-			notify:   dep.Notify,
-			cfg:      dep.Config,
-			logger:   logger.NewLogger("rest-test"),
-		}
-
-		router.Use(common.AuthMiddleware())
-		RegisterRoutes(router, services)
+		router = testRouter.Router
 	})
 
 	Describe("WriteFile", func() {
@@ -829,31 +1189,10 @@ var _ = Describe("REST V1 File API", func() {
 })
 
 var _ = Describe("REST V1 Entry Query API", func() {
-	var (
-		router   *gin.Engine
-		services *ServicesV1
-	)
+	var router *gin.Engine
 
 	BeforeEach(func() {
-		gin.SetMode(gin.TestMode)
-		router = gin.New()
-
-		cfg := config.NewMockConfig(testCfg)
-		var err error
-		dep, err := common.InitDepends(cfg, testMeta)
-		Expect(err).Should(BeNil())
-
-		services = &ServicesV1{
-			meta:     dep.Meta,
-			core:     dep.Core,
-			workflow: dep.Workflow,
-			notify:   dep.Notify,
-			cfg:      dep.Config,
-			logger:   logger.NewLogger("rest-test"),
-		}
-
-		router.Use(common.AuthMiddleware())
-		RegisterRoutes(router, services)
+		router = testRouter.Router
 	})
 
 	AfterEach(func() {
@@ -1304,6 +1643,187 @@ var _ = Describe("REST V1 Entry Query API", func() {
 			router.ServeHTTP(w, req)
 
 			// Should return 404, not crash
+			Expect(w.Code).To(Equal(http.StatusNotFound))
+		})
+	})
+})
+
+var _ = Describe("REST V1 Configs API", func() {
+	var router *gin.Engine
+
+	BeforeEach(func() {
+		router = testRouter.Router
+	})
+
+	AfterEach(func() {
+		// Cleanup: delete test configs
+		testConfigs := []struct{ group, name string }{
+			{"test-group", "test-key1"},
+			{"test-group", "test-key2"},
+			{"test-group", "test-key3"},
+		}
+		for _, cfg := range testConfigs {
+			req, _ := http.NewRequest("DELETE", "/api/v1/configs/"+cfg.group+"/"+cfg.name, nil)
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+		}
+	})
+
+	Describe("SetConfig", func() {
+		It("should set a new config value", func() {
+			reqBody := SetConfigRequest{
+				Value: "test-value",
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+
+			req, err := http.NewRequest("PUT", "/api/v1/configs/test-group/test-key1", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should return 400 for missing value", func() {
+			reqBody := map[string]string{}
+			jsonBody, _ := json.Marshal(reqBody)
+
+			req, err := http.NewRequest("PUT", "/api/v1/configs/test-group/test-key1", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusBadRequest))
+		})
+	})
+
+	Describe("GetConfig", func() {
+		BeforeEach(func() {
+			// Pre-set a config value
+			reqBody := SetConfigRequest{
+				Value: "test-value",
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+
+			req, err := http.NewRequest("PUT", "/api/v1/configs/test-group/test-key1", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			Expect(w.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should get config value", func() {
+			req, err := http.NewRequest("GET", "/api/v1/configs/test-group/test-key1", nil)
+			Expect(err).Should(BeNil())
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should return 404 for non-existent config", func() {
+			req, err := http.NewRequest("GET", "/api/v1/configs/test-group/non-existent-key", nil)
+			Expect(err).Should(BeNil())
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusNotFound))
+		})
+	})
+
+	Describe("ListConfig", func() {
+		BeforeEach(func() {
+			// Pre-set multiple config values in the same group
+			for i := 1; i <= 2; i++ {
+				reqBody := SetConfigRequest{
+					Value: "test-value-" + string(rune('0'+i)),
+				}
+				jsonBody, _ := json.Marshal(reqBody)
+
+				req, err := http.NewRequest("PUT", "/api/v1/configs/test-group/test-key"+string(rune('0'+i)), bytes.NewBuffer(jsonBody))
+				Expect(err).Should(BeNil())
+				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+				w := httptest.NewRecorder()
+				router.ServeHTTP(w, req)
+				Expect(w.Code).To(Equal(http.StatusOK))
+			}
+		})
+
+		It("should list configs by group", func() {
+			req, err := http.NewRequest("GET", "/api/v1/configs/test-group", nil)
+			Expect(err).Should(BeNil())
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusOK))
+		})
+	})
+
+	Describe("DeleteConfig", func() {
+		BeforeEach(func() {
+			// Pre-set a config value
+			reqBody := SetConfigRequest{
+				Value: "test-value-to-delete",
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+
+			req, err := http.NewRequest("PUT", "/api/v1/configs/test-group/test-key3", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			Expect(w.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should delete config", func() {
+			req, err := http.NewRequest("DELETE", "/api/v1/configs/test-group/test-key3", nil)
+			Expect(err).Should(BeNil())
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should return 404 after deletion", func() {
+			// First delete
+			req, err := http.NewRequest("DELETE", "/api/v1/configs/test-group/test-key3", nil)
+			Expect(err).Should(BeNil())
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			Expect(w.Code).To(Equal(http.StatusOK))
+
+			// Then try to get it (should be 404)
+			req, err = http.NewRequest("GET", "/api/v1/configs/test-group/test-key3", nil)
+			Expect(err).Should(BeNil())
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w = httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
 			Expect(w.Code).To(Equal(http.StatusNotFound))
 		})
 	})

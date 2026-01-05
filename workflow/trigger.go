@@ -21,9 +21,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/basenana/nanafs/pkg/cel"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/events"
-	"github.com/basenana/nanafs/pkg/cel"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/basenana/nanafs/workflow/jobrun"
@@ -100,7 +100,7 @@ func (h *triggers) handleWorkflowUpdate(wf *types.Workflow, isDelete bool) {
 	}
 
 	trigger := wf.Trigger
-	if trigger.OnCreate == nil || trigger.Interval == nil {
+	if trigger.LocalFileWatch == nil || trigger.Interval == nil {
 		delete(nsHooks.matches, wf.Id)
 		return
 	}
@@ -111,7 +111,7 @@ func (h *triggers) handleWorkflowUpdate(wf *types.Workflow, isDelete bool) {
 		nsHooks.matches[wf.Id] = hook
 	}
 
-	hook.onCreate = trigger.OnCreate
+	hook.localFileWatch = trigger.LocalFileWatch
 	hook.interval = trigger.Interval
 
 	if hook.interval != nil {
@@ -149,11 +149,15 @@ func (h *triggers) handleEntryCreate(evt *types.Event) {
 	defer nsHooks.mux.Unlock()
 
 	for wfID, hook := range nsHooks.matches {
-		if hook.onCreate == nil {
+		if hook.localFileWatch == nil {
 			continue
 		}
 
-		matched, err := cel.EntryMatch(ctx, entry, hook.onCreate)
+		if hook.localFileWatch.Event != evt.Type {
+			continue
+		}
+
+		matched, err := cel.EntryMatch(ctx, entry, hook.localFileWatch)
 		if err != nil {
 			h.logger.Errorw("[handleEntryCreate] match entry failed", "workflow", wfID, "entry", entry.ID, "err", err)
 			continue
@@ -183,11 +187,11 @@ func (h *triggers) workflowJobDelay(ctx context.Context, namespace, wf, entryURI
 }
 
 func (h *triggers) filterAndRunCronWorkflow(ctx context.Context, wf *types.Workflow) error {
-	if wf.Trigger.OnCreate == nil {
+	if wf.Trigger.LocalFileWatch == nil {
 		return nil
 	}
 
-	celPattern := cel.BuildCELFilterFromMatch(wf.Trigger.OnCreate)
+	celPattern := cel.BuildCELFilterFromMatch(wf.Trigger.LocalFileWatch)
 	filter := types.Filter{CELPattern: celPattern}
 
 	it, err := h.mgr.meta.FilterEntries(ctx, wf.Namespace, filter)
@@ -219,7 +223,7 @@ func (h *triggers) filterAndRunCronWorkflow(ctx context.Context, wf *types.Workf
 			continue
 		}
 
-		matched, err := cel.EntryMatch(ctx, en, wf.Trigger.OnCreate)
+		matched, err := cel.EntryMatch(ctx, en, wf.Trigger.LocalFileWatch)
 		if err != nil {
 			h.logger.Errorw("[filterAndRunCronWorkflow] match entry failed", "workflow", wf.Id, "entry", en.ID, "err", err)
 			continue
@@ -364,8 +368,8 @@ type workflowMatches struct {
 }
 
 type workflowMatch struct {
-	onCreate *types.WorkflowEntryMatch
-	interval *int
+	localFileWatch *types.WorkflowLocalFileWatch
+	interval       *int
 }
 
 type nextJob struct {
@@ -378,4 +382,20 @@ type nextJob struct {
 type timedJobList struct {
 	namespace string
 	workflow  string
+}
+
+func (h *triggers) GetTriggerState(ctx context.Context, namespace, workflow, triggerType string) (map[string]string, error) {
+	var state map[string]string
+	err := h.mgr.meta.LoadWorkflowContext(ctx, namespace, "trigger", workflow, triggerType, &state)
+	if err != nil {
+		return nil, err
+	}
+	if state == nil {
+		return make(map[string]string), nil
+	}
+	return state, nil
+}
+
+func (h *triggers) SaveTriggerState(ctx context.Context, namespace, workflow, triggerType string, state map[string]string) error {
+	return h.mgr.meta.SaveWorkflowContext(ctx, namespace, "trigger", workflow, triggerType, state)
 }

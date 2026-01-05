@@ -2,7 +2,7 @@
  Copyright 2023 NanaFS Authors.
 
  Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
+ you may not use this in compliance with the License.
  You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
@@ -24,17 +24,12 @@ type Response struct {
 	Data   interface{} `json:"data,omitempty"`
 }
 
-func ErrorResponse(gCtx *gin.Context, err error) {
-	status, code := Error2ApiErrorCode(err)
-	ApiErrorResponse(gCtx, status, code, err)
+type Error struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }
 
-func HttpStatusResponse(gCtx *gin.Context, status int, err error) {
-	_, code := Error2ApiErrorCode(err)
-	ApiErrorResponse(gCtx, status, code, err)
-}
-
-func ApiErrorResponse(gCtx *gin.Context, status int, code ApiErrorCode, err error) {
+func ErrorResponse(gCtx *gin.Context, status int, code string, err error) {
 	resp := Response{
 		Status: status,
 		Error: &Error{

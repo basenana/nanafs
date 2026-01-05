@@ -23,6 +23,13 @@ import (
 func RegisterRoutes(engine *gin.Engine, s *ServicesV1) {
 	v1 := engine.Group("/api/v1")
 	{
+
+		/*
+			Special Case Explanation:
+			Due to uri its complexity, the Path for entry/group/file does not fully comply with RESTful API specifications.
+			This is a special case; other APIs still need to conform to RESTful API specifications.
+		*/
+
 		// Entries - support ?uri= or ?id= query parameters
 		entries := v1.Group("/entries")
 		{
@@ -61,8 +68,25 @@ func RegisterRoutes(engine *gin.Engine, s *ServicesV1) {
 		workflows := v1.Group("/workflows")
 		{
 			workflows.GET("", s.ListWorkflows)
+			workflows.POST("", s.CreateWorkflow)
+			workflows.GET("/:id", s.GetWorkflow)
+			workflows.PUT("/:id", s.UpdateWorkflow)
+			workflows.DELETE("/:id", s.DeleteWorkflow)
 			workflows.GET("/:id/jobs", s.ListWorkflowJobs)
+			workflows.GET("/:id/jobs/:jobId", s.GetJob)
+			workflows.POST("/:id/jobs/:jobId/pause", s.PauseJob)
+			workflows.POST("/:id/jobs/:jobId/resume", s.ResumeJob)
+			workflows.POST("/:id/jobs/:jobId/cancel", s.CancelJob)
 			workflows.POST("/:id/trigger", s.TriggerWorkflow)
+		}
+
+		// Configs - Namespace 级别的配置中心
+		configs := v1.Group("/configs")
+		{
+			configs.GET("/:group/:name", s.GetConfig)
+			configs.PUT("/:group/:name", s.SetConfig)
+			configs.GET("/:group", s.ListConfig)
+			configs.DELETE("/:group/:name", s.DeleteConfig)
 		}
 	}
 }

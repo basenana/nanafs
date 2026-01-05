@@ -21,8 +21,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/basenana/nanafs/workflow"
-
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/types"
@@ -181,7 +179,7 @@ var NamespaceCmd = &cobra.Command{
 
 		ctx := context.Background()
 		namespace := args[0]
-		err = createNamespace(ctx, depends.Core, depends.Workflow, namespace)
+		err = createNamespace(ctx, depends.Core, namespace)
 		if err != nil {
 			panic(err)
 		}
@@ -189,22 +187,12 @@ var NamespaceCmd = &cobra.Command{
 	},
 }
 
-func createNamespace(ctx context.Context, core core.Core, wfMgr workflow.Workflow, namespace string) error {
+func createNamespace(ctx context.Context, core core.Core, namespace string) error {
 	log := logger.NewLogger("nanafs.namespace")
 	err := core.CreateNamespace(ctx, namespace)
 	if err != nil {
 		log.Errorw("create namespace failed", "err", err)
 		return err
 	}
-
-	wfList := workflow.NewDefaultsWorkflows(namespace)
-	for _, wf := range wfList {
-		_, err = wfMgr.CreateWorkflow(ctx, namespace, wf)
-		if err != nil {
-			log.Errorw("create workflow failed", "workflow", wf.Name, "err", err)
-			return err
-		}
-	}
-
 	return nil
 }

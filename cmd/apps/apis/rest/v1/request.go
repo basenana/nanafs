@@ -16,6 +16,8 @@
 
 package v1
 
+import "github.com/basenana/nanafs/pkg/types"
+
 // CreateEntryRequest 创建条目请求
 type CreateEntryRequest struct {
 	URI    string         `json:"uri" binding:"required"`
@@ -96,8 +98,30 @@ type ListWorkflowJobsRequest struct {
 
 // TriggerWorkflowRequest 触发工作流请求
 type TriggerWorkflowRequest struct {
-	WorkflowID string            `json:"workflow_id" binding:"required"`
-	URI        string            `json:"uri"`
-	Reason     string            `json:"reason"`
-	Timeout    int64             `json:"timeout"`
+	URI     string `json:"uri"`
+	Reason  string `json:"reason"`
+	Timeout int64  `json:"timeout"`
+}
+
+// SetConfigRequest 设置配置请求
+type SetConfigRequest struct {
+	Value string `json:"value" binding:"required"`
+}
+
+// CreateWorkflowRequest 创建工作流请求
+type CreateWorkflowRequest struct {
+	Name      string            `json:"name" binding:"required"`
+	Trigger   types.WorkflowTrigger `json:"trigger"`
+	Nodes     []types.WorkflowNode `json:"nodes"`
+	Enable    bool              `json:"enable"`
+	QueueName string            `json:"queue_name"`
+}
+
+// UpdateWorkflowRequest 更新工作流请求
+type UpdateWorkflowRequest struct {
+	Name      string            `json:"name"`
+	Trigger   types.WorkflowTrigger `json:"trigger"`
+	Nodes     []types.WorkflowNode `json:"nodes"`
+	Enable    *bool             `json:"enable"`
+	QueueName string            `json:"queue_name"`
 }

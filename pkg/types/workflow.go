@@ -38,37 +38,63 @@ type Workflow struct {
 }
 
 type WorkflowTrigger struct {
-	// entry events
-	OnCreate *WorkflowEntryMatch `json:"on_create,omitempty"`
-
-	// source plugins
-	RSS      *WorkflowRssTrigger `json:"rss,omitempty"`
-	Interval *int                `json:"interval,omitempty"`
+	LocalFileWatch *WorkflowLocalFileWatch `json:"local_file_watch,omitempty"`
+	RSS            *WorkflowRssTrigger     `json:"rss,omitempty"`
+	Interval       *int                    `json:"interval,omitempty"`
 }
 
 type WorkflowNode struct {
-	Name       string            `json:"name"`
-	Type       string            `json:"type"`
-	Parameters map[string]string `json:"parameters"`
+	Name   string            `json:"name"`
+	Type   string            `json:"type"`
+	Params map[string]string `json:"params"`
+	Input  map[string]string `json:"input,omitempty"`
+	Next   string            `json:"next,omitempty"`
 
-	Next string `json:"next,omitempty"`
+	// if
+	Condition string            `json:"condition,omitempty"`
+	Branches  map[string]string `json:"branches,omitempty"`
+
+	// switch
+	Cases   []WorkflowNodeCase `json:"cases,omitempty"`
+	Default string             `json:"default,omitempty"`
+
+	// loop
+	Matrix *WorkflowNodeMatrix `json:"matrix,omitempty"`
 }
 
-type WorkflowEntryMatch struct {
-	// File
-	FileTypes       string `json:"file_types,omitempty"`
-	FileNamePattern string `json:"file_name_pattern"`
-	MinFileSize     int    `json:"min_file_size,omitempty"`
-	MaxFileSize     int    `json:"max_file_size,omitempty"`
-
-	// Tree
-	ParentID int64 `json:"parent_id,omitempty"`
-
-	// Properties
-	CELPattern string `json:"cel_pattern,omitempty"`
+type WorkflowNodeCase struct {
+	Value string `json:"value"`
+	Next  string `json:"next"`
 }
 
-type WorkflowRssTrigger struct{}
+type WorkflowLocalFileWatch struct {
+	Directory   string `json:"directory"`
+	Event       string `json:"event"`
+	FilePattern string `json:"file_pattern,omitempty"`
+	FileTypes   string `json:"file_types,omitempty"`
+	MinFileSize int    `json:"min_file_size,omitempty"`
+	MaxFileSize int    `json:"max_file_size,omitempty"`
+	CELPattern  string `json:"cel_pattern,omitempty"`
+}
+
+type WorkflowRssTrigger struct {
+	FileType    string `json:"file_type,omitempty"`
+	Timeout     string `json:"timeout,omitempty"`
+	ClutterFree bool   `json:"clutter_free,omitempty"`
+}
+
+type WorkflowNodeMatrix struct {
+	// Data defines variable mappings for matrix iteration
+	// Key is variable name, value is template reference to context data
+	// Example: {"file_path": "{{ new_webpage.file_paths }}"}
+	Data map[string]string `json:"data"`
+
+	// IterateMode controls execution mode: "sequential" (default) or "parallel"
+	IterateMode string `json:"iterate_mode,omitempty"`
+
+	// BatchSize limits parallel execution batch size (for parallel mode)
+	BatchSize int `json:"batch_size,omitempty"`
+}
 
 type WorkflowJob struct {
 	Id             string            `json:"id"`
@@ -107,8 +133,9 @@ func (w *WorkflowJob) SetMessage(msg string) {
 type WorkflowJobNode struct {
 	WorkflowNode
 
-	Status  string `json:"status,omitempty"`
-	Message string `json:"message,omitempty"`
+	Status     string `json:"status,omitempty"`
+	Message    string `json:"message,omitempty"`
+	BranchNext string `json:"branch_next,omitempty"`
 
 	// Deprecated
 	StepName string `json:"step_name"`
