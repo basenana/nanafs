@@ -110,8 +110,8 @@ func (e EPUB) Load(_ context.Context, doc types.DocumentProperties) (*FDocument,
 		} `xml:"metadata"`
 		Manifest struct {
 			Items []struct {
-				ID       string `xml:"id,attr"`
-				HRef     string `xml:"href,attr"`
+				ID        string `xml:"id,attr"`
+				HRef      string `xml:"href,attr"`
 				MediaType string `xml:"media-type,attr"`
 			} `xml:"item"`
 		} `xml:"manifest"`

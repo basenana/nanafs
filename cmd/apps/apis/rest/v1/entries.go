@@ -1,0 +1,705 @@
+/*
+ Copyright 2023 NanaFS Authors.
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+*/
+
+package v1
+
+import (
+	"errors"
+	"net/http"
+	"path"
+	"time"
+
+	"github.com/gin-gonic/gin"
+
+	"github.com/basenana/nanafs/cmd/apps/apis/apitool"
+	"github.com/basenana/nanafs/pkg/core"
+	"github.com/basenana/nanafs/pkg/types"
+)
+
+// CreateEntry creates a new entry
+func (s *ServicesV1) CreateEntry(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	var req CreateEntryRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	parentURI, name := path.Split(req.URI)
+	_, parentID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, parentURI)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	if req.Kind == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "entry has unknown kind"})
+		return
+	}
+
+	parent, err := s.core.GetEntry(ctx.Request.Context(), caller.Namespace, parentID)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	err = core.HasAllPermissions(parent.Access, caller.UID, caller.GID, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	attr := types.EntryAttr{
+		Name:   name,
+		Kind:   s.pdKind2EntryKind(req.Kind),
+		Access: &parent.Access,
+	}
+
+	if req.Rss != nil {
+		s.setupRssConfig(req.Rss, &attr)
+	}
+	if req.Filter != nil {
+		s.setupGroupFilterConfig(req.Filter, &attr)
+	}
+
+	en, err := s.core.CreateEntry(ctx.Request.Context(), caller.Namespace, parentID, attr)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	if attr.Properties != nil {
+		if err = s.meta.UpdateEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeProperty, en.ID, attr.Properties); err != nil {
+			apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+			return
+		}
+	}
+
+	apitool.JsonResponse(ctx, http.StatusCreated, gin.H{"entry": toEntryInfo(parentURI, name, en, nil)})
+}
+
+// GetEntryDetail retrieves entry details by URI
+func (s *ServicesV1) GetEntryDetail(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	uri := ctx.Param("uri")
+
+	en, _ := s.requireEntryWithPermission(ctx, caller, types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead)
+	if en == nil {
+		return
+	}
+
+	parentURI, name := path.Split(uri)
+	detail, err := s.getEntryDetails(ctx.Request.Context(), caller.Namespace, parentURI, name, en.ID)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"entry": detail})
+}
+
+// UpdateEntry updates an existing entry
+func (s *ServicesV1) UpdateEntry(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	var req UpdateEntryRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	en, uri := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	if en == nil {
+		return
+	}
+
+	update := types.UpdateEntry{}
+	if req.Name != "" {
+		update.Name = &req.Name
+	}
+	if req.Aliases != "" {
+		update.Aliases = &req.Aliases
+	}
+	en, err := s.core.UpdateEntry(ctx.Request.Context(), caller.Namespace, en.ID, update)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	parentURI := uri
+	if parentURI == "" {
+		parentURI = "/"
+	}
+	detail, err := s.getEntryDetails(ctx.Request.Context(), caller.Namespace, path.Dir(parentURI), path.Base(parentURI), en.ID)
+	if err != nil {
+		apitool.JsonResponse(ctx, http.StatusOK, gin.H{"entry": toEntryInfo("", en.Name, en, nil)})
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"entry": detail})
+}
+
+// DeleteEntry deletes a single entry
+func (s *ServicesV1) DeleteEntry(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	en, uri := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	if en == nil {
+		return
+	}
+
+	parentID, entryID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, uri)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	deletedEntry, err := s.deleteEntry(ctx.Request.Context(), caller.Namespace, caller.UID, parentID, entryID, path.Base(uri))
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	parentURI, name := path.Split(uri)
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"entry": toEntryInfo(parentURI, name, deletedEntry, nil)})
+}
+
+// DeleteEntries performs batch deletion of entries
+func (s *ServicesV1) DeleteEntries(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	var req DeleteEntriesRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	deleted := make([]string, 0, len(req.URIList))
+	var lastErr error
+	for _, entryURI := range req.URIList {
+		parentID, entryID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, entryURI)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		_, err = s.deleteEntry(ctx.Request.Context(), caller.Namespace, caller.UID, parentID, entryID, path.Base(entryURI))
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		deleted = append(deleted, entryURI)
+	}
+
+	if lastErr != nil && len(deleted) == 0 {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", lastErr)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, &DeleteEntriesResponse{
+		Deleted: deleted,
+		Message: "Batch delete completed",
+	})
+}
+
+// ChangeParent moves an entry to a new parent
+func (s *ServicesV1) ChangeParent(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	var req ChangeParentRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	oldName := path.Base(req.EntryURI)
+	oldParentID, entryID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, req.EntryURI)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	newParentURI, newName := path.Split(req.NewEntryURI)
+	_, newParentID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, newParentURI)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	en, err := s.core.GetEntry(ctx.Request.Context(), caller.Namespace, entryID)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+	err = core.HasAllPermissions(en.Access, caller.UID, caller.GID, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	newParent, err := s.core.GetEntry(ctx.Request.Context(), caller.Namespace, newParentID)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+	err = core.HasAllPermissions(newParent.Access, caller.UID, caller.GID, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	var existObjID *int64
+	existObj, err := s.core.FindEntry(ctx.Request.Context(), caller.Namespace, newParentID, newName)
+	if err != nil && !errors.Is(err, types.ErrNotFound) {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+	if existObj != nil {
+		existObjID = &existObj.ChildID
+	}
+
+	err = s.core.ChangeEntryParent(ctx.Request.Context(), caller.Namespace, entryID, existObjID, oldParentID, newParentID, oldName, newName, types.ChangeParentAttr{
+		Uid:      caller.UID,
+		Gid:      caller.GID,
+		Replace:  req.Replace,
+		Exchange: req.Exchange,
+	})
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	en, err = s.core.GetEntry(ctx.Request.Context(), caller.Namespace, entryID)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"entry": toEntryInfo(newParentURI, newName, en, nil)})
+}
+
+// FilterEntry filters entries using CEL pattern
+func (s *ServicesV1) FilterEntry(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	var req FilterEntryRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	it, err := s.meta.FilterEntries(ctx.Request.Context(), caller.Namespace, types.Filter{CELPattern: req.CELPattern})
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	entries := make([]*EntryInfo, 0)
+	for it.HasNext() {
+		en, err := it.Next()
+		if err != nil {
+			apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+			return
+		}
+
+		doc := s.getDocumentProperty(ctx.Request.Context(), caller.Namespace, en)
+
+		uri, err := core.ProbableEntryPath(ctx.Request.Context(), s.core, en)
+		if err != nil {
+			continue
+		}
+		entries = append(entries, toEntryInfo(path.Dir(uri), path.Base(uri), en, doc))
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, &ListEntriesResponse{Entries: entries})
+}
+
+func (s *ServicesV1) EntryDetails(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	en, uri := s.requireEntryWithPermission(ctx, caller, types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead)
+	if en == nil {
+		return
+	}
+
+	parentURI, name := path.Split(uri)
+	detail, err := s.getEntryDetails(ctx.Request.Context(), caller.Namespace, parentURI, name, en.ID)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"entry": detail})
+}
+
+func (s *ServicesV1) EntryChildren(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	en, uri := s.requireEntryWithPermission(ctx, caller, types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead)
+	if en == nil {
+		return
+	}
+
+	children, err := s.listChildren(ctx.Request.Context(), caller.Namespace, en.ID)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	entries := make([]*EntryInfo, 0, len(children))
+	for _, child := range children {
+		doc := s.getDocumentProperty(ctx.Request.Context(), caller.Namespace, child)
+		entries = append(entries, toEntryInfo(uri, child.Name, child, doc))
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, &ListEntriesResponse{Entries: entries})
+}
+
+func (s *ServicesV1) EntryParent(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	newEntryURI := ctx.Query("new_uri")
+
+	en, entryURI := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	if en == nil {
+		return
+	}
+
+	if newEntryURI == "" {
+		var req ChangeParentRequest
+		if err := ctx.ShouldBindJSON(&req); err == nil {
+			newEntryURI = req.NewEntryURI
+		}
+	}
+
+	if newEntryURI == "" {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("missing new_entry_uri"))
+		return
+	}
+
+	oldName := path.Base(entryURI)
+	oldParentID, entryID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, entryURI)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	newParentURI, newName := path.Split(newEntryURI)
+	_, newParentID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, newParentURI)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	en, err = s.core.GetEntry(ctx.Request.Context(), caller.Namespace, entryID)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+	err = core.HasAllPermissions(en.Access, caller.UID, caller.GID, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	newParent, err := s.core.GetEntry(ctx.Request.Context(), caller.Namespace, newParentID)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+	err = core.HasAllPermissions(newParent.Access, caller.UID, caller.GID, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	var existObjID *int64
+	existObj, err := s.core.FindEntry(ctx.Request.Context(), caller.Namespace, newParentID, newName)
+	if err != nil && !errors.Is(err, types.ErrNotFound) {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+	if existObj != nil {
+		existObjID = &existObj.ChildID
+	}
+
+	err = s.core.ChangeEntryParent(ctx.Request.Context(), caller.Namespace, entryID, existObjID, oldParentID, newParentID, oldName, newName, types.ChangeParentAttr{
+		Uid: caller.UID,
+		Gid: caller.GID,
+	})
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"entry": toEntryInfo(newParentURI, newName, en, nil)})
+}
+
+func (s *ServicesV1) EntryProperty(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	var req UpdatePropertyRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	en, _ := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	if en == nil {
+		return
+	}
+
+	properties := &types.Properties{}
+	err := s.meta.GetEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeProperty, en.ID, properties)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	properties.Tags = req.Tags
+	properties.Properties = req.Properties
+
+	err = s.meta.UpdateEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeProperty, en.ID, properties)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{
+		"properties": &Property{
+			Tags:       properties.Tags,
+			Properties: properties.Properties,
+		},
+	})
+}
+
+func (s *ServicesV1) EntryDocument(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	var req UpdateDocumentPropertyRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	en, _ := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	if en == nil {
+		return
+	}
+
+	if en.IsGroup {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "group has no document properties"})
+		return
+	}
+
+	properties := &types.DocumentProperties{}
+	err := s.meta.GetEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeDocument, en.ID, properties)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	if req.Unread {
+		properties.Unread = true
+	}
+	if req.Marked {
+		properties.Marked = true
+	}
+
+	err = s.meta.UpdateEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeDocument, en.ID, properties)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{
+		"properties": &DocumentProperty{
+			Title:       properties.Title,
+			Author:      properties.Author,
+			Year:        properties.Year,
+			Source:      properties.Source,
+			Abstract:    properties.Abstract,
+			Keywords:    properties.Keywords,
+			Notes:       properties.Notes,
+			Unread:      properties.Unread,
+			Marked:      properties.Marked,
+			PublishAt:   time.Unix(properties.PublishAt, 0),
+			URL:         properties.URL,
+			HeaderImage: properties.HeaderImage,
+		},
+	})
+}
+
+func (s *ServicesV1) EntryDelete(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	en, uri := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	if en == nil {
+		return
+	}
+
+	parentID, entryID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, uri)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	deletedEntry, err := s.deleteEntry(ctx.Request.Context(), caller.Namespace, caller.UID, parentID, entryID, path.Base(uri))
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	parentURI, name := path.Split(uri)
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"entry": toEntryInfo(parentURI, name, deletedEntry, nil)})
+}
+
+func (s *ServicesV1) UpdateProperty(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	var req UpdatePropertyRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	en, _ := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	if en == nil {
+		return
+	}
+
+	properties := &types.Properties{}
+	err := s.meta.GetEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeProperty, en.ID, properties)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	properties.Tags = req.Tags
+	properties.Properties = req.Properties
+
+	err = s.meta.UpdateEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeProperty, en.ID, properties)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{
+		"properties": &Property{
+			Tags:       properties.Tags,
+			Properties: properties.Properties,
+		},
+	})
+}
+
+func (s *ServicesV1) UpdateDocumentProperty(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	var req UpdateDocumentPropertyRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	en, _ := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	if en == nil {
+		return
+	}
+
+	if en.IsGroup {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "group has no document properties"})
+		return
+	}
+
+	properties := &types.DocumentProperties{}
+	err := s.meta.GetEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeDocument, en.ID, properties)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	properties.Unread = req.Unread
+	properties.Marked = req.Marked
+
+	err = s.meta.UpdateEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeDocument, en.ID, properties)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, gin.H{
+		"properties": &DocumentProperty{
+			Title:       properties.Title,
+			Author:      properties.Author,
+			Year:        properties.Year,
+			Source:      properties.Source,
+			Abstract:    properties.Abstract,
+			Keywords:    properties.Keywords,
+			Notes:       properties.Notes,
+			Unread:      properties.Unread,
+			Marked:      properties.Marked,
+			PublishAt:   time.Unix(properties.PublishAt, 0),
+			URL:         properties.URL,
+			HeaderImage: properties.HeaderImage,
+		},
+	})
+}

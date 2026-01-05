@@ -269,14 +269,14 @@ func TestEvalCEL(t *testing.T) {
 
 func TestBuildCELFilterFromMatch(t *testing.T) {
 	tests := []struct {
-		name   string
-		match  *types.WorkflowLocalFileWatch
-		want   string
+		name  string
+		match *types.WorkflowLocalFileWatch
+		want  string
 	}{
 		{
-			name:   "empty match",
-			match:  &types.WorkflowLocalFileWatch{},
-			want:   "",
+			name:  "empty match",
+			match: &types.WorkflowLocalFileWatch{},
+			want:  "",
 		},
 		{
 			name: "file types returns empty",

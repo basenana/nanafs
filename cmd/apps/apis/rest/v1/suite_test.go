@@ -271,3 +271,7 @@ var _ = BeforeEach(func() {
 	// Create a fresh test router for each test to ensure isolation
 	testRouter = NewTestRouter()
 })
+
+func BoolPtr(b bool) *bool {
+	return &b
+}

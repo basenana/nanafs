@@ -80,7 +80,7 @@ func RegisterRoutes(engine *gin.Engine, s *ServicesV1) {
 			workflows.POST("/:id/trigger", s.TriggerWorkflow)
 		}
 
-		// Configs - Namespace 级别的配置中心
+		// Configs - Namespace-level configuration center
 		configs := v1.Group("/configs")
 		{
 			configs.GET("/:group/:name", s.GetConfig)
