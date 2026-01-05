@@ -586,6 +586,229 @@ List jobs for a specific workflow.
 }
 ```
 
+#### POST /api/v1/workflows
+
+Create a new workflow.
+
+**Request Body:**
+```json
+{
+  "name": "Process RSS Feed",
+  "trigger": {
+    "rss": {
+      "feed": "https://example.com/feed.xml",
+      "interval": 3600
+    }
+  },
+  "nodes": [
+    {
+      "name": "fetch",
+      "type": "http",
+      "config": {
+        "url": "{{.entry.uri}}"
+      }
+    },
+    {
+      "name": "parse",
+      "type": "rss-parser"
+    }
+  ],
+  "enable": true,
+  "queue_name": "rss-processing"
+}
+```
+
+**Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | yes | Workflow name |
+| `trigger` | object | yes | Trigger configuration (RSS, Interval, or LocalFileWatch) |
+| `nodes` | array | yes | Workflow nodes/steps |
+| `enable` | bool | no | Enable/disable workflow (default: true) |
+| `queue_name` | string | no | Queue name for job processing |
+
+**Response:**
+```json
+{
+  "workflow": {
+    "id": "wf-002",
+    "name": "Process RSS Feed",
+    "queue_name": "rss-processing",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z",
+    "last_triggered_at": null
+  }
+}
+```
+
+#### GET /api/v1/workflows/:id
+
+Retrieve a specific workflow.
+
+**Response:**
+```json
+{
+  "workflow": {
+    "id": "wf-001",
+    "name": "Process RSS",
+    "queue_name": "rss-processing",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z",
+    "last_triggered_at": "2024-01-02T00:00:00Z"
+  }
+}
+```
+
+#### PUT /api/v1/workflows/:id
+
+Update an existing workflow.
+
+**Request Body:**
+```json
+{
+  "name": "Updated Workflow Name",
+  "enable": false,
+  "queue_name": "new-queue-name"
+}
+```
+
+**Note:** All fields are optional. Only provided fields will be updated.
+
+**Response:**
+```json
+{
+  "workflow": {
+    "id": "wf-001",
+    "name": "Updated Workflow Name",
+    "queue_name": "new-queue-name",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-03T00:00:00Z",
+    "last_triggered_at": "2024-01-02T00:00:00Z"
+  }
+}
+```
+
+#### DELETE /api/v1/workflows/:id
+
+Delete a workflow.
+
+**Response:**
+```json
+{
+  "message": "workflow deleted"
+}
+```
+
+#### GET /api/v1/workflows/:id/jobs
+
+List all jobs for a specific workflow.
+
+**Response:**
+```json
+{
+  "jobs": [
+    {
+      "id": "job-001",
+      "workflow": "wf-001",
+      "trigger_reason": "manual",
+      "status": "completed",
+      "message": "",
+      "queue_name": "rss-processing",
+      "target": {
+        "entries": ["/inbox/rss/feed-001"]
+      },
+      "steps": [
+        {
+          "name": "fetch",
+          "status": "completed",
+          "message": ""
+        },
+        {
+          "name": "parse",
+          "status": "completed",
+          "message": ""
+        }
+      ],
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z",
+      "start_at": "2024-01-01T00:00:00Z",
+      "finish_at": "2024-01-01T00:01:00Z"
+    }
+  ]
+}
+```
+
+#### GET /api/v1/workflows/:id/jobs/:jobId
+
+Get details of a specific job.
+
+**Response:**
+```json
+{
+  "job": {
+    "id": "job-001",
+    "workflow": "wf-001",
+    "trigger_reason": "manual",
+    "status": "completed",
+    "message": "",
+    "queue_name": "rss-processing",
+    "target": {
+      "entries": ["/inbox/rss/feed-001"]
+    },
+    "steps": [
+      {
+        "name": "fetch",
+        "status": "completed",
+        "message": ""
+      },
+      {
+        "name": "parse",
+        "status": "completed",
+        "message": ""
+      }
+    ],
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z",
+    "start_at": "2024-01-01T00:00:00Z",
+    "finish_at": "2024-01-01T00:01:00Z"
+  }
+}
+```
+
+#### POST /api/v1/workflows/:id/jobs/:jobId/pause
+
+Pause a running job.
+
+**Response:**
+```json
+{
+  "message": "job paused"
+}
+```
+
+#### POST /api/v1/workflows/:id/jobs/:jobId/resume
+
+Resume a paused job.
+
+**Response:**
+```json
+{
+  "message": "job resumed"
+}
+```
+
+#### POST /api/v1/workflows/:id/jobs/:jobId/cancel
+
+Cancel a job.
+
+**Response:**
+```json
+{
+  "message": "job cancelled"
+}
+```
+
 #### POST /api/v1/workflows/:id/trigger
 
 Manually trigger a workflow.
@@ -593,17 +816,100 @@ Manually trigger a workflow.
 **Request Body:**
 ```json
 {
-  "workflow_id": "wf-001",
   "uri": "/inbox/rss/feed-001",
   "reason": "manual trigger",
   "timeout": 300
 }
 ```
 
+**Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `uri` | string | no | Entry URI to trigger workflow on |
+| `reason` | string | no | Reason for triggering |
+| `timeout` | int64 | no | Timeout in seconds (default: 600) |
+
 **Response:**
 ```json
 {
   "job_id": "job-002"
+}
+```
+
+---
+
+### 7. Configs (配置管理)
+
+Configs API for managing system configuration.
+
+#### GET /api/v1/configs/:group/:name
+
+Retrieve a specific config value.
+
+**Response:**
+```json
+{
+  "group": "workflow",
+  "name": "max_retries",
+  "value": "3"
+}
+```
+
+#### PUT /api/v1/configs/:group/:name
+
+Set a config value.
+
+**Request Body:**
+```json
+{
+  "value": "5"
+}
+```
+
+**Response:**
+```json
+{
+  "group": "workflow",
+  "name": "max_retries",
+  "value": "5"
+}
+```
+
+#### GET /api/v1/configs/:group
+
+List all configs in a group.
+
+**Response:**
+```json
+{
+  "items": [
+    {
+      "group": "workflow",
+      "name": "max_retries",
+      "value": "3",
+      "changed_at": "2024-01-01T00:00:00Z"
+    },
+    {
+      "group": "workflow",
+      "name": "default_timeout",
+      "value": "600",
+      "changed_at": "2024-01-01T00:00:00Z"
+    }
+  ]
+}
+```
+
+#### DELETE /api/v1/configs/:group/:name
+
+Delete a config.
+
+**Response:**
+```json
+{
+  "group": "workflow",
+  "name": "max_retries",
+  "deleted": true
 }
 ```
 
@@ -629,6 +935,17 @@ All errors follow a consistent format:
 | 401 | Unauthorized - Authentication required |
 | 404 | Not Found - Resource does not exist |
 | 500 | Internal Server Error |
+
+**Error Codes:**
+
+| Code | Description |
+|------|-------------|
+| `INVALID_ARGUMENT` | Invalid request parameters |
+| `NOT_FOUND` | Resource not found |
+| `CONFIG_NOT_FOUND` | Configuration not found |
+| `SET_CONFIG_FAILED` | Failed to set configuration |
+| `LIST_CONFIG_FAILED` | Failed to list configurations |
+| `DELETE_CONFIG_FAILED` | Failed to delete configuration |
 
 ---
 
