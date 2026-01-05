@@ -29,9 +29,9 @@ import (
 	"github.com/google/cel-go/common/types/ref"
 )
 
-func EntryMatch(ctx context.Context, entry *types.Entry, match *types.WorkflowEntryMatch) (bool, error) {
-	if match.FileNamePattern != "" {
-		matched, err := filepath.Match(match.FileNamePattern, entry.Name)
+func EntryMatch(ctx context.Context, entry *types.Entry, match *types.WorkflowLocalFileWatch) (bool, error) {
+	if match.FilePattern != "" {
+		matched, err := filepath.Match(match.FilePattern, entry.Name)
 		if err != nil {
 			return false, err
 		}
@@ -135,11 +135,11 @@ func EvalCEL(ctx context.Context, entry *types.Entry, pattern string) (bool, err
 	return out == celTypes.Bool(true), nil
 }
 
-func BuildCELFilterFromMatch(match *types.WorkflowEntryMatch) string {
+func BuildCELFilterFromMatch(match *types.WorkflowLocalFileWatch) string {
 	var conditions []string
 
-	if match.FileNamePattern != "" {
-		sqlPattern := globToSQLLike(match.FileNamePattern)
+	if match.FilePattern != "" {
+		sqlPattern := globToSQLLike(match.FilePattern)
 		conditions = append(conditions, sqlPattern)
 	}
 
@@ -152,10 +152,6 @@ func BuildCELFilterFromMatch(match *types.WorkflowEntryMatch) string {
 	}
 	if match.MaxFileSize > 0 {
 		conditions = append(conditions, "size <= "+itoa(match.MaxFileSize))
-	}
-
-	if match.ParentID > 0 {
-		return ""
 	}
 
 	if match.CELPattern != "" {
@@ -183,4 +179,51 @@ func itoa(i int) string {
 		i /= 10
 	}
 	return result
+}
+
+// EvalCELWithVars evaluates a CEL expression with custom variables map.
+// This is used for workflow condition evaluation where variables come from context results.
+func EvalCELWithVars(vars map[string]any, pattern string) (bool, error) {
+	envOpts := []goCEL.EnvOption{}
+
+	// Add variables based on the input map
+	for k, v := range vars {
+		switch v.(type) {
+		case int, int64:
+			envOpts = append(envOpts, goCEL.Variable(k, goCEL.IntType))
+		case string:
+			envOpts = append(envOpts, goCEL.Variable(k, goCEL.StringType))
+		case bool:
+			envOpts = append(envOpts, goCEL.Variable(k, goCEL.BoolType))
+		case float64:
+			envOpts = append(envOpts, goCEL.Variable(k, goCEL.DoubleType))
+		}
+	}
+
+	e, err := goCEL.NewEnv(envOpts...)
+	if err != nil {
+		return false, err
+	}
+
+	ast, issues := e.Compile(pattern)
+	if issues != nil {
+		return false, issues.Err()
+	}
+
+	prg, err := e.Program(ast)
+	if err != nil {
+		return false, err
+	}
+
+	act, err := goCEL.NewActivation(vars)
+	if err != nil {
+		return false, err
+	}
+
+	out, _, err := prg.Eval(act)
+	if err != nil {
+		return false, err
+	}
+
+	return out == celTypes.Bool(true), nil
 }

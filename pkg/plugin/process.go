@@ -21,8 +21,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/basenana/nanafs/pkg/plugin/buildin"
 	"github.com/basenana/nanafs/pkg/plugin/buildin/docloader"
+	"github.com/basenana/nanafs/pkg/plugin/buildin/web"
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
 )
@@ -104,5 +104,5 @@ func (d *DelayProcessPlugin) Run(ctx context.Context, request *pluginapi.Request
 func registerBuildInProcessPlugin(r *registry) {
 	r.Register(delayPluginName, DelayProcessPluginSpec, &DelayProcessPlugin{})
 	r.Register(docloader.PluginName, docloader.PluginSpec, docloader.NewDocLoader())
-	r.Register(buildin.WebpackPluginName, buildin.WebpackPluginSpec, buildin.NewWebpackPlugin())
+	r.Register(web.WebpackPluginName, web.WebpackPluginSpec, web.NewWebpackPlugin())
 }

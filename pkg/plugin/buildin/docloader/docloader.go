@@ -53,27 +53,30 @@ func (d DocLoader) Version() string {
 }
 
 func (d DocLoader) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
-	var result = make([]pluginapi.Entry, 0, len(request.Entries))
-	for i := range request.Entries {
-		en := request.Entries[i]
-		if err := d.loadEntry(ctx, request.WorkingPath, &en); err != nil {
-			return pluginapi.NewFailedResponse(fmt.Sprintf("load entry %d error: %s", en.ID, err.Error())), nil
-		}
-
-		if en.Document == nil {
-			continue
-		}
-		result = append(result, en)
+	filePath := request.Parameter["file_path"]
+	if filePath == "" {
+		return pluginapi.NewFailedResponse("file_path is required"), nil
 	}
 
-	resp := pluginapi.NewResponse()
-	resp.ModifyEntries = append(resp.ModifyEntries, result...)
+	doc, err := d.loadDocument(ctx, request.WorkingPath, filePath)
+	if err != nil {
+		return pluginapi.NewFailedResponse(fmt.Sprintf("load document %s error: %s", filePath, err.Error())), nil
+	}
+
+	resp := pluginapi.NewResponseWithResult(map[string]any{
+		"file_path": filePath,
+		"document": map[string]any{
+			"title":      doc.Title,
+			"content":    doc.Content,
+			"properties": doc.DocumentProperties,
+		},
+	})
 	return resp, nil
 }
 
-func (d DocLoader) loadEntry(ctx context.Context, workdir string, entry *pluginapi.Entry) error {
+func (d DocLoader) loadDocument(ctx context.Context, workdir, filePath string) (*FDocument, error) {
 	var (
-		entryPath   = path.Join(workdir, entry.Name)
+		entryPath   = path.Join(workdir, filePath)
 		fileExt     = filepath.Ext(entryPath)
 		p           Parser
 		parseOption = map[string]string{}
@@ -91,27 +94,21 @@ func (d DocLoader) loadEntry(ctx context.Context, workdir string, entry *plugina
 	case ".epub":
 		p = buildInLoaders[epubParser](entryPath, parseOption)
 	default:
-		return fmt.Errorf("load %s file unsupported", fileExt)
+		return nil, fmt.Errorf("load %s file unsupported", fileExt)
 	}
 
-	document, err := p.Load(ctx, entry.Document.DocumentProperties)
+	document, err := p.Load(ctx, types.DocumentProperties{})
 	if err != nil {
-		return fmt.Errorf("load file %s failed: %w", entryPath, err)
+		return nil, fmt.Errorf("load file %s failed: %w", entryPath, err)
 	}
 
-	entry.Document = &pluginapi.Document{
-		Content:            document.Content,
-		DocumentProperties: document.DocumentProperties,
+	// set default title
+	if document.Title == "" {
+		title := strings.TrimSpace(strings.TrimSuffix(filePath, fileExt))
+		document.Title = title
 	}
 
-	// some default setting
-	if entry.Document.Title == "" {
-		title := strings.TrimSpace(strings.TrimSuffix(entry.Name, fileExt))
-		entry.Document.Title = title
-	}
-	entry.Document.Unread = true
-
-	return nil
+	return document, nil
 }
 
 func NewDocLoader() *DocLoader {

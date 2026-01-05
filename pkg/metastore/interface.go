@@ -34,6 +34,8 @@ type SysConfig interface {
 	SystemInfo(ctx context.Context) (*types.SystemInfo, error)
 	GetConfigValue(ctx context.Context, namespace, group, name string) (string, error)
 	SetConfigValue(ctx context.Context, namespace, group, name, value string) error
+	ListConfigValues(ctx context.Context, namespace, group string) ([]types.ConfigItem, error)
+	DeleteConfigValue(ctx context.Context, namespace, group, name string) error
 }
 
 type EntryStore interface {

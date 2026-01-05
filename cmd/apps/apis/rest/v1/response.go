@@ -39,23 +39,23 @@ type EntryInfo struct {
 
 // EntryDetail 条目详情
 type EntryDetail struct {
-	URI       string            `json:"uri"`
-	Entry     int64             `json:"entry"`
-	Name      string            `json:"name"`
-	Aliases   string            `json:"aliases"`
-	Kind      string            `json:"kind"`
-	IsGroup   bool              `json:"is_group"`
-	Size      int64             `json:"size"`
-	Version   int64             `json:"version"`
-	Namespace string            `json:"namespace"`
-	Storage   string            `json:"storage"`
-	Access    *Access           `json:"access"`
-	Property  *Property         `json:"property"`
-	Document  *DocumentProperty `json:"document,omitempty"`
-	CreatedAt time.Time         `json:"created_at"`
-	ChangedAt time.Time         `json:"changed_at"`
-	ModifiedAt time.Time        `json:"modified_at"`
-	AccessAt  time.Time         `json:"access_at"`
+	URI        string            `json:"uri"`
+	Entry      int64             `json:"entry"`
+	Name       string            `json:"name"`
+	Aliases    string            `json:"aliases"`
+	Kind       string            `json:"kind"`
+	IsGroup    bool              `json:"is_group"`
+	Size       int64             `json:"size"`
+	Version    int64             `json:"version"`
+	Namespace  string            `json:"namespace"`
+	Storage    string            `json:"storage"`
+	Access     *Access           `json:"access"`
+	Property   *Property         `json:"property"`
+	Document   *DocumentProperty `json:"document,omitempty"`
+	CreatedAt  time.Time         `json:"created_at"`
+	ChangedAt  time.Time         `json:"changed_at"`
+	ModifiedAt time.Time         `json:"modified_at"`
+	AccessAt   time.Time         `json:"access_at"`
 }
 
 // Access 访问权限
@@ -89,8 +89,8 @@ type Property struct {
 
 // GroupEntry 组条目
 type GroupEntry struct {
-	Name     string       `json:"name"`
-	URI      string       `json:"uri"`
+	Name     string        `json:"name"`
+	URI      string        `json:"uri"`
 	Children []*GroupEntry `json:"children"`
 }
 
@@ -279,6 +279,19 @@ func toWorkflowInfo(w *types.Workflow) *WorkflowInfo {
 		UpdatedAt:       w.UpdatedAt,
 		LastTriggeredAt: w.LastTriggeredAt,
 	}
+}
+
+// ConfigResponse 配置响应
+type ConfigResponse struct {
+	Group     string    `json:"group"`
+	Name      string    `json:"name"`
+	Value     string    `json:"value"`
+	ChangedAt time.Time `json:"changed_at"`
+}
+
+// ListConfigResponse 列出配置响应
+type ListConfigResponse struct {
+	Items []types.ConfigItem `json:"items"`
 }
 
 func toWorkflowJobDetail(j *types.WorkflowJob) *WorkflowJobDetail {

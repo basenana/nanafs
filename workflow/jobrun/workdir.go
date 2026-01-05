@@ -21,11 +21,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/core"
 	"io"
 	"os"
 	"path"
 	"time"
+
+	"github.com/basenana/nanafs/pkg/core"
 
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
@@ -88,19 +89,20 @@ func entryWorkdirInit(ctx context.Context, namespace, entryUri string, fsCore co
 	if entry.IsGroup {
 		return nil, fmt.Errorf("entry is a group")
 	}
+	entryName := path.Base(entryUri)
 
 	result := &pluginapi.Entry{
 		ID:         entry.ID,
-		Name:       path.Base(entryUri),
+		Name:       entryName,
 		Kind:       entry.Kind,
 		Size:       entry.Size,
 		IsGroup:    entry.IsGroup,
 		Properties: nil,
 		Document:   nil,
 	}
+	result.Path = path.Join(workdir, entryName)
 
-	entryPath := path.Join(workdir, entry.Name)
-	enInfo, err := os.Stat(entryPath)
+	enInfo, err := os.Stat(result.Path)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
@@ -115,7 +117,7 @@ func entryWorkdirInit(ctx context.Context, namespace, entryUri string, fsCore co
 	}
 	defer f.Close(ctx)
 
-	if err = copyEntryToJobWorkDir(ctx, entryPath, entry, f); err != nil {
+	if err = copyEntryToJobWorkDir(ctx, result.Path, entry, f); err != nil {
 		return nil, fmt.Errorf("copy entry file failed: %s", err)
 	}
 	return result, nil

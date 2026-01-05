@@ -33,9 +33,9 @@ var _ = Describe("TestWorkflowManage", func() {
 			Namespace: namespace,
 			Nodes: []types.WorkflowNode{
 				{
-					Name:       "step-1",
-					Type:       "delay",
-					Parameters: map[string]string{"delay": "5s"},
+					Name:   "step-1",
+					Type:   "delay",
+					Params: map[string]string{"delay": "5s"},
 				},
 			},
 			QueueName: types.WorkflowQueueFile,
@@ -98,15 +98,15 @@ var _ = Describe("TestWorkflowJobManage", func() {
 			Namespace: namespace,
 			Nodes: []types.WorkflowNode{
 				{
-					Name:       "step-1",
-					Type:       "delay",
-					Parameters: map[string]string{"delay": "2s"},
-					Next:       "step-2",
+					Name:   "step-1",
+					Type:   "delay",
+					Params: map[string]string{"delay": "2s"},
+					Next:   "step-2",
 				},
 				{
-					Name:       "step-2",
-					Type:       "delay",
-					Parameters: map[string]string{"delay": "2s"},
+					Name:   "step-2",
+					Type:   "delay",
+					Params: map[string]string{"delay": "2s"},
 				},
 			},
 			QueueName: types.WorkflowQueueFile,

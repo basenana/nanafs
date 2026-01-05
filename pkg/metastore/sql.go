@@ -201,6 +201,38 @@ func (s *sqlMetaStore) SetConfigValue(ctx context.Context, namespace, group, nam
 	return res.Error
 }
 
+func (s *sqlMetaStore) ListConfigValues(ctx context.Context, namespace, group string) ([]types.ConfigItem, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.ListConfigValues").End()
+	requireLock()
+	defer releaseLock()
+	var configs []db.SystemConfig
+	res := s.WithNamespace(ctx, namespace).Where("cfg_group = ?", group).Find(&configs)
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
+	}
+	result := make([]types.ConfigItem, len(configs))
+	for i, cfg := range configs {
+		result[i] = types.ConfigItem{
+			Group:     cfg.Group,
+			Name:      cfg.Name,
+			Value:     cfg.Value,
+			ChangedAt: cfg.ChangedAt,
+		}
+	}
+	return result, nil
+}
+
+func (s *sqlMetaStore) DeleteConfigValue(ctx context.Context, namespace, group, name string) error {
+	defer trace.StartRegion(ctx, "metastore.sql.DeleteConfigValue").End()
+	requireLock()
+	defer releaseLock()
+	res := s.WithNamespace(ctx, namespace).Where("cfg_group = ? AND cfg_name = ?", group, name).Delete(&db.SystemConfig{})
+	if res.Error != nil {
+		return db.SqlError2Error(res.Error)
+	}
+	return nil
+}
+
 func (s *sqlMetaStore) GetEntry(ctx context.Context, namespace string, id int64) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.GetEntry").End()
 	requireLock()

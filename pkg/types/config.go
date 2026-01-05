@@ -14,32 +14,13 @@
  limitations under the License.
 */
 
-package plugin
+package types
 
-import (
-	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/utils/logger"
-	"testing"
+import "time"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-)
-
-var (
-	mgr Manager
-)
-
-func TestPlugin(t *testing.T) {
-	logger.InitLogger()
-	defer logger.Sync()
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Plugin Suite")
+type ConfigItem struct {
+	Group     string    `json:"group"`
+	Name      string    `json:"name"`
+	Value     string    `json:"value"`
+	ChangedAt time.Time `json:"changed_at"`
 }
-
-var _ = BeforeSuite(func() {
-	// init plugin registry
-	var err error
-	cfg := config.NewMockConfig(config.Bootstrap{})
-	mgr, err = Init(cfg.GetBootstrapConfig().Workflow)
-	Expect(err).Should(BeNil())
-})

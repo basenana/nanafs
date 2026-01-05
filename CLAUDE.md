@@ -68,7 +68,7 @@ NanaFS is a **Reference Filing System** inspired by GTD methodology, designed as
 **CLI Entry Points (`cmd/`)**
 - `cmd/main.go` - Main application entry point
 - `cmd/apps/` - Cobra-based CLI structure:
-  - `apis/` - API servers (FS API, WebDAV)
+  - `apis/` - API servers (RESTful API, WebDAV)
   - `fuse/` - FUSE file system implementation
 
 **Configuration (`config/`)**
@@ -102,6 +102,7 @@ NanaFS is a **Reference Filing System** inspired by GTD methodology, designed as
 - Follow standard Go conventions and idioms
 - Structured logging with zap (`utils/logger/`)
 - Error handling follows Go conventions with `pkg/errors` for wrapping
+- Code comments should only be added when absolutely necessary, and comments should be in English.
 
 ### Release Process
 - Automated releases via GoReleaser (`.goreleaser.yaml`)

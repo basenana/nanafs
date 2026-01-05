@@ -19,17 +19,20 @@ package jobrun
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/core"
-	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
-	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
-	"github.com/prometheus/client_golang/prometheus"
 	"io"
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/basenana/nanafs/pkg/core"
+	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 )
 
 var (
@@ -140,10 +143,10 @@ func logOperationError(execName, operation string, err error) error {
 }
 
 func renderParams(tplContent string, data map[string]interface{}) string {
-	if !strings.Contains(tplContent, "{") {
+	if !strings.Contains(tplContent, "{{") {
 		return tplContent
 	}
-	tpl, err := template.New("params").Parse(tplContent)
+	tpl, err := template.New("params").Delims("{{", "}}").Parse(tplContent)
 	if err != nil {
 		return tplContent
 	}
@@ -154,4 +157,125 @@ func renderParams(tplContent string, data map[string]interface{}) string {
 		return tplContent
 	}
 	return buf.String()
+}
+
+// renderMatrixParam renders a single template reference and returns the value
+// It handles both map key access and direct template execution
+func renderMatrixParam(tplRef string, ctxData map[string]interface{}) string {
+	// For simple variable references like "{{ file_paths }}", extract the variable name
+	if strings.HasPrefix(tplRef, "{{") && strings.HasSuffix(tplRef, "}}") {
+		varName := strings.TrimSpace(strings.TrimPrefix(tplRef, "{{"))
+		varName = strings.TrimSpace(strings.TrimSuffix(varName, "}}"))
+		if val, ok := ctxData[varName]; ok {
+			// If value is a slice (array), marshal to JSON for parsing
+			if sliceVal, ok := val.([]any); ok {
+				jsonBytes, err := json.Marshal(sliceVal)
+				if err == nil {
+					return string(jsonBytes)
+				}
+			}
+			// Return the value as string representation
+			return fmt.Sprintf("%v", val)
+		}
+		return tplRef
+	}
+
+	// For complex templates, use the template engine
+	return renderParams(tplRef, ctxData)
+}
+
+// matrixIteration represents a single iteration's variable values
+type matrixIteration struct {
+	Variables map[string]any
+}
+
+// renderMatrixData parses matrix configuration and returns iteration data
+// It extracts array values from context and generates Cartesian product if needed
+func renderMatrixData(matrixData map[string]string, ctxResults pluginapi.Results) ([]matrixIteration, error) {
+	if len(matrixData) == 0 {
+		return nil, fmt.Errorf("matrix data is empty")
+	}
+
+	ctxData := ctxResults.Data()
+	var arrayVars []struct {
+		name   string
+		values []any
+	}
+
+	// First pass: extract all array variables
+	for varName, tplRef := range matrixData {
+		// Render the template reference to get actual value
+		rendered := renderMatrixParam(tplRef, ctxData)
+		if rendered == tplRef {
+			// Template not resolved, skip or treat as scalar
+			continue
+		}
+
+		// Try to parse as JSON array
+		var values []any
+		if err := json.Unmarshal([]byte(rendered), &values); err != nil {
+			// Not an array, skip for array extraction
+			continue
+		}
+
+		arrayVars = append(arrayVars, struct {
+			name   string
+			values []any
+		}{name: varName, values: values})
+	}
+
+	// If no array variables found, return empty
+	if len(arrayVars) == 0 {
+		return nil, fmt.Errorf("no array variables found in matrix data")
+	}
+
+	// Generate Cartesian product
+	var iterations []matrixIteration
+
+	if len(arrayVars) == 1 {
+		// Single array - simple iteration
+		for _, val := range arrayVars[0].values {
+			iterations = append(iterations, matrixIteration{
+				Variables: map[string]any{
+					arrayVars[0].name: val,
+				},
+			})
+		}
+	} else {
+		// Multiple arrays - Cartesian product
+		// Recursive helper for Cartesian product
+		var cartesian func(idx int, current map[string]any)
+		cartesian = func(idx int, current map[string]any) {
+			if idx == len(arrayVars) {
+				iterations = append(iterations, matrixIteration{
+					Variables: copyMap(current),
+				})
+				return
+			}
+			for _, val := range arrayVars[idx].values {
+				current[arrayVars[idx].name] = val
+				cartesian(idx+1, current)
+			}
+		}
+		cartesian(0, make(map[string]any))
+	}
+
+	return iterations, nil
+}
+
+func copyMap(m map[string]any) map[string]any {
+	result := make(map[string]any, len(m))
+	for k, v := range m {
+		result[k] = v
+	}
+	return result
+}
+
+func injectGlobalVars(job *types.WorkflowJob) map[string]interface{} {
+	return map[string]interface{}{
+		"job_id":           job.Id,
+		"workflow_id":      job.Workflow,
+		"timestamp":        time.Now().Unix(),
+		"timestampRFC3339": time.Now().Format(time.RFC3339),
+	}
 }

@@ -267,3 +267,77 @@ func buildNewSqliteMetaStore(dbName string) *sqlMetaStore {
 	Expect(err).Should(BeNil())
 	return result
 }
+
+var _ = Describe("TestSysConfig", func() {
+	var sqlite = buildNewSqliteMetaStore("test_config.db")
+	// init root
+	rootEn := InitRootEntry()
+	Expect(sqlite.CreateEntry(context.TODO(), namespace, 0, rootEn)).Should(BeNil())
+
+	Context("set and get config value", func() {
+		It("should succeed", func() {
+			err := sqlite.SetConfigValue(context.TODO(), namespace, "test-group", "key1", "value1")
+			Expect(err).Should(BeNil())
+
+			val, err := sqlite.GetConfigValue(context.TODO(), namespace, "test-group", "key1")
+			Expect(err).Should(BeNil())
+			Expect(val).Should(Equal("value1"))
+		})
+
+		It("should update existing config", func() {
+			err := sqlite.SetConfigValue(context.TODO(), namespace, "test-group", "key1", "value2")
+			Expect(err).Should(BeNil())
+
+			val, err := sqlite.GetConfigValue(context.TODO(), namespace, "test-group", "key1")
+			Expect(err).Should(BeNil())
+			Expect(val).Should(Equal("value2"))
+		})
+	})
+
+	Context("list config values by group", func() {
+		It("should list all configs in the group", func() {
+			// Set multiple configs in the same group
+			_ = sqlite.SetConfigValue(context.TODO(), namespace, "list-group", "name1", "val1")
+			_ = sqlite.SetConfigValue(context.TODO(), namespace, "list-group", "name2", "val2")
+			_ = sqlite.SetConfigValue(context.TODO(), namespace, "list-group", "name3", "val3")
+
+			configs, err := sqlite.ListConfigValues(context.TODO(), namespace, "list-group")
+			Expect(err).Should(BeNil())
+			Expect(len(configs)).Should(Equal(3))
+
+			// Verify all configs are returned
+			names := make(map[string]bool)
+			for _, cfg := range configs {
+				names[cfg.Name] = true
+				Expect(cfg.Group).Should(Equal("list-group"))
+			}
+			Expect(names["name1"]).Should(BeTrue())
+			Expect(names["name2"]).Should(BeTrue())
+			Expect(names["name3"]).Should(BeTrue())
+		})
+
+		It("should return empty list for non-existent group", func() {
+			configs, err := sqlite.ListConfigValues(context.TODO(), namespace, "non-existent")
+			Expect(err).Should(BeNil())
+			Expect(len(configs)).Should(Equal(0))
+		})
+	})
+
+	Context("delete config value", func() {
+		It("should delete existing config", func() {
+			_ = sqlite.SetConfigValue(context.TODO(), namespace, "delete-group", "to-delete", "delete-value")
+
+			err := sqlite.DeleteConfigValue(context.TODO(), namespace, "delete-group", "to-delete")
+			Expect(err).Should(BeNil())
+
+			_, err = sqlite.GetConfigValue(context.TODO(), namespace, "delete-group", "to-delete")
+			Expect(err).ShouldNot(BeNil())
+		})
+
+		It("should not return error when deleting non-existent config (GORM behavior)", func() {
+			err := sqlite.DeleteConfigValue(context.TODO(), namespace, "delete-group", "non-existent")
+			// GORM doesn't return error for non-existent records on delete
+			Expect(err).Should(BeNil())
+		})
+	})
+})

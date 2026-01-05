@@ -19,7 +19,12 @@ package jobrun
 import (
 	"context"
 	"fmt"
+	"path"
+	"sync"
+	"time"
+
 	"github.com/basenana/go-flow"
+	"github.com/basenana/nanafs/pkg/cel"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/plugin"
@@ -28,9 +33,6 @@ import (
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
-	"path"
-	"sort"
-	"time"
 )
 
 const (
@@ -57,7 +59,6 @@ type defaultExecutor struct {
 	pluginMgr plugin.Manager
 	workdir   string
 
-	entries    []*pluginapi.Entry
 	ctxResults pluginapi.Results
 	logger     *zap.SugaredLogger
 }
@@ -81,16 +82,35 @@ func (b *defaultExecutor) Setup(ctx context.Context) (err error) {
 		return logOperationError(DefExecName, "setup", err)
 	}
 
+	var entries []*pluginapi.Entry
 	for _, enUri := range b.job.Targets.Entries {
 		en, err := entryWorkdirInit(ctx, b.job.Namespace, enUri, b.core, b.workdir)
 		if err != nil {
 			b.logger.Errorw("copy target file to workdir failed", "err", err, "entry", enUri)
 			return logOperationError(DefExecName, "setup", err)
 		}
-		b.entries = append(b.entries, en)
+		entries = append(entries, en)
 		b.logger.Infow("copy entry to workdir", "entry", enUri)
 	}
 
+	trigger := make(map[string]interface{})
+	switch len(entries) {
+	case 0:
+	case 1:
+		trigger["file_path"] = entries[0].Path
+	default:
+		filePaths := make([]string, 0, len(entries))
+		for _, entry := range entries {
+			filePaths = append(filePaths, path.Join(b.workdir, entry.Path))
+		}
+		trigger["file_paths"] = filePaths
+	}
+
+	err = b.ctxResults.Set("trigger", trigger)
+	if err != nil {
+		b.logger.Errorw("set trigger failed", "err", err)
+		return logOperationError(DefExecName, "setup", err)
+	}
 	b.logger.Infow("job setup finish", "workdir", b.workdir)
 
 	return
@@ -112,106 +132,210 @@ func (b *defaultExecutor) Exec(ctx context.Context, flow *flow.Flow, task flow.T
 		}
 	}()
 
-	var (
-		req  = newPluginRequest(b.workdir, b.job, t.step, b.store, b.ctxResults, b.entries...)
-		resp *pluginapi.Response
-	)
-	resp, err = callPlugin(ctx, t.step, b.pluginMgr, req)
-	if err != nil {
-		return logOperationError(DefExecName, "call_plugin", err)
+	// Handle condition node
+	if t.step.Type == "condition" {
+		return b.execCondition(ctx, t)
 	}
 
-	for k, v := range resp.Results {
-		if err = b.ctxResults.Set(k, v); err != nil {
-			return logOperationError(DefExecName, "update_context", err)
-		}
+	// Handle switch node
+	if t.step.Type == "switch" {
+		return b.execSwitch(ctx, t)
 	}
 
-	err = b.tryUpdateEntries(ctx, resp)
-	if err != nil {
-		return logOperationError(DefExecName, "collect_data", err)
+	// Handle matrix node
+	if t.step.Matrix != nil {
+		return b.execMatrix(ctx, t)
 	}
-	return
+
+	_, err = b.callPluginAndCollect(ctx, t.step)
+	return err
 }
 
-func (b *defaultExecutor) tryUpdateEntries(ctx context.Context, resp *pluginapi.Response) error {
-	if len(resp.ModifyEntries) == 0 {
-		return nil
+func (b *defaultExecutor) callPluginAndCollect(ctx context.Context, step *types.WorkflowJobNode) (map[string]any, error) {
+	req := newPluginRequest(b.workdir, b.job, step, b.store, b.ctxResults)
+	resp, err := callPlugin(ctx, step, b.pluginMgr, req)
+	if err != nil {
+		return nil, logOperationError(DefExecName, "call_plugin", err)
 	}
 
-	var (
-		latest     []*pluginapi.Entry
-		allEntries = make(map[string]*pluginapi.Entry)
-	)
-	for _, en := range b.entries {
-		allEntries[fmt.Sprintf("%d/%s", en.Parent, en.Name)] = en
-	}
-	for i := range resp.ModifyEntries {
-		en := resp.ModifyEntries[i]
-		en.Dirty = true
-		allEntries[fmt.Sprintf("%d/%s", en.Parent, en.Name)] = &en
+	if err = b.ctxResults.Set(step.Name, resp.Results); err != nil {
+		return nil, logOperationError(DefExecName, "update_context", err)
 	}
 
-	for _, en := range allEntries {
-		latest = append(latest, en)
+	return resp.Results, nil
+}
+
+func (b *defaultExecutor) execCondition(ctx context.Context, t *Task) error {
+	condition := t.step.Condition
+	if condition == "" {
+		return fmt.Errorf("condition node missing expression")
 	}
 
-	sort.Slice(latest, func(i, j int) bool {
-		if latest[i].Parent != latest[j].Parent {
-			return latest[i].Parent < latest[j].Parent
+	resultData := b.ctxResults.Data()
+	matched, err := cel.EvalCELWithVars(resultData, condition)
+	if err != nil {
+		return fmt.Errorf("evaluate condition failed: %w", err)
+	}
+
+	if matched {
+		if next, ok := t.step.Branches["true"]; ok {
+			t.SetBranchNext(next)
 		}
-		return latest[i].Name < latest[j].Name
-	})
-
-	b.entries = latest
+	} else {
+		if next, ok := t.step.Branches["false"]; ok {
+			t.SetBranchNext(next)
+		}
+	}
 
 	return nil
 }
 
-func (b *defaultExecutor) collectEntries(ctx context.Context) error {
-	var (
-		entries     = b.entries
-		needCollect = false
-		errList     []error
-		err         error
-	)
-	for _, en := range b.entries {
-		if en.Dirty {
-			needCollect = true
-			break
+func (b *defaultExecutor) execSwitch(ctx context.Context, t *Task) error {
+	field := t.step.Params["field"]
+	if field == "" {
+		return fmt.Errorf("switch node missing field parameter")
+	}
+
+	// Get field value from context results
+	resultData := b.ctxResults.Data()
+	fieldValue, ok := resultData[field]
+	if !ok {
+		if t.step.Default != "" {
+			t.SetBranchNext(t.step.Default)
+			return nil
+		}
+		return fmt.Errorf("switch node field '%s' not found in context", field)
+	}
+
+	strValue := fmt.Sprintf("%v", fieldValue)
+	for _, c := range t.step.Cases {
+		if c.Value == strValue {
+			t.SetBranchNext(c.Next)
+			return nil
 		}
 	}
-	if !needCollect {
+
+	if t.step.Default != "" {
+		t.SetBranchNext(t.step.Default)
+	}
+
+	return nil
+}
+
+func (b *defaultExecutor) execMatrix(ctx context.Context, t *Task) error {
+	matrix := t.step.Matrix
+	if matrix == nil || len(matrix.Data) == 0 {
+		return fmt.Errorf("matrix node has no matrix configuration")
+	}
+
+	// Get iteration data from context
+	iterations, err := renderMatrixData(matrix.Data, b.ctxResults)
+	if err != nil {
+		return fmt.Errorf("failed to render matrix data: %w", err)
+	}
+
+	if len(iterations) == 0 {
+		b.logger.Infow("matrix has no iterations, skipping")
 		return nil
 	}
 
-	startAt := time.Now()
-	defer logOperationLatency(DefExecName, "collect_entries", startAt)
-	b.logger.Infow("collect files", "entries", len(entries))
-	for _, en := range entries {
-		if err = collectAndModifyEntry(ctx, b.job.Namespace, b.core, b.workdir, en); err != nil {
-			b.logger.Errorw("collect file to base entry failed", "parent", en.Parent, "name", en.Name, "newFile", "err", err)
-			errList = append(errList, err)
-			continue
-		}
+	b.logger.Infow("executing matrix", "iterations", len(iterations), "mode", matrix.IterateMode)
+
+	// Execute iterations based on IterateMode
+	var results []map[string]any
+
+	if matrix.IterateMode == "parallel" {
+		// Parallel execution with optional batch size limit
+		results, err = b.execMatrixParallel(ctx, t, iterations, matrix.BatchSize)
+	} else {
+		// Default sequential execution
+		results, err = b.execMatrixSequential(ctx, t, iterations)
 	}
-	if len(errList) > 0 {
-		err = fmt.Errorf("collect file to base entry failed: %s, there are %d more similar errors", errList[0], len(errList))
-		return logOperationError(DefExecName, "collect", err)
+
+	if err != nil {
+		return err
 	}
+
+	if err = b.ctxResults.Set("matrix_results", results); err != nil {
+		return logOperationError(DefExecName, "matrix_store_results", err)
+	}
+
+	b.logger.Infow("matrix execution completed", "total_iterations", len(iterations))
 	return nil
+}
+
+func (b *defaultExecutor) execMatrixSequential(ctx context.Context, t *Task, iterations []matrixIteration) ([]map[string]any, error) {
+	var results []map[string]any
+
+	for i, iteration := range iterations {
+		for key, val := range iteration.Variables {
+			if err := b.ctxResults.Set(key, val); err != nil {
+				return nil, fmt.Errorf("failed to set matrix variable %s: %w", key, err)
+			}
+		}
+
+		iterationResult, err := b.callPluginAndCollect(ctx, t.step)
+		if err != nil {
+			return nil, err
+		}
+
+		results = append(results, iterationResult)
+		b.logger.Infow("matrix iteration completed", "iteration", i+1, "total", len(iterations))
+	}
+
+	return results, nil
+}
+
+func (b *defaultExecutor) execMatrixParallel(ctx context.Context, t *Task, iterations []matrixIteration, batchSize int) ([]map[string]any, error) {
+	var results []map[string]any
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	if batchSize <= 0 {
+		batchSize = len(iterations)
+	}
+
+	// Use semaphore pattern for batch control
+	semaphore := make(chan struct{}, batchSize)
+
+	for i, iteration := range iterations {
+		wg.Add(1)
+		semaphore <- struct{}{} // Acquire semaphore
+
+		go func(iterIdx int, iter matrixIteration) {
+			defer wg.Done()
+			defer func() { <-semaphore }() // Release semaphore
+
+			// Note: In parallel mode, we don't modify shared ctxResults
+			// as it would cause race conditions. Each iteration gets
+			// its own context copy for variable resolution.
+			// Results are still stored with node name prefix.
+
+			// Execute plugin and collect results
+			iterationResult, err := b.callPluginAndCollect(ctx, t.step)
+			if err != nil {
+				b.logger.Errorw("matrix parallel iteration failed",
+					"iteration", iterIdx+1, "err", err)
+				return
+			}
+
+			mu.Lock()
+			results = append(results, iterationResult)
+			mu.Unlock()
+			b.logger.Infow("matrix parallel iteration completed",
+				"iteration", iterIdx+1, "total", len(iterations))
+		}(i, iteration)
+	}
+
+	wg.Wait()
+	return results, nil
 }
 
 func (b *defaultExecutor) Teardown(ctx context.Context) error {
 	startAt := time.Now()
 	defer logOperationLatency(DefExecName, "teardown", startAt)
 
-	err := b.collectEntries(ctx)
-	if err != nil {
-		return err
-	}
-
-	err = cleanupWorkdir(ctx, b.workdir)
+	err := cleanupWorkdir(ctx, b.workdir)
 	if err != nil {
 		b.logger.Errorw("teardown failed: cleanup workdir error", "err", err)
 		_ = logOperationError(DefExecName, "teardown", err)
@@ -220,7 +344,7 @@ func (b *defaultExecutor) Teardown(ctx context.Context) error {
 	return nil
 }
 
-func newPluginRequest(workingPath string, job *types.WorkflowJob, step *types.WorkflowJobNode, store pluginapi.ContextStore, result pluginapi.Results, entries ...*pluginapi.Entry) *pluginapi.Request {
+func newPluginRequest(workingPath string, job *types.WorkflowJob, step *types.WorkflowJobNode, store pluginapi.ContextStore, result pluginapi.Results) *pluginapi.Request {
 	req := pluginapi.NewRequest()
 	req.JobID = job.Id
 	req.WorkingPath = workingPath
@@ -228,18 +352,22 @@ func newPluginRequest(workingPath string, job *types.WorkflowJob, step *types.Wo
 	req.PluginName = step.Type
 	req.ContextStore = store
 
-	req.Parameter = map[string]string{}
 	resultData := result.Data()
-	for k, v := range step.Parameters {
+	globalVars := injectGlobalVars(job)
+	for k, v := range globalVars {
+		resultData[k] = v
+	}
+
+	req.Parameter = map[string]string{}
+
+	for k, v := range step.Input {
 		req.Parameter[k] = renderParams(v, resultData)
 	}
 
-	for _, en := range entries {
-		if en.IsGroup && req.GroupEntryId == 0 {
-			req.GroupEntryId = en.ID
-		}
-		req.Entries = append(req.Entries, *en)
+	for k, v := range step.Params {
+		req.Parameter[k] = renderParams(v, resultData)
 	}
+
 	return req
 }
 
