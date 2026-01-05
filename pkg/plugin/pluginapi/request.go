@@ -17,12 +17,10 @@
 package pluginapi
 
 type Request struct {
-	JobID        string
-	GroupEntryId int64
-	WorkingPath  string
+	JobID       string
+	Namespace   string
+	WorkingPath string
 
-	Namespace  string
-	Entries    []Entry
 	PluginName string
 	Parameter  map[string]string
 

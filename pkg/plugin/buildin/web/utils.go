@@ -14,7 +14,7 @@
  limitations under the License.
 */
 
-package buildin
+package web
 
 import (
 	"net/url"

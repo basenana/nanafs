@@ -14,19 +14,20 @@
  limitations under the License.
 */
 
-package buildin
+package web
 
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
-	"github.com/basenana/nanafs/pkg/types"
-	"github.com/hyponet/webpage-packer/packer"
-	"go.uber.org/zap"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/hyponet/webpage-packer/packer"
+	"go.uber.org/zap"
 )
 
 const (
@@ -65,7 +66,6 @@ func (w *WebpackPlugin) Version() string {
 func (w *WebpackPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
 	var (
 		workdir     = request.WorkingPath
-		group       = request.GroupEntryId
 		filename    = pluginapi.GetParameter(webpackParameterFilename, request, "")
 		urlInfo     = pluginapi.GetParameter(webpackParameterURL, request, "")
 		fileType    = pluginapi.GetParameter(webpackParameterFileType, request, "webarchive")
@@ -76,10 +76,6 @@ func (w *WebpackPlugin) Run(ctx context.Context, request *pluginapi.Request) (*p
 
 	if workdir == "" {
 		return nil, fmt.Errorf("workdir is empty")
-	}
-
-	if group == 0 {
-		return pluginapi.NewFailedResponse("unknown group"), nil
 	}
 
 	if filename == "" {
@@ -94,30 +90,26 @@ func (w *WebpackPlugin) Run(ctx context.Context, request *pluginapi.Request) (*p
 		return nil, fmt.Errorf("invalid file type [%s]", fileType)
 	}
 
-	newEntry, err := w.packFromURL(ctx, group, filePath, urlInfo, fileType, clutterFree, logger)
+	result, err := w.packFromURL(ctx, filePath, urlInfo, fileType, clutterFree, logger)
 	if err != nil {
 		return pluginapi.NewFailedResponse(fmt.Sprintf("packing url %s failed: %s", urlInfo, err)), err
 	}
 
-	resp := pluginapi.NewResponse()
-	resp.ModifyEntries = append(resp.ModifyEntries, *newEntry)
+	resp := pluginapi.NewResponseWithResult(result)
 	return resp, nil
 }
 
-func (w *WebpackPlugin) packFromURL(ctx context.Context, group int64, filePath, urlInfo, tgtFileType string, clutterFree bool, logger *zap.SugaredLogger) (*pluginapi.Entry, error) {
+func (w *WebpackPlugin) packFromURL(ctx context.Context, filePath, urlInfo, tgtFileType string, clutterFree bool, logger *zap.SugaredLogger) (map[string]any, error) {
 
 	var (
-		filename       = path.Base(filePath)
-		fileParameters = make(map[string]string)
-		err            error
+		filename = path.Base(filePath)
+		title    = strings.TrimSuffix(filename, filepath.Ext(filename))
+		err      error
 	)
 
 	if urlInfo == "" {
 		return nil, fmt.Errorf("url is empty")
 	}
-	filename = strings.TrimSuffix(filename, filepath.Ext(filename))
-	fileParameters[packerPostMetaTitle] = filename
-	fileParameters[packerPostMetaURL] = urlInfo
 
 	filename += "." + tgtFileType
 	logger.Infof("packing url %s to %s", urlInfo, filename)
@@ -157,15 +149,11 @@ func (w *WebpackPlugin) packFromURL(ctx context.Context, group int64, filePath, 
 	if err != nil {
 		return nil, fmt.Errorf("stat archive file error: %s", err)
 	}
-	return &pluginapi.Entry{
-		Parent:     group,
-		Name:       filename,
-		Kind:       types.FileKind(filename, types.RawKind),
-		Size:       fInfo.Size(),
-		IsGroup:    false,
-		Document:   nil,
-		Properties: fileParameters,
-		Overwrite:  false,
+	return map[string]any{
+		"file_path":         filename,
+		"size":              fInfo.Size(),
+		packerPostMetaTitle: title,
+		packerPostMetaURL:   urlInfo,
 	}, nil
 }
 

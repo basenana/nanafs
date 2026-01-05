@@ -14,15 +14,13 @@
  limitations under the License.
 */
 
-package buildin
+package web
 
 import (
 	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"github.com/basenana/nanafs/utils"
-	"go.uber.org/zap"
 	"hash/fnv"
 	"net/url"
 	"os"
@@ -30,6 +28,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/basenana/nanafs/utils"
+	"go.uber.org/zap"
 
 	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
@@ -75,32 +76,26 @@ func (r *RssSourcePlugin) Version() string {
 }
 
 func (r *RssSourcePlugin) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
-	if request.GroupEntryId == 0 {
-		return pluginapi.NewFailedResponse("unknown group"), nil
-	}
 	logger := pluginapi.Log(request, RssSourcePluginName)
 	source, err := r.rssSources(request, logger)
 	if err != nil {
 		logger.Errorw("get rss source failed", "err", err)
 		return nil, err
 	}
-	source.GroupId = request.GroupEntryId
-	logger.Infow("syncing rss", "group", source.GroupId, "feed", source.FeedUrl)
+	logger.Infow("syncing rss", "feed", source.FeedUrl)
 
-	entries, err := r.syncRssSource(ctx, source, request.WorkingPath, logger)
+	result, err := r.syncRssSource(ctx, source, request.WorkingPath, logger)
 	if err != nil {
 		logger.Warnw("sync rss failed", "source", source.FeedUrl, "err", err)
 		return pluginapi.NewFailedResponse(fmt.Sprintf("sync rss failed: %s", err)), nil
 	}
-	logger.Infow("sync rss finish", "group", source.GroupId, "entries", len(entries))
 
-	resp := pluginapi.NewResponse()
-	resp.ModifyEntries = entries
+	resp := pluginapi.NewResponseWithResult(result)
 	return resp, nil
 }
 
 func (r *RssSourcePlugin) rssSources(request *pluginapi.Request, logger *zap.SugaredLogger) (src rssSource, err error) {
-	src.FeedUrl = pluginapi.GetParameter(rssParameterFeed, request, "")
+	src.FeedUrl = request.Parameter["feed"]
 	if src.FeedUrl == "" {
 		err = fmt.Errorf("feed url is empty")
 		return
@@ -112,19 +107,22 @@ func (r *RssSourcePlugin) rssSources(request *pluginapi.Request, logger *zap.Sug
 		return
 	}
 
-	src.FileType = pluginapi.GetParameter(rssParameterFileType, request, "webarchive")
+	src.FileType = request.Parameter["file_type"]
 	if src.FileType == "" {
-		src.FileType = archiveFileTypeHtml
+		src.FileType = archiveFileTypeWebArchive
 	}
 
-	timeoutStr := pluginapi.GetParameter(rssParameterTimeout, request, "120")
+	timeoutStr := request.Parameter["timeout"]
+	if timeoutStr == "" {
+		timeoutStr = "120"
+	}
 	src.Timeout, err = strconv.Atoi(timeoutStr)
 	if err != nil {
 		logger.Warnf("parse timeout error: %s", err)
 		src.Timeout = 120
 	}
 
-	src.ClutterFree = pluginapi.GetParameter(rssParameterClutterFree, request, "true") == "true"
+	src.ClutterFree = request.Parameter["clutter_free"] == "true" || request.Parameter["clutter_free"] == ""
 	src.Headers = make(map[string]string)
 
 	for k, vstr := range request.Parameter {
@@ -135,10 +133,11 @@ func (r *RssSourcePlugin) rssSources(request *pluginapi.Request, logger *zap.Sug
 		}
 	}
 	src.Store = request.ContextStore
+	src.Namespace = request.Namespace
 	return
 }
 
-func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, workdir string, logger *zap.SugaredLogger) ([]pluginapi.Entry, error) {
+func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, workdir string, logger *zap.SugaredLogger) (map[string]any, error) {
 	var nowTime = time.Now()
 	siteURL, err := parseSiteURL(source.FeedUrl)
 	if err != nil {
@@ -160,8 +159,8 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, w
 	}
 
 	var (
-		newEntries = make([]pluginapi.Entry, 0)
-		links      []string
+		articles = make([]map[string]any, 0)
+		links    []string
 	)
 
 	for i, item := range feed.Items {
@@ -261,22 +260,22 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, w
 		}
 
 		links = append(links, item.Link)
-		newEntries = append(newEntries, pluginapi.Entry{
-			Parent:  source.GroupId,
-			Name:    path.Base(filePath),
-			Kind:    types.RawKind,
-			Size:    fInfo.Size(),
-			IsGroup: false,
-			Properties: map[string]string{
-				types.PropertyWebPageTitle:    item.Title,
-				types.PropertyWebPageURL:      item.Link,
-				types.PropertyWebPageUpdateAt: updatedAt.Format(time.RFC3339),
-			},
-			Overwrite: false,
+		articles = append(articles, map[string]any{
+			"file_path":  path.Base(filePath),
+			"size":       fInfo.Size(),
+			"title":      item.Title,
+			"url":        item.Link,
+			"updated_at": updatedAt.Format(time.RFC3339),
 		})
 	}
 
-	return newEntries, source.record(ctx, links...)
+	if err := source.record(ctx, links...); err != nil {
+		logger.Warnw("record links failed", "err", err)
+	}
+
+	logger.Infow("sync rss finish", "entries", len(articles))
+
+	return map[string]any{"articles": articles}, nil
 }
 
 func parseSiteURL(feed string) (string, error) {
@@ -300,7 +299,6 @@ func BuildRssSourcePlugin() *RssSourcePlugin {
 }
 
 type rssSource struct {
-	GroupId     int64
 	FeedUrl     string
 	FileType    string
 	ClutterFree bool

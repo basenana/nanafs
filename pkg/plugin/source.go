@@ -19,12 +19,13 @@ package plugin
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/plugin/buildin"
-	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
-	"github.com/basenana/nanafs/pkg/types"
 	"os"
 	"path"
 	"time"
+
+	"github.com/basenana/nanafs/pkg/plugin/buildin/web"
+	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 type SourcePlugin interface {
@@ -57,24 +58,20 @@ func (d *ThreeBodyPlugin) SourceInfo() (string, error) {
 }
 
 func (d *ThreeBodyPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
-	if request.GroupEntryId == 0 {
-		return nil, fmt.Errorf("parent id is empty")
-	}
 	if request.WorkingPath == "" {
 		return nil, fmt.Errorf("workdir is empty")
 	}
 
-	result, err := d.fileGenerate(request.GroupEntryId, request.WorkingPath)
+	result, err := d.fileGenerate(request.WorkingPath)
 	if err != nil {
 		resp := pluginapi.NewFailedResponse(fmt.Sprintf("file generate failed: %s", err))
 		return resp, nil
 	}
-	resp := pluginapi.NewResponse()
-	resp.ModifyEntries = append(resp.ModifyEntries, result)
+	resp := pluginapi.NewResponseWithResult(result)
 	return resp, nil
 }
 
-func (d *ThreeBodyPlugin) fileGenerate(baseEntry int64, workdir string) (pluginapi.Entry, error) {
+func (d *ThreeBodyPlugin) fileGenerate(workdir string) (map[string]any, error) {
 	var (
 		crtAt    = time.Now().Unix()
 		filePath = path.Join(workdir, fmt.Sprintf("3_body_%d.txt", crtAt))
@@ -82,12 +79,11 @@ func (d *ThreeBodyPlugin) fileGenerate(baseEntry int64, workdir string) (plugina
 	)
 	err := os.WriteFile(filePath, fileData, 0655)
 	if err != nil {
-		return pluginapi.Entry{}, err
+		return nil, err
 	}
-	return pluginapi.Entry{
-		Name: path.Base(filePath),
-		Kind: types.RawKind,
-		Size: int64(len(fileData)),
+	return map[string]any{
+		"file_path": path.Base(filePath),
+		"size":      int64(len(fileData)),
 	}, nil
 }
 
@@ -95,5 +91,5 @@ func registerBuildInSourcePlugin(r *registry) {
 	r.Register(the3BodyPluginName, types.PluginSpec{Name: the3BodyPluginName, Version: the3BodyPluginVersion,
 		Type: types.TypeSource}, &ThreeBodyPlugin{})
 
-	r.Register(buildin.RssSourcePluginName, buildin.RssSourcePluginSpec, buildin.BuildRssSourcePlugin())
+	r.Register(web.RssSourcePluginName, web.RssSourcePluginSpec, web.BuildRssSourcePlugin())
 }
