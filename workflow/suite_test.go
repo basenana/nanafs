@@ -18,12 +18,16 @@ package workflow
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/plugin/api"
+	plugintypes "github.com/basenana/plugin/types"
+	"go.uber.org/zap"
 
 	testcfg "github.com/onsi/ginkgo/config"
 
@@ -82,6 +86,8 @@ var _ = BeforeSuite(func() {
 	mgr, err = New(fsCore, notify.NewNotify(memMeta), memMeta, bootCfg.Workflow)
 	Expect(err).Should(BeNil())
 
+	mgr.(*manager).plugin.Register(DelayProcessPluginSpec, NewDelayProcessPlugin)
+
 	ctx, canF := context.WithCancel(context.Background())
 	go func() {
 		<-stopCh
@@ -94,3 +100,83 @@ var _ = BeforeSuite(func() {
 var _ = AfterSuite(func() {
 	close(stopCh)
 })
+
+const (
+	delayPluginName    = "delay"
+	delayPluginVersion = "1.0"
+)
+
+var DelayProcessPluginSpec = plugintypes.PluginSpec{
+	Name:    delayPluginName,
+	Version: delayPluginVersion,
+	Type:    plugintypes.TypeProcess,
+}
+
+type DelayProcessPlugin struct {
+	logger *zap.SugaredLogger
+}
+
+func NewDelayProcessPlugin(ps plugintypes.PluginCall) plugintypes.Plugin {
+	return &DelayProcessPlugin{
+		logger: logger.NewLogger(delayPluginName),
+	}
+}
+
+func (d *DelayProcessPlugin) Name() string {
+	return delayPluginName
+}
+
+func (d *DelayProcessPlugin) Type() plugintypes.PluginType {
+	return plugintypes.TypeProcess
+}
+
+func (d *DelayProcessPlugin) Version() string {
+	return delayPluginVersion
+}
+
+func (d *DelayProcessPlugin) Run(ctx context.Context, request *api.Request) (*api.Response, error) {
+	var (
+		until            time.Time
+		delayDurationStr = api.GetStringParameter("delay", request, "")
+		untilStr         = api.GetStringParameter("until", request, "")
+	)
+
+	switch {
+
+	case delayDurationStr != "":
+		duration, err := time.ParseDuration(delayDurationStr)
+		if err != nil {
+			d.logger.Warnw("parse delay duration failed", "duration", delayDurationStr, "error", err)
+			return nil, fmt.Errorf("parse delay duration [%s] failed: %s", delayDurationStr, err)
+		}
+		until = time.Now().Add(duration)
+
+	case untilStr != "":
+		var err error
+		until, err = time.Parse(time.RFC3339, untilStr)
+		if err != nil {
+			d.logger.Warnw("parse delay until failed", "until", untilStr, "error", err)
+			return nil, fmt.Errorf("parse delay until [%s] failed: %s", untilStr, err)
+		}
+
+	default:
+		return api.NewFailedResponse(fmt.Sprintf("unknown action")), nil
+	}
+
+	d.logger.Infow("delay started", "until", until)
+
+	now := time.Now()
+	if now.Before(until) {
+		timer := time.NewTimer(until.Sub(now))
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+			d.logger.Infow("delay completed")
+			return api.NewResponse(), nil
+		case <-ctx.Done():
+			return api.NewFailedResponse(ctx.Err().Error()), nil
+		}
+	}
+
+	return api.NewResponse(), nil
+}

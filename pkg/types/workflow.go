@@ -47,7 +47,7 @@ type WorkflowNode struct {
 	Name   string            `json:"name"`
 	Type   string            `json:"type"`
 	Params map[string]string `json:"params"`
-	Input  map[string]string `json:"input,omitempty"`
+	Input  map[string]any    `json:"input,omitempty"`
 	Next   string            `json:"next,omitempty"`
 
 	// if
@@ -87,7 +87,7 @@ type WorkflowNodeMatrix struct {
 	// Data defines variable mappings for matrix iteration
 	// Key is variable name, value is template reference to context data
 	// Example: {"file_path": "{{ new_webpage.file_paths }}"}
-	Data map[string]string `json:"data"`
+	Data map[string]any `json:"data"`
 
 	// IterateMode controls execution mode: "sequential" (default) or "parallel"
 	IterateMode string `json:"iterate_mode,omitempty"`
@@ -143,9 +143,4 @@ type WorkflowJobNode struct {
 
 type WorkflowTarget struct {
 	Entries []string `json:"entries,omitempty"`
-}
-
-type PluginCall struct {
-	PluginName string `json:"plugin_name"`
-	Version    string `json:"version"`
 }

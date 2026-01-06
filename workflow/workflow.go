@@ -23,7 +23,8 @@ import (
 	"time"
 
 	"github.com/basenana/nanafs/pkg/core"
-	"github.com/basenana/nanafs/pkg/plugin"
+	"github.com/basenana/plugin"
+	pluginlogger "github.com/basenana/plugin/logger"
 
 	"go.uber.org/zap"
 
@@ -57,6 +58,7 @@ type manager struct {
 	core    core.Core
 	notify  *notify.Notify
 	meta    metastore.Meta
+	plugin  plugin.Manager
 	config  config.Workflow
 	trigger *triggers
 	logger  *zap.SugaredLogger
@@ -66,17 +68,15 @@ var _ Workflow = &manager{}
 
 func New(fsCore core.Core, notify *notify.Notify, meta metastore.Meta, cfg config.Workflow) (Workflow, error) {
 	wfLogger = logger.NewLogger("workflow")
+	pluginlogger.SetLogger(wfLogger.Named("plugin"))
 
 	if err := initWorkflowJobRootWorkdir(cfg.JobWorkdir); err != nil {
 		return nil, fmt.Errorf("init workflow job root workdir error: %s", err)
 	}
 
-	pluginMgr, err := plugin.Init(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("init plugin failed %w", err)
-	}
+	pluginMgr := plugin.New()
 	flowCtrl := jobrun.NewJobController(pluginMgr, fsCore, meta, notify, cfg.JobWorkdir)
-	mgr := &manager{ctrl: flowCtrl, core: fsCore, meta: meta, config: cfg, logger: wfLogger}
+	mgr := &manager{ctrl: flowCtrl, core: fsCore, meta: meta, plugin: pluginMgr, config: cfg, logger: wfLogger}
 	mgr.trigger = initTriggers(mgr)
 
 	return mgr, nil
@@ -184,6 +184,11 @@ func (m *manager) TriggerWorkflow(ctx context.Context, namespace string, wfId st
 	if attr.Queue == "" {
 		attr.Queue = workflow.QueueName
 	}
+
+	if len(tgt.Entries) == 0 {
+		return nil, fmt.Errorf("no entries found for job")
+	}
+
 	m.logger.Infow("receive workflow", "workflow", workflow.Name, "targets", tgt)
 	job, err := assembleWorkflowJob(workflow, tgt, attr)
 	if err != nil {

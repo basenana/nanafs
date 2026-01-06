@@ -139,6 +139,23 @@ github.com/aymerick/douceur/parser
 # github.com/basenana/go-flow v0.0.0-20250614153542-07184f3ea1e7
 ## explicit; go 1.23
 github.com/basenana/go-flow
+# github.com/basenana/plugin v0.0.0-20260106154805-0947e10ee319
+## explicit; go 1.25
+github.com/basenana/plugin
+github.com/basenana/plugin/api
+github.com/basenana/plugin/archive
+github.com/basenana/plugin/checksum
+github.com/basenana/plugin/docloader
+github.com/basenana/plugin/fileop
+github.com/basenana/plugin/filewrite
+github.com/basenana/plugin/fs
+github.com/basenana/plugin/logger
+github.com/basenana/plugin/metadata
+github.com/basenana/plugin/rss
+github.com/basenana/plugin/text
+github.com/basenana/plugin/types
+github.com/basenana/plugin/utils
+github.com/basenana/plugin/web
 # github.com/beorn7/perks v1.0.1
 ## explicit; go 1.11
 github.com/beorn7/perks/quantile
@@ -233,8 +250,8 @@ github.com/go-playground/validator/v10
 # github.com/go-shiori/dom v0.0.0-20230515143342-73569d674e1c
 ## explicit; go 1.20
 github.com/go-shiori/dom
-# github.com/go-shiori/go-readability v0.0.0-20241012063810-92284fa8a71f
-## explicit; go 1.20
+# github.com/go-shiori/go-readability v0.0.0-20251205110129-5db1dc9836f0
+## explicit; go 1.23
 github.com/go-shiori/go-readability
 github.com/go-shiori/go-readability/internal/re2go
 # github.com/goccy/go-json v0.10.2
@@ -393,7 +410,7 @@ github.com/mmcdole/gofeed/extensions
 github.com/mmcdole/gofeed/internal/shared
 github.com/mmcdole/gofeed/json
 github.com/mmcdole/gofeed/rss
-# github.com/mmcdole/goxpp v1.1.1-0.20240225020742-a0c311522b23
+# github.com/mmcdole/goxpp v1.1.1
 ## explicit; go 1.19
 github.com/mmcdole/goxpp
 # github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
@@ -409,6 +426,12 @@ github.com/nxadm/tail/ratelimiter
 github.com/nxadm/tail/util
 github.com/nxadm/tail/watch
 github.com/nxadm/tail/winfile
+# github.com/ohler55/ojg v1.27.0
+## explicit; go 1.18
+github.com/ohler55/ojg
+github.com/ohler55/ojg/alt
+github.com/ohler55/ojg/gen
+github.com/ohler55/ojg/jp
 # github.com/onsi/ginkgo v1.16.5
 ## explicit; go 1.16
 github.com/onsi/ginkgo
@@ -499,10 +522,10 @@ github.com/slok/go-http-metrics/metrics
 github.com/slok/go-http-metrics/metrics/prometheus
 github.com/slok/go-http-metrics/middleware
 github.com/slok/go-http-metrics/middleware/std
-# github.com/spf13/cobra v1.7.0
+# github.com/spf13/cobra v1.8.1
 ## explicit; go 1.15
 github.com/spf13/cobra
-# github.com/spf13/pflag v1.0.5
+# github.com/spf13/pflag v1.0.6
 ## explicit; go 1.12
 github.com/spf13/pflag
 # github.com/stoewer/go-strcase v1.2.0
@@ -538,7 +561,7 @@ github.com/ugorji/go/codec
 # github.com/yosssi/gohtml v0.0.0-20201013000340-ee4748c638f4
 ## explicit
 github.com/yosssi/gohtml
-# go.uber.org/multierr v1.10.0
+# go.uber.org/multierr v1.11.0
 ## explicit; go 1.19
 go.uber.org/multierr
 # go.uber.org/zap v1.27.1
@@ -561,11 +584,10 @@ golang.org/x/crypto/argon2
 golang.org/x/crypto/blake2b
 golang.org/x/crypto/pbkdf2
 golang.org/x/crypto/sha3
-# golang.org/x/exp v0.0.0-20241204233417-43b7b7cde48d
-## explicit; go 1.22.0
-golang.org/x/exp/constraints
+# golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93
+## explicit; go 1.24.0
 golang.org/x/exp/slices
-# golang.org/x/net v0.47.0
+# golang.org/x/net v0.48.0
 ## explicit; go 1.24.0
 golang.org/x/net/html
 golang.org/x/net/html/atom

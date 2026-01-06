@@ -17,22 +17,15 @@
 package jobrun
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"strings"
-	"text/template"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-
-	"github.com/basenana/nanafs/pkg/core"
-	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
+	"github.com/ohler55/ojg/jp"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 var (
@@ -60,77 +53,6 @@ func init() {
 	)
 }
 
-type targetEntry struct {
-	entry  *types.Entry
-	parent *types.Entry
-}
-
-func initParentDirCacheData(ctx context.Context, namespace string, fsCore core.Core, parentEntryID int64) (*pluginapi.CachedData, error) {
-	cachedDataCh, err := fsCore.FindEntry(ctx, namespace, parentEntryID, pluginapi.CachedDataFile)
-	if err != nil && !errors.Is(err, types.ErrNotFound) {
-		return nil, fmt.Errorf("find cached data entry %s failed: %s", pluginapi.CachedDataFile, err)
-	}
-
-	if cachedDataCh != nil {
-		cachedDataFile, err := fsCore.Open(ctx, namespace, cachedDataCh.ChildID, types.OpenAttr{Read: true})
-		if err != nil {
-			return nil, fmt.Errorf("open cached data entry %d failed: %s", cachedDataCh.ChildID, err)
-		}
-
-		cachedData, err := pluginapi.OpenCacheData(utils.NewReaderWithContextReaderAt(ctx, cachedDataFile))
-		if err != nil {
-			_ = cachedDataFile.Close(ctx)
-			return nil, fmt.Errorf("load cached entry failed: %s", err)
-		}
-		return cachedData, cachedDataFile.Close(ctx)
-	}
-	return pluginapi.InitCacheData(), nil
-}
-
-func writeParentDirCacheData(ctx context.Context, namespace string, fsCore core.Core, parentEntryID int64, data *pluginapi.CachedData) error {
-	if !data.NeedReCache() {
-		return nil
-	}
-
-	cachedDataCh, err := fsCore.FindEntry(ctx, namespace, parentEntryID, pluginapi.CachedDataFile)
-	if err != nil && !errors.Is(err, types.ErrNotFound) {
-		return fmt.Errorf("find cached data entry %s failed: %s", pluginapi.CachedDataFile, err)
-	}
-
-	var cachedDataEnID int64
-	if cachedDataCh == nil {
-		cachedDataEn, err := fsCore.CreateEntry(ctx, namespace, parentEntryID, types.EntryAttr{Name: pluginapi.CachedDataFile, Kind: types.RawKind})
-		if err != nil {
-			return fmt.Errorf("create new cached data entry failed: %s", err)
-		}
-		cachedDataEnID = cachedDataEn.ID
-	} else {
-		cachedDataEnID = cachedDataCh.ChildID
-	}
-
-	newReader, err := data.Reader()
-	if err != nil {
-		return fmt.Errorf("open cached data entry reader failed: %s", err)
-	}
-
-	f, err := fsCore.Open(ctx, namespace, cachedDataEnID, types.OpenAttr{Write: true, Trunc: true})
-	if err != nil {
-		return fmt.Errorf("open cached data entry %d failed: %s", cachedDataEnID, err)
-	}
-
-	_, err = io.Copy(utils.NewWriterWithContextWriter(ctx, f), newReader)
-	if err != nil {
-		_ = f.Close(ctx)
-		return fmt.Errorf("copy cached new content to entry cahed data file failed: %s", err)
-	}
-
-	err = f.Close(ctx)
-	if err != nil {
-		return fmt.Errorf("close cahed data file failed: %s", err)
-	}
-	return nil
-}
-
 func logOperationLatency(execName, operation string, startAt time.Time) {
 	execOperationTimeUsage.WithLabelValues(execName, operation).Observe(time.Since(startAt).Seconds())
 }
@@ -142,46 +64,64 @@ func logOperationError(execName, operation string, err error) error {
 	return err
 }
 
-func renderParams(tplContent string, data map[string]interface{}) string {
-	if !strings.Contains(tplContent, "{{") {
-		return tplContent
-	}
-	tpl, err := template.New("params").Delims("{{", "}}").Parse(tplContent)
-	if err != nil {
-		return tplContent
+// getJSONPathValue extracts value from data using JSONPath syntax
+// Example: "$.file_paths" or "file_paths" extracts file_paths from root
+//          "$.nested.object.value" or "nested.object.value" extracts nested value
+// Note: ojg library does not require the leading $ - it is implied
+func getJSONPathValue(path string, data map[string]interface{}) (any, error) {
+	// Remove leading $ if present since ojg library implies root
+	expr := strings.TrimPrefix(path, "$")
+	// Also remove leading . or [ if it follows $
+	if len(expr) > 0 && (expr[0] == '.' || expr[0] == '[') {
+		expr = expr[1:]
 	}
 
-	buf := new(bytes.Buffer)
-	err = tpl.Execute(buf, data)
+	x, err := jp.ParseString(expr)
 	if err != nil {
-		return tplContent
+		return nil, err
 	}
-	return buf.String()
+	// Pass data directly since Get() handles map[string]any
+	result := x.Get(data)
+	if len(result) == 0 {
+		return nil, fmt.Errorf("path not found: %s", path)
+	}
+	return result[0], nil
+}
+
+func renderParams(value any, data map[string]interface{}) any {
+	strVal, ok := value.(string)
+	if !ok {
+		return value
+	}
+
+	if !strings.HasPrefix(strVal, "$") {
+		return strVal
+	}
+
+	val, err := getJSONPathValue(strVal, data)
+	if err != nil {
+		return strVal
+	}
+	return val
 }
 
 // renderMatrixParam renders a single template reference and returns the value
-// It handles both map key access and direct template execution
-func renderMatrixParam(tplRef string, ctxData map[string]interface{}) string {
-	// For simple variable references like "{{ file_paths }}", extract the variable name
-	if strings.HasPrefix(tplRef, "{{") && strings.HasSuffix(tplRef, "}}") {
-		varName := strings.TrimSpace(strings.TrimPrefix(tplRef, "{{"))
-		varName = strings.TrimSpace(strings.TrimSuffix(varName, "}}"))
-		if val, ok := ctxData[varName]; ok {
-			// If value is a slice (array), marshal to JSON for parsing
-			if sliceVal, ok := val.([]any); ok {
-				jsonBytes, err := json.Marshal(sliceVal)
-				if err == nil {
-					return string(jsonBytes)
-				}
-			}
-			// Return the value as string representation
-			return fmt.Sprintf("%v", val)
-		}
-		return tplRef
+// It handles both JSONPath references and direct template execution
+func renderMatrixParam(value any, ctxData map[string]interface{}) any {
+	strVal, ok := value.(string)
+	if !ok {
+		return value
 	}
 
-	// For complex templates, use the template engine
-	return renderParams(tplRef, ctxData)
+	if strings.HasPrefix(strVal, "$") {
+		val, err := getJSONPathValue(strVal, ctxData)
+		if err == nil {
+			return val
+		}
+		return strVal
+	}
+
+	return strVal
 }
 
 // matrixIteration represents a single iteration's variable values
@@ -191,7 +131,7 @@ type matrixIteration struct {
 
 // renderMatrixData parses matrix configuration and returns iteration data
 // It extracts array values from context and generates Cartesian product if needed
-func renderMatrixData(matrixData map[string]string, ctxResults pluginapi.Results) ([]matrixIteration, error) {
+func renderMatrixData(matrixData map[string]any, ctxResults Results) ([]matrixIteration, error) {
 	if len(matrixData) == 0 {
 		return nil, fmt.Errorf("matrix data is empty")
 	}
@@ -211,17 +151,25 @@ func renderMatrixData(matrixData map[string]string, ctxResults pluginapi.Results
 			continue
 		}
 
-		// Try to parse as JSON array
-		var values []any
-		if err := json.Unmarshal([]byte(rendered), &values); err != nil {
-			// Not an array, skip for array extraction
+		// Check if rendered value is already an array
+		if values, ok := rendered.([]any); ok {
+			arrayVars = append(arrayVars, struct {
+				name   string
+				values []any
+			}{name: varName, values: values})
 			continue
 		}
 
-		arrayVars = append(arrayVars, struct {
-			name   string
-			values []any
-		}{name: varName, values: values})
+		// Try to parse string as JSON array
+		if strVal, ok := rendered.(string); ok {
+			var values []any
+			if err := json.Unmarshal([]byte(strVal), &values); err == nil {
+				arrayVars = append(arrayVars, struct {
+					name   string
+					values []any
+				}{name: varName, values: values})
+			}
+		}
 	}
 
 	// If no array variables found, return empty
