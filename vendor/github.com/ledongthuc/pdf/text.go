@@ -5,6 +5,7 @@
 package pdf
 
 import (
+	"math"
 	"unicode"
 	"unicode/utf16"
 )
@@ -155,4 +156,14 @@ var macRomanEncoding = [256]rune{
 	0x00cb, 0x00c8, 0x00cd, 0x00ce, 0x00cf, 0x00cc, 0x00d3, 0x00d4,
 	0xf8ff, 0x00d2, 0x00da, 0x00db, 0x00d9, 0x0131, 0x02c6, 0x02dc,
 	0x00af, 0x02d8, 0x02d9, 0x02da, 0x00b8, 0x02dd, 0x02db, 0x02c7,
+}
+
+// isSameSentence checks if the current text segment likely belongs to the same sentence
+// as the last text segment based on font, size, vertical position, and lack of
+// sentence-ending punctuation in the last segment.
+func IsSameSentence(last, current Text) bool {
+	return last.Font == current.Font &&
+		math.Abs(last.FontSize-current.FontSize) < 0.1 &&
+		math.Abs(last.Y-current.Y) < 5 &&
+		last.S != ""
 }

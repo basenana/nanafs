@@ -2,22 +2,16 @@ package packer
 
 import (
 	"bytes"
-	"compress/flate"
-	"compress/gzip"
 	"context"
-	"errors"
 	"fmt"
-	"github.com/PuerkitoBio/goquery"
-	"golang.org/x/net/html/charset"
-	"howett.net/plist"
 	"io"
-	"io/ioutil"
-	"net"
-	"net/http"
 	"os"
 	"strings"
 	"sync"
-	"time"
+
+	"github.com/PuerkitoBio/goquery"
+	"golang.org/x/net/html/charset"
+	"howett.net/plist"
 )
 
 type WebArchive struct {
@@ -101,7 +95,7 @@ func (w *webArchiver) Pack(ctx context.Context, opt Option) error {
 }
 
 func (w *webArchiver) workerRun(ctx context.Context, opt Option, errCh chan error) {
-	cli, headers := newHttpClient(opt)
+	cli := newClient(opt)
 	for {
 		select {
 		case urlStr, ok := <-w.workerQ:
@@ -115,7 +109,7 @@ func (w *webArchiver) workerRun(ctx context.Context, opt Option, errCh chan erro
 				w.mux.Lock()
 				w.seen[urlStr] = struct{}{}
 				w.mux.Unlock()
-				if err := w.loadWebPageFromUrl(ctx, cli, headers, urlStr, opt); err != nil {
+				if err := w.loadWebPageFromUrl(ctx, cli, urlStr, opt); err != nil {
 					if len(w.resource.WebSubresources) == 0 {
 						select {
 						case errCh <- err:
@@ -151,8 +145,7 @@ func (w *webArchiver) ReadContent(ctx context.Context, opt Option) (string, erro
 			}
 		}()
 
-		cli, headers := newHttpClient(opt)
-		if err := w.loadWebPageFromUrl(ctx, cli, headers, opt.URL, opt); err != nil {
+		if err := w.loadWebPageFromUrl(ctx, newClient(opt), opt.URL, opt); err != nil {
 			return "", err
 		}
 		if len(w.resource.WebSubresources) == 0 {
@@ -168,68 +161,34 @@ func (w *webArchiver) ReadContent(ctx context.Context, opt Option) (string, erro
 	return content, nil
 }
 
-func (w *webArchiver) loadWebPageFromUrl(ctx context.Context, cli *http.Client, headers map[string]string, urlStr string, opt Option) error {
-	req, err := http.NewRequest(http.MethodGet, urlStr, nil)
-	if err != nil {
-		return fmt.Errorf("build request with url %s error: %s", urlStr, err)
-	}
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
-
-	var resp *http.Response
-	for i := 0; i < 10; i++ {
-		resp, err = cli.Do(req.WithContext(ctx))
-		if err == nil {
-			break
-		}
-		var netErr *net.OpError
-		if errors.As(err, &netErr) {
-			if netErr.Op == "dial" {
-				return fmt.Errorf("do request with url %s error: %s", urlStr, err)
-			}
-		}
-		time.Sleep(time.Second * 5)
+func (w *webArchiver) loadWebPageFromUrl(ctx context.Context, cli Client, urlStr string, opt Option) error {
+	var (
+		res *WebResource
+		err error
+	)
+	if !w.hasMainRes {
+		res, err = cli.ReadMain(ctx, urlStr)
+	} else {
+		res, err = cli.ReadResource(ctx, urlStr)
 	}
 	if err != nil {
-		return fmt.Errorf("do request with url %s error: %s", urlStr, err)
-	}
-
-	defer func() {
-		_, _ = ioutil.ReadAll(resp.Body)
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("do request with url %s error: status code is %d", urlStr, resp.StatusCode)
-	}
-
-	var bodyReader io.Reader
-	switch resp.Header.Get("Content-Encoding") {
-	case "gzip":
-		bodyReader, err = gzip.NewReader(resp.Body)
-		if err != nil {
-			return fmt.Errorf("new gzip reader failed: %w", err)
-		}
-	case "deflate":
-		bodyReader = flate.NewReader(resp.Body)
-	default:
-		bodyReader = resp.Body
+		return err
 	}
 
 	// fix text/html; charset=utf-8
-	contentTypeParts := strings.Split(resp.Header.Get("Content-Type"), ";")
+	contentTypeParts := strings.Split(res.ContentType, ";")
 	contentType := strings.TrimSpace(contentTypeParts[0])
 
+	var bodyReader io.Reader = bytes.NewReader(res.Data)
 	if strings.Contains(contentType, MIMEHTML) {
 		rawReader := bodyReader
-		bodyReader, err = charset.NewReader(rawReader, resp.Header.Get("Content-Type"))
+		bodyReader, err = charset.NewReader(rawReader, res.ContentType)
 		if err != nil {
 			return fmt.Errorf("new charset reader with url %s error: %s", urlStr, err)
 		}
 	}
 
-	data, err := ioutil.ReadAll(bodyReader)
+	data, err := io.ReadAll(bodyReader)
 	if err != nil {
 		return fmt.Errorf("read response body with url %s error: %s", urlStr, err)
 	}

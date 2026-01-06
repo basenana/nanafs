@@ -1,14 +1,11 @@
 package packer
 
 import (
-	"code.dny.dev/ssrf"
-	"github.com/microcosm-cc/bluemonday"
-	"net"
-	"net/http"
 	"net/url"
 	"path"
 	"strings"
-	"time"
+
+	"github.com/microcosm-cc/bluemonday"
 )
 
 // Content-Type MIME of the most common data formats.
@@ -50,44 +47,4 @@ func nextUrl(workQ chan string, topUrl, nextUrl string) {
 		nextParsedUrl.Scheme = topParsedUrl.Scheme
 	}
 	workQ <- nextParsedUrl.String()
-}
-
-func newHttpClient(opt Option) (*http.Client, map[string]string) {
-
-	dialer := &net.Dialer{
-		Control:   ssrf.New().Safe,
-		Timeout:   30 * time.Second,
-		KeepAlive: 30 * time.Second,
-	}
-
-	if opt.EnablePrivateNet {
-		dialer.Control = nil
-	}
-
-	cli := &http.Client{
-		Transport: &http.Transport{
-			Proxy:                 http.ProxyFromEnvironment,
-			DialContext:           dialer.DialContext,
-			ForceAttemptHTTP2:     true,
-			MaxIdleConns:          100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-		},
-		Timeout: defaultTimeout,
-	}
-	if opt.Timeout > 0 {
-		cli.Timeout = time.Second * time.Duration(opt.Timeout)
-	}
-
-	headers := map[string]string{"Referer": opt.URL}
-	for k, v := range defaultHeaders {
-		headers[k] = v
-	}
-	if len(opt.Headers) > 0 {
-		for k, v := range opt.Headers {
-			headers[k] = v
-		}
-	}
-	return cli, headers
 }
