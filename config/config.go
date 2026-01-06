@@ -21,6 +21,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -30,11 +32,62 @@ import (
 	"github.com/basenana/nanafs/pkg/cmdb"
 )
 
-var FilePath string
-
 var (
+	FilePath         string
+	AutoInit         bool
 	ErrNotConfigured = fmt.Errorf("no configured")
 )
+
+func userConfigDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, ".nanafs")
+}
+
+func FindConfigFile() (string, error) {
+	if FilePath != "" {
+		return FilePath, nil
+	}
+
+	userConfigPath := filepath.Join(userConfigDir(), "config.json")
+	if _, err := os.Stat(userConfigPath); err == nil {
+		return userConfigPath, nil
+	}
+
+	systemConfigPath := "/etc/nanafs/config.json"
+	if _, err := os.Stat(systemConfigPath); err == nil {
+		return systemConfigPath, nil
+	}
+
+	if AutoInit {
+		if err := os.MkdirAll(userConfigDir(), 0755); err != nil {
+			return "", fmt.Errorf("create config dir failed: %w", err)
+		}
+		if err := InitDefaultConfig(userConfigPath); err != nil {
+			return "", fmt.Errorf("generate default config failed: %w", err)
+		}
+		return userConfigPath, nil
+	}
+
+	return "", fmt.Errorf("config file not found, use --config or --auto-init to generate")
+}
+
+func InitDefaultConfig(cfgPath string) error {
+	cfg, err := DefaultConfig(path.Dir(cfgPath))
+	if err != nil {
+		return err
+	}
+	f, err := os.Create(cfgPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	enc := json.NewEncoder(f)
+	enc.SetIndent("", "  ")
+	return enc.Encode(cfg)
+}
 
 type Config interface {
 	GetBootstrapConfig() Bootstrap
@@ -65,16 +118,12 @@ func (c *configWrapper) initBootstrapConfig() error {
 
 	result := Bootstrap{}
 
-	if FilePath == "" {
-		return fmt.Errorf("--config not set")
-	}
-
-	_, err := os.Stat(FilePath)
+	configPath, err := FindConfigFile()
 	if err != nil {
-		return fmt.Errorf("open config file failed: %w", err)
+		return err
 	}
 
-	f, err := os.Open(FilePath)
+	f, err := os.Open(configPath)
 	if err != nil {
 		return fmt.Errorf("open config file failed: %w", err)
 	}

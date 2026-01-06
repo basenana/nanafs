@@ -21,12 +21,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
-	"google.golang.org/grpc/credentials"
 	"net"
 	"os"
 	"testing"
+
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
+	"google.golang.org/grpc/credentials"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -48,7 +49,7 @@ var (
 	mockListen    *bufconn.Listener
 
 	mockConfig = config.Bootstrap{
-		API:      config.FsApi{Noauth: true},
+		API:      config.FsApi{},
 		FS:       &config.FS{Owner: config.FSOwner{Uid: 0, Gid: 0}, Writeback: false},
 		Meta:     config.Meta{Type: metastore.MemoryMeta},
 		Storages: []config.Storage{{ID: "test-memory-0", Type: storage.MemoryStorage}},

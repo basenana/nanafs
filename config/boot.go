@@ -34,12 +34,9 @@ type Bootstrap struct {
 }
 
 type FsApi struct {
-	Enable      bool   `json:"enable"`
-	Host        string `json:"host"`
-	Port        int    `json:"port"`
-	ServerName  string `json:"server_name"`
-	TokenSecret string `json:"token_secret"`
-	Noauth      bool   `json:"noauth"`
+	Enable bool   `json:"enable"`
+	Host   string `json:"host"`
+	Port   int    `json:"port"`
 }
 
 type Webdav struct {
@@ -74,7 +71,6 @@ type Encryption struct {
 }
 
 type Workflow struct {
-	Enable      bool        `json:"enable"`
 	JobWorkdir  string      `json:"job_workdir"`
 	Integration Integration `json:"integration"`
 }

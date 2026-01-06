@@ -18,19 +18,18 @@ package workflow
 
 import (
 	"fmt"
+	"os"
+	"regexp"
+	"time"
+
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/workflow/jobrun"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
-	"os"
-	"regexp"
-	"runtime"
-	"time"
 )
 
 var (
-	defaultLinuxWorkdir = "/var/lib/nanafs/workflow"
-	wfLogger            *zap.SugaredLogger
+	wfLogger *zap.SugaredLogger
 )
 
 const (
@@ -69,20 +68,17 @@ func assembleWorkflowJob(wf *types.Workflow, tgt types.WorkflowTarget, attr JobA
 
 func initWorkflowJobRootWorkdir(jobWorkdir string) error {
 	if jobWorkdir == "" {
-		jobWorkdir = genDefaultJobRootWorkdir()
+		jobWorkdir = os.TempDir()
+	}
+	sts, err := os.Stat(jobWorkdir)
+	if err == nil {
+		if sts.IsDir() {
+			return nil
+		}
+		return fmt.Errorf("job workdir %s exists but is not a directory", jobWorkdir)
 	}
 	wfLogger.Infof("job root workdir: %s", jobWorkdir)
 	return os.MkdirAll(jobWorkdir, 0755)
-}
-
-func genDefaultJobRootWorkdir() (jobWorkdir string) {
-	switch runtime.GOOS {
-	case "linux":
-		jobWorkdir = defaultLinuxWorkdir
-	default:
-		jobWorkdir = os.TempDir()
-	}
-	return
 }
 
 func initWorkflow(namespace string, wf *types.Workflow) *types.Workflow {

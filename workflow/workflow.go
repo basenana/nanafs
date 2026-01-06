@@ -19,10 +19,11 @@ package workflow
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/core"
-	"github.com/basenana/nanafs/pkg/plugin"
 	"strings"
 	"time"
+
+	"github.com/basenana/nanafs/pkg/core"
+	"github.com/basenana/nanafs/pkg/plugin"
 
 	"go.uber.org/zap"
 
@@ -66,15 +67,8 @@ var _ Workflow = &manager{}
 func New(fsCore core.Core, notify *notify.Notify, meta metastore.Meta, cfg config.Workflow) (Workflow, error) {
 	wfLogger = logger.NewLogger("workflow")
 
-	if cfg.JobWorkdir == "" {
-		cfg.JobWorkdir = genDefaultJobRootWorkdir()
-		wfLogger.Warnw("using default job root workdir", "jobWorkdir", cfg.JobWorkdir)
-	}
-
-	if cfg.Enable {
-		if err := initWorkflowJobRootWorkdir(cfg.JobWorkdir); err != nil {
-			return nil, fmt.Errorf("init workflow job root workdir error: %s", err)
-		}
+	if err := initWorkflowJobRootWorkdir(cfg.JobWorkdir); err != nil {
+		return nil, fmt.Errorf("init workflow job root workdir error: %s", err)
 	}
 
 	pluginMgr, err := plugin.Init(cfg)
@@ -89,9 +83,6 @@ func New(fsCore core.Core, notify *notify.Notify, meta metastore.Meta, cfg confi
 }
 
 func (m *manager) Start(ctx context.Context) {
-	if !m.config.Enable {
-		return
-	}
 	m.ctrl.Start(ctx)
 	m.trigger.start(ctx)
 }
@@ -185,10 +176,6 @@ func (m *manager) TriggerWorkflow(ctx context.Context, namespace string, wfId st
 	workflow, err := m.GetWorkflow(ctx, namespace, wfId)
 	if err != nil {
 		return nil, err
-	}
-
-	if !m.config.Enable {
-		return nil, fmt.Errorf("workflow is disabled")
 	}
 
 	if attr.Timeout == 0 {
