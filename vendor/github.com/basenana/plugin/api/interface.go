@@ -30,5 +30,5 @@ type PersistentStore interface {
 
 type NanaFS interface {
 	SaveEntry(ctx context.Context, parentURI, name string, properties types.Properties, reader io.ReadCloser) error
-	UpdateEntry(ctx context.Context, entryURI int64, properties types.Properties) error
+	UpdateEntry(ctx context.Context, entryURI string, properties types.Properties) error
 }

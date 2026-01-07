@@ -52,25 +52,27 @@ ProcessPlugin
 ## Usage Example
 
 ```yaml
-# Archive webpage as webarchive
+# Archive webpage as webarchive (default settings)
 - name: webpack
   parameters:
     file_name: "example-page"
     url: "https://example.com/article"
   working_path: "/path/to/output"
 
-# Archive as HTML
+# Archive as HTML (file_type via PluginCall params)
 - name: webpack
   parameters:
     file_name: "example-page"
     url: "https://example.com/article"
+  with:
     file_type: "html"
 
-# Disable clutter removal
+# Disable clutter removal (via PluginCall params)
 - name: webpack
   parameters:
     file_name: "example-page"
     url: "https://example.com/article"
+  with:
     clutter_free: "false"
 ```
 

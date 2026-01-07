@@ -2,11 +2,11 @@ package fs
 
 import (
 	"context"
-	"strconv"
 
 	"github.com/basenana/plugin/api"
 	"github.com/basenana/plugin/logger"
 	"github.com/basenana/plugin/types"
+	"github.com/basenana/plugin/utils"
 	"go.uber.org/zap"
 )
 
@@ -22,12 +22,14 @@ var UpdatePluginSpec = types.PluginSpec{
 }
 
 type Updater struct {
-	logger *zap.SugaredLogger
+	fileRoot *utils.FileAccess
+	logger   *zap.SugaredLogger
 }
 
 func NewUpdater(ps types.PluginCall) types.Plugin {
 	return &Updater{
-		logger: logger.NewPluginLogger(updatePluginName, ps.JobID),
+		fileRoot: utils.NewFileAccess(ps.WorkingPath),
+		logger:   logger.NewPluginLogger(updatePluginName, ps.JobID),
 	}
 }
 
@@ -41,11 +43,6 @@ func (p *Updater) Run(ctx context.Context, request *api.Request) (*api.Response,
 		return api.NewFailedResponse("entry_uri is required"), nil
 	}
 
-	id, err := strconv.ParseInt(entryURI, 10, 64)
-	if err != nil {
-		return api.NewFailedResponse("invalid entry_uri: " + entryURI), nil
-	}
-
 	props := buildProperties(request)
 
 	p.logger.Infow("update started", "entry_uri", entryURI)
@@ -53,7 +50,7 @@ func (p *Updater) Run(ctx context.Context, request *api.Request) (*api.Response,
 	if request.FS == nil {
 		return api.NewFailedResponse("file system is not available"), nil
 	}
-	if err := request.FS.UpdateEntry(ctx, id, props); err != nil {
+	if err := request.FS.UpdateEntry(ctx, entryURI, props); err != nil {
 		p.logger.Warnw("update entry failed", "entry_uri", entryURI, "error", err)
 		return api.NewFailedResponse("failed to update entry: " + err.Error()), nil
 	}

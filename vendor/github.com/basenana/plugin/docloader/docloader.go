@@ -19,7 +19,6 @@ package docloader
 import (
 	"context"
 	"fmt"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -42,12 +41,14 @@ var PluginSpec = types.PluginSpec{
 }
 
 type DocLoader struct {
-	logger *zap.SugaredLogger
+	logger   *zap.SugaredLogger
+	fileRoot *utils.FileAccess
 }
 
 func NewDocLoader(ps types.PluginCall) types.Plugin {
 	return &DocLoader{
-		logger: logger.NewPluginLogger(PluginName, ps.JobID),
+		logger:   logger.NewPluginLogger(PluginName, ps.JobID),
+		fileRoot: utils.NewFileAccess(ps.WorkingPath),
 	}
 }
 
@@ -63,7 +64,7 @@ func (d *DocLoader) Run(ctx context.Context, request *api.Request) (*api.Respons
 
 	d.logger.Infow("docloader started", "file_path", filePath)
 
-	doc, err := d.loadDocument(ctx, request.WorkingPath, filePath)
+	doc, err := d.loadDocument(ctx, filePath)
 	if err != nil {
 		d.logger.Warnw("load document failed", "file_path", filePath, "error", err)
 		return api.NewFailedResponse(fmt.Sprintf("load document %s error: %s", filePath, err.Error())), nil
@@ -78,9 +79,13 @@ func (d *DocLoader) Run(ctx context.Context, request *api.Request) (*api.Respons
 	return resp, nil
 }
 
-func (d *DocLoader) loadDocument(ctx context.Context, workdir, filePath string) (types.Document, error) {
+func (d *DocLoader) loadDocument(ctx context.Context, filePath string) (types.Document, error) {
+	entryPath, err := d.fileRoot.GetAbsPath(filePath)
+	if err != nil {
+		return types.Document{}, fmt.Errorf("invalid file path: %w", err)
+	}
+
 	var (
-		entryPath   = path.Join(workdir, filePath)
 		fileExt     = filepath.Ext(entryPath)
 		p           Parser
 		parseOption = map[string]string{}

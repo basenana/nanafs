@@ -20,13 +20,13 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/basenana/plugin/api"
 	"github.com/basenana/plugin/logger"
 	"github.com/basenana/plugin/types"
+	"github.com/basenana/plugin/utils"
 	"github.com/hyponet/webpage-packer/packer"
 	"go.uber.org/zap"
 )
@@ -49,6 +49,7 @@ var WebpackPluginSpec = types.PluginSpec{
 
 type WebpackPlugin struct {
 	logger      *zap.SugaredLogger
+	fileRoot    *utils.FileAccess
 	fileType    string
 	clutterFree bool
 }
@@ -66,6 +67,7 @@ func NewWebpackPlugin(ps types.PluginCall) types.Plugin {
 
 	return &WebpackPlugin{
 		logger:      logger.NewPluginLogger(WebpackPluginName, ps.JobID),
+		fileRoot:    utils.NewFileAccess(ps.WorkingPath),
 		fileType:    fileType,
 		clutterFree: clutterFree,
 	}
@@ -85,15 +87,9 @@ func (w *WebpackPlugin) Version() string {
 
 func (w *WebpackPlugin) Run(ctx context.Context, request *api.Request) (*api.Response, error) {
 	var (
-		workdir  = request.WorkingPath
 		filename = api.GetStringParameter(webpackParameterFileName, request, "")
 		urlInfo  = api.GetStringParameter(webpackParameterURL, request, "")
-		filePath = path.Join(workdir, filename)
 	)
-
-	if workdir == "" {
-		return nil, fmt.Errorf("workdir is empty")
-	}
 
 	if filename == "" {
 		return nil, fmt.Errorf("file name is empty")
@@ -109,7 +105,7 @@ func (w *WebpackPlugin) Run(ctx context.Context, request *api.Request) (*api.Res
 
 	w.logger.Infow("webpack started", "url", urlInfo, "file_type", w.fileType)
 
-	result, err := w.packFromURL(ctx, filePath, urlInfo, w.fileType, w.clutterFree)
+	result, err := w.packFromURL(ctx, filename, urlInfo, w.fileType, w.clutterFree)
 	if err != nil {
 		w.logger.Warnw("packing failed", "url", urlInfo, "error", err)
 		return api.NewFailedResponse(fmt.Sprintf("packing url %s failed: %s", urlInfo, err)), err
@@ -121,20 +117,21 @@ func (w *WebpackPlugin) Run(ctx context.Context, request *api.Request) (*api.Res
 	return resp, nil
 }
 
-func (w *WebpackPlugin) packFromURL(ctx context.Context, filePath, urlInfo, tgtFileType string, clutterFree bool) (map[string]any, error) {
-
-	var (
-		filename = path.Base(filePath)
-		title    = strings.TrimSuffix(filename, filepath.Ext(filename))
-		err      error
-	)
+func (w *WebpackPlugin) packFromURL(ctx context.Context, filename, urlInfo, tgtFileType string, clutterFree bool) (map[string]any, error) {
+	title := strings.TrimSuffix(filename, filepath.Ext(filename))
 
 	if urlInfo == "" {
 		return nil, fmt.Errorf("url is empty")
 	}
 
-	filename += "." + tgtFileType
-	w.logger.Infof("packing url %s to %s", urlInfo, filename)
+	outputFile := filename + "." + tgtFileType
+	w.logger.Infof("packing url %s to %s", urlInfo, outputFile)
+
+	// Get absolute path for the packer
+	filePath, err := w.fileRoot.GetAbsPath(outputFile)
+	if err != nil {
+		return nil, fmt.Errorf("invalid file path: %w", err)
+	}
 
 	switch tgtFileType {
 	case "webarchive":
@@ -167,12 +164,12 @@ func (w *WebpackPlugin) packFromURL(ctx context.Context, filePath, urlInfo, tgtF
 		}
 	}
 
-	fInfo, err := os.Stat(filePath)
+	fInfo, err := w.fileRoot.Stat(outputFile)
 	if err != nil {
 		return nil, fmt.Errorf("stat archive file error: %s", err)
 	}
 	return map[string]any{
-		"file_path": filename,
+		"file_path": outputFile,
 		"size":      fInfo.Size(),
 		"title":     title,
 		"url":       urlInfo,

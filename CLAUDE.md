@@ -37,6 +37,12 @@ NanaFS is a **Reference Filing System** inspired by GTD methodology, designed as
 - Entry lifecycle management and caching
 - Interface: `core.Core` provides main API for file operations
 
+**Shared Types (`pkg/types/`)**
+- Common type definitions across the system:
+  - Entry, access, event, filter, and workflow types
+  - Notification and pagination types
+  - Property and kind definitions
+
 **Storage Backends (`pkg/storage/`)**
 - Abstracted storage interface supporting multiple providers:
   - Object storage: AWS S3, AlibabaCloud OSS, MinIO
@@ -53,11 +59,25 @@ NanaFS is a **Reference Filing System** inspired by GTD methodology, designed as
 - File-centric workflow processing with rule-based automation
 - CEL expression evaluation for rule conditions
 - Integration with `github.com/basenana/go-flow`
+- Job execution via `workflow/jobrun/` with controller, executor, and queue
+- Supports condition, switch, and matrix nodes in workflows
 
-**Plugin System (`pkg/plugin/`)**
-- Extensible plugin architecture for:
-  - Source plugins (RSS, SMTP email aggregation)
-  - Process plugins (file processing in workflows)
+**Plugin System**
+- Extensible plugin architecture using external `github.com/basenana/plugin` package
+- Source plugins (RSS, SMTP email aggregation)
+- Process plugins (file processing in workflows)
+
+**Dispatch Module (`pkg/dispatch/`)**
+- Request dispatching and routing
+- Entry access control management
+
+**Notification System (`pkg/notify/`)**
+- System notification management
+- Notification recording and status tracking
+
+**CMDB (`pkg/cmdb/`)**
+- Configuration management database
+- System configuration and metadata
 
 **Event System (`pkg/events/`)**
 - Event bus for workflow triggers and system notifications
@@ -67,9 +87,16 @@ NanaFS is a **Reference Filing System** inspired by GTD methodology, designed as
 
 **CLI Entry Points (`cmd/`)**
 - `cmd/main.go` - Main application entry point
-- `cmd/apps/` - Cobra-based CLI structure:
-  - `apis/` - API servers (RESTful API, WebDAV)
-  - `fuse/` - FUSE file system implementation
+- `cmd/apps/` - Cobra-based CLI structure with commands:
+  - `serve` - Start server service
+  - `version` - View version information
+  - `namespace` - Create namespace
+- `cmd/apps/apis/` - API servers:
+  - `fsapi/` - gRPC filesystem API server
+  - `rest/v1/` - RESTful API endpoints
+  - `webdav/` - WebDAV server
+  - `apitool/` - API tools and utilities
+- `cmd/apps/fuse/` - FUSE file system implementation
 
 **Configuration (`config/`)**
 - JSON-based configuration loading
@@ -81,8 +108,9 @@ NanaFS is a **Reference Filing System** inspired by GTD methodology, designed as
 1. **Interface-based Design** - All major components use interfaces for testability and extensibility
 2. **Event-driven Architecture** - Workflows triggered by file events via event bus
 3. **Namespace Isolation** - Multi-tenancy support through namespace separation
-4. **Caching Layer** - Page cache in `pkg/bio/` for performance optimization
-5. **Plugin Extensibility** - Hot-pluggable plugins for custom functionality
+4. **Caching Layer** - Block I/O cache in `pkg/bio/` for performance optimization
+5. **Plugin Extensibility** - External plugin package for custom functionality
+6. **Dispatch Pattern** - Request routing and access control via `pkg/dispatch/`
 
 ## Development Notes
 
@@ -119,8 +147,8 @@ NanaFS is a **Reference Filing System** inspired by GTD methodology, designed as
 4. Add tests for new implementation
 
 ### Creating a Workflow Plugin
-1. Implement plugin interface in `pkg/plugin/`
-2. Register plugin in plugin registry
+1. Implement plugin using `github.com/basenana/plugin` package
+2. Register plugin in plugin manager
 3. Add workflow step type definition
 4. Test with sample workflow configuration
 

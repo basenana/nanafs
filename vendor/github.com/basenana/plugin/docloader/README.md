@@ -1,6 +1,6 @@
 # DocLoader
 
-Loads and parses document files (PDF, TXT, MD, HTML, EPUB, CSV, webarchive).
+Loads and parses document files (PDF, TXT, MD, HTML, EPUB, webarchive).
 
 ## Type
 ProcessPlugin
@@ -27,7 +27,6 @@ ProcessPlugin
 | `.html`, `.htm` | HTML |
 | `.webarchive` | Web Archive |
 | `.epub` | EPUB |
-| `.csv` | CSV |
 
 ## Output
 
@@ -92,12 +91,9 @@ docloader.go
 ├── epub.go
 │   └── EPUB parser (extracts Dublin Core from OPF)
 │
-├── plaintext.go
-│   ├── Text parser (TXT/MD/Markdown)
-│   └── extractTextContentMetadata() // Title from # heading, abstract from paragraphs
-│
-└── csv.go
-    └── CSV parser (generates abstract from column count)
+└── plaintext.go
+    ├── Text parser (TXT/MD/Markdown)
+    └── extractTextContentMetadata() // Title from # heading, abstract from paragraphs
 ```
 
 ## Metadata Extraction by Format
@@ -124,10 +120,6 @@ docloader.go
 - Extracts Dublin Core metadata from OPF container
 - Supports: title, creator, description, subject, publisher, date
 
-### CSV
-- Generates abstract describing column count
-- Parses filename patterns for author/title/year
-
 ## Usage Example
 
 ```yaml
@@ -145,11 +137,6 @@ docloader.go
 - name: docloader
   parameters:
     file_path: "/path/to/readme.md"
-
-# Load a CSV file
-- name: docloader
-  parameters:
-    file_path: "/path/to/data.csv"
 ```
 
 ## Notes

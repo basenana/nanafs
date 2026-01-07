@@ -19,13 +19,12 @@ package plugin
 import (
 	"context"
 	"fmt"
-	"os"
-	"path"
 	"time"
 
 	"github.com/basenana/plugin/api"
 	"github.com/basenana/plugin/logger"
 	"github.com/basenana/plugin/types"
+	"github.com/basenana/plugin/utils"
 	"go.uber.org/zap"
 )
 
@@ -39,14 +38,16 @@ const (
 )
 
 type ThreeBodyPlugin struct {
-	logger *zap.SugaredLogger
+	logger   *zap.SugaredLogger
+	fileRoot *utils.FileAccess
 }
 
 var _ SourcePlugin = &ThreeBodyPlugin{}
 
-func NewThreeBodyPlugin(ps types.PluginCall) *ThreeBodyPlugin {
+func NewThreeBodyPlugin(ps types.PluginCall) types.Plugin {
 	return &ThreeBodyPlugin{
-		logger: logger.NewPluginLogger(the3BodyPluginName, ps.JobID),
+		logger:   logger.NewPluginLogger(the3BodyPluginName, ps.JobID),
+		fileRoot: utils.NewFileAccess(ps.WorkingPath),
 	}
 }
 
@@ -67,13 +68,13 @@ func (d *ThreeBodyPlugin) SourceInfo() (string, error) {
 }
 
 func (d *ThreeBodyPlugin) Run(ctx context.Context, request *api.Request) (*api.Response, error) {
-	if request.WorkingPath == "" {
+	workdir := d.fileRoot.Workdir()
+	if workdir == "" {
 		return nil, fmt.Errorf("workdir is empty")
 	}
+	d.logger.Infow("three_body plugin started", "workdir", workdir)
 
-	d.logger.Infow("three_body plugin started", "workdir", request.WorkingPath)
-
-	result, err := d.fileGenerate(request.WorkingPath)
+	result, err := d.fileGenerate()
 	if err != nil {
 		d.logger.Warnw("file generate failed", "error", err)
 		resp := api.NewFailedResponse(fmt.Sprintf("file generate failed: %s", err))
@@ -84,18 +85,18 @@ func (d *ThreeBodyPlugin) Run(ctx context.Context, request *api.Request) (*api.R
 	return resp, nil
 }
 
-func (d *ThreeBodyPlugin) fileGenerate(workdir string) (map[string]any, error) {
+func (d *ThreeBodyPlugin) fileGenerate() (map[string]any, error) {
 	var (
 		crtAt    = time.Now().Unix()
-		filePath = path.Join(workdir, fmt.Sprintf("3_body_%d.txt", crtAt))
+		fileName = fmt.Sprintf("3_body_%d.txt", crtAt)
 		fileData = []byte(fmt.Sprintf("%d - Do not answer!\n", crtAt))
 	)
-	err := os.WriteFile(filePath, fileData, 0655)
+	err := d.fileRoot.Write(fileName, fileData, 0655)
 	if err != nil {
 		return nil, err
 	}
 	return map[string]any{
-		"file_path": path.Base(filePath),
+		"file_path": fileName,
 		"size":      int64(len(fileData)),
 	}, nil
 }

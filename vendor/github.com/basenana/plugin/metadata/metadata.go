@@ -18,13 +18,12 @@ package metadata
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"time"
 
 	"github.com/basenana/plugin/api"
 	"github.com/basenana/plugin/logger"
 	"github.com/basenana/plugin/types"
+	"github.com/basenana/plugin/utils"
 	"go.uber.org/zap"
 )
 
@@ -40,12 +39,14 @@ var PluginSpec = types.PluginSpec{
 }
 
 type MetadataPlugin struct {
-	logger *zap.SugaredLogger
+	logger   *zap.SugaredLogger
+	fileRoot *utils.FileAccess
 }
 
 func NewMetadataPlugin(ps types.PluginCall) types.Plugin {
 	return &MetadataPlugin{
-		logger: logger.NewPluginLogger(pluginName, ps.JobID),
+		logger:   logger.NewPluginLogger(pluginName, ps.JobID),
+		fileRoot: utils.NewFileAccess(ps.WorkingPath),
 	}
 }
 
@@ -69,12 +70,8 @@ func (p *MetadataPlugin) Run(ctx context.Context, request *api.Request) (*api.Re
 
 	p.logger.Infow("metadata started", "file_path", filePath)
 
-	info, err := os.Stat(filePath)
+	info, err := p.fileRoot.Stat(filePath)
 	if err != nil {
-		if os.IsNotExist(err) {
-			p.logger.Warnw("file not found", "file_path", filePath)
-			return api.NewFailedResponse(fmt.Sprintf("file not found: %s", filePath)), nil
-		}
 		p.logger.Warnw("stat failed", "file_path", filePath, "error", err)
 		return api.NewFailedResponse(err.Error()), nil
 	}

@@ -2,7 +2,7 @@ package fs
 
 import (
 	"context"
-	"os"
+	"path"
 
 	"github.com/basenana/plugin/api"
 	"github.com/basenana/plugin/logger"
@@ -23,12 +23,14 @@ var SavePluginSpec = types.PluginSpec{
 }
 
 type Saver struct {
-	logger *zap.SugaredLogger
+	fileRoot *utils.FileAccess
+	logger   *zap.SugaredLogger
 }
 
 func NewSaver(ps types.PluginCall) types.Plugin {
 	return &Saver{
-		logger: logger.NewPluginLogger(savePluginName, ps.JobID),
+		fileRoot: utils.NewFileAccess(ps.WorkingPath),
+		logger:   logger.NewPluginLogger(savePluginName, ps.JobID),
 	}
 }
 
@@ -42,7 +44,7 @@ func (p *Saver) Run(ctx context.Context, request *api.Request) (*api.Response, e
 		return api.NewFailedResponse("file_path is required"), nil
 	}
 
-	file, err := os.Open(filePath)
+	file, err := p.fileRoot.Open(filePath)
 	if err != nil {
 		return api.NewFailedResponse("failed to open file: " + err.Error()), nil
 	}
@@ -58,17 +60,20 @@ func (p *Saver) Run(ctx context.Context, request *api.Request) (*api.Response, e
 	properties := buildProperties(request)
 
 	p.logger.Infow("save started", "file_path", filePath, "name", name, "parent_uri", parentURI)
+	if parentURI == "" {
+		return api.NewFailedResponse("parent_uri is required"), nil
+	}
 
 	if request.FS == nil {
 		return api.NewFailedResponse("file system is not available"), nil
 	}
-	if err := request.FS.SaveEntry(ctx, parentURI, name, properties, file); err != nil {
+	if err = request.FS.SaveEntry(ctx, parentURI, name, properties, file); err != nil {
 		p.logger.Warnw("save entry failed", "file_path", filePath, "error", err)
 		return api.NewFailedResponse("failed to save entry: " + err.Error()), nil
 	}
 
 	p.logger.Infow("save completed", "file_path", filePath)
-	return api.NewResponse(), nil
+	return api.NewResponseWithResult(map[string]any{"entry_uri": path.Join(parentURI, name)}), nil
 }
 
 func buildProperties(request *api.Request) types.Properties {

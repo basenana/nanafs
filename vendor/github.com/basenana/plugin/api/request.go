@@ -19,15 +19,9 @@ package api
 import "encoding/json"
 
 type Request struct {
-	JobID       string
-	Namespace   string
-	WorkingPath string
-
-	PluginName string
-	Parameter  map[string]any
-
-	Store PersistentStore
-	FS    NanaFS
+	Parameter map[string]any
+	Store     PersistentStore
+	FS        NanaFS
 }
 
 func GetStringParameter(key string, r *Request, defaultVal string) string {

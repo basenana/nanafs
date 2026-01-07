@@ -186,20 +186,19 @@ Loads and parses documents, extracting metadata and content.
 - Text (`.txt`, `.md`, `.markdown`)
 - HTML (`.html`, `.htm`, `.webarchive`)
 - EPUB (`.epub`)
-- CSV (`.csv`)
 
 **Result**: Returns `document` map with fields:
 | Field | Type | Description |
 |-------|------|-------------|
 | `content` | string | Document text content |
-| `title` | string | Document title |
-| `author` | string | Author name |
-| `abstract` | string | Document abstract/summary |
-| `keywords` | string | Keywords (comma-separated) |
-| `source` | string | Source/publisher |
-| `publish_at` | string | Publish timestamp (Unix) |
-| `header_image` | string | Header image URL (HTML only) |
-| `year` | string | Publication year |
+| `properties.title` | string | Document title |
+| `properties.author` | string | Author name |
+| `properties.abstract` | string | Document abstract/summary |
+| `properties.keywords` | []string | Keywords (array) |
+| `properties.source` | string | Source/publisher |
+| `properties.publish_at` | int64 | Publish timestamp (Unix) |
+| `properties.header_image` | string | Header image URL (HTML only) |
+| `properties.year` | string | Publication year |
 
 ### fs/save (Process)
 Saves files to NanaFS with metadata.
@@ -207,8 +206,8 @@ Saves files to NanaFS with metadata.
 | Parameter | Required | Default | Description |
 |-----------|----------|---------|-------------|
 | `file_path` | Yes | - | Source file path |
+| `parent_uri` | Yes | - | Parent entry URI |
 | `name` | No | filename | Entry name |
-| `parent_uri` | No | - | Parent entry URI |
 | `title` | No | - | Entry title |
 | `author` | No | - | Author name |
 | `year` | No | - | Publication year |
@@ -220,7 +219,7 @@ Saves files to NanaFS with metadata.
 | `unread` | No | `false` | Mark as unread |
 | `marked` | No | `false` | Mark as starred |
 
-**Result**: Returns `saved`, `name`, `parentUri`.
+**Result**: Returns `entry_uri`.
 
 ### fs/update (Process)
 Updates entry metadata in NanaFS.

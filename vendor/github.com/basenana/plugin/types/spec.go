@@ -37,9 +37,11 @@ type PluginSpec struct {
 }
 
 type PluginCall struct {
-	JobID      string            `json:"job_id"`
-	Workflow   string            `json:"workflow"`
-	PluginName string            `json:"plugin_name"`
-	Version    string            `json:"version"`
-	Params     map[string]string `json:"params"`
+	JobID       string            `json:"job_id"`
+	Workflow    string            `json:"workflow"`
+	Namespace   string            `json:"namespace"`
+	WorkingPath string            `json:"working_path"`
+	PluginName  string            `json:"plugin_name"`
+	Version     string            `json:"version"`
+	Params      map[string]string `json:"params"`
 }

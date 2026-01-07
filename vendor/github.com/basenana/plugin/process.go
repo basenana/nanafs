@@ -49,7 +49,7 @@ type DelayProcessPlugin struct {
 
 var _ ProcessPlugin = &DelayProcessPlugin{}
 
-func NewDelayProcessPlugin(ps types.PluginCall) *DelayProcessPlugin {
+func NewDelayProcessPlugin(ps types.PluginCall) types.Plugin {
 	return &DelayProcessPlugin{
 		logger: logger.NewPluginLogger(delayPluginName, ps.JobID),
 	}

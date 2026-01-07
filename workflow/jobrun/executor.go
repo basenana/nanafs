@@ -164,8 +164,8 @@ func (b *defaultExecutor) Exec(ctx context.Context, flow *flow.Flow, task flow.T
 }
 
 func (b *defaultExecutor) callPluginAndCollect(ctx context.Context, step *types.WorkflowJobNode) (map[string]any, error) {
-	req := newPluginRequest(b.workdir, b.job, step, b.store, b.results)
-	resp, err := callPlugin(ctx, b.job, step, b.pluginMgr, req)
+	req := newPluginRequest(b.job, step, b.nfs, b.store, b.results)
+	resp, err := callPlugin(ctx, b.job, step, b.pluginMgr, req, b.workdir)
 	if err != nil {
 		return nil, logOperationError(DefExecName, "call_plugin", err)
 	}
@@ -356,14 +356,10 @@ func (b *defaultExecutor) Teardown(ctx context.Context) error {
 	return nil
 }
 
-func newPluginRequest(workingPath string, job *types.WorkflowJob, step *types.WorkflowJobNode, store pluginapi.PersistentStore, result Results) *pluginapi.Request {
+func newPluginRequest(job *types.WorkflowJob, step *types.WorkflowJobNode, nfs pluginapi.NanaFS, store pluginapi.PersistentStore, result Results) *pluginapi.Request {
 	req := pluginapi.NewRequest()
-	req.JobID = job.Id
-	req.WorkingPath = workingPath
-	req.Namespace = job.Namespace
-	req.PluginName = step.Type
 	req.Store = store
-	req.FS = nil
+	req.FS = nfs
 
 	resultData := result.Data()
 	globalVars := injectGlobalVars(job)
@@ -380,12 +376,14 @@ func newPluginRequest(workingPath string, job *types.WorkflowJob, step *types.Wo
 	return req
 }
 
-func callPlugin(ctx context.Context, job *types.WorkflowJob, step *types.WorkflowJobNode, mgr plugin.Manager, req *pluginapi.Request) (*pluginapi.Response, error) {
+func callPlugin(ctx context.Context, job *types.WorkflowJob, step *types.WorkflowJobNode, mgr plugin.Manager, req *pluginapi.Request, workdir string) (*pluginapi.Response, error) {
 	pc := plugintypes.PluginCall{
-		JobID:      job.Id,
-		Workflow:   job.Workflow,
-		PluginName: step.Type,
-		Params:     step.Params,
+		JobID:       job.Id,
+		Workflow:    job.Workflow,
+		Namespace:   job.Namespace,
+		WorkingPath: workdir,
+		PluginName:  step.Type,
+		Params:      step.Params,
 	}
 	resp, err := mgr.Call(ctx, pc, req)
 	if err != nil {

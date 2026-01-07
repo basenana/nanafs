@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 
+	htmltomarkdown "github.com/JohannesKaufmann/html-to-markdown/v2"
 	"github.com/basenana/plugin/types"
 	"github.com/basenana/plugin/utils"
 	"github.com/hyponet/webpage-packer/packer"
@@ -79,7 +80,7 @@ func (h HTML) Load(ctx context.Context) (types.Document, error) {
 	}
 
 	return types.Document{
-		Content:    content,
+		Content:    ReadableHTMLContent(content),
 		Properties: props,
 	}, nil
 }
@@ -167,4 +168,25 @@ func extractHTMLMetadata(docPath string) types.Properties {
 	}
 
 	return props
+}
+
+func ReadableHTMLContent(content string) string {
+	markdown, err := htmltomarkdown.ConvertString(content)
+	if err != nil {
+		return HTMLContentTrim(content)
+	}
+	return markdown
+}
+
+var repeatSpace = regexp.MustCompile(`\s+`)
+var htmlCharFilterRegexp = regexp.MustCompile(`</?[!\w:]+((\s+[\w-]+(\s*=\s*(?:\\*".*?"|'.*?'|[^'">\s]+))?)+\s*|\s*)/?>`)
+
+func HTMLContentTrim(content string) string {
+	content = strings.ReplaceAll(content, "</p>", "</p>\n")
+	content = strings.ReplaceAll(content, "</P>", "</P>\n")
+	content = strings.ReplaceAll(content, "</div>", "</div>\n")
+	content = strings.ReplaceAll(content, "</DIV>", "</DIV>\n")
+	content = htmlCharFilterRegexp.ReplaceAllString(content, "")
+	content = repeatSpace.ReplaceAllString(content, " ")
+	return content
 }

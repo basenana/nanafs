@@ -12,7 +12,7 @@ Saves a local file to the NanaFS file system with metadata.
 |-----------|----------|---------|-------------|
 | `file_path` | Yes | - | Path to the local file |
 | `name` | No | filename | Entry name in NanaFS |
-| `parent_uri` | No | - | Parent entry URI |
+| `parent_uri` | Yes | - | Parent entry URI |
 | `properties` | No | - | Properties map (flat structure) |
 | `document` | No | - | Document struct from docloader |
 
@@ -22,9 +22,9 @@ Saves a local file to the NanaFS file system with metadata.
 - `year` - Publication year
 - `source` - Source/publisher
 - `abstract` - Abstract/summary
-- `notes` - Personal notes
+- `notes` - Personal notes (not populated by docloader)
 - `keywords` - Keywords (comma-separated)
-- `url` - Source URL
+- `url` - Source URL (not populated by docloader)
 - `header_image` - Header image URL
 - `unread` - Mark as unread (default: false)
 - `marked` - Mark as starred (default: false)

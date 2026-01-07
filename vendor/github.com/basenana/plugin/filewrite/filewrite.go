@@ -22,11 +22,11 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/basenana/plugin/api"
 	"github.com/basenana/plugin/logger"
 	"github.com/basenana/plugin/types"
+	"github.com/basenana/plugin/utils"
 	"go.uber.org/zap"
 )
 
@@ -42,12 +42,14 @@ var PluginSpec = types.PluginSpec{
 }
 
 type FileWritePlugin struct {
-	logger *zap.SugaredLogger
+	logger   *zap.SugaredLogger
+	fileRoot *utils.FileAccess
 }
 
 func NewFileWritePlugin(ps types.PluginCall) types.Plugin {
 	return &FileWritePlugin{
-		logger: logger.NewPluginLogger(pluginName, ps.JobID),
+		logger:   logger.NewPluginLogger(pluginName, ps.JobID),
+		fileRoot: utils.NewFileAccess(ps.WorkingPath),
 	}
 }
 
@@ -78,42 +80,28 @@ func (p *FileWritePlugin) Run(ctx context.Context, request *api.Request) (*api.R
 		return api.NewFailedResponse(fmt.Sprintf("invalid mode: %s", modeStr)), nil
 	}
 
-	// Ensure parent directory exists
-	parentDir := filepath.Dir(destPath)
-	if parentDir != "" && parentDir != "." {
-		if err := os.MkdirAll(parentDir, 0755); err != nil {
-			return api.NewFailedResponse("create directory failed: " + err.Error()), nil
-		}
-	}
-
 	p.logger.Infow("filewrite started", "dest_path", destPath, "mode", modeStr)
 
+	// Get absolute path and create parent directories
+	absPath, err := p.fileRoot.GetAbsPath(destPath)
+	if err != nil {
+		p.logger.Warnw("get absolute path failed", "dest_path", destPath, "error", err)
+		return api.NewFailedResponse("write file failed: " + err.Error()), nil
+	}
+
+	// Create parent directory
+	parentDir := filepath.Dir(absPath)
+	if err := os.MkdirAll(parentDir, 0755); err != nil {
+		p.logger.Warnw("create parent directory failed", "parent_dir", parentDir, "error", err)
+		return api.NewFailedResponse("write file failed: " + err.Error()), nil
+	}
+
 	// Write file
-	if err := os.WriteFile(destPath, []byte(content), os.FileMode(mode)); err != nil {
+	if err := os.WriteFile(absPath, []byte(content), os.FileMode(mode)); err != nil {
 		p.logger.Warnw("write file failed", "dest_path", destPath, "error", err)
 		return api.NewFailedResponse("write file failed: " + err.Error()), nil
 	}
 
 	p.logger.Infow("filewrite completed", "dest_path", destPath)
 	return api.NewResponse(), nil
-}
-
-func ResolvePath(path string, workingPath string) (string, error) {
-	if filepath.IsAbs(path) {
-		return path, nil
-	}
-	return filepath.Join(workingPath, path), nil
-}
-
-func SanitizePath(path string) (string, error) {
-	// Remove any null bytes or path traversal attempts
-	path = strings.ReplaceAll(path, "\x00", "")
-	path = filepath.Clean(path)
-
-	// Check for path traversal
-	if strings.Contains(path, "..") {
-		return "", fmt.Errorf("path contains invalid traversal")
-	}
-
-	return path, nil
 }

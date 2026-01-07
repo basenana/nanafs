@@ -14,7 +14,7 @@ build:
 	-e GIT_TAG=$(LATEST_TAG) \
 	-v $(BASE_PATH)/bin:/bin/nanafs \
 	-w /go/src/github.com/basenana/nanafs \
-	golang:1.23 sh ./hack/multibuild.sh ./cmd /bin/nanafs
+	registry.cn-hangzhou.aliyuncs.com/hdls/golang:1.25 sh ./hack/multibuild.sh ./cmd /bin/nanafs
 buildbin:
 	CGO_ENABLED=0 GOOS=$1 GOARCH=$2 go build \
 		-ldflags="-s -w -X github.com/basenana/nanafs/config.gitCommit=${GIT_COMMIT} -X github.com/basenana/nanafs/config.gitTag=${GIT_TAG}" \

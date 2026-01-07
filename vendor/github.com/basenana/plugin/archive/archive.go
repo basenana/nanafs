@@ -31,6 +31,7 @@ import (
 	"github.com/basenana/plugin/api"
 	"github.com/basenana/plugin/logger"
 	"github.com/basenana/plugin/types"
+	"github.com/basenana/plugin/utils"
 	"go.uber.org/zap"
 )
 
@@ -47,12 +48,14 @@ var PluginSpec = types.PluginSpec{
 }
 
 type ArchivePlugin struct {
-	logger *zap.SugaredLogger
+	logger   *zap.SugaredLogger
+	fileRoot *utils.FileAccess
 }
 
 func NewArchivePlugin(ps types.PluginCall) types.Plugin {
 	return &ArchivePlugin{
-		logger: logger.NewPluginLogger(pluginName, ps.JobID),
+		logger:   logger.NewPluginLogger(pluginName, ps.JobID),
+		fileRoot: utils.NewFileAccess(ps.WorkingPath),
 	}
 }
 
@@ -97,18 +100,18 @@ func (p *ArchivePlugin) runExtract(request *api.Request, format string) (*api.Re
 	}
 
 	// Ensure destination directory exists
-	if err := os.MkdirAll(destPath, 0755); err != nil {
+	if err := p.fileRoot.MkdirAll(destPath, 0755); err != nil {
 		return api.NewFailedResponse(fmt.Sprintf("create dest directory failed: %v", err)), nil
 	}
 
 	var err error
 	switch format {
 	case "zip":
-		err = extractZip(filePath, destPath)
+		err = p.extractZip(filePath, destPath)
 	case "tar":
-		err = extractTar(filePath, destPath)
+		err = p.extractTar(filePath, destPath)
 	case "gzip":
-		err = extractGzip(filePath, destPath)
+		err = p.extractGzip(filePath, destPath)
 	default:
 		return api.NewFailedResponse(fmt.Sprintf("unsupported format: %s (supported: zip, tar, gzip)", format)), nil
 	}
@@ -140,24 +143,27 @@ func (p *ArchivePlugin) runCompress(request *api.Request, format string) (*api.R
 	}
 
 	// Ensure destination directory exists
-	if err := os.MkdirAll(destPath, 0755); err != nil {
+	if err := p.fileRoot.MkdirAll(destPath, 0755); err != nil {
 		return api.NewFailedResponse(fmt.Sprintf("create dest directory failed: %v", err)), nil
 	}
 
 	// Generate archive name if not provided
 	if archiveName == "" {
-		archiveName = generateArchiveName(sourcePath, format)
+		archiveName = p.generateArchiveName(sourcePath, format)
 	}
-	archivePath := filepath.Join(destPath, archiveName)
+	archivePath := p.fileRoot.Workdir() + "/" + destPath + "/" + archiveName
+	if destPath == "." {
+		archivePath = p.fileRoot.Workdir() + "/" + archiveName
+	}
 
 	var err error
 	switch format {
 	case "zip":
-		err = createZip(sourcePath, archivePath)
+		err = p.createZip(sourcePath, archivePath)
 	case "tar":
-		err = createTar(sourcePath, archivePath)
+		err = p.createTar(sourcePath, archivePath)
 	case "gzip":
-		err = createGzip(sourcePath, archivePath)
+		err = p.createGzip(sourcePath, archivePath)
 	default:
 		return api.NewFailedResponse(fmt.Sprintf("unsupported format: %s (supported: zip, tar, gzip)", format)), nil
 	}
@@ -168,7 +174,7 @@ func (p *ArchivePlugin) runCompress(request *api.Request, format string) (*api.R
 	}
 
 	// Return archive info
-	info, err := os.Stat(archivePath)
+	info, err := p.fileRoot.Stat(archivePath)
 	if err != nil {
 		p.logger.Infow("compress completed", "archive_path", archivePath)
 		return api.NewResponse(), nil
@@ -181,7 +187,7 @@ func (p *ArchivePlugin) runCompress(request *api.Request, format string) (*api.R
 	}), nil
 }
 
-func generateArchiveName(sourcePath, format string) string {
+func (p *ArchivePlugin) generateArchiveName(sourcePath, format string) string {
 	baseName := filepath.Base(sourcePath)
 	switch format {
 	case "zip":
@@ -200,15 +206,21 @@ func generateArchiveName(sourcePath, format string) string {
 	return baseName
 }
 
-func extractZip(src, dest string) error {
-	reader, err := zip.OpenReader(src)
+func (p *ArchivePlugin) extractZip(src, dest string) error {
+	// Get validated absolute path for source
+	srcAbs, err := p.fileRoot.GetAbsPath(src)
+	if err != nil {
+		return fmt.Errorf("invalid source path: %w", err)
+	}
+
+	reader, err := zip.OpenReader(srcAbs)
 	if err != nil {
 		return fmt.Errorf("open zip file failed: %w", err)
 	}
 	defer reader.Close()
 
 	// Ensure base destination directory exists
-	if err := os.MkdirAll(dest, 0755); err != nil {
+	if err := p.fileRoot.MkdirAll(dest, 0755); err != nil {
 		return fmt.Errorf("create dest directory failed: %w", err)
 	}
 
@@ -216,7 +228,7 @@ func extractZip(src, dest string) error {
 		path := filepath.Join(dest, file.Name)
 
 		if file.FileInfo().IsDir() {
-			if err := os.MkdirAll(path, file.Mode()); err != nil {
+			if err := p.fileRoot.MkdirAll(path, file.Mode()); err != nil {
 				return fmt.Errorf("create directory failed: %w", err)
 			}
 			continue
@@ -224,12 +236,12 @@ func extractZip(src, dest string) error {
 
 		// Ensure parent directory exists
 		parentDir := filepath.Dir(path)
-		if err := os.MkdirAll(parentDir, 0755); err != nil {
+		if err := p.fileRoot.MkdirAll(parentDir, 0755); err != nil {
 			return fmt.Errorf("create parent directory failed: %w", err)
 		}
 
 		// Use 0644 permissions to ensure write access
-		destFile, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+		destFile, err := p.fileRoot.Create(path, 0644)
 		if err != nil {
 			return fmt.Errorf("create file failed: %w", err)
 		}
@@ -252,8 +264,14 @@ func extractZip(src, dest string) error {
 	return nil
 }
 
-func extractTar(src, dest string) error {
-	file, err := os.Open(src)
+func (p *ArchivePlugin) extractTar(src, dest string) error {
+	// Get validated absolute path for source
+	srcAbs, err := p.fileRoot.GetAbsPath(src)
+	if err != nil {
+		return fmt.Errorf("invalid source path: %w", err)
+	}
+
+	file, err := p.fileRoot.Open(srcAbs)
 	if err != nil {
 		return fmt.Errorf("open tar file failed: %w", err)
 	}
@@ -280,15 +298,15 @@ func extractTar(src, dest string) error {
 
 		switch header.Typeflag {
 		case tar.TypeDir:
-			if err := os.MkdirAll(path, os.FileMode(header.Mode)); err != nil {
+			if err := p.fileRoot.MkdirAll(path, os.FileMode(header.Mode)); err != nil {
 				return fmt.Errorf("create directory failed: %w", err)
 			}
 		case tar.TypeReg:
-			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			if err := p.fileRoot.MkdirAll(filepath.Dir(path), 0755); err != nil {
 				return fmt.Errorf("create parent directory failed: %w", err)
 			}
 
-			destFile, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.FileMode(header.Mode))
+			destFile, err := p.fileRoot.Create(path, os.FileMode(header.Mode))
 			if err != nil {
 				return fmt.Errorf("create file failed: %w", err)
 			}
@@ -305,9 +323,14 @@ func extractTar(src, dest string) error {
 	return nil
 }
 
-func extractGzip(src, dest string) error {
-	// For gzip, we extract to the same directory with the .gz extension removed
-	file, err := os.Open(src)
+func (p *ArchivePlugin) extractGzip(src, dest string) error {
+	// Get validated absolute path for source
+	srcAbs, err := p.fileRoot.GetAbsPath(src)
+	if err != nil {
+		return fmt.Errorf("invalid source path: %w", err)
+	}
+
+	file, err := p.fileRoot.Open(srcAbs)
 	if err != nil {
 		return fmt.Errorf("open gzip file failed: %w", err)
 	}
@@ -330,11 +353,11 @@ func extractGzip(src, dest string) error {
 	outputPath := filepath.Join(dest, baseName)
 
 	// Ensure destination directory exists
-	if err := os.MkdirAll(dest, 0755); err != nil {
+	if err := p.fileRoot.MkdirAll(dest, 0755); err != nil {
 		return fmt.Errorf("create dest directory failed: %w", err)
 	}
 
-	destFile, err := os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	destFile, err := p.fileRoot.Create(outputPath, 0644)
 	if err != nil {
 		return fmt.Errorf("create output file failed: %w", err)
 	}
@@ -350,14 +373,20 @@ func extractGzip(src, dest string) error {
 
 // Compression functions
 
-func createZip(src, dest string) error {
+func (p *ArchivePlugin) createZip(src, dest string) error {
+	// Get validated absolute path for source
+	srcAbs, err := p.fileRoot.GetAbsPath(src)
+	if err != nil {
+		return fmt.Errorf("invalid source path: %w", err)
+	}
+
 	// Determine if src is file or directory
-	info, err := os.Stat(src)
+	info, err := p.fileRoot.Stat(srcAbs)
 	if err != nil {
 		return fmt.Errorf("stat source failed: %w", err)
 	}
 
-	destFile, err := os.Create(dest)
+	destFile, err := p.fileRoot.Create(dest, 0644)
 	if err != nil {
 		return fmt.Errorf("create zip file failed: %w", err)
 	}
@@ -367,12 +396,12 @@ func createZip(src, dest string) error {
 	defer zipWriter.Close()
 
 	if info.IsDir() {
-		return walkAndZip(src, "", zipWriter)
+		return p.walkAndZip(srcAbs, "", zipWriter)
 	}
-	return addFileToZip(src, filepath.Base(src), zipWriter)
+	return p.addFileToZip(srcAbs, filepath.Base(srcAbs), zipWriter)
 }
 
-func walkAndZip(root, baseDir string, zw *zip.Writer) error {
+func (p *ArchivePlugin) walkAndZip(root, baseDir string, zw *zip.Writer) error {
 	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -402,12 +431,12 @@ func walkAndZip(root, baseDir string, zw *zip.Writer) error {
 			return nil
 		}
 
-		return addFileToZip(path, relPath, zw)
+		return p.addFileToZip(path, relPath, zw)
 	})
 }
 
-func addFileToZip(filePath, zipPath string, zw *zip.Writer) error {
-	file, err := os.Open(filePath)
+func (p *ArchivePlugin) addFileToZip(filePath, zipPath string, zw *zip.Writer) error {
+	file, err := p.fileRoot.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("open file failed: %w", err)
 	}
@@ -434,13 +463,19 @@ func addFileToZip(filePath, zipPath string, zw *zip.Writer) error {
 	return err
 }
 
-func createTar(src, dest string) error {
-	info, err := os.Stat(src)
+func (p *ArchivePlugin) createTar(src, dest string) error {
+	// Get validated absolute path for source
+	srcAbs, err := p.fileRoot.GetAbsPath(src)
+	if err != nil {
+		return fmt.Errorf("invalid source path: %w", err)
+	}
+
+	info, err := p.fileRoot.Stat(srcAbs)
 	if err != nil {
 		return fmt.Errorf("stat source failed: %w", err)
 	}
 
-	destFile, err := os.Create(dest)
+	destFile, err := p.fileRoot.Create(dest, 0644)
 	if err != nil {
 		return fmt.Errorf("create tar file failed: %w", err)
 	}
@@ -453,12 +488,12 @@ func createTar(src, dest string) error {
 	defer tarWriter.Close()
 
 	if info.IsDir() {
-		return walkAndTar(src, "", tarWriter)
+		return p.walkAndTar(srcAbs, "", tarWriter)
 	}
-	return addFileToTar(src, filepath.Base(src), tarWriter)
+	return p.addFileToTar(srcAbs, filepath.Base(srcAbs), tarWriter)
 }
 
-func walkAndTar(root, baseDir string, tw *tar.Writer) error {
+func (p *ArchivePlugin) walkAndTar(root, baseDir string, tw *tar.Writer) error {
 	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -485,12 +520,12 @@ func walkAndTar(root, baseDir string, tw *tar.Writer) error {
 			return nil
 		}
 
-		return addFileToTar(path, relPath, tw)
+		return p.addFileToTar(path, relPath, tw)
 	})
 }
 
-func addFileToTar(filePath, tarPath string, tw *tar.Writer) error {
-	file, err := os.Open(filePath)
+func (p *ArchivePlugin) addFileToTar(filePath, tarPath string, tw *tar.Writer) error {
+	file, err := p.fileRoot.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("open file failed: %w", err)
 	}
@@ -515,8 +550,14 @@ func addFileToTar(filePath, tarPath string, tw *tar.Writer) error {
 	return err
 }
 
-func createGzip(src, dest string) error {
-	info, err := os.Stat(src)
+func (p *ArchivePlugin) createGzip(src, dest string) error {
+	// Get validated absolute path for source
+	srcAbs, err := p.fileRoot.GetAbsPath(src)
+	if err != nil {
+		return fmt.Errorf("invalid source path: %w", err)
+	}
+
+	info, err := p.fileRoot.Stat(srcAbs)
 	if err != nil {
 		return fmt.Errorf("stat source failed: %w", err)
 	}
@@ -525,13 +566,13 @@ func createGzip(src, dest string) error {
 		return fmt.Errorf("gzip compression only supports single files, not directories")
 	}
 
-	file, err := os.Open(src)
+	file, err := p.fileRoot.Open(srcAbs)
 	if err != nil {
 		return fmt.Errorf("open file failed: %w", err)
 	}
 	defer file.Close()
 
-	destFile, err := os.Create(dest)
+	destFile, err := p.fileRoot.Create(dest, 0644)
 	if err != nil {
 		return fmt.Errorf("create gzip file failed: %w", err)
 	}

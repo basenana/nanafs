@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.36.0
 	github.com/aws/smithy-go v1.13.5
 	github.com/basenana/go-flow v0.0.0-20250614153542-07184f3ea1e7
-	github.com/basenana/plugin v0.0.0-20260106154805-0947e10ee319
+	github.com/basenana/plugin v0.0.0-20260107113052-2f8c400f1db3
 	github.com/bluele/gcache v0.0.2
 	github.com/getsentry/sentry-go v0.22.0
 	github.com/glebarez/sqlite v1.7.0
@@ -21,6 +21,7 @@ require (
 	github.com/hanwen/go-fuse/v2 v2.3.0
 	github.com/hyponet/eventbus v1.1.0
 	github.com/minio/minio-go/v7 v7.0.52
+	github.com/ohler55/ojg v1.27.0
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.36.0
 	github.com/pierrec/lz4/v4 v4.1.17
@@ -40,6 +41,8 @@ require (
 require (
 	cel.dev/expr v0.23.1 // indirect
 	code.dny.dev/ssrf v0.2.0 // indirect
+	github.com/JohannesKaufmann/dom v0.2.0 // indirect
+	github.com/JohannesKaufmann/html-to-markdown/v2 v2.5.0 // indirect
 	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de // indirect
@@ -85,7 +88,7 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.16.0 // indirect
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728 // indirect
-	github.com/mattn/go-isatty v0.0.19 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
@@ -95,7 +98,6 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/nxadm/tail v1.4.11 // indirect
-	github.com/ohler55/ojg v1.27.0 // indirect
 	github.com/onsi/ginkgo/v2 v2.22.0 // indirect
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.42.0 // indirect

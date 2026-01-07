@@ -65,6 +65,10 @@ SourcePlugin
 
 ## Usage Example
 
+Parameters are passed from two sources:
+- `feed` is passed via Request parameters (runtime)
+- Other parameters (`file_type`, `timeout`, `header_*`) are passed via PluginCall parameters (initialization)
+
 ```yaml
 # Fetch RSS feed with default settings
 - name: rss
@@ -72,19 +76,23 @@ SourcePlugin
     feed: "https://example.com/feed.xml"
   working_path: "/path/to/output"
 
-# Fetch with custom timeout
+# Fetch with custom timeout (via PluginCall params)
 - name: rss
   parameters:
     feed: "https://example.com/feed.xml"
+  with:
     timeout: 60
     file_type: "html"
 
-# Fetch with custom headers
+# Fetch with custom headers (via PluginCall params)
 - name: rss
   parameters:
     feed: "https://example.com/feed.xml"
+  with:
     header_User-Agent: "MyBot/1.0"
 ```
+
+**Note**: The `with` section (or equivalent) passes initialization parameters to the plugin factory function.
 
 ## Notes
 - Uses persistent store to track already-processed articles to avoid duplicates

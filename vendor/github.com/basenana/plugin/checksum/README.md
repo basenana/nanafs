@@ -36,10 +36,11 @@ ProcessPlugin
   parameters:
     file_path: "/path/to/file.txt"
 
-# Compute SHA256 checksum
+# Compute SHA256 checksum (algorithm via PluginCall params)
 - name: checksum
   parameters:
     file_path: "/path/to/file.txt"
+  with:
     algorithm: "sha256"
 ```
 

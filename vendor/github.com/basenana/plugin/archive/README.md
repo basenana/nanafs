@@ -34,7 +34,6 @@ ProcessPlugin
 ### Compress
 ```json
 {
-  "success": true,
   "file_path": "/path/to/archive.zip",
   "size": 1024
 }

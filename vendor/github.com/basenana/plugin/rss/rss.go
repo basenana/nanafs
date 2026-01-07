@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"hash/fnv"
 	"net/url"
-	"os"
 	"path"
 	"strconv"
 	"strings"
@@ -63,6 +62,7 @@ var RssSourcePluginSpec = types.PluginSpec{
 
 type RssSourcePlugin struct {
 	logger      *zap.SugaredLogger
+	fileRoot    *utils.FileAccess
 	fileType    string
 	timeout     int
 	clutterFree bool
@@ -98,6 +98,7 @@ func NewRssPlugin(ps types.PluginCall) types.Plugin {
 
 	return &RssSourcePlugin{
 		logger:      logger.NewPluginLogger(RssSourcePluginName, ps.JobID),
+		fileRoot:    utils.NewFileAccess(ps.WorkingPath),
 		fileType:    fileType,
 		timeout:     timeout,
 		clutterFree: clutterFree,
@@ -135,7 +136,7 @@ func (r *RssSourcePlugin) Run(ctx context.Context, request *api.Request) (*api.R
 	}
 	r.logger.Infow("syncing rss", "feed", source.FeedUrl)
 
-	articles, err := r.syncRssSource(ctx, source, request.WorkingPath)
+	articles, err := r.syncRssSource(ctx, source)
 	if err != nil {
 		r.logger.Warnw("sync rss failed", "source", source.FeedUrl, "err", err)
 		return api.NewFailedResponse(fmt.Sprintf("sync rss failed: %s", err)), nil
@@ -171,7 +172,7 @@ func (r *RssSourcePlugin) rssSources(request *api.Request) (src rssSource, err e
 	return
 }
 
-func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, workdir string) ([]Article, error) {
+func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource) ([]Article, error) {
 	var nowTime = time.Now()
 	siteURL, err := parseSiteURL(source.FeedUrl)
 	if err != nil {
@@ -226,7 +227,7 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, w
 			buf.WriteString("\n")
 			buf.WriteString(fmt.Sprintf("URL=%s", item.Link))
 
-			err = os.WriteFile(utils.SafetyFilePathJoin(workdir, fileName), buf.Bytes(), 0655)
+			err = r.fileRoot.Write(fileName, buf.Bytes(), 0655)
 			if err != nil {
 				return nil, fmt.Errorf("pack to url file failed: %s", err)
 			}
@@ -234,7 +235,7 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, w
 		case archiveFileTypeHtml:
 			fileName += ".html"
 			htmlContent := readableHtmlContent(item.Link, item.Title, item.Content)
-			err = os.WriteFile(utils.SafetyFilePathJoin(workdir, fileName), []byte(htmlContent), 0655)
+			err = r.fileRoot.Write(fileName, []byte(htmlContent), 0655)
 			if err != nil {
 				return nil, fmt.Errorf("pack to html file failed: %s", err)
 			}
@@ -242,9 +243,10 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, w
 		case archiveFileTypeRawHtml:
 			fileName += ".html"
 			p := packer.NewHtmlPacker()
+			filePath, _ := r.fileRoot.GetAbsPath(fileName)
 			err = p.Pack(ctx, packer.Option{
 				URL:              item.Link,
-				FilePath:         utils.SafetyFilePathJoin(workdir, fileName),
+				FilePath:         filePath,
 				Timeout:          source.Timeout,
 				ClutterFree:      source.ClutterFree,
 				Headers:          source.Headers,
@@ -258,9 +260,10 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, w
 		case archiveFileTypeWebArchive:
 			fileName += ".webarchive"
 			p := packer.NewWebArchivePacker()
+			filePath, _ := r.fileRoot.GetAbsPath(fileName)
 			err = p.Pack(ctx, packer.Option{
 				URL:              item.Link,
-				FilePath:         utils.SafetyFilePathJoin(workdir, fileName),
+				FilePath:         filePath,
 				Timeout:          source.Timeout,
 				ClutterFree:      source.ClutterFree,
 				Headers:          source.Headers,
@@ -275,8 +278,7 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, w
 			return nil, fmt.Errorf("unknown rss archive file type %s", source.FileType)
 		}
 
-		filePath := utils.SafetyFilePathJoin(workdir, fileName)
-		fInfo, err := os.Stat(filePath)
+		fInfo, err := r.fileRoot.Stat(fileName)
 		if err != nil {
 			return nil, fmt.Errorf("stat archive file error: %s", err)
 		}
@@ -295,7 +297,7 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource, w
 
 		links = append(links, item.Link)
 		articles = append(articles, Article{
-			FilePath:  path.Base(filePath),
+			FilePath:  path.Base(fileName),
 			Size:      fInfo.Size(),
 			Title:     item.Title,
 			URL:       item.Link,
@@ -350,16 +352,15 @@ func (s *rssSource) isNew(ctx context.Context, linkStr string) (bool, error) {
 		return false, nil
 	}
 
-	if !strings.Contains(err.Error(), "no record") {
-		return false, err
+	if strings.Contains(err.Error(), "no record") {
+		return true, nil
 	}
 
-	v["time"] = time.Now().Format(time.RFC3339)
-	err = s.Store.Save(ctx, RssSourcePluginName, "source", k, &v)
-	if err == nil {
-		return false, nil
+	if strings.Contains(err.Error(), "not found") {
+		return true, nil
 	}
-	return true, nil
+
+	return false, err
 }
 
 func (s *rssSource) record(ctx context.Context, linkList ...string) error {

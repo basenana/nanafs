@@ -23,11 +23,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"os"
 
 	"github.com/basenana/plugin/api"
 	"github.com/basenana/plugin/logger"
 	"github.com/basenana/plugin/types"
+	"github.com/basenana/plugin/utils"
 	"go.uber.org/zap"
 )
 
@@ -45,6 +45,7 @@ var PluginSpec = types.PluginSpec{
 type ChecksumPlugin struct {
 	algorithm string
 	logger    *zap.SugaredLogger
+	fileRoot  *utils.FileAccess
 }
 
 func NewChecksumPlugin(ps types.PluginCall) types.Plugin {
@@ -55,6 +56,7 @@ func NewChecksumPlugin(ps types.PluginCall) types.Plugin {
 	return &ChecksumPlugin{
 		logger:    logger.NewPluginLogger(pluginName, ps.JobID),
 		algorithm: algorithm,
+		fileRoot:  utils.NewFileAccess(ps.WorkingPath),
 	}
 }
 
@@ -79,7 +81,7 @@ func (p *ChecksumPlugin) Run(ctx context.Context, request *api.Request) (*api.Re
 
 	p.logger.Infow("checksum started", "file_path", filePath, "algorithm", p.algorithm)
 
-	hash, err := computeHash(filePath, p.algorithm)
+	hash, err := p.computeHash(filePath)
 	if err != nil {
 		p.logger.Warnw("compute hash failed", "file_path", filePath, "error", err)
 		return api.NewFailedResponse(err.Error()), nil
@@ -94,8 +96,8 @@ func (p *ChecksumPlugin) Run(ctx context.Context, request *api.Request) (*api.Re
 	return api.NewResponseWithResult(results), nil
 }
 
-func computeHash(filePath, algorithm string) (string, error) {
-	file, err := os.Open(filePath)
+func (p *ChecksumPlugin) computeHash(filePath string) (string, error) {
+	file, err := p.fileRoot.Open(filePath)
 	if err != nil {
 		return "", fmt.Errorf("open file failed: %w", err)
 	}
@@ -106,13 +108,13 @@ func computeHash(filePath, algorithm string) (string, error) {
 		Sum(b []byte) []byte
 	}
 
-	switch algorithm {
+	switch p.algorithm {
 	case "md5":
 		hash = md5.New()
 	case "sha256":
 		hash = sha256.New()
 	default:
-		return "", fmt.Errorf("unsupported algorithm: %s (supported: md5, sha256)", algorithm)
+		return "", fmt.Errorf("unsupported algorithm: %s (supported: md5, sha256)", p.algorithm)
 	}
 
 	_, err = io.Copy(hash, file)

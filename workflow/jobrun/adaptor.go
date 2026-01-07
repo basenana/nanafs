@@ -18,6 +18,7 @@ package jobrun
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -212,21 +213,34 @@ func (n *namespacedFS) SaveEntry(ctx context.Context, parentURI, name string, pr
 		return fmt.Errorf("get parent %s error %w", parentURI, err)
 	}
 
-	attr := types.EntryAttr{
-		Name: name,
-		Kind: types.FileKind(name, types.RawKind),
+	child, err := n.core.FindEntry(ctx, n.namespace, parent.ID, name)
+	if err != nil && errors.Is(err, types.ErrNotFound) {
+		return fmt.Errorf("find %s error %w", name, err)
 	}
 
-	entry, err := n.core.CreateEntry(ctx, n.namespace, parent.ID, attr)
-	if err != nil {
-		return err
+	var entry *types.Entry
+	if child == nil {
+		attr := types.EntryAttr{
+			Name: name,
+			Kind: types.FileKind(name, types.RawKind),
+		}
+
+		entry, err = n.core.CreateEntry(ctx, n.namespace, parent.ID, attr)
+		if err != nil {
+			return fmt.Errorf("create %s error %w", name, err)
+		}
+		properties.Unread = true
+	} else {
+		entry, err = n.core.GetEntry(ctx, n.namespace, child.ChildID)
+		if err != nil {
+			return fmt.Errorf("get %s error %w", name, err)
+		}
 	}
 
 	file, err := n.core.Open(ctx, n.namespace, entry.ID, types.OpenAttr{Write: true, Create: true})
 	if err != nil {
 		return err
 	}
-
 	defer file.Close(ctx)
 
 	_, err = io.Copy(utils.NewWriterWithContextWriter(ctx, file), reader)
@@ -241,8 +255,12 @@ func (n *namespacedFS) SaveEntry(ctx context.Context, parentURI, name string, pr
 	return n.store.UpdateEntryProperties(ctx, n.namespace, types.PropertyTypeDocument, entry.ID, toDocumentProperties(properties))
 }
 
-func (n *namespacedFS) UpdateEntry(ctx context.Context, entryURI int64, properties plugintypes.Properties) error {
-	return n.store.UpdateEntryProperties(ctx, n.namespace, types.PropertyTypeDocument, entryURI, toDocumentProperties(properties))
+func (n *namespacedFS) UpdateEntry(ctx context.Context, entryURI string, properties plugintypes.Properties) error {
+	_, en, err := n.core.GetEntryByPath(ctx, n.namespace, entryURI)
+	if err != nil {
+		return fmt.Errorf("get parent %s error %w", entryURI, err)
+	}
+	return n.store.UpdateEntryProperties(ctx, n.namespace, types.PropertyTypeDocument, en.ID, toDocumentProperties(properties))
 }
 
 func newNamespacedFS(c core.Core, store metastore.Meta, namespace string) pluginapi.NanaFS {
