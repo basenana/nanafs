@@ -18,11 +18,12 @@ package workflow
 
 import (
 	"context"
+	"time"
+
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/workflow/jobrun"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"time"
 )
 
 var _ = Describe("TestWorkflowManage", func() {
@@ -33,9 +34,9 @@ var _ = Describe("TestWorkflowManage", func() {
 			Namespace: namespace,
 			Nodes: []types.WorkflowNode{
 				{
-					Name:   "step-1",
-					Type:   "delay",
-					Params: map[string]string{"delay": "5s"},
+					Name:  "step-1",
+					Type:  "delay",
+					Input: map[string]any{"delay": "5s"},
 				},
 			},
 			QueueName: types.WorkflowQueueFile,
@@ -98,15 +99,15 @@ var _ = Describe("TestWorkflowJobManage", func() {
 			Namespace: namespace,
 			Nodes: []types.WorkflowNode{
 				{
-					Name:   "step-1",
-					Type:   "delay",
-					Params: map[string]string{"delay": "2s"},
-					Next:   "step-2",
+					Name:  "step-1",
+					Type:  "delay",
+					Input: map[string]any{"delay": "2s"},
+					Next:  "step-2",
 				},
 				{
-					Name:   "step-2",
-					Type:   "delay",
-					Params: map[string]string{"delay": "2s"},
+					Name:  "step-2",
+					Type:  "delay",
+					Input: map[string]any{"delay": "2s"},
 				},
 			},
 			QueueName: types.WorkflowQueueFile,

@@ -18,11 +18,19 @@ package jobrun
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"io"
 	"strings"
 	"sync"
 
 	"github.com/basenana/go-flow"
+	"github.com/basenana/nanafs/pkg/core"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
+	pluginapi "github.com/basenana/plugin/api"
+	plugintypes "github.com/basenana/plugin/types"
 )
 
 var (
@@ -172,4 +180,106 @@ func workflowJob2Flow(ctrl *Controller, job *types.WorkflowJob) *flow.Flow {
 	}
 
 	return fb.Finish()
+}
+
+type namespacedStore struct {
+	store     metastore.Meta
+	namespace string
+}
+
+func newPersistentStore(store metastore.Meta, namespace string) pluginapi.PersistentStore {
+	return &namespacedStore{store: store, namespace: namespace}
+}
+
+func (p *namespacedStore) Load(ctx context.Context, source, group, key string, data any) error {
+	return p.store.LoadWorkflowContext(ctx, p.namespace, source, group, key, data)
+}
+
+func (p *namespacedStore) Save(ctx context.Context, source, group, key string, data any) error {
+	return p.store.SaveWorkflowContext(ctx, p.namespace, source, group, key, data)
+}
+
+type namespacedFS struct {
+	core      core.Core
+	store     metastore.Meta
+	namespace string
+}
+
+func (n *namespacedFS) SaveEntry(ctx context.Context, parentURI, name string, properties plugintypes.Properties, reader io.ReadCloser) error {
+	defer reader.Close()
+
+	_, parent, err := n.core.GetEntryByPath(ctx, n.namespace, parentURI)
+	if err != nil {
+		return fmt.Errorf("get parent %s error %w", parentURI, err)
+	}
+
+	child, err := n.core.FindEntry(ctx, n.namespace, parent.ID, name)
+	if err != nil && errors.Is(err, types.ErrNotFound) {
+		return fmt.Errorf("find %s error %w", name, err)
+	}
+
+	var entry *types.Entry
+	if child == nil {
+		attr := types.EntryAttr{
+			Name: name,
+			Kind: types.FileKind(name, types.RawKind),
+		}
+
+		entry, err = n.core.CreateEntry(ctx, n.namespace, parent.ID, attr)
+		if err != nil {
+			return fmt.Errorf("create %s error %w", name, err)
+		}
+		properties.Unread = true
+	} else {
+		entry, err = n.core.GetEntry(ctx, n.namespace, child.ChildID)
+		if err != nil {
+			return fmt.Errorf("get %s error %w", name, err)
+		}
+	}
+
+	file, err := n.core.Open(ctx, n.namespace, entry.ID, types.OpenAttr{Write: true, Create: true})
+	if err != nil {
+		return err
+	}
+	defer file.Close(ctx)
+
+	_, err = io.Copy(utils.NewWriterWithContextWriter(ctx, file), reader)
+	if err != nil {
+		return err
+	}
+
+	if err = file.Flush(ctx); err != nil {
+		return err
+	}
+
+	return n.store.UpdateEntryProperties(ctx, n.namespace, types.PropertyTypeDocument, entry.ID, toDocumentProperties(properties))
+}
+
+func (n *namespacedFS) UpdateEntry(ctx context.Context, entryURI string, properties plugintypes.Properties) error {
+	_, en, err := n.core.GetEntryByPath(ctx, n.namespace, entryURI)
+	if err != nil {
+		return fmt.Errorf("get parent %s error %w", entryURI, err)
+	}
+	return n.store.UpdateEntryProperties(ctx, n.namespace, types.PropertyTypeDocument, en.ID, toDocumentProperties(properties))
+}
+
+func newNamespacedFS(c core.Core, store metastore.Meta, namespace string) pluginapi.NanaFS {
+	return &namespacedFS{core: c, store: store, namespace: namespace}
+}
+
+func toDocumentProperties(p plugintypes.Properties) types.DocumentProperties {
+	return types.DocumentProperties{
+		Title:       p.Title,
+		Author:      p.Author,
+		Year:        p.Year,
+		Source:      p.Source,
+		Abstract:    p.Abstract,
+		Notes:       p.Notes,
+		Keywords:    p.Keywords,
+		URL:         p.URL,
+		HeaderImage: p.HeaderImage,
+		Unread:      p.Unread,
+		Marked:      p.Marked,
+		PublishAt:   p.PublishAt,
+	}
 }

@@ -51,7 +51,8 @@ var RootCmd = &cobra.Command{
 }
 
 func init() {
-	daemonCmd.Flags().StringVar(&config.FilePath, "config", "/var/lib/nanafs/config.json", "nanafs config file")
+	daemonCmd.Flags().StringVar(&config.FilePath, "config", "", "nanafs config file")
+	daemonCmd.Flags().BoolVar(&config.AutoInit, "auto-init", false, "generate default config if not exists")
 }
 
 var daemonCmd = &cobra.Command{

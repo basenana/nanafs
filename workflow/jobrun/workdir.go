@@ -19,7 +19,6 @@ package jobrun
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -28,7 +27,6 @@ import (
 
 	"github.com/basenana/nanafs/pkg/core"
 
-	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 )
@@ -81,46 +79,37 @@ func cleanupWorkdir(ctx context.Context, workdir string) error {
 	return utils.Rmdir(workdir)
 }
 
-func entryWorkdirInit(ctx context.Context, namespace, entryUri string, fsCore core.Core, workdir string) (*pluginapi.Entry, error) {
+func entryWorkdirInit(ctx context.Context, namespace, entryUri string, fsCore core.Core, workdir string) (string, error) {
 	_, entry, err := fsCore.GetEntryByPath(ctx, namespace, entryUri)
 	if err != nil {
-		return nil, fmt.Errorf("load entry failed: %s", err)
+		return "", fmt.Errorf("load entry failed: %s", err)
 	}
 	if entry.IsGroup {
-		return nil, fmt.Errorf("entry is a group")
+		return "", fmt.Errorf("entry is a group")
 	}
+
 	entryName := path.Base(entryUri)
+	entryPath := path.Join(workdir, entryName)
 
-	result := &pluginapi.Entry{
-		ID:         entry.ID,
-		Name:       entryName,
-		Kind:       entry.Kind,
-		Size:       entry.Size,
-		IsGroup:    entry.IsGroup,
-		Properties: nil,
-		Document:   nil,
-	}
-	result.Path = path.Join(workdir, entryName)
-
-	enInfo, err := os.Stat(result.Path)
+	enInfo, err := os.Stat(entryPath)
 	if err != nil && !os.IsNotExist(err) {
-		return nil, err
+		return "", err
 	}
 
 	if enInfo != nil {
-		return result, nil
+		return "", nil
 	}
 
 	f, err := fsCore.Open(ctx, namespace, entry.ID, types.OpenAttr{Read: true})
 	if err != nil {
-		return nil, fmt.Errorf("open entry failed: %s", err)
+		return "", fmt.Errorf("open entry failed: %s", err)
 	}
 	defer f.Close(ctx)
 
-	if err = copyEntryToJobWorkDir(ctx, result.Path, entry, f); err != nil {
-		return nil, fmt.Errorf("copy entry file failed: %s", err)
+	if err = copyEntryToJobWorkDir(ctx, entryPath, entry, f); err != nil {
+		return "", fmt.Errorf("copy entry file failed: %s", err)
 	}
-	return result, nil
+	return entryPath, nil
 }
 
 func copyEntryToJobWorkDir(ctx context.Context, entryPath string, entry *types.Entry, file core.RawFile) error {
@@ -136,53 +125,4 @@ func copyEntryToJobWorkDir(ctx context.Context, entryPath string, entry *types.E
 	n, err := io.Copy(f, utils.NewReaderWithContextReaderAt(ctx, file))
 	fmt.Println(n)
 	return err
-}
-
-func collectAndModifyEntry(ctx context.Context, namespace string, fsCore core.Core, workdir string, entry *pluginapi.Entry) error {
-	isNeedCreate := entry.ID == 0
-
-	if !isNeedCreate && !entry.Overwrite {
-		return fmt.Errorf("file %s already exists", entry.Name)
-	}
-
-	var (
-		result *types.Entry
-		err    error
-	)
-	_, err = fsCore.FindEntry(ctx, namespace, entry.Parent, entry.Name)
-	if err != nil && !errors.Is(err, types.ErrNotFound) {
-		return fmt.Errorf("check new file existed error: %s", err)
-	}
-
-	if isNeedCreate && err == nil {
-		// file already existed
-		return nil
-	}
-
-	tmpFile, err := os.Open(path.Join(workdir, entry.Name))
-	if err != nil {
-		return fmt.Errorf("read temporary file failed: %s", err)
-	}
-	defer tmpFile.Close()
-
-	if isNeedCreate {
-		result, err = fsCore.CreateEntry(ctx, namespace, entry.Parent, types.EntryAttr{Name: entry.Name, Kind: entry.Kind, Properties: nil})
-		if err != nil {
-			return fmt.Errorf("create new entry failed: %s", err)
-		}
-		entry.ID = result.ID
-	}
-
-	f, err := fsCore.Open(ctx, namespace, entry.ID, types.OpenAttr{Write: true, Trunc: true})
-	if err != nil {
-		return fmt.Errorf("open entry file failed: %s", err)
-	}
-	defer f.Close(ctx)
-
-	_, err = io.Copy(utils.NewWriterWithContextWriter(ctx, f), tmpFile)
-	if err != nil {
-		return fmt.Errorf("copy temporary file to entry file failed: %s", err)
-	}
-
-	return nil
 }

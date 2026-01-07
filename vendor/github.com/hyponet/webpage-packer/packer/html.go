@@ -1,13 +1,9 @@
 package packer
 
 import (
-	"compress/flate"
-	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"net/http"
 	"os"
 )
 
@@ -21,7 +17,7 @@ func (h *htmlPacker) Pack(ctx context.Context, opt Option) error {
 		return fmt.Errorf("file path is empty")
 	}
 
-	content, err := h.ReadContent(ctx, opt)
+	content, err := h.runPack(ctx, opt)
 	if err != nil {
 		return err
 	}
@@ -37,6 +33,19 @@ func (h *htmlPacker) Pack(ctx context.Context, opt Option) error {
 		return fmt.Errorf("write output to file failed: %s", err)
 	}
 	return nil
+}
+
+func (h *htmlPacker) runPack(ctx context.Context, opt Option) (string, error) {
+	content, err := h.readContentByUrl(ctx, opt)
+	if err != nil {
+		return "", err
+	}
+
+	if opt.ClutterFree {
+		content, err = htmlContentClutterFree(opt.URL, content)
+	}
+
+	return content, err
 }
 
 func (h *htmlPacker) ReadContent(ctx context.Context, opt Option) (string, error) {
@@ -74,44 +83,12 @@ func (h *htmlPacker) readContentByUrl(ctx context.Context, opt Option) (string, 
 	if opt.URL == "" {
 		return "", fmt.Errorf("url is empty")
 	}
-	cli, headers := newHttpClient(opt)
-	urlStr := opt.URL
-	req, err := http.NewRequest(http.MethodGet, urlStr, nil)
+	cli := newClient(opt)
+	res, err := cli.ReadMain(ctx, opt.URL)
 	if err != nil {
-		return "", fmt.Errorf("build request with url %s error: %s", urlStr, err)
+		return "", fmt.Errorf("read response body with url %s error: %s", opt.URL, err)
 	}
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
-
-	resp, err := cli.Do(req.WithContext(ctx))
-	if err != nil {
-		return "", fmt.Errorf("do request with url %s error: %s", urlStr, err)
-	}
-	defer func() {
-		_, _ = ioutil.ReadAll(resp.Body)
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode/100 != 2 {
-		return "", fmt.Errorf("do request with url %s error: status code is %d", urlStr, resp.StatusCode)
-	}
-
-	var bodyReader io.Reader
-	switch resp.Header.Get("Content-Encoding") {
-	case "gzip":
-		bodyReader, err = gzip.NewReader(resp.Body)
-	case "deflate":
-		bodyReader = flate.NewReader(resp.Body)
-	default:
-		bodyReader = resp.Body
-	}
-
-	data, err := ioutil.ReadAll(bodyReader)
-	if err != nil {
-		return "", fmt.Errorf("read response body with url %s error: %s", urlStr, err)
-	}
-	return string(data), nil
+	return string(res.Data), nil
 }
 
 func NewHtmlPacker() Packer {

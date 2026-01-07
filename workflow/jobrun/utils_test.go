@@ -19,7 +19,6 @@ package jobrun
 import (
 	"testing"
 
-	"github.com/basenana/nanafs/pkg/plugin/pluginapi"
 	"github.com/onsi/gomega"
 )
 
@@ -40,14 +39,13 @@ func TestRenderMatrixData(t *testing.T) {
 	g := gomega.NewGomegaWithT(t)
 
 	t.Run("single array variable", func(t *testing.T) {
-		// Simulate data from previous node using Set method
 		mockCtx := &mockResults{data: map[string]any{}}
 		paths := []any{"/path/to/file1.webarchive", "/path/to/file2.webarchive", "/path/to/file3.webarchive"}
 		err := mockCtx.Set("file_paths", paths)
 		g.Expect(err).To(gomega.BeNil())
 
-		matrixData := map[string]string{
-			"file_path": "{{ file_paths }}",
+		matrixData := map[string]any{
+			"file_path": "$.file_paths",
 		}
 
 		iterations, err := renderMatrixData(matrixData, mockCtx)
@@ -60,7 +58,6 @@ func TestRenderMatrixData(t *testing.T) {
 	})
 
 	t.Run("multiple array variables - cartesian product", func(t *testing.T) {
-		// Simulate data from previous node using Set method
 		mockCtx := &mockResults{data: map[string]any{}}
 		files := []any{"/path/to/file1", "/path/to/file2"}
 		docs := []any{"doc1", "doc2", "doc3"}
@@ -69,20 +66,19 @@ func TestRenderMatrixData(t *testing.T) {
 		err = mockCtx.Set("docs", docs)
 		g.Expect(err).To(gomega.BeNil())
 
-		matrixData := map[string]string{
-			"file":     "{{ files }}",
-			"document": "{{ docs }}",
+		matrixData := map[string]any{
+			"file":     "$.files",
+			"document": "$.docs",
 		}
 
 		iterations, err := renderMatrixData(matrixData, mockCtx)
 		g.Expect(err).To(gomega.BeNil())
-		// Cartesian product: 2 files * 3 docs = 6 iterations
 		g.Expect(iterations).To(gomega.HaveLen(6))
 	})
 
 	t.Run("empty matrix data", func(t *testing.T) {
 		mockCtx := &mockResults{data: map[string]any{}}
-		_, err := renderMatrixData(map[string]string{}, mockCtx)
+		_, err := renderMatrixData(map[string]any{}, mockCtx)
 		g.Expect(err).ToNot(gomega.BeNil())
 		g.Expect(err.Error()).To(gomega.ContainSubstring("matrix data is empty"))
 	})
@@ -92,8 +88,8 @@ func TestRenderMatrixData(t *testing.T) {
 		err := mockCtx.Set("single_value", "not_an_array")
 		g.Expect(err).To(gomega.BeNil())
 
-		matrixData := map[string]string{
-			"var": "{{ single_value }}",
+		matrixData := map[string]any{
+			"var": "$.single_value",
 		}
 
 		_, err = renderMatrixData(matrixData, mockCtx)
@@ -106,8 +102,8 @@ func TestRenderMatrixData(t *testing.T) {
 		err := mockCtx.Set("other_var", "value")
 		g.Expect(err).To(gomega.BeNil())
 
-		matrixData := map[string]string{
-			"var": "{{ undefined_var }}",
+		matrixData := map[string]any{
+			"var": "$.undefined_var",
 		}
 
 		_, err = renderMatrixData(matrixData, mockCtx)
@@ -116,7 +112,6 @@ func TestRenderMatrixData(t *testing.T) {
 	})
 
 	t.Run("nested array in object", func(t *testing.T) {
-		// Simulate data from docload plugin which returns an object with arrays
 		mockCtx := &mockResults{data: map[string]any{}}
 		docResults := []any{
 			map[string]any{"title": "Doc 1", "path": "/doc1.txt"},
@@ -125,8 +120,8 @@ func TestRenderMatrixData(t *testing.T) {
 		err := mockCtx.Set("matrix_results", docResults)
 		g.Expect(err).To(gomega.BeNil())
 
-		matrixData := map[string]string{
-			"doc": "{{ matrix_results }}",
+		matrixData := map[string]any{
+			"doc": "$.matrix_results",
 		}
 
 		iterations, err := renderMatrixData(matrixData, mockCtx)
@@ -146,113 +141,126 @@ func TestCopyMap(t *testing.T) {
 
 	copied := copyMap(original)
 
-	// Verify values are copied
 	g.Expect(copied["key1"]).To(gomega.Equal("value1"))
 	g.Expect(copied["key2"]).To(gomega.Equal(123))
 	g.Expect(copied["key3"]).To(gomega.Equal([]any{"a", "b"}))
 
-	// Verify it's a different map
 	copied["key1"] = "modified"
 	g.Expect(original["key1"]).To(gomega.Equal("value1"))
 	g.Expect(copied["key1"]).To(gomega.Equal("modified"))
 }
 
-var _ pluginapi.Results = &mockResults{}
+var _ Results = &mockResults{}
 
 func TestRenderParams(t *testing.T) {
 	g := gomega.NewGomegaWithT(t)
 
-	t.Run("no template placeholders", func(t *testing.T) {
+	t.Run("plain text passes through", func(t *testing.T) {
 		result := renderParams("plain text without templates", map[string]any{})
 		g.Expect(result).To(gomega.Equal("plain text without templates"))
 	})
 
-	t.Run("single variable replacement", func(t *testing.T) {
-		// Go template requires "index" function for map access
+	t.Run("jsonpath variable replacement", func(t *testing.T) {
 		data := map[string]any{
 			"file_path": "/path/to/file.txt",
 		}
-		// Using index function to access map values
-		result := renderParams("{{ index . \"file_path\" }}", data)
+		result := renderParams("$.file_path", data)
 		g.Expect(result).To(gomega.Equal("/path/to/file.txt"))
 	})
 
-	t.Run("multiple variables", func(t *testing.T) {
+	t.Run("jsonpath multiple variables - not supported", func(t *testing.T) {
+		// JSONPath only supports single expressions, not string concatenation
+		// This test documents that multiple $ expressions return original
 		data := map[string]any{
 			"base_path": "/data",
 			"file_name": "test.txt",
 		}
-		result := renderParams("{{ index . \"base_path\" }}/{{ index . \"file_name\" }}", data)
-		g.Expect(result).To(gomega.Equal("/data/test.txt"))
+		result := renderParams("$.base_path/$.file_name", data)
+		// Multiple JSONPath in one string is not supported - returns original
+		g.Expect(result).To(gomega.Equal("$.base_path/$.file_name"))
 	})
 
-	t.Run("variable with surrounding text", func(t *testing.T) {
+	t.Run("jsonpath with surrounding text - not supported", func(t *testing.T) {
+		// JSONPath with surrounding text is not supported
+		// This test documents that text around $ expression returns original
 		data := map[string]any{
 			"status": "success",
 		}
-		result := renderParams("Operation completed with status: {{ index . \"status\" }}", data)
-		g.Expect(result).To(gomega.Equal("Operation completed with status: success"))
+		result := renderParams("Operation completed with status: $.status", data)
+		g.Expect(result).To(gomega.Equal("Operation completed with status: $.status"))
 	})
 
-	t.Run("missing variable returns placeholder", func(t *testing.T) {
+	t.Run("jsonpath missing variable returns original", func(t *testing.T) {
 		data := map[string]any{
 			"other_var": "value",
 		}
-		// When key doesn't exist, index returns "<no value>" in Go templates
-		result := renderParams("{{ index . \"missing_var\" }}", data)
-		g.Expect(result).To(gomega.Equal("<no value>"))
+		result := renderParams("$.missing_var", data)
+		g.Expect(result).To(gomega.Equal("$.missing_var"))
 	})
 
-	t.Run("empty data map", func(t *testing.T) {
-		result := renderParams("{{ index . \"var\" }}", map[string]any{})
-		g.Expect(result).To(gomega.Equal("<no value>"))
+	t.Run("non-string value passes through", func(t *testing.T) {
+		nested := map[string]any{"key": "value"}
+		result := renderParams(nested, map[string]any{})
+		g.Expect(result).To(gomega.Equal(nested))
 	})
 
-	t.Run("numeric value", func(t *testing.T) {
+	t.Run("jsonpath numeric value", func(t *testing.T) {
 		data := map[string]any{
 			"count": 42,
 		}
-		result := renderParams("count: {{ index . \"count\" }}", data)
-		g.Expect(result).To(gomega.Equal("count: 42"))
+		result := renderParams("$.count", data)
+		g.Expect(result).To(gomega.Equal(42))
 	})
 
-	t.Run("multiple occurrences of same variable", func(t *testing.T) {
+	t.Run("jsonpath array value", func(t *testing.T) {
 		data := map[string]any{
-			"token": "abc123",
+			"items": []any{"a", "b", "c"},
 		}
-		result := renderParams("token={{ index . \"token\" }}&token={{ index . \"token\" }}", data)
-		g.Expect(result).To(gomega.Equal("token=abc123&token=abc123"))
+		result := renderParams("$.items", data)
+		g.Expect(result).To(gomega.Equal([]any{"a", "b", "c"}))
+	})
+
+	t.Run("jsonpath nested object", func(t *testing.T) {
+		data := map[string]any{
+			"nested": map[string]any{
+				"key": "nested_value",
+			},
+		}
+		result := renderParams("$.nested", data)
+		g.Expect(result).To(gomega.Equal(map[string]any{"key": "nested_value"}))
+	})
+
+	t.Run("jsonpath nested key access", func(t *testing.T) {
+		data := map[string]any{
+			"nested": map[string]any{
+				"key": "nested_value",
+			},
+		}
+		result := renderParams("$.nested.key", data)
+		g.Expect(result).To(gomega.Equal("nested_value"))
 	})
 }
 
 func TestRenderMatrixParam(t *testing.T) {
 	g := gomega.NewGomegaWithT(t)
 
-	t.Run("simple variable reference", func(t *testing.T) {
+	t.Run("simple jsonpath reference", func(t *testing.T) {
 		data := map[string]any{
-			"file_paths": `["/path1", "/path2"]`,
+			"file_paths": []any{"/path1", "/path2"},
 		}
-		result := renderMatrixParam("{{ file_paths }}", data)
-		g.Expect(result).To(gomega.Equal(`["/path1", "/path2"]`))
+		result := renderMatrixParam("$.file_paths", data)
+		g.Expect(result).To(gomega.Equal([]any{"/path1", "/path2"}))
 	})
 
-	t.Run("variable with surrounding whitespace", func(t *testing.T) {
-		data := map[string]any{
-			"value": "test",
-		}
-		result := renderMatrixParam("{{  value  }}", data)
-		g.Expect(result).To(gomega.Equal("test"))
-	})
-
-	t.Run("undefined variable returns original", func(t *testing.T) {
+	t.Run("undefined jsonpath returns original", func(t *testing.T) {
 		data := map[string]any{
 			"other": "value",
 		}
-		result := renderMatrixParam("{{ undefined }}", data)
-		g.Expect(result).To(gomega.Equal("{{ undefined }}"))
+		result := renderMatrixParam("$.undefined", data)
+		g.Expect(result).To(gomega.Equal("$.undefined"))
 	})
 
-	t.Run("non-template string passes through", func(t *testing.T) {
+	t.Run("non-jsonpath string passes through", func(t *testing.T) {
 		data := map[string]any{
 			"var": "value",
 		}
@@ -260,22 +268,78 @@ func TestRenderMatrixParam(t *testing.T) {
 		g.Expect(result).To(gomega.Equal("constant text"))
 	})
 
-	t.Run("simple variable with numeric value", func(t *testing.T) {
+	t.Run("jsonpath numeric value", func(t *testing.T) {
 		data := map[string]any{
 			"count": 42,
 		}
-		result := renderMatrixParam("{{ count }}", data)
-		g.Expect(result).To(gomega.Equal("42"))
+		result := renderMatrixParam("$.count", data)
+		g.Expect(result).To(gomega.Equal(42))
 	})
 
-	t.Run("nested map value", func(t *testing.T) {
+	t.Run("jsonpath nested map value", func(t *testing.T) {
 		data := map[string]any{
 			"nested": map[string]any{
 				"key": "nested_value",
 			},
 		}
-		result := renderMatrixParam("{{ nested }}", data)
-		// Simple reference returns the string representation of the value
-		g.Expect(result).To(gomega.ContainSubstring("nested_value"))
+		result := renderMatrixParam("$.nested", data)
+		g.Expect(result).To(gomega.Equal(map[string]any{"key": "nested_value"}))
+	})
+
+	t.Run("jsonpath nested key access", func(t *testing.T) {
+		data := map[string]any{
+			"nested": map[string]any{
+				"key": "nested_value",
+			},
+		}
+		result := renderMatrixParam("$.nested.key", data)
+		g.Expect(result).To(gomega.Equal("nested_value"))
+	})
+
+	t.Run("non-string value passes through", func(t *testing.T) {
+		nested := map[string]any{"key": "value"}
+		result := renderMatrixParam(nested, map[string]any{})
+		g.Expect(result).To(gomega.Equal(nested))
+	})
+}
+
+func TestGetJSONPathValue(t *testing.T) {
+	g := gomega.NewGomegaWithT(t)
+
+	t.Run("root level key", func(t *testing.T) {
+		data := map[string]any{
+			"file_path": "/path/to/file.txt",
+		}
+		result, err := getJSONPathValue("$.file_path", data)
+		g.Expect(err).To(gomega.BeNil())
+		g.Expect(result).To(gomega.Equal("/path/to/file.txt"))
+	})
+
+	t.Run("nested key access", func(t *testing.T) {
+		data := map[string]any{
+			"nested": map[string]any{
+				"key": "nested_value",
+			},
+		}
+		result, err := getJSONPathValue("$.nested.key", data)
+		g.Expect(err).To(gomega.BeNil())
+		g.Expect(result).To(gomega.Equal("nested_value"))
+	})
+
+	t.Run("array access", func(t *testing.T) {
+		data := map[string]any{
+			"items": []any{"first", "second", "third"},
+		}
+		result, err := getJSONPathValue("$.items[0]", data)
+		g.Expect(err).To(gomega.BeNil())
+		g.Expect(result).To(gomega.Equal("first"))
+	})
+
+	t.Run("path not found", func(t *testing.T) {
+		data := map[string]any{
+			"key": "value",
+		}
+		_, err := getJSONPathValue("$.undefined", data)
+		g.Expect(err).ToNot(gomega.BeNil())
 	})
 }
