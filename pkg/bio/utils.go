@@ -16,13 +16,6 @@
 
 package bio
 
-import (
-	"github.com/basenana/nanafs/pkg/events"
-	"github.com/basenana/nanafs/pkg/types"
-	"github.com/google/uuid"
-	"time"
-)
-
 func maxOff(off1, off2 int64) int64 {
 	if off1 > off2 {
 		return off1
@@ -35,21 +28,6 @@ func minOff(off1, off2 int64) int64 {
 		return off1
 	}
 	return off2
-}
-
-func buildCompactEvent(entry *types.Entry) *types.Event {
-	return &types.Event{
-		Id:              uuid.New().String(),
-		Namespace:       entry.Namespace,
-		Type:            events.ActionTypeCompact,
-		Source:          "bio",
-		SpecVersion:     "1.0",
-		Time:            time.Now(),
-		RefType:         "entry",
-		RefID:           entry.ID,
-		DataContentType: "application/json",
-		Data:            types.NewEventDataFromEntry(entry),
-	}
 }
 
 func expectPreRead(readCnt int64) int32 {

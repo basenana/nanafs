@@ -34,7 +34,7 @@ var _ = Describe("TestChunkIO", func() {
 		var reader Reader
 		var writer Writer
 		It("init should be succeed", func() {
-			reader = NewChunkReader(&fakeEn, chunkStore, dataStore)
+			reader = NewChunkReader(fakeEn.ID, fakeEn.Size, chunkStore, dataStore)
 			Expect(reader).ShouldNot(BeNil())
 			writer = NewChunkWriter(reader)
 			Expect(writer).ShouldNot(BeNil())
@@ -90,7 +90,7 @@ var _ = Describe("TestChunkRewrite", func() {
 		var reader Reader
 		var writer Writer
 		It("init should be succeed", func() {
-			reader = NewChunkReader(&fakeEn, chunkStore, dataStore)
+			reader = NewChunkReader(fakeEn.ID, fakeEn.Size, chunkStore, dataStore)
 			Expect(reader).ShouldNot(BeNil())
 			writer = NewChunkWriter(reader)
 			Expect(writer).ShouldNot(BeNil())
@@ -138,7 +138,7 @@ var _ = Describe("TestChunkRewrite", func() {
 				}
 			}
 
-			err = CompactChunksData(context.TODO(), &fakeEn, chunkStore, dataStore)
+			err = CompactChunksData(context.TODO(), fakeEn.ID, fakeEn.Size, chunkStore, dataStore)
 			Expect(err).Should(BeNil())
 
 			segList, err = chunkStore.ListSegments(context.TODO(), fakeEn.ID, 0, false)
@@ -148,7 +148,7 @@ var _ = Describe("TestChunkRewrite", func() {
 			Expect(segList[0].ID > maxId).Should(BeTrue())
 
 			// compact again need safe
-			err = CompactChunksData(context.TODO(), &fakeEn, chunkStore, dataStore)
+			err = CompactChunksData(context.TODO(), fakeEn.ID, fakeEn.Size, chunkStore, dataStore)
 			Expect(err).Should(BeNil())
 
 			segList, err = chunkStore.ListSegments(context.TODO(), fakeEn.ID, 0, false)
@@ -179,7 +179,7 @@ var _ = Describe("TestChunkRewrite", func() {
 			Expect(len(segList)).Should(Equal(2))
 			needed := segList[1].ID
 
-			err = CompactChunksData(context.TODO(), &fakeEn, chunkStore, dataStore)
+			err = CompactChunksData(context.TODO(), fakeEn.ID, fakeEn.Size, chunkStore, dataStore)
 			Expect(err).Should(BeNil())
 
 			segList, err = chunkStore.ListSegments(context.TODO(), fakeEn.ID, 0, false)
@@ -188,7 +188,7 @@ var _ = Describe("TestChunkRewrite", func() {
 			Expect(segList[0].ID).Should(Equal(needed))
 
 			// compact again is safe
-			err = CompactChunksData(context.TODO(), &fakeEn, chunkStore, dataStore)
+			err = CompactChunksData(context.TODO(), fakeEn.ID, fakeEn.Size, chunkStore, dataStore)
 			Expect(err).Should(BeNil())
 			segList, err = chunkStore.ListSegments(context.TODO(), fakeEn.ID, 0, false)
 			Expect(err).Should(BeNil())
@@ -212,7 +212,7 @@ var _ = Describe("TestChunkCompact", func() {
 		var reader Reader
 		var writer Writer
 		It("init should be succeed", func() {
-			reader = NewChunkReader(&fakeEn, chunkStore, dataStore)
+			reader = NewChunkReader(fakeEn.ID, fakeEn.Size, chunkStore, dataStore)
 			Expect(reader).ShouldNot(BeNil())
 			writer = NewChunkWriter(reader)
 			Expect(writer).ShouldNot(BeNil())

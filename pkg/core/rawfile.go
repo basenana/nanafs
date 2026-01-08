@@ -19,17 +19,20 @@ package core
 import (
 	"context"
 	"fmt"
+	"io"
+	"runtime/trace"
+	"sync"
+	"time"
+
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/bio"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/google/uuid"
+	"github.com/hyponet/eventbus"
 	"go.uber.org/zap"
-	"io"
-	"runtime/trace"
-	"sync"
-	"time"
 )
 
 var (
@@ -135,7 +138,21 @@ func openFile(en *types.Entry, attr types.OpenAttr, chunkStore bio.ChunkStore, f
 	if fileStorage == nil {
 		return nil, logOperationError(fileOperationErrorCounter, "init", fmt.Errorf("storage %s not found", en.Storage))
 	}
-	f.reader = bio.NewChunkReader(en, chunkStore, fileStorage)
+	f.reader = bio.NewChunkReader(en.ID, en.Size, chunkStore, fileStorage, bio.WithCompactHook(func() {
+		eventbus.Publish(events.NamespacedTopic(events.TopicNamespaceFile, events.ActionTypeCompact),
+			&types.Event{
+				Id:              uuid.New().String(),
+				Namespace:       en.Namespace,
+				Type:            events.ActionTypeCompact,
+				Source:          "bio",
+				SpecVersion:     "1.0",
+				Time:            time.Now(),
+				RefType:         "entry",
+				RefID:           en.ID,
+				DataContentType: "application/json",
+				Data:            types.NewEventDataFromEntry(en),
+			})
+	}))
 	if attr.Write {
 		f.writer = bio.NewChunkWriter(f.reader)
 	}

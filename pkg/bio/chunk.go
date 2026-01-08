@@ -19,19 +19,18 @@ package bio
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/events"
-	"github.com/basenana/nanafs/pkg/storage"
-	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
-	"github.com/basenana/nanafs/utils/logger"
-	"github.com/getsentry/sentry-go"
-	"github.com/hyponet/eventbus"
-	"go.uber.org/zap"
 	"io"
 	"runtime/trace"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/basenana/nanafs/pkg/storage"
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
+	"github.com/basenana/nanafs/utils/logger"
+	"github.com/getsentry/sentry-go"
+	"go.uber.org/zap"
 )
 
 const (
@@ -52,7 +51,7 @@ type ChunkStore interface {
 }
 
 type chunkReader struct {
-	entry *types.Entry
+	nodeInfo *nodeInfo
 
 	page        *pageCache
 	store       ChunkStore
@@ -60,26 +59,33 @@ type chunkReader struct {
 	readers     map[int64]*segReader
 	readMux     sync.Mutex
 	ref         int32
+	opts        *Options
 	logger      *zap.SugaredLogger
 	needCompact bool
 }
 
-func NewChunkReader(entry *types.Entry, chunkStore ChunkStore, dataStore storage.Storage) Reader {
+func NewChunkReader(nid, nsize int64, chunkStore ChunkStore, dataStore storage.Storage, options ...Option) Reader {
 	fileChunkMux.Lock()
 	defer fileChunkMux.Unlock()
 
-	r, ok := fileChunkReaders[entry.ID]
+	r, ok := fileChunkReaders[nid]
 	if !ok {
-		cr := &chunkReader{
-			entry:   entry,
-			page:    newPageCache(entry.ID, fileChunkSize),
-			store:   chunkStore,
-			cache:   storage.NewLocalCache(dataStore),
-			ref:     1,
-			readers: map[int64]*segReader{},
-			logger:  logger.NewLogger("chunkIO").With("entry", entry.ID),
+		opt := &Options{}
+		for _, o := range options {
+			o(opt)
 		}
-		fileChunkReaders[entry.ID] = cr
+
+		cr := &chunkReader{
+			nodeInfo: &nodeInfo{ID: nid, Size: nsize},
+			page:     newPageCache(nid, fileChunkSize),
+			store:    chunkStore,
+			cache:    storage.NewLocalCache(dataStore),
+			readers:  map[int64]*segReader{},
+			ref:      1,
+			opts:     opt,
+			logger:   logger.NewLogger("chunkIO").With("inode", nid),
+		}
+		fileChunkReaders[nid] = cr
 		return cr
 	}
 
@@ -95,13 +101,13 @@ func (c *chunkReader) ReadAt(ctx context.Context, dest []byte, off int64) (n int
 	ctx, task := trace.NewTask(ctx, "bio.chunkReader.ReadAt")
 	defer task.End()
 
-	if off >= c.entry.Size {
+	if off >= c.nodeInfo.Size {
 		return 0, io.EOF
 	}
 
 	readEnd := off + int64(len(dest))
-	if readEnd > c.entry.Size {
-		readEnd = c.entry.Size
+	if readEnd > c.nodeInfo.Size {
+		readEnd = c.nodeInfo.Size
 	}
 	if readEnd == 0 {
 		return
@@ -152,7 +158,7 @@ func (c *chunkReader) prepareData(ctx context.Context, index, off int64, dest []
 	if !ok {
 		reader = &segReader{r: c, chunkID: index, preReadIdx: fileChunkSize * index / pageSize}
 		c.readers[index] = reader
-		c.logger.Debugw("builder segment reader", "entry", c.entry.ID, "chunk", index)
+		c.logger.Debugw("builder segment reader", "inode", c.nodeInfo.ID, "chunk", index)
 	}
 	c.readMux.Unlock()
 
@@ -179,11 +185,10 @@ func (c *chunkReader) invalidate(index int64) {
 func (c *chunkReader) Close() {
 	if atomic.AddInt32(&c.ref, -1) == 0 {
 		fileChunkMux.Lock()
-		delete(fileChunkReaders, c.entry.ID)
+		delete(fileChunkReaders, c.nodeInfo.ID)
 		fileChunkMux.Unlock()
-		if c.needCompact {
-			eventbus.Publish(events.NamespacedTopic(events.TopicNamespaceFile, events.ActionTypeCompact),
-				buildCompactEvent(c.entry))
+		if c.needCompact && c.opts.CompactHook != nil {
+			c.opts.CompactHook()
 		}
 		c.page.close()
 	}
@@ -202,10 +207,10 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 	defer trace.StartRegion(ctx, "bio.segReader.readChunkRange").End()
 	c.mux.Lock()
 	if c.st == nil {
-		segments, err := c.r.store.ListSegments(ctx, c.r.entry.ID, c.chunkID, false)
+		segments, err := c.r.store.ListSegments(ctx, c.r.nodeInfo.ID, c.chunkID, false)
 		if err != nil {
 			c.mux.Unlock()
-			c.r.logger.Errorw("list segment reader", "entry", c.r.entry.ID, "chunk", c.chunkID, "err", err)
+			c.r.logger.Errorw("list segment reader", "inode", c.r.nodeInfo.ID, "chunk", c.chunkID, "err", err)
 			req.err = logErr(chunkReadErrorCounter, err, "read_chunk")
 			return
 		}
@@ -215,8 +220,8 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 		}
 
 		dataSize := (c.chunkID + 1) * int64(fileChunkSize)
-		if c.r.entry.Size < dataSize {
-			dataSize = c.r.entry.Size
+		if c.r.nodeInfo.Size < dataSize {
+			dataSize = c.r.nodeInfo.Size
 		}
 		c.st = buildSegmentTree(c.chunkID*fileChunkSize, dataSize, segments)
 	}
@@ -225,7 +230,7 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 
 	defer func() {
 		if rErr := utils.Recover(); rErr != nil {
-			c.r.logger.Errorw("read chunk range panic", "entry", c.r.entry.ID, "chunk", c.chunkID, "err", rErr)
+			c.r.logger.Errorw("read chunk range panic", "inode", c.r.nodeInfo.ID, "chunk", c.chunkID, "err", rErr)
 			req.err = rErr
 		}
 	}()
@@ -251,7 +256,7 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 				defer req.Done()
 				if err := c.readPage(ctx, segments, pageID, off, dest); err != nil && req.err == nil {
 					req.err = err
-					c.r.logger.Errorw("read chunk page error", "entry", c.r.entry.ID, "chunk", c.chunkID, "page", pageID, "err", err)
+					c.r.logger.Errorw("read chunk page error", "inode", c.r.nodeInfo.ID, "chunk", c.chunkID, "page", pageID, "err", err)
 					return
 				}
 			})
@@ -272,7 +277,7 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 	maxPage := (c.chunkID + 1) * fileChunkSize / pageSize
 	for atomic.LoadInt32(&c.crtPreRead) < expectPreRead(int64(len(req.data))/pageSize+1) {
 		c.preReadIdx += 1
-		if c.preReadIdx >= maxPage || c.preReadIdx*pageSize > c.r.entry.Size {
+		if c.preReadIdx >= maxPage || c.preReadIdx*pageSize > c.r.nodeInfo.Size {
 			break
 		}
 		atomic.AddInt32(&c.crtPreRead, 1)
@@ -282,7 +287,7 @@ func (c *segReader) readChunkRange(ctx context.Context, req *ioReq) {
 				defer chunkReadingGauge.Dec()
 				defer atomic.AddInt32(&c.crtPreRead, -1)
 				if err := c.readPage(ctx, segments, pageID, 0, nil); err != nil {
-					c.r.logger.Errorw("pre-read chunk page error", "entry", c.r.entry.ID, "chunk", c.chunkID, "page", pageID, "err", err)
+					c.r.logger.Errorw("pre-read chunk page error", "inode", c.r.nodeInfo.ID, "chunk", c.chunkID, "page", pageID, "err", err)
 					return
 				}
 			})
@@ -302,7 +307,7 @@ func (c *segReader) readPage(ctx context.Context, segments []segment, pageIndex,
 
 	defer func() {
 		if rErr := utils.Recover(); rErr != nil {
-			c.r.logger.Errorw("read chunk page panic", "entry", c.r.entry.ID, "chunk", c.chunkID, "err", err)
+			c.r.logger.Errorw("read chunk page panic", "inode", c.r.nodeInfo.ID, "chunk", c.chunkID, "err", err)
 			err = rErr
 		}
 	}()
@@ -393,10 +398,10 @@ func NewChunkWriter(reader Reader) Writer {
 
 	fileChunkMux.Lock()
 	defer fileChunkMux.Unlock()
-	w, ok := fileChunkWriters[r.entry.ID]
+	w, ok := fileChunkWriters[r.nodeInfo.ID]
 	if !ok {
 		cw := &chunkWriter{chunkReader: r, writers: map[int64]*segWriter{}, ref: 1}
-		fileChunkWriters[r.entry.ID] = cw
+		fileChunkWriters[r.nodeInfo.ID] = cw
 		return cw
 	}
 
@@ -414,7 +419,7 @@ func (c *chunkWriter) WriteAt(ctx context.Context, data []byte, off int64) (n in
 
 	var (
 		wg      = &sync.WaitGroup{}
-		fileLen = c.entry.Size
+		fileLen = c.nodeInfo.Size
 		reqList = make([]*ioReq, 0, int64(len(data))/fileChunkSize+1)
 	)
 	writeEnd := off + int64(len(data))
@@ -470,13 +475,13 @@ func (c *chunkWriter) writeSegData(ctx context.Context, index int64, req *ioReq)
 		}
 		sw.cond = sync.NewCond(&sw.mux)
 		c.writers[index] = sw
-		c.logger.Debugw("build segment writer", "entry", c.entry.ID, "chunk", index)
+		c.logger.Debugw("build segment writer", "inode", c.nodeInfo.ID, "chunk", index)
 	}
 	c.writerMux.Unlock()
 
 	defer func() {
 		if rErr := utils.Recover(); rErr != nil {
-			c.logger.Errorw("write segment data panic", "entry", c.entry.ID, "chunk", index, "err", rErr)
+			c.logger.Errorw("write segment data panic", "inode", c.nodeInfo.ID, "chunk", index, "err", rErr)
 			err = rErr
 		}
 	}()
@@ -552,7 +557,7 @@ func (c *chunkWriter) Fsync(ctx context.Context) error {
 func (c *chunkWriter) Close() {
 	if atomic.AddInt32(&c.ref, -1) == 0 {
 		fileChunkMux.Lock()
-		delete(fileChunkWriters, c.entry.ID)
+		delete(fileChunkWriters, c.nodeInfo.ID)
 		fileChunkMux.Unlock()
 	}
 	c.chunkReader.Close()
@@ -598,9 +603,9 @@ func (w *segWriter) put(ctx context.Context, pageIdx, pagePos int64, req *ioReq,
 		seg.mux.Lock()
 		page = &uncommittedPage{idx: pageIdx}
 		var err error
-		page.node, err = w.cache.OpenTemporaryNode(ctx, w.entry.ID, pageIdx*pageSize+pagePos)
+		page.node, err = w.cache.OpenTemporaryNode(ctx, w.nodeInfo.ID, pageIdx*pageSize+pagePos)
 		if err != nil {
-			w.logger.Errorw("open temporary node error", "entry", w.entry.ID, "chunk", w.chunkID, "err", err)
+			w.logger.Errorw("open temporary node error", "inode", w.nodeInfo.ID, "chunk", w.chunkID, "err", err)
 			req.err = logErr(chunkWriteErrorCounter, err, "write_dirty_page")
 			return
 		}
@@ -619,7 +624,7 @@ func (w *segWriter) preWrite(ctx context.Context, pagePos int64, seg *uncommitte
 	defer seg.uploads.Done()
 	defer func() {
 		if rErr := utils.Recover(); rErr != nil {
-			w.logger.Errorw("pre-write segment panic", "entry", w.entry.ID, "chunk", w.chunkID, "err", rErr)
+			w.logger.Errorw("pre-write segment panic", "inode", w.nodeInfo.ID, "chunk", w.chunkID, "err", rErr)
 			w.chunkErr = rErr
 		}
 	}()
@@ -628,7 +633,7 @@ func (w *segWriter) preWrite(ctx context.Context, pagePos int64, seg *uncommitte
 	if err != nil {
 		req.Done()
 		req.err = logErr(chunkWriteErrorCounter, err, "write_dirty_page")
-		w.logger.Errorw("write to cache node error", "entry", w.entry.ID, "chunk", w.chunkID, "err", err)
+		w.logger.Errorw("write to cache node error", "inode", w.nodeInfo.ID, "chunk", w.chunkID, "err", err)
 		page.mux.Unlock()
 		atomic.AddInt32(&page.visitor, -1)
 		return
@@ -674,21 +679,21 @@ func (w *segWriter) flushData(ctx context.Context, seg *uncommittedSeg, page *un
 		select {
 		case <-ctx.Done():
 			page.err = fmt.Errorf("flush data timeout, chunk=%d, page=%d", w.chunkID, page.idx)
-			w.logger.Errorw("flush data timeout", "entry", w.entry.ID, "chunk", w.chunkID, "page", page.idx, "visitor", atomic.LoadInt32(&page.visitor))
+			w.logger.Errorw("flush data timeout", "inode", w.nodeInfo.ID, "chunk", w.chunkID, "page", page.idx, "visitor", atomic.LoadInt32(&page.visitor))
 			return
 		default:
 			time.Sleep(time.Millisecond)
 			waitingTime += 1
 		}
 		if waitingTime > 3 {
-			w.logger.Warnw("page still has visitors, waiting to flush", "entry", w.entry.ID, "chunk", w.chunkID, "page", page.idx, "visitor", atomic.LoadInt32(&page.visitor))
+			w.logger.Warnw("page still has visitors, waiting to flush", "inode", w.nodeInfo.ID, "chunk", w.chunkID, "page", page.idx, "visitor", atomic.LoadInt32(&page.visitor))
 		}
 	}
 
 	segID, err := seg.prepareID(ctx, w.store.NextSegmentID)
 	if err != nil {
 		page.err = err
-		w.logger.Errorw("prepare segment id error", "entry", w.entry.ID, "chunk", w.chunkID, "page", page.idx, "err", err)
+		w.logger.Errorw("prepare segment id error", "inode", w.nodeInfo.ID, "chunk", w.chunkID, "page", page.idx, "err", err)
 		return
 	}
 
@@ -696,7 +701,7 @@ func (w *segWriter) flushData(ctx context.Context, seg *uncommittedSeg, page *un
 	defer page.node.Close()
 	if err = w.cache.CommitTemporaryNode(ctx, segID, page.idx, page.node); err != nil {
 		page.err = err
-		w.logger.Errorw("commit page data error", "entry", w.entry.ID, "chunk", w.chunkID, "page", page.idx, "err", err)
+		w.logger.Errorw("commit page data error", "inode", w.nodeInfo.ID, "chunk", w.chunkID, "page", page.idx, "err", err)
 		return
 	}
 }
@@ -753,7 +758,7 @@ func (w *segWriter) commitSegment(ctx context.Context) {
 	for len(w.uncommitted) > 0 {
 		select {
 		case <-ctx.Done():
-			w.logger.Errorw("[DISCARD] commit segment closed", "entry", w.entry.ID, "chunk", w.chunkID, "err", ctx.Err())
+			w.logger.Errorw("[DISCARD] commit segment closed", "inode", w.nodeInfo.ID, "chunk", w.chunkID, "err", ctx.Err())
 			if ctx.Err() == context.DeadlineExceeded {
 				sentry.CaptureMessage("commit segment closed: deadline exceeded")
 			}
@@ -775,7 +780,7 @@ func (w *segWriter) commitSegment(ctx context.Context) {
 		if uploadErr := seg.uploaded(); uploadErr != nil {
 			w.uncommitted = w.uncommitted[1:]
 			atomic.AddInt32(&w.unready, -1)
-			w.logger.Errorw("[DISCARD] upload segment error, discard segment info", "entry", w.entry.ID, "chunk", w.chunkID, "err", uploadErr)
+			w.logger.Errorw("[DISCARD] upload segment error, discard segment info", "inode", w.nodeInfo.ID, "chunk", w.chunkID, "err", uploadErr)
 			w.chunkErr = logErr(chunkWriteErrorCounter, uploadErr, "commit_segment")
 			sentry.CaptureException(w.chunkErr)
 			chunkDiscardSegmentCounter.Inc()
@@ -785,20 +790,20 @@ func (w *segWriter) commitSegment(ctx context.Context) {
 		updatedEn, err := w.store.AppendSegments(context.Background(), types.ChunkSeg{
 			ID:      seg.segID,
 			ChunkID: w.chunkID,
-			EntryID: w.entry.ID,
+			EntryID: w.nodeInfo.ID,
 			Off:     seg.off,
 			Len:     seg.size,
 			State:   0,
 		})
 		if err != nil {
-			w.logger.Errorw("append segment error", "entry", w.entry.ID, "chunk", w.chunkID, "err", err)
+			w.logger.Errorw("append segment error", "inode", w.nodeInfo.ID, "chunk", w.chunkID, "err", err)
 			w.chunkErr = logErr(chunkWriteErrorCounter, err, "commit_segment")
 			sentry.CaptureException(w.chunkErr)
 			chunkDiscardSegmentCounter.Inc()
 			continue
 		}
 		w.invalidate(w.chunkID)
-		w.entry = updatedEn
+		w.nodeInfo.Size = updatedEn.Size
 		w.uncommitted = w.uncommitted[1:]
 		atomic.AddInt32(&w.unready, -1)
 	}
@@ -974,8 +979,8 @@ type segment struct {
 	len int64 // segment remaining length after pos
 }
 
-func CompactChunksData(ctx context.Context, entry *types.Entry, chunkStore ChunkStore, dataStore storage.Storage) (resultErr error) {
-	maxChunkID := (entry.Size / fileChunkSize) + 1
+func CompactChunksData(ctx context.Context, nid, nsize int64, chunkStore ChunkStore, dataStore storage.Storage) (resultErr error) {
+	maxChunkID := (nsize / fileChunkSize) + 1
 	var (
 		reader Reader
 		writer Writer
@@ -983,7 +988,7 @@ func CompactChunksData(ctx context.Context, entry *types.Entry, chunkStore Chunk
 		readN  int64
 	)
 	for cid := int64(0); cid < maxChunkID; cid++ {
-		chunkSegment, err := chunkStore.ListSegments(ctx, entry.ID, cid, false)
+		chunkSegment, err := chunkStore.ListSegments(ctx, nid, cid, false)
 		if err != nil {
 			resultErr = err
 			continue
@@ -997,8 +1002,8 @@ func CompactChunksData(ctx context.Context, entry *types.Entry, chunkStore Chunk
 		// compact chunk
 		chunkStart := cid * fileChunkSize
 		chunkEnd := (cid + 1) * fileChunkSize
-		if chunkEnd > entry.Size {
-			chunkEnd = entry.Size
+		if chunkEnd > nsize {
+			chunkEnd = nsize
 		}
 		if chunkSegment[segmentCount-1].Off == chunkStart && chunkSegment[segmentCount-1].Len == chunkEnd-chunkStart {
 			// clean overed write segments
@@ -1010,7 +1015,7 @@ func CompactChunksData(ctx context.Context, entry *types.Entry, chunkStore Chunk
 
 		// rebuild new sequential segment
 		if reader == nil {
-			reader = NewChunkReader(entry, chunkStore, dataStore)
+			reader = NewChunkReader(nid, nsize, chunkStore, dataStore)
 			writer = NewChunkWriter(reader)
 			buf = make([]byte, fileChunkSize)
 		}
@@ -1041,8 +1046,8 @@ func CompactChunksData(ctx context.Context, entry *types.Entry, chunkStore Chunk
 	return resultErr
 }
 
-func DeleteChunksData(ctx context.Context, entry *types.Entry, chunkStore ChunkStore, dataStore storage.Storage) error {
-	segments, err := chunkStore.ListSegments(ctx, entry.ID, 0, true)
+func DeleteChunksData(ctx context.Context, nodeID int64, chunkStore ChunkStore, dataStore storage.Storage) error {
+	segments, err := chunkStore.ListSegments(ctx, nodeID, 0, true)
 	if err != nil {
 		return err
 	}
@@ -1064,4 +1069,21 @@ func deleteSegmentAndData(ctx context.Context, segments []types.ChunkSeg, chunkS
 		}
 	}
 	return
+}
+
+type nodeInfo struct {
+	ID   int64
+	Size int64
+}
+
+type Options struct {
+	CompactHook func()
+}
+
+type Option func(*Options)
+
+func WithCompactHook(fn func()) Option {
+	return func(o *Options) {
+		o.CompactHook = fn
+	}
 }

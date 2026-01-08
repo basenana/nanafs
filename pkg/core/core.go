@@ -444,7 +444,7 @@ func (c *core) CleanEntryData(ctx context.Context, namespace string, entryId int
 	}
 
 	defer logger.CostLog(c.logger.With(zap.Int64("entry", entry.ID)), "clean entry data")()
-	err = bio.DeleteChunksData(ctx, entry, c, s)
+	err = bio.DeleteChunksData(ctx, entry.ID, c, s)
 	if err != nil {
 		c.logger.Errorw("delete chunk data failed", "entry", entry.ID, "err", err)
 		return err
@@ -649,7 +649,7 @@ func (c *core) ChunkCompact(ctx context.Context, namespace string, entryId int64
 	if !ok {
 		return fmt.Errorf("storage %s not registered", entry.Storage)
 	}
-	return bio.CompactChunksData(ctx, entry, c, dataStorage)
+	return bio.CompactChunksData(ctx, entry.ID, entry.Size, c, dataStorage)
 }
 
 func (c *core) NextSegmentID(ctx context.Context) (int64, error) {
