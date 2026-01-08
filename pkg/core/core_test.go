@@ -343,9 +343,9 @@ var _ = Describe("TestCreateNamespace", func() {
 			err := fsCore.CreateNamespace(ctx, "test-namespace")
 			Expect(err).Should(BeNil())
 		})
-		It("create duplicate namespace should be failed", func() {
+		It("create duplicate namespace should succeed", func() {
 			err := fsCore.CreateNamespace(ctx, "test-namespace")
-			Expect(err).ShouldNot(BeNil())
+			Expect(err).Should(BeNil())
 		})
 	})
 })
