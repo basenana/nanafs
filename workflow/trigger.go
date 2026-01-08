@@ -129,10 +129,14 @@ func (h *triggers) handleWorkflowUpdate(wf *types.Workflow, isDelete bool) {
 func (h *triggers) sendWorkflowUpdateInLock(update triggerUpdate) {
 	wk := fmt.Sprintf("%s/%s", update.namespace, update.workflow)
 	updater, ok := h.waiters[wk]
-	if !ok && update.interval > 0 { // new waiter
-		updater = make(chan triggerUpdate, 5)
-		h.waiters[wk] = updater
-		go h.runWorkflowTimer(update.namespace, update.workflow, updater)
+	if !ok {
+		if update.interval > 0 { // new waiter
+			updater = make(chan triggerUpdate, 5)
+			h.waiters[wk] = updater
+			go h.runWorkflowTimer(update.namespace, update.workflow, updater)
+		} else {
+			return // ignore
+		}
 	}
 	updater <- update
 }
