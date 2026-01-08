@@ -19,6 +19,7 @@ package jobrun
 import (
 	"bytes"
 	"encoding/gob"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path"
@@ -56,10 +57,29 @@ func (b *baseMap) Data() map[string]any {
 	return b.results
 }
 
-type memoryBasedResults struct{ baseMap }
+type memoryBasedResults struct {
+	results map[string]any
+	mux     sync.Mutex
+}
+
+func (m *memoryBasedResults) Set(key string, val any) error {
+	m.mux.Lock()
+	m.results[key] = val
+	m.mux.Unlock()
+	return nil
+}
+
+func (m *memoryBasedResults) Data() map[string]any {
+	m.mux.Lock()
+	data, _ := json.Marshal(m.results)
+	m.mux.Unlock()
+	results := make(map[string]any)
+	_ = json.Unmarshal(data, &results)
+	return results
+}
 
 func NewMemBasedResults() Results {
-	return &memoryBasedResults{baseMap{results: map[string]any{}}}
+	return &memoryBasedResults{results: map[string]any{}}
 }
 
 const (

@@ -18,47 +18,63 @@ package workflow
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/basenana/nanafs/pkg/cel"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/events"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
-	"github.com/basenana/nanafs/workflow/jobrun"
 	"github.com/hyponet/eventbus"
 	"go.uber.org/zap"
 )
 
-type triggers struct {
-	mgr    *manager
-	jobQ   chan nextJob
-	logger *zap.SugaredLogger
-
-	circularQ [][]timedJobList
-	cqIdx     int
-
-	// todo: improve this
-	matches map[string]*workflowMatches
-	mux     sync.Mutex
+type triggerConfig struct {
+	localFileWatch *types.WorkflowLocalFileWatch
+	rss            *types.WorkflowRssTrigger
+	interval       *int
+	hash           string
 }
 
-func initTriggers(mgr *manager) *triggers {
-	h := &triggers{
-		mgr:    mgr,
-		jobQ:   make(chan nextJob, 5),
-		logger: logger.NewLogger("triggers"),
+type triggerUpdate struct {
+	namespace string
+	workflow  string
+	interval  int
+}
 
-		circularQ: make([][]timedJobList, 288),
-		matches:   make(map[string]*workflowMatches),
+type triggers struct {
+	mgr    Workflow
+	core   core.Core
+	meta   metastore.Meta
+	logger *zap.SugaredLogger
+
+	// for unit test
+	timerTool timerTool
+
+	// workflows: namespace -> workflowID -> trigger
+	workflows map[string]map[string]*triggerConfig
+	waiters   map[string]chan triggerUpdate
+	mux       sync.Mutex
+}
+
+func initTriggers(mgr Workflow, c core.Core, m metastore.Meta) *triggers {
+	return &triggers{
+		mgr:       mgr,
+		core:      c,
+		meta:      m,
+		logger:    logger.NewLogger("triggers"),
+		timerTool: &realTimerTool{},
+		workflows: make(map[string]map[string]*triggerConfig),
+		waiters:   make(map[string]chan triggerUpdate),
 	}
-
-	return h
 }
 
 func (h *triggers) start(ctx context.Context) {
-	workflows, err := h.mgr.meta.ListAllNamespaceWorkflows(ctx)
+	workflows, err := h.meta.ListAllNamespaceWorkflows(ctx)
 	if err != nil {
 		h.logger.Errorw("list all workflow failed", "err", err)
 		return
@@ -68,96 +84,156 @@ func (h *triggers) start(ctx context.Context) {
 		h.handleWorkflowUpdate(workflows[i], false)
 	}
 
-	// matches hook
 	eventbus.Subscribe(events.NamespacedTopic(events.TopicNamespaceEntry, events.ActionTypeCreate), h.handleEntryCreate)
-
-	// interval
-	go h.circularQueueRun(ctx)
-
-	go func() {
-		for job := range h.jobQ {
-			h.triggerWorkflow(ctx, job.namespace, job.wfId, job.tgt, job.attr)
-		}
-	}()
 }
 
-// MARK: workflow cache hook
+// MARK: workflow trigger management
 
 func (h *triggers) handleWorkflowUpdate(wf *types.Workflow, isDelete bool) {
 	h.mux.Lock()
-	nsHooks, ok := h.matches[wf.Namespace]
-	if !ok {
-		nsHooks = &workflowMatches{matches: make(map[string]*workflowMatch)}
-		h.matches[wf.Namespace] = nsHooks
-	}
-	h.mux.Unlock()
+	defer h.mux.Unlock()
 
-	nsHooks.mux.Lock()
-	defer nsHooks.mux.Unlock()
+	nsTriggers, ok := h.workflows[wf.Namespace]
+	if !ok {
+		nsTriggers = make(map[string]*triggerConfig)
+		h.workflows[wf.Namespace] = nsTriggers
+	}
+
 	if isDelete || !wf.Enable {
-		delete(nsHooks.matches, wf.Id)
+		delete(nsTriggers, wf.Id)
 		return
 	}
 
-	trigger := wf.Trigger
-	if trigger.LocalFileWatch == nil || trigger.Interval == nil {
-		delete(nsHooks.matches, wf.Id)
+	triggerCfg := wf.Trigger
+	if triggerCfg.LocalFileWatch == nil && triggerCfg.Interval == nil {
+		delete(nsTriggers, wf.Id)
 		return
 	}
 
-	hook, ok := nsHooks.matches[wf.Id]
+	newCfg := &triggerConfig{
+		localFileWatch: triggerCfg.LocalFileWatch,
+		rss:            triggerCfg.RSS,
+		interval:       triggerCfg.Interval,
+	}
+	newCfgHash := utils.ComputeStructHash(newCfg, nil)
+
+	if old, ok := nsTriggers[wf.Id]; ok && old.hash == newCfgHash {
+		return
+	}
+
+	newCfg.hash = newCfgHash
+	nsTriggers[wf.Id] = newCfg
+	h.sendWorkflowUpdateInLock(triggerUpdate{namespace: wf.Namespace, workflow: wf.Id, interval: utils.Deref(triggerCfg.Interval, 0)})
+}
+
+func (h *triggers) sendWorkflowUpdateInLock(update triggerUpdate) {
+	wk := fmt.Sprintf("%s/%s", update.namespace, update.workflow)
+	updater, ok := h.waiters[wk]
+	if !ok && update.interval > 0 { // new waiter
+		updater = make(chan triggerUpdate, 5)
+		h.waiters[wk] = updater
+		go h.runWorkflowTimer(update.namespace, update.workflow, updater)
+	}
+	updater <- update
+}
+
+func (h *triggers) runWorkflowTimer(namespace, workflow string, updater chan triggerUpdate) {
+	var (
+		waitKey = fmt.Sprintf("%s/%s", namespace, workflow)
+		timer   = h.timerTool.NewTimer(time.Hour)
+	)
+
+	defer func() {
+		h.mux.Lock()
+		defer h.mux.Unlock()
+		delete(h.waiters, waitKey)
+		close(updater)
+		timer.Stop()
+	}()
+
+	h.logger.Infow("start workflow timer", "namespace", namespace, "workflow", workflow)
+
+	for {
+		select {
+		case <-timer.C:
+			tc := h.getTriggerConfig(namespace, workflow)
+			if tc == nil || utils.Deref(tc.interval, 0) == 0 {
+				// interval task has been deleted, exit
+				return
+			}
+			switch {
+			case tc.rss != nil:
+				h.runRSSWorkflow(context.Background(), namespace, workflow, tc.rss)
+			default:
+				// no interval task, exit
+				return
+			}
+		case update := <-updater:
+			if update.interval == 0 {
+				// delete interval task, exit
+				return
+			}
+			h.timerTool.ResetTimer(update.interval, timer)
+		}
+	}
+}
+
+func (h *triggers) getTriggerConfig(namespace, workflow string) *triggerConfig {
+	h.mux.Lock()
+	defer h.mux.Unlock()
+
+	nsTriggers, ok := h.workflows[namespace]
 	if !ok {
-		hook = &workflowMatch{}
-		nsHooks.matches[wf.Id] = hook
+		return nil
+	}
+	triggerCfg, ok := nsTriggers[workflow]
+	if !ok {
+		return nil
 	}
 
-	hook.localFileWatch = trigger.LocalFileWatch
-	hook.interval = trigger.Interval
-
-	if hook.interval != nil {
-		interval := *hook.interval
-		idx := (h.cqIdx + interval/5) % len(h.circularQ)
-		h.circularQ[idx] = append(h.circularQ[idx], timedJobList{namespace: wf.Namespace, workflow: wf.Id})
-	}
+	return triggerCfg
 }
 
 // MARK: entry trigger hook
 
 func (h *triggers) handleEntryCreate(evt *types.Event) {
 	h.logger.Infow("[handleEntryCreate] handle entry create event", "type", evt.RefType, "entry", evt.RefID)
+
+	if evt.RefType != "entry" {
+		h.logger.Errorw("unknown event type", "type", evt.RefType, "refID", evt.RefID)
+		return
+	}
+
 	h.mux.Lock()
-	nsHooks, ok := h.matches[evt.Namespace]
-	h.mux.Unlock()
-
-	if !ok || len(nsHooks.matches) == 0 {
+	defer h.mux.Unlock()
+	nsTriggers := h.workflows[evt.Namespace]
+	if len(nsTriggers) == 0 {
 		return
 	}
 
-	if evt.RefType != "entry" || evt.Data.URI == "" {
-		h.logger.Errorw("unknown event type", "type", evt.RefType, "refID", evt.RefID, "uri", evt.Data.URI)
-		return
-	}
-
-	ctx := context.Background()
-	entry, err := h.mgr.core.GetEntry(ctx, evt.Namespace, evt.RefID)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	entry, err := h.core.GetEntry(ctx, evt.Namespace, evt.RefID)
 	if err != nil {
 		h.logger.Errorw("[handleEntryCreate] get entry failed", "entry", evt.RefID, "err", err)
 		return
 	}
 
-	nsHooks.mux.Lock()
-	defer nsHooks.mux.Unlock()
+	entryURI, err := core.ProbableEntryPath(ctx, h.core, entry)
+	if err != nil {
+		h.logger.Errorw("[handleEntryCreate] guss entry uri failed", "entry", evt.RefID, "err", err)
+		return
+	}
 
-	for wfID, hook := range nsHooks.matches {
-		if hook.localFileWatch == nil {
+	for wfID, trg := range nsTriggers {
+		if trg.localFileWatch == nil {
+			continue
+		}
+		if trg.localFileWatch.Event != evt.Type {
 			continue
 		}
 
-		if hook.localFileWatch.Event != evt.Type {
-			continue
-		}
-
-		matched, err := cel.EntryMatch(ctx, entry, hook.localFileWatch)
+		matched, err := cel.EntryMatch(ctx, entry, trg.localFileWatch)
 		if err != nil {
 			h.logger.Errorw("[handleEntryCreate] match entry failed", "workflow", wfID, "entry", entry.ID, "err", err)
 			continue
@@ -167,103 +243,51 @@ func (h *triggers) handleEntryCreate(evt *types.Event) {
 			continue
 		}
 
-		if err = h.workflowJobDelay(ctx, evt.Namespace, wfID, evt.Data.URI, "entry created"); err != nil {
-			h.logger.Errorw("[handleEntryCreate] trigger workflow failed", "namespace", evt.Namespace, "wfID", wfID, "entry", evt.RefID, "err", err)
-			continue
-		}
-		h.logger.Infow("[handleEntryCreate] workflow triggered", "namespace", evt.Namespace, "wfID", wfID, "entry", entry.ID)
+		h.triggerWorkflow(ctx, evt.Namespace, wfID, types.WorkflowTarget{Entries: []string{entryURI}}, JobAttr{Reason: "entry created"})
 	}
-	return
 }
 
-func (h *triggers) workflowJobDelay(ctx context.Context, namespace, wf, entryURI, reason string) error {
-	h.jobQ <- nextJob{
-		namespace: namespace,
-		wfId:      wf,
-		tgt:       types.WorkflowTarget{Entries: []string{entryURI}},
-		attr:      JobAttr{Reason: reason},
-	}
-	return nil
-}
+// MARK: interval trigger
 
-func (h *triggers) filterAndRunCronWorkflow(ctx context.Context, wf *types.Workflow) error {
-	if wf.Trigger.LocalFileWatch == nil {
-		return nil
-	}
-
-	celPattern := cel.BuildCELFilterFromMatch(wf.Trigger.LocalFileWatch)
-	filter := types.Filter{CELPattern: celPattern}
-
-	it, err := h.mgr.meta.FilterEntries(ctx, wf.Namespace, filter)
+func (h *triggers) runRSSWorkflow(ctx context.Context, namespace, workflowID string, rss *types.WorkflowRssTrigger) {
+	it, err := h.meta.FilterEntries(ctx, namespace, types.Filter{CELPattern: `group.source == "rss"`})
 	if err != nil {
-		h.logger.Errorw("[filterAndRunCronWorkflow] filter entries failed", "workflow", wf.Id, "err", err)
-		return err
+		h.logger.Errorw("filter rss failed", "workflow", workflowID, "err", err)
+		return
 	}
 
-	var entries []*types.Entry
 	for it.HasNext() {
 		en, err := it.Next()
 		if err != nil {
-			h.logger.Errorw("[filterAndRunCronWorkflow] get next entry failed", "workflow", wf.Id, "err", err)
+			h.logger.Errorw("get next rss group failed", "workflow", workflowID, "entry", en.ID, "err", err)
 			continue
 		}
-		entries = append(entries, en)
+
+		gp := &types.GroupProperties{}
+		err = h.meta.GetEntryProperties(ctx, namespace, types.PropertyTypeGroupAttr, en.ID, gp)
+		if err != nil {
+			h.logger.Errorw("get group attr failed", "workflow", workflowID, "entry", en.ID, "err", err)
+			continue
+		}
+
+		if gp.RSS == nil || gp.RSS.Feed == "" {
+			h.logger.Warnw("empty rss group attr", "workflow", workflowID, "entry", en.ID)
+			continue
+		}
+
+		uri, err := core.ProbableEntryPath(ctx, h.core, en)
+		if err != nil {
+			h.logger.Errorw("fetch rss group uri failed", "workflow", workflowID, "err", err)
+			continue
+		}
+		params := map[string]string{
+			"feed": gp.RSS.Feed,
+		}
+		h.triggerWorkflow(ctx, namespace, workflowID, types.WorkflowTarget{Entries: []string{uri}}, JobAttr{Parameters: params, Reason: "cron rss"})
 	}
-
-	h.logger.Infow("[filterAndRunCronWorkflow] query entries with wf rule", "workflow", wf.Id, "entries", len(entries))
-
-	for _, en := range entries {
-		if en.Namespace != wf.Namespace {
-			h.logger.Warnw("[filterAndRunCronWorkflow] match wrong namespace entry", "entry", en.ID, "entryNamespace", en.Namespace, "namespace", wf.Namespace)
-			continue
-		}
-
-		if !en.IsGroup {
-			h.logger.Warnw("[filterAndRunCronWorkflow] only group entry support cron run", "entry", en.ID, "namespace", en.Namespace)
-			continue
-		}
-
-		matched, err := cel.EntryMatch(ctx, en, wf.Trigger.LocalFileWatch)
-		if err != nil {
-			h.logger.Errorw("[filterAndRunCronWorkflow] match entry failed", "workflow", wf.Id, "entry", en.ID, "err", err)
-			continue
-		}
-		if !matched {
-			h.logger.Debugw("[filterAndRunCronWorkflow] entry not match rule", "workflow", wf.Id, "entry", en.ID)
-			continue
-		}
-
-		sameTargetJob, err := h.mgr.meta.ListWorkflowJobs(ctx, wf.Namespace, types.JobFilter{WorkFlowID: wf.Id, TargetEntry: en.ID})
-		if err != nil {
-			h.logger.Errorw("[filterAndRunCronWorkflow] query same target job failed", "entry", en.ID, "workflow", wf.Id, "err", err)
-			continue
-		}
-
-		needSkip := false
-		for _, j := range sameTargetJob {
-			if j.Status == jobrun.InitializingStatus || j.Status == jobrun.RunningStatus {
-				h.logger.Debugw("[filterAndRunCronWorkflow] found same target job, skip this event", "entry", en.ID, "job", j.Id)
-				needSkip = true
-				break
-			}
-		}
-		if needSkip {
-			continue
-		}
-
-		uri, err := core.ProbableEntryPath(ctx, h.mgr.core, en)
-		if err != nil {
-			h.logger.Errorw("[filterAndRunCronWorkflow] fetch entry uri failed", "workflow", wf.Id, "entry", en.ID, "err", err)
-			continue
-		}
-		if err = h.workflowJobDelay(ctx, wf.Namespace, wf.Id, uri, "cron run"); err != nil {
-			h.logger.Errorw("[filterAndRunCronWorkflow] trigger workflow failed", "namespace", wf.Namespace, "wfID", wf.Id, "entry", en.ID, "err", err)
-			continue
-		}
-		h.logger.Infow("[filterAndRunCronWorkflow] workflow triggered", "namespace", wf.Namespace, "wfID", wf.Id, "entry", en.ID)
-	}
-	return nil
 }
+
+// MARK: workflow trigger
 
 func (h *triggers) triggerWorkflow(ctx context.Context, namespace, wfId string, tgt types.WorkflowTarget, attr JobAttr) {
 	job, err := h.mgr.TriggerWorkflow(ctx, namespace, wfId, tgt, attr)
@@ -271,131 +295,20 @@ func (h *triggers) triggerWorkflow(ctx context.Context, namespace, wfId string, 
 		h.logger.Errorw("trigger workflow failed", "workflow", wfId, "err", err)
 		return
 	}
-	h.logger.Infow("trigger workflow finish", "workflow", wfId, "job", job.Id)
+	h.logger.Infow("trigger workflow finish", "workflow", wfId, "job", job.Id, "reason", attr.Reason)
 }
 
-func (h *triggers) circularQueueRun(ctx context.Context) {
-
-	runWorkflow := func(namespace, workflow string) {
-		h.mux.Lock()
-		match := h.matches[namespace]
-		h.mux.Unlock()
-
-		match.mux.Lock()
-		defer match.mux.Unlock()
-		wf := match.matches[workflow]
-		if wf == nil || wf.interval == nil {
-			return
-		}
-		interval := *wf.interval
-		h.usingSourcePlugin(ctx, namespace, workflow, interval)
-
-		idx := (h.cqIdx + interval/5) % len(h.circularQ)
-		h.circularQ[idx] = append(h.circularQ[idx], timedJobList{namespace: namespace, workflow: workflow})
-	}
-
-	t := time.NewTicker(5 * time.Minute)
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			todoList := h.circularQ[h.cqIdx]
-
-			for _, td := range todoList {
-				runWorkflow(td.namespace, td.workflow)
-			}
-
-			h.circularQ[h.cqIdx] = h.circularQ[h.cqIdx][:0]
-			h.cqIdx += 1
-			h.cqIdx %= len(h.circularQ)
-		}
-	}
+type timerTool interface {
+	NewTimer(d time.Duration) *time.Ticker
+	ResetTimer(min int, t *time.Ticker)
 }
 
-func (h *triggers) usingSourcePlugin(ctx context.Context, namespace, workflow string, interval int) {
-	wf, err := h.mgr.GetWorkflow(ctx, namespace, workflow)
-	if err != nil {
-		h.logger.Errorw("get workflow failed", "workflow", workflow, "err", err)
-		return
-	}
+type realTimerTool struct{}
 
-	var (
-		trigger = wf.Trigger
-		targets []types.WorkflowTarget
-	)
-
-	switch {
-	case trigger.RSS != nil:
-		it, err := h.mgr.meta.FilterEntries(ctx, namespace, types.Filter{CELPattern: `group.source == "rss"`})
-		if err != nil {
-			h.logger.Errorw("filter rss failed", "workflow", workflow, "err", err)
-			return
-		}
-
-		for it.HasNext() {
-			en, err := it.Next()
-			if err != nil {
-				h.logger.Errorw("get next rss group failed", "workflow", workflow, "err", err)
-				continue
-			}
-
-			uri, err := core.ProbableEntryPath(ctx, h.mgr.core, en)
-			if err != nil {
-				h.logger.Errorw("fetch rss group uri failed", "workflow", workflow, "err", err)
-				continue
-			}
-			targets = append(targets, types.WorkflowTarget{Entries: []string{uri}})
-		}
-	}
-
-	for _, target := range targets {
-		if len(target.Entries) > 0 {
-			h.triggerWorkflow(ctx, namespace, workflow, target, JobAttr{
-				Reason:     "interval run",
-				Queue:      "",
-				Parameters: nil,
-				Timeout:    time.Duration(interval) * time.Minute,
-			})
-		}
-	}
-
+func (r *realTimerTool) NewTimer(d time.Duration) *time.Ticker {
+	return time.NewTicker(d)
 }
 
-type workflowMatches struct {
-	matches map[string]*workflowMatch
-	mux     sync.Mutex
-}
-
-type workflowMatch struct {
-	localFileWatch *types.WorkflowLocalFileWatch
-	interval       *int
-}
-
-type nextJob struct {
-	namespace string
-	wfId      string
-	tgt       types.WorkflowTarget
-	attr      JobAttr
-}
-
-type timedJobList struct {
-	namespace string
-	workflow  string
-}
-
-func (h *triggers) GetTriggerState(ctx context.Context, namespace, workflow, triggerType string) (map[string]string, error) {
-	var state map[string]string
-	err := h.mgr.meta.LoadWorkflowContext(ctx, namespace, "trigger", workflow, triggerType, &state)
-	if err != nil {
-		return nil, err
-	}
-	if state == nil {
-		return make(map[string]string), nil
-	}
-	return state, nil
-}
-
-func (h *triggers) SaveTriggerState(ctx context.Context, namespace, workflow, triggerType string, state map[string]string) error {
-	return h.mgr.meta.SaveWorkflowContext(ctx, namespace, "trigger", workflow, triggerType, state)
+func (r *realTimerTool) ResetTimer(min int, t *time.Ticker) {
+	t.Reset(time.Duration(min) * time.Minute)
 }

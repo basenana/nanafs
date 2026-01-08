@@ -134,7 +134,6 @@ func (c *Controller) handleNextJob(namespace, jobID string) {
 	}
 
 	f := workflowJob2Flow(c, job)
-	c.logger.Infow("ns in ctx before start", "namespace", job.Namespace, "job", jobID)
 	ctx = utils.NewWorkflowJobContext(ctx, job.Id)
 
 	c.mux.Lock()

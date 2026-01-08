@@ -11,8 +11,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.36.0
 	github.com/aws/smithy-go v1.13.5
 	github.com/basenana/go-flow v0.0.0-20250614153542-07184f3ea1e7
-	github.com/basenana/plugin v0.0.0-20260107113052-2f8c400f1db3
+	github.com/basenana/plugin v0.0.0-20260108111854-3816f8db3bcb
 	github.com/bluele/gcache v0.0.2
+	github.com/davecgh/go-spew v1.1.1
 	github.com/getsentry/sentry-go v0.22.0
 	github.com/glebarez/sqlite v1.7.0
 	github.com/go-gormigrate/gormigrate/v2 v2.1.1

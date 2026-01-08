@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"path"
-	"sync"
 	"time"
 
 	"github.com/basenana/go-flow"
@@ -94,16 +93,15 @@ func (b *defaultExecutor) Setup(ctx context.Context) (err error) {
 		return logOperationError(DefExecName, "setup", err)
 	}
 
-	b.results, err = NewFileBasedResults(ResultFilePath(b.workdir))
-	if err != nil {
-		b.logger.Errorw("init job ctx result failed", "err", err)
-		return logOperationError(DefExecName, "setup", err)
-	}
+	b.results = NewMemBasedResults()
 
 	/*
 		Setting trigger vars
 	*/
 	trigger := make(map[string]interface{})
+	for k, v := range b.job.Parameters {
+		trigger[k] = v
+	}
 	if !entry.IsGroup {
 		enPath, err := entryWorkdirInit(ctx, b.job.Namespace, targetURI, b.core, b.workdir)
 		if err != nil {
@@ -111,12 +109,11 @@ func (b *defaultExecutor) Setup(ctx context.Context) (err error) {
 			return logOperationError(DefExecName, "setup", err)
 		}
 		b.logger.Infow("copy entry to workdir", "entry", targetURI, "path", enPath)
-		trigger = map[string]interface{}{
-			"file_path":  enPath,
-			"parent_uri": path.Dir(targetURI),
-		}
+		trigger["file_path"] = enPath
+		trigger["entry_uri"] = targetURI
+		trigger["parent_uri"] = path.Dir(targetURI)
 	} else {
-		trigger = map[string]interface{}{"parent_uri": targetURI}
+		trigger["parent_uri"] = targetURI
 	}
 	err = b.results.Set("trigger", trigger)
 	if err != nil {
@@ -159,19 +156,27 @@ func (b *defaultExecutor) Exec(ctx context.Context, flow *flow.Flow, task flow.T
 		return b.execMatrix(ctx, t)
 	}
 
-	_, err = b.callPluginAndCollect(ctx, t.step)
-	return err
+	resp, err := b.callPlugin(ctx, t.step, nil)
+	if err != nil {
+		return err
+	}
+	if err = b.results.Set(t.step.Name, resp); err != nil {
+		return logOperationError(DefExecName, "update_context", err)
+	}
+	return nil
 }
 
-func (b *defaultExecutor) callPluginAndCollect(ctx context.Context, step *types.WorkflowJobNode) (map[string]any, error) {
-	req := newPluginRequest(b.job, step, b.nfs, b.store, b.results)
+func (b *defaultExecutor) callPlugin(ctx context.Context, step *types.WorkflowJobNode, patchData map[string]any) (map[string]any, error) {
+	resultData := b.results.Data()
+	if len(patchData) > 0 {
+		for k, v := range patchData {
+			resultData[k] = v
+		}
+	}
+	req := b.newPluginRequest(step, resultData)
 	resp, err := callPlugin(ctx, b.job, step, b.pluginMgr, req, b.workdir)
 	if err != nil {
 		return nil, logOperationError(DefExecName, "call_plugin", err)
-	}
-
-	if err = b.results.Set(step.Name, resp.Results); err != nil {
-		return nil, logOperationError(DefExecName, "update_context", err)
 	}
 
 	return resp.Results, nil
@@ -241,7 +246,7 @@ func (b *defaultExecutor) execMatrix(ctx context.Context, t *Task) error {
 	}
 
 	// Get iteration data from context
-	iterations, err := renderMatrixData(matrix.Data, b.results)
+	iterations, err := renderMatrixData(matrix.Data, b.results.Data())
 	if err != nil {
 		return fmt.Errorf("failed to render matrix data: %w", err)
 	}
@@ -251,24 +256,15 @@ func (b *defaultExecutor) execMatrix(ctx context.Context, t *Task) error {
 		return nil
 	}
 
-	b.logger.Infow("executing matrix", "iterations", len(iterations), "mode", matrix.IterateMode)
+	b.logger.Infow("executing matrix", "iterations", len(iterations))
 
-	// Execute iterations based on IterateMode
-	var results []map[string]any
-
-	if matrix.IterateMode == "parallel" {
-		// Parallel execution with optional batch size limit
-		results, err = b.execMatrixParallel(ctx, t, iterations, matrix.BatchSize)
-	} else {
-		// Default sequential execution
-		results, err = b.execMatrixSequential(ctx, t, iterations)
-	}
-
+	// Execute iterations sequentially
+	results, err := b.execMatrixSequential(ctx, t, iterations)
 	if err != nil {
 		return err
 	}
 
-	if err = b.results.Set("matrix_results", results); err != nil {
+	if err = b.results.Set(t.step.Name, map[string]any{"matrix_results": results}); err != nil {
 		return logOperationError(DefExecName, "matrix_store_results", err)
 	}
 
@@ -280,13 +276,7 @@ func (b *defaultExecutor) execMatrixSequential(ctx context.Context, t *Task, ite
 	var results []map[string]any
 
 	for i, iteration := range iterations {
-		for key, val := range iteration.Variables {
-			if err := b.results.Set(key, val); err != nil {
-				return nil, fmt.Errorf("failed to set matrix variable %s: %w", key, err)
-			}
-		}
-
-		iterationResult, err := b.callPluginAndCollect(ctx, t.step)
+		iterationResult, err := b.callPlugin(ctx, t.step, map[string]any{"matrix": iteration.Variables})
 		if err != nil {
 			return nil, err
 		}
@@ -295,51 +285,6 @@ func (b *defaultExecutor) execMatrixSequential(ctx context.Context, t *Task, ite
 		b.logger.Infow("matrix iteration completed", "iteration", i+1, "total", len(iterations))
 	}
 
-	return results, nil
-}
-
-func (b *defaultExecutor) execMatrixParallel(ctx context.Context, t *Task, iterations []matrixIteration, batchSize int) ([]map[string]any, error) {
-	var results []map[string]any
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-
-	if batchSize <= 0 {
-		batchSize = len(iterations)
-	}
-
-	// Use semaphore pattern for batch control
-	semaphore := make(chan struct{}, batchSize)
-
-	for i, iteration := range iterations {
-		wg.Add(1)
-		semaphore <- struct{}{} // Acquire semaphore
-
-		go func(iterIdx int, iter matrixIteration) {
-			defer wg.Done()
-			defer func() { <-semaphore }() // Release semaphore
-
-			// Note: In parallel mode, we don't modify shared results
-			// as it would cause race conditions. Each iteration gets
-			// its own context copy for variable resolution.
-			// Results are still stored with node name prefix.
-
-			// Execute plugin and collect results
-			iterationResult, err := b.callPluginAndCollect(ctx, t.step)
-			if err != nil {
-				b.logger.Errorw("matrix parallel iteration failed",
-					"iteration", iterIdx+1, "err", err)
-				return
-			}
-
-			mu.Lock()
-			results = append(results, iterationResult)
-			mu.Unlock()
-			b.logger.Infow("matrix parallel iteration completed",
-				"iteration", iterIdx+1, "total", len(iterations))
-		}(i, iteration)
-	}
-
-	wg.Wait()
 	return results, nil
 }
 
@@ -356,19 +301,17 @@ func (b *defaultExecutor) Teardown(ctx context.Context) error {
 	return nil
 }
 
-func newPluginRequest(job *types.WorkflowJob, step *types.WorkflowJobNode, nfs pluginapi.NanaFS, store pluginapi.PersistentStore, result Results) *pluginapi.Request {
+func (b *defaultExecutor) newPluginRequest(step *types.WorkflowJobNode, resultData map[string]any) *pluginapi.Request {
 	req := pluginapi.NewRequest()
-	req.Store = store
-	req.FS = nfs
+	req.Store = b.store
+	req.FS = b.nfs
 
-	resultData := result.Data()
-	globalVars := injectGlobalVars(job)
+	globalVars := injectGlobalVars(b.job)
 	for k, v := range globalVars {
 		resultData[k] = v
 	}
 
 	req.Parameter = make(map[string]any)
-
 	for k, v := range step.Input {
 		req.Parameter[k] = renderParams(v, resultData)
 	}

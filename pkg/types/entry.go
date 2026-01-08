@@ -34,8 +34,9 @@ const (
 	PropertyWebPageUpdateAt = "org.basenana.web.updated_at"
 	PropertyWebPageTitle    = "org.basenana.web.title"
 
-	AllNamespace     = ""
-	DefaultNamespace = "default"
+	AllNamespace      = ""
+	DefaultNamespace  = "default"
+	PersonalNamespace = "personal"
 )
 
 type SystemInfo struct {

@@ -164,7 +164,7 @@ func (c *core) NamespaceRoot(ctx context.Context, namespace string) (*types.Entr
 		nsChild *types.Child
 		nsRoot  *types.Entry
 	)
-	nsChild, err = c.store.FindEntry(ctx, namespace, root.ID, namespace)
+	nsChild, err = c.store.FindEntry(ctx, types.DefaultNamespace, root.ID, namespace)
 	if err != nil {
 		c.logger.Errorw("load ns child entry error", "namespace", namespace, "err", err)
 		return nil, err
@@ -203,7 +203,7 @@ func (c *core) CreateNamespace(ctx context.Context, namespace string) error {
 	nsRoot.Access.GID = c.fsOwnerGid
 	nsRoot.Storage = c.defaultStorage.ID()
 
-	err = c.store.CreateEntry(ctx, types.DefaultNamespace, RootEntryID, nsRoot)
+	err = c.store.CreateEntry(ctx, namespace, RootEntryID, nsRoot)
 	if err != nil {
 		c.logger.Errorw("create root entry failed", "err", err)
 		return err

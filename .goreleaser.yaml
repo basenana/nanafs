@@ -7,28 +7,28 @@ before:
     - go mod download
 builds:
   - id: nanafs-darwin-amd64
-    ldflags: -s -w -X config.gitCommit={{.ShortCommit}} -X config.gitTag={{.Version}}
+    ldflags: -s -w -X github.com/basenana/nanafs/config.gitCommit={{.ShortCommit}} -X github.com/basenana/nanafs/config.gitTag={{.Version}}
     main: .
     goos:
       - darwin
     goarch:
       - amd64
   - id: nanafs-darwin-arm64
-    ldflags: -s -w -X config.gitCommit={{.ShortCommit}} -X config.gitTag={{.Version}}
+    ldflags: -s -w -X github.com/basenana/nanafs/config.gitCommit={{.ShortCommit}} -X github.com/basenana/nanafs/config.gitTag={{.Version}}
     main: .
     goos:
       - darwin
     goarch:
       - arm64
   - id: nanafs-linux-amd64
-    ldflags: -s -w -X config.gitCommit={{.ShortCommit}} -X config.gitTag={{.Version}}
+    ldflags: -s -w -X github.com/basenana/nanafs/config.gitCommit={{.ShortCommit}} -X github.com/basenana/nanafs/config.gitTag={{.Version}}
     main: .
     goos:
       - linux
     goarch:
       - amd64
   - id: nanafs-linux-arm64
-    ldflags: -s -w -X config.gitCommit={{.ShortCommit}} -X config.gitTag={{.Version}}
+    ldflags: -s -w -X github.com/basenana/nanafs/config.gitCommit={{.ShortCommit}} -X github.com/basenana/nanafs/config.gitTag={{.Version}}
     main: .
     goos:
       - linux

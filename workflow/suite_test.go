@@ -45,6 +45,7 @@ var (
 	stopCh    = make(chan struct{})
 	tempDir   string
 	fsCore    core.Core
+	testMeta  metastore.Meta
 	mgr       Workflow
 	namespace = types.DefaultNamespace
 
@@ -76,6 +77,8 @@ var _ = BeforeSuite(func() {
 
 	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())
+
+	testMeta = memMeta
 
 	fsCore, err = core.New(memMeta, bootCfg)
 	Expect(err).Should(BeNil())

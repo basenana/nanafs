@@ -83,8 +83,8 @@ type ScheduledTaskRecorder interface {
 	SaveWorkflowJob(ctx context.Context, namespace string, wf *types.WorkflowJob) error
 	DeleteWorkflowJobs(ctx context.Context, wfJobID ...string) error
 
-	LoadWorkflowContext(ctx context.Context, namespace, source, group, key string, data any) error
-	SaveWorkflowContext(ctx context.Context, namespace, source, group, key string, data any) error
+	LoadJobData(ctx context.Context, namespace, source, group, key string, data any) error
+	SaveJobData(ctx context.Context, namespace, source, group, key string, data any) error
 }
 
 type NotificationRecorder interface {

@@ -77,23 +77,13 @@ type WorkflowLocalFileWatch struct {
 	CELPattern  string `json:"cel_pattern,omitempty"`
 }
 
-type WorkflowRssTrigger struct {
-	FileType    string `json:"file_type,omitempty"`
-	Timeout     string `json:"timeout,omitempty"`
-	ClutterFree bool   `json:"clutter_free,omitempty"`
-}
+type WorkflowRssTrigger struct{}
 
 type WorkflowNodeMatrix struct {
 	// Data defines variable mappings for matrix iteration
 	// Key is variable name, value is template reference to context data
 	// Example: {"file_path": "{{ new_webpage.file_paths }}"}
 	Data map[string]any `json:"data"`
-
-	// IterateMode controls execution mode: "sequential" (default) or "parallel"
-	IterateMode string `json:"iterate_mode,omitempty"`
-
-	// BatchSize limits parallel execution batch size (for parallel mode)
-	BatchSize int `json:"batch_size,omitempty"`
 }
 
 type WorkflowJob struct {

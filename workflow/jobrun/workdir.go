@@ -106,15 +106,15 @@ func entryWorkdirInit(ctx context.Context, namespace, entryUri string, fsCore co
 	}
 	defer f.Close(ctx)
 
-	if err = copyEntryToJobWorkDir(ctx, entryPath, entry, f); err != nil {
+	if err = copyEntryToJobWorkDir(ctx, entryPath, f); err != nil {
 		return "", fmt.Errorf("copy entry file failed: %s", err)
 	}
 	return entryPath, nil
 }
 
-func copyEntryToJobWorkDir(ctx context.Context, entryPath string, entry *types.Entry, file core.RawFile) error {
+func copyEntryToJobWorkDir(ctx context.Context, entryPath string, file core.RawFile) error {
 	if entryPath == "" {
-		entryPath = entry.Name
+		return fmt.Errorf("entry path is empty")
 	}
 	f, err := os.OpenFile(entryPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 	if err != nil {

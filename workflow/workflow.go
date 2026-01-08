@@ -77,7 +77,7 @@ func New(fsCore core.Core, notify *notify.Notify, meta metastore.Meta, cfg confi
 	pluginMgr := plugin.New()
 	flowCtrl := jobrun.NewJobController(pluginMgr, fsCore, meta, notify, cfg.JobWorkdir)
 	mgr := &manager{ctrl: flowCtrl, core: fsCore, meta: meta, plugin: pluginMgr, config: cfg, logger: wfLogger}
-	mgr.trigger = initTriggers(mgr)
+	mgr.trigger = initTriggers(mgr, fsCore, meta)
 
 	return mgr, nil
 }

@@ -192,11 +192,19 @@ func newPersistentStore(store metastore.Meta, namespace string) pluginapi.Persis
 }
 
 func (p *namespacedStore) Load(ctx context.Context, source, group, key string, data any) error {
-	return p.store.LoadWorkflowContext(ctx, p.namespace, source, group, key, data)
+	source = strings.TrimSpace(source)
+	group = strings.TrimSpace(group)
+	return p.store.LoadJobData(ctx, p.namespace, source, group, p.keyHash(key), data)
 }
 
 func (p *namespacedStore) Save(ctx context.Context, source, group, key string, data any) error {
-	return p.store.SaveWorkflowContext(ctx, p.namespace, source, group, key, data)
+	source = strings.TrimSpace(source)
+	group = strings.TrimSpace(group)
+	return p.store.SaveJobData(ctx, p.namespace, source, group, p.keyHash(key), data)
+}
+
+func (p *namespacedStore) keyHash(key string) string {
+	return utils.ComputeStructHash(key, nil)
 }
 
 type namespacedFS struct {
@@ -214,7 +222,7 @@ func (n *namespacedFS) SaveEntry(ctx context.Context, parentURI, name string, pr
 	}
 
 	child, err := n.core.FindEntry(ctx, n.namespace, parent.ID, name)
-	if err != nil && errors.Is(err, types.ErrNotFound) {
+	if err != nil && !errors.Is(err, types.ErrNotFound) {
 		return fmt.Errorf("find %s error %w", name, err)
 	}
 

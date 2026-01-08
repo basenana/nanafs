@@ -19,3 +19,10 @@ package utils
 func ToPtr[T any](t T) *T {
 	return &t
 }
+
+func Deref[T any](t *T, d T) T {
+	if t == nil {
+		return d
+	}
+	return *t
+}
