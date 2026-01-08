@@ -124,6 +124,7 @@ type Children struct {
 	Name      string `gorm:"column:name;primaryKey"`
 	ChildID   int64  `gorm:"column:child_id;index:child_id"`
 	Dynamic   bool   `gorm:"column:dynamic"`
+	Marker    string `gorm:"column:marker"`
 }
 
 func (c *Children) From(child *types.Child) {
@@ -132,6 +133,7 @@ func (c *Children) From(child *types.Child) {
 	c.Name = child.Name
 	c.Namespace = child.Namespace
 	c.Dynamic = child.Dynamic
+	c.Marker = child.Marker
 }
 
 func (c *Children) To() *types.Child {
@@ -141,6 +143,7 @@ func (c *Children) To() *types.Child {
 		Name:      c.Name,
 		Namespace: c.Namespace,
 		Dynamic:   c.Dynamic,
+		Marker:    c.Marker,
 	}
 }
 
@@ -289,20 +292,21 @@ func (o *Workflow) To() (*types.Workflow, error) {
 }
 
 type WorkflowJob struct {
-	ID            string    `gorm:"column:id;autoIncrement"`
-	Workflow      string    `gorm:"column:workflow;index:job_wf_id"`
-	TriggerReason string    `gorm:"column:trigger_reason"`
-	Targets       JSON      `gorm:"column:targets"`
-	Nodes         JSON      `gorm:"column:nodes"`
-	Parameters    JSON      `gorm:"column:parameters"`
-	Status        string    `gorm:"column:status;index:job_status"`
-	Message       string    `gorm:"column:message"`
-	QueueName     string    `gorm:"column:queue_name;index:job_queue"`
-	Namespace     string    `gorm:"column:namespace;index:job_ns"`
-	StartAt       time.Time `gorm:"column:start_at"`
-	FinishAt      time.Time `gorm:"column:finish_at"`
-	CreatedAt     time.Time `gorm:"column:created_at;index:job_created_at"`
-	UpdatedAt     time.Time `gorm:"column:updated_at"`
+	ID             string    `gorm:"column:id;autoIncrement"`
+	Workflow       string    `gorm:"column:workflow;index:job_wf_id"`
+	TriggerReason  string    `gorm:"column:trigger_reason"`
+	Targets        JSON      `gorm:"column:targets"`
+	Nodes          JSON      `gorm:"column:nodes"`
+	Parameters     JSON      `gorm:"column:parameters"`
+	Status         string    `gorm:"column:status;index:job_status"`
+	Message        string    `gorm:"column:message"`
+	QueueName      string    `gorm:"column:queue_name;index:job_queue"`
+	TimeoutSeconds int       `gorm:"column:timeout_seconds"`
+	Namespace      string    `gorm:"column:namespace;index:job_ns"`
+	StartAt        time.Time `gorm:"column:start_at"`
+	FinishAt       time.Time `gorm:"column:finish_at"`
+	CreatedAt      time.Time `gorm:"column:created_at;index:job_created_at"`
+	UpdatedAt      time.Time `gorm:"column:updated_at"`
 }
 
 func (o *WorkflowJob) TableName() string {
@@ -321,6 +325,7 @@ func (o *WorkflowJob) From(job *types.WorkflowJob) (*WorkflowJob, error) {
 	o.CreatedAt = job.CreatedAt
 	o.UpdatedAt = job.UpdatedAt
 	o.Namespace = job.Namespace
+	o.TimeoutSeconds = job.TimeoutSeconds
 
 	rawTarget, err := json.Marshal(job.Targets)
 	if err != nil {
@@ -345,18 +350,19 @@ func (o *WorkflowJob) From(job *types.WorkflowJob) (*WorkflowJob, error) {
 
 func (o *WorkflowJob) To() (*types.WorkflowJob, error) {
 	result := &types.WorkflowJob{
-		Id:            o.ID,
-		Workflow:      o.Workflow,
-		TriggerReason: o.TriggerReason,
-		Nodes:         []types.WorkflowJobNode{},
-		Status:        o.Status,
-		Message:       o.Message,
-		QueueName:     o.QueueName,
-		StartAt:       o.StartAt,
-		FinishAt:      o.FinishAt,
-		CreatedAt:     o.CreatedAt,
-		UpdatedAt:     o.UpdatedAt,
-		Namespace:     o.Namespace,
+		Id:             o.ID,
+		Workflow:       o.Workflow,
+		TriggerReason:  o.TriggerReason,
+		Nodes:          []types.WorkflowJobNode{},
+		Status:         o.Status,
+		Message:        o.Message,
+		QueueName:      o.QueueName,
+		StartAt:        o.StartAt,
+		FinishAt:       o.FinishAt,
+		CreatedAt:      o.CreatedAt,
+		UpdatedAt:      o.UpdatedAt,
+		Namespace:      o.Namespace,
+		TimeoutSeconds: o.TimeoutSeconds,
 	}
 
 	err := json.Unmarshal(o.Targets, &result.Targets)
@@ -377,15 +383,16 @@ func (o *WorkflowJob) To() (*types.WorkflowJob, error) {
 	return result, nil
 }
 
-type WorkflowContext struct {
-	Source    string    `gorm:"column:source;primaryKey"`
-	Group     string    `gorm:"column:group;primaryKey"`
-	Key       string    `gorm:"column:key;primaryKey"`
+type WorkflowJobData struct {
+	ID        int64     `gorm:"column:id;autoIncrement"`
+	Source    string    `gorm:"column:source;index:jd_source"`
+	Group     string    `gorm:"column:datagroup;index:jd_group"`
+	Key       string    `gorm:"column:datakey;index:jd_key"`
 	Value     string    `gorm:"column:value"`
-	Namespace string    `gorm:"column:namespace;index:wfctx_namespace"`
+	Namespace string    `gorm:"column:namespace;index:jd_namespace"`
 	UpdatedAt time.Time `gorm:"column:updated_at"`
 }
 
-func (o *WorkflowContext) TableName() string {
-	return "workflow_context"
+func (o *WorkflowJobData) TableName() string {
+	return "job_data"
 }

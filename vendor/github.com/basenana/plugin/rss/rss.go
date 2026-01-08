@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"hash/fnv"
 	"net/url"
 	"path"
 	"strconv"
@@ -307,7 +306,7 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource) (
 		})
 	}
 
-	if err := source.record(ctx, links...); err != nil {
+	if err = source.record(ctx, links...); err != nil {
 		r.logger.Warnw("record links failed", "err", err)
 	}
 
@@ -343,11 +342,8 @@ type rssSource struct {
 }
 
 func (s *rssSource) isNew(ctx context.Context, linkStr string) (bool, error) {
-	var (
-		k = string(fnv.New64a().Sum([]byte(linkStr)))
-		v = make(map[string]string)
-	)
-	err := s.Store.Load(ctx, RssSourcePluginName, "source", k, &v)
+	var v = make(map[string]any)
+	err := s.Store.Load(ctx, RssSourcePluginName, "articles", linkStr, &v)
 	if err == nil {
 		return false, nil
 	}
@@ -365,12 +361,8 @@ func (s *rssSource) isNew(ctx context.Context, linkStr string) (bool, error) {
 
 func (s *rssSource) record(ctx context.Context, linkList ...string) error {
 	for _, linkStr := range linkList {
-		var (
-			k   = string(fnv.New64a().Sum([]byte(linkStr)))
-			v   = map[string]string{"time": time.Now().Format(time.RFC3339)}
-			err error
-		)
-		err = s.Store.Save(ctx, RssSourcePluginName, "source", k, &v)
+		v := map[string]string{"link": linkStr, "time": time.Now().Format(time.RFC3339)}
+		err := s.Store.Save(ctx, RssSourcePluginName, "articles", linkStr, &v)
 		if err != nil {
 			return err
 		}

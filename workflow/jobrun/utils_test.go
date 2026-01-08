@@ -41,14 +41,13 @@ func TestRenderMatrixData(t *testing.T) {
 	t.Run("single array variable", func(t *testing.T) {
 		mockCtx := &mockResults{data: map[string]any{}}
 		paths := []any{"/path/to/file1.webarchive", "/path/to/file2.webarchive", "/path/to/file3.webarchive"}
-		err := mockCtx.Set("file_paths", paths)
-		g.Expect(err).To(gomega.BeNil())
+		_ = mockCtx.Set("file_paths", paths)
 
 		matrixData := map[string]any{
 			"file_path": "$.file_paths",
 		}
 
-		iterations, err := renderMatrixData(matrixData, mockCtx)
+		iterations, err := renderMatrixData(matrixData, mockCtx.Data())
 		g.Expect(err).To(gomega.BeNil())
 		g.Expect(iterations).To(gomega.HaveLen(3))
 
@@ -57,58 +56,101 @@ func TestRenderMatrixData(t *testing.T) {
 		g.Expect(iterations[2].Variables["file_path"]).To(gomega.Equal("/path/to/file3.webarchive"))
 	})
 
-	t.Run("multiple array variables - cartesian product", func(t *testing.T) {
+	t.Run("multiple variables with equal length", func(t *testing.T) {
 		mockCtx := &mockResults{data: map[string]any{}}
-		files := []any{"/path/to/file1", "/path/to/file2"}
-		docs := []any{"doc1", "doc2", "doc3"}
-		err := mockCtx.Set("files", files)
-		g.Expect(err).To(gomega.BeNil())
-		err = mockCtx.Set("docs", docs)
-		g.Expect(err).To(gomega.BeNil())
+		files := []any{"file1", "file2"}
+		docs := []any{"doc1", "doc2"}
+		_ = mockCtx.Set("files", files)
+		_ = mockCtx.Set("docs", docs)
 
 		matrixData := map[string]any{
 			"file":     "$.files",
 			"document": "$.docs",
 		}
 
-		iterations, err := renderMatrixData(matrixData, mockCtx)
+		iterations, err := renderMatrixData(matrixData, mockCtx.Data())
 		g.Expect(err).To(gomega.BeNil())
-		g.Expect(iterations).To(gomega.HaveLen(6))
+		g.Expect(iterations).To(gomega.HaveLen(2))
+
+		g.Expect(iterations[0].Variables).To(gomega.HaveKeyWithValue("file", "file1"))
+		g.Expect(iterations[0].Variables).To(gomega.HaveKeyWithValue("document", "doc1"))
+		g.Expect(iterations[1].Variables).To(gomega.HaveKeyWithValue("file", "file2"))
+		g.Expect(iterations[1].Variables).To(gomega.HaveKeyWithValue("document", "doc2"))
+	})
+
+	t.Run("multiple variables with different lengths", func(t *testing.T) {
+		mockCtx := &mockResults{data: map[string]any{}}
+		files := []any{"file1", "file2", "file3"}
+		docs := []any{"doc1", "doc2"}
+		_ = mockCtx.Set("files", files)
+		_ = mockCtx.Set("docs", docs)
+
+		matrixData := map[string]any{
+			"file":     "$.files",
+			"document": "$.docs",
+		}
+
+		iterations, err := renderMatrixData(matrixData, mockCtx.Data())
+		g.Expect(err).To(gomega.BeNil())
+		g.Expect(iterations).To(gomega.HaveLen(3))
+
+		// Iteration 0: both variables have values
+		g.Expect(iterations[0].Variables).To(gomega.HaveKeyWithValue("file", "file1"))
+		g.Expect(iterations[0].Variables).To(gomega.HaveKeyWithValue("document", "doc1"))
+
+		// Iteration 1: both variables have values
+		g.Expect(iterations[1].Variables).To(gomega.HaveKeyWithValue("file", "file2"))
+		g.Expect(iterations[1].Variables).To(gomega.HaveKeyWithValue("document", "doc2"))
+
+		// Iteration 2: only file has value, document is missing
+		g.Expect(iterations[2].Variables).To(gomega.HaveKeyWithValue("file", "file3"))
+		g.Expect(iterations[2].Variables).ToNot(gomega.HaveKey("document"))
+	})
+
+	t.Run("empty array variable", func(t *testing.T) {
+		mockCtx := &mockResults{data: map[string]any{}}
+		_ = mockCtx.Set("empty_var", []any{})
+
+		matrixData := map[string]any{
+			"var": "$.empty_var",
+		}
+
+		iterations, err := renderMatrixData(matrixData, mockCtx.Data())
+		g.Expect(err).To(gomega.BeNil())
+		g.Expect(iterations).To(gomega.BeEmpty())
 	})
 
 	t.Run("empty matrix data", func(t *testing.T) {
 		mockCtx := &mockResults{data: map[string]any{}}
-		_, err := renderMatrixData(map[string]any{}, mockCtx)
-		g.Expect(err).ToNot(gomega.BeNil())
-		g.Expect(err.Error()).To(gomega.ContainSubstring("matrix data is empty"))
+		iterations, err := renderMatrixData(map[string]any{}, mockCtx.Data())
+		g.Expect(err).To(gomega.BeNil())
+		g.Expect(iterations).To(gomega.BeEmpty())
 	})
 
 	t.Run("no array variables", func(t *testing.T) {
 		mockCtx := &mockResults{data: map[string]any{}}
-		err := mockCtx.Set("single_value", "not_an_array")
-		g.Expect(err).To(gomega.BeNil())
+		_ = mockCtx.Set("single_value", "not_an_array")
 
 		matrixData := map[string]any{
 			"var": "$.single_value",
 		}
 
-		_, err = renderMatrixData(matrixData, mockCtx)
-		g.Expect(err).ToNot(gomega.BeNil())
-		g.Expect(err.Error()).To(gomega.ContainSubstring("no array variables found"))
+		iterations, err := renderMatrixData(matrixData, mockCtx.Data())
+		g.Expect(err).To(gomega.BeNil())
+		g.Expect(iterations).To(gomega.BeEmpty())
 	})
 
 	t.Run("template not resolved", func(t *testing.T) {
 		mockCtx := &mockResults{data: map[string]any{}}
-		err := mockCtx.Set("other_var", "value")
-		g.Expect(err).To(gomega.BeNil())
+		_ = mockCtx.Set("other_var", "value")
 
 		matrixData := map[string]any{
 			"var": "$.undefined_var",
 		}
 
-		_, err = renderMatrixData(matrixData, mockCtx)
-		g.Expect(err).ToNot(gomega.BeNil())
-		g.Expect(err.Error()).To(gomega.ContainSubstring("no array variables found"))
+		iterations, err := renderMatrixData(matrixData, mockCtx.Data())
+		g.Expect(err).To(gomega.BeNil())
+		g.Expect(iterations).To(gomega.BeEmpty())
 	})
 
 	t.Run("nested array in object", func(t *testing.T) {
@@ -117,14 +159,13 @@ func TestRenderMatrixData(t *testing.T) {
 			map[string]any{"title": "Doc 1", "path": "/doc1.txt"},
 			map[string]any{"title": "Doc 2", "path": "/doc2.txt"},
 		}
-		err := mockCtx.Set("matrix_results", docResults)
-		g.Expect(err).To(gomega.BeNil())
+		_ = mockCtx.Set("matrix_results", docResults)
 
 		matrixData := map[string]any{
 			"doc": "$.matrix_results",
 		}
 
-		iterations, err := renderMatrixData(matrixData, mockCtx)
+		iterations, err := renderMatrixData(matrixData, mockCtx.Data())
 		g.Expect(err).To(gomega.BeNil())
 		g.Expect(iterations).To(gomega.HaveLen(2))
 	})

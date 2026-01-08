@@ -48,12 +48,6 @@ check:
 	@go vet ./...
 lint:
 	golangci-lint run --enable-all
-fsapi:
-	API_V1_DIR="cmd/apps/apis/fsapi/v1"; \
-	protoc --go_out=. --go_opt=paths=source_relative \
-		  --go-grpc_out=. --go-grpc_opt=paths=source_relative \
-		  --go-grpc_opt=require_unimplemented_servers=false \
-		  $${API_V1_DIR}/fsapi-v1.proto
 help:
 	@echo "make build - build multi arch binary"
 	@echo "make clean - clean workspace"

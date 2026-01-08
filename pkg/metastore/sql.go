@@ -1205,21 +1205,21 @@ func (s *sqlMetaStore) DeleteWorkflowJobs(ctx context.Context, wfJobID ...string
 	return nil
 }
 
-func (s *sqlMetaStore) LoadWorkflowContext(ctx context.Context, namespace, source, group, key string, data any) error {
-	record := db.WorkflowContext{}
-	res := s.WithNamespace(ctx, namespace).Where("source = ? AND group = ? AND key = ?", source, group, key).First(&record)
+func (s *sqlMetaStore) LoadJobData(ctx context.Context, namespace, source, group, key string, data any) error {
+	record := db.WorkflowJobData{}
+	res := s.WithNamespace(ctx, namespace).Where("source = ? AND datagroup = ? AND datakey = ?", source, group, key).First(&record)
 	if res.Error != nil && !errors.Is(res.Error, gorm.ErrRecordNotFound) {
 		return db.SqlError2Error(res.Error)
 	}
 
 	if record.Value == "" {
-		return nil
+		return types.ErrNotFound
 	}
 	return json.Unmarshal([]byte(record.Value), data)
 }
 
-func (s *sqlMetaStore) SaveWorkflowContext(ctx context.Context, namespace, source, group, key string, data any) error {
-	record := db.WorkflowContext{
+func (s *sqlMetaStore) SaveJobData(ctx context.Context, namespace, source, group, key string, data any) error {
+	record := db.WorkflowJobData{
 		Source:    source,
 		Group:     group,
 		Key:       key,

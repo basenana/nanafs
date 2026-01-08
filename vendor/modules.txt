@@ -153,7 +153,7 @@ github.com/aymerick/douceur/parser
 # github.com/basenana/go-flow v0.0.0-20250614153542-07184f3ea1e7
 ## explicit; go 1.23
 github.com/basenana/go-flow
-# github.com/basenana/plugin v0.0.0-20260107113052-2f8c400f1db3
+# github.com/basenana/plugin v0.0.0-20260108111854-3816f8db3bcb
 ## explicit; go 1.25
 github.com/basenana/plugin
 github.com/basenana/plugin/api
@@ -208,6 +208,9 @@ github.com/cespare/xxhash/v2
 # github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311
 ## explicit; go 1.15
 github.com/chenzhuoyu/base64x
+# github.com/davecgh/go-spew v1.1.1
+## explicit
+github.com/davecgh/go-spew/spew
 # github.com/dustin/go-humanize v1.0.1
 ## explicit; go 1.16
 github.com/dustin/go-humanize

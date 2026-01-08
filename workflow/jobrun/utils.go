@@ -66,7 +66,9 @@ func logOperationError(execName, operation string, err error) error {
 
 // getJSONPathValue extracts value from data using JSONPath syntax
 // Example: "$.file_paths" or "file_paths" extracts file_paths from root
-//          "$.nested.object.value" or "nested.object.value" extracts nested value
+//
+//	"$.nested.object.value" or "nested.object.value" extracts nested value
+//
 // Note: ojg library does not require the leading $ - it is implied
 func getJSONPathValue(path string, data map[string]interface{}) (any, error) {
 	// Remove leading $ if present since ojg library implies root
@@ -84,6 +86,9 @@ func getJSONPathValue(path string, data map[string]interface{}) (any, error) {
 	result := x.Get(data)
 	if len(result) == 0 {
 		return nil, fmt.Errorf("path not found: %s", path)
+	}
+	if len(result) > 1 {
+		return result, nil
 	}
 	return result[0], nil
 }
@@ -131,32 +136,21 @@ type matrixIteration struct {
 
 // renderMatrixData parses matrix configuration and returns iteration data
 // It extracts array values from context and generates Cartesian product if needed
-func renderMatrixData(matrixData map[string]any, ctxResults Results) ([]matrixIteration, error) {
+func renderMatrixData(matrixData map[string]any, resultData map[string]any) ([]matrixIteration, error) {
 	if len(matrixData) == 0 {
-		return nil, fmt.Errorf("matrix data is empty")
+		return []matrixIteration{}, nil
 	}
 
-	ctxData := ctxResults.Data()
-	var arrayVars []struct {
-		name   string
-		values []any
-	}
+	var arrayVars = make(map[string][]any)
 
 	// First pass: extract all array variables
 	for varName, tplRef := range matrixData {
 		// Render the template reference to get actual value
-		rendered := renderMatrixParam(tplRef, ctxData)
-		if rendered == tplRef {
-			// Template not resolved, skip or treat as scalar
-			continue
-		}
+		rendered := renderMatrixParam(tplRef, resultData)
 
 		// Check if rendered value is already an array
 		if values, ok := rendered.([]any); ok {
-			arrayVars = append(arrayVars, struct {
-				name   string
-				values []any
-			}{name: varName, values: values})
+			arrayVars[varName] = values
 			continue
 		}
 
@@ -164,48 +158,39 @@ func renderMatrixData(matrixData map[string]any, ctxResults Results) ([]matrixIt
 		if strVal, ok := rendered.(string); ok {
 			var values []any
 			if err := json.Unmarshal([]byte(strVal), &values); err == nil {
-				arrayVars = append(arrayVars, struct {
-					name   string
-					values []any
-				}{name: varName, values: values})
+				arrayVars[varName] = values
 			}
 		}
 	}
 
 	// If no array variables found, return empty
 	if len(arrayVars) == 0 {
-		return nil, fmt.Errorf("no array variables found in matrix data")
+		return []matrixIteration{}, nil
 	}
 
 	// Generate Cartesian product
-	var iterations []matrixIteration
+	var (
+		iterations []matrixIteration
+		maxLen     int
+	)
+	for _, values := range arrayVars {
+		if len(values) > maxLen {
+			maxLen = len(values)
+		}
+	}
 
-	if len(arrayVars) == 1 {
-		// Single array - simple iteration
-		for _, val := range arrayVars[0].values {
-			iterations = append(iterations, matrixIteration{
-				Variables: map[string]any{
-					arrayVars[0].name: val,
-				},
-			})
-		}
-	} else {
-		// Multiple arrays - Cartesian product
-		// Recursive helper for Cartesian product
-		var cartesian func(idx int, current map[string]any)
-		cartesian = func(idx int, current map[string]any) {
-			if idx == len(arrayVars) {
-				iterations = append(iterations, matrixIteration{
-					Variables: copyMap(current),
-				})
-				return
+	for i := 0; i < maxLen; i++ {
+		ite := matrixIteration{Variables: make(map[string]any)}
+		for key, values := range arrayVars {
+			if len(values) <= i {
+				continue
 			}
-			for _, val := range arrayVars[idx].values {
-				current[arrayVars[idx].name] = val
-				cartesian(idx+1, current)
-			}
+			ite.Variables[key] = values[i]
 		}
-		cartesian(0, make(map[string]any))
+		if len(ite.Variables) == 0 {
+			break
+		}
+		iterations = append(iterations, ite)
 	}
 
 	return iterations, nil
