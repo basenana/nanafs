@@ -40,10 +40,10 @@ func (s *ServicesV1) GetConfig(ctx *gin.Context) {
 		return
 	}
 
-	apitool.JsonResponse(ctx, http.StatusOK, gin.H{
-		"group": group,
-		"name":  name,
-		"value": value,
+	apitool.JsonResponse(ctx, http.StatusOK, &ConfigResponse{
+		Group: group,
+		Name:  name,
+		Value: value,
 	})
 }
 
@@ -68,10 +68,10 @@ func (s *ServicesV1) SetConfig(ctx *gin.Context) {
 		return
 	}
 
-	apitool.JsonResponse(ctx, http.StatusOK, gin.H{
-		"group": group,
-		"name":  name,
-		"value": req.Value,
+	apitool.JsonResponse(ctx, http.StatusOK, &SetConfigResponse{
+		Group: group,
+		Name:  name,
+		Value: req.Value,
 	})
 }
 
@@ -108,9 +108,9 @@ func (s *ServicesV1) DeleteConfig(ctx *gin.Context) {
 		return
 	}
 
-	apitool.JsonResponse(ctx, http.StatusOK, gin.H{
-		"group":   group,
-		"name":    name,
-		"deleted": true,
+	apitool.JsonResponse(ctx, http.StatusOK, &DeleteConfigResponse{
+		Group:   group,
+		Name:    name,
+		Deleted: true,
 	})
 }

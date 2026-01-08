@@ -17,6 +17,7 @@
 package v1
 
 import (
+	"errors"
 	"io"
 	"net/http"
 
@@ -53,7 +54,7 @@ func (s *ServicesV1) WriteFile(ctx *gin.Context) {
 
 	fileHeader, ok := form.File["file"]
 	if !ok || len(fileHeader) == 0 {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "missing file"})
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("missing file"))
 		return
 	}
 

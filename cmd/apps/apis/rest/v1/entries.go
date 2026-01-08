@@ -20,7 +20,6 @@ import (
 	"errors"
 	"net/http"
 	"path"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -50,7 +49,7 @@ func (s *ServicesV1) CreateEntry(ctx *gin.Context) {
 	}
 
 	if req.Kind == "" {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "entry has unknown kind"})
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("entry has unknown kind"))
 		return
 	}
 
@@ -92,7 +91,9 @@ func (s *ServicesV1) CreateEntry(ctx *gin.Context) {
 		}
 	}
 
-	apitool.JsonResponse(ctx, http.StatusCreated, gin.H{"entry": toEntryInfo(parentURI, name, en, nil)})
+	apitool.JsonResponse(ctx, http.StatusCreated, &EntryResponse{
+		Entry: toEntryInfo(parentURI, name, en, nil),
+	})
 }
 
 // GetEntryDetail retrieves entry details by URI
@@ -116,7 +117,9 @@ func (s *ServicesV1) GetEntryDetail(ctx *gin.Context) {
 		return
 	}
 
-	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"entry": detail})
+	apitool.JsonResponse(ctx, http.StatusOK, &EntryDetailResponse{
+		Entry: detail,
+	})
 }
 
 // UpdateEntry updates an existing entry
@@ -156,11 +159,15 @@ func (s *ServicesV1) UpdateEntry(ctx *gin.Context) {
 	}
 	detail, err := s.getEntryDetails(ctx.Request.Context(), caller.Namespace, path.Dir(parentURI), path.Base(parentURI), en.ID)
 	if err != nil {
-		apitool.JsonResponse(ctx, http.StatusOK, gin.H{"entry": toEntryInfo("", en.Name, en, nil)})
+		apitool.JsonResponse(ctx, http.StatusOK, &EntryResponse{
+			Entry: toEntryInfo("", en.Name, en, nil),
+		})
 		return
 	}
 
-	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"entry": detail})
+	apitool.JsonResponse(ctx, http.StatusOK, &EntryDetailResponse{
+		Entry: detail,
+	})
 }
 
 // DeleteEntry deletes a single entry
@@ -188,7 +195,9 @@ func (s *ServicesV1) DeleteEntry(ctx *gin.Context) {
 	}
 
 	parentURI, name := path.Split(uri)
-	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"entry": toEntryInfo(parentURI, name, deletedEntry, nil)})
+	apitool.JsonResponse(ctx, http.StatusOK, &EntryResponse{
+		Entry: toEntryInfo(parentURI, name, deletedEntry, nil),
+	})
 }
 
 // DeleteEntries performs batch deletion of entries
@@ -307,7 +316,9 @@ func (s *ServicesV1) ChangeParent(ctx *gin.Context) {
 		return
 	}
 
-	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"entry": toEntryInfo(newParentURI, newName, en, nil)})
+	apitool.JsonResponse(ctx, http.StatusOK, &EntryResponse{
+		Entry: toEntryInfo(newParentURI, newName, en, nil),
+	})
 }
 
 // FilterEntry filters entries using CEL pattern
@@ -367,7 +378,7 @@ func (s *ServicesV1) EntryDetails(ctx *gin.Context) {
 		return
 	}
 
-	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"entry": detail})
+	apitool.JsonResponse(ctx, http.StatusOK, &EntryDetailResponse{Entry: detail})
 }
 
 func (s *ServicesV1) EntryChildren(ctx *gin.Context) {
@@ -476,7 +487,9 @@ func (s *ServicesV1) EntryParent(ctx *gin.Context) {
 		return
 	}
 
-	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"entry": toEntryInfo(newParentURI, newName, en, nil)})
+	apitool.JsonResponse(ctx, http.StatusOK, &EntryResponse{
+		Entry: toEntryInfo(newParentURI, newName, en, nil),
+	})
 }
 
 func (s *ServicesV1) EntryProperty(ctx *gin.Context) {
@@ -512,8 +525,8 @@ func (s *ServicesV1) EntryProperty(ctx *gin.Context) {
 		return
 	}
 
-	apitool.JsonResponse(ctx, http.StatusOK, gin.H{
-		"properties": &Property{
+	apitool.JsonResponse(ctx, http.StatusOK, &PropertyResponse{
+		Property: &Property{
 			Tags:       properties.Tags,
 			Properties: properties.Properties,
 		},
@@ -538,7 +551,7 @@ func (s *ServicesV1) EntryDocument(ctx *gin.Context) {
 	}
 
 	if en.IsGroup {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "group has no document properties"})
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("group has no document properties"))
 		return
 	}
 
@@ -562,8 +575,8 @@ func (s *ServicesV1) EntryDocument(ctx *gin.Context) {
 		return
 	}
 
-	apitool.JsonResponse(ctx, http.StatusOK, gin.H{
-		"properties": &DocumentProperty{
+	apitool.JsonResponse(ctx, http.StatusOK, &DocumentPropertyResponse{
+		Property: &DocumentProperty{
 			Title:       properties.Title,
 			Author:      properties.Author,
 			Year:        properties.Year,
@@ -573,7 +586,7 @@ func (s *ServicesV1) EntryDocument(ctx *gin.Context) {
 			Notes:       properties.Notes,
 			Unread:      properties.Unread,
 			Marked:      properties.Marked,
-			PublishAt:   time.Unix(properties.PublishAt, 0),
+			PublishAt:   timestampTime(properties.PublishAt),
 			URL:         properties.URL,
 			HeaderImage: properties.HeaderImage,
 		},
@@ -604,7 +617,9 @@ func (s *ServicesV1) EntryDelete(ctx *gin.Context) {
 	}
 
 	parentURI, name := path.Split(uri)
-	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"entry": toEntryInfo(parentURI, name, deletedEntry, nil)})
+	apitool.JsonResponse(ctx, http.StatusOK, &EntryResponse{
+		Entry: toEntryInfo(parentURI, name, deletedEntry, nil),
+	})
 }
 
 func (s *ServicesV1) UpdateProperty(ctx *gin.Context) {
@@ -640,8 +655,8 @@ func (s *ServicesV1) UpdateProperty(ctx *gin.Context) {
 		return
 	}
 
-	apitool.JsonResponse(ctx, http.StatusOK, gin.H{
-		"properties": &Property{
+	apitool.JsonResponse(ctx, http.StatusOK, &PropertyResponse{
+		Property: &Property{
 			Tags:       properties.Tags,
 			Properties: properties.Properties,
 		},
@@ -666,7 +681,7 @@ func (s *ServicesV1) UpdateDocumentProperty(ctx *gin.Context) {
 	}
 
 	if en.IsGroup {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "group has no document properties"})
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("group has no document properties"))
 		return
 	}
 
@@ -686,8 +701,8 @@ func (s *ServicesV1) UpdateDocumentProperty(ctx *gin.Context) {
 		return
 	}
 
-	apitool.JsonResponse(ctx, http.StatusOK, gin.H{
-		"properties": &DocumentProperty{
+	apitool.JsonResponse(ctx, http.StatusOK, &DocumentPropertyResponse{
+		Property: &DocumentProperty{
 			Title:       properties.Title,
 			Author:      properties.Author,
 			Year:        properties.Year,
@@ -697,7 +712,7 @@ func (s *ServicesV1) UpdateDocumentProperty(ctx *gin.Context) {
 			Notes:       properties.Notes,
 			Unread:      properties.Unread,
 			Marked:      properties.Marked,
-			PublishAt:   time.Unix(properties.PublishAt, 0),
+			PublishAt:   timestampTime(properties.PublishAt),
 			URL:         properties.URL,
 			HeaderImage: properties.HeaderImage,
 		},

@@ -296,21 +296,6 @@ func (s *ServicesV1) setupGroupFilterConfig(config *FilterConfig, attr *types.En
 	}
 }
 
-func (s *ServicesV1) errorResponse(ctx *gin.Context, err error) {
-	if err == nil {
-		return
-	}
-	ctx.JSON(http.StatusInternalServerError, gin.H{
-		"error": err.Error(),
-	})
-}
-
-func (s *ServicesV1) successResponse(ctx *gin.Context, data interface{}) {
-	ctx.JSON(http.StatusOK, gin.H{
-		"data": data,
-	})
-}
-
 func (s *ServicesV1) Meta() metastore.Meta {
 	return s.meta
 }

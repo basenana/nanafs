@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 )
 
 // EntryInfo 条目信息
@@ -67,24 +68,24 @@ type Access struct {
 
 // DocumentProperty 文档属性
 type DocumentProperty struct {
-	Title       string    `json:"title"`
-	Author      string    `json:"author"`
-	Year        string    `json:"year"`
-	Source      string    `json:"source"`
-	Abstract    string    `json:"abstract"`
-	Keywords    []string  `json:"keywords"`
-	Notes       string    `json:"notes"`
-	Unread      bool      `json:"unread"`
-	Marked      bool      `json:"marked"`
-	PublishAt   time.Time `json:"publish_at"`
-	URL         string    `json:"url"`
-	HeaderImage string    `json:"header_image"`
+	Title       string     `json:"title,omitempty"`
+	Author      string     `json:"author,omitempty"`
+	Year        string     `json:"year,omitempty"`
+	Source      string     `json:"source,omitempty"`
+	Abstract    string     `json:"abstract,omitempty"`
+	Keywords    []string   `json:"keywords,omitempty"`
+	Notes       string     `json:"notes,omitempty"`
+	Unread      bool       `json:"unread,omitempty"`
+	Marked      bool       `json:"marked,omitempty"`
+	PublishAt   *time.Time `json:"publish_at,omitempty"`
+	URL         string     `json:"url,omitempty"`
+	HeaderImage string     `json:"header_image,omitempty"`
 }
 
 // Property 属性
 type Property struct {
-	Tags       []string          `json:"tags"`
-	Properties map[string]string `json:"properties"`
+	Tags       []string          `json:"tags,omitempty"`
+	Properties map[string]string `json:"properties,omitempty"`
 }
 
 // GroupEntry 组条目
@@ -217,7 +218,7 @@ func toEntryInfo(parentURI, name string, en *types.Entry, doc *types.DocumentPro
 			Notes:       doc.Notes,
 			Unread:      doc.Unread,
 			Marked:      doc.Marked,
-			PublishAt:   time.Unix(doc.PublishAt, 0),
+			PublishAt:   timestampTime(doc.PublishAt),
 			URL:         doc.URL,
 			HeaderImage: doc.HeaderImage,
 		}
@@ -258,7 +259,7 @@ func toEntryDetail(parentURI, name string, en *types.Entry, doc types.DocumentPr
 			Notes:       doc.Notes,
 			Unread:      doc.Unread,
 			Marked:      doc.Marked,
-			PublishAt:   time.Unix(doc.PublishAt, 0),
+			PublishAt:   timestampTime(doc.PublishAt),
 			URL:         doc.URL,
 			HeaderImage: doc.HeaderImage,
 		},
@@ -283,15 +284,80 @@ func toWorkflowInfo(w *types.Workflow) *WorkflowInfo {
 
 // ConfigResponse 配置响应
 type ConfigResponse struct {
-	Group     string    `json:"group"`
-	Name      string    `json:"name"`
-	Value     string    `json:"value"`
-	ChangedAt time.Time `json:"changed_at"`
+	Group string `json:"group"`
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }
 
 // ListConfigResponse 列出配置响应
 type ListConfigResponse struct {
 	Items []types.ConfigItem `json:"items"`
+}
+
+// DeleteConfigResponse 删除配置响应
+type DeleteConfigResponse struct {
+	Group   string `json:"group"`
+	Name    string `json:"name"`
+	Deleted bool   `json:"deleted"`
+}
+
+// EntryResponse 条目响应
+type EntryResponse struct {
+	Entry *EntryInfo `json:"entry"`
+}
+
+// EntryDetailResponse 条目详情响应
+type EntryDetailResponse struct {
+	Entry *EntryDetail `json:"entry"`
+}
+
+// AppendFileResponse 追加文件响应
+type AppendFileResponse struct {
+	Entry   *EntryInfo   `json:"entry"`
+	Entries []*EntryInfo `json:"entries"`
+}
+
+// UpdateDocumentPropertyResponse 更新文档属性响应
+type UpdateDocumentPropertyResponse struct {
+	Deleted []string     `json:"deleted"`
+	Entries []*EntryInfo `json:"entries"`
+}
+
+// WorkflowResponse 工作流响应
+type WorkflowResponse struct {
+	Workflow *WorkflowInfo `json:"workflow"`
+}
+
+// CreateWorkflowResponse 创建工作流响应
+type CreateWorkflowResponse struct {
+	Workflow *WorkflowInfo `json:"workflow"`
+}
+
+// WorkflowJobResponse 工作流作业响应
+type WorkflowJobResponse struct {
+	Job *WorkflowJobDetail `json:"job"`
+}
+
+// MessageResponse 消息响应
+type MessageResponse struct {
+	Message string `json:"message"`
+}
+
+// SetConfigResponse 设置配置响应
+type SetConfigResponse struct {
+	Group string `json:"group"`
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// PropertyResponse 属性响应
+type PropertyResponse struct {
+	Property *Property `json:"properties"`
+}
+
+// DocumentPropertyResponse 文档属性响应
+type DocumentPropertyResponse struct {
+	Property *DocumentProperty `json:"properties"`
 }
 
 func toWorkflowJobDetail(j *types.WorkflowJob) *WorkflowJobDetail {
@@ -320,4 +386,11 @@ func toWorkflowJobDetail(j *types.WorkflowJob) *WorkflowJobDetail {
 		})
 	}
 	return jd
+}
+
+func timestampTime(ts int64) *time.Time {
+	if ts == 0 {
+		return nil
+	}
+	return utils.ToPtr(time.Unix(ts, 0))
 }

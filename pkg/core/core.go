@@ -164,7 +164,7 @@ func (c *core) NamespaceRoot(ctx context.Context, namespace string) (*types.Entr
 		nsChild *types.Child
 		nsRoot  *types.Entry
 	)
-	nsChild, err = c.store.FindEntry(ctx, types.DefaultNamespace, root.ID, namespace)
+	nsChild, err = c.store.FindEntry(ctx, namespace, root.ID, namespace)
 	if err != nil {
 		c.logger.Errorw("load ns child entry error", "namespace", namespace, "err", err)
 		return nil, err

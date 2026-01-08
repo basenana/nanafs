@@ -17,6 +17,7 @@
 package v1
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -58,7 +59,7 @@ func (s *ServicesV1) ListWorkflowJobs(ctx *gin.Context) {
 
 	workflowID := ctx.Param("id")
 	if workflowID == "" {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid workflow id"})
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("invalid workflow id"))
 		return
 	}
 
@@ -91,7 +92,7 @@ func (s *ServicesV1) TriggerWorkflow(ctx *gin.Context) {
 
 	workflowID := ctx.Param("id")
 	if workflowID == "" {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid workflow id"})
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("invalid workflow id"))
 		return
 	}
 
@@ -145,7 +146,9 @@ func (s *ServicesV1) CreateWorkflow(ctx *gin.Context) {
 		return
 	}
 
-	apitool.JsonResponse(ctx, http.StatusCreated, gin.H{"workflow": toWorkflowInfo(result)})
+	apitool.JsonResponse(ctx, http.StatusCreated, &CreateWorkflowResponse{
+		Workflow: toWorkflowInfo(result),
+	})
 }
 
 // GetWorkflow retrieves a specific workflow
@@ -157,7 +160,7 @@ func (s *ServicesV1) GetWorkflow(ctx *gin.Context) {
 
 	workflowID := ctx.Param("id")
 	if workflowID == "" {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid workflow id"})
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("invalid workflow id"))
 		return
 	}
 
@@ -167,7 +170,9 @@ func (s *ServicesV1) GetWorkflow(ctx *gin.Context) {
 		return
 	}
 
-	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"workflow": toWorkflowInfo(workflow)})
+	apitool.JsonResponse(ctx, http.StatusOK, &WorkflowResponse{
+		Workflow: toWorkflowInfo(workflow),
+	})
 }
 
 // UpdateWorkflow updates an existing workflow
@@ -179,7 +184,7 @@ func (s *ServicesV1) UpdateWorkflow(ctx *gin.Context) {
 
 	workflowID := ctx.Param("id")
 	if workflowID == "" {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid workflow id"})
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("invalid workflow id"))
 		return
 	}
 
@@ -217,7 +222,9 @@ func (s *ServicesV1) UpdateWorkflow(ctx *gin.Context) {
 		return
 	}
 
-	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"workflow": toWorkflowInfo(result)})
+	apitool.JsonResponse(ctx, http.StatusOK, &WorkflowResponse{
+		Workflow: toWorkflowInfo(result),
+	})
 }
 
 // DeleteWorkflow deletes a workflow
@@ -229,7 +236,7 @@ func (s *ServicesV1) DeleteWorkflow(ctx *gin.Context) {
 
 	workflowID := ctx.Param("id")
 	if workflowID == "" {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid workflow id"})
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("invalid workflow id"))
 		return
 	}
 
@@ -243,7 +250,7 @@ func (s *ServicesV1) DeleteWorkflow(ctx *gin.Context) {
 		return
 	}
 
-	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"message": "workflow deleted"})
+	apitool.JsonResponse(ctx, http.StatusOK, &MessageResponse{Message: "workflow deleted"})
 }
 
 // GetJob retrieves a specific job
@@ -256,7 +263,7 @@ func (s *ServicesV1) GetJob(ctx *gin.Context) {
 	workflowID := ctx.Param("id")
 	jobID := ctx.Param("jobId")
 	if workflowID == "" || jobID == "" {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid workflow id or job id"})
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("invalid workflow id or job id"))
 		return
 	}
 
@@ -266,7 +273,9 @@ func (s *ServicesV1) GetJob(ctx *gin.Context) {
 		return
 	}
 
-	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"job": toWorkflowJobDetail(job)})
+	apitool.JsonResponse(ctx, http.StatusOK, &WorkflowJobResponse{
+		Job: toWorkflowJobDetail(job),
+	})
 }
 
 // PauseJob pauses a running job
@@ -278,7 +287,7 @@ func (s *ServicesV1) PauseJob(ctx *gin.Context) {
 
 	jobID := ctx.Param("jobId")
 	if jobID == "" {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid job id"})
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("invalid job id"))
 		return
 	}
 
@@ -288,7 +297,7 @@ func (s *ServicesV1) PauseJob(ctx *gin.Context) {
 		return
 	}
 
-	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"message": "job paused"})
+	apitool.JsonResponse(ctx, http.StatusOK, &MessageResponse{Message: "job paused"})
 }
 
 // ResumeJob resumes a paused job
@@ -300,7 +309,7 @@ func (s *ServicesV1) ResumeJob(ctx *gin.Context) {
 
 	jobID := ctx.Param("jobId")
 	if jobID == "" {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid job id"})
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("invalid job id"))
 		return
 	}
 
@@ -310,7 +319,7 @@ func (s *ServicesV1) ResumeJob(ctx *gin.Context) {
 		return
 	}
 
-	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"message": "job resumed"})
+	apitool.JsonResponse(ctx, http.StatusOK, &MessageResponse{Message: "job resumed"})
 }
 
 // CancelJob cancels a job
@@ -322,7 +331,7 @@ func (s *ServicesV1) CancelJob(ctx *gin.Context) {
 
 	jobID := ctx.Param("jobId")
 	if jobID == "" {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid job id"})
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("invalid job id"))
 		return
 	}
 
@@ -332,5 +341,5 @@ func (s *ServicesV1) CancelJob(ctx *gin.Context) {
 		return
 	}
 
-	apitool.JsonResponse(ctx, http.StatusOK, gin.H{"message": "job cancelled"})
+	apitool.JsonResponse(ctx, http.StatusOK, &MessageResponse{Message: "job cancelled"})
 }
