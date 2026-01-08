@@ -131,6 +131,7 @@ func (h *triggers) sendWorkflowUpdateInLock(update triggerUpdate) {
 	updater, ok := h.waiters[wk]
 	if !ok && update.interval > 0 { // new waiter
 		updater = make(chan triggerUpdate, 5)
+		h.waiters[wk] = updater
 		go h.runWorkflowTimer(update.namespace, update.workflow, updater)
 	}
 	updater <- update

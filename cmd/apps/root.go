@@ -18,13 +18,14 @@ package apps
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/types"
-
+	"github.com/basenana/nanafs/workflow"
 	"github.com/spf13/cobra"
 
 	"github.com/basenana/nanafs/cmd/apps/apis"
@@ -86,6 +87,12 @@ var daemonCmd = &cobra.Command{
 		depends, err := common.InitDepends(cfg, meta)
 		if err != nil {
 			panic(err)
+		}
+
+		if config.AutoInit {
+			if err := ensureAutoInitNamespace(depends); err != nil {
+				panic(err)
+			}
 		}
 
 		stop := utils.HandleTerminalSignal()
@@ -180,7 +187,7 @@ var NamespaceCmd = &cobra.Command{
 
 		ctx := context.Background()
 		namespace := args[0]
-		err = createNamespace(ctx, depends.Core, namespace)
+		err = createNamespace(ctx, depends.Core, depends.Workflow, namespace)
 		if err != nil {
 			panic(err)
 		}
@@ -188,12 +195,35 @@ var NamespaceCmd = &cobra.Command{
 	},
 }
 
-func createNamespace(ctx context.Context, core core.Core, namespace string) error {
+func createNamespace(ctx context.Context, core core.Core, wfMgr workflow.Workflow, namespace string) error {
 	log := logger.NewLogger("nanafs.namespace")
 	err := core.CreateNamespace(ctx, namespace)
 	if err != nil {
 		log.Errorw("create namespace failed", "err", err)
 		return err
 	}
+
+	defaultWorkflows := workflow.NamespaceDefaultsWorkflow(namespace)
+	for _, wf := range defaultWorkflows {
+		_, err = wfMgr.CreateWorkflow(ctx, namespace, wf)
+		if err != nil {
+			log.Errorw("create workflow failed", "err", err)
+			return err
+		}
+	}
 	return nil
+}
+
+func ensureAutoInitNamespace(depends *common.Depends) error {
+	ctx := context.Background()
+	_, err := depends.Core.NamespaceRoot(ctx, types.PersonalNamespace)
+	if err == nil {
+		return nil
+	}
+
+	if errors.Is(err, types.ErrNotFound) {
+		return createNamespace(ctx, depends.Core, depends.Workflow, types.DefaultNamespace)
+	}
+
+	return fmt.Errorf("check %s namespace failed: %w", types.PersonalNamespace, err)
 }

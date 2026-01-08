@@ -335,6 +335,21 @@ var _ = Describe("TestChangeEntryParent", func() {
 	})
 })
 
+var _ = Describe("TestCreateNamespace", func() {
+	ctx := context.TODO()
+
+	Context("create namespace", func() {
+		It("create new namespace should succeed", func() {
+			err := fsCore.CreateNamespace(ctx, "test-namespace")
+			Expect(err).Should(BeNil())
+		})
+		It("create duplicate namespace should be failed", func() {
+			err := fsCore.CreateNamespace(ctx, "test-namespace")
+			Expect(err).ShouldNot(BeNil())
+		})
+	})
+})
+
 func mustGetEntry(entry *types.Entry) *types.Entry {
 	var (
 		ctx = context.TODO()

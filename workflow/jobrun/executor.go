@@ -110,6 +110,7 @@ func (b *defaultExecutor) Setup(ctx context.Context) (err error) {
 		}
 		b.logger.Infow("copy entry to workdir", "entry", targetURI, "path", enPath)
 		trigger["file_path"] = enPath
+		trigger["entry_uri"] = targetURI
 		trigger["parent_uri"] = path.Dir(targetURI)
 	} else {
 		trigger["parent_uri"] = targetURI
