@@ -147,7 +147,7 @@ var _ = Describe("REST V1 Entries API - CRUD Operations", func() {
 	})
 
 	Describe("UpdateEntry", func() {
-		It("should update entry name", func() {
+		It("should update entry aliases", func() {
 			createReq := CreateEntryRequest{
 				URI:  "/test-group",
 				Kind: "group",
@@ -161,7 +161,7 @@ var _ = Describe("REST V1 Entries API - CRUD Operations", func() {
 			Expect(createW.Code).To(Equal(http.StatusCreated))
 
 			updateReq := UpdateEntryRequest{
-				Name: "updated-name",
+				Aliases: "updated-alias",
 			}
 			updateJson, _ := json.Marshal(updateReq)
 			updateHttpReq, _ := http.NewRequest("PUT", "/api/v1/entries?uri=/test-group", bytes.NewBuffer(updateJson))
@@ -357,6 +357,32 @@ var _ = Describe("REST V1 Filter API", func() {
 			router.ServeHTTP(w, req)
 
 			Expect(w.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should return pagination info", func() {
+			reqBody := FilterEntryRequest{
+				CELPattern: "true",
+				Page:       1,
+				PageSize:   10,
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+
+			req, err := http.NewRequest("POST", "/api/v1/entries/search", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusOK))
+
+			var resp ListEntriesResponse
+			err = json.Unmarshal(w.Body.Bytes(), &resp)
+			Expect(err).Should(BeNil())
+			Expect(resp.Pagination).ShouldNot(BeNil())
+			Expect(resp.Pagination.Page).To(Equal(int64(1)))
+			Expect(resp.Pagination.PageSize).To(Equal(int64(10)))
 		})
 	})
 })

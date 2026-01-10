@@ -138,4 +138,63 @@ var _ = Describe("TestSqliteFileFilter", func() {
 			Expect(ok).Should(BeTrue())
 		})
 	})
+
+	Context("filter with pagination", func() {
+		var files []*types.Entry
+
+		It("create multiple files should be succeed", func() {
+			for i := 0; i < 5; i++ {
+				file, err := types.InitNewEntry(rootEn, types.EntryAttr{
+					Name: "page-test-file-" + string(rune('a'+i)),
+					Kind: types.RawKind,
+				})
+				Expect(err).Should(BeNil())
+				Expect(sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, file)).Should(BeNil())
+				files = append(files, file)
+			}
+		})
+
+		It("filter with pagination should return limited results", func() {
+			pg := types.NewPagination(1, 2)
+			pctx := types.WithPagination(ctx, pg)
+			it, err := sqlite.FilterEntries(pctx, namespace, types.Filter{CELPattern: "name.startsWith('page-test-file-')"})
+			Expect(err).Should(BeNil())
+
+			count := 0
+			for it.HasNext() {
+				_, err := it.Next()
+				Expect(err).Should(BeNil())
+				count++
+			}
+			Expect(count).To(Equal(2))
+		})
+
+		It("filter with second page should return correct offset", func() {
+			pg := types.NewPagination(2, 2)
+			pctx := types.WithPagination(ctx, pg)
+			it, err := sqlite.FilterEntries(pctx, namespace, types.Filter{CELPattern: "name.startsWith('page-test-file-')"})
+			Expect(err).Should(BeNil())
+
+			count := 0
+			for it.HasNext() {
+				_, err := it.Next()
+				Expect(err).Should(BeNil())
+				count++
+			}
+			Expect(count).To(Equal(2))
+		})
+
+		It("filter without pagination should return all results", func() {
+			it, err := sqlite.FilterEntries(ctx, namespace, types.Filter{CELPattern: "name.startsWith('page-test-file-')"})
+			Expect(err).Should(BeNil())
+
+			count := 0
+			for it.HasNext() {
+				_, err := it.Next()
+				Expect(err).Should(BeNil())
+				count++
+			}
+			Expect(count).Should(BeNumerically(">=", 5))
+		})
+	})
 })

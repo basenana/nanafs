@@ -39,7 +39,6 @@ type FilterConfig struct {
 
 // UpdateEntryRequest 更新条目请求
 type UpdateEntryRequest struct {
-	Name    string `json:"name"`
 	Aliases string `json:"aliases"`
 }
 
@@ -58,15 +57,17 @@ type DeleteEntriesRequest struct {
 
 // ListGroupChildrenRequest 列出组子项请求
 type ListGroupChildrenRequest struct {
-	Offset int64  `form:"offset"`
-	Limit  int64  `form:"limit"`
-	Order  string `form:"order"`
-	Desc   bool   `form:"desc"`
+	Page     int64  `form:"page"`
+	PageSize int64  `form:"page_size"`
+	Order    string `form:"order"`
+	Desc     bool   `form:"desc"`
 }
 
 // FilterEntryRequest 过滤条目请求
 type FilterEntryRequest struct {
 	CELPattern string `json:"cel_pattern" binding:"required"`
+	Page       int64  `json:"page"`
+	PageSize   int64  `json:"page_size"`
 }
 
 // UpdatePropertyRequest 更新属性请求

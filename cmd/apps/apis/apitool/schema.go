@@ -16,7 +16,9 @@
 
 package apitool
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/gin-gonic/gin"
+)
 
 type Error struct {
 	Code    string `json:"code"`

@@ -114,6 +114,7 @@ func (s *Server) logMiddleware() gin.HandlerFunc {
 		s.logger.Infow("fsapi request",
 			"method", method,
 			"path", path,
+			"query", gCtx.Request.URL.Query().Encode(),
 			"status", gCtx.Writer.Status(),
 			"duration", time.Since(start).String(),
 		)

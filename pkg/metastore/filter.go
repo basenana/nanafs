@@ -43,6 +43,10 @@ func (s *sqlMetaStore) FilterEntries(ctx context.Context, namespace string, filt
 
 	tx := filters.Join(s.WithContext(ctx).Where("entry.namespace = ?", namespace), where)
 
+	if page := types.GetPagination(ctx); page != nil {
+		tx = tx.Offset(page.Offset()).Limit(page.Limit())
+	}
+
 	res := tx.Where(where, args...).Find(&result)
 	if res.Error != nil {
 		return nil, db.SqlError2Error(res.Error)

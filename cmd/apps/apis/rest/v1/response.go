@@ -17,6 +17,7 @@
 package v1
 
 import (
+	"path"
 	"time"
 
 	"github.com/basenana/nanafs/pkg/types"
@@ -161,9 +162,16 @@ type WriteFileResponse struct {
 	Len int64 `json:"len"`
 }
 
+// PaginationInfo 分页信息
+type PaginationInfo struct {
+	Page     int64 `json:"page"`
+	PageSize int64 `json:"page_size"`
+}
+
 // ListEntriesResponse 列出条目响应
 type ListEntriesResponse struct {
-	Entries []*EntryInfo `json:"entries"`
+	Entries    []*EntryInfo    `json:"entries"`
+	Pagination *PaginationInfo `json:"pagination,omitempty"`
 }
 
 // ListMessagesResponse 列出消息响应
@@ -195,7 +203,7 @@ type TriggerWorkflowResponse struct {
 
 func toEntryInfo(parentURI, name string, en *types.Entry, doc *types.DocumentProperties) *EntryInfo {
 	info := &EntryInfo{
-		URI:        parentURI + name,
+		URI:        path.Join(parentURI, name),
 		Entry:      en.ID,
 		Name:       name,
 		Kind:       string(en.Kind),
@@ -237,7 +245,7 @@ func toEntryDetail(parentURI, name string, en *types.Entry, doc types.DocumentPr
 	}
 
 	ed := &EntryDetail{
-		URI:       parentURI + name,
+		URI:       path.Join(parentURI, name),
 		Entry:     en.ID,
 		Name:      name,
 		Aliases:   en.Aliases,

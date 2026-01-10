@@ -79,6 +79,26 @@ var _ = Describe("REST V1 Tree API", func() {
 			}
 		})
 	})
+
+	Describe("ListGroupChildren", func() {
+		It("should return pagination info", func() {
+			req, err := http.NewRequest("GET", "/api/v1/groups/children?uri=/&page=1&page_size=10", nil)
+			Expect(err).Should(BeNil())
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusOK))
+
+			var resp ListEntriesResponse
+			err = json.Unmarshal(w.Body.Bytes(), &resp)
+			Expect(err).Should(BeNil())
+			Expect(resp.Pagination).ShouldNot(BeNil())
+			Expect(resp.Pagination.Page).To(Equal(int64(1)))
+			Expect(resp.Pagination.PageSize).To(Equal(int64(10)))
+		})
+	})
 })
 
 var _ = Describe("REST V1 Filter API", func() {
