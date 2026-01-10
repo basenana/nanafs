@@ -74,7 +74,20 @@ Retrieve details of a specific entry.
       "permissions": ["owner_read", "owner_write", "group_read", "group_write", "others_read"]
     },
     "property": null,
-    "document": null,
+    "document": {
+      "title": "Document Title",
+      "author": "John Doe",
+      "year": "2024",
+      "source": "https://example.com",
+      "abstract": "...",
+      "keywords": ["tag1", "tag2"],
+      "notes": "",
+      "unread": true,
+      "marked": false,
+      "publish_at": "2024-01-01T00:00:00Z",
+      "url": "https://example.com/article",
+      "header_image": ""
+    },
     "created_at": "2024-01-01T00:00:00Z",
     "changed_at": "2024-01-01T00:00:00Z",
     "modified_at": "2024-01-01T00:00:00Z",
@@ -148,9 +161,19 @@ Filter entries using CEL (Common Expression Language) patterns.
 **Request Body:**
 ```json
 {
-  "cel_pattern": "entry.kind == 'raw'"
+  "cel_pattern": "entry.kind == 'raw'",
+  "page": 1,
+  "page_size": 10
 }
 ```
+
+**Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `cel_pattern` | string | yes | CEL expression to filter entries |
+| `page` | int64 | no | Page number (default: 1) |
+| `page_size` | int64 | no | Number of items per page (default: all) |
 
 **Response:**
 ```json
@@ -163,12 +186,33 @@ Filter entries using CEL (Common Expression Language) patterns.
       "kind": "raw",
       "is_group": false,
       "size": 0,
+      "document": {
+        "title": "Document Title",
+        "author": "John Doe",
+        "year": "2024",
+        "source": "https://example.com",
+        "abstract": "...",
+        "keywords": [
+          "tag1",
+          "tag2"
+        ],
+        "notes": "",
+        "unread": true,
+        "marked": false,
+        "publish_at": "2024-01-01T00:00:00Z",
+        "url": "https://example.com/article",
+        "header_image": ""
+      },
       "created_at": "2024-01-01T00:00:00Z",
       "changed_at": "2024-01-01T00:00:00Z",
       "modified_at": "2024-01-01T00:00:00Z",
       "access_at": "2024-01-01T00:00:00Z"
     }
-  ]
+  ],
+  "pagination": {
+    "page": 1,
+    "page_size": 10
+  }
 }
 ```
 
@@ -186,7 +230,6 @@ Update entry attributes. Supports `?uri=` or `?id=` query parameters.
 **Request Body:**
 ```json
 {
-  "name": "Updated Name",
   "aliases": "alias1,alias2"
 }
 ```
@@ -195,9 +238,9 @@ Update entry attributes. Supports `?uri=` or `?id=` query parameters.
 ```json
 {
   "entry": {
-    "uri": "/inbox/tasks/updated-name",
+    "uri": "/inbox/tasks/task-001",
     "entry": 1002,
-    "name": "Updated Name",
+    "name": "task-001",
     "kind": "raw",
     "is_group": false,
     "size": 0,
@@ -257,24 +300,26 @@ Delete multiple entries at once.
 
 #### PUT /api/v1/entries/parent
 
-Change an entry's parent group. Supports `?uri=` or `?id=` for the entry to move, and `new_uri=` for the new parent.
-
-**Query Parameters**
-
-| Name | Type | Description |
-|------|------|-------------|
-| `uri` | string | Entry URI to move |
-| `id` | int64 | Entry ID to move |
-| `new_uri` | string | New parent URI (required) |
+Change an entry's parent group.
 
 **Request Body:**
 ```json
 {
+  "entry_uri": "/inbox/tasks/task-001",
   "new_entry_uri": "/projects/active",
   "replace": false,
   "exchange": false
 }
 ```
+
+**Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `entry_uri` | string | yes | URI of the entry to move |
+| `new_entry_uri` | string | yes | New parent URI |
+| `replace` | bool | no | Replace existing entry if exists |
+| `exchange` | bool | no | Exchange positions |
 
 **Response:**
 ```json
@@ -382,8 +427,8 @@ List all children of a group. Supports `?uri=` or `?id=` query parameters.
 |------|------|-------------|
 | `uri` | string | Group URI path |
 | `id` | int64 | Group ID |
-| `offset` | int | Pagination offset (default: 0) |
-| `limit` | int | Pagination limit (default: 20) |
+| `page` | int64 | Page number (default: 1) |
+| `page_size` | int64 | Number of items per page (default: all) |
 | `order` | string | Sort field (default: `changed_at`) |
 | `desc` | bool | Sort descending (default: true) |
 
@@ -403,7 +448,11 @@ List all children of a group. Supports `?uri=` or `?id=` query parameters.
       "modified_at": "2024-01-01T00:00:00Z",
       "access_at": "2024-01-01T00:00:00Z"
     }
-  ]
+  ],
+  "pagination": {
+    "page": 1,
+    "page_size": 10
+  }
 }
 ```
 

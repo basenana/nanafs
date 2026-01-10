@@ -41,7 +41,7 @@ func RegisterRoutes(engine *gin.Engine, s *ServicesV1) {
 			// Routes supporting ?uri= or ?id= query parameters
 			entries.GET("/details", s.EntryDetails)
 			entries.PUT("", s.UpdateEntry)
-			entries.PUT("/parent", s.EntryParent)
+			entries.PUT("/parent", s.ChangeParent)
 			entries.PUT("/property", s.UpdateProperty)
 			entries.PUT("/document", s.UpdateDocumentProperty)
 		}

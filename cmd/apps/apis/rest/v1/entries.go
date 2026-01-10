@@ -141,9 +141,6 @@ func (s *ServicesV1) UpdateEntry(ctx *gin.Context) {
 	}
 
 	update := types.UpdateEntry{}
-	if req.Name != "" {
-		update.Name = &req.Name
-	}
 	if req.Aliases != "" {
 		update.Aliases = &req.Aliases
 	}
@@ -334,7 +331,10 @@ func (s *ServicesV1) FilterEntry(ctx *gin.Context) {
 		return
 	}
 
-	it, err := s.meta.FilterEntries(ctx.Request.Context(), caller.Namespace, types.Filter{CELPattern: req.CELPattern})
+	pg := types.NewPagination(req.Page, req.PageSize)
+	pctx := types.WithPagination(ctx.Request.Context(), pg)
+
+	it, err := s.meta.FilterEntries(pctx, caller.Namespace, types.Filter{CELPattern: req.CELPattern})
 	if err != nil {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
@@ -348,16 +348,19 @@ func (s *ServicesV1) FilterEntry(ctx *gin.Context) {
 			return
 		}
 
-		doc := s.getDocumentProperty(ctx.Request.Context(), caller.Namespace, en)
+		doc := s.getDocumentProperty(pctx, caller.Namespace, en)
 
-		uri, err := core.ProbableEntryPath(ctx.Request.Context(), s.core, en)
+		uri, err := core.ProbableEntryPath(pctx, s.core, en)
 		if err != nil {
 			continue
 		}
 		entries = append(entries, toEntryInfo(path.Dir(uri), path.Base(uri), en, doc))
 	}
 
-	apitool.JsonResponse(ctx, http.StatusOK, &ListEntriesResponse{Entries: entries})
+	apitool.JsonResponse(ctx, http.StatusOK, &ListEntriesResponse{
+		Entries:    entries,
+		Pagination: &PaginationInfo{Page: req.Page, PageSize: req.PageSize},
+	})
 }
 
 func (s *ServicesV1) EntryDetails(ctx *gin.Context) {
@@ -405,91 +408,6 @@ func (s *ServicesV1) EntryChildren(ctx *gin.Context) {
 	}
 
 	apitool.JsonResponse(ctx, http.StatusOK, &ListEntriesResponse{Entries: entries})
-}
-
-func (s *ServicesV1) EntryParent(ctx *gin.Context) {
-	caller := s.requireCaller(ctx)
-	if caller == nil {
-		return
-	}
-
-	newEntryURI := ctx.Query("new_uri")
-
-	en, entryURI := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
-	if en == nil {
-		return
-	}
-
-	if newEntryURI == "" {
-		var req ChangeParentRequest
-		if err := ctx.ShouldBindJSON(&req); err == nil {
-			newEntryURI = req.NewEntryURI
-		}
-	}
-
-	if newEntryURI == "" {
-		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("missing new_entry_uri"))
-		return
-	}
-
-	oldName := path.Base(entryURI)
-	oldParentID, entryID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, entryURI)
-	if err != nil {
-		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
-		return
-	}
-
-	newParentURI, newName := path.Split(newEntryURI)
-	_, newParentID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, newParentURI)
-	if err != nil {
-		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
-		return
-	}
-
-	en, err = s.core.GetEntry(ctx.Request.Context(), caller.Namespace, entryID)
-	if err != nil {
-		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
-		return
-	}
-	err = core.HasAllPermissions(en.Access, caller.UID, caller.GID, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
-	if err != nil {
-		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
-		return
-	}
-
-	newParent, err := s.core.GetEntry(ctx.Request.Context(), caller.Namespace, newParentID)
-	if err != nil {
-		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
-		return
-	}
-	err = core.HasAllPermissions(newParent.Access, caller.UID, caller.GID, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
-	if err != nil {
-		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
-		return
-	}
-
-	var existObjID *int64
-	existObj, err := s.core.FindEntry(ctx.Request.Context(), caller.Namespace, newParentID, newName)
-	if err != nil && !errors.Is(err, types.ErrNotFound) {
-		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
-		return
-	}
-	if existObj != nil {
-		existObjID = &existObj.ChildID
-	}
-
-	err = s.core.ChangeEntryParent(ctx.Request.Context(), caller.Namespace, entryID, existObjID, oldParentID, newParentID, oldName, newName, types.ChangeParentAttr{
-		Uid: caller.UID,
-		Gid: caller.GID,
-	})
-	if err != nil {
-		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
-		return
-	}
-
-	apitool.JsonResponse(ctx, http.StatusOK, &EntryResponse{
-		Entry: toEntryInfo(newParentURI, newName, en, nil),
-	})
 }
 
 func (s *ServicesV1) EntryProperty(ctx *gin.Context) {
