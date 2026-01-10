@@ -108,6 +108,75 @@ var _ = Describe("REST V1 Entries API - CRUD Operations", func() {
 
 			Expect(w.Code).To(Equal(http.StatusUnauthorized))
 		})
+
+		It("should create entry with properties", func() {
+			reqBody := CreateEntryRequest{
+				URI:  "/test-file",
+				Kind: "file",
+				Properties: &types.Properties{
+					Tags:       []string{"tag1", "tag2"},
+					Properties: map[string]string{"key": "value"},
+				},
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+
+			req, err := http.NewRequest("POST", "/api/v1/entries", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusCreated))
+		})
+
+		It("should create entry with document properties", func() {
+			reqBody := CreateEntryRequest{
+				URI:  "/test-doc",
+				Kind: "file",
+				Document: &types.DocumentProperties{
+					Title:  "Test Document",
+					Author: "Test Author",
+				},
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+
+			req, err := http.NewRequest("POST", "/api/v1/entries", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusCreated))
+		})
+
+		It("should create entry with both properties and document properties", func() {
+			reqBody := CreateEntryRequest{
+				URI:  "/test-both",
+				Kind: "file",
+				Properties: &types.Properties{
+					Tags: []string{"test"},
+				},
+				Document: &types.DocumentProperties{
+					Title: "Document Title",
+				},
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+
+			req, err := http.NewRequest("POST", "/api/v1/entries", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusCreated))
+		})
+
 	})
 
 	Describe("GetEntryDetail", func() {

@@ -24,6 +24,9 @@ type CreateEntryRequest struct {
 	Kind   string        `json:"kind"`
 	Rss    *RssConfig    `json:"rss"`
 	Filter *FilterConfig `json:"filter"`
+
+	Properties *types.Properties         `json:"properties,omitempty"`
+	Document   *types.DocumentProperties `json:"document,omitempty"`
 }
 
 type RssConfig struct {
@@ -59,8 +62,8 @@ type DeleteEntriesRequest struct {
 type ListGroupChildrenRequest struct {
 	Page     int64  `form:"page"`
 	PageSize int64  `form:"page_size"`
+	Sort     string `form:"sort"`
 	Order    string `form:"order"`
-	Desc     bool   `form:"desc"`
 }
 
 // FilterEntryRequest 过滤条目请求
@@ -68,6 +71,8 @@ type FilterEntryRequest struct {
 	CELPattern string `json:"cel_pattern" binding:"required"`
 	Page       int64  `json:"page"`
 	PageSize   int64  `json:"page_size"`
+	Sort       string `json:"sort"`
+	Order      string `json:"order"`
 }
 
 // UpdatePropertyRequest 更新属性请求
@@ -78,23 +83,25 @@ type UpdatePropertyRequest struct {
 
 // UpdateDocumentPropertyRequest 更新文档属性请求
 type UpdateDocumentPropertyRequest struct {
-	Unread bool `json:"unread"`
-	Marked bool `json:"marked"`
-}
-
-// ListMessagesRequest 列出消息请求
-type ListMessagesRequest struct {
-	All bool `form:"all"`
+	Title   *string  `json:"title,omitempty"`
+	Author  *string  `json:"author,omitempty"`
+	Year    *string  `json:"year,omitempty"`
+	Source  *string  `json:"source,omitempty"`
+	Abstract *string `json:"abstract,omitempty"`
+	Notes   *string  `json:"notes,omitempty"`
+	Keywords []string `json:"keywords,omitempty"`
+	URL      *string `json:"url,omitempty"`
+	SiteName *string `json:"site_name,omitempty"`
+	SiteURL  *string `json:"site_url,omitempty"`
+	HeaderImage *string `json:"headerImage,omitempty"`
+	Unread   *bool   `json:"unread,omitempty"`
+	Marked   *bool   `json:"marked,omitempty"`
+	PublishAt *int64 `json:"publishAt,omitempty"`
 }
 
 // ReadMessagesRequest 读取消息请求
 type ReadMessagesRequest struct {
 	MessageIDList []string `json:"message_id_list" binding:"required"`
-}
-
-// ListWorkflowJobsRequest 列出工作流作业请求
-type ListWorkflowJobsRequest struct {
-	WorkflowID string `form:"workflow_id"`
 }
 
 // TriggerWorkflowRequest 触发工作流请求

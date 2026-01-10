@@ -18,6 +18,7 @@ package v1
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"path"
 
@@ -66,9 +67,10 @@ func (s *ServicesV1) CreateEntry(ctx *gin.Context) {
 	}
 
 	attr := types.EntryAttr{
-		Name:   name,
-		Kind:   s.pdKind2EntryKind(req.Kind),
-		Access: &parent.Access,
+		Name:       name,
+		Kind:       s.pdKind2EntryKind(req.Kind),
+		Access:     &parent.Access,
+		Properties: req.Properties,
 	}
 
 	if req.Rss != nil {
@@ -84,15 +86,16 @@ func (s *ServicesV1) CreateEntry(ctx *gin.Context) {
 		return
 	}
 
-	if attr.Properties != nil {
-		if err = s.meta.UpdateEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeProperty, en.ID, attr.Properties); err != nil {
+	if req.Document != nil && !en.IsGroup {
+		if err = s.meta.UpdateEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeDocument, en.ID, req.Document); err != nil {
 			apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 			return
 		}
 	}
 
+	doc := s.getDocumentProperty(ctx.Request.Context(), caller.Namespace, en)
 	apitool.JsonResponse(ctx, http.StatusCreated, &EntryResponse{
-		Entry: toEntryInfo(parentURI, name, en, nil),
+		Entry: toEntryInfo(parentURI, name, en, doc),
 	})
 }
 
@@ -264,6 +267,11 @@ func (s *ServicesV1) ChangeParent(ctx *gin.Context) {
 		return
 	}
 
+	if newParentURI == req.EntryURI {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", fmt.Errorf("new entry uri is the same as old"))
+		return
+	}
+
 	en, err := s.core.GetEntry(ctx.Request.Context(), caller.Namespace, entryID)
 	if err != nil {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
@@ -331,7 +339,7 @@ func (s *ServicesV1) FilterEntry(ctx *gin.Context) {
 		return
 	}
 
-	pg := types.NewPagination(req.Page, req.PageSize)
+	pg := types.NewPaginationWithSort(req.Page, req.PageSize, req.Sort, req.Order)
 	pctx := types.WithPagination(ctx.Request.Context(), pg)
 
 	it, err := s.meta.FilterEntries(pctx, caller.Namespace, types.Filter{CELPattern: req.CELPattern})
@@ -382,32 +390,6 @@ func (s *ServicesV1) EntryDetails(ctx *gin.Context) {
 	}
 
 	apitool.JsonResponse(ctx, http.StatusOK, &EntryDetailResponse{Entry: detail})
-}
-
-func (s *ServicesV1) EntryChildren(ctx *gin.Context) {
-	caller := s.requireCaller(ctx)
-	if caller == nil {
-		return
-	}
-
-	en, uri := s.requireEntryWithPermission(ctx, caller, types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead)
-	if en == nil {
-		return
-	}
-
-	children, err := s.listChildren(ctx.Request.Context(), caller.Namespace, en.ID)
-	if err != nil {
-		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
-		return
-	}
-
-	entries := make([]*EntryInfo, 0, len(children))
-	for _, child := range children {
-		doc := s.getDocumentProperty(ctx.Request.Context(), caller.Namespace, child)
-		entries = append(entries, toEntryInfo(uri, child.Name, child, doc))
-	}
-
-	apitool.JsonResponse(ctx, http.StatusOK, &ListEntriesResponse{Entries: entries})
 }
 
 func (s *ServicesV1) EntryProperty(ctx *gin.Context) {
@@ -480,11 +462,47 @@ func (s *ServicesV1) EntryDocument(ctx *gin.Context) {
 		return
 	}
 
-	if req.Unread {
-		properties.Unread = true
+	if req.Title != nil {
+		properties.Title = *req.Title
 	}
-	if req.Marked {
-		properties.Marked = true
+	if req.Author != nil {
+		properties.Author = *req.Author
+	}
+	if req.Year != nil {
+		properties.Year = *req.Year
+	}
+	if req.Source != nil {
+		properties.Source = *req.Source
+	}
+	if req.Abstract != nil {
+		properties.Abstract = *req.Abstract
+	}
+	if req.Notes != nil {
+		properties.Notes = *req.Notes
+	}
+	if req.Keywords != nil {
+		properties.Keywords = req.Keywords
+	}
+	if req.URL != nil {
+		properties.URL = *req.URL
+	}
+	if req.SiteName != nil {
+		properties.SiteName = *req.SiteName
+	}
+	if req.SiteURL != nil {
+		properties.SiteURL = *req.SiteURL
+	}
+	if req.HeaderImage != nil {
+		properties.HeaderImage = *req.HeaderImage
+	}
+	if req.Unread != nil {
+		properties.Unread = *req.Unread
+	}
+	if req.Marked != nil {
+		properties.Marked = *req.Marked
+	}
+	if req.PublishAt != nil {
+		properties.PublishAt = *req.PublishAt
 	}
 
 	err = s.meta.UpdateEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeDocument, en.ID, properties)
@@ -610,8 +628,48 @@ func (s *ServicesV1) UpdateDocumentProperty(ctx *gin.Context) {
 		return
 	}
 
-	properties.Unread = req.Unread
-	properties.Marked = req.Marked
+	if req.Title != nil {
+		properties.Title = *req.Title
+	}
+	if req.Author != nil {
+		properties.Author = *req.Author
+	}
+	if req.Year != nil {
+		properties.Year = *req.Year
+	}
+	if req.Source != nil {
+		properties.Source = *req.Source
+	}
+	if req.Abstract != nil {
+		properties.Abstract = *req.Abstract
+	}
+	if req.Notes != nil {
+		properties.Notes = *req.Notes
+	}
+	if req.Keywords != nil {
+		properties.Keywords = req.Keywords
+	}
+	if req.URL != nil {
+		properties.URL = *req.URL
+	}
+	if req.SiteName != nil {
+		properties.SiteName = *req.SiteName
+	}
+	if req.SiteURL != nil {
+		properties.SiteURL = *req.SiteURL
+	}
+	if req.HeaderImage != nil {
+		properties.HeaderImage = *req.HeaderImage
+	}
+	if req.Unread != nil {
+		properties.Unread = *req.Unread
+	}
+	if req.Marked != nil {
+		properties.Marked = *req.Marked
+	}
+	if req.PublishAt != nil {
+		properties.PublishAt = *req.PublishAt
+	}
 
 	err = s.meta.UpdateEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeDocument, en.ID, properties)
 	if err != nil {

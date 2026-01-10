@@ -106,7 +106,24 @@ Create a new entry.
   "uri": "/inbox/tasks/task-001",
   "kind": "raw",
   "rss": null,
-  "filter": null
+  "filter": null,
+  "properties": {
+    "tags": ["important", "review"],
+    "properties": {
+      "priority": "high"
+    }
+  },
+  "document": {
+    "title": "Document Title",
+    "author": "John Doe",
+    "year": "2024",
+    "source": "https://example.com",
+    "abstract": "...",
+    "keywords": ["tag1", "tag2"],
+    "notes": "",
+    "url": "https://example.com/article",
+    "header_image": ""
+  }
 }
 ```
 
@@ -118,6 +135,8 @@ Create a new entry.
 | `kind` | string | no | Entry type: `raw`, `group`, `smart_group`, `fifo`, `socket`, `sym_link`, `blk_dev`, `char_dev`, `external_group` |
 | `rss` | object | no | RSS subscription config |
 | `filter` | object | no | Filter config for smart groups |
+| `properties` | object | no | Entry properties including tags and custom properties |
+| `document` | object | no | Document-specific properties (only for non-group entries) |
 
 **RSS Config:**
 ```json
@@ -163,7 +182,9 @@ Filter entries using CEL (Common Expression Language) patterns.
 {
   "cel_pattern": "entry.kind == 'raw'",
   "page": 1,
-  "page_size": 10
+  "page_size": 10,
+  "sort": "created_at",
+  "order": "desc"
 }
 ```
 
@@ -174,6 +195,8 @@ Filter entries using CEL (Common Expression Language) patterns.
 | `cel_pattern` | string | yes | CEL expression to filter entries |
 | `page` | int64 | no | Page number (default: 1) |
 | `page_size` | int64 | no | Number of items per page (default: all) |
+| `sort` | string | no | Sort field: `created_at`, `changed_at`, `name` (default: `name`) |
+| `order` | string | no | Sort order: `asc`, `desc` (default: `asc`) |
 
 **Response:**
 ```json
@@ -388,10 +411,41 @@ Update document-specific properties. Supports `?uri=` or `?id=` query parameters
 **Request Body:**
 ```json
 {
+  "title": "Updated Title",
+  "author": "Author Name",
+  "year": "2024",
+  "source": "https://example.com",
+  "abstract": "Document abstract...",
+  "notes": "Personal notes",
+  "keywords": ["tag1", "tag2"],
+  "url": "https://example.com/article",
+  "site_name": "Site Name",
+  "site_url": "https://example.com",
+  "header_image": "https://example.com/image.jpg",
   "unread": true,
-  "marked": false
+  "marked": false,
+  "publishAt": 1704067200
 }
 ```
+
+**Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `title` | string | Document title |
+| `author` | string | Author name |
+| `year` | string | Publication year |
+| `source` | string | Source URL |
+| `abstract` | string | Document abstract |
+| `notes` | string | Personal notes |
+| `keywords` | array | Keywords/tags |
+| `url` | string | Article URL |
+| `site_name` | string | Website name |
+| `site_url` | string | Website URL |
+| `header_image` | string | Header image URL |
+| `unread` | bool | Mark as unread |
+| `marked` | bool | Mark as starred |
+| `publishAt` | int64 | Publish timestamp (Unix) |
 
 **Response:**
 ```json
@@ -429,8 +483,8 @@ List all children of a group. Supports `?uri=` or `?id=` query parameters.
 | `id` | int64 | Group ID |
 | `page` | int64 | Page number (default: 1) |
 | `page_size` | int64 | Number of items per page (default: all) |
-| `order` | string | Sort field (default: `changed_at`) |
-| `desc` | bool | Sort descending (default: true) |
+| `sort` | string | Sort field: `created_at`, `changed_at`, `name` (default: `name`) |
+| `order` | string | Sort order: `asc`, `desc` (default: `asc`) |
 
 **Response**
 ```json
@@ -443,6 +497,23 @@ List all children of a group. Supports `?uri=` or `?id=` query parameters.
       "kind": "raw",
       "is_group": false,
       "size": 0,
+      "document": {
+        "title": "Document Title",
+        "author": "John Doe",
+        "year": "2024",
+        "source": "https://example.com",
+        "abstract": "...",
+        "keywords": [
+          "tag1",
+          "tag2"
+        ],
+        "notes": "",
+        "unread": true,
+        "marked": false,
+        "publish_at": "2024-01-01T00:00:00Z",
+        "url": "https://example.com/article",
+        "header_image": ""
+      },
       "created_at": "2024-01-01T00:00:00Z",
       "changed_at": "2024-01-01T00:00:00Z",
       "modified_at": "2024-01-01T00:00:00Z",

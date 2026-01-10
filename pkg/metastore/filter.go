@@ -44,6 +44,9 @@ func (s *sqlMetaStore) FilterEntries(ctx context.Context, namespace string, filt
 	tx := filters.Join(s.WithContext(ctx).Where("entry.namespace = ?", namespace), where)
 
 	if page := types.GetPagination(ctx); page != nil {
+		if page.Sort != "" && page.Order != "" {
+			tx = tx.Order(page.SortField() + " " + page.SortOrder())
+		}
 		tx = tx.Offset(page.Offset()).Limit(page.Limit())
 	}
 

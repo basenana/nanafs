@@ -20,10 +20,12 @@ import (
 	"context"
 	"net/http"
 	"path"
+	"sort"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/basenana/nanafs/cmd/apps/apis/apitool"
+	"github.com/basenana/nanafs/pkg/types"
 )
 
 func (s *ServicesV1) listGroupEntry(ctx context.Context, namespace string, name, groupURI string, groupID int64) (*GroupEntry, error) {
@@ -120,23 +122,21 @@ func (s *ServicesV1) ListGroupChildren(ctx *gin.Context) {
 		return
 	}
 
-	page := req.Page
-	pageSize := req.PageSize
-	if page <= 0 {
-		page = 1
-	}
-	if pageSize <= 0 {
-		pageSize = int64(len(children))
+	pg := types.NewPaginationWithSort(req.Page, req.PageSize, req.Sort, req.Order)
+
+	sortChildren(children, pg.SortField(), pg.SortOrder())
+
+	page := pg.Page
+	pageSize := pg.PageSize
+
+	offset := int(pg.Offset())
+	if offset > len(children) {
+		offset = len(children)
 	}
 
-	offset := (page - 1) * pageSize
-	if offset > int64(len(children)) {
-		offset = int64(len(children))
-	}
-
-	end := offset + pageSize
-	if end > int64(len(children)) {
-		end = int64(len(children))
+	end := offset + int(pageSize)
+	if end > len(children) {
+		end = len(children)
 	}
 
 	entries := make([]*EntryInfo, 0)
@@ -146,17 +146,28 @@ func (s *ServicesV1) ListGroupChildren(ctx *gin.Context) {
 	}
 
 	apitool.JsonResponse(ctx, http.StatusOK, &ListEntriesResponse{
-		Entries: entries,
+		Entries:    entries,
 		Pagination: &PaginationInfo{Page: page, PageSize: pageSize},
 	})
 }
 
-// GetGroupTree retrieves the group tree structure (alias for GroupTree)
-func (s *ServicesV1) GetGroupTree(ctx *gin.Context) {
-	s.GroupTree(ctx)
-}
-
-// ListChildren lists children of a group (alias for ListGroupChildren)
-func (s *ServicesV1) ListChildren(ctx *gin.Context) {
-	s.ListGroupChildren(ctx)
+func sortChildren(children []*types.Entry, sortField, sortOrder string) {
+	desc := sortOrder == "desc"
+	sort.Slice(children, func(i, j int) bool {
+		var less bool
+		switch sortField {
+		case "created_at":
+			less = children[i].CreatedAt.Before(children[j].CreatedAt)
+		case "changed_at":
+			less = children[i].ChangedAt.Before(children[j].ChangedAt)
+		case "name":
+			fallthrough
+		default:
+			less = children[i].Name < children[j].Name
+		}
+		if desc {
+			return !less
+		}
+		return less
+	})
 }
