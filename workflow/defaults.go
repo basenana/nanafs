@@ -37,6 +37,10 @@ func NamespaceDefaultsWorkflow(namespace string) []*types.Workflow {
 					Matrix: &types.WorkflowNodeMatrix{
 						Data: map[string]any{
 							"file_path": "$.fetch_rss.articles.*.file_path",
+							"title":     "$.fetch_rss.articles.*.title",
+							"url":       "$.fetch_rss.articles.*.url",
+							"site_url":  "$.fetch_rss.articles.*.site_url",
+							"site_name": "$.fetch_rss.articles.*.site_name",
 						},
 					},
 					Input: map[string]interface{}{

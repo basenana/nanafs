@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.36.0
 	github.com/aws/smithy-go v1.13.5
 	github.com/basenana/go-flow v0.0.0-20250614153542-07184f3ea1e7
-	github.com/basenana/plugin v0.0.0-20260108111854-3816f8db3bcb
+	github.com/basenana/plugin v0.0.0-20260110123658-09fa14697592
 	github.com/bluele/gcache v0.0.2
 	github.com/davecgh/go-spew v1.1.1
 	github.com/getsentry/sentry-go v0.22.0
@@ -114,7 +114,7 @@ require (
 	github.com/yosssi/gohtml v0.0.0-20201013000340-ee4748c638f4 // indirect
 	golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93 // indirect
 	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
+	golang.org/x/text v0.33.0 // indirect
 	golang.org/x/time v0.8.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241206012308-a4fef0638583 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect

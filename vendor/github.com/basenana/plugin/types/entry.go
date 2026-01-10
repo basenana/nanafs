@@ -20,6 +20,8 @@ type Properties struct {
 
 	// web
 	URL         string `json:"url,omitempty"`
+	SiteName    string `json:"site_name,omitempty"`
+	SiteURL     string `json:"site_url,omitempty"`
 	HeaderImage string `json:"header_image,omitempty"`
 
 	Unread    bool  `json:"unread"`

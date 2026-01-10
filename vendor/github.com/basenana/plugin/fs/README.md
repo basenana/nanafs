@@ -24,7 +24,9 @@ Saves a local file to the NanaFS file system with metadata.
 - `abstract` - Abstract/summary
 - `notes` - Personal notes (not populated by docloader)
 - `keywords` - Keywords (comma-separated)
-- `url` - Source URL (not populated by docloader)
+- `url` - Source URL
+- `site_name` - Site name (for web content)
+- `site_url` - Site URL (for web content)
 - `header_image` - Header image URL
 - `unread` - Mark as unread (default: false)
 - `marked` - Mark as starred (default: false)

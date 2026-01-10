@@ -70,6 +70,19 @@ func (d *DocLoader) Run(ctx context.Context, request *api.Request) (*api.Respons
 		return api.NewFailedResponse(fmt.Sprintf("load document %s error: %s", filePath, err.Error())), nil
 	}
 
+	if title := api.GetStringParameter("title", request, ""); title != "" {
+		doc.Properties.Title = title
+	}
+	if doc.Properties.URL == "" {
+		doc.Properties.URL = api.GetStringParameter("url", request, "")
+	}
+	if doc.Properties.SiteName == "" {
+		doc.Properties.SiteName = api.GetStringParameter("site_name", request, "")
+	}
+	if doc.Properties.SiteURL == "" {
+		doc.Properties.SiteURL = api.GetStringParameter("site_url", request, "")
+	}
+
 	d.logger.Infow("docloader completed", "file_path", filePath, "title", doc.Properties.Title)
 
 	resp := api.NewResponseWithResult(map[string]any{

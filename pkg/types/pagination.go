@@ -39,13 +39,22 @@ func (p *Pagination) Offset() int {
 }
 
 func NewPagination(page, pageSize int64) *Pagination {
-	if page > 0 && pageSize > 0 {
-		return &Pagination{
-			Page:     page,
-			PageSize: pageSize,
-		}
+	if page < 0 {
+		return nil
 	}
-	return nil
+
+	p := &Pagination{
+		Page:     page,
+		PageSize: pageSize,
+	}
+
+	if p.Page == 0 {
+		p.Page = 1
+	}
+	if p.PageSize == 0 {
+		p.PageSize = 50
+	}
+	return p
 }
 
 func GetPagination(ctx context.Context) *Pagination {

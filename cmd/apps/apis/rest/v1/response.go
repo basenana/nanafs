@@ -80,6 +80,8 @@ type DocumentProperty struct {
 	Marked      bool       `json:"marked,omitempty"`
 	PublishAt   *time.Time `json:"publish_at,omitempty"`
 	URL         string     `json:"url,omitempty"`
+	SiteName    string     `json:"site_name,omitempty"`
+	SiteURL     string     `json:"site_url,omitempty"`
 	HeaderImage string     `json:"header_image,omitempty"`
 }
 
@@ -228,6 +230,8 @@ func toEntryInfo(parentURI, name string, en *types.Entry, doc *types.DocumentPro
 			Marked:      doc.Marked,
 			PublishAt:   timestampTime(doc.PublishAt),
 			URL:         doc.URL,
+			SiteName:    doc.SiteName,
+			SiteURL:     doc.SiteURL,
 			HeaderImage: doc.HeaderImage,
 		}
 	}
@@ -269,6 +273,8 @@ func toEntryDetail(parentURI, name string, en *types.Entry, doc types.DocumentPr
 			Marked:      doc.Marked,
 			PublishAt:   timestampTime(doc.PublishAt),
 			URL:         doc.URL,
+			SiteName:    doc.SiteName,
+			SiteURL:     doc.SiteURL,
 			HeaderImage: doc.HeaderImage,
 		},
 		CreatedAt:  en.CreatedAt,

@@ -16,6 +16,10 @@ ProcessPlugin
 | Parameter | Required | Type | Description |
 |-----------|----------|------|-------------|
 | `file_path` | Yes | string | Path to document file |
+| `title` | No | string | Override document title |
+| `url` | No | string | Document source URL |
+| `site_name` | No | string | Site name (for web content) |
+| `site_url` | No | string | Site URL (for web content) |
 
 ## Supported Formats
 
@@ -44,6 +48,9 @@ Returns a map with `file_path` and `document` object containing:
       "source": "<source>",
       "abstract": "<summary>",
       "keywords": ["tag1", "tag2"],
+      "url": "<source-url>",
+      "site_name": "<site-name>",
+      "site_url": "<site-url>",
       "header_image": "<url>",
       "publish_at": 1704067200,
       "unread": false,
@@ -66,6 +73,8 @@ Returns a map with `file_path` and `document` object containing:
 | `properties.notes` | string | Personal notes |
 | `properties.keywords` | []string | Keywords (array of strings) |
 | `properties.url` | string | Source URL |
+| `properties.site_name` | string | Site name (for web content) |
+| `properties.site_url` | string | Site URL (for web content) |
 | `properties.header_image` | string | Header image URL (HTML only) |
 | `properties.unread` | bool | Marked as unread |
 | `properties.marked` | bool | Marked as starred |

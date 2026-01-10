@@ -72,6 +72,8 @@ type DocumentProperties struct {
 
 	// web
 	URL         string `json:"url,omitempty"`
+	SiteName    string `json:"site_name,omitempty"`
+	SiteURL     string `json:"site_url,omitempty"`
 	HeaderImage string `json:"headerImage,omitempty"`
 
 	Unread    bool  `json:"unread"`

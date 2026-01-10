@@ -266,9 +266,56 @@ func (n *namespacedFS) SaveEntry(ctx context.Context, parentURI, name string, pr
 func (n *namespacedFS) UpdateEntry(ctx context.Context, entryURI string, properties plugintypes.Properties) error {
 	_, en, err := n.core.GetEntryByPath(ctx, n.namespace, entryURI)
 	if err != nil {
-		return fmt.Errorf("get parent %s error %w", entryURI, err)
+		return fmt.Errorf("get entry %s error %w", entryURI, err)
 	}
-	return n.store.UpdateEntryProperties(ctx, n.namespace, types.PropertyTypeDocument, en.ID, toDocumentProperties(properties))
+
+	var current types.DocumentProperties
+	if err = n.store.GetEntryProperties(ctx, n.namespace, types.PropertyTypeDocument, en.ID, &current); err != nil {
+		return fmt.Errorf("get current properties error %w", err)
+	}
+
+	updated := toDocumentProperties(properties)
+	if updated.Title != "" {
+		current.Title = updated.Title
+	}
+	if updated.Author != "" {
+		current.Author = updated.Author
+	}
+	if updated.Year != "" {
+		current.Year = updated.Year
+	}
+	if updated.Source != "" {
+		current.Source = updated.Source
+	}
+	if updated.Abstract != "" {
+		current.Abstract = updated.Abstract
+	}
+	if updated.Notes != "" {
+		current.Notes = updated.Notes
+	}
+	if len(updated.Keywords) > 0 {
+		current.Keywords = updated.Keywords
+	}
+	if updated.URL != "" {
+		current.URL = updated.URL
+	}
+	if updated.SiteName != "" {
+		current.SiteName = updated.SiteName
+	}
+	if updated.SiteURL != "" {
+		current.SiteURL = updated.SiteURL
+	}
+	if updated.HeaderImage != "" {
+		current.HeaderImage = updated.HeaderImage
+	}
+	if updated.PublishAt != 0 {
+		current.PublishAt = updated.PublishAt
+	}
+
+	current.Unread = updated.Unread
+	current.Marked = updated.Marked
+
+	return n.store.UpdateEntryProperties(ctx, n.namespace, types.PropertyTypeDocument, en.ID, current)
 }
 
 func newNamespacedFS(c core.Core, store metastore.Meta, namespace string) pluginapi.NanaFS {
@@ -285,6 +332,8 @@ func toDocumentProperties(p plugintypes.Properties) types.DocumentProperties {
 		Notes:       p.Notes,
 		Keywords:    p.Keywords,
 		URL:         p.URL,
+		SiteName:    p.SiteName,
+		SiteURL:     p.SiteURL,
 		HeaderImage: p.HeaderImage,
 		Unread:      p.Unread,
 		Marked:      p.Marked,
