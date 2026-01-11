@@ -83,20 +83,20 @@ type UpdatePropertyRequest struct {
 
 // UpdateDocumentPropertyRequest 更新文档属性请求
 type UpdateDocumentPropertyRequest struct {
-	Title   *string  `json:"title,omitempty"`
-	Author  *string  `json:"author,omitempty"`
-	Year    *string  `json:"year,omitempty"`
-	Source  *string  `json:"source,omitempty"`
-	Abstract *string `json:"abstract,omitempty"`
-	Notes   *string  `json:"notes,omitempty"`
-	Keywords []string `json:"keywords,omitempty"`
-	URL      *string `json:"url,omitempty"`
-	SiteName *string `json:"site_name,omitempty"`
-	SiteURL  *string `json:"site_url,omitempty"`
-	HeaderImage *string `json:"headerImage,omitempty"`
-	Unread   *bool   `json:"unread,omitempty"`
-	Marked   *bool   `json:"marked,omitempty"`
-	PublishAt *int64 `json:"publishAt,omitempty"`
+	Title       *string  `json:"title,omitempty"`
+	Author      *string  `json:"author,omitempty"`
+	Year        *string  `json:"year,omitempty"`
+	Source      *string  `json:"source,omitempty"`
+	Abstract    *string  `json:"abstract,omitempty"`
+	Notes       *string  `json:"notes,omitempty"`
+	Keywords    []string `json:"keywords,omitempty"`
+	URL         *string  `json:"url,omitempty"`
+	SiteName    *string  `json:"site_name,omitempty"`
+	SiteURL     *string  `json:"site_url,omitempty"`
+	HeaderImage *string  `json:"headerImage,omitempty"`
+	Unread      *bool    `json:"unread,omitempty"`
+	Marked      *bool    `json:"marked,omitempty"`
+	PublishAt   *int64   `json:"publish_at,omitempty"`
 }
 
 // ReadMessagesRequest 读取消息请求

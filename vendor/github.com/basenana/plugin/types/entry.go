@@ -24,7 +24,7 @@ type Properties struct {
 	SiteURL     string `json:"site_url,omitempty"`
 	HeaderImage string `json:"header_image,omitempty"`
 
-	Unread    bool  `json:"unread"`
-	Marked    bool  `json:"marked"`
+	Unread    *bool `json:"unread,omitempty"`
+	Marked    *bool `json:"marked,omitempty"`
 	PublishAt int64 `json:"publish_at,omitempty"`
 }

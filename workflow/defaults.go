@@ -45,6 +45,10 @@ func NamespaceDefaultsWorkflow(namespace string) []*types.Workflow {
 					},
 					Input: map[string]interface{}{
 						"file_path": "$.matrix.file_path",
+						"title":     "$.matrix.title",
+						"url":       "$.matrix.url",
+						"site_url":  "$.matrix.site_url",
+						"site_name": "$.matrix.site_name",
 					},
 					Next: "save_to_nanafs",
 				},

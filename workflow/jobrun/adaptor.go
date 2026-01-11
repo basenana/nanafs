@@ -237,7 +237,8 @@ func (n *namespacedFS) SaveEntry(ctx context.Context, parentURI, name string, pr
 		if err != nil {
 			return fmt.Errorf("create %s error %w", name, err)
 		}
-		properties.Unread = true
+		setUnread := true
+		properties.Unread = &setUnread
 	} else {
 		entry, err = n.core.GetEntry(ctx, n.namespace, child.ChildID)
 		if err != nil {
@@ -260,7 +261,7 @@ func (n *namespacedFS) SaveEntry(ctx context.Context, parentURI, name string, pr
 		return err
 	}
 
-	return n.store.UpdateEntryProperties(ctx, n.namespace, types.PropertyTypeDocument, entry.ID, toDocumentProperties(properties))
+	return n.UpdateEntryDocumentProperties(ctx, entry, properties)
 }
 
 func (n *namespacedFS) UpdateEntry(ctx context.Context, entryURI string, properties plugintypes.Properties) error {
@@ -268,14 +269,24 @@ func (n *namespacedFS) UpdateEntry(ctx context.Context, entryURI string, propert
 	if err != nil {
 		return fmt.Errorf("get entry %s error %w", entryURI, err)
 	}
+	if en == nil {
+		return fmt.Errorf("entry %s not found", entryURI)
+	}
 
-	var current types.DocumentProperties
+	return n.UpdateEntryDocumentProperties(ctx, en, properties)
+}
+
+func (n *namespacedFS) UpdateEntryDocumentProperties(ctx context.Context, en *types.Entry, properties plugintypes.Properties) error {
+	var (
+		current types.DocumentProperties
+		err     error
+	)
 	if err = n.store.GetEntryProperties(ctx, n.namespace, types.PropertyTypeDocument, en.ID, &current); err != nil {
 		return fmt.Errorf("get current properties error %w", err)
 	}
 
 	updated := toDocumentProperties(properties)
-	if updated.Title != "" {
+	if current.Title == "" && updated.Title != "" {
 		current.Title = updated.Title
 	}
 	if updated.Author != "" {
@@ -312,8 +323,12 @@ func (n *namespacedFS) UpdateEntry(ctx context.Context, entryURI string, propert
 		current.PublishAt = updated.PublishAt
 	}
 
-	current.Unread = updated.Unread
-	current.Marked = updated.Marked
+	if properties.Unread != nil {
+		current.Unread = *properties.Unread
+	}
+	if properties.Marked != nil {
+		current.Marked = *properties.Marked
+	}
 
 	return n.store.UpdateEntryProperties(ctx, n.namespace, types.PropertyTypeDocument, en.ID, current)
 }
@@ -335,8 +350,6 @@ func toDocumentProperties(p plugintypes.Properties) types.DocumentProperties {
 		SiteName:    p.SiteName,
 		SiteURL:     p.SiteURL,
 		HeaderImage: p.HeaderImage,
-		Unread:      p.Unread,
-		Marked:      p.Marked,
 		PublishAt:   p.PublishAt,
 	}
 }

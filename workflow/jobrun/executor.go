@@ -86,6 +86,11 @@ func (b *defaultExecutor) Setup(ctx context.Context) (err error) {
 		return logOperationError(DefExecName, "setup", err)
 	}
 
+	if entry == nil {
+		b.logger.Errorw("target entry not found", zap.String("path", targetURI))
+		return logOperationError(DefExecName, "setup", fmt.Errorf("target entry not found"))
+	}
+
 	// init workdir and copy entry file
 	err = initWorkdir(ctx, b.workdir, b.job)
 	if err != nil {

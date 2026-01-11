@@ -424,7 +424,7 @@ Update document-specific properties. Supports `?uri=` or `?id=` query parameters
   "header_image": "https://example.com/image.jpg",
   "unread": true,
   "marked": false,
-  "publishAt": 1704067200
+  "publish_at": 1704067200
 }
 ```
 
@@ -445,7 +445,7 @@ Update document-specific properties. Supports `?uri=` or `?id=` query parameters
 | `header_image` | string | Header image URL |
 | `unread` | bool | Mark as unread |
 | `marked` | bool | Mark as starred |
-| `publishAt` | int64 | Publish timestamp (Unix) |
+| `publish_at` | int64 | Publish timestamp (Unix) |
 
 **Response:**
 ```json

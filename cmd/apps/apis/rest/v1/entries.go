@@ -299,6 +299,8 @@ func (s *ServicesV1) ChangeParent(ctx *gin.Context) {
 		return
 	}
 
+	s.logger.Infow("change parent", "old", req.EntryURI, "new", req.NewEntryURI)
+
 	oldName := path.Base(req.EntryURI)
 	oldParentID, entryID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, req.EntryURI)
 	if err != nil {
@@ -326,6 +328,13 @@ func (s *ServicesV1) ChangeParent(ctx *gin.Context) {
 	err = core.HasAllPermissions(en.Access, caller.UID, caller.GID, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
 	if err != nil {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	if req.EntryURI == req.NewEntryURI {
+		apitool.JsonResponse(ctx, http.StatusOK, &EntryResponse{
+			Entry: toEntryInfo(newParentURI, newName, en, nil),
+		})
 		return
 	}
 
