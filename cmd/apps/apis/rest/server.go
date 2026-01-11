@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/basenana/nanafs/cmd/apps/apis/rest/docs"
 	"github.com/basenana/nanafs/cmd/apps/apis/rest/v1"
 	"github.com/basenana/nanafs/config"
 	"github.com/gin-contrib/pprof"
@@ -31,6 +32,8 @@ import (
 
 	"github.com/basenana/nanafs/cmd/apps/apis/rest/common"
 	"github.com/basenana/nanafs/utils/logger"
+	swaggerfiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 const (
@@ -53,6 +56,9 @@ func New(depends *common.Depends, cfg config.Config) (*Server, error) {
 
 	s.engine.Use(gin.Recovery())
 	s.engine.Use(s.logMiddleware())
+
+	docs.SwaggerInfo.BasePath = "/api/v1"
+	s.engine.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
 
 	services, err := v1.NewServicesV1(s.engine, depends)
 	if err != nil {

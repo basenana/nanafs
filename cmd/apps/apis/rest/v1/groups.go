@@ -56,7 +56,14 @@ func (s *ServicesV1) listGroupEntry(ctx context.Context, namespace string, name,
 	return result, nil
 }
 
-// GroupTree retrieves the group tree structure
+// @Summary Get group tree
+// @Description Retrieve the complete group tree structure
+// @Tags Groups
+// @Accept json
+// @Produce json
+// @Param uri query string false "Group URI"
+// @Success 200 {object} GroupTreeResponse
+// @Router /api/v1/groups/tree [get]
 func (s *ServicesV1) GroupTree(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -96,7 +103,18 @@ func (s *ServicesV1) GroupTree(ctx *gin.Context) {
 	apitool.JsonResponse(ctx, http.StatusOK, &GroupTreeResponse{Root: root})
 }
 
-// ListGroupChildren lists children of a group
+// @Summary List group children
+// @Description List children entries of a group with pagination
+// @Tags Groups
+// @Accept json
+// @Produce json
+// @Param uri query string false "Group URI"
+// @Param page query int false "Page number"
+// @Param page_size query int false "Page size"
+// @Param order query string false "Order field"
+// @Param desc query bool false "Sort descending"
+// @Success 200 {object} ListEntriesResponse
+// @Router /api/v1/groups/children [get]
 func (s *ServicesV1) ListGroupChildren(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {

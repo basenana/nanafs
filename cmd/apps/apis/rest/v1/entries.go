@@ -29,7 +29,14 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 )
 
-// CreateEntry creates a new entry
+// @Summary Create a new entry
+// @Description Create a new entry with specified URI, kind and optional configuration
+// @Tags Entries
+// @Accept json
+// @Produce json
+// @Param request body CreateEntryRequest true "Entry creation request"
+// @Success 201 {object} EntryResponse
+// @Router /api/v1/entries [post]
 func (s *ServicesV1) CreateEntry(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -99,7 +106,15 @@ func (s *ServicesV1) CreateEntry(ctx *gin.Context) {
 	})
 }
 
-// GetEntryDetail retrieves entry details by URI
+// @Summary Get entry detail
+// @Description Retrieve entry details by URI or ID
+// @Tags Entries
+// @Accept json
+// @Produce json
+// @Param uri query string false "Entry URI"
+// @Param id query string false "Entry ID"
+// @Success 200 {object} EntryDetailResponse
+// @Router /api/v1/entries/details [get]
 func (s *ServicesV1) GetEntryDetail(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -125,7 +140,16 @@ func (s *ServicesV1) GetEntryDetail(ctx *gin.Context) {
 	})
 }
 
-// UpdateEntry updates an existing entry
+// @Summary Update entry
+// @Description Update an existing entry's aliases
+// @Tags Entries
+// @Accept json
+// @Produce json
+// @Param request body UpdateEntryRequest true "Update entry request"
+// @Param uri query string false "Entry URI"
+// @Param id query string false "Entry ID"
+// @Success 200 {object} EntryDetailResponse
+// @Router /api/v1/entries [put]
 func (s *ServicesV1) UpdateEntry(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -170,7 +194,15 @@ func (s *ServicesV1) UpdateEntry(ctx *gin.Context) {
 	})
 }
 
-// DeleteEntry deletes a single entry
+// @Summary Delete entry
+// @Description Delete a single entry by URI or ID
+// @Tags Entries
+// @Accept json
+// @Produce json
+// @Param uri query string false "Entry URI"
+// @Param id query string false "Entry ID"
+// @Success 200 {object} EntryResponse
+// @Router /api/v1/entries [delete]
 func (s *ServicesV1) DeleteEntry(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -200,7 +232,14 @@ func (s *ServicesV1) DeleteEntry(ctx *gin.Context) {
 	})
 }
 
-// DeleteEntries performs batch deletion of entries
+// @Summary Delete entries
+// @Description Batch delete multiple entries by URI list
+// @Tags Entries
+// @Accept json
+// @Produce json
+// @Param request body DeleteEntriesRequest true "Delete entries request"
+// @Success 200 {object} DeleteEntriesResponse
+// @Router /api/v1/entries/batch-delete [post]
 func (s *ServicesV1) DeleteEntries(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -240,7 +279,14 @@ func (s *ServicesV1) DeleteEntries(ctx *gin.Context) {
 	})
 }
 
-// ChangeParent moves an entry to a new parent
+// @Summary Change entry parent
+// @Description Move an entry to a new parent directory
+// @Tags Entries
+// @Accept json
+// @Produce json
+// @Param request body ChangeParentRequest true "Change parent request"
+// @Success 200 {object} EntryResponse
+// @Router /api/v1/entries/parent [put]
 func (s *ServicesV1) ChangeParent(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -326,7 +372,14 @@ func (s *ServicesV1) ChangeParent(ctx *gin.Context) {
 	})
 }
 
-// FilterEntry filters entries using CEL pattern
+// @Summary Filter entries
+// @Description Filter entries using CEL pattern matching with pagination support
+// @Tags Entries
+// @Accept json
+// @Produce json
+// @Param request body FilterEntryRequest true "Filter entry request"
+// @Success 200 {object} ListEntriesResponse
+// @Router /api/v1/entries/search [post]
 func (s *ServicesV1) FilterEntry(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -371,6 +424,15 @@ func (s *ServicesV1) FilterEntry(ctx *gin.Context) {
 	})
 }
 
+// @Summary Get entry details
+// @Description Get detailed information of an entry by URI or ID
+// @Tags Entries
+// @Accept json
+// @Produce json
+// @Param uri query string false "Entry URI"
+// @Param id query string false "Entry ID"
+// @Success 200 {object} EntryDetailResponse
+// @Router /api/v1/entries/details [get]
 func (s *ServicesV1) EntryDetails(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -392,6 +454,15 @@ func (s *ServicesV1) EntryDetails(ctx *gin.Context) {
 	apitool.JsonResponse(ctx, http.StatusOK, &EntryDetailResponse{Entry: detail})
 }
 
+// @Summary Get entry property
+// @Description Get properties and tags of an entry
+// @Tags Entries
+// @Accept json
+// @Produce json
+// @Param uri query string false "Entry URI"
+// @Param id query string false "Entry ID"
+// @Success 200 {object} PropertyResponse
+// @Router /api/v1/entries/property [get]
 func (s *ServicesV1) EntryProperty(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -433,6 +504,15 @@ func (s *ServicesV1) EntryProperty(ctx *gin.Context) {
 	})
 }
 
+// @Summary Get entry document
+// @Description Get document properties of an entry
+// @Tags Entries
+// @Accept json
+// @Produce json
+// @Param uri query string false "Entry URI"
+// @Param id query string false "Entry ID"
+// @Success 200 {object} DocumentPropertyResponse
+// @Router /api/v1/entries/document [get]
 func (s *ServicesV1) EntryDocument(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -529,6 +609,15 @@ func (s *ServicesV1) EntryDocument(ctx *gin.Context) {
 	})
 }
 
+// @Summary Delete entry
+// @Description Delete an entry by URI or ID
+// @Tags Entries
+// @Accept json
+// @Produce json
+// @Param uri query string false "Entry URI"
+// @Param id query string false "Entry ID"
+// @Success 200 {object} EntryResponse
+// @Router /api/v1/entries [delete]
 func (s *ServicesV1) EntryDelete(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -558,6 +647,16 @@ func (s *ServicesV1) EntryDelete(ctx *gin.Context) {
 	})
 }
 
+// @Summary Update entry property
+// @Description Update properties and tags of an entry
+// @Tags Entries
+// @Accept json
+// @Produce json
+// @Param request body UpdatePropertyRequest true "Update property request"
+// @Param uri query string false "Entry URI"
+// @Param id query string false "Entry ID"
+// @Success 200 {object} PropertyResponse
+// @Router /api/v1/entries/property [put]
 func (s *ServicesV1) UpdateProperty(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -599,6 +698,16 @@ func (s *ServicesV1) UpdateProperty(ctx *gin.Context) {
 	})
 }
 
+// @Summary Update document property
+// @Description Update document properties (unread, marked) of an entry
+// @Tags Entries
+// @Accept json
+// @Produce json
+// @Param request body UpdateDocumentPropertyRequest true "Update document request"
+// @Param uri query string false "Entry URI"
+// @Param id query string false "Entry ID"
+// @Success 200 {object} DocumentPropertyResponse
+// @Router /api/v1/entries/document [put]
 func (s *ServicesV1) UpdateDocumentProperty(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
