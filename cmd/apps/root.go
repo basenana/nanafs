@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
+	"github.com/basenana/nanafs/cmd/apps/apis/rest/common"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/workflow"

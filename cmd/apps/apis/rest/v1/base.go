@@ -18,15 +18,13 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"sort"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/basenana/nanafs/cmd/apps/apis/apitool"
 	"github.com/basenana/nanafs/cmd/apps/apis/rest/common"
@@ -156,7 +154,7 @@ func (s *ServicesV1) getEntryByPath(ctx context.Context, namespace, uri string) 
 	}
 	par, e, err := s.core.GetEntryByPath(ctx, namespace, uri)
 	if err != nil {
-		return 0, 0, status.Error(codes.Unknown, "get entry failed: "+err.Error())
+		return 0, 0, errors.New("get entry failed: " + err.Error())
 	}
 	var pid, eid int64
 	if par != nil {
@@ -172,7 +170,7 @@ func (s *ServicesV1) getEntryByPath(ctx context.Context, namespace, uri string) 
 func (s *ServicesV1) deleteEntry(ctx context.Context, namespace string, uid, parentID, entryID int64, name string) (*types.Entry, error) {
 	en, err := s.core.GetEntry(ctx, namespace, entryID)
 	if err != nil {
-		return nil, status.Error(codes.Unknown, "query entry failed")
+		return nil, errors.New("query entry failed")
 	}
 
 	err = core.HasAllPermissions(en.Access, uid, 0, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
@@ -182,7 +180,7 @@ func (s *ServicesV1) deleteEntry(ctx context.Context, namespace string, uid, par
 
 	parent, err := s.core.GetEntry(ctx, namespace, parentID)
 	if err != nil {
-		return nil, status.Error(codes.Unknown, "query entry parent failed")
+		return nil, errors.New("query entry parent failed")
 	}
 	err = core.HasAllPermissions(parent.Access, uid, 0, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
 	if err != nil {

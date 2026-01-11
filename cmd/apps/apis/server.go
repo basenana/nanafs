@@ -22,7 +22,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/basenana/nanafs/cmd/apps/apis/fsapi/common"
 	"github.com/basenana/nanafs/cmd/apps/apis/rest"
 	restcommon "github.com/basenana/nanafs/cmd/apps/apis/rest/common"
 	"github.com/basenana/nanafs/cmd/apps/apis/webdav"
@@ -105,7 +104,7 @@ func RunWebdav(fs *core.FileSystem, cfg config.Webdav, stopCh chan struct{}) err
 	return nil
 }
 
-func RunFSAPI(depends *common.Depends, cfg config.Config, stopCh chan struct{}) error {
+func RunFSAPI(depends *restcommon.Depends, cfg config.Config, stopCh chan struct{}) error {
 	restDepends := &restcommon.Depends{
 		Meta:       depends.Meta,
 		Workflow:   depends.Workflow,
