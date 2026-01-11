@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path"
 	"testing"
 	"time"
 
@@ -250,6 +251,7 @@ var _ = BeforeSuite(func() {
 		FS:        &config.FS{Owner: config.FSOwner{Uid: 0, Gid: 0}, Writeback: false},
 		Meta:      config.Meta{Type: metastore.MemoryMeta},
 		Storages:  []config.Storage{{ID: "test-memory-0", Type: storage.MemoryStorage}},
+		Workflow:  config.Workflow{JobWorkdir: path.Join(workdir, "job-workdir")},
 		CacheDir:  workdir,
 		CacheSize: 0,
 	}

@@ -17,13 +17,14 @@
 package fuse
 
 import (
+	"os"
+	"testing"
+
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"os"
-	"testing"
 
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/metastore"

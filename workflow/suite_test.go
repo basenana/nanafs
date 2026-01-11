@@ -55,7 +55,6 @@ var (
 			ID:   storage.MemoryStorage,
 			Type: storage.MemoryStorage,
 		}},
-		Workflow: config.Workflow{},
 	}
 )
 
