@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -81,7 +82,7 @@ func (s *ServicesV1) requireCaller(ctx *gin.Context) *common.CallerInfo {
 
 // requireEntryWithPermission gets entry by uri or id query parameter and checks permissions.
 func (s *ServicesV1) requireEntryWithPermission(ctx *gin.Context, caller *common.CallerInfo, perms ...types.Permission) (*types.Entry, string) {
-	uri := ctx.Query("uri")
+	uri := decodeMagicURI(ctx.Query("uri"))
 	idStr := ctx.Query("id")
 
 	var en *types.Entry
@@ -316,4 +317,10 @@ func (s *ServicesV1) Config() config.Config {
 
 func (s *ServicesV1) Logger() *zap.SugaredLogger {
 	return s.logger
+}
+
+func decodeMagicURI(uri string) string {
+	// URLQueryItem does not encode + (it has special meaning in query strings).
+	// We manually encode + to %2B, and let the backend handle other encodings.
+	return strings.ReplaceAll(uri, "%2B", "+")
 }

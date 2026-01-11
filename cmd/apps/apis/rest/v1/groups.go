@@ -127,7 +127,7 @@ func (s *ServicesV1) ListGroupChildren(ctx *gin.Context) {
 		return
 	}
 
-	uri := ctx.Query("uri")
+	uri := decodeMagicURI(ctx.Query("uri"))
 	_, parentID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, uri)
 	if err != nil {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)

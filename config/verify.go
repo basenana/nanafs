@@ -19,6 +19,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path"
 	"regexp"
 )
 
@@ -36,12 +37,18 @@ var verifiers = []verifier{
 	checkStorageConfigs,
 	checkGlobalEncryptionConfig,
 	checkLocalCache,
+	checkWorkflow,
 }
 
 func setDefaultValue(config *Bootstrap) error {
 	if config.FS == nil {
 		config.FS = defaultFsConfig()
 	}
+
+	if config.Workflow.JobWorkdir == "" {
+		config.Workflow.JobWorkdir = os.TempDir()
+	}
+
 	return nil
 }
 
@@ -203,6 +210,14 @@ func checkLocalCache(config *Bootstrap) error {
 	}
 	if config.CacheSize < 0 {
 		config.CacheSize = 0
+	}
+	return nil
+}
+
+func checkWorkflow(config *Bootstrap) error {
+	jwd := config.Workflow.JobWorkdir
+	if jwd != "" && !path.IsAbs(jwd) {
+		return fmt.Errorf("workflow job_workdir must be an absolute path")
 	}
 	return nil
 }

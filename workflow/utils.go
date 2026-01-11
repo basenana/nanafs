@@ -68,7 +68,7 @@ func assembleWorkflowJob(wf *types.Workflow, tgt types.WorkflowTarget, attr JobA
 
 func initWorkflowJobRootWorkdir(jobWorkdir string) error {
 	if jobWorkdir == "" {
-		jobWorkdir = os.TempDir()
+		return fmt.Errorf("empty job workdir")
 	}
 	sts, err := os.Stat(jobWorkdir)
 	if err == nil {
