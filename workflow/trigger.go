@@ -208,9 +208,11 @@ func (h *triggers) handleEntryCreate(evt *types.Event) {
 		return
 	}
 
+	// only hold lock when accessing h.workflows
 	h.mux.Lock()
-	defer h.mux.Unlock()
 	nsTriggers := h.workflows[evt.Namespace]
+	h.mux.Unlock()
+
 	if len(nsTriggers) == 0 {
 		return
 	}
@@ -220,6 +222,26 @@ func (h *triggers) handleEntryCreate(evt *types.Event) {
 	entry, err := h.core.GetEntry(ctx, evt.Namespace, evt.RefID)
 	if err != nil {
 		h.logger.Errorw("[handleEntryCreate] get entry failed", "entry", evt.RefID, "err", err)
+		return
+	}
+
+	// if entry is a Group, skip localFileWatch matching
+	if types.IsGroup(entry.Kind) {
+		gp := &types.GroupProperties{}
+		err = h.meta.GetEntryProperties(ctx, evt.Namespace, types.PropertyTypeGroupAttr, entry.ID, gp)
+		if err != nil {
+			h.logger.Errorw("[handleEntryCreate] get group attr failed", "entry", entry.ID, "err", err)
+			return
+		}
+
+		// if it's an RSS Group, trigger RSS workflows immediately
+		if gp.Source == "rss" {
+			for wfID, trg := range nsTriggers {
+				if trg.rss != nil {
+					h.triggerRSSWorkflowForGroup(ctx, evt.Namespace, entry, gp, wfID)
+				}
+			}
+		}
 		return
 	}
 
@@ -253,6 +275,23 @@ func (h *triggers) handleEntryCreate(evt *types.Event) {
 
 // MARK: interval trigger
 
+func (h *triggers) triggerRSSWorkflowForGroup(ctx context.Context, namespace string, en *types.Entry, gp *types.GroupProperties, wfID string) {
+	if gp.RSS == nil || gp.RSS.Feed == "" {
+		h.logger.Warnw("empty rss group attr", "workflow", wfID, "entry", en.ID)
+		return
+	}
+
+	uri, err := core.ProbableEntryPath(ctx, h.core, en)
+	if err != nil {
+		h.logger.Errorw("fetch rss group uri failed", "workflow", wfID, "err", err)
+		return
+	}
+	params := map[string]string{
+		"feed": gp.RSS.Feed,
+	}
+	h.triggerWorkflow(ctx, namespace, wfID, types.WorkflowTarget{Entries: []string{uri}}, JobAttr{Parameters: params, Reason: "rss group created"})
+}
+
 func (h *triggers) runRSSWorkflow(ctx context.Context, namespace, workflowID string, rss *types.WorkflowRssTrigger) {
 	it, err := h.meta.FilterEntries(ctx, namespace, types.Filter{CELPattern: `group.source == "rss"`})
 	if err != nil {
@@ -274,20 +313,7 @@ func (h *triggers) runRSSWorkflow(ctx context.Context, namespace, workflowID str
 			continue
 		}
 
-		if gp.RSS == nil || gp.RSS.Feed == "" {
-			h.logger.Warnw("empty rss group attr", "workflow", workflowID, "entry", en.ID)
-			continue
-		}
-
-		uri, err := core.ProbableEntryPath(ctx, h.core, en)
-		if err != nil {
-			h.logger.Errorw("fetch rss group uri failed", "workflow", workflowID, "err", err)
-			continue
-		}
-		params := map[string]string{
-			"feed": gp.RSS.Feed,
-		}
-		h.triggerWorkflow(ctx, namespace, workflowID, types.WorkflowTarget{Entries: []string{uri}}, JobAttr{Parameters: params, Reason: "cron rss"})
+		h.triggerRSSWorkflowForGroup(ctx, namespace, en, gp, workflowID)
 	}
 }
 
