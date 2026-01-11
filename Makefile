@@ -48,9 +48,12 @@ check:
 	@go vet ./...
 lint:
 	golangci-lint run --enable-all
+swag:
+	swag init -g cmd/apps/apis/rest/v1/router.go -o cmd/apps/apis/rest/docs
 help:
 	@echo "make build - build multi arch binary"
 	@echo "make clean - clean workspace"
 	@echo "make test  - run all testcase"
 	@echo "make check - go format and vet"
 	@echo "make lint  - golint"
+	@echo "make swag  - generate swagger docs"

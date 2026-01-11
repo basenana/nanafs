@@ -25,7 +25,14 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 )
 
-// ListMessages retrieves notifications/messages
+// @Summary List messages
+// @Description Retrieve notifications/messages for the current user
+// @Tags Messages
+// @Accept json
+// @Produce json
+// @Param all query bool false "Include all messages (including read)"
+// @Success 200 {object} ListMessagesResponse
+// @Router /api/v1/messages [get]
 func (s *ServicesV1) ListMessages(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -60,7 +67,14 @@ func (s *ServicesV1) ListMessages(ctx *gin.Context) {
 	apitool.JsonResponse(ctx, http.StatusOK, &ListMessagesResponse{Messages: result})
 }
 
-// ReadMessages marks messages as read
+// @Summary Read messages
+// @Description Mark messages as read
+// @Tags Messages
+// @Accept json
+// @Produce json
+// @Param request body ReadMessagesRequest true "Read messages request"
+// @Success 200 {object} ReadMessagesResponse
+// @Router /api/v1/messages/read [post]
 func (s *ServicesV1) ReadMessages(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {

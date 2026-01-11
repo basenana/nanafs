@@ -68,11 +68,11 @@ type ListGroupChildrenRequest struct {
 
 // FilterEntryRequest 过滤条目请求
 type FilterEntryRequest struct {
-	CELPattern string `json:"cel_pattern" binding:"required"`
-	Page       int64  `json:"page"`
-	PageSize   int64  `json:"page_size"`
-	Sort       string `json:"sort"`
-	Order      string `json:"order"`
+	CELPattern string `json:"cel_pattern" binding:"required"` // CEL pattern for filtering
+	Page       int64  `json:"page"`                           // Page number
+	PageSize   int64  `json:"page_size"`                      // Page size
+	Sort       string `json:"sort"`                           // Sort field
+	Order      string `json:"order"`                          // Order direction (asc/desc)
 }
 
 // UpdatePropertyRequest 更新属性请求
