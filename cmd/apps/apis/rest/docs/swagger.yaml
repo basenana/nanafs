@@ -1,0 +1,1387 @@
+basePath: /api/v1
+definitions:
+  cmd_apps_apis_rest_v1.ChangeParentRequest:
+    properties:
+      entry_uri:
+        type: string
+      exchange:
+        type: boolean
+      new_entry_uri:
+        type: string
+      replace:
+        type: boolean
+    required:
+    - entry_uri
+    - new_entry_uri
+    type: object
+  cmd_apps_apis_rest_v1.CreateEntryRequest:
+    properties:
+      filter:
+        $ref: '#/definitions/v1.FilterConfig'
+      kind:
+        type: string
+      rss:
+        $ref: '#/definitions/v1.RssConfig'
+      uri:
+        type: string
+    required:
+    - uri
+    type: object
+  cmd_apps_apis_rest_v1.DeleteEntriesRequest:
+    properties:
+      uri_list:
+        items:
+          type: string
+        type: array
+    required:
+    - uri_list
+    type: object
+  cmd_apps_apis_rest_v1.DeleteEntriesResponse:
+    properties:
+      deleted:
+        items:
+          type: string
+        type: array
+      message:
+        type: string
+    type: object
+  cmd_apps_apis_rest_v1.DocumentProperty:
+    properties:
+      abstract:
+        type: string
+      author:
+        type: string
+      header_image:
+        type: string
+      keywords:
+        items:
+          type: string
+        type: array
+      marked:
+        type: boolean
+      notes:
+        type: string
+      publish_at:
+        type: string
+      source:
+        type: string
+      title:
+        type: string
+      unread:
+        type: boolean
+      url:
+        type: string
+      year:
+        type: string
+    type: object
+  cmd_apps_apis_rest_v1.EntryDetail:
+    properties:
+      access:
+        $ref: '#/definitions/v1.Access'
+      access_at:
+        type: string
+      aliases:
+        type: string
+      changed_at:
+        type: string
+      created_at:
+        type: string
+      document:
+        $ref: '#/definitions/cmd_apps_apis_rest_v1.DocumentProperty'
+      entry:
+        type: integer
+      is_group:
+        type: boolean
+      kind:
+        type: string
+      modified_at:
+        type: string
+      name:
+        type: string
+      namespace:
+        type: string
+      property:
+        $ref: '#/definitions/cmd_apps_apis_rest_v1.Property'
+      size:
+        type: integer
+      storage:
+        type: string
+      uri:
+        type: string
+      version:
+        type: integer
+    type: object
+  cmd_apps_apis_rest_v1.EntryInfo:
+    properties:
+      access_at:
+        type: string
+      changed_at:
+        type: string
+      created_at:
+        type: string
+      document:
+        $ref: '#/definitions/cmd_apps_apis_rest_v1.DocumentProperty'
+      entry:
+        type: integer
+      is_group:
+        type: boolean
+      kind:
+        type: string
+      modified_at:
+        type: string
+      name:
+        type: string
+      size:
+        type: integer
+      uri:
+        type: string
+    type: object
+  cmd_apps_apis_rest_v1.FilterEntryRequest:
+    properties:
+      cel_pattern:
+        type: string
+      page:
+        type: integer
+      page_size:
+        type: integer
+    required:
+    - cel_pattern
+    type: object
+  cmd_apps_apis_rest_v1.ListEntriesResponse:
+    properties:
+      entries:
+        items:
+          $ref: '#/definitions/cmd_apps_apis_rest_v1.EntryInfo'
+        type: array
+      pagination:
+        $ref: '#/definitions/v1.PaginationInfo'
+    type: object
+  cmd_apps_apis_rest_v1.ListMessagesResponse:
+    properties:
+      messages:
+        items:
+          $ref: '#/definitions/cmd_apps_apis_rest_v1.Message'
+        type: array
+    type: object
+  cmd_apps_apis_rest_v1.ListWorkflowJobsResponse:
+    properties:
+      jobs:
+        items:
+          $ref: '#/definitions/cmd_apps_apis_rest_v1.WorkflowJobDetail'
+        type: array
+    type: object
+  cmd_apps_apis_rest_v1.ListWorkflowsResponse:
+    properties:
+      workflows:
+        items:
+          $ref: '#/definitions/cmd_apps_apis_rest_v1.WorkflowInfo'
+        type: array
+    type: object
+  cmd_apps_apis_rest_v1.Message:
+    properties:
+      action:
+        type: string
+      id:
+        type: string
+      message:
+        type: string
+      source:
+        type: string
+      status:
+        type: string
+      time:
+        type: string
+      title:
+        type: string
+      type:
+        type: string
+    type: object
+  cmd_apps_apis_rest_v1.Property:
+    properties:
+      properties:
+        additionalProperties:
+          type: string
+        type: object
+      tags:
+        items:
+          type: string
+        type: array
+    type: object
+  cmd_apps_apis_rest_v1.ReadMessagesRequest:
+    properties:
+      message_id_list:
+        items:
+          type: string
+        type: array
+    required:
+    - message_id_list
+    type: object
+  cmd_apps_apis_rest_v1.ReadMessagesResponse:
+    properties:
+      success:
+        type: boolean
+    type: object
+  cmd_apps_apis_rest_v1.TriggerWorkflowRequest:
+    properties:
+      reason:
+        type: string
+      timeout:
+        type: integer
+      uri:
+        type: string
+    type: object
+  cmd_apps_apis_rest_v1.TriggerWorkflowResponse:
+    properties:
+      job_id:
+        type: string
+    type: object
+  cmd_apps_apis_rest_v1.UpdateDocumentPropertyRequest:
+    properties:
+      marked:
+        type: boolean
+      unread:
+        type: boolean
+    type: object
+  cmd_apps_apis_rest_v1.UpdateEntryRequest:
+    properties:
+      aliases:
+        type: string
+    type: object
+  cmd_apps_apis_rest_v1.UpdatePropertyRequest:
+    properties:
+      properties:
+        additionalProperties:
+          type: string
+        type: object
+      tags:
+        items:
+          type: string
+        type: array
+    type: object
+  cmd_apps_apis_rest_v1.WorkflowInfo:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      last_triggered_at:
+        type: string
+      name:
+        type: string
+      queue_name:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  cmd_apps_apis_rest_v1.WorkflowJobDetail:
+    properties:
+      created_at:
+        type: string
+      finish_at:
+        type: string
+      id:
+        type: string
+      message:
+        type: string
+      queue_name:
+        type: string
+      start_at:
+        type: string
+      status:
+        type: string
+      steps:
+        items:
+          $ref: '#/definitions/v1.WorkflowJobStep'
+        type: array
+      target:
+        $ref: '#/definitions/v1.WorkflowJobTarget'
+      trigger_reason:
+        type: string
+      updated_at:
+        type: string
+      workflow:
+        type: string
+    type: object
+  cmd_apps_apis_rest_v1.WriteFileResponse:
+    properties:
+      len:
+        type: integer
+    type: object
+  types.ConfigItem:
+    properties:
+      changed_at:
+        type: string
+      group:
+        type: string
+      name:
+        type: string
+      value:
+        type: string
+    type: object
+  types.WorkflowLocalFileWatch:
+    properties:
+      cel_pattern:
+        type: string
+      directory:
+        type: string
+      event:
+        type: string
+      file_pattern:
+        type: string
+      file_types:
+        type: string
+      max_file_size:
+        type: integer
+      min_file_size:
+        type: integer
+    type: object
+  types.WorkflowNode:
+    properties:
+      branches:
+        additionalProperties:
+          type: string
+        type: object
+      cases:
+        description: switch
+        items:
+          $ref: '#/definitions/types.WorkflowNodeCase'
+        type: array
+      condition:
+        description: if
+        type: string
+      default:
+        type: string
+      input:
+        additionalProperties: {}
+        type: object
+      matrix:
+        allOf:
+        - $ref: '#/definitions/types.WorkflowNodeMatrix'
+        description: loop
+      name:
+        type: string
+      next:
+        type: string
+      params:
+        additionalProperties:
+          type: string
+        type: object
+      type:
+        type: string
+    type: object
+  types.WorkflowNodeCase:
+    properties:
+      next:
+        type: string
+      value:
+        type: string
+    type: object
+  types.WorkflowNodeMatrix:
+    properties:
+      data:
+        additionalProperties: {}
+        description: |-
+          Data defines variable mappings for matrix iteration
+          Key is variable name, value is template reference to context data
+          Example: {"file_path": "{{ new_webpage.file_paths }}"}
+        type: object
+    type: object
+  types.WorkflowRssTrigger:
+    type: object
+  types.WorkflowTrigger:
+    properties:
+      interval:
+        type: integer
+      local_file_watch:
+        $ref: '#/definitions/types.WorkflowLocalFileWatch'
+      rss:
+        $ref: '#/definitions/types.WorkflowRssTrigger'
+    type: object
+  v1.Access:
+    properties:
+      gid:
+        type: integer
+      permissions:
+        items:
+          type: string
+        type: array
+      uid:
+        type: integer
+    type: object
+  v1.ConfigResponse:
+    properties:
+      group:
+        type: string
+      name:
+        type: string
+      value:
+        type: string
+    type: object
+  v1.CreateWorkflowRequest:
+    properties:
+      enable:
+        type: boolean
+      name:
+        type: string
+      nodes:
+        items:
+          $ref: '#/definitions/types.WorkflowNode'
+        type: array
+      queue_name:
+        type: string
+      trigger:
+        $ref: '#/definitions/types.WorkflowTrigger'
+    required:
+    - name
+    type: object
+  v1.CreateWorkflowResponse:
+    properties:
+      workflow:
+        $ref: '#/definitions/cmd_apps_apis_rest_v1.WorkflowInfo'
+    type: object
+  v1.DeleteConfigResponse:
+    properties:
+      deleted:
+        type: boolean
+      group:
+        type: string
+      name:
+        type: string
+    type: object
+  v1.DocumentPropertyResponse:
+    properties:
+      properties:
+        $ref: '#/definitions/cmd_apps_apis_rest_v1.DocumentProperty'
+    type: object
+  v1.EntryDetailResponse:
+    properties:
+      entry:
+        $ref: '#/definitions/cmd_apps_apis_rest_v1.EntryDetail'
+    type: object
+  v1.EntryResponse:
+    properties:
+      entry:
+        $ref: '#/definitions/cmd_apps_apis_rest_v1.EntryInfo'
+    type: object
+  v1.FilterConfig:
+    properties:
+      cel_pattern:
+        type: string
+    type: object
+  v1.GroupEntry:
+    properties:
+      children:
+        items:
+          $ref: '#/definitions/v1.GroupEntry'
+        type: array
+      name:
+        type: string
+      uri:
+        type: string
+    type: object
+  v1.GroupTreeResponse:
+    properties:
+      root:
+        $ref: '#/definitions/v1.GroupEntry'
+    type: object
+  v1.ListConfigResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/types.ConfigItem'
+        type: array
+    type: object
+  v1.MessageResponse:
+    properties:
+      message:
+        type: string
+    type: object
+  v1.PaginationInfo:
+    properties:
+      page:
+        type: integer
+      page_size:
+        type: integer
+    type: object
+  v1.PropertyResponse:
+    properties:
+      properties:
+        $ref: '#/definitions/cmd_apps_apis_rest_v1.Property'
+    type: object
+  v1.RssConfig:
+    properties:
+      feed:
+        type: string
+      file_type:
+        type: string
+      site_name:
+        type: string
+      site_url:
+        type: string
+    type: object
+  v1.SetConfigRequest:
+    properties:
+      value:
+        type: string
+    required:
+    - value
+    type: object
+  v1.SetConfigResponse:
+    properties:
+      group:
+        type: string
+      name:
+        type: string
+      value:
+        type: string
+    type: object
+  v1.UpdateWorkflowRequest:
+    properties:
+      enable:
+        type: boolean
+      name:
+        type: string
+      nodes:
+        items:
+          $ref: '#/definitions/types.WorkflowNode'
+        type: array
+      queue_name:
+        type: string
+      trigger:
+        $ref: '#/definitions/types.WorkflowTrigger'
+    type: object
+  v1.WorkflowJobResponse:
+    properties:
+      job:
+        $ref: '#/definitions/cmd_apps_apis_rest_v1.WorkflowJobDetail'
+    type: object
+  v1.WorkflowJobStep:
+    properties:
+      message:
+        type: string
+      name:
+        type: string
+      status:
+        type: string
+    type: object
+  v1.WorkflowJobTarget:
+    properties:
+      entries:
+        items:
+          type: string
+        type: array
+    type: object
+  v1.WorkflowResponse:
+    properties:
+      workflow:
+        $ref: '#/definitions/cmd_apps_apis_rest_v1.WorkflowInfo'
+    type: object
+host: localhost:7081
+info:
+  contact: {}
+  description: NanaFS is a Reference Filing System API
+  title: NanaFS API
+  version: "1.0"
+paths:
+  /api/v1/configs/{group}:
+    get:
+      consumes:
+      - application/json
+      description: List all configuration values in a group
+      parameters:
+      - description: Config group
+        in: path
+        name: group
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/v1.ListConfigResponse'
+      summary: List configs
+      tags:
+      - Configs
+  /api/v1/configs/{group}/{name}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a configuration value
+      parameters:
+      - description: Config group
+        in: path
+        name: group
+        required: true
+        type: string
+      - description: Config name
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/v1.DeleteConfigResponse'
+      summary: Delete config
+      tags:
+      - Configs
+    get:
+      consumes:
+      - application/json
+      description: Retrieve a configuration value by group and name
+      parameters:
+      - description: Config group
+        in: path
+        name: group
+        required: true
+        type: string
+      - description: Config name
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/v1.ConfigResponse'
+      summary: Get config
+      tags:
+      - Configs
+    put:
+      consumes:
+      - application/json
+      description: Set a configuration value
+      parameters:
+      - description: Config group
+        in: path
+        name: group
+        required: true
+        type: string
+      - description: Config name
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: Set config request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/v1.SetConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/v1.SetConfigResponse'
+      summary: Set config
+      tags:
+      - Configs
+  /api/v1/entries:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an entry by URI or ID
+      parameters:
+      - description: Entry URI
+        in: query
+        name: uri
+        type: string
+      - description: Entry ID
+        in: query
+        name: id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/v1.EntryResponse'
+      summary: Delete entry
+      tags:
+      - Entries
+    get:
+      consumes:
+      - application/json
+      description: List all children entries of a directory
+      parameters:
+      - description: Entry URI
+        in: query
+        name: uri
+        type: string
+      - description: Entry ID
+        in: query
+        name: id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/cmd_apps_apis_rest_v1.ListEntriesResponse'
+      summary: List entry children
+      tags:
+      - Entries
+    post:
+      consumes:
+      - application/json
+      description: Create a new entry with specified URI, kind and optional configuration
+      parameters:
+      - description: Entry creation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/cmd_apps_apis_rest_v1.CreateEntryRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/v1.EntryResponse'
+      summary: Create a new entry
+      tags:
+      - Entries
+    put:
+      consumes:
+      - application/json
+      description: Update an existing entry's aliases
+      parameters:
+      - description: Update entry request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/cmd_apps_apis_rest_v1.UpdateEntryRequest'
+      - description: Entry URI
+        in: query
+        name: uri
+        type: string
+      - description: Entry ID
+        in: query
+        name: id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/v1.EntryDetailResponse'
+      summary: Update entry
+      tags:
+      - Entries
+  /api/v1/entries/batch-delete:
+    post:
+      consumes:
+      - application/json
+      description: Batch delete multiple entries by URI list
+      parameters:
+      - description: Delete entries request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/cmd_apps_apis_rest_v1.DeleteEntriesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/cmd_apps_apis_rest_v1.DeleteEntriesResponse'
+      summary: Delete entries
+      tags:
+      - Entries
+  /api/v1/entries/details:
+    get:
+      consumes:
+      - application/json
+      description: Get detailed information of an entry by URI or ID
+      parameters:
+      - description: Entry URI
+        in: query
+        name: uri
+        type: string
+      - description: Entry ID
+        in: query
+        name: id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/v1.EntryDetailResponse'
+      summary: Get entry details
+      tags:
+      - Entries
+  /api/v1/entries/document:
+    get:
+      consumes:
+      - application/json
+      description: Get document properties of an entry
+      parameters:
+      - description: Entry URI
+        in: query
+        name: uri
+        type: string
+      - description: Entry ID
+        in: query
+        name: id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/v1.DocumentPropertyResponse'
+      summary: Get entry document
+      tags:
+      - Entries
+    put:
+      consumes:
+      - application/json
+      description: Update document properties (unread, marked) of an entry
+      parameters:
+      - description: Update document request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/cmd_apps_apis_rest_v1.UpdateDocumentPropertyRequest'
+      - description: Entry URI
+        in: query
+        name: uri
+        type: string
+      - description: Entry ID
+        in: query
+        name: id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/v1.DocumentPropertyResponse'
+      summary: Update document property
+      tags:
+      - Entries
+  /api/v1/entries/parent:
+    put:
+      consumes:
+      - application/json
+      description: Move an entry to a new parent directory
+      parameters:
+      - description: Change parent request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/cmd_apps_apis_rest_v1.ChangeParentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/v1.EntryResponse'
+      summary: Change entry parent
+      tags:
+      - Entries
+  /api/v1/entries/property:
+    get:
+      consumes:
+      - application/json
+      description: Get properties and tags of an entry
+      parameters:
+      - description: Entry URI
+        in: query
+        name: uri
+        type: string
+      - description: Entry ID
+        in: query
+        name: id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/v1.PropertyResponse'
+      summary: Get entry property
+      tags:
+      - Entries
+    put:
+      consumes:
+      - application/json
+      description: Update properties and tags of an entry
+      parameters:
+      - description: Update property request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/cmd_apps_apis_rest_v1.UpdatePropertyRequest'
+      - description: Entry URI
+        in: query
+        name: uri
+        type: string
+      - description: Entry ID
+        in: query
+        name: id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/v1.PropertyResponse'
+      summary: Update entry property
+      tags:
+      - Entries
+  /api/v1/entries/search:
+    post:
+      consumes:
+      - application/json
+      description: Filter entries using CEL pattern matching
+      parameters:
+      - description: Filter entry request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/cmd_apps_apis_rest_v1.FilterEntryRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/cmd_apps_apis_rest_v1.ListEntriesResponse'
+      summary: Filter entries
+      tags:
+      - Entries
+  /api/v1/files/content:
+    get:
+      consumes:
+      - application/json
+      description: Read file content
+      parameters:
+      - description: File URI
+        in: query
+        name: uri
+        type: string
+      - description: File ID
+        in: query
+        name: id
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: File content
+          schema:
+            type: string
+      summary: Read file
+      tags:
+      - Files
+    post:
+      consumes:
+      - multipart/form-data
+      description: Write file content via multipart upload
+      parameters:
+      - description: File URI
+        in: query
+        name: uri
+        type: string
+      - description: File ID
+        in: query
+        name: id
+        type: string
+      - description: File content
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/cmd_apps_apis_rest_v1.WriteFileResponse'
+      summary: Write file
+      tags:
+      - Files
+  /api/v1/groups/children:
+    get:
+      consumes:
+      - application/json
+      description: List children entries of a group with pagination
+      parameters:
+      - description: Group URI
+        in: query
+        name: uri
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: page_size
+        type: integer
+      - description: Order field
+        in: query
+        name: order
+        type: string
+      - description: Sort descending
+        in: query
+        name: desc
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/cmd_apps_apis_rest_v1.ListEntriesResponse'
+      summary: List group children
+      tags:
+      - Groups
+  /api/v1/groups/tree:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve the complete group tree structure
+      parameters:
+      - description: Group URI
+        in: query
+        name: uri
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/v1.GroupTreeResponse'
+      summary: Get group tree
+      tags:
+      - Groups
+  /api/v1/messages:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve notifications/messages for the current user
+      parameters:
+      - description: Include all messages (including read)
+        in: query
+        name: all
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/cmd_apps_apis_rest_v1.ListMessagesResponse'
+      summary: List messages
+      tags:
+      - Messages
+  /api/v1/messages/read:
+    post:
+      consumes:
+      - application/json
+      description: Mark messages as read
+      parameters:
+      - description: Read messages request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/cmd_apps_apis_rest_v1.ReadMessagesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/cmd_apps_apis_rest_v1.ReadMessagesResponse'
+      summary: Read messages
+      tags:
+      - Messages
+  /api/v1/workflows:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve all available workflows
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/cmd_apps_apis_rest_v1.ListWorkflowsResponse'
+      summary: List workflows
+      tags:
+      - Workflows
+    post:
+      consumes:
+      - application/json
+      description: Create a new workflow
+      parameters:
+      - description: Create workflow request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/v1.CreateWorkflowRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/v1.CreateWorkflowResponse'
+      summary: Create workflow
+      tags:
+      - Workflows
+  /api/v1/workflows/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a workflow by ID
+      parameters:
+      - description: Workflow ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/v1.MessageResponse'
+      summary: Delete workflow
+      tags:
+      - Workflows
+    get:
+      consumes:
+      - application/json
+      description: Retrieve a specific workflow by ID
+      parameters:
+      - description: Workflow ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/v1.WorkflowResponse'
+      summary: Get workflow
+      tags:
+      - Workflows
+    put:
+      consumes:
+      - application/json
+      description: Update an existing workflow
+      parameters:
+      - description: Workflow ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update workflow request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/v1.UpdateWorkflowRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/v1.WorkflowResponse'
+      summary: Update workflow
+      tags:
+      - Workflows
+  /api/v1/workflows/{id}/jobs:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve all jobs for a specific workflow
+      parameters:
+      - description: Workflow ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/cmd_apps_apis_rest_v1.ListWorkflowJobsResponse'
+      summary: List workflow jobs
+      tags:
+      - Workflows
+  /api/v1/workflows/{id}/jobs/{jobId}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve a specific job by workflow ID and job ID
+      parameters:
+      - description: Workflow ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Job ID
+        in: path
+        name: jobId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/v1.WorkflowJobResponse'
+      summary: Get workflow job
+      tags:
+      - Workflows
+  /api/v1/workflows/{id}/jobs/{jobId}/cancel:
+    post:
+      consumes:
+      - application/json
+      description: Cancel a workflow job
+      parameters:
+      - description: Workflow ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Job ID
+        in: path
+        name: jobId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/v1.MessageResponse'
+      summary: Cancel job
+      tags:
+      - Workflows
+  /api/v1/workflows/{id}/jobs/{jobId}/pause:
+    post:
+      consumes:
+      - application/json
+      description: Pause a running workflow job
+      parameters:
+      - description: Workflow ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Job ID
+        in: path
+        name: jobId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/v1.MessageResponse'
+      summary: Pause job
+      tags:
+      - Workflows
+  /api/v1/workflows/{id}/jobs/{jobId}/resume:
+    post:
+      consumes:
+      - application/json
+      description: Resume a paused workflow job
+      parameters:
+      - description: Workflow ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Job ID
+        in: path
+        name: jobId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/v1.MessageResponse'
+      summary: Resume job
+      tags:
+      - Workflows
+  /api/v1/workflows/{id}/trigger:
+    post:
+      consumes:
+      - application/json
+      description: Manually trigger a workflow to run
+      parameters:
+      - description: Workflow ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Trigger workflow request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/cmd_apps_apis_rest_v1.TriggerWorkflowRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/cmd_apps_apis_rest_v1.TriggerWorkflowResponse'
+      summary: Trigger workflow
+      tags:
+      - Workflows
+swagger: "2.0"

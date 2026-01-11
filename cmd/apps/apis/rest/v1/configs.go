@@ -24,7 +24,15 @@ import (
 	"github.com/basenana/nanafs/cmd/apps/apis/apitool"
 )
 
-// GetConfig retrieves a single config
+// @Summary Get config
+// @Description Retrieve a configuration value by group and name
+// @Tags Configs
+// @Accept json
+// @Produce json
+// @Param group path string true "Config group"
+// @Param name path string true "Config name"
+// @Success 200 {object} ConfigResponse
+// @Router /api/v1/configs/{group}/{name} [get]
 func (s *ServicesV1) GetConfig(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -47,7 +55,16 @@ func (s *ServicesV1) GetConfig(ctx *gin.Context) {
 	})
 }
 
-// SetConfig sets a config value
+// @Summary Set config
+// @Description Set a configuration value
+// @Tags Configs
+// @Accept json
+// @Produce json
+// @Param group path string true "Config group"
+// @Param name path string true "Config name"
+// @Param request body SetConfigRequest true "Set config request"
+// @Success 200 {object} SetConfigResponse
+// @Router /api/v1/configs/{group}/{name} [put]
 func (s *ServicesV1) SetConfig(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -75,7 +92,14 @@ func (s *ServicesV1) SetConfig(ctx *gin.Context) {
 	})
 }
 
-// ListConfig lists configs by group
+// @Summary List configs
+// @Description List all configuration values in a group
+// @Tags Configs
+// @Accept json
+// @Produce json
+// @Param group path string true "Config group"
+// @Success 200 {object} ListConfigResponse
+// @Router /api/v1/configs/{group} [get]
 func (s *ServicesV1) ListConfig(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -93,7 +117,15 @@ func (s *ServicesV1) ListConfig(ctx *gin.Context) {
 	apitool.JsonResponse(ctx, http.StatusOK, &ListConfigResponse{Items: items})
 }
 
-// DeleteConfig deletes a config
+// @Summary Delete config
+// @Description Delete a configuration value
+// @Tags Configs
+// @Accept json
+// @Produce json
+// @Param group path string true "Config group"
+// @Param name path string true "Config name"
+// @Success 200 {object} DeleteConfigResponse
+// @Router /api/v1/configs/{group}/{name} [delete]
 func (s *ServicesV1) DeleteConfig(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {

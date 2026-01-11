@@ -20,6 +20,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// @title NanaFS API
+// @version 1.0
+// @description NanaFS is a Reference Filing System API
+// @host localhost:7081
+// @BasePath /api/v1
 func RegisterRoutes(engine *gin.Engine, s *ServicesV1) {
 	v1 := engine.Group("/api/v1")
 	{

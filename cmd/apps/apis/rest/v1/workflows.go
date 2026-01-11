@@ -29,7 +29,13 @@ import (
 	"github.com/basenana/nanafs/workflow"
 )
 
-// ListWorkflows retrieves available workflows
+// @Summary List workflows
+// @Description Retrieve all available workflows
+// @Tags Workflows
+// @Accept json
+// @Produce json
+// @Success 200 {object} ListWorkflowsResponse
+// @Router /api/v1/workflows [get]
 func (s *ServicesV1) ListWorkflows(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -50,7 +56,14 @@ func (s *ServicesV1) ListWorkflows(ctx *gin.Context) {
 	apitool.JsonResponse(ctx, http.StatusOK, &ListWorkflowsResponse{Workflows: workflows})
 }
 
-// ListWorkflowJobs retrieves jobs for a specific workflow
+// @Summary List workflow jobs
+// @Description Retrieve all jobs for a specific workflow
+// @Tags Workflows
+// @Accept json
+// @Produce json
+// @Param id path string true "Workflow ID"
+// @Success 200 {object} ListWorkflowJobsResponse
+// @Router /api/v1/workflows/{id}/jobs [get]
 func (s *ServicesV1) ListWorkflowJobs(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -77,7 +90,15 @@ func (s *ServicesV1) ListWorkflowJobs(ctx *gin.Context) {
 	apitool.JsonResponse(ctx, http.StatusOK, &ListWorkflowJobsResponse{Jobs: result})
 }
 
-// TriggerWorkflow triggers a workflow
+// @Summary Trigger workflow
+// @Description Manually trigger a workflow to run
+// @Tags Workflows
+// @Accept json
+// @Produce json
+// @Param id path string true "Workflow ID"
+// @Param request body TriggerWorkflowRequest true "Trigger workflow request"
+// @Success 200 {object} TriggerWorkflowResponse
+// @Router /api/v1/workflows/{id}/trigger [post]
 func (s *ServicesV1) TriggerWorkflow(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -119,7 +140,14 @@ func (s *ServicesV1) TriggerWorkflow(ctx *gin.Context) {
 	apitool.JsonResponse(ctx, http.StatusOK, &TriggerWorkflowResponse{JobID: job.Id})
 }
 
-// CreateWorkflow creates a new workflow
+// @Summary Create workflow
+// @Description Create a new workflow
+// @Tags Workflows
+// @Accept json
+// @Produce json
+// @Param request body CreateWorkflowRequest true "Create workflow request"
+// @Success 201 {object} CreateWorkflowResponse
+// @Router /api/v1/workflows [post]
 func (s *ServicesV1) CreateWorkflow(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -151,7 +179,14 @@ func (s *ServicesV1) CreateWorkflow(ctx *gin.Context) {
 	})
 }
 
-// GetWorkflow retrieves a specific workflow
+// @Summary Get workflow
+// @Description Retrieve a specific workflow by ID
+// @Tags Workflows
+// @Accept json
+// @Produce json
+// @Param id path string true "Workflow ID"
+// @Success 200 {object} WorkflowResponse
+// @Router /api/v1/workflows/{id} [get]
 func (s *ServicesV1) GetWorkflow(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -175,7 +210,15 @@ func (s *ServicesV1) GetWorkflow(ctx *gin.Context) {
 	})
 }
 
-// UpdateWorkflow updates an existing workflow
+// @Summary Update workflow
+// @Description Update an existing workflow
+// @Tags Workflows
+// @Accept json
+// @Produce json
+// @Param id path string true "Workflow ID"
+// @Param request body UpdateWorkflowRequest true "Update workflow request"
+// @Success 200 {object} WorkflowResponse
+// @Router /api/v1/workflows/{id} [put]
 func (s *ServicesV1) UpdateWorkflow(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -227,7 +270,14 @@ func (s *ServicesV1) UpdateWorkflow(ctx *gin.Context) {
 	})
 }
 
-// DeleteWorkflow deletes a workflow
+// @Summary Delete workflow
+// @Description Delete a workflow by ID
+// @Tags Workflows
+// @Accept json
+// @Produce json
+// @Param id path string true "Workflow ID"
+// @Success 200 {object} MessageResponse
+// @Router /api/v1/workflows/{id} [delete]
 func (s *ServicesV1) DeleteWorkflow(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -253,7 +303,15 @@ func (s *ServicesV1) DeleteWorkflow(ctx *gin.Context) {
 	apitool.JsonResponse(ctx, http.StatusOK, &MessageResponse{Message: "workflow deleted"})
 }
 
-// GetJob retrieves a specific job
+// @Summary Get workflow job
+// @Description Retrieve a specific job by workflow ID and job ID
+// @Tags Workflows
+// @Accept json
+// @Produce json
+// @Param id path string true "Workflow ID"
+// @Param jobId path string true "Job ID"
+// @Success 200 {object} WorkflowJobResponse
+// @Router /api/v1/workflows/{id}/jobs/{jobId} [get]
 func (s *ServicesV1) GetJob(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -278,7 +336,15 @@ func (s *ServicesV1) GetJob(ctx *gin.Context) {
 	})
 }
 
-// PauseJob pauses a running job
+// @Summary Pause job
+// @Description Pause a running workflow job
+// @Tags Workflows
+// @Accept json
+// @Produce json
+// @Param id path string true "Workflow ID"
+// @Param jobId path string true "Job ID"
+// @Success 200 {object} MessageResponse
+// @Router /api/v1/workflows/{id}/jobs/{jobId}/pause [post]
 func (s *ServicesV1) PauseJob(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -300,7 +366,15 @@ func (s *ServicesV1) PauseJob(ctx *gin.Context) {
 	apitool.JsonResponse(ctx, http.StatusOK, &MessageResponse{Message: "job paused"})
 }
 
-// ResumeJob resumes a paused job
+// @Summary Resume job
+// @Description Resume a paused workflow job
+// @Tags Workflows
+// @Accept json
+// @Produce json
+// @Param id path string true "Workflow ID"
+// @Param jobId path string true "Job ID"
+// @Success 200 {object} MessageResponse
+// @Router /api/v1/workflows/{id}/jobs/{jobId}/resume [post]
 func (s *ServicesV1) ResumeJob(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -322,7 +396,15 @@ func (s *ServicesV1) ResumeJob(ctx *gin.Context) {
 	apitool.JsonResponse(ctx, http.StatusOK, &MessageResponse{Message: "job resumed"})
 }
 
-// CancelJob cancels a job
+// @Summary Cancel job
+// @Description Cancel a workflow job
+// @Tags Workflows
+// @Accept json
+// @Produce json
+// @Param id path string true "Workflow ID"
+// @Param jobId path string true "Job ID"
+// @Success 200 {object} MessageResponse
+// @Router /api/v1/workflows/{id}/jobs/{jobId}/cancel [post]
 func (s *ServicesV1) CancelJob(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {

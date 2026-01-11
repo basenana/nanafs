@@ -27,7 +27,16 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 )
 
-// WriteFile writes file content via multipart upload
+// @Summary Write file
+// @Description Write file content via multipart upload
+// @Tags Files
+// @Accept multipart/form-data
+// @Produce json
+// @Param uri query string false "File URI"
+// @Param id query string false "File ID"
+// @Param file formData file true "File content"
+// @Success 200 {object} WriteFileResponse
+// @Router /api/v1/files/content [post]
 func (s *ServicesV1) WriteFile(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -85,7 +94,15 @@ func (s *ServicesV1) WriteFile(ctx *gin.Context) {
 	apitool.JsonResponse(ctx, http.StatusOK, &WriteFileResponse{Len: int64(len(data))})
 }
 
-// ReadFile reads file content
+// @Summary Read file
+// @Description Read file content
+// @Tags Files
+// @Accept json
+// @Produce octet-stream
+// @Param uri query string false "File URI"
+// @Param id query string false "File ID"
+// @Success 200 {string} binary "File content"
+// @Router /api/v1/files/content [get]
 func (s *ServicesV1) ReadFile(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
