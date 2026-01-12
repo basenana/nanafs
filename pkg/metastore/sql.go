@@ -365,6 +365,7 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, namespace string, parent
 			return res.Error
 		}
 
+		entryRef := *entryMod.RefCount
 		res = tx.Where("parent_id = ? AND child_id = ? AND name = ? AND namespace = ?", parentID, entryID, entryName, namespace).First(childRef)
 		if res.Error != nil {
 			if !errors.Is(res.Error, gorm.ErrRecordNotFound) {
@@ -388,12 +389,15 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, namespace string, parent
 			}
 
 			if entryChildCount > 0 {
-				s.logger.Infow("delete a not empty group", "entryChildCount", entryChildCount)
+				s.logger.Infow("delete a not empty group", "entryChildCount", entryChildCount, "entry", entryID)
 				return types.ErrNotEmpty
 			}
 
 			parentRef := (*parentMod.RefCount) - 1
 			parentMod.RefCount = &parentRef
+
+			// Deleting a Group subtracts 1 (i.e., the . file)
+			entryRef -= 1
 		}
 		if err := updateEntryModelWithVersion(tx, parentMod); err != nil {
 			return err
@@ -403,7 +407,11 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, namespace string, parent
 		if res.Error != nil {
 			return res.Error
 		}
-		entryRef := (*entryMod.RefCount) - 1
+		entryRef -= 1
+		if entryRef < 0 {
+			s.logger.Warnw("entry ref count less than zero", "entryRef", entryRef, "entry", entryID)
+			entryRef = 0
+		}
 		entryMod.RefCount = &entryRef
 		entryMod.ModifiedAt = nowTime
 		entryMod.ChangedAt = nowTime

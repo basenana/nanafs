@@ -207,7 +207,7 @@ func (c *entryCleanExecutor) execute(ctx context.Context, task *types.ScheduledT
 		return ErrNeedRetry
 	}
 
-	en, err := c.core.GetEntry(ctx, task.Namespace, entry.ID)
+	en, err := c.metastore.GetEntry(ctx, task.Namespace, entry.ID)
 	if err != nil {
 		c.logger.Errorw("[entryCleanExecutor] get entry failed", "entry", entry.ID, "task", task.ID, "err", err)
 		return err
