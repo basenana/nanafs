@@ -19,10 +19,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Set up Go 1.23
+      - name: Set up Go 1.25
         uses: actions/setup-go@v3
         with:
-          go-version: "1.23"
+          go-version: "1.25"
 
       - name: init nanafs dep
         run: |
@@ -47,7 +47,7 @@ jobs:
         run: |
           df
           sudo chmod 777 /tmp/mnt/nanafs && cd /tmp/mnt/nanafs
-          sudo prove -sh /bin/bash -rv /tmp/pjdfstest
+          sudo prove -rv /tmp/pjdfstest
 
       - name: Print nanafs log
         if: failure()
