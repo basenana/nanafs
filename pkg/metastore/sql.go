@@ -459,13 +459,54 @@ func (s *sqlMetaStore) ListChildren(ctx context.Context, namespace string, paren
 		models []db.Children
 		result []*types.Child
 	)
-	res := s.WithContext(ctx).Where("parent_id = ? AND namespace = ?", parentId, namespace).Find(&models)
+	query := s.WithContext(ctx).Where("parent_id = ? AND namespace = ?", parentId, namespace)
+	if page := types.GetPagination(ctx); page != nil {
+		query = query.Order("name " + page.SortOrder()).Offset(page.Offset()).Limit(page.Limit())
+	}
+	res := query.Find(&models)
 	if res.Error != nil {
 		return nil, res.Error
 	}
 
 	for _, model := range models {
 		result = append(result, model.To())
+	}
+	return result, nil
+}
+
+func (s *sqlMetaStore) ListGroupChildren(ctx context.Context, namespace string, parentId int64) ([]*types.Entry, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.ListGroupChildren").End()
+	requireLock()
+	defer releaseLock()
+	var models []db.Entry
+	query := s.WithContext(ctx).
+		Table("children").
+		Select("e.*").
+		Joins("JOIN entry e ON children.child_id = e.id").
+		Where("children.parent_id = ? AND children.namespace = ? AND e.is_group = true", parentId, namespace)
+	if page := types.GetPagination(ctx); page != nil {
+		sortField := page.SortField()
+		var orderStr string
+		switch sortField {
+		case "created_at":
+			orderStr = "e.created_at " + page.SortOrder()
+		case "changed_at":
+			orderStr = "e.changed_at " + page.SortOrder()
+		default:
+			orderStr = "children.name " + page.SortOrder()
+		}
+		query = query.Order(orderStr).Offset(page.Offset()).Limit(page.Limit())
+	} else {
+		query = query.Order("children.name")
+	}
+	res := query.Find(&models)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+
+	result := make([]*types.Entry, len(models))
+	for i, model := range models {
+		result[i] = model.ToEntry()
 	}
 	return result, nil
 }

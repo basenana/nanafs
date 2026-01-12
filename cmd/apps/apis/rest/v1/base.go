@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -138,14 +137,16 @@ func (s *ServicesV1) listChildren(ctx context.Context, namespace string, entryID
 	if err != nil {
 		return nil, err
 	}
-	children, err := grp.ListChildren(ctx)
+	return grp.ListChildren(ctx)
+}
+
+// listGroupChildren lists only group children of a group entry, sorted by name.
+func (s *ServicesV1) listGroupChildren(ctx context.Context, namespace string, entryID int64) ([]*types.Entry, error) {
+	grp, err := s.core.OpenGroup(ctx, namespace, entryID)
 	if err != nil {
 		return nil, err
 	}
-	sort.Slice(children, func(i, j int) bool {
-		return children[i].Name < children[j].Name
-	})
-	return children, nil
+	return grp.ListGroupChildren(ctx)
 }
 
 // getEntryByPath resolves uri to parent and entry IDs.
