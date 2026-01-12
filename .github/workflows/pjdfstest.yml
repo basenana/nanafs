@@ -47,7 +47,7 @@ jobs:
         run: |
           df
           sudo chmod 777 /tmp/mnt/nanafs && cd /tmp/mnt/nanafs
-          sudo prove -rv /tmp/pjdfstest
+          sudo prove -sh /bin/bash -rv /tmp/pjdfstest
 
       - name: Print nanafs log
         if: failure()
