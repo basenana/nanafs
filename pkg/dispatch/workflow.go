@@ -39,7 +39,7 @@ const (
 )
 
 func (w workflowExecutor) cleanUpFinishJobs(ctx context.Context) error {
-	needCleanUp, deleted := 0, 0
+	needCleanup, deleted := 0, 0
 	succeedJob, err := w.recorder.ListAllNamespaceWorkflowJobs(ctx, types.JobFilter{Status: jobrun.SucceedStatus})
 	if err != nil {
 		w.logger.Errorw("[cleanUpFinishJobs] list succeed jobs failed", "err", err)
@@ -48,7 +48,7 @@ func (w workflowExecutor) cleanUpFinishJobs(ctx context.Context) error {
 		if time.Since(j.FinishAt) < succeedJobLiveTime {
 			continue
 		}
-		needCleanUp += 1
+		needCleanup += 1
 		err = w.recorder.DeleteWorkflowJobs(ctx, j.Id)
 		if err != nil {
 			w.logger.Errorw("[cleanUpFinishJobs] delete succeed jobs failed", "job", j.Id, "err", err)
@@ -59,13 +59,13 @@ func (w workflowExecutor) cleanUpFinishJobs(ctx context.Context) error {
 
 	failedJob, err := w.recorder.ListAllNamespaceWorkflowJobs(ctx, types.JobFilter{Status: jobrun.FailedStatus})
 	if err != nil {
-		w.logger.Errorw("[cleanUpFinishJobs] list succeed jobs failed", "err", err)
+		w.logger.Errorw("[cleanUpFinishJobs] list failed jobs failed", "err", err)
 	}
 	for _, j := range failedJob {
 		if time.Since(j.FinishAt) < failedJobLiveTime {
 			continue
 		}
-		needCleanUp += 1
+		needCleanup += 1
 		err = w.recorder.DeleteWorkflowJobs(ctx, j.Id)
 		if err != nil {
 			w.logger.Errorw("[cleanUpFinishJobs] delete error jobs failed", "job", j.Id, "err", err)
@@ -74,8 +74,8 @@ func (w workflowExecutor) cleanUpFinishJobs(ctx context.Context) error {
 		deleted += 1
 	}
 
-	if needCleanUp > 0 {
-		w.logger.Infof("[cleanUpFinishJobs] finish, need cleanup %d jobs, deleted %d", needCleanUp, deleted)
+	if needCleanup > 0 {
+		w.logger.Infof("[cleanUpFinishJobs] finish, need cleanup %d jobs, deleted %d", needCleanup, deleted)
 	}
 	return nil
 }

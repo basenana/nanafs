@@ -53,6 +53,7 @@ type EntryStore interface {
 	ChangeEntryParent(ctx context.Context, namespace string, targetEntryId int64, oldParentID int64, newParentId int64, oldName string, newName string, opt types.ChangeParentAttr) error
 	RemoveEntry(ctx context.Context, namespace string, parentID, entryID int64, entryName string, attr types.DeleteEntry) error
 	DeleteRemovedEntry(ctx context.Context, namespace string, entryID int64) error
+	ScanOrphanEntries(ctx context.Context, olderThan time.Time) ([]*types.Entry, error)
 
 	Open(ctx context.Context, namespace string, id int64, attr types.OpenAttr) (*types.Entry, error)
 	Flush(ctx context.Context, namespace string, id int64, size int64) error

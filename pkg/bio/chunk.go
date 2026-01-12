@@ -29,7 +29,6 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
-	"github.com/getsentry/sentry-go"
 	"go.uber.org/zap"
 )
 
@@ -759,9 +758,6 @@ func (w *segWriter) commitSegment(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			w.logger.Errorw("[DISCARD] commit segment closed", "inode", w.nodeInfo.ID, "chunk", w.chunkID, "err", ctx.Err())
-			if ctx.Err() == context.DeadlineExceeded {
-				sentry.CaptureMessage("commit segment closed: deadline exceeded")
-			}
 			return
 		default:
 
@@ -782,7 +778,6 @@ func (w *segWriter) commitSegment(ctx context.Context) {
 			atomic.AddInt32(&w.unready, -1)
 			w.logger.Errorw("[DISCARD] upload segment error, discard segment info", "inode", w.nodeInfo.ID, "chunk", w.chunkID, "err", uploadErr)
 			w.chunkErr = logErr(chunkWriteErrorCounter, uploadErr, "commit_segment")
-			sentry.CaptureException(w.chunkErr)
 			chunkDiscardSegmentCounter.Inc()
 			continue
 		}
@@ -798,7 +793,6 @@ func (w *segWriter) commitSegment(ctx context.Context) {
 		if err != nil {
 			w.logger.Errorw("append segment error", "inode", w.nodeInfo.ID, "chunk", w.chunkID, "err", err)
 			w.chunkErr = logErr(chunkWriteErrorCounter, err, "commit_segment")
-			sentry.CaptureException(w.chunkErr)
 			chunkDiscardSegmentCounter.Inc()
 			continue
 		}

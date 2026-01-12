@@ -861,6 +861,26 @@ func (s *sqlMetaStore) DeleteSegment(ctx context.Context, segID int64) error {
 	return db.SqlError2Error(res.Error)
 }
 
+func (s *sqlMetaStore) ScanOrphanEntries(ctx context.Context, olderThan time.Time) ([]*types.Entry, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.ScanOrphanEntries").End()
+	requireLock()
+	defer releaseLock()
+	var entries []db.Entry
+	cutoffTime := olderThan.UnixNano()
+	res := s.WithContext(ctx).
+		Where("ref_count = 0 OR ref_count IS NULL").
+		Where("changed_at < ?", cutoffTime).
+		Find(&entries)
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
+	}
+	result := make([]*types.Entry, len(entries))
+	for i, e := range entries {
+		result[i] = e.ToEntry()
+	}
+	return result, nil
+}
+
 func (s *sqlMetaStore) ListTask(ctx context.Context, taskID string, filter types.ScheduledTaskFilter) ([]*types.ScheduledTask, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListTask").End()
 	requireLock()
@@ -947,7 +967,7 @@ func (s *sqlMetaStore) DeleteFinishedTask(ctx context.Context, aliveTime time.Du
 	defer releaseLock()
 	res := s.WithContext(ctx).
 		Where("status IN ? AND created_time < ?",
-			[]string{types.ScheduledTaskFinish, types.ScheduledTaskSucceed, types.ScheduledTaskFailed},
+			[]string{types.ScheduledTaskSucceed, types.ScheduledTaskFailed},
 			time.Now().Add(-1*aliveTime)).
 		Delete(&db.ScheduledTask{})
 	if res.Error != nil {

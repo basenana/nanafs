@@ -63,7 +63,6 @@ const (
 	ScheduledTaskInitial   = "initial"
 	ScheduledTaskWait      = "wait"
 	ScheduledTaskExecuting = "executing"
-	ScheduledTaskFinish    = "finish"
 	ScheduledTaskSucceed   = "succeed"
 	ScheduledTaskFailed    = "failed"
 )

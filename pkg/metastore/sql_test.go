@@ -20,11 +20,13 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
 	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/metastore/db"
 	"github.com/basenana/nanafs/pkg/types"
 )
 
@@ -338,6 +340,122 @@ var _ = Describe("TestSysConfig", func() {
 			err := sqlite.DeleteConfigValue(context.TODO(), namespace, "delete-group", "non-existent")
 			// GORM doesn't return error for non-existent records on delete
 			Expect(err).Should(BeNil())
+		})
+	})
+})
+
+var _ = Describe("TestScanOrphanEntries", func() {
+	var sqlite *sqlMetaStore
+
+	BeforeEach(func() {
+		sqlite = buildNewSqliteMetaStore("test_orphan.db")
+		// init root
+		rootEn := InitRootEntry()
+		Expect(sqlite.CreateEntry(context.TODO(), namespace, 0, rootEn)).Should(BeNil())
+	})
+
+	AfterEach(func() {
+		// Clean up: delete all entries created during test
+		sqlite.WithContext(context.TODO()).Where("namespace = ?", namespace).Delete(&db.Entry{})
+	})
+
+	Context("scan orphan entries with ref_count = 0", func() {
+		It("should find entries with zero ref_count", func() {
+			// Create an entry directly with ref_count = 0
+			orphanEn, err := types.InitNewEntry(InitRootEntry(), types.EntryAttr{
+				Name: "orphan-entry-1",
+				Kind: types.RawKind,
+			})
+			Expect(err).Should(BeNil())
+
+			// Manually set ref_count to 0 and create the entry
+			orphanEn.RefCount = 0
+			err = sqlite.CreateEntry(context.TODO(), namespace, 1, orphanEn)
+			Expect(err).Should(BeNil())
+
+			// Scan for orphan entries
+			cutoffTime := time.Now()
+			orphans, err := sqlite.ScanOrphanEntries(context.TODO(), cutoffTime)
+			Expect(err).Should(BeNil())
+
+			// Should find the orphaned entry
+			found := false
+			for _, o := range orphans {
+				if o.Name == "orphan-entry-1" {
+					found = true
+					Expect(o.RefCount).Should(Equal(0))
+				}
+			}
+			Expect(found).Should(BeTrue())
+		})
+
+		It("should not find entries with ref_count > 0", func() {
+			// Create a normal entry with positive ref_count
+			normalEn, err := types.InitNewEntry(InitRootEntry(), types.EntryAttr{
+				Name: "normal-entry-1",
+				Kind: types.RawKind,
+			})
+			Expect(err).Should(BeNil())
+			// RefCount is automatically set to 1 when created as child
+			err = sqlite.CreateEntry(context.TODO(), namespace, 1, normalEn)
+			Expect(err).Should(BeNil())
+
+			// Scan should not find entries with positive ref_count
+			cutoffTime := time.Now()
+			orphans, err := sqlite.ScanOrphanEntries(context.TODO(), cutoffTime)
+			Expect(err).Should(BeNil())
+
+			for _, o := range orphans {
+				Expect(o.Name).ShouldNot(Equal("normal-entry-1"))
+			}
+		})
+
+		It("should return empty list when no orphan entries exist", func() {
+			cutoffTime := time.Now()
+			orphans, err := sqlite.ScanOrphanEntries(context.TODO(), cutoffTime)
+			Expect(err).Should(BeNil())
+			Expect(len(orphans)).Should(Equal(0))
+		})
+
+		It("should filter entries by changed_at time", func() {
+			// Create an orphan entry
+			recentOrphan, err := types.InitNewEntry(InitRootEntry(), types.EntryAttr{
+				Name: "recent-orphan",
+				Kind: types.RawKind,
+			})
+			Expect(err).Should(BeNil())
+			recentOrphan.RefCount = 0
+			err = sqlite.CreateEntry(context.TODO(), namespace, 1, recentOrphan)
+			Expect(err).Should(BeNil())
+
+			// Scan with cutoff time in the past should not find the entry (changed_at is now)
+			pastCutoff := time.Now().Add(-time.Hour)
+			orphans, err := sqlite.ScanOrphanEntries(context.TODO(), pastCutoff)
+			Expect(err).Should(BeNil())
+
+			// Entry should not be found because its changed_at (now) is after past cutoff
+			for _, o := range orphans {
+				Expect(o.Name).ShouldNot(Equal("recent-orphan"))
+			}
+		})
+
+		It("should find multiple orphan entries", func() {
+			// Create multiple orphan entries
+			for i := 1; i <= 3; i++ {
+				orphanEn, err := types.InitNewEntry(InitRootEntry(), types.EntryAttr{
+					Name: "orphan-multi-" + string(rune('a'+i-1)),
+					Kind: types.RawKind,
+				})
+				Expect(err).Should(BeNil())
+				orphanEn.RefCount = 0
+				err = sqlite.CreateEntry(context.TODO(), namespace, 1, orphanEn)
+				Expect(err).Should(BeNil())
+			}
+
+			cutoffTime := time.Now()
+			orphans, err := sqlite.ScanOrphanEntries(context.TODO(), cutoffTime)
+			Expect(err).Should(BeNil())
+			Expect(len(orphans)).Should(Equal(3))
 		})
 	})
 })
