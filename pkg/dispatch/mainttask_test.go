@@ -303,9 +303,10 @@ var _ = Describe("compactExecutor.execute", func() {
 var _ = Describe("entryCleanExecutor.execute", func() {
 	It("should succeed when cleanup completes", func() {
 		e := &maintainExecutor{
-			core:     fsCore,
-			recorder: testMeta,
-			logger:   zap.NewNop().Sugar(),
+			core:      fsCore,
+			metastore: testMeta,
+			recorder:  testMeta,
+			logger:    zap.NewNop().Sugar(),
 		}
 		ee := &entryCleanExecutor{maintainExecutor: e}
 
@@ -328,7 +329,7 @@ var _ = Describe("entryCleanExecutor.execute", func() {
 		Expect(err).Should(BeNil())
 
 		// Verify entry was destroyed
-		_, err = fsCore.GetEntry(ctx, namespace, testEntry.ID)
+		_, err = testMeta.GetEntry(ctx, namespace, testEntry.ID)
 		Expect(err).ShouldNot(BeNil())
 	})
 })
