@@ -20,7 +20,6 @@ import (
 	"context"
 	"net/http"
 	"path"
-	"sort"
 
 	"github.com/gin-gonic/gin"
 
@@ -29,7 +28,7 @@ import (
 )
 
 func (s *ServicesV1) listGroupEntry(ctx context.Context, namespace string, name, groupURI string, groupID int64) (*GroupEntry, error) {
-	children, err := s.listChildren(ctx, namespace, groupID)
+	children, err := s.listGroupChildren(ctx, namespace, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -43,9 +42,6 @@ func (s *ServicesV1) listGroupEntry(ctx context.Context, namespace string, name,
 	if len(children) > 0 {
 		result.Children = make([]*GroupEntry, 0, len(children))
 		for _, child := range children {
-			if !child.IsGroup {
-				continue
-			}
 			grp, err := s.listGroupEntry(ctx, namespace, child.Name, path.Join(groupURI, child.Name), child.ID)
 			if err != nil {
 				return nil, err
@@ -76,7 +72,7 @@ func (s *ServicesV1) GroupTree(ctx *gin.Context) {
 		return
 	}
 
-	children, err := s.listChildren(ctx.Request.Context(), caller.Namespace, nsRoot.ID)
+	children, err := s.listGroupChildren(ctx.Request.Context(), caller.Namespace, nsRoot.ID)
 	if err != nil {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
@@ -89,9 +85,6 @@ func (s *ServicesV1) GroupTree(ctx *gin.Context) {
 	}
 
 	for _, child := range children {
-		if !child.IsGroup {
-			continue
-		}
 		grp, err := s.listGroupEntry(ctx.Request.Context(), caller.Namespace, child.Name, path.Join(root.URI, child.Name), child.ID)
 		if err != nil {
 			apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
@@ -134,31 +127,20 @@ func (s *ServicesV1) ListGroupChildren(ctx *gin.Context) {
 		return
 	}
 
-	children, err := s.listChildren(ctx.Request.Context(), caller.Namespace, parentID)
+	pg := types.NewPaginationWithSort(req.Page, req.PageSize, req.Sort, req.Order)
+	pagedCtx := types.WithPagination(ctx.Request.Context(), pg)
+
+	children, err := s.listChildren(pagedCtx, caller.Namespace, parentID)
 	if err != nil {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
-	pg := types.NewPaginationWithSort(req.Page, req.PageSize, req.Sort, req.Order)
-
-	sortChildren(children, pg.SortField(), pg.SortOrder())
-
 	page := pg.Page
 	pageSize := pg.PageSize
 
-	offset := int(pg.Offset())
-	if offset > len(children) {
-		offset = len(children)
-	}
-
-	end := offset + int(pageSize)
-	if end > len(children) {
-		end = len(children)
-	}
-
-	entries := make([]*EntryInfo, 0)
-	for _, en := range children[offset:end] {
+	entries := make([]*EntryInfo, 0, len(children))
+	for _, en := range children {
 		doc := s.getDocumentProperty(ctx.Request.Context(), caller.Namespace, en)
 		entries = append(entries, toEntryInfo(uri, en.Name, en, doc))
 	}
@@ -166,26 +148,5 @@ func (s *ServicesV1) ListGroupChildren(ctx *gin.Context) {
 	apitool.JsonResponse(ctx, http.StatusOK, &ListEntriesResponse{
 		Entries:    entries,
 		Pagination: &PaginationInfo{Page: page, PageSize: pageSize},
-	})
-}
-
-func sortChildren(children []*types.Entry, sortField, sortOrder string) {
-	desc := sortOrder == "desc"
-	sort.Slice(children, func(i, j int) bool {
-		var less bool
-		switch sortField {
-		case "created_at":
-			less = children[i].CreatedAt.Before(children[j].CreatedAt)
-		case "changed_at":
-			less = children[i].ChangedAt.Before(children[j].ChangedAt)
-		case "name":
-			fallthrough
-		default:
-			less = children[i].Name < children[j].Name
-		}
-		if desc {
-			return !less
-		}
-		return less
 	})
 }

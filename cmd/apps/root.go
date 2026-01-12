@@ -117,6 +117,8 @@ func run(depends *common.Depends, cfg config.Config, stopCh chan struct{}) {
 	}
 	depends.Workflow.Start(ctx)
 
+	go depends.Dispatcher.Run(stopCh)
+
 	if boot.API.Enable {
 		err = apis.RunFSAPI(depends, cfg, stopCh)
 		if err != nil {

@@ -365,6 +365,7 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, namespace string, parent
 			return res.Error
 		}
 
+		entryRef := *entryMod.RefCount
 		res = tx.Where("parent_id = ? AND child_id = ? AND name = ? AND namespace = ?", parentID, entryID, entryName, namespace).First(childRef)
 		if res.Error != nil {
 			if !errors.Is(res.Error, gorm.ErrRecordNotFound) {
@@ -388,12 +389,15 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, namespace string, parent
 			}
 
 			if entryChildCount > 0 {
-				s.logger.Infow("delete a not empty group", "entryChildCount", entryChildCount)
+				s.logger.Infow("delete a not empty group", "entryChildCount", entryChildCount, "entry", entryID)
 				return types.ErrNotEmpty
 			}
 
 			parentRef := (*parentMod.RefCount) - 1
 			parentMod.RefCount = &parentRef
+
+			// Deleting a Group subtracts 1 (i.e., the . file)
+			entryRef -= 1
 		}
 		if err := updateEntryModelWithVersion(tx, parentMod); err != nil {
 			return err
@@ -403,7 +407,11 @@ func (s *sqlMetaStore) RemoveEntry(ctx context.Context, namespace string, parent
 		if res.Error != nil {
 			return res.Error
 		}
-		entryRef := (*entryMod.RefCount) - 1
+		entryRef -= 1
+		if entryRef < 0 {
+			s.logger.Warnw("entry ref count less than zero", "entryRef", entryRef, "entry", entryID)
+			entryRef = 0
+		}
 		entryMod.RefCount = &entryRef
 		entryMod.ModifiedAt = nowTime
 		entryMod.ChangedAt = nowTime
@@ -459,13 +467,54 @@ func (s *sqlMetaStore) ListChildren(ctx context.Context, namespace string, paren
 		models []db.Children
 		result []*types.Child
 	)
-	res := s.WithContext(ctx).Where("parent_id = ? AND namespace = ?", parentId, namespace).Find(&models)
+	query := s.WithContext(ctx).Where("parent_id = ? AND namespace = ?", parentId, namespace)
+	if page := types.GetPagination(ctx); page != nil {
+		query = query.Order("name " + page.SortOrder()).Offset(page.Offset()).Limit(page.Limit())
+	}
+	res := query.Find(&models)
 	if res.Error != nil {
 		return nil, res.Error
 	}
 
 	for _, model := range models {
 		result = append(result, model.To())
+	}
+	return result, nil
+}
+
+func (s *sqlMetaStore) ListGroupChildren(ctx context.Context, namespace string, parentId int64) ([]*types.Entry, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.ListGroupChildren").End()
+	requireLock()
+	defer releaseLock()
+	var models []db.Entry
+	query := s.WithContext(ctx).
+		Table("children").
+		Select("e.*").
+		Joins("JOIN entry e ON children.child_id = e.id").
+		Where("children.parent_id = ? AND children.namespace = ? AND e.is_group = true", parentId, namespace)
+	if page := types.GetPagination(ctx); page != nil {
+		sortField := page.SortField()
+		var orderStr string
+		switch sortField {
+		case "created_at":
+			orderStr = "e.created_at " + page.SortOrder()
+		case "changed_at":
+			orderStr = "e.changed_at " + page.SortOrder()
+		default:
+			orderStr = "children.name " + page.SortOrder()
+		}
+		query = query.Order(orderStr).Offset(page.Offset()).Limit(page.Limit())
+	} else {
+		query = query.Order("children.name")
+	}
+	res := query.Find(&models)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+
+	result := make([]*types.Entry, len(models))
+	for i, model := range models {
+		result[i] = model.ToEntry()
 	}
 	return result, nil
 }
@@ -861,6 +910,26 @@ func (s *sqlMetaStore) DeleteSegment(ctx context.Context, segID int64) error {
 	return db.SqlError2Error(res.Error)
 }
 
+func (s *sqlMetaStore) ScanOrphanEntries(ctx context.Context, olderThan time.Time) ([]*types.Entry, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.ScanOrphanEntries").End()
+	requireLock()
+	defer releaseLock()
+	var entries []db.Entry
+	cutoffTime := olderThan.UnixNano()
+	res := s.WithContext(ctx).
+		Where("ref_count = 0 OR ref_count IS NULL").
+		Where("changed_at < ?", cutoffTime).
+		Find(&entries)
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
+	}
+	result := make([]*types.Entry, len(entries))
+	for i, e := range entries {
+		result[i] = e.ToEntry()
+	}
+	return result, nil
+}
+
 func (s *sqlMetaStore) ListTask(ctx context.Context, taskID string, filter types.ScheduledTaskFilter) ([]*types.ScheduledTask, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.ListTask").End()
 	requireLock()
@@ -947,7 +1016,7 @@ func (s *sqlMetaStore) DeleteFinishedTask(ctx context.Context, aliveTime time.Du
 	defer releaseLock()
 	res := s.WithContext(ctx).
 		Where("status IN ? AND created_time < ?",
-			[]string{types.ScheduledTaskFinish, types.ScheduledTaskSucceed, types.ScheduledTaskFailed},
+			[]string{types.ScheduledTaskSucceed, types.ScheduledTaskFailed},
 			time.Now().Add(-1*aliveTime)).
 		Delete(&db.ScheduledTask{})
 	if res.Error != nil {

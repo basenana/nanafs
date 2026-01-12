@@ -19,13 +19,12 @@ package dispatch
 import (
 	"context"
 	"fmt"
-	"github.com/basenana/nanafs/pkg/core"
 	"os"
 	"strconv"
 	"time"
 
-	"github.com/getsentry/sentry-go"
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/basenana/nanafs/pkg/core"
+
 	"go.uber.org/zap"
 
 	"github.com/basenana/nanafs/pkg/metastore"
@@ -51,10 +50,10 @@ type routineTask func(ctx context.Context) error
 type Dispatcher struct {
 	core      core.Core
 	notify    *notify.Notify
+	meta      metastore.Meta
 	recorder  metastore.ScheduledTaskRecorder
 	executors map[string]executor
 	routines  [24][]routineTask
-	metricCh  chan prometheus.Metric
 	logger    *zap.SugaredLogger
 }
 
@@ -88,6 +87,7 @@ func (d *Dispatcher) Run(stopCh chan struct{}) {
 					err = d.dispatch(ctx, taskID, exec, tasks[i])
 					if err != nil {
 						d.logger.Errorw("execute task failed", "taskID", taskID, "err", err)
+						taskExecutionErrorCounter.Inc()
 						continue
 					}
 				}
@@ -116,7 +116,6 @@ func (d *Dispatcher) dispatch(ctx context.Context, taskID string, exec executor,
 		}
 		task.Result = fmt.Sprintf("refID: %d, msg: %s", task.Event.RefID, err)
 		taskFinishStatusCounter.WithLabelValues(taskID, types.ScheduledTaskFailed)
-		sentry.CaptureException(err)
 		d.logger.Errorw("execute task error", "recordID", task.ID, "taskID", task.TaskID, "err", err,
 			"recordNotificationErr", d.notify.RecordWarn(ctx, task.Namespace, fmt.Sprintf("Scheduled task %s failed", task.TaskID), task.Result, "Dispatcher"))
 	} else {
@@ -157,7 +156,9 @@ func (d *Dispatcher) findRunnableTasks(ctx context.Context, taskID string) ([]*t
 			if time.Now().After(t.ExpirationTime) {
 				t.Status = types.ScheduledTaskFailed
 				t.Result = "timeout"
-				_ = d.recorder.SaveTask(ctx, t)
+				if err := d.recorder.SaveTask(ctx, t); err != nil {
+					d.logger.Errorw("save timeout task failed", "taskID", t.TaskID, "err", err)
+				}
 			}
 			runningCount += 1
 		}
@@ -209,18 +210,18 @@ func (d *Dispatcher) registerRoutineTask(periodH int, task routineTask) {
 	}
 }
 
-func Init(fsCore core.Core, notify *notify.Notify, recorder metastore.ScheduledTaskRecorder) (*Dispatcher, error) {
+func Init(fsCore core.Core, notify *notify.Notify, meta metastore.Meta, recorder metastore.ScheduledTaskRecorder) (*Dispatcher, error) {
 	d := &Dispatcher{
 		core:      fsCore,
 		notify:    notify,
+		meta:      meta,
 		recorder:  recorder,
 		executors: map[string]executor{},
 		routines:  [24][]routineTask{},
-		metricCh:  make(chan prometheus.Metric, 10),
 		logger:    logger.NewLogger("dispatcher"),
 	}
 
-	if err := registerMaintainExecutor(d, fsCore, recorder); err != nil {
+	if err := registerMaintainExecutor(d, fsCore, meta, recorder); err != nil {
 		return nil, err
 	}
 

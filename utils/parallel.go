@@ -19,7 +19,6 @@ package utils
 import (
 	"context"
 	"fmt"
-	"github.com/getsentry/sentry-go"
 	"runtime/debug"
 	"sync/atomic"
 	"time"
@@ -104,7 +103,6 @@ func NewParallelLimiter(ctn int) *ParallelLimiter {
 func Recover() error {
 	if panicErr := recover(); panicErr != nil {
 		debug.PrintStack()
-		sentry.CurrentHub().Recover(panicErr)
 		return fmt.Errorf("panic: %v", panicErr)
 	}
 	return nil

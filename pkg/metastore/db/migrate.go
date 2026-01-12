@@ -38,6 +38,7 @@ func buildMigrations() []*gormigrate.Migration {
 					&Workflow{},
 					&WorkflowJob{},
 					&WorkflowJobData{},
+					&Notification{},
 				)
 			},
 			Rollback: func(db *gorm.DB) error {

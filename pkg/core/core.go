@@ -389,7 +389,6 @@ func (c *core) UpdateEntry(ctx context.Context, namespace string, id int64, upda
 		return nil, err
 	}
 	c.cache.invalidEntry(namespace, id)
-	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeUpdate, en.Namespace, en.ID)
 	return c.getEntry(ctx, namespace, id)
 }
 

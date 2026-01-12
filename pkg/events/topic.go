@@ -17,18 +17,17 @@
 package events
 
 var (
-	TopicNamespaceEntry = "action.entry."
-	TopicNamespaceFile  = "action.file."
-
+	TopicNamespaceEntry    = "action.entry."
 	ActionTypeCreate       = "create"
-	ActionTypeUpdate       = "update"
 	ActionTypeDestroy      = "destroy"
 	ActionTypeMirror       = "mirror"
 	ActionTypeChangeParent = "change_parent"
-	ActionTypeTrunc        = "trunc"
-	ActionTypeOpen         = "open"
-	ActionTypeClose        = "close"
-	ActionTypeCompact      = "compact"
+
+	TopicNamespaceFile = "action.file."
+	ActionTypeTrunc    = "trunc"
+	ActionTypeOpen     = "open"
+	ActionTypeClose    = "close"
+	ActionTypeCompact  = "compact"
 )
 
 func NamespacedTopic(topicNamespace string, actionType string) string {

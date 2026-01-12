@@ -18,9 +18,10 @@ package dispatch
 
 import (
 	"context"
+	"time"
+
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/hyponet/eventbus"
-	"time"
 
 	"go.uber.org/zap"
 
@@ -35,10 +36,13 @@ const (
 	maintainTaskIDEntryCleanup = "task.maintain.entry.cleanup"
 )
 
+const orphanEntryTimeout = 12 * time.Hour
+
 type maintainExecutor struct {
-	core     core.Core
-	recorder metastore.ScheduledTaskRecorder
-	logger   *zap.SugaredLogger
+	core      core.Core
+	recorder  metastore.ScheduledTaskRecorder
+	metastore metastore.Meta
+	logger    *zap.SugaredLogger
 }
 
 type compactExecutor struct {
@@ -101,6 +105,70 @@ func (c *compactExecutor) execute(ctx context.Context, task *types.ScheduledTask
 
 type entryCleanExecutor struct {
 	*maintainExecutor
+	orphanThreshold time.Duration
+}
+
+func (c *entryCleanExecutor) scanOrphanEntriesTask(ctx context.Context) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	cutoff := time.Now().Add(-c.orphanThreshold)
+	entries, err := c.metastore.ScanOrphanEntries(ctx, cutoff)
+	if err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		c.logger.Errorw("[orphanScanner] scan orphan entries failed", "err", err.Error())
+		return nil // Don't return error to prevent retry
+	}
+
+	for _, en := range entries {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if err := c.createCleanupTask(ctx, en); err != nil {
+			c.logger.Errorw("[orphanScanner] create cleanup task failed", "entry", en.ID, "err", err.Error())
+		}
+	}
+	return nil
+}
+
+func (c *entryCleanExecutor) createCleanupTask(ctx context.Context, en *types.Entry) error {
+	// Check if task already exists
+	filter := types.ScheduledTaskFilter{
+		RefType: "entry",
+		RefID:   en.ID,
+		Status:  []string{types.ScheduledTaskWait, types.ScheduledTaskExecuting},
+	}
+	tasks, err := c.recorder.ListTask(ctx, maintainTaskIDEntryCleanup, filter)
+	if err != nil {
+		return err
+	}
+	if len(tasks) > 0 {
+		return nil // Task already exists
+	}
+
+	// Create new event for the entry
+	evt := &types.Event{
+		Type:      events.ActionTypeDestroy,
+		Namespace: en.Namespace,
+		RefType:   "entry",
+		RefID:     en.ID,
+		Data:      types.NewEventDataFromEntry(en),
+		Time:      time.Now(),
+	}
+
+	task := &types.ScheduledTask{
+		Namespace:      en.Namespace,
+		TaskID:         maintainTaskIDEntryCleanup,
+		Status:         types.ScheduledTaskWait,
+		RefType:        "entry",
+		RefID:          en.ID,
+		CreatedTime:    time.Now(),
+		ExpirationTime: time.Now().Add(time.Hour),
+		Event:          *evt,
+	}
+	return c.recorder.SaveTask(ctx, task)
 }
 
 func (c *entryCleanExecutor) handleEvent(evt *types.Event) error {
@@ -108,14 +176,11 @@ func (c *entryCleanExecutor) handleEvent(evt *types.Event) error {
 		return nil
 	}
 
-	if evt.Type == events.ActionTypeClose {
-		return nil
-	}
-
 	ctx, canF := context.WithTimeout(context.Background(), time.Hour)
 	defer canF()
 	task, err := getWaitingTask(ctx, c.recorder, maintainTaskIDEntryCleanup, evt)
 	if err != nil {
+		c.logger.Errorw("[entryCleanExecutor] list scheduled task error", "entry", evt.RefID, "err", err.Error())
 		return err
 	}
 
@@ -142,7 +207,7 @@ func (c *entryCleanExecutor) execute(ctx context.Context, task *types.ScheduledT
 		return ErrNeedRetry
 	}
 
-	en, err := c.core.GetEntry(ctx, task.Namespace, entry.ID)
+	en, err := c.metastore.GetEntry(ctx, task.Namespace, entry.ID)
 	if err != nil {
 		c.logger.Errorw("[entryCleanExecutor] get entry failed", "entry", entry.ID, "task", task.ID, "err", err)
 		return err
@@ -151,14 +216,14 @@ func (c *entryCleanExecutor) execute(ctx context.Context, task *types.ScheduledT
 	if !en.IsGroup {
 		err = c.core.CleanEntryData(ctx, task.Namespace, en.ID)
 		if err != nil {
-			c.logger.Errorw("[entryCleanExecutor] get entry failed", "entry", entry.ID, "task", task.ID, "err", err)
+			c.logger.Errorw("[entryCleanExecutor] clean entry data failed", "entry", entry.ID, "task", task.ID, "err", err)
 			return err
 		}
 	}
 
-	err = c.core.DestroyEntry(ctx, "", en.ID)
+	err = c.core.DestroyEntry(ctx, task.Namespace, en.ID)
 	if err != nil {
-		c.logger.Errorw("[entryCleanExecutor] get entry failed", "entry", entry.ID, "task", task.ID, "err", err)
+		c.logger.Errorw("[entryCleanExecutor] destroy entry failed", "entry", entry.ID, "task", task.ID, "err", err)
 		return err
 	}
 	return nil
@@ -167,14 +232,18 @@ func (c *entryCleanExecutor) execute(ctx context.Context, task *types.ScheduledT
 func registerMaintainExecutor(
 	d *Dispatcher,
 	fsCore core.Core,
+	meta metastore.Meta,
 	recorder metastore.ScheduledTaskRecorder) error {
-	e := &maintainExecutor{core: fsCore, recorder: recorder, logger: logger.NewLogger("maintainExecutor")}
+	e := &maintainExecutor{core: fsCore, recorder: recorder, metastore: meta, logger: logger.NewLogger("maintainExecutor")}
 	ce := &compactExecutor{maintainExecutor: e}
-	ee := &entryCleanExecutor{maintainExecutor: e}
+	ee := &entryCleanExecutor{maintainExecutor: e, orphanThreshold: orphanEntryTimeout}
 
 	d.registerExecutor(maintainTaskIDChunkCompact, ce)
 	d.registerExecutor(maintainTaskIDEntryCleanup, ee)
 	eventbus.Subscribe(events.NamespacedTopic(events.TopicNamespaceFile, events.ActionTypeCompact), ce.handleEvent)
 	eventbus.Subscribe(events.NamespacedTopic(events.TopicNamespaceEntry, events.ActionTypeDestroy), ee.handleEvent)
+
+	// Register orphan scanner: run every 6 hours, with initial scan
+	d.registerRoutineTask(6, ee.scanOrphanEntriesTask)
 	return nil
 }
