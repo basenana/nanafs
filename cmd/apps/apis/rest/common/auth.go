@@ -57,7 +57,6 @@ func AuthMiddleware(jwtConfig *config.JWT) gin.HandlerFunc {
 	return func(gCtx *gin.Context) {
 		caller := parseCallerInfo(gCtx, jwtConfig)
 		if caller == nil {
-			gCtx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "parse caller info error"})
 			return
 		}
 

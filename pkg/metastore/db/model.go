@@ -50,7 +50,7 @@ type Entry struct {
 	ID         int64   `gorm:"column:id;primaryKey"`
 	Name       string  `gorm:"column:name;index:en_name"`
 	Aliases    *string `gorm:"column:aliases"`
-	RefCount   *int    `gorm:"column:ref_count"`
+	RefCount   *int    `gorm:"column:ref_count;index:en_refc"`
 	Kind       string  `gorm:"column:kind"`
 	IsGroup    bool    `gorm:"column:is_group;index:en_isgrp"`
 	Size       *int64  `gorm:"column:size"`

@@ -18,10 +18,11 @@ package metastore
 
 import (
 	"context"
+	"runtime/trace"
+
 	"github.com/basenana/nanafs/pkg/metastore/db"
 	"github.com/basenana/nanafs/pkg/metastore/filters"
 	"github.com/basenana/nanafs/pkg/types"
-	"runtime/trace"
 )
 
 func (s *sqlMetaStore) FilterEntries(ctx context.Context, namespace string, filter types.Filter) (EntryIterator, error) {
@@ -50,7 +51,7 @@ func (s *sqlMetaStore) FilterEntries(ctx context.Context, namespace string, filt
 		tx = tx.Offset(page.Offset()).Limit(page.Limit())
 	}
 
-	res := tx.Where(where, args...).Find(&result)
+	res := tx.Where(where, args...).Where("ref_count > 0").Find(&result)
 	if res.Error != nil {
 		return nil, db.SqlError2Error(res.Error)
 	}
