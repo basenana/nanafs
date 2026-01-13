@@ -37,6 +37,7 @@ type FsApi struct {
 	Enable bool   `json:"enable"`
 	Host   string `json:"host"`
 	Port   int    `json:"port"`
+	JWT    *JWT   `json:"jwt,omitempty"`
 }
 
 type Webdav struct {
@@ -73,6 +74,10 @@ type Encryption struct {
 type Workflow struct {
 	JobWorkdir  string      `json:"job_workdir"`
 	Integration Integration `json:"integration"`
+}
+
+type JWT struct {
+	SecretKey string `json:"secret_key"`
 }
 
 type Integration struct {

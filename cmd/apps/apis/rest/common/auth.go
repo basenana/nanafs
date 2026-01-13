@@ -20,7 +20,10 @@ import (
 	"context"
 	"net/http"
 	"strconv"
+	"strings"
 
+	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/auth"
 	"github.com/gin-gonic/gin"
 )
 
@@ -50,31 +53,70 @@ func Caller(ctx context.Context) *CallerInfo {
 	return raw.(*CallerInfo)
 }
 
-func AuthMiddleware() gin.HandlerFunc {
+func AuthMiddleware(jwtConfig *config.JWT) gin.HandlerFunc {
 	return func(gCtx *gin.Context) {
-		ns := gCtx.GetHeader(headerNamespace)
-		if ns == "" {
-			gCtx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "missing X-Namespace header",
-			})
+		caller := parseCallerInfo(gCtx, jwtConfig)
+		if caller == nil {
+			gCtx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "parse caller info error"})
 			return
-		}
-
-		uidStr := gCtx.GetHeader(headerUID)
-		gidStr := gCtx.GetHeader(headerGID)
-
-		uid, _ := strconv.ParseInt(uidStr, 10, 64)
-		gid, _ := strconv.ParseInt(gidStr, 10, 64)
-
-		caller := &CallerInfo{
-			Namespace: ns,
-			UID:       uid,
-			GID:       gid,
 		}
 
 		ctx := WithCallerInfo(gCtx.Request.Context(), caller)
 		gCtx.Request = gCtx.Request.WithContext(ctx)
 
 		gCtx.Next()
+	}
+}
+
+func parseCallerInfo(gCtx *gin.Context, jwtConfig *config.JWT) *CallerInfo {
+	if jwtConfig != nil && jwtConfig.SecretKey != "" {
+		caller := tryParseJWT(gCtx, jwtConfig.SecretKey)
+		if caller != nil {
+			return caller
+		}
+		gCtx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid or missing token"})
+		return nil
+	}
+	return tryParseHeaders(gCtx)
+}
+
+func tryParseJWT(gCtx *gin.Context, jwtSecretKey string) *CallerInfo {
+	authHeader := gCtx.GetHeader("Authorization")
+	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+		return nil
+	}
+
+	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+	claims, err := auth.ParseToken(tokenString, jwtSecretKey)
+	if err != nil {
+		return nil
+	}
+
+	return &CallerInfo{
+		Namespace: claims.Namespace,
+		UID:       claims.UID,
+		GID:       claims.GID,
+	}
+}
+
+func tryParseHeaders(gCtx *gin.Context) *CallerInfo {
+	ns := gCtx.GetHeader(headerNamespace)
+	if ns == "" {
+		gCtx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+			"error": "missing X-Namespace header or Authorization header",
+		})
+		return nil
+	}
+
+	uidStr := gCtx.GetHeader(headerUID)
+	gidStr := gCtx.GetHeader(headerGID)
+
+	uid, _ := strconv.ParseInt(uidStr, 10, 64)
+	gid, _ := strconv.ParseInt(gidStr, 10, 64)
+
+	return &CallerInfo{
+		Namespace: ns,
+		UID:       uid,
+		GID:       gid,
 	}
 }

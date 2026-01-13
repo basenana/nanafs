@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/basenana/nanafs/cmd/apps/apis/rest/common"
+	"github.com/basenana/nanafs/pkg/auth"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/workflow"
@@ -40,6 +41,7 @@ func init() {
 	RootCmd.AddCommand(daemonCmd)
 	RootCmd.AddCommand(versionCmd)
 	RootCmd.AddCommand(NamespaceCmd)
+	RootCmd.AddCommand(jwtCmd)
 }
 
 var RootCmd = &cobra.Command{
@@ -53,8 +55,15 @@ var RootCmd = &cobra.Command{
 
 func init() {
 	daemonCmd.Flags().StringVar(&config.FilePath, "config", "", "nanafs config file")
-	NamespaceCmd.Flags().StringVar(&config.FilePath, "config", "", "nanafs config file")
 	daemonCmd.Flags().BoolVar(&config.AutoInit, "auto-init", false, "generate default config if not exists")
+
+	NamespaceCmd.Flags().StringVar(&config.FilePath, "config", "", "nanafs config file")
+
+	jwtCmd.Flags().StringVar(&config.FilePath, "config", "", "nanafs config file")
+	jwtCmd.Flags().String("namespace", "", "target namespace (required)")
+	jwtCmd.Flags().Int64("uid", 0, "user ID")
+	jwtCmd.Flags().Int64("gid", 0, "group ID")
+	jwtCmd.Flags().Duration("duration", time.Hour*24*365, "token expiration duration, default: 1y")
 }
 
 var daemonCmd = &cobra.Command{
@@ -229,4 +238,38 @@ func ensureAutoInitNamespace(depends *common.Depends) error {
 	}
 
 	return fmt.Errorf("check %s namespace failed: %w", types.PersonalNamespace, err)
+}
+
+var jwtCmd = &cobra.Command{
+	Use:   "jwt",
+	Short: "Generate JWT token for a namespace",
+	Long: `Generate a JWT token that can be used for authentication in the specified namespace.
+The token can be used in the Authorization header as: Bearer <token>`,
+	Run: func(cmd *cobra.Command, args []string) {
+		namespace, _ := cmd.Flags().GetString("namespace")
+		uid, _ := cmd.Flags().GetInt64("uid")
+		gid, _ := cmd.Flags().GetInt64("gid")
+		duration, _ := cmd.Flags().GetDuration("duration")
+		if namespace == "" {
+			panic("namespace must config")
+		}
+
+		cfg, err := config.NewConfig()
+		if err != nil {
+			panic(err)
+		}
+
+		boot := cfg.GetBootstrapConfig()
+		if boot.API.JWT == nil || boot.API.JWT.SecretKey == "" {
+			panic("jwt.secret_key not configured in config file")
+		}
+
+		claims := auth.NewClaims(namespace, uid, gid, duration)
+		token, err := claims.GenerateToken(boot.API.JWT.SecretKey)
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Println(token)
+	},
 }

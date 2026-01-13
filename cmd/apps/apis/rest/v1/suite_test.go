@@ -39,7 +39,7 @@ import (
 
 var (
 	testMeta   metastore.Meta
-	testCfg    config.Bootstrap
+	testCfg    *config.Bootstrap
 	testRouter *TestRouter
 )
 
@@ -54,7 +54,7 @@ func NewTestRouter() *TestRouter {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 
-	cfg := config.NewMockConfig(testCfg)
+	cfg := config.NewMockConfig(*testCfg)
 	dep, err := common.InitDepends(cfg, testMeta)
 	if err != nil {
 		panic(err)
@@ -71,7 +71,7 @@ func NewTestRouter() *TestRouter {
 		logger:   logger.NewLogger("rest-test"),
 	}
 
-	router.Use(common.AuthMiddleware())
+	router.Use(common.AuthMiddleware(testCfg.API.JWT))
 	RegisterRoutes(router, services)
 
 	return &TestRouter{
@@ -246,8 +246,10 @@ var _ = BeforeSuite(func() {
 	workdir, err := os.MkdirTemp(os.TempDir(), "ut-nanafs-rest-")
 	Expect(err).Should(BeNil())
 
-	testCfg = config.Bootstrap{
-		API:       config.FsApi{},
+	testCfg = &config.Bootstrap{
+		API: config.FsApi{
+			JWT: nil, // No JWT configured, test header-based auth (backward compatibility)
+		},
 		FS:        &config.FS{Owner: config.FSOwner{Uid: 0, Gid: 0}, Writeback: false},
 		Meta:      config.Meta{Type: metastore.MemoryMeta},
 		Storages:  []config.Storage{{ID: "test-memory-0", Type: storage.MemoryStorage}},
@@ -256,7 +258,7 @@ var _ = BeforeSuite(func() {
 		CacheSize: 0,
 	}
 
-	cfg := config.NewMockConfig(testCfg)
+	cfg := config.NewMockConfig(*testCfg)
 	dep, err := common.InitDepends(cfg, memMeta)
 	Expect(err).Should(BeNil())
 

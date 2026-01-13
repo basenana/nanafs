@@ -57,6 +57,9 @@ func New(depends *common.Depends, cfg config.Config) (*Server, error) {
 	s.engine.Use(gin.Recovery())
 	s.engine.Use(s.logMiddleware())
 
+	bootCfg := cfg.GetBootstrapConfig()
+	s.engine.Use(common.AuthMiddleware(bootCfg.API.JWT))
+
 	docs.SwaggerInfo.BasePath = "/api/v1"
 	s.engine.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
 

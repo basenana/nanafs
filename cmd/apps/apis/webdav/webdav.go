@@ -181,7 +181,7 @@ func (o FsOperator) RemoveAll(ctx context.Context, entryPath string) error {
 
 	err = o.fs.RmGroup(ctx, entryPath, types.DestroyEntryAttr{Recursion: true})
 	if err != nil {
-		return error2FsError(types.ErrNotEmpty)
+		return error2FsError(err)
 	}
 
 	return nil

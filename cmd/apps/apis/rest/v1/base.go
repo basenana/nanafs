@@ -56,8 +56,6 @@ func NewServicesV1(engine *gin.Engine, depends *common.Depends) (*ServicesV1, er
 		logger:   logger.NewLogger("rest"),
 	}
 
-	engine.Use(common.AuthMiddleware())
-
 	return s, nil
 }
 

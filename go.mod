@@ -16,6 +16,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/glebarez/sqlite v1.7.0
 	github.com/go-gormigrate/gormigrate/v2 v2.1.1
+	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/google/cel-go v0.25.0
 	github.com/google/uuid v1.6.0
 	github.com/hanwen/go-fuse/v2 v2.3.0
@@ -28,6 +29,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.19.1
 	github.com/slok/go-http-metrics v0.10.0
+	github.com/stretchr/testify v1.11.1
 	github.com/studio-b12/gowebdav v0.9.0
 	github.com/swaggo/files v1.0.1
 	go.uber.org/zap v1.27.1
@@ -110,6 +112,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/nxadm/tail v1.4.11 // indirect
 	github.com/onsi/ginkgo/v2 v2.22.0 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.5.0 // indirect
 	github.com/prometheus/common v0.48.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
