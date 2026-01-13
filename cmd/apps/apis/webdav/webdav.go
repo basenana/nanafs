@@ -78,29 +78,32 @@ type FsOperator struct {
 	logger *zap.SugaredLogger
 }
 
-func (o FsOperator) Mkdir(ctx context.Context, path string, perm os.FileMode) error {
+func (o FsOperator) Mkdir(ctx context.Context, p string, perm os.FileMode) error {
 	defer trace.StartRegion(ctx, "apis.webdav.Mkdir").End()
 
 	var (
-		attr  = mode2EntryAttr(perm)
-		crtID = o.root.ID
+		attr   = mode2EntryAttr(perm)
+		crtURI = "/"
 	)
 
-	for _, ename := range splitPath(path) {
-		en, err := o.fs.LookUpEntry(ctx, crtID, ename)
+	for _, ename := range splitPath(p) {
+		parentURI := crtURI
+		childURI := path.Join(crtURI, ename)
+
+		_, _, err := o.fs.GetEntryByPath(ctx, childURI)
 		if err != nil && !errors.Is(err, types.ErrNotFound) {
 			return error2FsError(err)
 		}
 
-		if en == nil {
+		if err == types.ErrNotFound {
 			// create
 			attr.Name = ename
-			en, err = o.fs.CreateEntry(ctx, crtID, attr)
+			_, err = o.fs.CreateEntry(ctx, parentURI, attr)
 			if err != nil {
 				return error2FsError(err)
 			}
 		}
-		crtID = en.ID
+		crtURI = childURI
 	}
 
 	return nil
@@ -138,7 +141,7 @@ func (o FsOperator) OpenFile(ctx context.Context, entryPath string, flag int, pe
 
 		attr := mode2EntryAttr(perm)
 		attr.Name = filename
-		entry, err = o.fs.CreateEntry(ctx, parent.ID, attr)
+		entry, err = o.fs.CreateEntry(ctx, parentDir, attr)
 		if err != nil {
 			return nil, error2FsError(err)
 		}
@@ -158,7 +161,6 @@ func (o FsOperator) OpenFile(ctx context.Context, entryPath string, flag int, pe
 func (o FsOperator) RemoveAll(ctx context.Context, entryPath string) error {
 	defer trace.StartRegion(ctx, "apis.webdav.RemoveAll").End()
 
-	entryName := path.Base(entryPath)
 	parent, en, err := o.fs.GetEntryByPath(ctx, entryPath)
 	if err != nil {
 		return error2FsError(err)
@@ -169,14 +171,14 @@ func (o FsOperator) RemoveAll(ctx context.Context, entryPath string) error {
 	}
 
 	if !en.IsGroup {
-		err := o.fs.UnlinkEntry(ctx, parent.ID, entryName, types.DestroyEntryAttr{})
+		err := o.fs.UnlinkEntry(ctx, entryPath, types.DestroyEntryAttr{})
 		if err != nil {
 			return error2FsError(err)
 		}
 		return nil
 	}
 
-	err = o.fs.RmGroup(ctx, parent.ID, entryName, types.DestroyEntryAttr{Recursion: true})
+	err = o.fs.RmGroup(ctx, entryPath, types.DestroyEntryAttr{Recursion: true})
 	if err != nil {
 		return error2FsError(types.ErrNotEmpty)
 	}

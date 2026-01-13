@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path"
 	"runtime/trace"
 	"strings"
 
@@ -41,9 +42,9 @@ type Core interface {
 
 	GetEntry(ctx context.Context, namespace string, id int64) (*types.Entry, error)
 	GetEntryByPath(ctx context.Context, namespace string, path string) (*types.Entry, *types.Entry, error)
-	CreateEntry(ctx context.Context, namespace string, parentId int64, attr types.EntryAttr) (*types.Entry, error)
+	CreateEntry(ctx context.Context, namespace string, parentURI string, attr types.EntryAttr) (*types.Entry, error)
 	UpdateEntry(ctx context.Context, namespace string, id int64, update types.UpdateEntry) (*types.Entry, error)
-	RemoveEntry(ctx context.Context, namespace string, parentId, entryId int64, entryName string, attr types.DeleteEntry) error
+	RemoveEntry(ctx context.Context, namespace string, entryURI string, attr types.DeleteEntry) error
 
 	MirrorEntry(ctx context.Context, namespace string, srcId, dstParentId int64, attr types.EntryAttr) (*types.Entry, error)
 	ChangeEntryParent(ctx context.Context, namespace string, targetEntryId int64, overwriteEntryId *int64, oldParentId, newParentId int64, oldName, newName string, opt types.ChangeParentAttr) error
@@ -193,7 +194,6 @@ func (c *core) CreateNamespace(ctx context.Context, namespace string) error {
 
 	root, err := c.getEntry(ctx, types.DefaultNamespace, RootEntryID)
 	if err != nil {
-		c.logger.Errorw("load root entry error", "err", err.Error())
 		return err
 	}
 
@@ -205,7 +205,6 @@ func (c *core) CreateNamespace(ctx context.Context, namespace string) error {
 
 	err = c.store.CreateEntry(ctx, namespace, RootEntryID, nsRoot)
 	if err != nil {
-		c.logger.Errorw("create root entry failed", "err", err)
 		return err
 	}
 
@@ -214,7 +213,7 @@ func (c *core) CreateNamespace(ctx context.Context, namespace string) error {
 	}
 
 	for _, buildInGroupName := range buildInGroups {
-		_, err = c.CreateEntry(ctx, namespace, nsRoot.ID, types.EntryAttr{
+		_, err = c.CreateEntry(ctx, namespace, "/", types.EntryAttr{
 			Name: buildInGroupName,
 			Kind: types.GroupKind,
 		})
@@ -244,6 +243,20 @@ func (c *core) getEntry(ctx context.Context, namespace string, id int64) (*types
 
 	c.cache.setEntry(en)
 	return en, nil
+}
+
+// getEntryPath reconstructs the path for an entry from root to the entry
+func (c *core) getEntryPath(ctx context.Context, namespace string, id int64) (string, error) {
+	if id == 0 {
+		return "", types.ErrNotFound
+	}
+
+	en, err := c.getEntry(ctx, namespace, id)
+	if err != nil {
+		return "", err
+	}
+
+	return ProbableEntryPath(ctx, c, en)
 }
 
 func (c *core) GetEntry(ctx context.Context, namespace string, id int64) (*types.Entry, error) {
@@ -299,12 +312,24 @@ func (c *core) GetEntryByPath(ctx context.Context, namespace string, path string
 		}
 	}
 
+	if crt == nil {
+		return nil, nil, types.ErrNotFound
+	}
+
 	return parent, crt, nil
 }
 
-func (c *core) CreateEntry(ctx context.Context, namespace string, parentId int64, attr types.EntryAttr) (*types.Entry, error) {
+func (c *core) CreateEntry(ctx context.Context, namespace string, parentURI string, attr types.EntryAttr) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "fs.core.CreateEntry").End()
-	existed, err := c.store.FindEntry(ctx, namespace, parentId, attr.Name)
+
+	_, parent, err := c.GetEntryByPath(ctx, namespace, parentURI)
+	if err != nil {
+		c.logger.Errorw("CreateEntry: failed to get parent", "parentURI", parentURI, "namespace", namespace, "err", err)
+		return nil, err
+	}
+	c.logger.Debugw("CreateEntry: got parent", "parentURI", parentURI, "parentID", parent.ID, "parentName", parent.Name)
+
+	existed, err := c.store.FindEntry(ctx, namespace, parent.ID, attr.Name)
 	if err != nil && !errors.Is(err, types.ErrNotFound) {
 		return nil, err
 	}
@@ -312,21 +337,16 @@ func (c *core) CreateEntry(ctx context.Context, namespace string, parentId int64
 		return nil, types.ErrIsExist
 	}
 
-	group, err := c.getEntry(ctx, namespace, parentId)
+	entry, err := types.InitNewEntry(parent, attr)
 	if err != nil {
 		return nil, err
 	}
 
-	entry, err := types.InitNewEntry(group, attr)
+	err = c.store.CreateEntry(ctx, namespace, parent.ID, entry)
 	if err != nil {
 		return nil, err
 	}
-
-	err = c.store.CreateEntry(ctx, namespace, parentId, entry)
-	if err != nil {
-		return nil, err
-	}
-	defer c.cache.invalidEntry(namespace, parentId)
+	defer c.cache.invalidEntry(namespace, parent.ID)
 
 	if attr.Properties != nil {
 		err = c.store.UpdateEntryProperties(ctx, namespace, types.PropertyTypeProperty, entry.ID, attr.Properties)
@@ -392,30 +412,51 @@ func (c *core) UpdateEntry(ctx context.Context, namespace string, id int64, upda
 	return c.getEntry(ctx, namespace, id)
 }
 
-func (c *core) RemoveEntry(ctx context.Context, namespace string, parentId, entryId int64, entryName string, attr types.DeleteEntry) error {
+func (c *core) RemoveEntry(ctx context.Context, namespace string, entryURI string, attr types.DeleteEntry) error {
 	defer trace.StartRegion(ctx, "fs.core.RemoveEntry").End()
-	children, err := c.store.ListChildren(ctx, namespace, entryId)
+
+	if entryURI == "/" {
+		return types.ErrUnsupported
+	}
+
+	_, target, err := c.GetEntryByPath(ctx, namespace, entryURI)
 	if err != nil {
 		return err
 	}
 
-	if len(children) > 0 && !attr.DeleteAll {
-		return types.ErrNotEmpty
+	parentURI := path.Dir(entryURI)
+	_, parent, err := c.GetEntryByPath(ctx, namespace, parentURI)
+	if err != nil {
+		return err
 	}
 
-	for _, child := range children {
-		if err = c.RemoveEntry(ctx, namespace, entryId, child.ChildID, child.Name, types.DeleteEntry{DeleteAll: true}); err != nil {
+	if target.IsGroup {
+		c.logger.Debugw("removing group entry", "entryURI", entryURI)
+		children, err := c.store.ListChildren(ctx, namespace, target.ID)
+		if err != nil {
 			return err
+		}
+
+		if len(children) > 0 && !attr.DeleteAll {
+			return types.ErrNotEmpty
+		}
+
+		for _, child := range children {
+			childURI := path.Join(entryURI, child.Name)
+			if err = c.RemoveEntry(ctx, namespace, childURI, types.DeleteEntry{DeleteAll: true}); err != nil {
+				return err
+			}
 		}
 	}
 
-	err = c.store.RemoveEntry(ctx, namespace, parentId, entryId, entryName, attr)
+	childName := path.Base(entryURI)
+	err = c.store.RemoveEntry(ctx, namespace, parent.ID, target.ID, childName, attr)
 	if err != nil {
 		return err
 	}
-	c.cache.invalidEntry(namespace, entryId, parentId)
-	c.cache.invalidChild(namespace, parentId, entryName)
-	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeDestroy, namespace, entryId)
+	c.cache.invalidEntry(namespace, target.ID, parent.ID)
+	c.cache.invalidChild(namespace, parent.ID, childName)
+	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeRemove, namespace, target.ID)
 	return nil
 }
 
@@ -525,13 +566,21 @@ func (c *core) ChangeEntryParent(ctx context.Context, namespace string, targetEn
 			return types.ErrUnsupported
 		}
 
-		if err = c.RemoveEntry(ctx, namespace, newParentId, *overwriteEntryId, newName, types.DeleteEntry{}); err != nil {
+		// Construct URI for the entry being overwritten
+		parentPath, err := c.getEntryPath(ctx, namespace, newParentId)
+		if err != nil {
+			c.logger.Errorw("get parent path failed", "err", err)
+			return err
+		}
+		overwriteURI := path.Join(parentPath, newName)
+
+		if err = c.RemoveEntry(ctx, namespace, overwriteURI, types.DeleteEntry{}); err != nil {
 			c.logger.Errorw("remove entry failed when overwrite old one", "err", err)
 			return err
 		}
 		c.cache.invalidEntry(namespace, *overwriteEntryId)
 		c.cache.invalidChild(namespace, newParentId, newName)
-		publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeDestroy, overwriteEntry.Namespace, overwriteEntry.ID)
+		publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeRemove, overwriteEntry.Namespace, overwriteEntry.ID)
 	}
 
 	err = c.store.ChangeEntryParent(ctx, namespace, targetEntryId, oldParentId, newParentId, oldName, newName, opt)

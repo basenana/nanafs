@@ -49,19 +49,13 @@ func (s *ServicesV1) CreateEntry(ctx *gin.Context) {
 		return
 	}
 
-	parentURI, name := path.Split(req.URI)
-	_, parentID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, parentURI)
-	if err != nil {
-		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
-		return
-	}
-
 	if req.Kind == "" {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("entry has unknown kind"))
 		return
 	}
 
-	parent, err := s.core.GetEntry(ctx.Request.Context(), caller.Namespace, parentID)
+	parentURI, name := path.Split(req.URI)
+	_, parent, err := s.core.GetEntryByPath(ctx, caller.Namespace, parentURI)
 	if err != nil {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
@@ -87,7 +81,7 @@ func (s *ServicesV1) CreateEntry(ctx *gin.Context) {
 		s.setupGroupFilterConfig(req.Filter, &attr)
 	}
 
-	en, err := s.core.CreateEntry(ctx.Request.Context(), caller.Namespace, parentID, attr)
+	en, err := s.core.CreateEntry(ctx.Request.Context(), caller.Namespace, parentURI, attr)
 	if err != nil {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
@@ -214,13 +208,7 @@ func (s *ServicesV1) DeleteEntry(ctx *gin.Context) {
 		return
 	}
 
-	parentID, entryID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, uri)
-	if err != nil {
-		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
-		return
-	}
-
-	deletedEntry, err := s.deleteEntry(ctx.Request.Context(), caller.Namespace, caller.UID, parentID, entryID, path.Base(uri))
+	deletedEntry, err := s.deleteEntry(ctx.Request.Context(), caller.Namespace, caller.UID, uri)
 	if err != nil {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
@@ -255,12 +243,7 @@ func (s *ServicesV1) DeleteEntries(ctx *gin.Context) {
 	deleted := make([]string, 0, len(req.URIList))
 	var lastErr error
 	for _, entryURI := range req.URIList {
-		parentID, entryID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, entryURI)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		_, err = s.deleteEntry(ctx.Request.Context(), caller.Namespace, caller.UID, parentID, entryID, path.Base(entryURI))
+		_, err := s.deleteEntry(ctx.Request.Context(), caller.Namespace, caller.UID, entryURI)
 		if err != nil {
 			lastErr = err
 			continue
@@ -638,13 +621,7 @@ func (s *ServicesV1) EntryDelete(ctx *gin.Context) {
 		return
 	}
 
-	parentID, entryID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, uri)
-	if err != nil {
-		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
-		return
-	}
-
-	deletedEntry, err := s.deleteEntry(ctx.Request.Context(), caller.Namespace, caller.UID, parentID, entryID, path.Base(uri))
+	deletedEntry, err := s.deleteEntry(ctx.Request.Context(), caller.Namespace, caller.UID, uri)
 	if err != nil {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return

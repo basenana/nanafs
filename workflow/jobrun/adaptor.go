@@ -233,7 +233,7 @@ func (n *namespacedFS) SaveEntry(ctx context.Context, parentURI, name string, pr
 			Kind: types.FileKind(name, types.RawKind),
 		}
 
-		entry, err = n.core.CreateEntry(ctx, n.namespace, parent.ID, attr)
+		entry, err = n.core.CreateEntry(ctx, n.namespace, parentURI, attr)
 		if err != nil {
 			return fmt.Errorf("create %s error %w", name, err)
 		}

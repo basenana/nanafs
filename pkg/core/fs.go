@@ -113,11 +113,11 @@ func (f *FileSystem) LookUpEntry(ctx context.Context, parent int64, name string)
 	return f.core.GetEntry(ctx, f.namespace, child.ChildID)
 }
 
-func (f *FileSystem) CreateEntry(ctx context.Context, parent int64, attr types.EntryAttr) (*types.Entry, error) {
+func (f *FileSystem) CreateEntry(ctx context.Context, parentURI string, attr types.EntryAttr) (*types.Entry, error) {
 	if len(attr.Name) > fileNameMaxLength {
 		return nil, types.ErrNameTooLong
 	}
-	return f.core.CreateEntry(ctx, f.namespace, parent, attr)
+	return f.core.CreateEntry(ctx, f.namespace, parentURI, attr)
 }
 
 func (f *FileSystem) UpdateEntry(ctx context.Context, id int64, update types.UpdateEntry) (*types.Entry, error) {
@@ -142,8 +142,8 @@ func (f *FileSystem) LinkEntry(ctx context.Context, srcEntryId, dstParentId int6
 	return f.core.MirrorEntry(ctx, f.namespace, srcEntryId, dstParentId, newEn)
 }
 
-func (f *FileSystem) UnlinkEntry(ctx context.Context, parentID int64, child string, attr types.DestroyEntryAttr) error {
-	parent, err := f.core.GetEntry(ctx, f.namespace, parentID)
+func (f *FileSystem) UnlinkEntry(ctx context.Context, entryURI string, attr types.DestroyEntryAttr) error {
+	parent, en, err := f.core.GetEntryByPath(ctx, f.namespace, entryURI)
 	if err != nil {
 		return err
 	}
@@ -151,10 +151,6 @@ func (f *FileSystem) UnlinkEntry(ctx context.Context, parentID int64, child stri
 		return types.ErrNoAccess
 	}
 
-	en, err := f.LookUpEntry(ctx, parent.ID, child)
-	if err != nil {
-		return err
-	}
 	if en.IsGroup {
 		return types.ErrIsGroup
 	}
@@ -162,12 +158,12 @@ func (f *FileSystem) UnlinkEntry(ctx context.Context, parentID int64, child stri
 		return types.ErrNoAccess
 	}
 
-	f.logger.Debugw("delete entry", "parent", parentID, "entry", child)
-	return f.core.RemoveEntry(ctx, f.namespace, parentID, en.ID, child, types.DeleteEntry{})
+	f.logger.Debugw("delete entry", "entry", entryURI)
+	return f.core.RemoveEntry(ctx, f.namespace, entryURI, types.DeleteEntry{})
 }
 
-func (f *FileSystem) RmGroup(ctx context.Context, parentID int64, child string, attr types.DestroyEntryAttr) error {
-	parent, err := f.core.GetEntry(ctx, f.namespace, parentID)
+func (f *FileSystem) RmGroup(ctx context.Context, entryURI string, attr types.DestroyEntryAttr) error {
+	parent, en, err := f.core.GetEntryByPath(ctx, f.namespace, entryURI)
 	if err != nil {
 		return err
 	}
@@ -175,10 +171,6 @@ func (f *FileSystem) RmGroup(ctx context.Context, parentID int64, child string, 
 		return types.ErrNoAccess
 	}
 
-	en, err := f.LookUpEntry(ctx, parent.ID, child)
-	if err != nil {
-		return err
-	}
 	if attr.Uid != 0 && attr.Uid != en.Access.UID && attr.Uid != parent.Access.UID && parent.Access.HasPerm(types.PermSticky) {
 		return types.ErrNoAccess
 	}
@@ -187,8 +179,8 @@ func (f *FileSystem) RmGroup(ctx context.Context, parentID int64, child string, 
 		return types.ErrNoGroup
 	}
 
-	f.logger.Debugw("delete group", "parent", parentID, "entry", child)
-	return f.core.RemoveEntry(ctx, f.namespace, parentID, en.ID, child, types.DeleteEntry{})
+	f.logger.Debugw("delete group", "entry", entryURI)
+	return f.core.RemoveEntry(ctx, f.namespace, entryURI, types.DeleteEntry{})
 }
 
 func (f *FileSystem) Rename(ctx context.Context, targetId, oldParentId, newParentId int64, oldName, newName string, opt types.ChangeParentAttr) error {

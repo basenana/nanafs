@@ -127,12 +127,13 @@ func (n *NanaFS) rootNode() (*NanaNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	return n.newFsNode(root.Name, root), nil
+	return n.newFsNode(root.Name, "/", root), nil
 }
 
-func (n *NanaFS) newFsNode(name string, entry *types.Entry) *NanaNode {
+func (n *NanaFS) newFsNode(name string, p string, entry *types.Entry) *NanaNode {
 	node := &NanaNode{
 		name:    name,
+		path:    p,
 		entryID: entry.ID,
 		cache:   entry,
 		R:       n,

@@ -47,17 +47,13 @@ func resetFileChunk() {
 
 func newMockFileEntry(name string) *types.Entry {
 	ctx := context.TODO()
-	ch, err := fsCore.FindEntry(context.TODO(), namespace, root.ID, name)
+	_, en, err := fsCore.GetEntryByPath(ctx, namespace, "/"+name)
 	if err == nil {
-		en, err := fsCore.GetEntry(ctx, namespace, ch.ChildID)
-		if err != nil {
-			panic(fmt.Sprintf("GetEntry failed: %v", err))
-		}
 		return en
 	}
 
 	var createErr error
-	en, createErr := fsCore.CreateEntry(ctx, namespace, root.ID, types.EntryAttr{Name: name, Kind: types.RawKind})
+	en, createErr = fsCore.CreateEntry(ctx, namespace, "/", types.EntryAttr{Name: name, Kind: types.RawKind})
 	if createErr != nil {
 		panic(fmt.Errorf("init file entry failed: %s", createErr))
 	}

@@ -133,11 +133,8 @@ var _ = Describe("TestTriggers", func() {
 
 	Describe("runRSSWorkflow", func() {
 		It("should trigger workflow for rss groups", func() {
-			nsRoot, err := fsCore.NamespaceRoot(ctx, namespace)
-			Expect(err).Should(BeNil())
-
 			// create rss group with properties
-			rssGroup, err := fsCore.CreateEntry(ctx, namespace, nsRoot.ID, types.EntryAttr{
+			rssGroup, err := fsCore.CreateEntry(ctx, namespace, "/", types.EntryAttr{
 				Name: "rss-group",
 				Kind: types.GroupKind,
 				GroupProperties: &types.GroupProperties{

@@ -20,8 +20,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"github.com/basenana/nanafs/pkg/core"
 	"io"
+	"path"
 	"runtime/trace"
 	"syscall"
 	"time"
@@ -30,6 +30,7 @@ import (
 	"github.com/hanwen/go-fuse/v2/fuse"
 	"go.uber.org/zap"
 
+	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/types"
 )
 
@@ -64,6 +65,7 @@ type NanaNode struct {
 	R *NanaFS
 
 	name    string
+	path    string
 	entryID int64
 	cache   *types.Entry
 	logger  *zap.SugaredLogger
@@ -211,7 +213,7 @@ func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode u
 	if fuseCtx, ok := ctx.(*fuse.Context); ok {
 		core.UpdateAccessWithOwnID(acc, int64(fuseCtx.Uid), int64(fuseCtx.Gid))
 	}
-	newCh, err := n.R.CreateEntry(ctx, n.entryID, types.EntryAttr{
+	newCh, err := n.R.CreateEntry(ctx, n.path, types.EntryAttr{
 		Name:   name,
 		Kind:   fileKindFromMode(mode),
 		Access: acc,
@@ -221,7 +223,8 @@ func (n *NanaNode) Create(ctx context.Context, name string, flags uint32, mode u
 		return nil, nil, 0, Error2FuseSysError("entry_create", err)
 	}
 
-	node := n.R.newFsNode(name, newCh)
+	fullPath := path.Join(n.path, name)
+	node := n.R.newFsNode(name, fullPath, newCh)
 	updateAttrOut(nanaNode2Stat(newCh), &out.Attr)
 
 	openAttr := openFileAttr(flags)
@@ -245,7 +248,8 @@ func (n *NanaNode) Lookup(ctx context.Context, name string, out *fuse.EntryOut) 
 		return nil, Error2FuseSysError("entry_lookup", err)
 	}
 
-	node := n.R.newFsNode(name, ch)
+	fullPath := path.Join(n.path, name)
+	node := n.R.newFsNode(name, fullPath, ch)
 	updateAttrOut(nanaNode2Stat(ch), &out.Attr)
 	return n.NewInode(ctx, node, fs.StableAttr{Ino: uint64(node.entryID), Mode: out.Mode}), NoErr
 }
@@ -306,7 +310,7 @@ func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fus
 	}
 
 	n.logger.Debugw("create new group entry", "name", name)
-	newDir, err := n.R.CreateEntry(ctx, n.entryID, types.EntryAttr{
+	newDir, err := n.R.CreateEntry(ctx, n.path, types.EntryAttr{
 		Name:   name,
 		Kind:   types.GroupKind,
 		Access: acc,
@@ -316,7 +320,8 @@ func (n *NanaNode) Mkdir(ctx context.Context, name string, mode uint32, out *fus
 		return nil, Error2FuseSysError("entry_mkdir", err)
 	}
 
-	node := n.R.newFsNode(name, newDir)
+	fullPath := path.Join(n.path, name)
+	node := n.R.newFsNode(name, fullPath, newDir)
 	updateAttrOut(nanaNode2Stat(newDir), &out.Attr)
 	return n.NewInode(ctx, node, fs.StableAttr{Ino: uint64(node.entryID), Mode: out.Mode}), NoErr
 }
@@ -339,7 +344,7 @@ func (n *NanaNode) Mknod(ctx context.Context, name string, mode uint32, dev uint
 		core.UpdateAccessWithOwnID(acc, int64(fuseCtx.Uid), int64(fuseCtx.Gid))
 	}
 	n.logger.Debugw("create new device entry", "name", name)
-	newCh, err := n.R.CreateEntry(ctx, n.entryID, types.EntryAttr{
+	newCh, err := n.R.CreateEntry(ctx, n.path, types.EntryAttr{
 		Name:   name,
 		Kind:   fileKindFromMode(mode),
 		Access: acc,
@@ -349,7 +354,8 @@ func (n *NanaNode) Mknod(ctx context.Context, name string, mode uint32, dev uint
 		return nil, Error2FuseSysError("entry_mknod", err)
 	}
 
-	node := n.R.newFsNode(name, newCh)
+	fullPath := path.Join(n.path, name)
+	node := n.R.newFsNode(name, fullPath, newCh)
 	updateAttrOut(nanaNode2Stat(newCh), &out.Attr)
 	return n.NewInode(ctx, node, fs.StableAttr{Ino: uint64(node.entryID), Mode: out.Mode}), NoErr
 }
@@ -388,7 +394,7 @@ func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.E
 		return nil, Error2FuseSysError("entry_symlink", types.ErrIsExist)
 	}
 
-	newLink, err := n.R.CreateEntry(ctx, n.entryID, types.EntryAttr{
+	newLink, err := n.R.CreateEntry(ctx, n.path, types.EntryAttr{
 		Name: name,
 		Kind: types.SymLinkKind,
 	})
@@ -414,7 +420,8 @@ func (n *NanaNode) Symlink(ctx context.Context, target, name string, out *fuse.E
 		return nil, Error2FuseSysError("entry_symlink", err)
 	}
 
-	newNode := n.R.newFsNode(name, newLink)
+	fullPath := path.Join(n.path, name)
+	newNode := n.R.newFsNode(name, fullPath, newLink)
 	st := nanaNode2Stat(newLink)
 	updateAttrOut(st, &out.Attr)
 	return n.NewInode(ctx, newNode, fs.StableAttr{Ino: uint64(newNode.entryID), Mode: out.Mode}), NoErr
@@ -446,7 +453,8 @@ func (n *NanaNode) Unlink(ctx context.Context, name string) syscall.Errno {
 		uid, gid = fuseCtx.Uid, fuseCtx.Gid
 	}
 
-	if err := n.R.UnlinkEntry(ctx, n.entryID, name, types.DestroyEntryAttr{Uid: int64(uid), Gid: int64(gid)}); err != nil {
+	entryURI := path.Join(n.path, name)
+	if err := n.R.UnlinkEntry(ctx, entryURI, types.DestroyEntryAttr{Uid: int64(uid), Gid: int64(gid)}); err != nil {
 		n.logger.Errorw("unlink entry failed", "err", err, "name", name)
 		return Error2FuseSysError("entry_unlink", err)
 	}
@@ -470,7 +478,8 @@ func (n *NanaNode) Rmdir(ctx context.Context, name string) syscall.Errno {
 		uid, gid = fuseCtx.Uid, fuseCtx.Gid
 	}
 
-	if err := n.R.RmGroup(ctx, n.entryID, name, types.DestroyEntryAttr{Uid: int64(uid), Gid: int64(gid)}); err != nil {
+	entryURI := path.Join(n.path, name)
+	if err := n.R.RmGroup(ctx, entryURI, types.DestroyEntryAttr{Uid: int64(uid), Gid: int64(gid)}); err != nil {
 		n.logger.Errorw("remove group entry failed", "err", err, "name", name)
 		return Error2FuseSysError("entry_rmdir", err)
 	}

@@ -36,7 +36,7 @@ var _ = Describe("TestManageGroupEntry", func() {
 			var (
 				err error
 			)
-			group1, err = fsCore.CreateEntry(ctx, namespace, root.ID, types.EntryAttr{
+			group1, err = fsCore.CreateEntry(ctx, namespace, "/", types.EntryAttr{
 				Name:   "test_group_manage_group1",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
@@ -47,7 +47,7 @@ var _ = Describe("TestManageGroupEntry", func() {
 	Context("create file entry in group1", func() {
 		It("create file1 should be succeed", func() {
 			var err error
-			file1, err = fsCore.CreateEntry(ctx, namespace, group1.ID, types.EntryAttr{
+			file1, err = fsCore.CreateEntry(ctx, namespace, "/test_group_manage_group1", types.EntryAttr{
 				Name:   "test_group_manage_file1",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
@@ -56,7 +56,7 @@ var _ = Describe("TestManageGroupEntry", func() {
 			Expect(file1).ShouldNot(BeNil())
 		})
 		It("create file2 should be succeed", func() {
-			_, err := fsCore.CreateEntry(ctx, namespace, group1.ID, types.EntryAttr{
+			_, err := fsCore.CreateEntry(ctx, namespace, "/test_group_manage_group1", types.EntryAttr{
 				Name:   "test_group_manage_file2",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
@@ -64,7 +64,7 @@ var _ = Describe("TestManageGroupEntry", func() {
 			Expect(err).Should(BeNil())
 		})
 		It("create file1 should be existed", func() {
-			_, err := fsCore.CreateEntry(ctx, namespace, group1.ID, types.EntryAttr{
+			_, err := fsCore.CreateEntry(ctx, namespace, "/test_group_manage_group1", types.EntryAttr{
 				Name:   "test_group_manage_file1",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
@@ -106,13 +106,13 @@ var _ = Describe("TestManageGroupEntry", func() {
 		It("delete file1 & file3 should be succeed", func() {
 			chList, err := fsCore.ListChildren(ctx, namespace, group1.ID)
 			Expect(err).Should(BeNil())
-			file1, err := groupHasChild(chList, "test_group_manage_file1")
+			_, err = groupHasChild(chList, "test_group_manage_file1")
 			Expect(err).Should(BeNil())
-			file3, err := groupHasChild(chList, "test_group_manage_file3")
+			_, err = groupHasChild(chList, "test_group_manage_file3")
 			Expect(err).Should(BeNil())
 
-			Expect(fsCore.RemoveEntry(ctx, namespace, group1.ID, file1, "test_group_manage_file1", types.DeleteEntry{})).Should(BeNil())
-			Expect(fsCore.RemoveEntry(ctx, namespace, group1.ID, file3, "test_group_manage_file3", types.DeleteEntry{})).Should(BeNil())
+			Expect(fsCore.RemoveEntry(ctx, namespace, "/test_group_manage_group1/test_group_manage_file1", types.DeleteEntry{})).Should(BeNil())
+			Expect(fsCore.RemoveEntry(ctx, namespace, "/test_group_manage_group1/test_group_manage_file3", types.DeleteEntry{})).Should(BeNil())
 
 			chList, err = fsCore.ListChildren(ctx, namespace, group1.ID)
 			Expect(err).Should(BeNil())
@@ -134,7 +134,7 @@ var _ = Describe("TestDynamicGroupEntry", func() {
 	Context("init dynamic group", func() {
 		var srcGrpEn *types.Entry
 		It("init source group should be succeed", func() {
-			srcGrpEn, err = fsCore.CreateEntry(ctx, namespace, root.ID, types.EntryAttr{
+			srcGrpEn, err = fsCore.CreateEntry(ctx, namespace, "/", types.EntryAttr{
 				Name:   "test_dynamic_source_group",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
@@ -143,27 +143,27 @@ var _ = Describe("TestDynamicGroupEntry", func() {
 			Expect(srcGrpEn).ShouldNot(BeNil())
 		})
 		It("fill target file to dynamic group should be succeed", func() {
-			_, err = fsCore.CreateEntry(ctx, namespace, srcGrpEn.ID, types.EntryAttr{
+			_, err = fsCore.CreateEntry(ctx, namespace, "/test_dynamic_source_group", types.EntryAttr{
 				Name:   "filter-target-file-1.txt",
 				Kind:   types.RawKind,
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
-			_, err = fsCore.CreateEntry(ctx, namespace, srcGrpEn.ID, types.EntryAttr{
+			_, err = fsCore.CreateEntry(ctx, namespace, "/test_dynamic_source_group", types.EntryAttr{
 				Name:       "filter-target-file-2.txt",
 				Kind:       types.RawKind,
 				Access:     accessPermissions,
 				Properties: &types.Properties{Tags: []string{"tag2", "tag3"}},
 			})
 			Expect(err).Should(BeNil())
-			_, err = fsCore.CreateEntry(ctx, namespace, srcGrpEn.ID, types.EntryAttr{
+			_, err = fsCore.CreateEntry(ctx, namespace, "/test_dynamic_source_group", types.EntryAttr{
 				Name:       "filter-target-file-3.txt",
 				Kind:       types.RawKind,
 				Access:     accessPermissions,
 				Properties: &types.Properties{Tags: []string{"tag2", "tag4"}},
 			})
 			Expect(err).Should(BeNil())
-			_, err = fsCore.CreateEntry(ctx, namespace, srcGrpEn.ID, types.EntryAttr{
+			_, err = fsCore.CreateEntry(ctx, namespace, "/test_dynamic_source_group", types.EntryAttr{
 				Name:       "filter-target-file-4.txt",
 				Kind:       types.RawKind,
 				Access:     accessPermissions,
@@ -175,7 +175,7 @@ var _ = Describe("TestDynamicGroupEntry", func() {
 	Context("init dynamic group", func() {
 		It("init smart group should be succeed", func() {
 			var err error
-			smtGrpEn, err = fsCore.CreateEntry(ctx, namespace, root.ID, types.EntryAttr{
+			smtGrpEn, err = fsCore.CreateEntry(ctx, namespace, "/", types.EntryAttr{
 				Name:   "test_dynamic_group",
 				Kind:   types.SmartGroupKind,
 				Access: accessPermissions,

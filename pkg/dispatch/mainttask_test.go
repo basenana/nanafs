@@ -28,30 +28,20 @@ import (
 )
 
 func createTestEntry(ctx context.Context, name string) *types.Entry {
-	root, _ := fsCore.NamespaceRoot(ctx, namespace)
-	entry, _ := fsCore.CreateEntry(ctx, namespace, root.ID, types.EntryAttr{
+	entry, _ := fsCore.CreateEntry(ctx, namespace, "/", types.EntryAttr{
 		Name: name,
 		Kind: types.RawKind,
 	})
 	return entry
 }
 
-// makeOrphan creates an orphan entry with ref_count=0 by creating then removing from parent
 func makeOrphan(ctx context.Context, name string) *types.Entry {
-	root, _ := fsCore.NamespaceRoot(ctx, namespace)
-
-	// Create entry with fsCore (ref_count=1)
-	entry, _ := fsCore.CreateEntry(ctx, namespace, root.ID, types.EntryAttr{
+	entry, _ := fsCore.CreateEntry(ctx, namespace, "/", types.EntryAttr{
 		Name: name,
 		Kind: types.RawKind,
 	})
-
-	// Remove from parent to set ref_count=0 (ChangedAt=now)
-	_ = fsCore.RemoveEntry(ctx, namespace, root.ID, entry.ID, entry.Name, types.DeleteEntry{})
-
-	// Sleep so ChangedAt becomes old enough for our 1-second threshold test
+	_ = fsCore.RemoveEntry(ctx, namespace, "/"+name, types.DeleteEntry{})
 	time.Sleep(time.Second)
-
 	GinkgoT().Logf("Created orphan: ID=%d, RefCount=0", entry.ID)
 	return entry
 }
@@ -59,12 +49,9 @@ func makeOrphan(ctx context.Context, name string) *types.Entry {
 var _ = Describe("entryCleanExecutor.scanOrphanEntriesTask", func() {
 	It("should create cleanup task for orphan entries", func() {
 		ctx := context.TODO()
-
-		// Create orphan entry (ref_count=0, ChangedAt is old due to sleep in makeOrphan)
 		orphanEntry := makeOrphan(ctx, "orphan")
 		Expect(orphanEntry).ShouldNot(BeNil())
 
-		// Use 1-second threshold (entry is already old due to sleep in makeOrphan)
 		e := &entryCleanExecutor{
 			maintainExecutor: &maintainExecutor{
 				recorder:  testMeta,
@@ -77,7 +64,6 @@ var _ = Describe("entryCleanExecutor.scanOrphanEntriesTask", func() {
 		err := e.scanOrphanEntriesTask(ctx)
 		Expect(err).Should(BeNil())
 
-		// Verify cleanup task was created for OUR entry
 		tasks, err := testMeta.ListTask(ctx, maintainTaskIDEntryCleanup, types.ScheduledTaskFilter{RefID: orphanEntry.ID})
 		Expect(err).Should(BeNil())
 		Expect(len(tasks)).Should(Equal(1), "should create task for our orphan entry")
@@ -86,12 +72,9 @@ var _ = Describe("entryCleanExecutor.scanOrphanEntriesTask", func() {
 
 	It("should not create duplicate task", func() {
 		ctx := context.TODO()
-
-		// Create orphan entry
 		orphanEntry := makeOrphan(ctx, "orphan2")
 		Expect(orphanEntry).ShouldNot(BeNil())
 
-		// Use 1-second threshold
 		e := &entryCleanExecutor{
 			maintainExecutor: &maintainExecutor{
 				recorder:  testMeta,
@@ -101,7 +84,6 @@ var _ = Describe("entryCleanExecutor.scanOrphanEntriesTask", func() {
 			orphanThreshold: time.Second,
 		}
 
-		// Create existing task for OUR entry
 		existingTask := &types.ScheduledTask{
 			Namespace:      namespace,
 			TaskID:         maintainTaskIDEntryCleanup,
@@ -113,7 +95,6 @@ var _ = Describe("entryCleanExecutor.scanOrphanEntriesTask", func() {
 		}
 		_ = testMeta.SaveTask(ctx, existingTask)
 
-		// Scan should not create duplicate for OUR entry
 		err := e.scanOrphanEntriesTask(ctx)
 		Expect(err).Should(BeNil())
 
@@ -148,7 +129,6 @@ var _ = Describe("entryCleanExecutor.createCleanupTask", func() {
 		ctx := context.TODO()
 		testEntry := createTestEntry(ctx, "test-entry2")
 
-		// Create existing task
 		existingTask := &types.ScheduledTask{
 			Namespace:      namespace,
 			TaskID:         maintainTaskIDEntryCleanup,
@@ -215,7 +195,6 @@ var _ = Describe("compactExecutor.handleEvent", func() {
 		ctx := context.TODO()
 		testEntry := createTestEntry(ctx, "compact-test2")
 
-		// Create existing task
 		existingTask := &types.ScheduledTask{
 			Namespace:      namespace,
 			TaskID:         maintainTaskIDChunkCompact,
@@ -255,7 +234,7 @@ var _ = Describe("entryCleanExecutor.handleEvent", func() {
 		testEntry := createTestEntry(ctx, "destroy-test")
 
 		evt := &types.Event{
-			Type:      events.ActionTypeDestroy,
+			Type:      events.ActionTypeRemove,
 			Namespace: namespace,
 			RefType:   "entry",
 			RefID:     testEntry.ID,
@@ -328,7 +307,6 @@ var _ = Describe("entryCleanExecutor.execute", func() {
 		err := ee.execute(ctx, task)
 		Expect(err).Should(BeNil())
 
-		// Verify entry was destroyed
 		_, err = testMeta.GetEntry(ctx, namespace, testEntry.ID)
 		Expect(err).ShouldNot(BeNil())
 	})

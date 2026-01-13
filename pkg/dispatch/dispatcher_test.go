@@ -173,7 +173,7 @@ func newTestTask(taskID string, status string) *types.ScheduledTask {
 		ExecutionTime:  time.Now().Add(-time.Minute),
 		ExpirationTime: time.Now().Add(time.Hour),
 		Event: types.Event{
-			Type:      events.ActionTypeDestroy,
+			Type:      events.ActionTypeRemove,
 			Namespace: namespace,
 			RefType:   "entry",
 			RefID:     100,

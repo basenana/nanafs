@@ -272,6 +272,11 @@ var _ = BeforeSuite(func() {
 var _ = BeforeEach(func() {
 	// Create a fresh test router for each test to ensure isolation
 	testRouter = NewTestRouter()
+	// Ensure namespace exists for this Core instance
+	err := testRouter.Services.core.CreateNamespace(context.TODO(), types.DefaultNamespace)
+	if err != nil {
+		println("BeforeEach: CreateNamespace ERROR:", err.Error())
+	}
 })
 
 func BoolPtr(b bool) *bool {

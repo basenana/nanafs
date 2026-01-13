@@ -169,8 +169,8 @@ func (s *ServicesV1) getEntryByPath(ctx context.Context, namespace, uri string) 
 }
 
 // deleteEntry deletes an entry with permission checks.
-func (s *ServicesV1) deleteEntry(ctx context.Context, namespace string, uid, parentID, entryID int64, name string) (*types.Entry, error) {
-	en, err := s.core.GetEntry(ctx, namespace, entryID)
+func (s *ServicesV1) deleteEntry(ctx context.Context, namespace string, uid int64, entryURI string) (*types.Entry, error) {
+	parent, en, err := s.core.GetEntryByPath(ctx, namespace, entryURI)
 	if err != nil {
 		return nil, errors.New("query entry failed")
 	}
@@ -180,10 +180,6 @@ func (s *ServicesV1) deleteEntry(ctx context.Context, namespace string, uid, par
 		return nil, err
 	}
 
-	parent, err := s.core.GetEntry(ctx, namespace, parentID)
-	if err != nil {
-		return nil, errors.New("query entry parent failed")
-	}
 	err = core.HasAllPermissions(parent.Access, uid, 0, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
 	if err != nil {
 		return nil, err
@@ -198,7 +194,7 @@ func (s *ServicesV1) deleteEntry(ctx context.Context, namespace string, uid, par
 		return nil, types.ErrNoAccess
 	}
 
-	return en, s.core.RemoveEntry(ctx, namespace, parentID, entryID, name, types.DeleteEntry{})
+	return en, s.core.RemoveEntry(ctx, namespace, entryURI, types.DeleteEntry{DeleteAll: true})
 }
 
 // getDocumentProperty retrieves document properties for an entry.

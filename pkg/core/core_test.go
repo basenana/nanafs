@@ -68,7 +68,7 @@ var _ = Describe("TestEntryManage", func() {
 	ctx := context.TODO()
 	Context("create group entry", func() {
 		It("create should be succeed", func() {
-			grp1, err := fsCore.CreateEntry(ctx, namespace, root.ID, types.EntryAttr{
+			grp1, err := fsCore.CreateEntry(ctx, namespace, "/", types.EntryAttr{
 				Name:   "test_create_grp1",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
@@ -77,7 +77,7 @@ var _ = Describe("TestEntryManage", func() {
 			grp1ID = grp1.ID
 		})
 		It("query should be succeed", func() {
-			grp, err := fsCore.OpenGroup(ctx, namespace, root.ID)
+			grp, err := fsCore.OpenGroup(ctx, namespace, nsRoot.ID)
 			Expect(err).Should(BeNil())
 			_, err = groupHasChildEntry(grp, "test_create_grp1")
 			Expect(err).Should(BeNil())
@@ -85,7 +85,7 @@ var _ = Describe("TestEntryManage", func() {
 	})
 	Context("create file entry", func() {
 		It("create should be succeed", func() {
-			_, err := fsCore.CreateEntry(ctx, namespace, grp1ID, types.EntryAttr{
+			_, err := fsCore.CreateEntry(ctx, namespace, "/test_create_grp1", types.EntryAttr{
 				Name:   "test_create_file1",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
@@ -102,9 +102,9 @@ var _ = Describe("TestEntryManage", func() {
 		It("delete should be succeed", func() {
 			grp, err := fsCore.OpenGroup(ctx, namespace, grp1ID)
 			Expect(err).Should(BeNil())
-			file1, err := groupHasChildEntry(grp, "test_create_file1")
+			_, err = groupHasChildEntry(grp, "test_create_file1")
 			Expect(err).Should(BeNil())
-			err = fsCore.RemoveEntry(ctx, namespace, grp1ID, file1.ID, "test_create_file1", types.DeleteEntry{})
+			err = fsCore.RemoveEntry(ctx, namespace, "/test_create_grp1/test_create_file1", types.DeleteEntry{})
 			Expect(err).Should(BeNil())
 
 			grp, err = fsCore.OpenGroup(ctx, namespace, grp1ID)
@@ -115,15 +115,15 @@ var _ = Describe("TestEntryManage", func() {
 	})
 	Context("delete group entry", func() {
 		It("delete should be succeed", func() {
-			grp, err := fsCore.OpenGroup(ctx, namespace, root.ID)
+			grp, err := fsCore.OpenGroup(ctx, namespace, nsRoot.ID)
 			Expect(err).Should(BeNil())
 			_, err = groupHasChildEntry(grp, "test_create_grp1")
 			Expect(err).Should(BeNil())
-			err = fsCore.RemoveEntry(ctx, namespace, root.ID, grp1ID, "test_create_grp1", types.DeleteEntry{})
+			err = fsCore.RemoveEntry(ctx, namespace, "/test_create_grp1", types.DeleteEntry{})
 			Expect(err).Should(BeNil())
 		})
 		It("query should be failed", func() {
-			grp, err := fsCore.OpenGroup(ctx, namespace, root.ID)
+			grp, err := fsCore.OpenGroup(ctx, namespace, nsRoot.ID)
 			Expect(err).Should(BeNil())
 			_, err = groupHasChildEntry(grp, "test_create_grp1")
 			Expect(err).Should(Equal(types.ErrNotFound))
@@ -142,20 +142,20 @@ var _ = Describe("TestMirrorEntryManage", func() {
 	Context("create group mirror entry mirror_grp1", func() {
 		It("create should be succeed", func() {
 			var err error
-			grp1, err = fsCore.CreateEntry(ctx, namespace, root.ID, types.EntryAttr{
+			grp1, err = fsCore.CreateEntry(ctx, namespace, "/", types.EntryAttr{
 				Name:   "test_mirror_grp1",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
 
-			grp, err := fsCore.OpenGroup(ctx, namespace, root.ID)
+			grp, err := fsCore.OpenGroup(ctx, namespace, nsRoot.ID)
 			Expect(err).Should(BeNil())
 			_, err = groupHasChildEntry(grp, "test_mirror_grp1")
 			Expect(err).Should(BeNil())
 		})
 		It("should be file", func() {
-			_, err := fsCore.MirrorEntry(ctx, namespace, grp1.ID, root.ID, types.EntryAttr{
+			_, err := fsCore.MirrorEntry(ctx, namespace, grp1.ID, nsRoot.ID, types.EntryAttr{
 				Name:   "mirror_grp1",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
@@ -166,7 +166,7 @@ var _ = Describe("TestMirrorEntryManage", func() {
 	Context("create file entry in test_mirror_grp1", func() {
 		It("create should be succeed", func() {
 			var err error
-			sFile1, err = fsCore.CreateEntry(ctx, namespace, grp1.ID, types.EntryAttr{
+			sFile1, err = fsCore.CreateEntry(ctx, namespace, "/test_mirror_grp1", types.EntryAttr{
 				Name:   sourceFile,
 				Kind:   types.RawKind,
 				Access: accessPermissions,
@@ -223,8 +223,9 @@ var _ = Describe("TestMirrorEntryManage", func() {
 			child, err := fsCore.ListChildren(ctx, namespace, grp1.ID)
 			Expect(err).Should(BeNil())
 			_, err = groupHasChild(child, sourceFile)
+			Expect(err).Should(BeNil())
 
-			err = fsCore.RemoveEntry(ctx, namespace, grp1.ID, sFile1.ID, sourceFile, types.DeleteEntry{})
+			err = fsCore.RemoveEntry(ctx, namespace, "/test_mirror_grp1/"+sourceFile, types.DeleteEntry{})
 			Expect(err).Should(BeNil())
 
 			child, err = fsCore.ListChildren(ctx, namespace, grp1.ID)
@@ -244,7 +245,7 @@ var _ = Describe("TestMirrorEntryManage", func() {
 			_, err = groupHasChild(chList, mirrorFile2)
 			Expect(err).Should(BeNil())
 
-			err = fsCore.RemoveEntry(ctx, namespace, grp1.ID, mFile2.ID, mirrorFile2, types.DeleteEntry{})
+			err = fsCore.RemoveEntry(ctx, namespace, "/test_mirror_grp1/"+mirrorFile2, types.DeleteEntry{})
 			Expect(err).Should(BeNil())
 
 			chList, err = fsCore.ListChildren(ctx, namespace, grp1.ID)
@@ -259,7 +260,7 @@ var _ = Describe("TestMirrorEntryManage", func() {
 			_, err = groupHasChild(chList, mirrorFile3)
 			Expect(err).Should(BeNil())
 
-			err = fsCore.RemoveEntry(ctx, namespace, grp1.ID, sFile1.ID, mirrorFile3, types.DeleteEntry{})
+			err = fsCore.RemoveEntry(ctx, namespace, "/test_mirror_grp1/"+mirrorFile3, types.DeleteEntry{})
 			Expect(err).Should(BeNil())
 
 			chList, err = fsCore.ListChildren(ctx, namespace, grp1.ID)
@@ -284,19 +285,19 @@ var _ = Describe("TestChangeEntryParent", func() {
 	Context("create grp and files", func() {
 		It("create grp1 and files should be succeed", func() {
 			var err error
-			grp1, err = fsCore.CreateEntry(ctx, namespace, root.ID, types.EntryAttr{
+			grp1, err = fsCore.CreateEntry(ctx, namespace, "/", types.EntryAttr{
 				Name:   "test_mv_grp1",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
-			grp1File1, err = fsCore.CreateEntry(ctx, namespace, grp1.ID, types.EntryAttr{
+			grp1File1, err = fsCore.CreateEntry(ctx, namespace, "/test_mv_grp1", types.EntryAttr{
 				Name:   "test_mv_grp1_file1",
 				Kind:   types.RawKind,
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
-			grp1File2, err = fsCore.CreateEntry(ctx, namespace, grp1.ID, types.EntryAttr{
+			grp1File2, err = fsCore.CreateEntry(ctx, namespace, "/test_mv_grp1", types.EntryAttr{
 				Name:   "test_mv_grp1_file2",
 				Kind:   types.RawKind,
 				Access: accessPermissions,
@@ -305,13 +306,13 @@ var _ = Describe("TestChangeEntryParent", func() {
 		})
 		It("create grp2 and files should be succeed", func() {
 			var err error
-			grp2, err = fsCore.CreateEntry(ctx, namespace, root.ID, types.EntryAttr{
+			grp2, err = fsCore.CreateEntry(ctx, namespace, "/", types.EntryAttr{
 				Name:   "test_mv_grp2",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
-			grp2File2, err = fsCore.CreateEntry(ctx, namespace, grp2.ID, types.EntryAttr{
+			grp2File2, err = fsCore.CreateEntry(ctx, namespace, "/test_mv_grp2", types.EntryAttr{
 				Name:   "test_mv_grp2_file2",
 				Kind:   types.RawKind,
 				Access: accessPermissions,

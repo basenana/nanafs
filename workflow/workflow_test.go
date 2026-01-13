@@ -117,9 +117,8 @@ var _ = Describe("TestWorkflowJobManage", func() {
 	)
 	Context("trigger a workflow", func() {
 		It("create dummy entry should be succeed", func() {
-			root, err := fsCore.NamespaceRoot(ctx, namespace)
-			Expect(err).Should(BeNil())
-			en, err = fsCore.CreateEntry(ctx, namespace, root.ID, types.EntryAttr{Name: "test_workflow.txt", Kind: types.RawKind})
+			var err error
+			en, err = fsCore.CreateEntry(ctx, namespace, "/", types.EntryAttr{Name: "test_workflow.txt", Kind: types.RawKind})
 			Expect(err).Should(BeNil())
 
 			f, err := fsCore.Open(ctx, namespace, en.ID, types.OpenAttr{Write: true})

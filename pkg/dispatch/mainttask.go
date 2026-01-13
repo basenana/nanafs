@@ -150,7 +150,7 @@ func (c *entryCleanExecutor) createCleanupTask(ctx context.Context, en *types.En
 
 	// Create new event for the entry
 	evt := &types.Event{
-		Type:      events.ActionTypeDestroy,
+		Type:      events.ActionTypeRemove,
 		Namespace: en.Namespace,
 		RefType:   "entry",
 		RefID:     en.ID,
@@ -172,7 +172,7 @@ func (c *entryCleanExecutor) createCleanupTask(ctx context.Context, en *types.En
 }
 
 func (c *entryCleanExecutor) handleEvent(evt *types.Event) error {
-	if evt.Type != events.ActionTypeDestroy {
+	if evt.Type != events.ActionTypeRemove {
 		return nil
 	}
 
@@ -241,7 +241,7 @@ func registerMaintainExecutor(
 	d.registerExecutor(maintainTaskIDChunkCompact, ce)
 	d.registerExecutor(maintainTaskIDEntryCleanup, ee)
 	eventbus.Subscribe(events.NamespacedTopic(events.TopicNamespaceFile, events.ActionTypeCompact), ce.handleEvent)
-	eventbus.Subscribe(events.NamespacedTopic(events.TopicNamespaceEntry, events.ActionTypeDestroy), ee.handleEvent)
+	eventbus.Subscribe(events.NamespacedTopic(events.TopicNamespaceEntry, events.ActionTypeRemove), ee.handleEvent)
 
 	// Register orphan scanner: run every 6 hours, with initial scan
 	d.registerRoutineTask(6, ee.scanOrphanEntriesTask)

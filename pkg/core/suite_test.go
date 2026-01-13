@@ -35,6 +35,7 @@ var (
 	metaStoreObj metastore.Meta
 	fsCore       Core
 	root         *types.Entry
+	nsRoot       *types.Entry
 	namespace    = types.DefaultNamespace
 
 	workdir string
@@ -69,7 +70,15 @@ var _ = BeforeSuite(func() {
 	fsCore, err = New(metaStoreObj, bootCfg)
 	Expect(err).Should(BeNil())
 
+	// init namespace
+	err = fsCore.CreateNamespace(context.TODO(), namespace)
+	Expect(err).Should(BeNil())
+
 	// init root
 	root, err = fsCore.FSRoot(context.TODO())
+	Expect(err).Should(BeNil())
+
+	// init namespace root
+	_, nsRoot, err = fsCore.GetEntryByPath(context.TODO(), namespace, "/")
 	Expect(err).Should(BeNil())
 })

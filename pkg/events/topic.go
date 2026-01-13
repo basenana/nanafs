@@ -19,7 +19,7 @@ package events
 var (
 	TopicNamespaceEntry    = "action.entry."
 	ActionTypeCreate       = "create"
-	ActionTypeDestroy      = "destroy"
+	ActionTypeRemove       = "remove"
 	ActionTypeMirror       = "mirror"
 	ActionTypeChangeParent = "change_parent"
 
