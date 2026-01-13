@@ -126,12 +126,17 @@ func (f *FileSystem) UpdateEntry(ctx context.Context, id int64, update types.Upd
 
 // MARK: tree
 
-func (f *FileSystem) LinkEntry(ctx context.Context, srcEntryId, dstParentId int64, newEn types.EntryAttr) (*types.Entry, error) {
+func (f *FileSystem) LinkEntry(ctx context.Context, srcEntryURI, dstParentURI string, newEn types.EntryAttr) (*types.Entry, error) {
 	if len(newEn.Name) > fileNameMaxLength {
 		return nil, types.ErrNameTooLong
 	}
 
-	oldEntry, err := f.LookUpEntry(ctx, dstParentId, newEn.Name)
+	_, dstParent, err := f.core.GetEntryByPath(ctx, f.namespace, dstParentURI)
+	if err != nil {
+		return nil, err
+	}
+
+	oldEntry, err := f.core.FindEntry(ctx, f.namespace, dstParent.ID, newEn.Name)
 	if err != nil && !errors.Is(err, types.ErrNotFound) {
 		return nil, err
 	}
@@ -139,7 +144,7 @@ func (f *FileSystem) LinkEntry(ctx context.Context, srcEntryId, dstParentId int6
 		return nil, types.ErrIsExist
 	}
 
-	return f.core.MirrorEntry(ctx, f.namespace, srcEntryId, dstParentId, newEn)
+	return f.core.MirrorEntry(ctx, f.namespace, srcEntryURI, dstParentURI, newEn)
 }
 
 func (f *FileSystem) UnlinkEntry(ctx context.Context, entryURI string, attr types.DestroyEntryAttr) error {
@@ -183,21 +188,25 @@ func (f *FileSystem) RmGroup(ctx context.Context, entryURI string, attr types.De
 	return f.core.RemoveEntry(ctx, f.namespace, entryURI, types.DeleteEntry{})
 }
 
-func (f *FileSystem) Rename(ctx context.Context, targetId, oldParentId, newParentId int64, oldName, newName string, opt types.ChangeParentAttr) error {
+func (f *FileSystem) Rename(ctx context.Context, targetEntryURI, newParentURI string, newName string, opt types.ChangeParentAttr) error {
 	if len(newName) > fileNameMaxLength {
 		return types.ErrNameTooLong
 	}
 
+	f.logger.Infow("Rename", "targetEntryURI", targetEntryURI, "newParentURI", newParentURI, "newName", newName)
+
 	// need source dir WRITE
-	oldParent, err := f.core.GetEntry(ctx, f.namespace, oldParentId)
+	oldParent, target, err := f.core.GetEntryByPath(ctx, f.namespace, targetEntryURI)
 	if err != nil {
+		f.logger.Errorw("Rename: failed to get target", "targetEntryURI", targetEntryURI, "err", err)
 		return err
 	}
+	f.logger.Infow("Rename: got target", "targetID", target.ID, "targetName", target.Name)
 	if err = IsAccess(oldParent.Access, opt.Uid, opt.Gid, 0x2); err != nil {
 		return err
 	}
 	// need dst dir WRITE
-	newParent, err := f.core.GetEntry(ctx, f.namespace, newParentId)
+	_, newParent, err := f.core.GetEntryByPath(ctx, f.namespace, newParentURI)
 	if err != nil {
 		return err
 	}
@@ -205,16 +214,11 @@ func (f *FileSystem) Rename(ctx context.Context, targetId, oldParentId, newParen
 		return err
 	}
 
-	target, err := f.core.GetEntry(ctx, f.namespace, targetId)
-	if err != nil {
-		return err
-	}
 	if opt.Uid != 0 && opt.Uid != oldParent.Access.UID && opt.Uid != target.Access.UID && oldParent.Access.HasPerm(types.PermSticky) {
 		return types.ErrNoPerm
 	}
 
-	var existObjId *int64
-	existObj, err := f.LookUpEntry(ctx, newParentId, newName)
+	existObj, err := f.LookUpEntry(ctx, newParent.ID, newName)
 	if err != nil {
 		if !errors.Is(err, types.ErrNotFound) {
 			return err
@@ -225,11 +229,9 @@ func (f *FileSystem) Rename(ctx context.Context, targetId, oldParentId, newParen
 		if opt.Uid != 0 && opt.Uid != newParent.Access.UID && opt.Uid != existObj.Access.UID && newParent.Access.HasPerm(types.PermSticky) {
 			return types.ErrNoPerm
 		}
-		eid := existObj.ID
-		existObjId = &eid
 	}
 
-	return f.core.ChangeEntryParent(ctx, f.namespace, targetId, existObjId, oldParentId, newParentId, oldName, newName, opt)
+	return f.core.ChangeEntryParent(ctx, f.namespace, targetEntryURI, newParentURI, newName, opt)
 }
 
 // MARK: xattr

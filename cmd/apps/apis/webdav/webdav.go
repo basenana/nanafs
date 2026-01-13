@@ -20,6 +20,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"os"
+	"path"
+	"runtime/trace"
+	"time"
+
 	"github.com/basenana/nanafs/cmd/apps/apis/apitool"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/core"
@@ -27,11 +33,6 @@ import (
 	"github.com/basenana/nanafs/utils/logger"
 	"go.uber.org/zap"
 	"golang.org/x/net/webdav"
-	"net/http"
-	"os"
-	"path"
-	"runtime/trace"
-	"time"
 )
 
 var (
@@ -188,7 +189,8 @@ func (o FsOperator) RemoveAll(ctx context.Context, entryPath string) error {
 
 func (o FsOperator) Rename(ctx context.Context, oldPath, newPath string) error {
 	defer trace.StartRegion(ctx, "apis.webdav.Rename").End()
-	oldName := path.Base(oldPath)
+	newParentPath, newName := path.Split(newPath)
+
 	oldParent, target, err := o.fs.GetEntryByPath(ctx, oldPath)
 	if err != nil {
 		return error2FsError(err)
@@ -198,14 +200,7 @@ func (o FsOperator) Rename(ctx context.Context, oldPath, newPath string) error {
 		return error2FsError(types.ErrNoPerm)
 	}
 
-	newParent := path.Dir(newPath)
-	newName := path.Base(newPath)
-	_, parent, err := o.fs.GetEntryByPath(ctx, newParent)
-	if err != nil {
-		return error2FsError(err)
-	}
-
-	err = o.fs.Rename(ctx, target.ID, oldParent.ID, parent.ID, oldName, newName, types.ChangeParentAttr{})
+	err = o.fs.Rename(ctx, oldPath, newParentPath, newName, types.ChangeParentAttr{})
 	if err != nil {
 		return error2FsError(err)
 	}

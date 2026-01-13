@@ -57,21 +57,21 @@ func newCoreFileSystem() *core.FileSystem {
 
 	c, err := core.New(m, cfg)
 	Expect(err).Should(BeNil())
-	fs, err := core.NewFileSystem(c, m, types.DefaultNamespace)
+	newFS, err := core.NewFileSystem(c, m, types.DefaultNamespace)
 	Expect(err).Should(BeNil())
 
-	return fs
+	return newFS
 }
 
 func newMockNanaFS(fs *core.FileSystem) *NanaFS {
-	nfs := &NanaFS{
+	newNfs := &NanaFS{
 		FileSystem: fs,
 		Path:       "/tmp/test",
 		Display:    "NanaFSTest",
 		cfg:        cfg.FUSE,
 		logger:     logger.NewLogger("fuse.test"),
 	}
-	return nfs
+	return newNfs
 }
 
 var _ = BeforeSuite(func() {

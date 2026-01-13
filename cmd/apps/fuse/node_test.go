@@ -18,9 +18,10 @@ package fuse
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/core"
 	"os"
 	"syscall"
+
+	"github.com/basenana/nanafs/pkg/core"
 
 	"github.com/hanwen/go-fuse/v2/fuse"
 	. "github.com/onsi/ginkgo"
@@ -418,7 +419,7 @@ var _ = Describe("TestRename", func() {
 				Expect(err).Should(BeNil())
 			})
 		})
-		Context("create a file", func() {
+		Context("create a group", func() {
 			It("should be ok", func() {
 				dst, err := nfs.CreateEntry(ctx, "/", types.EntryAttr{
 					Name: dstDir,
@@ -430,6 +431,8 @@ var _ = Describe("TestRename", func() {
 		})
 		Context("rename a file", func() {
 			It("should be ok", func() {
+				_, _, err := nfs.GetEntryByPath(ctx, "/"+filename)
+				Expect(err).Should(BeNil())
 				eno := root.Rename(ctx, filename, root, filenamenew, 0)
 				Expect(eno).To(Equal(NoErr))
 			})

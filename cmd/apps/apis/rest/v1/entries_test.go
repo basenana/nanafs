@@ -328,7 +328,7 @@ var _ = Describe("REST V1 Entries API - CRUD Operations", func() {
 				Replace:     false,
 			}
 			changeJson, _ := json.Marshal(changeReq)
-			changeHttpReq, _ := http.NewRequest("PUT", "/api/v1/entries/parent?uri=/test-folder&new_uri=/test-group/", bytes.NewBuffer(changeJson))
+			changeHttpReq, _ := http.NewRequest("PUT", "/api/v1/entries/parent", bytes.NewBuffer(changeJson))
 			changeHttpReq.Header.Set("Content-Type", "application/json")
 			changeHttpReq.Header.Set("X-Namespace", types.DefaultNamespace)
 			changeW := httptest.NewRecorder()

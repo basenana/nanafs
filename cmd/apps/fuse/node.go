@@ -368,7 +368,11 @@ func (n *NanaNode) Link(ctx context.Context, target fs.InodeEmbedder, name strin
 		return nil, syscall.EIO
 	}
 
-	newEntry, err := n.R.LinkEntry(ctx, targetNode.entryID, n.entryID, types.EntryAttr{Name: name})
+	// Construct URI for source entry and destination parent
+	srcEntryURI := path.Join(targetNode.path, targetNode.name)
+	dstParentURI := n.path
+
+	newEntry, err := n.R.LinkEntry(ctx, srcEntryURI, dstParentURI, types.EntryAttr{Name: name})
 	if err != nil {
 		n.logger.Errorw("create entry link failed", "err", err, "name", targetNode.name, "newName", name)
 		return nil, Error2FuseSysError("entry_link", err)
@@ -507,14 +511,10 @@ func (n *NanaNode) Rename(ctx context.Context, name string, newParent fs.InodeEm
 		opt.Replace = false
 	}
 
-	oldEntry, err := n.R.LookUpEntry(ctx, n.entryID, name)
-	if err != nil {
-		n.logger.Errorw("lookup for rename entry failed", "err", err, "name", name)
-		return Error2FuseSysError("entry_rename", err)
-	}
-
-	if err = n.R.Rename(ctx, oldEntry.ID, n.entryID, newNode.entryID, name, newName, opt); err != nil {
-		n.logger.Errorw("rename entry failed", "err", err, "newParent", newNode.entryID, "name", name, "newName", newName)
+	targetEntryURI := path.Join(n.path, name)
+	newParentURI := newNode.path
+	if err := n.R.Rename(ctx, targetEntryURI, newParentURI, newName, opt); err != nil {
+		n.logger.Errorw("rename entry failed", "err", err, "newParent", newNode.path, "name", name, "newName", newName)
 		return Error2FuseSysError("entry_rename", err)
 	}
 	return NoErr

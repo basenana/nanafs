@@ -155,7 +155,7 @@ var _ = Describe("TestMirrorEntryManage", func() {
 			Expect(err).Should(BeNil())
 		})
 		It("should be file", func() {
-			_, err := fsCore.MirrorEntry(ctx, namespace, grp1.ID, nsRoot.ID, types.EntryAttr{
+			_, err := fsCore.MirrorEntry(ctx, namespace, "/test_mirror_grp1", "/", types.EntryAttr{
 				Name:   "mirror_grp1",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
@@ -181,7 +181,7 @@ var _ = Describe("TestMirrorEntryManage", func() {
 		})
 		It("mirror file should be succeed", func() {
 			var err error
-			mFile2, err = fsCore.MirrorEntry(ctx, namespace, sFile1.ID, grp1.ID, types.EntryAttr{
+			mFile2, err = fsCore.MirrorEntry(ctx, namespace, "/test_mirror_grp1/"+sourceFile, "/test_mirror_grp1", types.EntryAttr{
 				Name:   mirrorFile2,
 				Kind:   types.RawKind,
 				Access: accessPermissions,
@@ -200,7 +200,7 @@ var _ = Describe("TestMirrorEntryManage", func() {
 			Expect(err).Should(BeNil())
 			_, err = groupHasChild(child, mirrorFile2)
 			Expect(err).Should(BeNil())
-			_, err = fsCore.MirrorEntry(ctx, namespace, mFile2.ID, grp1.ID, types.EntryAttr{
+			_, err = fsCore.MirrorEntry(ctx, namespace, "/test_mirror_grp1/"+mirrorFile2, "/test_mirror_grp1", types.EntryAttr{
 				Name:   mirrorFile3,
 				Kind:   types.RawKind,
 				Access: accessPermissions,
@@ -274,30 +274,25 @@ var _ = Describe("TestMirrorEntryManage", func() {
 
 var _ = Describe("TestChangeEntryParent", func() {
 	var (
-		ctx       = context.TODO()
-		grp1      *types.Entry
-		grp1File1 *types.Entry
-		grp1File2 *types.Entry
-		grp2File2 *types.Entry
-		grp2      *types.Entry
+		ctx = context.TODO()
 	)
 
 	Context("create grp and files", func() {
 		It("create grp1 and files should be succeed", func() {
 			var err error
-			grp1, err = fsCore.CreateEntry(ctx, namespace, "/", types.EntryAttr{
+			_, err = fsCore.CreateEntry(ctx, namespace, "/", types.EntryAttr{
 				Name:   "test_mv_grp1",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
-			grp1File1, err = fsCore.CreateEntry(ctx, namespace, "/test_mv_grp1", types.EntryAttr{
+			_, err = fsCore.CreateEntry(ctx, namespace, "/test_mv_grp1", types.EntryAttr{
 				Name:   "test_mv_grp1_file1",
 				Kind:   types.RawKind,
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
-			grp1File2, err = fsCore.CreateEntry(ctx, namespace, "/test_mv_grp1", types.EntryAttr{
+			_, err = fsCore.CreateEntry(ctx, namespace, "/test_mv_grp1", types.EntryAttr{
 				Name:   "test_mv_grp1_file2",
 				Kind:   types.RawKind,
 				Access: accessPermissions,
@@ -306,13 +301,13 @@ var _ = Describe("TestChangeEntryParent", func() {
 		})
 		It("create grp2 and files should be succeed", func() {
 			var err error
-			grp2, err = fsCore.CreateEntry(ctx, namespace, "/", types.EntryAttr{
+			_, err = fsCore.CreateEntry(ctx, namespace, "/", types.EntryAttr{
 				Name:   "test_mv_grp2",
 				Kind:   types.GroupKind,
 				Access: accessPermissions,
 			})
 			Expect(err).Should(BeNil())
-			grp2File2, err = fsCore.CreateEntry(ctx, namespace, "/test_mv_grp2", types.EntryAttr{
+			_, err = fsCore.CreateEntry(ctx, namespace, "/test_mv_grp2", types.EntryAttr{
 				Name:   "test_mv_grp2_file2",
 				Kind:   types.RawKind,
 				Access: accessPermissions,
@@ -322,15 +317,15 @@ var _ = Describe("TestChangeEntryParent", func() {
 	})
 	Context("mv file src grp1 and files", func() {
 		It("should be succeed", func() {
-			err := fsCore.ChangeEntryParent(ctx, namespace, grp1File1.ID, nil, grp1.ID, grp2.ID, grp1File1.Name, "test_mv_grp2_file1", types.ChangeParentAttr{})
+			err := fsCore.ChangeEntryParent(ctx, namespace, "/test_mv_grp1/test_mv_grp1_file1", "/test_mv_grp2", "test_mv_grp2_file1", types.ChangeParentAttr{})
 			Expect(err).Should(BeNil())
 		})
 		It("has existed file should be failed", func() {
-			err := fsCore.ChangeEntryParent(ctx, namespace, grp1File2.ID, &grp2File2.ID, grp1.ID, grp2.ID, grp1File2.Name, "test_mv_grp2_file2", types.ChangeParentAttr{})
+			err := fsCore.ChangeEntryParent(ctx, namespace, "/test_mv_grp1/test_mv_grp1_file2", "/test_mv_grp2", "test_mv_grp2_file2", types.ChangeParentAttr{})
 			Expect(err).Should(Equal(types.ErrIsExist))
 		})
 		It("has existed file should be succeed if enable replace", func() {
-			err := fsCore.ChangeEntryParent(ctx, namespace, grp1File2.ID, &grp2File2.ID, grp1.ID, grp2.ID, grp1File2.Name, "test_mv_grp2_file2", types.ChangeParentAttr{Replace: true})
+			err := fsCore.ChangeEntryParent(ctx, namespace, "/test_mv_grp1/test_mv_grp1_file2", "/test_mv_grp2", "test_mv_grp2_file2", types.ChangeParentAttr{Replace: true})
 			Expect(err).Should(BeNil())
 		})
 	})

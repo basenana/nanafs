@@ -284,26 +284,16 @@ func (s *ServicesV1) ChangeParent(ctx *gin.Context) {
 
 	s.logger.Infow("change parent", "old", req.EntryURI, "new", req.NewEntryURI)
 
-	oldName := path.Base(req.EntryURI)
-	oldParentID, entryID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, req.EntryURI)
-	if err != nil {
-		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
-		return
-	}
-
+	targetEntryURI := req.EntryURI
 	newParentURI, newName := path.Split(req.NewEntryURI)
-	_, newParentID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, newParentURI)
-	if err != nil {
-		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
-		return
-	}
 
 	if newParentURI == req.EntryURI {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", fmt.Errorf("new entry uri is the same as old"))
 		return
 	}
 
-	en, err := s.core.GetEntry(ctx.Request.Context(), caller.Namespace, entryID)
+	// Get target entry for permission check
+	_, en, err := s.core.GetEntryByPath(ctx.Request.Context(), caller.Namespace, targetEntryURI)
 	if err != nil {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
@@ -321,7 +311,8 @@ func (s *ServicesV1) ChangeParent(ctx *gin.Context) {
 		return
 	}
 
-	newParent, err := s.core.GetEntry(ctx.Request.Context(), caller.Namespace, newParentID)
+	// Get new parent for permission check
+	_, newParent, err := s.core.GetEntryByPath(ctx.Request.Context(), caller.Namespace, newParentURI)
 	if err != nil {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
@@ -332,17 +323,7 @@ func (s *ServicesV1) ChangeParent(ctx *gin.Context) {
 		return
 	}
 
-	var existObjID *int64
-	existObj, err := s.core.FindEntry(ctx.Request.Context(), caller.Namespace, newParentID, newName)
-	if err != nil && !errors.Is(err, types.ErrNotFound) {
-		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
-		return
-	}
-	if existObj != nil {
-		existObjID = &existObj.ChildID
-	}
-
-	err = s.core.ChangeEntryParent(ctx.Request.Context(), caller.Namespace, entryID, existObjID, oldParentID, newParentID, oldName, newName, types.ChangeParentAttr{
+	err = s.core.ChangeEntryParent(ctx.Request.Context(), caller.Namespace, targetEntryURI, newParentURI, newName, types.ChangeParentAttr{
 		Uid:      caller.UID,
 		Gid:      caller.GID,
 		Replace:  req.Replace,
@@ -353,7 +334,9 @@ func (s *ServicesV1) ChangeParent(ctx *gin.Context) {
 		return
 	}
 
-	en, err = s.core.GetEntry(ctx.Request.Context(), caller.Namespace, entryID)
+	// After changing parent, use the NEW path to get the entry
+	newEntryURI := path.Join(newParentURI, newName)
+	_, en, err = s.core.GetEntryByPath(ctx.Request.Context(), caller.Namespace, newEntryURI)
 	if err != nil {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return

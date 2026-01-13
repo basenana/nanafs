@@ -74,12 +74,12 @@ var _ = Describe("TestManageGroupEntry", func() {
 		It("rename file2 to file3 should be succeed", func() {
 			chList, err := fsCore.ListChildren(ctx, namespace, group1.ID)
 			Expect(err).Should(BeNil())
-			file2, err := groupHasChild(chList, "test_group_manage_file2")
+			_, err = groupHasChild(chList, "test_group_manage_file2")
 			Expect(err).Should(BeNil())
 
 			newName := "test_group_manage_file3"
 			opt := types.ChangeParentAttr{}
-			err = fsCore.ChangeEntryParent(ctx, namespace, file2, nil, group1.ID, group1.ID, "test_group_manage_file2", newName, opt)
+			err = fsCore.ChangeEntryParent(ctx, namespace, "/test_group_manage_group1/test_group_manage_file2", "/test_group_manage_group1", newName, opt)
 			Expect(err).Should(BeNil())
 
 			chList, err = fsCore.ListChildren(ctx, namespace, group1.ID)

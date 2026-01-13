@@ -46,8 +46,8 @@ type Core interface {
 	UpdateEntry(ctx context.Context, namespace string, id int64, update types.UpdateEntry) (*types.Entry, error)
 	RemoveEntry(ctx context.Context, namespace string, entryURI string, attr types.DeleteEntry) error
 
-	MirrorEntry(ctx context.Context, namespace string, srcId, dstParentId int64, attr types.EntryAttr) (*types.Entry, error)
-	ChangeEntryParent(ctx context.Context, namespace string, targetEntryId int64, overwriteEntryId *int64, oldParentId, newParentId int64, oldName, newName string, opt types.ChangeParentAttr) error
+	MirrorEntry(ctx context.Context, namespace string, srcEntryURI, dstParentURI string, attr types.EntryAttr) (*types.Entry, error)
+	ChangeEntryParent(ctx context.Context, namespace string, targetEntryURI, newParentURI string, newName string, opt types.ChangeParentAttr) error
 	FindEntry(ctx context.Context, namespace string, parentId int64, name string) (*types.Child, error)
 	ListChildren(ctx context.Context, namespace string, parentId int64) ([]*types.Child, error)
 	ListParents(ctx context.Context, namespace string, childId int64) ([]*types.Child, error)
@@ -243,20 +243,6 @@ func (c *core) getEntry(ctx context.Context, namespace string, id int64) (*types
 
 	c.cache.setEntry(en)
 	return en, nil
-}
-
-// getEntryPath reconstructs the path for an entry from root to the entry
-func (c *core) getEntryPath(ctx context.Context, namespace string, id int64) (string, error) {
-	if id == 0 {
-		return "", types.ErrNotFound
-	}
-
-	en, err := c.getEntry(ctx, namespace, id)
-	if err != nil {
-		return "", err
-	}
-
-	return ProbableEntryPath(ctx, c, en)
 }
 
 func (c *core) GetEntry(ctx context.Context, namespace string, id int64) (*types.Entry, error) {
@@ -492,10 +478,10 @@ func (c *core) CleanEntryData(ctx context.Context, namespace string, entryId int
 	return nil
 }
 
-func (c *core) MirrorEntry(ctx context.Context, namespace string, srcId, dstParentId int64, attr types.EntryAttr) (*types.Entry, error) {
+func (c *core) MirrorEntry(ctx context.Context, namespace string, srcEntryURI, dstParentURI string, attr types.EntryAttr) (*types.Entry, error) {
 	defer trace.StartRegion(ctx, "fs.core.MirrorEntry").End()
 
-	src, err := c.getEntry(ctx, namespace, srcId)
+	_, src, err := c.GetEntryByPath(ctx, namespace, srcEntryURI)
 	if err != nil {
 		return nil, err
 	}
@@ -503,38 +489,63 @@ func (c *core) MirrorEntry(ctx context.Context, namespace string, srcId, dstPare
 		return nil, types.ErrIsGroup
 	}
 
-	parent, err := c.getEntry(ctx, namespace, dstParentId)
+	_, dstParent, err := c.GetEntryByPath(ctx, namespace, dstParentURI)
 	if err != nil {
 		return nil, err
 	}
-	if !parent.IsGroup {
+	if !dstParent.IsGroup {
 		return nil, types.ErrNoGroup
 	}
 
-	name := src.Name
+	name := path.Base(srcEntryURI)
 	if attr.Name != "" {
 		name = attr.Name
 	}
 
-	if err = c.store.MirrorEntry(ctx, namespace, srcId, name, dstParentId, attr); err != nil {
-		c.logger.Errorw("update dst parent entry ref count error", "srcEntry", srcId, "dstParent", dstParentId, "err", err.Error())
+	if err = c.store.MirrorEntry(ctx, namespace, src.ID, name, dstParent.ID, attr); err != nil {
+		c.logger.Errorw("update dst parent entry ref count error", "srcEntry", src.ID, "dstParent", dstParent.ID, "err", err.Error())
 		return nil, err
 	}
-	c.cache.invalidEntry(namespace, srcId, dstParentId)
+	c.cache.invalidEntry(namespace, src.ID, dstParent.ID)
 	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeMirror, src.Namespace, src.ID)
 	return c.getEntry(ctx, namespace, src.ID)
 }
 
-func (c *core) ChangeEntryParent(ctx context.Context, namespace string, targetEntryId int64, overwriteEntryId *int64, oldParentId, newParentId int64, oldName, newName string, opt types.ChangeParentAttr) error {
+func (c *core) ChangeEntryParent(ctx context.Context, namespace string, targetEntryURI, newParentURI string, newName string, opt types.ChangeParentAttr) error {
 	defer trace.StartRegion(ctx, "fs.core.ChangeEntryParent").End()
 
-	target, err := c.getEntry(ctx, namespace, targetEntryId)
+	if targetEntryURI == "/" {
+		return types.ErrUnsupported
+	}
+
+	if strings.HasSuffix(newParentURI, "/") && newParentURI != "/" {
+		newParentURI = strings.TrimRight(newParentURI, "/")
+	}
+
+	oldParentURI := path.Dir(targetEntryURI)
+	oldName := path.Base(targetEntryURI)
+	if oldName == newName && oldParentURI == newParentURI {
+		return nil
+	}
+
+	oldParent, target, err := c.GetEntryByPath(ctx, namespace, targetEntryURI)
 	if err != nil {
 		return err
 	}
 
-	if newName == "" {
-		newName = oldName
+	_, newParent, err := c.GetEntryByPath(ctx, namespace, newParentURI)
+	if err != nil {
+		return err
+	}
+
+	// Check if target entry exists at new location (for overwrite logic)
+	var overwriteEntryId *int64
+	existChild, err := c.store.FindEntry(ctx, namespace, newParent.ID, newName)
+	if err != nil && !errors.Is(err, types.ErrNotFound) {
+		return err
+	}
+	if existChild != nil {
+		overwriteEntryId = &existChild.ChildID
 	}
 
 	// TODO delete overwrite entry on outside
@@ -567,29 +578,23 @@ func (c *core) ChangeEntryParent(ctx context.Context, namespace string, targetEn
 		}
 
 		// Construct URI for the entry being overwritten
-		parentPath, err := c.getEntryPath(ctx, namespace, newParentId)
-		if err != nil {
-			c.logger.Errorw("get parent path failed", "err", err)
-			return err
-		}
-		overwriteURI := path.Join(parentPath, newName)
+		overwriteURI := path.Join(newParentURI, newName)
 
 		if err = c.RemoveEntry(ctx, namespace, overwriteURI, types.DeleteEntry{}); err != nil {
 			c.logger.Errorw("remove entry failed when overwrite old one", "err", err)
 			return err
 		}
 		c.cache.invalidEntry(namespace, *overwriteEntryId)
-		c.cache.invalidChild(namespace, newParentId, newName)
+		c.cache.invalidChild(namespace, newParent.ID, newName)
 		publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeRemove, overwriteEntry.Namespace, overwriteEntry.ID)
 	}
 
-	err = c.store.ChangeEntryParent(ctx, namespace, targetEntryId, oldParentId, newParentId, oldName, newName, opt)
+	err = c.store.ChangeEntryParent(ctx, namespace, target.ID, oldParent.ID, newParent.ID, oldName, newName, opt)
 	if err != nil {
-		c.logger.Errorw("change entry parent failed", "entry", target.ID, "newParent", newParentId, "newName", newName, "err", err)
 		return err
 	}
-	c.cache.invalidChild(namespace, oldParentId, oldName)
-	c.cache.invalidEntry(namespace, targetEntryId, newParentId, oldParentId)
+	c.cache.invalidChild(namespace, oldParent.ID, oldName)
+	c.cache.invalidEntry(namespace, target.ID, newParent.ID, oldParent.ID)
 	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeChangeParent, target.Namespace, target.ID)
 	return nil
 }
