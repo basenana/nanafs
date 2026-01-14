@@ -85,6 +85,13 @@ func (s *ServicesV1) SetConfig(ctx *gin.Context) {
 		return
 	}
 
+	if group == "friday" { // sync friday configs to workflow
+		if err := s.meta.SetConfigValue(ctx.Request.Context(), caller.Namespace, "workflow", "friday_"+name, req.Value); err != nil {
+			apitool.ErrorResponse(ctx, http.StatusInternalServerError, "SET_CONFIG_FAILED", err)
+			return
+		}
+	}
+
 	apitool.JsonResponse(ctx, http.StatusOK, &SetConfigResponse{
 		Group: group,
 		Name:  name,
@@ -138,6 +145,10 @@ func (s *ServicesV1) DeleteConfig(ctx *gin.Context) {
 	if err := s.meta.DeleteConfigValue(ctx.Request.Context(), caller.Namespace, group, name); err != nil {
 		apitool.ErrorResponse(ctx, http.StatusInternalServerError, "DELETE_CONFIG_FAILED", err)
 		return
+	}
+
+	if group == "friday" {
+		_ = s.meta.DeleteConfigValue(ctx.Request.Context(), caller.Namespace, "workflow", "friday_"+name)
 	}
 
 	apitool.JsonResponse(ctx, http.StatusOK, &DeleteConfigResponse{

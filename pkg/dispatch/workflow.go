@@ -18,6 +18,7 @@ package dispatch
 
 import (
 	"context"
+	"sort"
 	"time"
 
 	"go.uber.org/zap"
@@ -36,25 +37,28 @@ type workflowExecutor struct {
 const (
 	succeedJobLiveTime = time.Hour * 24
 	failedJobLiveTime  = time.Hour * 24 * 7
+	maxJobsPerWorkflow = 100
 )
 
 func (w workflowExecutor) cleanUpFinishJobs(ctx context.Context) error {
-	needCleanup, deleted := 0, 0
+	allFinishedJobs := make([]*types.WorkflowJob, 0)
+	deleted := 0
+
 	succeedJob, err := w.recorder.ListAllNamespaceWorkflowJobs(ctx, types.JobFilter{Status: jobrun.SucceedStatus})
 	if err != nil {
 		w.logger.Errorw("[cleanUpFinishJobs] list succeed jobs failed", "err", err)
 	}
 	for _, j := range succeedJob {
+		allFinishedJobs = append(allFinishedJobs, j)
 		if time.Since(j.FinishAt) < succeedJobLiveTime {
 			continue
 		}
-		needCleanup += 1
 		err = w.recorder.DeleteWorkflowJobs(ctx, j.Id)
 		if err != nil {
 			w.logger.Errorw("[cleanUpFinishJobs] delete succeed jobs failed", "job", j.Id, "err", err)
 			continue
 		}
-		deleted += 1
+		deleted++
 	}
 
 	failedJob, err := w.recorder.ListAllNamespaceWorkflowJobs(ctx, types.JobFilter{Status: jobrun.FailedStatus})
@@ -62,21 +66,45 @@ func (w workflowExecutor) cleanUpFinishJobs(ctx context.Context) error {
 		w.logger.Errorw("[cleanUpFinishJobs] list failed jobs failed", "err", err)
 	}
 	for _, j := range failedJob {
+		allFinishedJobs = append(allFinishedJobs, j)
 		if time.Since(j.FinishAt) < failedJobLiveTime {
 			continue
 		}
-		needCleanup += 1
 		err = w.recorder.DeleteWorkflowJobs(ctx, j.Id)
 		if err != nil {
 			w.logger.Errorw("[cleanUpFinishJobs] delete error jobs failed", "job", j.Id, "err", err)
 			continue
 		}
-		deleted += 1
+		deleted++
 	}
 
-	if needCleanup > 0 {
-		w.logger.Infof("[cleanUpFinishJobs] finish, need cleanup %d jobs, deleted %d", needCleanup, deleted)
+	if len(allFinishedJobs) > 0 {
+		jobsByWF := make(map[string][]*types.WorkflowJob)
+		for _, j := range allFinishedJobs {
+			key := j.Namespace + ":" + j.Workflow
+			jobsByWF[key] = append(jobsByWF[key], j)
+		}
+
+		for _, jobs := range jobsByWF {
+			if len(jobs) <= maxJobsPerWorkflow {
+				continue
+			}
+			sort.Slice(jobs, func(i, j int) bool {
+				return jobs[i].CreatedAt.After(jobs[j].CreatedAt)
+			})
+			excessIDs := make([]string, 0, len(jobs)-maxJobsPerWorkflow)
+			for i := maxJobsPerWorkflow; i < len(jobs); i++ {
+				excessIDs = append(excessIDs, jobs[i].Id)
+			}
+			if err := w.recorder.DeleteWorkflowJobs(ctx, excessIDs...); err != nil {
+				w.logger.Errorw("[cleanUpFinishJobs] delete excess jobs failed", "err", err)
+			} else {
+				w.logger.Infof("[cleanUpFinishJobs] cleaned up %d excess jobs", len(excessIDs))
+			}
+		}
 	}
+
+	w.logger.Infof("[cleanUpFinishJobs] finished, deleted %d jobs by age", deleted)
 	return nil
 }
 
