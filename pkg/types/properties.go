@@ -29,6 +29,12 @@ const (
 type Properties struct {
 	Tags []string `json:"tags"`
 
+	// Index
+	IndexVersion string `json:"index_version"`
+
+	// Agents
+	Summarize string `json:"summarize,omitempty"`
+
 	// web
 	URL      string `json:"url,omitempty"`
 	SiteName string `json:"site,omitempty"`
@@ -79,9 +85,4 @@ type DocumentProperties struct {
 	Unread    bool  `json:"unread"`
 	Marked    bool  `json:"marked"`
 	PublishAt int64 `json:"publishAt,omitempty"`
-}
-
-type PropertyItem struct {
-	Value string `json:"value"`
-	Type  string `json:"type,omitempty"`
 }

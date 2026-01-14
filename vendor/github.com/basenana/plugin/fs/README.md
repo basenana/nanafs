@@ -13,6 +13,7 @@ Saves a local file to the NanaFS file system with metadata.
 | `file_path` | Yes | - | Path to the local file |
 | `name` | No | filename | Entry name in NanaFS |
 | `parent_uri` | Yes | - | Parent entry URI |
+| `subgroup` | No | - | Sub group name (creates nested group if provided) |
 | `properties` | No | - | Properties map (flat structure) |
 | `document` | No | - | Document struct from docloader |
 

@@ -31,9 +31,10 @@ type Plugin interface {
 
 // PluginSpec is Plugin Config File to load a Plugin
 type PluginSpec struct {
-	Name    string     `json:"name"`
-	Version string     `json:"version"`
-	Type    PluginType `json:"type"`
+	Name          string     `json:"name"`
+	Version       string     `json:"version"`
+	Type          PluginType `json:"type"`
+	RequiredConfig []string  `json:"required_config"` // Config keys required by this plugin
 }
 
 type PluginCall struct {
@@ -44,4 +45,5 @@ type PluginCall struct {
 	PluginName  string            `json:"plugin_name"`
 	Version     string            `json:"version"`
 	Params      map[string]string `json:"params"`
+	Config      map[string]string `json:"config"` // LLM and other configuration
 }

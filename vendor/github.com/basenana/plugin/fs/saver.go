@@ -57,9 +57,9 @@ func (p *Saver) Run(ctx context.Context, request *api.Request) (*api.Response, e
 
 	name := api.GetStringParameter("name", request, fileInfo.Name())
 	parentURI := api.GetStringParameter("parent_uri", request, "")
+	subGroup := api.GetStringParameter("subgroup", request, "")
 	properties := buildProperties(request)
 
-	p.logger.Infow("save started", "file_path", filePath, "name", name, "parent_uri", parentURI)
 	if parentURI == "" {
 		return api.NewFailedResponse("parent_uri is required"), nil
 	}
@@ -67,6 +67,16 @@ func (p *Saver) Run(ctx context.Context, request *api.Request) (*api.Response, e
 	if request.FS == nil {
 		return api.NewFailedResponse("file system is not available"), nil
 	}
+
+	if subGroup != "" {
+		err = request.FS.CreateGroupIfNotExists(ctx, parentURI, subGroup)
+		if err != nil {
+			return api.NewFailedResponse("failed to create group: " + err.Error()), nil
+		}
+		parentURI = path.Join(parentURI, subGroup)
+	}
+
+	p.logger.Infow("save started", "file_path", filePath, "name", name, "parent_uri", parentURI)
 	if err = request.FS.SaveEntry(ctx, parentURI, name, properties, file); err != nil {
 		p.logger.Warnw("save entry failed", "file_path", filePath, "error", err)
 		return api.NewFailedResponse("failed to save entry: " + err.Error()), nil

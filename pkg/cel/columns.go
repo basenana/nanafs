@@ -2,6 +2,7 @@ package cel
 
 import (
 	"fmt"
+
 	"github.com/google/cel-go/cel"
 )
 
@@ -31,10 +32,12 @@ var identify2Columns = map[string]column{
 	"name":   {table: "children", column: "name", jsonkey: "", valtype: cel.StringType},
 
 	// properties
-	"tag":  {table: "property", column: "value", jsonkey: "tags", valtype: cel.StringType},
-	"tags": {table: "property", column: "value", jsonkey: "tags", valtype: cel.ListType(cel.StringType)},
-	"url":  {table: "property", column: "value", jsonkey: "url", valtype: cel.StringType},
-	"site": {table: "property", column: "value", jsonkey: "site", valtype: cel.StringType},
+	"tag":           {table: "property", column: "value", jsonkey: "tags", valtype: cel.StringType},
+	"tags":          {table: "property", column: "value", jsonkey: "tags", valtype: cel.ListType(cel.StringType)},
+	"url":           {table: "property", column: "value", jsonkey: "url", valtype: cel.StringType},
+	"site":          {table: "property", column: "value", jsonkey: "site", valtype: cel.StringType},
+	"index_version": {table: "property", column: "value", jsonkey: "index_version", valtype: cel.StringType},
+	"summarize":     {table: "property", column: "value", jsonkey: "summarize", valtype: cel.StringType},
 
 	// document properties
 	"title":    {table: "document", column: "value", jsonkey: "title", valtype: cel.StringType},

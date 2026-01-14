@@ -21,6 +21,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/basenana/plugin/agentic"
 	"github.com/basenana/plugin/api"
 	"github.com/basenana/plugin/archive"
 	"github.com/basenana/plugin/checksum"
@@ -45,6 +46,7 @@ type Factory func(ps types.PluginCall) types.Plugin
 
 type Manager interface {
 	ListPlugins() []types.PluginSpec
+	GetPlugin(name string) (*types.PluginSpec, error)
 	Register(spec types.PluginSpec, factory Factory)
 	Call(ctx context.Context, ps types.PluginCall, req *api.Request) (resp *api.Response, err error)
 }
@@ -63,12 +65,35 @@ type pluginInfo struct {
 }
 
 func (m *manager) ListPlugins() []types.PluginSpec {
-	infos := m.List()
+	var infos = make([]*pluginInfo, 0, len(m.plugins))
+	m.mux.Lock()
+	for _, p := range m.plugins {
+		infos = append(infos, p)
+	}
+	m.mux.Unlock()
+
 	var result = make([]types.PluginSpec, 0, len(infos))
 	for _, i := range infos {
 		result = append(result, i.spec)
 	}
 	return result
+}
+
+func (m *manager) GetPlugin(name string) (*types.PluginSpec, error) {
+	var info *pluginInfo
+	m.mux.Lock()
+	for _, p := range m.plugins {
+		if p.spec.Name == name {
+			info = p
+			break
+		}
+	}
+	m.mux.Unlock()
+	if info == nil {
+		return nil, ErrNotFound
+	}
+	spec := info.spec
+	return &spec, nil
 }
 
 func (m *manager) Register(spec types.PluginSpec, factory Factory) {
@@ -92,6 +117,10 @@ func (m *manager) Call(ctx context.Context, ps types.PluginCall, req *api.Reques
 	if !ok {
 		return nil, errors.New("not process plugin")
 	}
+
+	if req.Parameter == nil {
+		req.Parameter = make(map[string]any)
+	}
 	return runnablePlugin.Run(ctx, req)
 }
 
@@ -107,17 +136,10 @@ func (m *manager) BuildPlugin(ps types.PluginCall) (types.Plugin, error) {
 	if ps.Params == nil {
 		ps.Params = map[string]string{}
 	}
-	return p.factory(ps), nil
-}
-
-func (m *manager) List() []*pluginInfo {
-	var result = make([]*pluginInfo, 0, len(m.plugins))
-	m.mux.Lock()
-	for _, p := range m.plugins {
-		result = append(result, p)
+	if ps.Config == nil {
+		ps.Config = map[string]string{}
 	}
-	m.mux.Unlock()
-	return result
+	return p.factory(ps), nil
 }
 
 func New() Manager {
@@ -127,6 +149,9 @@ func New() Manager {
 	}
 
 	m.Register(archive.PluginSpec, archive.NewArchivePlugin)
+	m.Register(agentic.PluginSpec, agentic.NewReactPlugin)
+	m.Register(agentic.ResearchPluginSpec, agentic.NewResearchPlugin)
+	m.Register(agentic.SummaryPluginSpec, agentic.NewSummaryPlugin)
 	m.Register(checksum.PluginSpec, checksum.NewChecksumPlugin)
 	m.Register(docloader.PluginSpec, docloader.NewDocLoader)
 	m.Register(fileop.PluginSpec, fileop.NewFileOpPlugin)

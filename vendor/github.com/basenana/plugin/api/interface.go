@@ -29,6 +29,8 @@ type PersistentStore interface {
 }
 
 type NanaFS interface {
+	CreateGroupIfNotExists(ctx context.Context, parentURI, group string) error
 	SaveEntry(ctx context.Context, parentURI, name string, properties types.Properties, reader io.ReadCloser) error
 	UpdateEntry(ctx context.Context, entryURI string, properties types.Properties) error
+	GetEntryProperties(ctx context.Context, entryURI string) (properties *types.Properties, err error)
 }

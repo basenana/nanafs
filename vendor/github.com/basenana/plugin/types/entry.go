@@ -27,4 +27,7 @@ type Properties struct {
 	Unread    *bool `json:"unread,omitempty"`
 	Marked    *bool `json:"marked,omitempty"`
 	PublishAt int64 `json:"publish_at,omitempty"`
+
+	// Agentic
+	Summarize string `json:"summarize,omitempty"` // summarize status
 }

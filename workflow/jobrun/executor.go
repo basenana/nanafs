@@ -18,6 +18,7 @@ package jobrun
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path"
 	"time"
@@ -43,7 +44,7 @@ func newExecutor(ctrl *Controller, job *types.WorkflowJob) flow.Executor {
 	return &defaultExecutor{
 		job:       job,
 		core:      ctrl.core,
-		entry:     ctrl.store,
+		meta:      ctrl.store,
 		store:     newPersistentStore(ctrl.store, job.Namespace),
 		nfs:       newNamespacedFS(ctrl.core, ctrl.store, job.Namespace),
 		pluginMgr: ctrl.pluginMgr,
@@ -55,7 +56,7 @@ func newExecutor(ctrl *Controller, job *types.WorkflowJob) flow.Executor {
 type defaultExecutor struct {
 	job       *types.WorkflowJob
 	core      core.Core
-	entry     metastore.EntryStore
+	meta      metastore.Meta
 	store     pluginapi.PersistentStore
 	nfs       pluginapi.NanaFS
 	pluginMgr plugin.Manager
@@ -178,8 +179,32 @@ func (b *defaultExecutor) callPlugin(ctx context.Context, step *types.WorkflowJo
 			resultData[k] = v
 		}
 	}
+	pc := plugintypes.PluginCall{
+		JobID:       b.job.Id,
+		Workflow:    b.job.Workflow,
+		Namespace:   b.job.Namespace,
+		WorkingPath: b.workdir,
+		PluginName:  step.Type,
+		Params:      step.Params,
+		Config:      make(map[string]string),
+	}
+
+	ps, err := b.pluginMgr.GetPlugin(pc.PluginName)
+	if err != nil {
+		return nil, logOperationError(DefExecName, "call_plugin", err)
+	}
+
+	for _, configKey := range ps.RequiredConfig {
+		value, err := b.meta.GetConfigValue(ctx, b.job.Namespace, "workflow", configKey)
+		if err != nil && !errors.Is(err, types.ErrNotFound) {
+			b.logger.Errorw("get workflow config value failed", "err", err, "configKey", configKey)
+			// ignore
+		}
+		pc.Config[configKey] = value
+	}
+
 	req := b.newPluginRequest(step, resultData)
-	resp, err := callPlugin(ctx, b.job, step, b.pluginMgr, req, b.workdir)
+	resp, err := callPlugin(ctx, pc, b.pluginMgr, req)
 	if err != nil {
 		return nil, logOperationError(DefExecName, "call_plugin", err)
 	}
@@ -324,15 +349,7 @@ func (b *defaultExecutor) newPluginRequest(step *types.WorkflowJobNode, resultDa
 	return req
 }
 
-func callPlugin(ctx context.Context, job *types.WorkflowJob, step *types.WorkflowJobNode, mgr plugin.Manager, req *pluginapi.Request, workdir string) (*pluginapi.Response, error) {
-	pc := plugintypes.PluginCall{
-		JobID:       job.Id,
-		Workflow:    job.Workflow,
-		Namespace:   job.Namespace,
-		WorkingPath: workdir,
-		PluginName:  step.Type,
-		Params:      step.Params,
-	}
+func callPlugin(ctx context.Context, pc plugintypes.PluginCall, mgr plugin.Manager, req *pluginapi.Request) (*pluginapi.Response, error) {
 	resp, err := mgr.Call(ctx, pc, req)
 	if err != nil {
 		err = fmt.Errorf("plugin action error: %s", err)

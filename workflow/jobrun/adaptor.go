@@ -213,6 +213,59 @@ type namespacedFS struct {
 	namespace string
 }
 
+func (n *namespacedFS) CreateGroupIfNotExists(ctx context.Context, parentURI, group string) error {
+	_, parent, err := n.core.GetEntryByPath(ctx, n.namespace, parentURI)
+	if err != nil {
+		return fmt.Errorf("get parent %s error %w", parentURI, err)
+	}
+
+	child, err := n.core.FindEntry(ctx, n.namespace, parent.ID, group)
+	if err != nil && !errors.Is(err, types.ErrNotFound) {
+		return fmt.Errorf("find %s error %w", group, err)
+	}
+	if child != nil {
+		entry, err := n.core.GetEntry(ctx, n.namespace, child.ChildID)
+		if err != nil {
+			return fmt.Errorf("get entry %s error %w", group, err)
+		}
+		if !entry.IsGroup {
+			return fmt.Errorf("%s is not a group, kind: %s", group, entry.Kind)
+		}
+		return nil
+	}
+
+	_, err = n.core.CreateEntry(ctx, n.namespace, parentURI, types.EntryAttr{
+		Name: group,
+		Kind: types.GroupKind,
+	})
+	if err != nil {
+		return fmt.Errorf("create group %s error %w", group, err)
+	}
+	return nil
+}
+
+func (n *namespacedFS) GetEntryProperties(ctx context.Context, entryURI string) (properties *plugintypes.Properties, err error) {
+	_, en, err := n.core.GetEntryByPath(ctx, n.namespace, entryURI)
+	if err != nil {
+		return nil, fmt.Errorf("get entry %s error %w", entryURI, err)
+	}
+	if en == nil {
+		return nil, fmt.Errorf("entry %s not found", entryURI)
+	}
+
+	var docProps types.DocumentProperties
+	if err = n.store.GetEntryProperties(ctx, n.namespace, types.PropertyTypeDocument, en.ID, &docProps); err != nil && !errors.Is(err, types.ErrNotFound) {
+		return nil, fmt.Errorf("get document properties error %w", err)
+	}
+
+	var props types.Properties
+	if err = n.store.GetEntryProperties(ctx, n.namespace, types.PropertyTypeProperty, en.ID, &props); err != nil && !errors.Is(err, types.ErrNotFound) {
+		return nil, fmt.Errorf("get basic properties error %w", err)
+	}
+
+	return toPluginProperties(docProps, props), nil
+}
+
 func (n *namespacedFS) SaveEntry(ctx context.Context, parentURI, name string, properties plugintypes.Properties, reader io.ReadCloser) error {
 	defer reader.Close()
 
@@ -352,4 +405,26 @@ func toDocumentProperties(p plugintypes.Properties) types.DocumentProperties {
 		HeaderImage: p.HeaderImage,
 		PublishAt:   p.PublishAt,
 	}
+}
+
+func toPluginProperties(docProps types.DocumentProperties, props types.Properties) *plugintypes.Properties {
+	result := &plugintypes.Properties{
+		Title:       docProps.Title,
+		Author:      docProps.Author,
+		Year:        docProps.Year,
+		Source:      docProps.Source,
+		Abstract:    docProps.Abstract,
+		Notes:       docProps.Notes,
+		Keywords:    docProps.Keywords,
+		URL:         docProps.URL,
+		SiteName:    docProps.SiteName,
+		SiteURL:     docProps.SiteURL,
+		HeaderImage: docProps.HeaderImage,
+		Unread:      &docProps.Unread,
+		Marked:      &docProps.Marked,
+		PublishAt:   docProps.PublishAt,
+	}
+
+	result.Summarize = props.Summarize
+	return result
 }
