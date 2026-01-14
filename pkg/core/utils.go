@@ -18,13 +18,13 @@ package core
 
 import (
 	"context"
-	"github.com/basenana/nanafs/pkg/events"
-	"github.com/basenana/nanafs/pkg/types"
-	"github.com/google/uuid"
-	"github.com/hyponet/eventbus"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/basenana/nanafs/pkg/events"
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/hyponet/eventbus"
 )
 
 const (
@@ -98,12 +98,18 @@ type entryEvent struct {
 	entryID    int64
 	topicNS    string
 	actionType string
+
+	uri string
 }
 
 var eventQ = make(chan *entryEvent, 8)
 
-func publicEntryActionEvent(topicNS, actionType, namespace string, entryID int64) {
-	eventQ <- &entryEvent{namespace: namespace, entryID: entryID, topicNS: topicNS, actionType: actionType}
+func publicEntryActionEvent(topicNS, actionType, namespace, uri string, entryID int64) {
+	eventQ <- &entryEvent{namespace: namespace, uri: uri, entryID: entryID, topicNS: topicNS, actionType: actionType}
+}
+
+func publicFileActionEvent(topicNS, actionType, namespace string, entryID int64) {
+	eventQ <- &entryEvent{namespace: namespace, uri: "", entryID: entryID, topicNS: topicNS, actionType: actionType}
 }
 
 func (c *core) entryActionEventHandler() {
@@ -118,22 +124,14 @@ func (c *core) entryActionEventHandler() {
 			c.logger.Errorw("encounter error when handle entry event", "namespace", evt.namespace, "entry", evt.entryID, "action", evt.actionType, "err", err)
 			continue
 		}
-		eventbus.Publish(events.NamespacedTopic(evt.topicNS, evt.actionType), BuildEntryEvent(evt.actionType, en))
-	}
-}
 
-func BuildEntryEvent(actionType string, entry *types.Entry) *types.Event {
-	return &types.Event{
-		Id:              uuid.New().String(),
-		Namespace:       entry.Namespace,
-		Type:            actionType,
-		Source:          "fsCore",
-		SpecVersion:     "1.0",
-		Time:            time.Now(),
-		RefType:         "entry",
-		RefID:           entry.ID,
-		DataContentType: "application/json",
-		Data:            types.NewEventDataFromEntry(entry),
+		var data any
+		if evt.uri != "" {
+			data = events.BuildEntryEvent(evt.actionType, "core", evt.uri, en)
+		} else {
+			data = events.BuildFileEvent(evt.actionType, "core", en)
+		}
+		eventbus.Publish(events.NamespacedTopic(evt.topicNS, evt.actionType), data)
 	}
 }
 

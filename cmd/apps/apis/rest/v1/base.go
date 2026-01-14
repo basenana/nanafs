@@ -19,6 +19,7 @@ package v1
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -113,7 +114,10 @@ func (s *ServicesV1) requireEntryWithPermission(ctx *gin.Context, caller *common
 	}
 
 	if uri == "" {
-		uri, _ = core.ProbableEntryPath(ctx.Request.Context(), s.core, en)
+		uri, err = core.ProbableEntryPath(ctx.Request.Context(), s.core, en)
+		if err != nil {
+			apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", fmt.Errorf("unable to deduce the URI of entry: %w", err))
+		}
 	}
 
 	return en, uri

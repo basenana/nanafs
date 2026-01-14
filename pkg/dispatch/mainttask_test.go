@@ -171,7 +171,7 @@ var _ = Describe("compactExecutor.handleEvent", func() {
 		evt := &types.Event{
 			Type:      events.ActionTypeCompact,
 			Namespace: namespace,
-			RefType:   "entry",
+			RefType:   "file",
 			RefID:     testEntry.ID,
 		}
 
@@ -199,7 +199,7 @@ var _ = Describe("compactExecutor.handleEvent", func() {
 			Namespace:      namespace,
 			TaskID:         maintainTaskIDChunkCompact,
 			Status:         types.ScheduledTaskWait,
-			RefType:        "entry",
+			RefType:        "file",
 			RefID:          testEntry.ID,
 			CreatedTime:    time.Now(),
 			ExpirationTime: time.Now().Add(time.Hour),
@@ -209,7 +209,7 @@ var _ = Describe("compactExecutor.handleEvent", func() {
 		evt := &types.Event{
 			Type:      events.ActionTypeCompact,
 			Namespace: namespace,
-			RefType:   "entry",
+			RefType:   "file",
 			RefID:     testEntry.ID,
 		}
 
@@ -270,7 +270,11 @@ var _ = Describe("compactExecutor.execute", func() {
 				Namespace: namespace,
 				RefType:   "entry",
 				RefID:     testEntry.ID,
-				Data:      types.NewEventDataFromEntry(testEntry),
+				Data: types.EventData{
+					ID:      testEntry.ID,
+					Kind:    testEntry.Kind,
+					IsGroup: testEntry.IsGroup,
+				},
 			},
 		}
 
@@ -300,7 +304,11 @@ var _ = Describe("entryCleanExecutor.execute", func() {
 				Namespace: namespace,
 				RefType:   "entry",
 				RefID:     testEntry.ID,
-				Data:      types.NewEventDataFromEntry(testEntry),
+				Data: types.EventData{
+					ID:      testEntry.ID,
+					Kind:    testEntry.Kind,
+					IsGroup: testEntry.IsGroup,
+				},
 			},
 		}
 

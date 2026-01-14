@@ -350,7 +350,7 @@ func (c *core) CreateEntry(ctx context.Context, namespace string, parentURI stri
 		}
 	}
 
-	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeCreate, entry.Namespace, entry.ID)
+	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeCreate, entry.Namespace, path.Join(parentURI, attr.Name), entry.ID)
 	return entry, nil
 }
 
@@ -442,7 +442,7 @@ func (c *core) RemoveEntry(ctx context.Context, namespace string, entryURI strin
 	}
 	c.cache.invalidEntry(namespace, target.ID, parent.ID)
 	c.cache.invalidChild(namespace, parent.ID, childName)
-	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeRemove, namespace, target.ID)
+	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeRemove, namespace, entryURI, target.ID)
 	return nil
 }
 
@@ -507,7 +507,7 @@ func (c *core) MirrorEntry(ctx context.Context, namespace string, srcEntryURI, d
 		return nil, err
 	}
 	c.cache.invalidEntry(namespace, src.ID, dstParent.ID)
-	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeMirror, src.Namespace, src.ID)
+	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeMirror, src.Namespace, srcEntryURI, src.ID)
 	return c.getEntry(ctx, namespace, src.ID)
 }
 
@@ -524,6 +524,11 @@ func (c *core) ChangeEntryParent(ctx context.Context, namespace string, targetEn
 
 	oldParentURI := path.Dir(targetEntryURI)
 	oldName := path.Base(targetEntryURI)
+
+	if newName == "" {
+		newName = oldName
+	}
+
 	if oldName == newName && oldParentURI == newParentURI {
 		return nil
 	}
@@ -586,7 +591,7 @@ func (c *core) ChangeEntryParent(ctx context.Context, namespace string, targetEn
 		}
 		c.cache.invalidEntry(namespace, *overwriteEntryId)
 		c.cache.invalidChild(namespace, newParent.ID, newName)
-		publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeRemove, overwriteEntry.Namespace, overwriteEntry.ID)
+		publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeRemove, overwriteEntry.Namespace, path.Join(newParentURI, newName), overwriteEntry.ID)
 	}
 
 	err = c.store.ChangeEntryParent(ctx, namespace, target.ID, oldParent.ID, newParent.ID, oldName, newName, opt)
@@ -595,7 +600,7 @@ func (c *core) ChangeEntryParent(ctx context.Context, namespace string, targetEn
 	}
 	c.cache.invalidChild(namespace, oldParent.ID, oldName)
 	c.cache.invalidEntry(namespace, target.ID, newParent.ID, oldParent.ID)
-	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeChangeParent, target.Namespace, target.ID)
+	publicEntryActionEvent(events.TopicNamespaceEntry, events.ActionTypeChangeParent, target.Namespace, path.Join(newParentURI, newName), target.ID)
 	return nil
 }
 
@@ -611,7 +616,7 @@ func (c *core) Open(ctx context.Context, namespace string, entryId int64, attr t
 		if err := c.CleanEntryData(ctx, namespace, entryId); err != nil {
 			c.logger.Errorw("clean entry with trunc error", "entry", entryId, "err", err)
 		}
-		publicEntryActionEvent(events.TopicNamespaceFile, events.ActionTypeTrunc, namespace, entryId)
+		publicFileActionEvent(events.TopicNamespaceFile, events.ActionTypeTrunc, namespace, entryId)
 	}
 	c.cache.invalidEntry(namespace, entryId)
 
@@ -625,7 +630,7 @@ func (c *core) Open(ctx context.Context, namespace string, entryId int64, attr t
 	if err != nil {
 		return nil, err
 	}
-	publicEntryActionEvent(events.TopicNamespaceFile, events.ActionTypeOpen, namespace, entryId)
+	publicFileActionEvent(events.TopicNamespaceFile, events.ActionTypeOpen, namespace, entryId)
 	return f, nil
 }
 

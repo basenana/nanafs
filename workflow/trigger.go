@@ -217,6 +217,12 @@ func (h *triggers) handleEntryCreate(evt *types.Event) {
 		return
 	}
 
+	entryURI := evt.Data.URI
+	if entryURI == "" {
+		h.logger.Errorw("[handleEntryCreate] guss entry uri failed", "entry", evt.RefID, "err", "uri in event is empty")
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	entry, err := h.core.GetEntry(ctx, evt.Namespace, evt.RefID)
@@ -238,16 +244,10 @@ func (h *triggers) handleEntryCreate(evt *types.Event) {
 		if gp.Source == "rss" {
 			for wfID, trg := range nsTriggers {
 				if trg.rss != nil {
-					h.triggerRSSWorkflowForGroup(ctx, evt.Namespace, entry, gp, wfID)
+					h.triggerRSSWorkflowForGroup(ctx, evt.Namespace, entryURI, entry, gp, wfID)
 				}
 			}
 		}
-		return
-	}
-
-	entryURI, err := core.ProbableEntryPath(ctx, h.core, entry)
-	if err != nil {
-		h.logger.Errorw("[handleEntryCreate] guss entry uri failed", "entry", evt.RefID, "err", err)
 		return
 	}
 
@@ -275,21 +275,16 @@ func (h *triggers) handleEntryCreate(evt *types.Event) {
 
 // MARK: interval trigger
 
-func (h *triggers) triggerRSSWorkflowForGroup(ctx context.Context, namespace string, en *types.Entry, gp *types.GroupProperties, wfID string) {
+func (h *triggers) triggerRSSWorkflowForGroup(ctx context.Context, namespace string, enURI string, en *types.Entry, gp *types.GroupProperties, wfID string) {
 	if gp.RSS == nil || gp.RSS.Feed == "" {
 		h.logger.Warnw("empty rss group attr", "workflow", wfID, "entry", en.ID)
 		return
 	}
 
-	uri, err := core.ProbableEntryPath(ctx, h.core, en)
-	if err != nil {
-		h.logger.Errorw("fetch rss group uri failed", "workflow", wfID, "err", err)
-		return
-	}
 	params := map[string]string{
 		"feed": gp.RSS.Feed,
 	}
-	h.triggerWorkflow(ctx, namespace, wfID, types.WorkflowTarget{Entries: []string{uri}}, JobAttr{Parameters: params, Reason: "rss group created"})
+	h.triggerWorkflow(ctx, namespace, wfID, types.WorkflowTarget{Entries: []string{enURI}}, JobAttr{Parameters: params, Reason: "rss group created"})
 }
 
 func (h *triggers) runRSSWorkflow(ctx context.Context, namespace, workflowID string, rss *types.WorkflowRssTrigger) {
@@ -313,7 +308,12 @@ func (h *triggers) runRSSWorkflow(ctx context.Context, namespace, workflowID str
 			continue
 		}
 
-		h.triggerRSSWorkflowForGroup(ctx, namespace, en, gp, workflowID)
+		uri, err := core.ProbableEntryPath(ctx, h.core, en)
+		if err != nil {
+			h.logger.Errorw("fetch rss group uri failed", "workflow", workflowID, "entry", en.ID, "err", err)
+			continue
+		}
+		h.triggerRSSWorkflowForGroup(ctx, namespace, uri, en, gp, workflowID)
 	}
 }
 

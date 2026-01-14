@@ -154,8 +154,12 @@ func (c *entryCleanExecutor) createCleanupTask(ctx context.Context, en *types.En
 		Namespace: en.Namespace,
 		RefType:   "entry",
 		RefID:     en.ID,
-		Data:      types.NewEventDataFromEntry(en),
-		Time:      time.Now(),
+		Data: types.EventData{
+			ID:      en.ID,
+			Kind:    en.Kind,
+			IsGroup: en.IsGroup,
+		},
+		Time: time.Now(),
 	}
 
 	task := &types.ScheduledTask{

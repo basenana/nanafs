@@ -30,8 +30,6 @@ import (
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/storage"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/google/uuid"
-	"github.com/hyponet/eventbus"
 	"go.uber.org/zap"
 )
 
@@ -120,7 +118,7 @@ func (f *rawFile) ReadAt(ctx context.Context, dest []byte, off int64) (int64, er
 
 func (f *rawFile) Close(ctx context.Context) (err error) {
 	defer trace.StartRegion(ctx, "fs.core.file.Close").End()
-	defer publicEntryActionEvent(events.TopicNamespaceFile, events.ActionTypeClose, f.namespace, f.entryID)
+	defer publicFileActionEvent(events.TopicNamespaceFile, events.ActionTypeClose, f.namespace, f.entryID)
 	defer decreaseOpenedFile(f.entryID)
 	defer f.reader.Close()
 	if f.attr.Write {
@@ -139,19 +137,7 @@ func openFile(en *types.Entry, attr types.OpenAttr, chunkStore bio.ChunkStore, f
 		return nil, logOperationError(fileOperationErrorCounter, "init", fmt.Errorf("storage %s not found", en.Storage))
 	}
 	f.reader = bio.NewChunkReader(en.ID, en.Size, chunkStore, fileStorage, bio.WithCompactHook(func() {
-		eventbus.Publish(events.NamespacedTopic(events.TopicNamespaceFile, events.ActionTypeCompact),
-			&types.Event{
-				Id:              uuid.New().String(),
-				Namespace:       en.Namespace,
-				Type:            events.ActionTypeCompact,
-				Source:          "bio",
-				SpecVersion:     "1.0",
-				Time:            time.Now(),
-				RefType:         "entry",
-				RefID:           en.ID,
-				DataContentType: "application/json",
-				Data:            types.NewEventDataFromEntry(en),
-			})
+		publicFileActionEvent(events.TopicNamespaceFile, events.ActionTypeCompact, f.namespace, f.entryID)
 	}))
 	if attr.Write {
 		f.writer = bio.NewChunkWriter(f.reader)
@@ -219,7 +205,7 @@ func (s *symlink) Flush(ctx context.Context) (err error) {
 
 func (s *symlink) Close(ctx context.Context) error {
 	defer trace.StartRegion(ctx, "fs.core.symlink.Close").End()
-	defer publicEntryActionEvent(events.TopicNamespaceFile, events.ActionTypeClose, s.namespace, s.entryID)
+	defer publicFileActionEvent(events.TopicNamespaceFile, events.ActionTypeClose, s.namespace, s.entryID)
 	defer decreaseOpenedFile(s.entryID)
 	return s.Flush(ctx)
 }
