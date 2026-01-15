@@ -651,6 +651,15 @@ Mark messages as read.
 
 List all workflows.
 
+**Query Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `page` | int | Page number (default: 1) |
+| `page_size` | int | Number of items per page (default: all) |
+| `sort` | string | Sort field: `name`, `created_at`, `updated_at` (default: `created_at`) |
+| `order` | string | Sort order: `asc`, `desc` (default: `desc`) |
+
 **Response:**
 ```json
 {
@@ -658,18 +667,32 @@ List all workflows.
     {
       "id": "wf-001",
       "name": "Process RSS",
+      "enable": true,
       "queue_name": "rss-processing",
       "created_at": "2024-01-01T00:00:00Z",
       "updated_at": "2024-01-01T00:00:00Z",
       "last_triggered_at": "2024-01-02T00:00:00Z"
     }
-  ]
+  ],
+  "pagination": {
+    "page": 1,
+    "page_size": 10
+  }
 }
 ```
 
 #### GET /api/v1/workflows/:id/jobs
 
 List jobs for a specific workflow.
+
+**Query Parameters**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `page` | int | Page number (default: 1) |
+| `page_size` | int | Number of items per page (default: all) |
+| `sort` | string | Sort field: `created_at`, `updated_at` (default: `created_at`) |
+| `order` | string | Sort order: `asc`, `desc` (default: `desc`) |
 
 **Response:**
 ```json
@@ -702,7 +725,11 @@ List jobs for a specific workflow.
       "start_at": "2024-01-01T00:00:00Z",
       "finish_at": "2024-01-01T00:01:00Z"
     }
-  ]
+  ],
+  "pagination": {
+    "page": 1,
+    "page_size": 10
+  }
 }
 ```
 
@@ -751,13 +778,20 @@ Create a new workflow.
 **Response:**
 ```json
 {
-  "workflow": {
-    "id": "wf-002",
-    "name": "Process RSS Feed",
-    "queue_name": "rss-processing",
-    "created_at": "2024-01-01T00:00:00Z",
-    "updated_at": "2024-01-01T00:00:00Z",
-    "last_triggered_at": null
+  "workflows": [
+    {
+      "id": "423ae373-c4ee-435c-bd52-45e6b9e2bdef",
+      "name": "Document Load",
+      "queue_name": "file",
+      "enable": true,
+      "created_at": "2026-01-12T23:50:30.685288+08:00",
+      "updated_at": "2026-01-15T22:04:21.577409+08:00",
+      "last_triggered_at": "2026-01-15T22:04:21.563627+08:00"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "page_size": 50
   }
 }
 ```
@@ -770,15 +804,89 @@ Retrieve a specific workflow.
 ```json
 {
   "workflow": {
-    "id": "wf-001",
-    "name": "Process RSS",
-    "queue_name": "rss-processing",
-    "created_at": "2024-01-01T00:00:00Z",
-    "updated_at": "2024-01-01T00:00:00Z",
-    "last_triggered_at": "2024-01-02T00:00:00Z"
+    "id": "cfb40ff3-3167-4cc3-b939-1bb6717ecbf9",
+    "namespace": "Hypo",
+    "name": "RSS Collect",
+    "trigger": {
+      "rss": {},
+      "interval": 30
+    },
+    "nodes": [
+      {
+        "name": "fetch_rss",
+        "type": "rss",
+        "params": {
+          "clutter_free": "true",
+          "file_type": "webarchive",
+          "timeout": "120"
+        },
+        "input": {
+          "feed": "$.trigger.feed"
+        },
+        "next": "process_articles"
+      },
+      {
+        "name": "process_articles",
+        "type": "docloader",
+        "params": null,
+        "input": {
+          "file_path": "$.matrix.file_path",
+          "site_name": "$.matrix.site_name",
+          "site_url": "$.matrix.site_url",
+          "title": "$.matrix.title",
+          "url": "$.matrix.url"
+        },
+        "next": "save_to_nanafs",
+        "matrix": {
+          "data": {
+            "file_path": "$.fetch_rss.articles.*.file_path",
+            "site_name": "$.fetch_rss.articles.*.site_name",
+            "site_url": "$.fetch_rss.articles.*.site_url",
+            "title": "$.fetch_rss.articles.*.title",
+            "url": "$.fetch_rss.articles.*.url"
+          }
+        }
+      },
+      {
+        "name": "save_to_nanafs",
+        "type": "save",
+        "params": null,
+        "input": {
+          "document": "$.matrix.document",
+          "file_path": "$.matrix.file_path",
+          "parent_uri": "$.trigger.parent_uri"
+        },
+        "matrix": {
+          "data": {
+            "document": "$.process_articles.matrix_results.*.document",
+            "file_path": "$.process_articles.matrix_results.*.file_path"
+          }
+        }
+      }
+    ],
+    "enable": true,
+    "queue_name": "file",
+    "created_at": "2026-01-12T23:50:30.659166+08:00",
+    "updated_at": "2026-01-15T22:04:21.500807+08:00",
+    "last_triggered_at": "2026-01-15T22:04:21.487893+08:00"
   }
 }
 ```
+
+**Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Workflow ID |
+| `namespace` | string | Namespace |
+| `name` | string | Workflow name |
+| `trigger` | object | Trigger configuration (rss, interval, local_file_watch) |
+| `nodes` | array | Workflow nodes/steps |
+| `enable` | bool | Whether workflow is enabled |
+| `queue_name` | string | Queue name for job processing |
+| `created_at` | string | Creation timestamp |
+| `updated_at` | string | Last update timestamp |
+| `last_triggered_at` | string | Last trigger timestamp |
 
 #### PUT /api/v1/workflows/:id
 
@@ -801,6 +909,7 @@ Update an existing workflow.
   "workflow": {
     "id": "wf-001",
     "name": "Updated Workflow Name",
+    "enable": false,
     "queue_name": "new-queue-name",
     "created_at": "2024-01-01T00:00:00Z",
     "updated_at": "2024-01-03T00:00:00Z",
@@ -829,33 +938,44 @@ List all jobs for a specific workflow.
 {
   "jobs": [
     {
-      "id": "job-001",
-      "workflow": "wf-001",
-      "trigger_reason": "manual",
-      "status": "completed",
-      "message": "",
-      "queue_name": "rss-processing",
+      "id": "f73ff9b0-fd0e-4dd5-938d-64e4ad2a7a9e",
+      "workflow": "cfb40ff3-3167-4cc3-b939-1bb6717ecbf9",
+      "trigger_reason": "sync rss group",
+      "status": "succeed",
+      "message": "finish",
+      "queue_name": "file",
       "target": {
-        "entries": ["/inbox/rss/feed-001"]
+        "entries": [
+          "/Hello/梦旭随想"
+        ]
       },
       "steps": [
         {
-          "name": "fetch",
-          "status": "completed",
+          "name": "fetch_rss",
+          "status": "succeed",
           "message": ""
         },
         {
-          "name": "parse",
-          "status": "completed",
+          "name": "process_articles",
+          "status": "succeed",
+          "message": ""
+        },
+        {
+          "name": "save_to_nanafs",
+          "status": "succeed",
           "message": ""
         }
       ],
-      "created_at": "2024-01-01T00:00:00Z",
-      "updated_at": "2024-01-01T00:00:00Z",
-      "start_at": "2024-01-01T00:00:00Z",
-      "finish_at": "2024-01-01T00:01:00Z"
+      "created_at": "2026-01-15T22:02:52.275473+08:00",
+      "updated_at": "2026-01-15T22:03:09.201952+08:00",
+      "start_at": "2026-01-15T22:02:52.333161+08:00",
+      "finish_at": "2026-01-15T22:03:09.193124+08:00"
     }
-  ]
+  ],
+  "pagination": {
+    "page": 1,
+    "page_size": 50
+  }
 }
 ```
 

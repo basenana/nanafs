@@ -34,6 +34,10 @@ import (
 // @Tags Workflows
 // @Accept json
 // @Produce json
+// @Param page query int false "Page number"
+// @Param page_size query int false "Page size"
+// @Param sort query string false "Sort field (name, created_at, updated_at)"
+// @Param order query string false "Sort order (asc, desc)"
 // @Success 200 {object} ListWorkflowsResponse
 // @Router /api/v1/workflows [get]
 func (s *ServicesV1) ListWorkflows(ctx *gin.Context) {
@@ -42,7 +46,16 @@ func (s *ServicesV1) ListWorkflows(ctx *gin.Context) {
 		return
 	}
 
-	workflowList, err := s.workflow.ListWorkflows(ctx.Request.Context(), caller.Namespace)
+	var req PaginationRequest
+	if err := ctx.ShouldBindQuery(&req); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	pg := types.NewPaginationWithSort(req.Page, req.PageSize, req.Sort, req.Order)
+	pagedCtx := types.WithPagination(ctx.Request.Context(), pg)
+
+	workflowList, err := s.workflow.ListWorkflows(pagedCtx, caller.Namespace)
 	if err != nil {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
@@ -53,7 +66,10 @@ func (s *ServicesV1) ListWorkflows(ctx *gin.Context) {
 		workflows = append(workflows, toWorkflowInfo(w))
 	}
 
-	apitool.JsonResponse(ctx, http.StatusOK, &ListWorkflowsResponse{Workflows: workflows})
+	apitool.JsonResponse(ctx, http.StatusOK, &ListWorkflowsResponse{
+		Workflows:  workflows,
+		Pagination: &PaginationInfo{Page: pg.Page, PageSize: pg.PageSize},
+	})
 }
 
 // @Summary List workflow jobs
@@ -62,6 +78,10 @@ func (s *ServicesV1) ListWorkflows(ctx *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path string true "Workflow ID"
+// @Param page query int false "Page number"
+// @Param page_size query int false "Page size"
+// @Param sort query string false "Sort field (created_at, updated_at)"
+// @Param order query string false "Sort order (asc, desc)"
 // @Success 200 {object} ListWorkflowJobsResponse
 // @Router /api/v1/workflows/{id}/jobs [get]
 func (s *ServicesV1) ListWorkflowJobs(ctx *gin.Context) {
@@ -76,7 +96,16 @@ func (s *ServicesV1) ListWorkflowJobs(ctx *gin.Context) {
 		return
 	}
 
-	jobs, err := s.workflow.ListJobs(ctx.Request.Context(), caller.Namespace, workflowID)
+	var req PaginationRequest
+	if err := ctx.ShouldBindQuery(&req); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	pg := types.NewPaginationWithSort(req.Page, req.PageSize, req.Sort, req.Order)
+	pagedCtx := types.WithPagination(ctx.Request.Context(), pg)
+
+	jobs, err := s.workflow.ListJobs(pagedCtx, caller.Namespace, workflowID)
 	if err != nil {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
@@ -87,7 +116,10 @@ func (s *ServicesV1) ListWorkflowJobs(ctx *gin.Context) {
 		result = append(result, toWorkflowJobDetail(j))
 	}
 
-	apitool.JsonResponse(ctx, http.StatusOK, &ListWorkflowJobsResponse{Jobs: result})
+	apitool.JsonResponse(ctx, http.StatusOK, &ListWorkflowJobsResponse{
+		Jobs:       result,
+		Pagination: &PaginationInfo{Page: pg.Page, PageSize: pg.PageSize},
+	})
 }
 
 // @Summary Trigger workflow
@@ -206,7 +238,7 @@ func (s *ServicesV1) GetWorkflow(ctx *gin.Context) {
 	}
 
 	apitool.JsonResponse(ctx, http.StatusOK, &WorkflowResponse{
-		Workflow: toWorkflowInfo(workflow),
+		Workflow: toWorkflowDetail(workflow),
 	})
 }
 
@@ -266,7 +298,7 @@ func (s *ServicesV1) UpdateWorkflow(ctx *gin.Context) {
 	}
 
 	apitool.JsonResponse(ctx, http.StatusOK, &WorkflowResponse{
-		Workflow: toWorkflowInfo(result),
+		Workflow: toWorkflowDetail(result),
 	})
 }
 

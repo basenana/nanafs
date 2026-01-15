@@ -66,6 +66,14 @@ type ListGroupChildrenRequest struct {
 	Order    string `form:"order"`
 }
 
+// PaginationRequest 分页请求
+type PaginationRequest struct {
+	Page     int64  `form:"page"`
+	PageSize int64  `form:"page_size"`
+	Sort     string `form:"sort"`
+	Order    string `form:"order"`
+}
+
 // FilterEntryRequest 过滤条目请求
 type FilterEntryRequest struct {
 	CELPattern string `json:"cel_pattern" binding:"required"` // CEL pattern for filtering

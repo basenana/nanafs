@@ -115,14 +115,29 @@ type Message struct {
 	Time    time.Time `json:"time"`
 }
 
-// WorkflowInfo 工作流信息
+// WorkflowInfo 工作流信息 (列表用简化版)
 type WorkflowInfo struct {
 	ID              string    `json:"id"`
 	Name            string    `json:"name"`
 	QueueName       string    `json:"queue_name"`
+	Enable          bool      `json:"enable"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 	LastTriggeredAt time.Time `json:"last_triggered_at"`
+}
+
+// WorkflowDetail 工作流详情 (完整信息)
+type WorkflowDetail struct {
+	ID              string                   `json:"id"`
+	Namespace       string                   `json:"namespace"`
+	Name            string                   `json:"name"`
+	Trigger         types.WorkflowTrigger    `json:"trigger"`
+	Nodes           []types.WorkflowNode     `json:"nodes"`
+	Enable          bool                     `json:"enable"`
+	QueueName       string                   `json:"queue_name"`
+	CreatedAt       time.Time                `json:"created_at"`
+	UpdatedAt       time.Time                `json:"updated_at"`
+	LastTriggeredAt time.Time                `json:"last_triggered_at"`
 }
 
 // WorkflowJobStep 工作流作业步骤
@@ -188,12 +203,14 @@ type ReadMessagesResponse struct {
 
 // ListWorkflowsResponse 列出工作流响应
 type ListWorkflowsResponse struct {
-	Workflows []*WorkflowInfo `json:"workflows"`
+	Workflows  []*WorkflowInfo `json:"workflows"`
+	Pagination *PaginationInfo `json:"pagination,omitempty"`
 }
 
 // ListWorkflowJobsResponse 列出工作流作业响应
 type ListWorkflowJobsResponse struct {
-	Jobs []*WorkflowJobDetail `json:"jobs"`
+	Jobs       []*WorkflowJobDetail `json:"jobs"`
+	Pagination *PaginationInfo      `json:"pagination,omitempty"`
 }
 
 // TriggerWorkflowResponse 触发工作流响应
@@ -290,6 +307,22 @@ func toWorkflowInfo(w *types.Workflow) *WorkflowInfo {
 		ID:              w.Id,
 		Name:            w.Name,
 		QueueName:       w.QueueName,
+		Enable:          w.Enable,
+		CreatedAt:       w.CreatedAt,
+		UpdatedAt:       w.UpdatedAt,
+		LastTriggeredAt: w.LastTriggeredAt,
+	}
+}
+
+func toWorkflowDetail(w *types.Workflow) *WorkflowDetail {
+	return &WorkflowDetail{
+		ID:              w.Id,
+		Namespace:       w.Namespace,
+		Name:            w.Name,
+		Trigger:         w.Trigger,
+		Nodes:           w.Nodes,
+		Enable:          w.Enable,
+		QueueName:       w.QueueName,
 		CreatedAt:       w.CreatedAt,
 		UpdatedAt:       w.UpdatedAt,
 		LastTriggeredAt: w.LastTriggeredAt,
@@ -339,7 +372,7 @@ type UpdateDocumentPropertyResponse struct {
 
 // WorkflowResponse 工作流响应
 type WorkflowResponse struct {
-	Workflow *WorkflowInfo `json:"workflow"`
+	Workflow *WorkflowDetail `json:"workflow"`
 }
 
 // CreateWorkflowResponse 创建工作流响应
