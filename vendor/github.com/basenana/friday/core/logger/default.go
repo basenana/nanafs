@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"sync"
 )
 
@@ -106,4 +107,11 @@ func formatKeyValues(kv []interface{}) string {
 		result += key + "=" + value
 	}
 	return result
+}
+
+func FirstLine(s string) string {
+	if i := strings.Index(s, "\n"); i != -1 {
+		return s[:i]
+	}
+	return s
 }

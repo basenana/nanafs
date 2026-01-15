@@ -18,9 +18,10 @@ package utils
 
 import (
 	"bytes"
-	"github.com/PuerkitoBio/goquery"
 	"regexp"
 	"strings"
+
+	"github.com/PuerkitoBio/goquery"
 )
 
 var repeatSpace = regexp.MustCompile(`\s+`)
@@ -40,35 +41,15 @@ func ContentTrim(contentType, content string) string {
 }
 
 func GenerateContentAbstract(content string) string {
-	if subContent, err := slowPathContentSubContent([]byte(content)); err == nil && len(subContent) > 100 {
-		return subContent
-	}
-
-	content = ContentTrim("html", content)
-	subContents := strings.Split(content, "\n")
-	contents := make([]string, 0)
-	i := 0
-	for _, subContent := range subContents {
-		subContent = strings.TrimSpace(subContent)
-		if subContent != "" {
-			contents = append(contents, subContent)
-			i++
-			if i >= 3 {
-				break
-			}
-		}
-	}
-	return strings.Join(contents, " ")
-}
-
-func slowPathContentSubContent(content []byte) (string, error) {
-	query, err := goquery.NewDocumentFromReader(bytes.NewReader(content))
+	query, err := goquery.NewDocumentFromReader(bytes.NewReader([]byte(content)))
 	if err != nil {
-		return "", err
+		return ""
 	}
 
+	query.Find("script, style, noscript, iframe, nav, header, footer, aside").Remove()
+
 	contents := make([]string, 0)
-	query.Find("p").EachWithBreak(func(i int, selection *goquery.Selection) bool {
+	query.Find("p, article, section, li, td, th").EachWithBreak(func(i int, selection *goquery.Selection) bool {
 		if len(contents) > 10 {
 			return false
 		}
@@ -79,7 +60,12 @@ func slowPathContentSubContent(content []byte) (string, error) {
 		return true
 	})
 
-	return trimDocumentContent(strings.Join(contents, " "), 400), nil
+	if len(contents) > 0 {
+		return trimDocumentContent(strings.Join(contents, " "), 400)
+	}
+
+	bodyContent := query.Find("body").Text()
+	return trimDocumentContent(bodyContent, 400)
 }
 
 func trimDocumentContent(str string, m int) string {

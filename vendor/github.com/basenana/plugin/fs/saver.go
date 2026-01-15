@@ -69,7 +69,11 @@ func (p *Saver) Run(ctx context.Context, request *api.Request) (*api.Response, e
 	}
 
 	if subGroup != "" {
-		err = request.FS.CreateGroupIfNotExists(ctx, parentURI, subGroup)
+		subGroupOverview := api.GetStringParameter("subgroup_overview", request, "")
+		if subGroupOverview != "" {
+			subGroupOverview = path.Base(subGroupOverview)
+		}
+		err = request.FS.CreateGroupIfNotExists(ctx, parentURI, subGroup, types.Properties{GroupOverview: subGroupOverview})
 		if err != nil {
 			return api.NewFailedResponse("failed to create group: " + err.Error()), nil
 		}
@@ -84,28 +88,4 @@ func (p *Saver) Run(ctx context.Context, request *api.Request) (*api.Response, e
 
 	p.logger.Infow("save completed", "file_path", filePath)
 	return api.NewResponseWithResult(map[string]any{"entry_uri": path.Join(parentURI, name)}), nil
-}
-
-func buildProperties(request *api.Request) types.Properties {
-	// Safely extract properties map (takes priority)
-	propertiesMapRaw, propertiesOK := request.Parameter["properties"]
-	if propertiesOK {
-		if propertiesMap, ok := propertiesMapRaw.(map[string]interface{}); ok {
-			properties := types.Properties{}
-			utils.UnmarshalMap(propertiesMap, &properties)
-			return properties
-		}
-	}
-
-	// Safely extract document map
-	documentMapRaw, documentOK := request.Parameter["document"]
-	if documentOK {
-		if documentMap, ok := documentMapRaw.(map[string]interface{}); ok {
-			document := &types.Document{}
-			utils.UnmarshalMap(documentMap, document)
-			return document.Properties
-		}
-	}
-
-	return types.Properties{}
 }

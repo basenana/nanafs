@@ -1,6 +1,9 @@
 package logger
 
-import "go.uber.org/zap"
+import (
+	fridaylogger "github.com/basenana/friday/core/logger"
+	"go.uber.org/zap"
+)
 
 var (
 	root *zap.SugaredLogger
@@ -8,6 +11,7 @@ var (
 
 func SetLogger(log *zap.SugaredLogger) {
 	root = log
+	fridaylogger.SetDefault(&fridayLogger{SugaredLogger: root.Named("friday")})
 }
 
 func NewLogger(name string) *zap.SugaredLogger {

@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	agtapi2 "github.com/basenana/friday/core/api"
+	"github.com/basenana/friday/core/api"
 	"github.com/basenana/friday/core/logger"
 	"github.com/basenana/friday/core/memory"
 	"github.com/basenana/friday/core/providers/openai"
@@ -35,9 +35,9 @@ func (a *Agent) Describe() string {
 	return a.desc
 }
 
-func (a *Agent) Chat(ctx context.Context, req *agtapi2.Request) *agtapi2.Response {
+func (a *Agent) Chat(ctx context.Context, req *api.Request) *api.Response {
 	var (
-		resp = agtapi2.NewResponse()
+		resp = api.NewResponse()
 	)
 	if req.Session == nil {
 		req.Session = types.NewDummySession()
@@ -47,20 +47,20 @@ func (a *Agent) Chat(ctx context.Context, req *agtapi2.Request) *agtapi2.Respons
 		req.Memory = memory.NewEmpty(req.Session.ID)
 	}
 
-	ctx = agtapi2.NewContext(ctx, req.Session,
-		agtapi2.WithMemory(req.Memory),
-		agtapi2.WithResponse(resp),
+	ctx = api.NewContext(ctx, req.Session,
+		api.WithMemory(req.Memory),
+		api.WithResponse(resp),
 	)
 
 	mem := req.Memory
 	mem.AppendMessages(types.Message{UserMessage: req.UserMessage})
 
-	a.logger.Infow("handle request", "message", req.UserMessage, "session", req.Session.ID)
+	a.logger.Infow("handle request", "message", logger.FirstLine(req.UserMessage), "session", req.Session.ID)
 	go a.reactLoop(ctx, mem, resp)
 	return resp
 }
 
-func (a *Agent) reactLoop(ctx context.Context, mem *memory.Memory, resp *agtapi2.Response) {
+func (a *Agent) reactLoop(ctx context.Context, mem *memory.Memory, resp *api.Response) {
 	defer resp.Close()
 
 	var (
@@ -138,7 +138,7 @@ func (a *Agent) reactLoop(ctx context.Context, mem *memory.Memory, resp *agtapi2
 	}
 }
 
-func (a *Agent) handleLLMStream(ctx context.Context, stream openai.Response, mem *memory.Memory, resp *agtapi2.Response, usage *loopUsage) ([]types.Message, code) {
+func (a *Agent) handleLLMStream(ctx context.Context, stream openai.Response, mem *memory.Memory, resp *api.Response, usage *loopUsage) ([]types.Message, code) {
 	var (
 		content      string
 		reasoning    string
@@ -176,7 +176,7 @@ WaitMessage:
 			switch {
 			case len(msg.Content) > 0:
 				content += msg.Content
-				agtapi2.SendEventToResponse(ctx, types.NewContentEvent(msg.Content))
+				api.SendEventToResponse(ctx, types.NewContentEvent(msg.Content))
 
 			case len(msg.ToolUse) > 0:
 				for i := range msg.ToolUse {
@@ -190,7 +190,7 @@ WaitMessage:
 
 			case len(msg.Reasoning) > 0:
 				reasoning += msg.Reasoning
-				agtapi2.SendEventToResponse(ctx, types.NewReasoningEvent(msg.Reasoning))
+				api.SendEventToResponse(ctx, types.NewReasoningEvent(msg.Reasoning))
 			}
 		}
 	}
@@ -268,7 +268,7 @@ func (a *Agent) doToolCalls(ctx context.Context, mem *memory.Memory, toolUses []
 func (a *Agent) tryToolCall(ctx context.Context, mem *memory.Memory, use openai.ToolUse, reasoning string, toolUseCount int) []types.Message {
 	var (
 		result    []types.Message
-		extraArgs = agtapi2.OverwriteToolArgsFromContext(ctx)
+		extraArgs = api.OverwriteToolArgsFromContext(ctx)
 		useMark   = use.ID
 		session   = mem.Session().ID
 	)
@@ -285,14 +285,14 @@ func (a *Agent) tryToolCall(ctx context.Context, mem *memory.Memory, use openai.
 	if td == nil {
 		msg := fmt.Sprintf("tool %s not found", use.Name)
 		result = append(result, types.Message{ToolCallID: useMark, ToolContent: msg})
-		agtapi2.SendEventToResponse(ctx, types.NewToolUseEvent(use.Name, use.Arguments, "", msg))
+		api.SendEventToResponse(ctx, types.NewToolUseEvent(use.Name, use.Arguments, "", msg))
 		a.logger.Warnw(msg, "tool", use.Name, "session", session)
 		return result
 	}
 
 	if use.Error != "" {
 		result = append(result, types.Message{ToolCallID: useMark, ToolContent: use.Error})
-		agtapi2.SendEventToResponse(ctx, types.NewToolUseEvent(use.Name, use.Arguments, td.Description, use.Error))
+		api.SendEventToResponse(ctx, types.NewToolUseEvent(use.Name, use.Arguments, td.Description, use.Error))
 		a.logger.Warnw("try tool call error", "tool", use.Name, "error", use.Error, "session", session)
 		return result
 	}
@@ -302,13 +302,13 @@ func (a *Agent) tryToolCall(ctx context.Context, mem *memory.Memory, use openai.
 	msg, err := toolCall(ctx, mem, toolUse, extraArgs, td, toolUseCount)
 	if err != nil {
 		result = append(result, types.Message{ToolCallID: toolUse.ID(), ToolContent: fmt.Sprintf("using tool failed: %s", err)})
-		agtapi2.SendEventToResponse(ctx, types.NewToolUseEvent(use.Name, use.Arguments, td.Description, err.Error()))
+		api.SendEventToResponse(ctx, types.NewToolUseEvent(use.Name, use.Arguments, td.Description, err.Error()))
 		a.logger.Warnw("using tool failed", "tool", use.Name, "error", err, "session", session)
 		return result
 	}
 
 	result = append(result, types.Message{ToolCallID: toolUse.ID(), ToolContent: msg})
-	agtapi2.SendEventToResponse(ctx, types.NewToolUseEvent(use.Name, use.Arguments, td.Description, ""))
+	api.SendEventToResponse(ctx, types.NewToolUseEvent(use.Name, use.Arguments, td.Description, ""))
 
 	return result
 }

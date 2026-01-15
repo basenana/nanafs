@@ -103,5 +103,5 @@ func (p *FileWritePlugin) Run(ctx context.Context, request *api.Request) (*api.R
 	}
 
 	p.logger.Infow("filewrite completed", "dest_path", destPath)
-	return api.NewResponse(), nil
+	return api.NewResponseWithResult(map[string]any{"file_path": absPath}), nil
 }

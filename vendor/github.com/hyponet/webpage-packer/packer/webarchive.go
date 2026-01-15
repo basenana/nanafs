@@ -126,7 +126,9 @@ func (w *webArchiver) workerRun(ctx context.Context, opt Option, errCh chan erro
 }
 
 func (w *webArchiver) ReadContent(ctx context.Context, opt Option) (string, error) {
-	if opt.FilePath != "" {
+	switch {
+
+	case opt.FilePath != "":
 		f, err := os.OpenFile(opt.FilePath, os.O_RDONLY, 0655)
 		if err != nil {
 			return "", fmt.Errorf("open %s failed: %s", opt.FilePath, err)
@@ -138,7 +140,20 @@ func (w *webArchiver) ReadContent(ctx context.Context, opt Option) (string, erro
 		if err != nil {
 			return "", fmt.Errorf("load webarchive %s failed: %s", opt.FilePath, err)
 		}
-	} else {
+	case opt.Reader != nil:
+		defer opt.Reader.Close()
+
+		data, err := io.ReadAll(opt.Reader)
+		if err != nil {
+			return "", fmt.Errorf("read %s failed: %s", opt.FilePath, err)
+		}
+
+		d := plist.NewDecoder(bytes.NewReader(data))
+		err = d.Decode(w.resource)
+		if err != nil {
+			return "", fmt.Errorf("load webarchive %s failed: %s", opt.FilePath, err)
+		}
+	default:
 		go func() {
 			for _ = range w.workerQ {
 				// discard next url

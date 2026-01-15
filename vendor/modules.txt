@@ -180,7 +180,7 @@ github.com/aymerick/douceur/parser
 # github.com/bahlo/generic-list-go v0.2.0
 ## explicit; go 1.18
 github.com/bahlo/generic-list-go
-# github.com/basenana/friday/core v0.0.0-20260113133926-68f640d5bf31
+# github.com/basenana/friday/core v0.0.0-20260115125134-20b35d6baae8
 ## explicit; go 1.24.7
 github.com/basenana/friday/core/agents
 github.com/basenana/friday/core/agents/planning
@@ -196,7 +196,7 @@ github.com/basenana/friday/core/types
 # github.com/basenana/go-flow v0.0.0-20250614153542-07184f3ea1e7
 ## explicit; go 1.23
 github.com/basenana/go-flow
-# github.com/basenana/plugin v0.0.0-20260114110822-ffcb66a0b034
+# github.com/basenana/plugin v0.0.0-20260115125923-87fd862fb1ec
 ## explicit; go 1.25
 github.com/basenana/plugin
 github.com/basenana/plugin/agentic
@@ -497,7 +497,7 @@ github.com/hanwen/go-fuse/v2/splice
 ## explicit; go 1.23
 github.com/hyponet/eventbus
 github.com/hyponet/eventbus/bus
-# github.com/hyponet/webpage-packer v1.1.0
+# github.com/hyponet/webpage-packer v1.1.1-0.20260115110708-cf1034fa3c7d
 ## explicit; go 1.24.0
 github.com/hyponet/webpage-packer/packer
 # github.com/inconshreveable/mousetrap v1.1.0
@@ -744,8 +744,6 @@ github.com/quic-go/quic-go/quicvarint
 # github.com/remyoudompheng/bigfft v0.0.0-20230126093431-47fa9a501578
 ## explicit; go 1.12
 github.com/remyoudompheng/bigfft
-# github.com/rogpeppe/go-internal v1.14.1
-## explicit; go 1.23
 # github.com/rs/xid v1.4.0
 ## explicit; go 1.12
 github.com/rs/xid
@@ -995,7 +993,7 @@ golang.org/x/tools/internal/gopathwalk
 golang.org/x/tools/internal/imports
 golang.org/x/tools/internal/modindex
 golang.org/x/tools/internal/stdlib
-# google.golang.org/api v0.259.0
+# google.golang.org/api v0.260.0
 ## explicit; go 1.24.0
 google.golang.org/api/customsearch/v1
 google.golang.org/api/googleapi
@@ -1012,7 +1010,7 @@ google.golang.org/api/transport/http
 # google.golang.org/genproto/googleapis/api v0.0.0-20251202230838-ff82c1b0f217
 ## explicit; go 1.24.0
 google.golang.org/genproto/googleapis/api/expr/v1alpha1
-# google.golang.org/genproto/googleapis/rpc v0.0.0-20260112192933-99fd39fd28a9
+# google.golang.org/genproto/googleapis/rpc v0.0.0-20260114163908-3f89685c29c3
 ## explicit; go 1.24.0
 google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/errdetails

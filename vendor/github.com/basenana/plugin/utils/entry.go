@@ -32,13 +32,16 @@ var (
 )
 
 func SafetyFilePathJoin(parent, filename string) string {
-	safeFilename := fileNameSafety.ReplaceAllString(filename, " ")
+	safeFilename := SanitizeFilename(filename)
 	return path.Clean(path.Join(parent, safeFilename))
 }
 
-func AbsFilePath(workdir, filePath string) string {
-	if strings.HasPrefix(filePath, workdir) {
-		return filePath
+func SanitizeFilename(name string) string {
+	name = strings.TrimSpace(name)
+	name = strings.ReplaceAll(name, " ", "_")
+	name = fileNameSafety.ReplaceAllString(name, " ")
+	if len(name) > 100 {
+		name = name[:100]
 	}
-	return path.Join(workdir, filePath)
+	return name
 }

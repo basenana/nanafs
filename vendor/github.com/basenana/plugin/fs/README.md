@@ -8,16 +8,18 @@ File system plugins for NanaFS operations.
 
 Saves a local file to the NanaFS file system with metadata.
 
-| Parameter | Required | Default | Description |
-|-----------|----------|---------|-------------|
-| `file_path` | Yes | - | Path to the local file |
-| `name` | No | filename | Entry name in NanaFS |
-| `parent_uri` | Yes | - | Parent entry URI |
-| `subgroup` | No | - | Sub group name (creates nested group if provided) |
-| `properties` | No | - | Properties map (flat structure) |
-| `document` | No | - | Document struct from docloader |
+| Parameter           | Required | Default  | Description                                       |
+|---------------------|----------|----------|---------------------------------------------------|
+| `file_path`         | Yes      | -        | Path to the local file                            |
+| `name`              | No       | filename | Entry name in NanaFS                              |
+| `parent_uri`        | Yes      | -        | Parent entry URI                                  |
+| `subgroup`          | No       | -        | Sub group name (creates nested group if provided) |
+| `subgroup_overview` | No       | -        | Sub group overview document file path             |
+| `properties`        | No       | -        | Properties map (flat structure)                   |
+| `document`          | No       | -        | Document struct from docloader                    |
 
 **Properties fields**:
+
 - `title` - Entry title
 - `author` - Author name
 - `year` - Publication year
@@ -34,30 +36,32 @@ Saves a local file to the NanaFS file system with metadata.
 - `publish_at` - Publish timestamp (Unix)
 
 **Properties structure** (flat, not nested):
+
 ```json
 {
-    "file_path": "/path/to/document.pdf",
-    "name": "My Document",
-    "parent_uri": "123",
-    "properties": {
-        "title": "Document Title",
-        "author": "Author Name",
-        "marked": true
-    }
+  "file_path": "/path/to/document.pdf",
+  "name": "My Document",
+  "parent_uri": "123",
+  "properties": {
+    "title": "Document Title",
+    "author": "Author Name",
+    "marked": true
+  }
 }
 ```
 
 **Or use document from docloader**:
+
 ```json
 {
-    "file_path": "/path/to/document.pdf",
-    "document": {
-        "content": "...",
-        "properties": {
-            "title": "Document Title",
-            "author": "Author Name"
-        }
+  "file_path": "/path/to/document.pdf",
+  "document": {
+    "content": "...",
+    "properties": {
+      "title": "Document Title",
+      "author": "Author Name"
     }
+  }
 }
 ```
 
@@ -65,31 +69,33 @@ Saves a local file to the NanaFS file system with metadata.
 
 Updates an existing entry in NanaFS.
 
-| Parameter | Required | Default | Description |
-|-----------|----------|---------|-------------|
-| `entry_uri` | Yes | - | Entry URI (numeric ID) |
-| `properties` | No | - | Properties map (flat structure) |
-| `document` | No | - | Document struct from docloader |
+| Parameter    | Required | Default | Description                     |
+|--------------|----------|---------|---------------------------------|
+| `entry_uri`  | Yes      | -       | Entry URI (numeric ID)          |
+| `properties` | No       | -       | Properties map (flat structure) |
+| `document`   | No       | -       | Document struct from docloader  |
 
 **Properties structure** (flat, not nested):
+
 ```json
 {
-    "entry_uri": "123",
-    "properties": {
-        "title": "Updated Title",
-        "marked": true
-    }
+  "entry_uri": "123",
+  "properties": {
+    "title": "Updated Title",
+    "marked": true
+  }
 }
 ```
 
 **Or use document from docloader**:
+
 ```json
 {
-    "entry_uri": "123",
-    "document": {
-        "properties": {
-            "title": "Updated Title"
-        }
+  "entry_uri": "123",
+  "document": {
+    "properties": {
+      "title": "Updated Title"
     }
+  }
 }
 ```

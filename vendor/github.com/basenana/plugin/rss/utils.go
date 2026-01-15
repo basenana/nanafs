@@ -18,12 +18,7 @@ package rss
 
 import (
 	"net/url"
-	"os"
 	"strings"
-)
-
-var (
-	enablePrivateNet = os.Getenv("WebPackerEnablePrivateNet") == "true"
 )
 
 func readableHtmlContent(urlStr, title, content string) string {

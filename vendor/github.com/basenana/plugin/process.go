@@ -69,9 +69,13 @@ func (d *DelayProcessPlugin) Version() string {
 
 func (d *DelayProcessPlugin) Run(ctx context.Context, request *api.Request) (*api.Response, error) {
 	var (
-		until            time.Time
 		delayDurationStr = api.GetStringParameter("delay", request, "")
 		untilStr         = api.GetStringParameter("until", request, "")
+	)
+
+	var (
+		now   = time.Now()
+		until time.Time
 	)
 
 	switch {
@@ -82,7 +86,7 @@ func (d *DelayProcessPlugin) Run(ctx context.Context, request *api.Request) (*ap
 			d.logger.Warnw("parse delay duration failed", "duration", delayDurationStr, "error", err)
 			return nil, fmt.Errorf("parse delay duration [%s] failed: %s", delayDurationStr, err)
 		}
-		until = time.Now().Add(duration)
+		until = now.Add(duration)
 
 	case untilStr != "":
 		var err error
@@ -98,7 +102,6 @@ func (d *DelayProcessPlugin) Run(ctx context.Context, request *api.Request) (*ap
 
 	d.logger.Infow("delay started", "until", until)
 
-	now := time.Now()
 	if now.Before(until) {
 		timer := time.NewTimer(until.Sub(now))
 		defer timer.Stop()

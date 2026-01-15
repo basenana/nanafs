@@ -1,5 +1,7 @@
 package packer
 
+import "io"
+
 var (
 	defaultHeaders = map[string]string{
 		"Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -12,6 +14,7 @@ var (
 type Option struct {
 	URL         string
 	FilePath    string
+	Reader      io.ReadCloser
 	Timeout     int
 	ClutterFree bool
 	Headers     map[string]string

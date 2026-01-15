@@ -213,7 +213,7 @@ type namespacedFS struct {
 	namespace string
 }
 
-func (n *namespacedFS) CreateGroupIfNotExists(ctx context.Context, parentURI, group string) error {
+func (n *namespacedFS) CreateGroupIfNotExists(ctx context.Context, parentURI, group string, properties plugintypes.Properties) error {
 	_, parent, err := n.core.GetEntryByPath(ctx, n.namespace, parentURI)
 	if err != nil {
 		return fmt.Errorf("get parent %s error %w", parentURI, err)

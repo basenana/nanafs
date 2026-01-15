@@ -8,7 +8,7 @@ import (
 	"github.com/basenana/friday/core/agents"
 	"github.com/basenana/friday/core/agents/planning"
 	"github.com/basenana/friday/core/agents/react"
-	agtapi2 "github.com/basenana/friday/core/api"
+	"github.com/basenana/friday/core/api"
 	"github.com/basenana/friday/core/logger"
 	"github.com/basenana/friday/core/memory"
 	"github.com/basenana/friday/core/providers/openai"
@@ -35,9 +35,9 @@ func (a *Agent) Describe() string {
 	return a.desc
 }
 
-func (a *Agent) Chat(ctx context.Context, req *agtapi2.Request) *agtapi2.Response {
+func (a *Agent) Chat(ctx context.Context, req *api.Request) *api.Response {
 	var (
-		resp        = agtapi2.NewResponse()
+		resp        = api.NewResponse()
 		planningAgt = planning.New("planning", "", a.llm, planning.Option{Tools: a.opt.PlanningTools})
 	)
 
@@ -49,9 +49,9 @@ func (a *Agent) Chat(ctx context.Context, req *agtapi2.Request) *agtapi2.Respons
 		req.Memory = memory.NewEmpty(req.Session.ID)
 	}
 
-	ctx = agtapi2.NewContext(ctx, req.Session,
-		agtapi2.WithMemory(req.Memory),
-		agtapi2.WithResponse(resp),
+	ctx = api.NewContext(ctx, req.Session,
+		api.WithMemory(req.Memory),
+		api.WithResponse(resp),
 	)
 
 	req.Memory.AppendMessages(types.Message{UserMessage: req.UserMessage})
@@ -62,7 +62,7 @@ func (a *Agent) Chat(ctx context.Context, req *agtapi2.Request) *agtapi2.Respons
 	leader := a.newReAct("leader", "", promptWithMoreInfo(a.opt.LeaderPrompt), leaderTools)
 	go func() {
 		defer resp.Close()
-		if err := a.doPlanningWithCheck(ctx, FIRST_PLANNING_PROMPT, planningAgt, req, resp); err != nil {
+		if err := a.doPlanningWithCheck(ctx, planningAgt, req, resp); err != nil {
 			a.logger.Errorw("failed to planning", "error", err)
 			return
 		}
@@ -80,10 +80,10 @@ func (a *Agent) Chat(ctx context.Context, req *agtapi2.Request) *agtapi2.Respons
 	return resp
 }
 
-func (a *Agent) doPlanningWithCheck(ctx context.Context, userMessage string, planningAgt *planning.Agent, req *agtapi2.Request, resp *agtapi2.Response) error {
-	req = &agtapi2.Request{
+func (a *Agent) doPlanningWithCheck(ctx context.Context, planningAgt *planning.Agent, req *api.Request, resp *api.Response) error {
+	req = &api.Request{
 		Session:     req.Session,
-		UserMessage: userMessage,
+		UserMessage: req.UserMessage,
 		Memory:      req.Memory.Copy(),
 	}
 
@@ -101,7 +101,7 @@ Retry:
 	return nil
 }
 
-func (a *Agent) doPlanning(ctx context.Context, userMessage string, planningAgt *planning.Agent, req *agtapi2.Request, resp *agtapi2.Response) error {
+func (a *Agent) doPlanning(ctx context.Context, userMessage string, planningAgt *planning.Agent, req *api.Request, resp *api.Response) error {
 	var startAt = time.Now()
 	a.logger.Infow("run planning")
 
@@ -123,7 +123,7 @@ func (a *Agent) doPlanning(ctx context.Context, userMessage string, planningAgt 
 			}
 			if evt.Delta != nil && evt.Delta.Content != "" {
 				content += evt.Delta.Content
-				agtapi2.SendEventToResponse(ctx, types.NewReasoningEvent(evt.Delta.Content))
+				api.SendEventToResponse(ctx, types.NewReasoningEvent(evt.Delta.Content))
 			}
 		case err := <-stream.Error():
 			if err != nil {
@@ -142,7 +142,7 @@ Finish:
 	return err
 }
 
-func (a *Agent) doResearch(ctx context.Context, leader *react.Agent, planningAgt *planning.Agent, req *agtapi2.Request, resp *agtapi2.Response) error {
+func (a *Agent) doResearch(ctx context.Context, leader *react.Agent, planningAgt *planning.Agent, req *api.Request, resp *api.Response) error {
 	var (
 		failCount    = 0
 		runTaskCount = 0
@@ -177,9 +177,9 @@ func (a *Agent) doResearch(ctx context.Context, leader *react.Agent, planningAgt
 	return nil
 }
 
-func (a *Agent) runTask(ctx context.Context, leader *react.Agent, task string, req *agtapi2.Request) error {
+func (a *Agent) runTask(ctx context.Context, leader *react.Agent, task string, req *api.Request) error {
 	var (
-		stream = leader.Chat(ctx, &agtapi2.Request{
+		stream = leader.Chat(ctx, &api.Request{
 			Session:     req.Session,
 			UserMessage: task,
 			Memory:      req.Memory,
@@ -190,7 +190,7 @@ func (a *Agent) runTask(ctx context.Context, leader *react.Agent, task string, r
 	)
 	a.logger.Infow("run research", "task", task)
 
-	content, err = agtapi2.ReadAllContent(ctx, stream)
+	content, err = api.ReadAllContent(ctx, stream)
 	content = strings.TrimSpace(content)
 	if err != nil {
 		if content == "" {
@@ -209,13 +209,13 @@ func (a *Agent) runTask(ctx context.Context, leader *react.Agent, task string, r
 	return err
 }
 
-func (a *Agent) doSummary(ctx context.Context, req *agtapi2.Request, resp *agtapi2.Response) error {
+func (a *Agent) doSummary(ctx context.Context, req *api.Request, resp *api.Response) error {
 	a.logger.Infow("run summary")
 	agt := react.New("summary", "", a.llm, react.Option{SystemPrompt: a.opt.SummaryPrompt})
 	userMessage := SUMMARYRE_USER_PROMPT
 
 	userMessage = strings.ReplaceAll(userMessage, "{user_task}", req.UserMessage)
-	stream := agt.Chat(ctx, &agtapi2.Request{
+	stream := agt.Chat(ctx, &api.Request{
 		Session:     req.Session,
 		UserMessage: userMessage,
 		Memory:      req.Memory,
@@ -234,7 +234,7 @@ func (a *Agent) doSummary(ctx context.Context, req *agtapi2.Request, resp *agtap
 				return nil
 			}
 			if evt.Delta != nil && evt.Delta.Content != "" {
-				agtapi2.SendEventToResponse(ctx, types.NewAnsEvent(evt.Delta.Content))
+				api.SendEventToResponse(ctx, types.NewAnsEvent(evt.Delta.Content))
 			}
 		}
 	}

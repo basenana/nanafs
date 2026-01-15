@@ -18,7 +18,6 @@ package docloader
 
 import (
 	"context"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"regexp"
@@ -28,7 +27,7 @@ import (
 	htmltomarkdown "github.com/JohannesKaufmann/html-to-markdown/v2"
 	"github.com/basenana/plugin/types"
 	"github.com/basenana/plugin/utils"
-	"github.com/hyponet/webpage-packer/packer"
+	"github.com/basenana/plugin/web"
 )
 
 const (
@@ -47,22 +46,8 @@ func NewHTML(docPath string, option map[string]string) Parser {
 }
 
 func (h HTML) Load(ctx context.Context) (types.Document, error) {
-	var p packer.Packer
-	switch {
-	case strings.HasSuffix(h.docPath, ".webarchive"):
-		p = packer.NewWebArchivePacker()
-	case strings.HasSuffix(h.docPath, ".html") || strings.HasSuffix(h.docPath, ".htm"):
-		p = packer.NewHtmlPacker()
-	default:
-		return types.Document{}, fmt.Errorf("unsupported document type: %s", h.docPath)
-	}
-
 	props := extractHTMLMetadata(h.docPath)
-
-	content, err := p.ReadContent(ctx, packer.Option{
-		FilePath:    h.docPath,
-		ClutterFree: true,
-	})
+	content, err := web.ReadFromFile(ctx, h.docPath)
 	if err != nil {
 		return types.Document{}, err
 	}

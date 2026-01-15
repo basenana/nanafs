@@ -44,7 +44,8 @@ func (e *limitedSession) RunHooks(ctx context.Context, hookName string, payload 
 	}
 
 	if e.historyLimit > 0 && len(payload.History) > e.historyLimit {
-		payload.History = payload.History[:e.historyLimit]
+		cutAt := len(payload.History) - e.historyLimit
+		payload.History = payload.History[cutAt:]
 	}
 	return nil
 }

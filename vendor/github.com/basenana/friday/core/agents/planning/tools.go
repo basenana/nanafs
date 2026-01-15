@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"sync"
+	"strconv"
 
 	"github.com/basenana/friday/core/tools"
 )
@@ -69,8 +69,8 @@ func (a *Agent) appendTodoListHandler(ctx context.Context, request *tools.Reques
 }
 
 func (a *Agent) updateTodoListItemHandler(ctx context.Context, request *tools.Request) (*tools.Result, error) {
-	item, ok := request.Arguments["item_id"].(string)
-	if !ok || item == "" {
+	itemIDStr, ok := request.Arguments["item_id"].(string)
+	if !ok || itemIDStr == "" {
 		return tools.NewToolResultError("missing required parameter: item_id"), nil
 	}
 	status, ok := request.Arguments["status"].(string)
@@ -78,7 +78,11 @@ func (a *Agent) updateTodoListItemHandler(ctx context.Context, request *tools.Re
 		return tools.NewToolResultError("missing required parameter: status"), nil
 	}
 
-	err := a.todo.update(item, status)
+	itemID, err := strconv.Atoi(itemIDStr)
+	if err != nil {
+		return tools.NewToolResultError("invalid item id"), nil
+	}
+	err = a.todo.update(itemID, status)
 	if err != nil {
 		return tools.NewToolResultError(err.Error()), nil
 	}
@@ -87,49 +91,36 @@ func (a *Agent) updateTodoListItemHandler(ctx context.Context, request *tools.Re
 }
 
 type TodoList struct {
-	Items map[string]*TodoListItem
-
-	idCnt int32
-	mux   sync.Mutex
+	items []*TodoListItem
+	idCnt int
 }
 
 func emptyTodoList() *TodoList {
-	return &TodoList{Items: make(map[string]*TodoListItem)}
+	return &TodoList{items: make([]*TodoListItem, 0, 10)}
 }
 
 func (t *TodoList) list() []TodoListItem {
-	t.mux.Lock()
-	defer t.mux.Unlock()
-	var result = make([]TodoListItem, 0, len(t.Items))
-	for _, item := range t.Items {
+	var result = make([]TodoListItem, 0, len(t.items))
+	for _, item := range t.items {
 		result = append(result, *item)
 	}
 	return result
 }
 
 func (t *TodoList) append(actions ...string) {
-	t.mux.Lock()
-	defer t.mux.Unlock()
-
 	for _, act := range actions {
 		t.idCnt += 1
-		item := &TodoListItem{
-			ID:       t.idCnt,
-			Describe: act,
-		}
-		t.Items[fmt.Sprintf("%d", item.ID)] = item
+		item := &TodoListItem{ID: t.idCnt, Describe: act}
+		t.items = append(t.items, item)
 	}
 }
 
-func (t *TodoList) update(itemId, status string) error {
-	t.mux.Lock()
-	item, ok := t.Items[itemId]
-	t.mux.Unlock()
-
-	if !ok {
-		return fmt.Errorf("action %s not found", itemId)
+func (t *TodoList) update(itemId int, status string) error {
+	if itemId < 1 || itemId-1 >= len(t.items) {
+		return fmt.Errorf("action %d not found", itemId)
 	}
 
+	item := t.items[itemId-1]
 	switch status {
 	case "done", "finish", "finished", "completed", "complete":
 		item.IsFinish = true
@@ -144,7 +135,7 @@ func (t *TodoList) update(itemId, status string) error {
 }
 
 type TodoListItem struct {
-	ID       int32  `json:"id"`
+	ID       int    `json:"id"`
 	Describe string `json:"describe"`
 	IsFinish bool   `json:"is_finish"`
 }

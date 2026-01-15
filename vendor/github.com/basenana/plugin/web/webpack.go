@@ -19,7 +19,6 @@ package web
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -27,7 +26,6 @@ import (
 	"github.com/basenana/plugin/logger"
 	"github.com/basenana/plugin/types"
 	"github.com/basenana/plugin/utils"
-	"github.com/hyponet/webpage-packer/packer"
 	"go.uber.org/zap"
 )
 
@@ -124,58 +122,20 @@ func (w *WebpackPlugin) packFromURL(ctx context.Context, filename, urlInfo, tgtF
 		return nil, fmt.Errorf("url is empty")
 	}
 
-	outputFile := filename + "." + tgtFileType
-	w.logger.Infof("packing url %s to %s", urlInfo, outputFile)
-
-	// Get absolute path for the packer
-	filePath, err := w.fileRoot.GetAbsPath(outputFile)
+	ctx = logger.IntoContext(ctx, w.logger)
+	filePath, err := PackFromURL(ctx, filename, urlInfo, tgtFileType, w.fileRoot.Workdir(), clutterFree)
 	if err != nil {
-		return nil, fmt.Errorf("invalid file path: %w", err)
+		return nil, err
 	}
 
-	switch tgtFileType {
-	case "webarchive":
-		p := packer.NewWebArchivePacker()
-		err = p.Pack(ctx, packer.Option{
-			URL:              urlInfo,
-			FilePath:         filePath,
-			Timeout:          60,
-			ClutterFree:      clutterFree,
-			Headers:          make(map[string]string),
-			EnablePrivateNet: enablePrivateNet,
-		})
-		if err != nil {
-			w.logger.Warnw("pack to webarchive failed", "link", urlInfo, "err", err)
-			return nil, fmt.Errorf("pack to webarchive failed: %w", err)
-		}
-	case "html":
-		p := packer.NewHtmlPacker()
-		err = p.Pack(ctx, packer.Option{
-			URL:              urlInfo,
-			FilePath:         filePath,
-			Timeout:          60,
-			ClutterFree:      clutterFree,
-			Headers:          make(map[string]string),
-			EnablePrivateNet: enablePrivateNet,
-		})
-		if err != nil {
-			w.logger.Warnw("pack to raw html file failed", "link", urlInfo, "err", err)
-			return nil, fmt.Errorf("pack to html failed: %w", err)
-		}
-	}
-
-	fInfo, err := w.fileRoot.Stat(outputFile)
+	fInfo, err := w.fileRoot.Stat(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("stat archive file error: %s", err)
 	}
 	return map[string]any{
-		"file_path": outputFile,
+		"file_path": filePath,
 		"size":      fInfo.Size(),
 		"title":     title,
 		"url":       urlInfo,
 	}, nil
 }
-
-var (
-	enablePrivateNet = os.Getenv("WebPackerEnablePrivateNet") == "true"
-)

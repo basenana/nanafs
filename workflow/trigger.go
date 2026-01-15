@@ -284,7 +284,7 @@ func (h *triggers) triggerRSSWorkflowForGroup(ctx context.Context, namespace str
 	params := map[string]string{
 		"feed": gp.RSS.Feed,
 	}
-	h.triggerWorkflow(ctx, namespace, wfID, types.WorkflowTarget{Entries: []string{enURI}}, JobAttr{Parameters: params, Reason: "rss group created"})
+	h.triggerWorkflow(ctx, namespace, wfID, types.WorkflowTarget{Entries: []string{enURI}}, JobAttr{Parameters: params, Reason: "sync rss group"})
 }
 
 func (h *triggers) runRSSWorkflow(ctx context.Context, namespace, workflowID string, rss *types.WorkflowRssTrigger) {

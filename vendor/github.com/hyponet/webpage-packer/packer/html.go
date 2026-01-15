@@ -53,7 +53,9 @@ func (h *htmlPacker) ReadContent(ctx context.Context, opt Option) (string, error
 		content string
 		err     error
 	)
-	if opt.FilePath != "" {
+
+	switch {
+	case opt.FilePath != "":
 		f, err := os.OpenFile(opt.FilePath, os.O_RDONLY, 0644)
 		if err != nil {
 			return "", fmt.Errorf("open %s failed: %s", opt.FilePath, err)
@@ -65,7 +67,14 @@ func (h *htmlPacker) ReadContent(ctx context.Context, opt Option) (string, error
 			return "", fmt.Errorf("read %s failed: %s", opt.FilePath, err)
 		}
 		content = string(data)
-	} else {
+	case opt.Reader != nil:
+		defer opt.Reader.Close()
+		data, err := io.ReadAll(opt.Reader)
+		if err != nil {
+			return "", fmt.Errorf("read %s failed: %s", opt.FilePath, err)
+		}
+		content = string(data)
+	default:
 		content, err = h.readContentByUrl(ctx, opt)
 		if err != nil {
 			return "", err

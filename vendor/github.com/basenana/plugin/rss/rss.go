@@ -30,6 +30,7 @@ import (
 	"github.com/basenana/plugin/logger"
 	"github.com/basenana/plugin/types"
 	"github.com/basenana/plugin/utils"
+	"github.com/basenana/plugin/web"
 	"go.uber.org/zap"
 
 	"github.com/hyponet/webpage-packer/packer"
@@ -240,38 +241,20 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource) (
 			}
 
 		case archiveFileTypeRawHtml:
-			fileName += ".html"
-			p := packer.NewHtmlPacker()
-			filePath, _ := r.fileRoot.GetAbsPath(fileName)
-			err = p.Pack(ctx, packer.Option{
-				URL:              item.Link,
-				FilePath:         filePath,
-				Timeout:          source.Timeout,
-				ClutterFree:      source.ClutterFree,
-				Headers:          source.Headers,
-				EnablePrivateNet: enablePrivateNet,
-			})
+			filePath, err := web.PackFromURL(logger.IntoContext(ctx, r.logger), fileName, item.Link, "html", r.fileRoot.Workdir(), source.ClutterFree, source.toOption())
 			if err != nil {
 				r.logger.Warnw("pack to raw html file failed", "link", item.Link, "err", err)
 				continue
 			}
+			fileName = path.Base(filePath)
 
 		case archiveFileTypeWebArchive:
-			fileName += ".webarchive"
-			p := packer.NewWebArchivePacker()
-			filePath, _ := r.fileRoot.GetAbsPath(fileName)
-			err = p.Pack(ctx, packer.Option{
-				URL:              item.Link,
-				FilePath:         filePath,
-				Timeout:          source.Timeout,
-				ClutterFree:      source.ClutterFree,
-				Headers:          source.Headers,
-				EnablePrivateNet: enablePrivateNet,
-			})
+			filePath, err := web.PackFromURL(logger.IntoContext(ctx, r.logger), fileName, item.Link, "webarchive", r.fileRoot.Workdir(), source.ClutterFree, source.toOption())
 			if err != nil {
 				r.logger.Warnw("pack to webarchive failed", "link", item.Link, "err", err)
 				continue
 			}
+			fileName = path.Base(filePath)
 
 		default:
 			return nil, fmt.Errorf("unknown rss archive file type %s", source.FileType)
@@ -368,4 +351,12 @@ func (s *rssSource) record(ctx context.Context, linkList ...string) error {
 		}
 	}
 	return nil
+}
+
+func (s *rssSource) toOption() web.Option {
+	return func(option *packer.Option) {
+		option.Timeout = s.Timeout
+		option.ClutterFree = s.ClutterFree
+		option.Headers = s.Headers
+	}
 }

@@ -2,11 +2,15 @@ package agentic
 
 import (
 	"context"
+	"strings"
 
 	"github.com/basenana/friday/core/agents/react"
 	fridayapi "github.com/basenana/friday/core/api"
+	"github.com/basenana/friday/core/memory"
 	"github.com/basenana/plugin/api"
+	"github.com/basenana/plugin/logger"
 	"github.com/basenana/plugin/types"
+	"go.uber.org/zap"
 )
 
 const (
@@ -22,6 +26,7 @@ var PluginSpec = types.PluginSpec{
 }
 
 type ReactPlugin struct {
+	logger      *zap.SugaredLogger
 	workingPath string
 	jobID       string
 	config      map[string]string
@@ -34,18 +39,21 @@ func (p *ReactPlugin) Version() string        { return pluginVersion }
 func (p *ReactPlugin) Run(ctx context.Context, request *api.Request) (*api.Response, error) {
 	message := api.GetStringParameter("message", request, "")
 	if message == "" {
+		p.logger.Warnw("message parameter is required")
 		return api.NewFailedResponse("message parameter is required"), nil
 	}
 
 	systemPrompt := api.GetStringParameter("system_prompt", request, "")
 
+	p.logger.Infow("react plugin started", "message_len", len(message), "has_system_prompt", systemPrompt != "")
+
 	llm, err := NewLLMClient(p.config)
 	if err != nil {
+		p.logger.Warnw("create LLM client failed", "error", err)
 		return api.NewFailedResponse(err.Error()), nil
 	}
 
-	tools := FileAccessTools(p.workingPath)
-
+	tools := FileAccessTools(p.workingPath, p.logger)
 	agent := react.New("react", "ReAct Agent with file access", llm, react.Option{
 		SystemPrompt: systemPrompt,
 		Tools:        tools,
@@ -53,21 +61,23 @@ func (p *ReactPlugin) Run(ctx context.Context, request *api.Request) (*api.Respo
 
 	resp := agent.Chat(ctx, &fridayapi.Request{
 		Session:     NewSession(p.jobID),
+		Memory:      memory.NewEmpty(p.jobID),
 		UserMessage: message,
 	})
 
-	content, _, err := CollectResponse(ctx, resp)
+	content, err := fridayapi.ReadAllContent(ctx, resp)
 	if err != nil {
+		p.logger.Warnw("collect response failed", "error", err)
 		return api.NewFailedResponse(err.Error()), nil
 	}
 
-	return api.NewResponseWithResult(map[string]any{
-		"result": content,
-	}), nil
+	p.logger.Infow("react plugin completed", "result_len", len(content))
+	return api.NewResponseWithResult(map[string]any{"result": strings.TrimSpace(content)}), nil
 }
 
 func NewReactPlugin(ps types.PluginCall) types.Plugin {
 	return &ReactPlugin{
+		logger:      logger.NewPluginLogger(pluginName, ps.JobID),
 		workingPath: ps.WorkingPath,
 		jobID:       ps.JobID,
 		config:      ps.Config,

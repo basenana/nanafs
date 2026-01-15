@@ -32,14 +32,14 @@ Waiting:
 			}
 
 			if evt.Answer != nil && evt.Answer.Report != "" {
-				answerBuf.WriteString(evt.Delta.Content)
+				answerBuf.WriteString(evt.Answer.Report)
 			}
 		}
 	}
 
-	var content = contentBuf.String()
+	var content = answerBuf.String()
 	if content == "" {
-		content = answerBuf.String()
+		content = contentBuf.String()
 	}
 
 	return content, err

@@ -1,20 +1,18 @@
 package agentic
 
 import (
-	"context"
 	"fmt"
 	"path/filepath"
 
-	fridayapi "github.com/basenana/friday/core/api"
 	"github.com/basenana/friday/core/providers/openai"
 	"github.com/basenana/friday/core/types"
 	"github.com/basenana/plugin/docloader"
 )
 
 const (
-	ConfigHost   = "llm_host"
-	ConfigAPIKey = "llm_api_key"
-	ConfigModel  = "llm_model"
+	ConfigHost   = "friday_llm_host"
+	ConfigAPIKey = "friday_llm_api_key"
+	ConfigModel  = "friday_llm_model"
 )
 
 func NewLLMClient(config map[string]string) (openai.Client, error) {
@@ -24,25 +22,20 @@ func NewLLMClient(config map[string]string) (openai.Client, error) {
 
 	host := config[ConfigHost]
 	if host == "" {
-		return nil, fmt.Errorf("llm_host is required")
+		return nil, fmt.Errorf("friday_llm_host is required")
 	}
 
 	apiKey := config[ConfigAPIKey]
 	if apiKey == "" {
-		return nil, fmt.Errorf("llm_api_key is required")
+		return nil, fmt.Errorf("friday_llm_api_key is required")
 	}
 
 	model := config[ConfigModel]
 	if model == "" {
-		return nil, fmt.Errorf("llm_model is required")
+		return nil, fmt.Errorf("friday_llm_model is required")
 	}
 
-	return openai.NewCompatible(host, apiKey, openai.Model{Name: model}), nil
-}
-
-func CollectResponse(ctx context.Context, resp *fridayapi.Response) (content string, reasoning string, err error) {
-	content, err = fridayapi.ReadAllContent(ctx, resp)
-	return
+	return openai.New(host, apiKey, openai.Model{Name: model}), nil
 }
 
 func NewSession(jobID string) *types.Session {
@@ -72,4 +65,20 @@ func newParser(docPath string) docloader.Parser {
 	default:
 		return nil
 	}
+}
+
+func formatSize(size int64) string {
+	const (
+		unit  = 1024
+		units = "KMGTPE"
+	)
+	if size < unit {
+		return fmt.Sprintf("%d B", size)
+	}
+	div, exp := int64(unit), 0
+	for n := size / unit; n >= unit && exp < len(units)-1; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(size)/float64(div), units[exp])
 }

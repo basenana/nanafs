@@ -33,7 +33,10 @@ import (
 	"github.com/basenana/nanafs/utils/logger"
 )
 
-var taskExecutionInterval = 5 * time.Minute
+var (
+	taskExecutionInterval = 5 * time.Minute
+	taskAliveTime         = 24 * time.Hour
+)
 
 func init() {
 	intervalStr := os.Getenv("SCHED_TASK_EXEC_INTERVAL_SECONDS")
@@ -92,7 +95,7 @@ func (d *Dispatcher) Run(stopCh chan struct{}) {
 					}
 				}
 			}
-			if err := d.recorder.DeleteFinishedTask(ctx, taskExecutionInterval*2); err != nil {
+			if err := d.recorder.DeleteFinishedTask(ctx, taskAliveTime); err != nil {
 				d.logger.Errorw("delete finished task failed", "err", err)
 			}
 		}()

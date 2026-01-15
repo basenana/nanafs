@@ -68,8 +68,8 @@ func (a *Agent) AllFinish() bool {
 	return true
 }
 
-func (a *Agent) SetTodoDone(todoID int32) {
-	_ = a.todo.update(fmt.Sprintf("%d", todoID), "done")
+func (a *Agent) SetTodoDone(todoID int) {
+	_ = a.todo.update(todoID, "done")
 }
 
 func New(name, desc string, llm openai.Client, option Option) *Agent {
