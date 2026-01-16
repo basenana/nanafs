@@ -114,9 +114,10 @@ type ReadMessagesRequest struct {
 
 // TriggerWorkflowRequest 触发工作流请求
 type TriggerWorkflowRequest struct {
-	URI     string `json:"uri"`
-	Reason  string `json:"reason"`
-	Timeout int64  `json:"timeout"`
+	URI        string            `json:"uri"`
+	Parameters map[string]string `json:"parameters"`
+	Reason     string            `json:"reason"`
+	Timeout    int64             `json:"timeout"`
 }
 
 // SetConfigRequest 设置配置请求

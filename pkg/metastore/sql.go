@@ -1146,7 +1146,9 @@ func (s *sqlMetaStore) listWorkflowJobs(ctx context.Context, namespace string, f
 	if filter.QueueName != "" {
 		query = query.Where("queue_name = ?", filter.QueueName)
 	}
-	if filter.Status != "" {
+	if len(filter.Statuses) > 0 {
+		query = query.Where("status IN ?", filter.Statuses)
+	} else if filter.Status != "" {
 		query = query.Where("status = ?", filter.Status)
 	}
 	if filter.TargetEntry != 0 {

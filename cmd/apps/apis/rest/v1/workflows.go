@@ -78,6 +78,7 @@ func (s *ServicesV1) ListWorkflows(ctx *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path string true "Workflow ID"
+// @Param status query string false "Job status filter (comma-separated: initializing,running,paused,succeed,failed,error,canceled)"
 // @Param page query int false "Page number"
 // @Param page_size query int false "Page size"
 // @Param sort query string false "Sort field (created_at, updated_at)"
@@ -96,16 +97,31 @@ func (s *ServicesV1) ListWorkflowJobs(ctx *gin.Context) {
 		return
 	}
 
+	statusFilter := ctx.Query("status")
+
 	var req PaginationRequest
 	if err := ctx.ShouldBindQuery(&req); err != nil {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
+	var jobFilter types.JobFilter
+	if statusFilter != "" {
+		statuses := strings.Split(statusFilter, ",")
+		for _, s := range statuses {
+			s = strings.TrimSpace(s)
+			if !isValidJobStatus(s) {
+				apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("invalid job status: "+s))
+				return
+			}
+		}
+		jobFilter.Statuses = statuses
+	}
+
 	pg := types.NewPaginationWithSort(req.Page, req.PageSize, req.Sort, req.Order)
 	pagedCtx := types.WithPagination(ctx.Request.Context(), pg)
 
-	jobs, err := s.workflow.ListJobs(pagedCtx, caller.Namespace, workflowID)
+	jobs, err := s.workflow.ListJobs(pagedCtx, caller.Namespace, workflowID, jobFilter)
 	if err != nil {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
@@ -120,6 +136,20 @@ func (s *ServicesV1) ListWorkflowJobs(ctx *gin.Context) {
 		Jobs:       result,
 		Pagination: &PaginationInfo{Page: pg.Page, PageSize: pg.PageSize},
 	})
+}
+
+var validJobStatuses = map[string]bool{
+	"initializing": true,
+	"running":      true,
+	"paused":       true,
+	"succeed":      true,
+	"failed":       true,
+	"error":        true,
+	"canceled":     true,
+}
+
+func isValidJobStatus(status string) bool {
+	return validJobStatuses[status]
 }
 
 // @Summary Trigger workflow
@@ -162,7 +192,7 @@ func (s *ServicesV1) TriggerWorkflow(ctx *gin.Context) {
 
 	job, err := s.workflow.TriggerWorkflow(ctx.Request.Context(), caller.Namespace, workflowID,
 		types.WorkflowTarget{Entries: []string{req.URI}},
-		workflow.JobAttr{Reason: req.Reason, Timeout: timeout},
+		workflow.JobAttr{Reason: req.Reason, Timeout: timeout, Parameters: req.Parameters},
 	)
 	if err != nil {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)

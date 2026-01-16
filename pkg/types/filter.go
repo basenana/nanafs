@@ -24,6 +24,7 @@ type JobFilter struct {
 	WorkFlowID  string
 	JobID       string
 	Status      string
+	Statuses    []string
 	QueueName   string
 	TargetEntry int64
 }

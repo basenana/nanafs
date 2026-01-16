@@ -197,4 +197,74 @@ var _ = Describe("TestSqliteFileFilter", func() {
 			Expect(count).Should(BeNumerically(">=", 5))
 		})
 	})
+
+	Context("filter workflow job by status", func() {
+		var wfJob1, wfJob2, wfJob3 *types.WorkflowJob
+		var err error
+
+		It("create workflow and jobs with different statuses should succeed", func() {
+			wf := &types.Workflow{
+				Id:       "test-workflow",
+				Name:     "Test Workflow",
+				Enable:   true,
+				QueueName: "default",
+			}
+			err = sqlite.SaveWorkflow(context.TODO(), namespace, wf)
+			Expect(err).Should(BeNil())
+
+			wfJob1 = &types.WorkflowJob{
+				Id:        "test-wf-job-1",
+				Namespace: namespace,
+				Workflow:  "test-workflow",
+				Status:    "running",
+			}
+			err = sqlite.SaveWorkflowJob(context.TODO(), namespace, wfJob1)
+			Expect(err).Should(BeNil())
+
+			wfJob2 = &types.WorkflowJob{
+				Id:        "test-wf-job-2",
+				Namespace: namespace,
+				Workflow:  "test-workflow",
+				Status:    "succeed",
+			}
+			err = sqlite.SaveWorkflowJob(context.TODO(), namespace, wfJob2)
+			Expect(err).Should(BeNil())
+
+			wfJob3 = &types.WorkflowJob{
+				Id:        "test-wf-job-3",
+				Namespace: namespace,
+				Workflow:  "test-workflow",
+				Status:    "failed",
+			}
+			err = sqlite.SaveWorkflowJob(context.TODO(), namespace, wfJob3)
+			Expect(err).Should(BeNil())
+		})
+
+		It("filter job by single status should return matching jobs", func() {
+			jobs, err := sqlite.ListWorkflowJobs(ctx, namespace, types.JobFilter{
+				WorkFlowID: "test-workflow",
+				Status:     "running",
+			})
+			Expect(err).Should(BeNil())
+			Expect(len(jobs)).To(Equal(1))
+			Expect(jobs[0].Id).To(Equal("test-wf-job-1"))
+		})
+
+		It("filter jobs by multiple statuses should return matching jobs", func() {
+			jobs, err := sqlite.ListWorkflowJobs(ctx, namespace, types.JobFilter{
+				WorkFlowID: "test-workflow",
+				Statuses:   []string{"running", "succeed"},
+			})
+			Expect(err).Should(BeNil())
+			Expect(len(jobs)).To(Equal(2))
+		})
+
+		It("filter jobs with empty statuses should return all jobs", func() {
+			jobs, err := sqlite.ListWorkflowJobs(ctx, namespace, types.JobFilter{
+				WorkFlowID: "test-workflow",
+			})
+			Expect(err).Should(BeNil())
+			Expect(len(jobs)).To(Equal(3))
+		})
+	})
 })

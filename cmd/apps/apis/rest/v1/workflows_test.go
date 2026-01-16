@@ -552,6 +552,81 @@ var _ = Describe("REST V1 Workflow API", func() {
 		})
 	})
 
+	Describe("ListWorkflowJobs", func() {
+		BeforeEach(func() {
+			reqBody := CreateWorkflowRequest{
+				Name:      "workflow-for-list-jobs",
+				Enable:    true,
+				QueueName: "default",
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+
+			req, err := http.NewRequest("POST", "/api/v1/workflows", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			Expect(w.Code).To(Equal(http.StatusCreated))
+		})
+
+		It("should list jobs without status filter", func() {
+			req, err := http.NewRequest("GET", "/api/v1/workflows/wf-1/jobs", nil)
+			Expect(err).Should(BeNil())
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should list jobs with single status filter", func() {
+			req, err := http.NewRequest("GET", "/api/v1/workflows/wf-1/jobs?status=running", nil)
+			Expect(err).Should(BeNil())
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should list jobs with multiple status filter", func() {
+			req, err := http.NewRequest("GET", "/api/v1/workflows/wf-1/jobs?status=running,failed", nil)
+			Expect(err).Should(BeNil())
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should return 400 for invalid status", func() {
+			req, err := http.NewRequest("GET", "/api/v1/workflows/wf-1/jobs?status=invalid_status", nil)
+			Expect(err).Should(BeNil())
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusBadRequest))
+		})
+
+		It("should return 400 for mixed valid and invalid status", func() {
+			req, err := http.NewRequest("GET", "/api/v1/workflows/wf-1/jobs?status=running,invalid", nil)
+			Expect(err).Should(BeNil())
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusBadRequest))
+		})
+	})
+
 	Describe("TriggerWorkflow", func() {
 		BeforeEach(func() {
 			reqBody := CreateWorkflowRequest{

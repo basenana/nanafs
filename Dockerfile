@@ -13,7 +13,8 @@ ADD . /workspace
 # by leaving it empty we can ensure that the container and binary shipped on it will have the same platform.
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o nanafs cmd/main.go
 
-FROM registry.cn-hangzhou.aliyuncs.com/hdls/busybox:1.37-musl
+FROM alpine:latest
+RUN sed -i 's#https\?://dl-cdn.alpinelinux.org/alpine#https://mirrors.tuna.tsinghua.edu.cn/alpine#g' /etc/apk/repositories && apk update && apk add ca-certificates curl
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=builder /workspace/nanafs /usr/bin/
 RUN mkdir -p /var/lib/nanafs

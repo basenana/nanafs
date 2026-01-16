@@ -144,10 +144,24 @@ func (m *MockWorkflow) DeleteWorkflow(ctx context.Context, namespace string, wfI
 	return nil
 }
 
-func (m *MockWorkflow) ListJobs(ctx context.Context, namespace string, wfId string) ([]*types.WorkflowJob, error) {
+func (m *MockWorkflow) ListJobs(ctx context.Context, namespace string, wfId string, filter types.JobFilter) ([]*types.WorkflowJob, error) {
 	result := make([]*types.WorkflowJob, 0)
 	for _, j := range m.jobs {
 		if j.Namespace == namespace && j.Workflow == wfId {
+			if len(filter.Statuses) > 0 {
+				match := false
+				for _, s := range filter.Statuses {
+					if j.Status == s {
+						match = true
+						break
+					}
+				}
+				if !match {
+					continue
+				}
+			} else if filter.Status != "" && j.Status != filter.Status {
+				continue
+			}
 			result = append(result, j)
 		}
 	}

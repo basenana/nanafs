@@ -44,7 +44,7 @@ type Workflow interface {
 	CreateWorkflow(ctx context.Context, namespace string, spec *types.Workflow) (*types.Workflow, error)
 	UpdateWorkflow(ctx context.Context, namespace string, spec *types.Workflow) (*types.Workflow, error)
 	DeleteWorkflow(ctx context.Context, namespace string, wfId string) error
-	ListJobs(ctx context.Context, namespace string, wfId string) ([]*types.WorkflowJob, error)
+	ListJobs(ctx context.Context, namespace string, wfId string, filter types.JobFilter) ([]*types.WorkflowJob, error)
 	GetJob(ctx context.Context, namespace string, wfId string, jobID string) (*types.WorkflowJob, error)
 
 	TriggerWorkflow(ctx context.Context, namespace string, wfId string, tgt types.WorkflowTarget, attr JobAttr) (*types.WorkflowJob, error)
@@ -133,7 +133,7 @@ func (m *manager) DeleteWorkflow(ctx context.Context, namespace string, wfId str
 	if err != nil {
 		return err
 	}
-	jobs, err := m.ListJobs(ctx, namespace, wfId)
+	jobs, err := m.ListJobs(ctx, namespace, wfId, types.JobFilter{})
 	if err != nil {
 		return err
 	}
@@ -164,8 +164,9 @@ func (m *manager) GetJob(ctx context.Context, namespace string, wfId string, job
 	return result, nil
 }
 
-func (m *manager) ListJobs(ctx context.Context, namespace string, wfId string) ([]*types.WorkflowJob, error) {
-	result, err := m.meta.ListWorkflowJobs(ctx, namespace, types.JobFilter{WorkFlowID: wfId})
+func (m *manager) ListJobs(ctx context.Context, namespace string, wfId string, filter types.JobFilter) ([]*types.WorkflowJob, error) {
+	filter.WorkFlowID = wfId
+	result, err := m.meta.ListWorkflowJobs(ctx, namespace, filter)
 	if err != nil {
 		return nil, err
 	}
