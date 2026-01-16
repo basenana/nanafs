@@ -122,8 +122,7 @@ func (w *WebpackPlugin) packFromURL(ctx context.Context, filename, urlInfo, tgtF
 		return nil, fmt.Errorf("url is empty")
 	}
 
-	ctx = logger.IntoContext(ctx, w.logger)
-	filePath, err := PackFromURL(ctx, filename, urlInfo, tgtFileType, w.fileRoot.Workdir(), clutterFree)
+	filePath, err := PackFromURL(logger.IntoContext(ctx, w.logger), filename, urlInfo, tgtFileType, w.fileRoot.Workdir(), clutterFree)
 	if err != nil {
 		return nil, err
 	}

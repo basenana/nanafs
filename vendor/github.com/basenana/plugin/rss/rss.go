@@ -134,7 +134,7 @@ func (r *RssSourcePlugin) Run(ctx context.Context, request *api.Request) (*api.R
 		r.logger.Errorw("get rss source failed", "err", err)
 		return nil, err
 	}
-	r.logger.Infow("syncing rss", "feed", source.FeedUrl)
+	r.logger.Infow("syncing rss", "feed", source.FeedUrl, "fileType", source.FileType)
 
 	articles, err := r.syncRssSource(ctx, source)
 	if err != nil {
@@ -186,13 +186,6 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource) (
 		return nil, err
 	}
 
-	// using html file when using RSSHub
-	// https://github.com/DIYgod/RSSHub
-	if feed.Generator == "RSSHub" {
-		r.logger.Infow("using html file for RSSHub source")
-		source.FileType = archiveFileTypeHtml
-	}
-
 	var (
 		articles = make([]Article, 0)
 		links    []string
@@ -218,7 +211,7 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource) (
 
 		r.logger.Infow("parse rss post", "link", item.Link)
 
-		fileName := item.Title
+		fileName := utils.SanitizeFilename(item.Title)
 		switch source.FileType {
 		case archiveFileTypeUrl:
 			fileName += ".url"
@@ -279,7 +272,7 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource) (
 
 		links = append(links, item.Link)
 		articles = append(articles, Article{
-			FilePath:  path.Base(fileName),
+			FilePath:  fileName,
 			Size:      fInfo.Size(),
 			Title:     item.Title,
 			URL:       item.Link,

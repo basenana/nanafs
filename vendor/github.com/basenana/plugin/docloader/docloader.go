@@ -119,7 +119,7 @@ func (d *DocLoader) loadDocument(ctx context.Context, filePath string) (types.Do
 		return types.Document{}, fmt.Errorf("load %s file unsupported", fileExt)
 	}
 
-	doc, err := p.Load(ctx)
+	doc, err := p.Load(logger.IntoContext(ctx, d.logger))
 	if err != nil {
 		return types.Document{}, fmt.Errorf("load file %s failed: %w", entryPath, err)
 	}

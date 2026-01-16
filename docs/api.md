@@ -88,7 +88,6 @@ Retrieve details of a specific entry.
       ],
       "index_version": "v1",
       "summarize": "finish",
-      "overview_file": "/inbox/docs/overview.md",
       "url": "https://example.com",
       "site_name": "Example Site",
       "properties": {
@@ -160,14 +159,14 @@ Create a new entry.
 
 **Fields:**
 
-| Field        | Type   | Required | Description                                                                                                                                                     |
-|--------------|--------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `uri`        | string | yes      | Entry URI path                                                                                                                                                  |
-| `kind`       | string | no       | Entry type: `raw`, `group`, `smart_group`, `fifo`, `socket`, `sym_link`, `blk_dev`, `char_dev`, `external_group`                                                |
-| `rss`        | object | no       | RSS subscription config                                                                                                                                         |
-| `filter`     | object | no       | Filter config for smart groups                                                                                                                                  |
-| `properties` | object | no       | Entry properties including tags and custom properties. Note: `index_version`, `summarize`, `overview_file`, `url`, `site_name` are read-only and set by system. |
-| `document`   | object | no       | Document-specific properties (only for non-group entries)                                                                                                       |
+| Field        | Type   | Required | Description                                                                                                                                    |
+|--------------|--------|----------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| `uri`        | string | yes      | Entry URI path                                                                                                                                 |
+| `kind`       | string | no       | Entry type: `raw`, `group`, `smart_group`, `fifo`, `socket`, `sym_link`, `blk_dev`, `char_dev`, `external_group`                               |
+| `rss`        | object | no       | RSS subscription config                                                                                                                        |
+| `filter`     | object | no       | Filter config for smart groups                                                                                                                 |
+| `properties` | object | no       | Entry properties including tags and custom properties. Note: `index_version`, `summarize`, `url`, `site_name` are read-only and set by system. |
+| `document`   | object | no       | Document-specific properties (only for non-group entries)                                                                                      |
 
 **RSS Config:**
 
@@ -427,7 +426,6 @@ Get or update tags and custom properties. Supports `?uri=` or `?id=` query param
     ],
     "index_version": "v1",
     "summarize": "finish",
-    "overview_file": "/inbox/docs/overview.md",
     "url": "https://example.com/article",
     "site_name": "Example Site",
     "properties": {
@@ -445,7 +443,6 @@ Get or update tags and custom properties. Supports `?uri=` or `?id=` query param
 | `tags`          | array  | Entry tags                                |
 | `index_version` | string | Index version (read-only, system managed) |
 | `summarize`     | string | AI summary task status (read-only)        |
-| `overview_file` | string | Overview file path (read-only)            |
 | `url`           | string | Associated URL (read-only)                |
 | `site_name`     | string | Site name (read-only)                     |
 | `properties`    | object | Custom key-value properties               |
@@ -476,7 +473,6 @@ Get or update tags and custom properties. Supports `?uri=` or `?id=` query param
     ],
     "index_version": "v1",
     "summarize": "finish",
-    "overview_file": "/inbox/docs/overview.md",
     "url": "https://example.com/article",
     "site_name": "Example Site",
     "properties": {

@@ -196,7 +196,7 @@ github.com/basenana/friday/core/types
 # github.com/basenana/go-flow v0.0.0-20250614153542-07184f3ea1e7
 ## explicit; go 1.23
 github.com/basenana/go-flow
-# github.com/basenana/plugin v0.0.0-20260115125923-87fd862fb1ec
+# github.com/basenana/plugin v0.0.0-20260116121311-37a6c7a53e1e
 ## explicit; go 1.25
 github.com/basenana/plugin
 github.com/basenana/plugin/agentic
@@ -497,7 +497,7 @@ github.com/hanwen/go-fuse/v2/splice
 ## explicit; go 1.23
 github.com/hyponet/eventbus
 github.com/hyponet/eventbus/bus
-# github.com/hyponet/webpage-packer v1.1.1-0.20260115110708-cf1034fa3c7d
+# github.com/hyponet/webpage-packer v1.1.1-0.20260116120428-4ed3a1a03f62
 ## explicit; go 1.24.0
 github.com/hyponet/webpage-packer/packer
 # github.com/inconshreveable/mousetrap v1.1.0

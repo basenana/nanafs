@@ -40,8 +40,8 @@ func SanitizeFilename(name string) string {
 	name = strings.TrimSpace(name)
 	name = strings.ReplaceAll(name, " ", "_")
 	name = fileNameSafety.ReplaceAllString(name, " ")
-	if len(name) > 100 {
-		name = name[:100]
+	if raw := []rune(name); len(raw) > 100 {
+		name = string(raw[:100])
 	}
 	return name
 }

@@ -30,7 +30,4 @@ type Properties struct {
 
 	// Agentic
 	Summarize string `json:"summarize,omitempty"` // summarize status
-
-	// Group
-	GroupOverview string `json:"group_overview,omitempty"`
 }

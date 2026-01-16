@@ -53,15 +53,19 @@ func GenerateContentAbstract(content string) string {
 		if len(contents) > 10 {
 			return false
 		}
-		t := strings.TrimSpace(selection.Text())
-		if t != "" {
-			contents = append(contents, strings.ReplaceAll(t, "\n", " "))
+		t := selection.Text()
+		t = strings.ReplaceAll(t, "\n", " ")
+		t = strings.TrimSpace(t)
+		if len(t) > 5 {
+			contents = append(contents, t)
 		}
 		return true
 	})
 
 	if len(contents) > 0 {
-		return trimDocumentContent(strings.Join(contents, " "), 400)
+		if abs := trimDocumentContent(strings.Join(contents, " "), 400); len([]rune(abs)) > 100 {
+			return abs
+		}
 	}
 
 	bodyContent := query.Find("body").Text()
@@ -72,9 +76,9 @@ func trimDocumentContent(str string, m int) string {
 	str = ContentTrim("html", str)
 	runes := []rune(str)
 	if len(runes) > m {
-		return string(runes[:m])
+		return strings.TrimSpace(string(runes[:m]))
 	}
-	return str
+	return strings.TrimSpace(str)
 }
 
 func GenerateContentHeaderImage(content string) string {
@@ -90,30 +94,41 @@ func GenerateContentHeaderImage(content string) string {
 			isExisted bool
 		)
 		srcVal, isExisted = selection.Attr("src")
-		if isExisted && strings.HasPrefix(srcVal, "http") {
+		if isExisted && isValidImageURL(srcVal) {
 			imageURL = srcVal
-			return true
+			return false
 		}
 
 		srcVal, isExisted = selection.Attr("data-src")
-		if isExisted && strings.HasPrefix(srcVal, "http") {
+		if isExisted && isValidImageURL(srcVal) {
 			imageURL = srcVal
-			return true
+			return false
 		}
 
 		srcVal, isExisted = selection.Attr("data-src-retina")
-		if isExisted && strings.HasPrefix(srcVal, "http") {
+		if isExisted && isValidImageURL(srcVal) {
 			imageURL = srcVal
-			return true
+			return false
 		}
 
 		srcVal, isExisted = selection.Attr("data-original")
-		if isExisted && strings.HasPrefix(srcVal, "http") {
+		if isExisted && isValidImageURL(srcVal) {
 			imageURL = srcVal
-			return true
+			return false
 		}
-		return false
+		return true
 	})
 
 	return imageURL
+}
+
+func isValidImageURL(urlVal string) bool {
+	if urlVal == "" {
+		return false
+	}
+	if !strings.HasPrefix(urlVal, "http://") && !strings.HasPrefix(urlVal, "https://") {
+		return false
+	}
+	imageExtRegex := regexp.MustCompile(`(?i)\.(jpg|jpeg|png|gif|webp|bmp|tiff|heic|heif|avif)(\?.*)?$`)
+	return imageExtRegex.MatchString(urlVal)
 }

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/basenana/friday/core/tools"
+	"github.com/basenana/plugin/logger"
 	"github.com/basenana/plugin/web"
 	"go.uber.org/zap"
 	"google.golang.org/api/customsearch/v1"
@@ -152,9 +153,17 @@ func crawlWebpagesHandler(wc *WebCitations, toolLogger *zap.SugaredLogger) func(
 
 			go func(u string) {
 				defer wg.Done()
+
+				for _, cached := range wc.files {
+					if cached.URL == u {
+						result <- WebContent{URL: u, FilePath: cached.Filepath}
+						return
+					}
+				}
+
 				toolLogger.Debugw("crawling url", "url", u)
 
-				filePath, err := web.PackFromURL(ctx, "", u, "html", wc.workdir, true)
+				filePath, err := web.PackFromURL(logger.IntoContext(ctx, toolLogger), "", u, "html", wc.workdir, true)
 				if err != nil {
 					toolLogger.Warnw("crawl url failed", "url", u, "error", err)
 					result <- WebContent{URL: u, Error: err.Error()}

@@ -69,11 +69,8 @@ func (p *Saver) Run(ctx context.Context, request *api.Request) (*api.Response, e
 	}
 
 	if subGroup != "" {
-		subGroupOverview := api.GetStringParameter("subgroup_overview", request, "")
-		if subGroupOverview != "" {
-			subGroupOverview = path.Base(subGroupOverview)
-		}
-		err = request.FS.CreateGroupIfNotExists(ctx, parentURI, subGroup, types.Properties{GroupOverview: subGroupOverview})
+		subGroup = utils.SanitizeFilename(subGroup)
+		err = request.FS.CreateGroupIfNotExists(ctx, parentURI, subGroup, types.Properties{})
 		if err != nil {
 			return api.NewFailedResponse("failed to create group: " + err.Error()), nil
 		}

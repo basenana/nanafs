@@ -85,7 +85,6 @@ type Property struct {
 	Tags         []string          `json:"tags,omitempty"`
 	IndexVersion string            `json:"index_version,omitempty"`
 	Summarize    string            `json:"summarize,omitempty"`
-	OverviewFile string            `json:"overview_file,omitempty"`
 	URL          string            `json:"url,omitempty"`
 	SiteName     string            `json:"site_name,omitempty"`
 	Properties   map[string]string `json:"properties,omitempty"`
@@ -425,7 +424,6 @@ func toProperty(props *types.Properties) *Property {
 		Tags:         props.Tags,
 		IndexVersion: props.IndexVersion,
 		Summarize:    props.Summarize,
-		OverviewFile: props.OverviewFile,
 		URL:          props.URL,
 		SiteName:     props.SiteName,
 		Properties:   props.Properties,

@@ -34,8 +34,7 @@ type Properties struct {
 	IndexVersion string `json:"indexVersion,omitempty"`
 
 	// Agents
-	Summarize    string `json:"summarize,omitempty"`
-	OverviewFile string `json:"overviewFile,omitempty"`
+	Summarize string `json:"summarize,omitempty"`
 
 	// web
 	URL      string `json:"url,omitempty"`

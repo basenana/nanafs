@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	htmltomarkdown "github.com/JohannesKaufmann/html-to-markdown/v2"
+	"github.com/basenana/plugin/logger"
 	"github.com/basenana/plugin/types"
 	"github.com/basenana/plugin/utils"
 	"github.com/basenana/plugin/web"
@@ -54,6 +55,9 @@ func (h HTML) Load(ctx context.Context) (types.Document, error) {
 
 	if props.Abstract == "" {
 		props.Abstract = utils.GenerateContentAbstract(content)
+		if props.Abstract == "" && len(content) > 100 {
+			logger.FromContext(ctx).Warnw("no abstract found in document.", "content", len(content))
+		}
 	}
 	if props.HeaderImage == "" {
 		props.HeaderImage = utils.GenerateContentHeaderImage(content)
