@@ -231,12 +231,12 @@ func TestRenderParams(t *testing.T) {
 		g.Expect(result).To(gomega.Equal("Operation completed with status: $.status"))
 	})
 
-	t.Run("jsonpath missing variable returns original", func(t *testing.T) {
+	t.Run("jsonpath missing variable returns empty", func(t *testing.T) {
 		data := map[string]any{
 			"other_var": "value",
 		}
 		result := renderParams("$.missing_var", data)
-		g.Expect(result).To(gomega.Equal("$.missing_var"))
+		g.Expect(result).To(gomega.Equal(""))
 	})
 
 	t.Run("non-string value passes through", func(t *testing.T) {
@@ -293,12 +293,12 @@ func TestRenderMatrixParam(t *testing.T) {
 		g.Expect(result).To(gomega.Equal([]any{"/path1", "/path2"}))
 	})
 
-	t.Run("undefined jsonpath returns original", func(t *testing.T) {
+	t.Run("undefined jsonpath returns empty", func(t *testing.T) {
 		data := map[string]any{
 			"other": "value",
 		}
 		result := renderMatrixParam("$.undefined", data)
-		g.Expect(result).To(gomega.Equal("$.undefined"))
+		g.Expect(result).To(gomega.Equal(""))
 	})
 
 	t.Run("non-jsonpath string passes through", func(t *testing.T) {
@@ -380,7 +380,8 @@ func TestGetJSONPathValue(t *testing.T) {
 		data := map[string]any{
 			"key": "value",
 		}
-		_, err := getJSONPathValue("$.undefined", data)
-		g.Expect(err).ToNot(gomega.BeNil())
+		result, err := getJSONPathValue("$.undefined", data)
+		g.Expect(err).To(gomega.BeNil())
+		g.Expect(result).Should(gomega.Equal(""))
 	})
 }

@@ -19,7 +19,6 @@ package jobrun
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 
@@ -85,7 +84,7 @@ func getJSONPathValue(path string, data map[string]interface{}) (any, error) {
 	// Pass data directly since Get() handles map[string]any
 	result := x.Get(data)
 	if len(result) == 0 {
-		return nil, fmt.Errorf("path not found: %s", path)
+		return "", nil
 	}
 	if len(result) > 1 {
 		return result, nil

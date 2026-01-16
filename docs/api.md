@@ -2,7 +2,8 @@
 
 ## Overview
 
-NanaFS provides a RESTful API built with [Gin](https://gin-gonic.com/) framework. All API endpoints are prefixed with `/api/v1/` unless otherwise specified.
+NanaFS provides a RESTful API built with [Gin](https://gin-gonic.com/) framework. All API endpoints are prefixed with
+`/api/v1/` unless otherwise specified.
 
 ## Base URL
 
@@ -25,6 +26,7 @@ Currently, authentication is handled via middleware. Refer to configuration for 
 Health check endpoint for load balancers and monitoring.
 
 **Response:**
+
 ```json
 {
   "status": "ok",
@@ -39,6 +41,7 @@ Health check endpoint for load balancers and monitoring.
 Entries are the core resource in NanaFS, representing files, groups, and other entities.
 
 All entry-related endpoints support two access patterns:
+
 - **By URI**: Use `?uri=/path/to/entry` query parameter
 - **By ID**: Use `?id=12345` query parameter
 
@@ -48,10 +51,10 @@ Retrieve details of a specific entry.
 
 **Query Parameters**
 
-| Name | Type | Description |
-|------|------|-------------|
+| Name  | Type   | Description                                    |
+|-------|--------|------------------------------------------------|
 | `uri` | string | Entry URI path (e.g., `/inbox/tasks/task-001`) |
-| `id` | int64 | Entry ID |
+| `id`  | int64  | Entry ID                                       |
 
 **Response**
 
@@ -71,16 +74,37 @@ Retrieve details of a specific entry.
     "access": {
       "uid": 1000,
       "gid": 1000,
-      "permissions": ["owner_read", "owner_write", "group_read", "group_write", "others_read"]
+      "permissions": [
+        "owner_read",
+        "owner_write",
+        "group_read",
+        "group_write",
+        "others_read"
+      ]
     },
-    "property": null,
+    "property": {
+      "tags": [
+        "important"
+      ],
+      "index_version": "v1",
+      "summarize": "finish",
+      "overview_file": "/inbox/docs/overview.md",
+      "url": "https://example.com",
+      "site_name": "Example Site",
+      "properties": {
+        "priority": "high"
+      }
+    },
     "document": {
       "title": "Document Title",
       "author": "John Doe",
       "year": "2024",
       "source": "https://example.com",
       "abstract": "...",
-      "keywords": ["tag1", "tag2"],
+      "keywords": [
+        "tag1",
+        "tag2"
+      ],
       "notes": "",
       "unread": true,
       "marked": false,
@@ -101,6 +125,7 @@ Retrieve details of a specific entry.
 Create a new entry.
 
 **Request Body:**
+
 ```json
 {
   "uri": "/inbox/tasks/task-001",
@@ -108,7 +133,10 @@ Create a new entry.
   "rss": null,
   "filter": null,
   "properties": {
-    "tags": ["important", "review"],
+    "tags": [
+      "important",
+      "review"
+    ],
     "properties": {
       "priority": "high"
     }
@@ -119,7 +147,10 @@ Create a new entry.
     "year": "2024",
     "source": "https://example.com",
     "abstract": "...",
-    "keywords": ["tag1", "tag2"],
+    "keywords": [
+      "tag1",
+      "tag2"
+    ],
     "notes": "",
     "url": "https://example.com/article",
     "header_image": ""
@@ -129,16 +160,17 @@ Create a new entry.
 
 **Fields:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `uri` | string | yes | Entry URI path |
-| `kind` | string | no | Entry type: `raw`, `group`, `smart_group`, `fifo`, `socket`, `sym_link`, `blk_dev`, `char_dev`, `external_group` |
-| `rss` | object | no | RSS subscription config |
-| `filter` | object | no | Filter config for smart groups |
-| `properties` | object | no | Entry properties including tags and custom properties |
-| `document` | object | no | Document-specific properties (only for non-group entries) |
+| Field        | Type   | Required | Description                                                                                                                                                     |
+|--------------|--------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `uri`        | string | yes      | Entry URI path                                                                                                                                                  |
+| `kind`       | string | no       | Entry type: `raw`, `group`, `smart_group`, `fifo`, `socket`, `sym_link`, `blk_dev`, `char_dev`, `external_group`                                                |
+| `rss`        | object | no       | RSS subscription config                                                                                                                                         |
+| `filter`     | object | no       | Filter config for smart groups                                                                                                                                  |
+| `properties` | object | no       | Entry properties including tags and custom properties. Note: `index_version`, `summarize`, `overview_file`, `url`, `site_name` are read-only and set by system. |
+| `document`   | object | no       | Document-specific properties (only for non-group entries)                                                                                                       |
 
 **RSS Config:**
+
 ```json
 {
   "feed": "https://example.com/feed.xml",
@@ -149,6 +181,7 @@ Create a new entry.
 ```
 
 **Filter Config:**
+
 ```json
 {
   "cel_pattern": "entry.kind == 'raw'"
@@ -156,6 +189,7 @@ Create a new entry.
 ```
 
 **Response:**
+
 ```json
 {
   "entry": {
@@ -178,6 +212,7 @@ Create a new entry.
 Filter entries using CEL (Common Expression Language) patterns.
 
 **Request Body:**
+
 ```json
 {
   "cel_pattern": "entry.kind == 'raw'",
@@ -190,15 +225,16 @@ Filter entries using CEL (Common Expression Language) patterns.
 
 **Fields:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `cel_pattern` | string | yes | CEL expression to filter entries |
-| `page` | int64 | no | Page number (default: 1) |
-| `page_size` | int64 | no | Number of items per page (default: all) |
-| `sort` | string | no | Sort field: `created_at`, `changed_at`, `name` (default: `name`) |
-| `order` | string | no | Sort order: `asc`, `desc` (default: `asc`) |
+| Field         | Type   | Required | Description                                                      |
+|---------------|--------|----------|------------------------------------------------------------------|
+| `cel_pattern` | string | yes      | CEL expression to filter entries                                 |
+| `page`        | int64  | no       | Page number (default: 1)                                         |
+| `page_size`   | int64  | no       | Number of items per page (default: all)                          |
+| `sort`        | string | no       | Sort field: `created_at`, `changed_at`, `name` (default: `name`) |
+| `order`       | string | no       | Sort order: `asc`, `desc` (default: `asc`)                       |
 
 **Response:**
+
 ```json
 {
   "entries": [
@@ -245,12 +281,13 @@ Update entry attributes. Supports `?uri=` or `?id=` query parameters.
 
 **Query Parameters**
 
-| Name | Type | Description |
-|------|------|-------------|
+| Name  | Type   | Description    |
+|-------|--------|----------------|
 | `uri` | string | Entry URI path |
-| `id` | int64 | Entry ID |
+| `id`  | int64  | Entry ID       |
 
 **Request Body:**
+
 ```json
 {
   "aliases": "alias1,alias2"
@@ -258,6 +295,7 @@ Update entry attributes. Supports `?uri=` or `?id=` query parameters.
 ```
 
 **Response:**
+
 ```json
 {
   "entry": {
@@ -281,12 +319,13 @@ Delete a single entry. Supports `?uri=` or `?id=` query parameters.
 
 **Query Parameters**
 
-| Name | Type | Description |
-|------|------|-------------|
+| Name  | Type   | Description    |
+|-------|--------|----------------|
 | `uri` | string | Entry URI path |
-| `id` | int64 | Entry ID |
+| `id`  | int64  | Entry ID       |
 
 **Response:**
+
 ```json
 {
   "entry": {
@@ -301,6 +340,7 @@ Delete a single entry. Supports `?uri=` or `?id=` query parameters.
 Delete multiple entries at once.
 
 **Request Body:**
+
 ```json
 {
   "uri_list": [
@@ -311,6 +351,7 @@ Delete multiple entries at once.
 ```
 
 **Response:**
+
 ```json
 {
   "deleted": [
@@ -326,6 +367,7 @@ Delete multiple entries at once.
 Change an entry's parent group.
 
 **Request Body:**
+
 ```json
 {
   "entry_uri": "/inbox/tasks/task-001",
@@ -337,14 +379,15 @@ Change an entry's parent group.
 
 **Fields:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `entry_uri` | string | yes | URI of the entry to move |
-| `new_entry_uri` | string | yes | New parent URI |
-| `replace` | bool | no | Replace existing entry if exists |
-| `exchange` | bool | no | Exchange positions |
+| Field           | Type   | Required | Description                      |
+|-----------------|--------|----------|----------------------------------|
+| `entry_uri`     | string | yes      | URI of the entry to move         |
+| `new_entry_uri` | string | yes      | New parent URI                   |
+| `replace`       | bool   | no       | Replace existing entry if exists |
+| `exchange`      | bool   | no       | Exchange positions               |
 
 **Response:**
+
 ```json
 {
   "entry": {
@@ -364,19 +407,57 @@ Change an entry's parent group.
 
 #### PUT /api/v1/entries/property
 
-Update tags and custom properties. Supports `?uri=` or `?id=` query parameters.
+Get or update tags and custom properties. Supports `?uri=` or `?id=` query parameters.
 
 **Query Parameters**
 
-| Name | Type | Description |
-|------|------|-------------|
+| Name  | Type   | Description    |
+|-------|--------|----------------|
 | `uri` | string | Entry URI path |
-| `id` | int64 | Entry ID |
+| `id`  | int64  | Entry ID       |
 
-**Request Body:**
+**GET Response:**
+
 ```json
 {
-  "tags": ["important", "review"],
+  "properties": {
+    "tags": [
+      "important",
+      "review"
+    ],
+    "index_version": "v1",
+    "summarize": "finish",
+    "overview_file": "/inbox/docs/overview.md",
+    "url": "https://example.com/article",
+    "site_name": "Example Site",
+    "properties": {
+      "priority": "high",
+      "due_date": "2024-01-15"
+    }
+  }
+}
+```
+
+**Fields:**
+
+| Field           | Type   | Description                               |
+|-----------------|--------|-------------------------------------------|
+| `tags`          | array  | Entry tags                                |
+| `index_version` | string | Index version (read-only, system managed) |
+| `summarize`     | string | AI summary task status (read-only)        |
+| `overview_file` | string | Overview file path (read-only)            |
+| `url`           | string | Associated URL (read-only)                |
+| `site_name`     | string | Site name (read-only)                     |
+| `properties`    | object | Custom key-value properties               |
+
+**PUT Request Body:**
+
+```json
+{
+  "tags": [
+    "important",
+    "review"
+  ],
   "properties": {
     "priority": "high",
     "due_date": "2024-01-15"
@@ -384,11 +465,20 @@ Update tags and custom properties. Supports `?uri=` or `?id=` query parameters.
 }
 ```
 
-**Response:**
+**PUT Response:**
+
 ```json
 {
   "properties": {
-    "tags": ["important", "review"],
+    "tags": [
+      "important",
+      "review"
+    ],
+    "index_version": "v1",
+    "summarize": "finish",
+    "overview_file": "/inbox/docs/overview.md",
+    "url": "https://example.com/article",
+    "site_name": "Example Site",
     "properties": {
       "priority": "high",
       "due_date": "2024-01-15"
@@ -403,12 +493,13 @@ Update document-specific properties. Supports `?uri=` or `?id=` query parameters
 
 **Query Parameters**
 
-| Name | Type | Description |
-|------|------|-------------|
+| Name  | Type   | Description    |
+|-------|--------|----------------|
 | `uri` | string | Entry URI path |
-| `id` | int64 | Entry ID |
+| `id`  | int64  | Entry ID       |
 
 **Request Body:**
+
 ```json
 {
   "title": "Updated Title",
@@ -417,7 +508,10 @@ Update document-specific properties. Supports `?uri=` or `?id=` query parameters
   "source": "https://example.com",
   "abstract": "Document abstract...",
   "notes": "Personal notes",
-  "keywords": ["tag1", "tag2"],
+  "keywords": [
+    "tag1",
+    "tag2"
+  ],
   "url": "https://example.com/article",
   "site_name": "Site Name",
   "site_url": "https://example.com",
@@ -430,24 +524,25 @@ Update document-specific properties. Supports `?uri=` or `?id=` query parameters
 
 **Fields:**
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `title` | string | Document title |
-| `author` | string | Author name |
-| `year` | string | Publication year |
-| `source` | string | Source URL |
-| `abstract` | string | Document abstract |
-| `notes` | string | Personal notes |
-| `keywords` | array | Keywords/tags |
-| `url` | string | Article URL |
-| `site_name` | string | Website name |
-| `site_url` | string | Website URL |
-| `header_image` | string | Header image URL |
-| `unread` | bool | Mark as unread |
-| `marked` | bool | Mark as starred |
-| `publish_at` | int64 | Publish timestamp (Unix) |
+| Field          | Type   | Description              |
+|----------------|--------|--------------------------|
+| `title`        | string | Document title           |
+| `author`       | string | Author name              |
+| `year`         | string | Publication year         |
+| `source`       | string | Source URL               |
+| `abstract`     | string | Document abstract        |
+| `notes`        | string | Personal notes           |
+| `keywords`     | array  | Keywords/tags            |
+| `url`          | string | Article URL              |
+| `site_name`    | string | Website name             |
+| `site_url`     | string | Website URL              |
+| `header_image` | string | Header image URL         |
+| `unread`       | bool   | Mark as unread           |
+| `marked`       | bool   | Mark as starred          |
+| `publish_at`   | int64  | Publish timestamp (Unix) |
 
 **Response:**
+
 ```json
 {
   "properties": {
@@ -456,7 +551,10 @@ Update document-specific properties. Supports `?uri=` or `?id=` query parameters
     "year": "2024",
     "source": "https://example.com",
     "abstract": "...",
-    "keywords": ["tag1", "tag2"],
+    "keywords": [
+      "tag1",
+      "tag2"
+    ],
     "notes": "",
     "unread": true,
     "marked": false,
@@ -466,6 +564,33 @@ Update document-specific properties. Supports `?uri=` or `?id=` query parameters
   }
 }
 ```
+
+#### GET /api/v1/entries/friday
+
+Get Friday processing summary for an entry. Supports `?uri=` or `?id=` query parameters.
+
+**Query Parameters**
+
+| Name  | Type   | Description    |
+|-------|--------|----------------|
+| `uri` | string | Entry URI path |
+| `id`  | int64  | Entry ID       |
+
+**Response:**
+
+```json
+{
+  "property": {
+    "summary": "Friday AI processing summary..."
+  }
+}
+```
+
+**Fields:**
+
+| Field     | Type   | Description                           |
+|-----------|--------|---------------------------------------|
+| `summary` | string | Friday processing summary (read-only) |
 
 ---
 
@@ -477,16 +602,17 @@ List all children of a group. Supports `?uri=` or `?id=` query parameters.
 
 **Query Parameters**
 
-| Name | Type | Description |
-|------|------|-------------|
-| `uri` | string | Group URI path |
-| `id` | int64 | Group ID |
-| `page` | int64 | Page number (default: 1) |
-| `page_size` | int64 | Number of items per page (default: all) |
-| `sort` | string | Sort field: `created_at`, `changed_at`, `name` (default: `name`) |
-| `order` | string | Sort order: `asc`, `desc` (default: `asc`) |
+| Name        | Type   | Description                                                      |
+|-------------|--------|------------------------------------------------------------------|
+| `uri`       | string | Group URI path                                                   |
+| `id`        | int64  | Group ID                                                         |
+| `page`      | int64  | Page number (default: 1)                                         |
+| `page_size` | int64  | Number of items per page (default: all)                          |
+| `sort`      | string | Sort field: `created_at`, `changed_at`, `name` (default: `name`) |
+| `order`     | string | Sort order: `asc`, `desc` (default: `asc`)                       |
 
 **Response**
+
 ```json
 {
   "entries": [
@@ -532,6 +658,7 @@ List all children of a group. Supports `?uri=` or `?id=` query parameters.
 Get the complete group tree structure.
 
 **Response:**
+
 ```json
 {
   "root": {
@@ -564,10 +691,10 @@ Read file content. Supports `?uri=` or `?id=` query parameters.
 
 **Query Parameters**
 
-| Name | Type | Description |
-|------|------|-------------|
+| Name  | Type   | Description   |
+|-------|--------|---------------|
 | `uri` | string | File URI path |
-| `id` | int64 | File ID |
+| `id`  | int64  | File ID       |
 
 **Response:** `application/octet-stream`
 
@@ -581,12 +708,13 @@ Upload/write file content. Supports `?uri=` or `?id=` query parameters.
 
 **Query Parameters**
 
-| Name | Type | Description |
-|------|------|-------------|
+| Name  | Type   | Description   |
+|-------|--------|---------------|
 | `uri` | string | File URI path |
-| `id` | int64 | File ID |
+| `id`  | int64  | File ID       |
 
 **Response:**
+
 ```json
 {
   "len": 1024
@@ -603,11 +731,12 @@ List messages/notifications.
 
 **Query Parameters**
 
-| Name | Type | Description |
-|------|------|-------------|
+| Name  | Type | Description                           |
+|-------|------|---------------------------------------|
 | `all` | bool | Include all messages (including read) |
 
 **Response**
+
 ```json
 {
   "messages": [
@@ -630,13 +759,18 @@ List messages/notifications.
 Mark messages as read.
 
 **Request Body:**
+
 ```json
 {
-  "message_id_list": ["msg-001", "msg-002"]
+  "message_id_list": [
+    "msg-001",
+    "msg-002"
+  ]
 }
 ```
 
 **Response:**
+
 ```json
 {
   "success": true
@@ -653,14 +787,15 @@ List all workflows.
 
 **Query Parameters**
 
-| Name | Type | Description |
-|------|------|-------------|
-| `page` | int | Page number (default: 1) |
-| `page_size` | int | Number of items per page (default: all) |
-| `sort` | string | Sort field: `name`, `created_at`, `updated_at` (default: `created_at`) |
-| `order` | string | Sort order: `asc`, `desc` (default: `desc`) |
+| Name        | Type   | Description                                                            |
+|-------------|--------|------------------------------------------------------------------------|
+| `page`      | int    | Page number (default: 1)                                               |
+| `page_size` | int    | Number of items per page (default: all)                                |
+| `sort`      | string | Sort field: `name`, `created_at`, `updated_at` (default: `created_at`) |
+| `order`     | string | Sort order: `asc`, `desc` (default: `desc`)                            |
 
 **Response:**
+
 ```json
 {
   "workflows": [
@@ -687,14 +822,15 @@ List jobs for a specific workflow.
 
 **Query Parameters**
 
-| Name | Type | Description |
-|------|------|-------------|
-| `page` | int | Page number (default: 1) |
-| `page_size` | int | Number of items per page (default: all) |
-| `sort` | string | Sort field: `created_at`, `updated_at` (default: `created_at`) |
-| `order` | string | Sort order: `asc`, `desc` (default: `desc`) |
+| Name        | Type   | Description                                                    |
+|-------------|--------|----------------------------------------------------------------|
+| `page`      | int    | Page number (default: 1)                                       |
+| `page_size` | int    | Number of items per page (default: all)                        |
+| `sort`      | string | Sort field: `created_at`, `updated_at` (default: `created_at`) |
+| `order`     | string | Sort order: `asc`, `desc` (default: `desc`)                    |
 
 **Response:**
+
 ```json
 {
   "jobs": [
@@ -706,7 +842,9 @@ List jobs for a specific workflow.
       "message": "",
       "queue_name": "rss-processing",
       "target": {
-        "entries": ["/inbox/rss/feed-001"]
+        "entries": [
+          "/inbox/rss/feed-001"
+        ]
       },
       "steps": [
         {
@@ -738,6 +876,7 @@ List jobs for a specific workflow.
 Create a new workflow.
 
 **Request Body:**
+
 ```json
 {
   "name": "Process RSS Feed",
@@ -767,15 +906,16 @@ Create a new workflow.
 
 **Fields:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | yes | Workflow name |
-| `trigger` | object | yes | Trigger configuration (RSS, Interval, or LocalFileWatch) |
-| `nodes` | array | yes | Workflow nodes/steps |
-| `enable` | bool | no | Enable/disable workflow (default: true) |
-| `queue_name` | string | no | Queue name for job processing |
+| Field        | Type   | Required | Description                                              |
+|--------------|--------|----------|----------------------------------------------------------|
+| `name`       | string | yes      | Workflow name                                            |
+| `trigger`    | object | yes      | Trigger configuration (RSS, Interval, or LocalFileWatch) |
+| `nodes`      | array  | yes      | Workflow nodes/steps                                     |
+| `enable`     | bool   | no       | Enable/disable workflow (default: true)                  |
+| `queue_name` | string | no       | Queue name for job processing                            |
 
 **Response:**
+
 ```json
 {
   "workflows": [
@@ -801,6 +941,7 @@ Create a new workflow.
 Retrieve a specific workflow.
 
 **Response:**
+
 ```json
 {
   "workflow": {
@@ -875,24 +1016,25 @@ Retrieve a specific workflow.
 
 **Fields:**
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | Workflow ID |
-| `namespace` | string | Namespace |
-| `name` | string | Workflow name |
-| `trigger` | object | Trigger configuration (rss, interval, local_file_watch) |
-| `nodes` | array | Workflow nodes/steps |
-| `enable` | bool | Whether workflow is enabled |
-| `queue_name` | string | Queue name for job processing |
-| `created_at` | string | Creation timestamp |
-| `updated_at` | string | Last update timestamp |
-| `last_triggered_at` | string | Last trigger timestamp |
+| Field               | Type   | Description                                             |
+|---------------------|--------|---------------------------------------------------------|
+| `id`                | string | Workflow ID                                             |
+| `namespace`         | string | Namespace                                               |
+| `name`              | string | Workflow name                                           |
+| `trigger`           | object | Trigger configuration (rss, interval, local_file_watch) |
+| `nodes`             | array  | Workflow nodes/steps                                    |
+| `enable`            | bool   | Whether workflow is enabled                             |
+| `queue_name`        | string | Queue name for job processing                           |
+| `created_at`        | string | Creation timestamp                                      |
+| `updated_at`        | string | Last update timestamp                                   |
+| `last_triggered_at` | string | Last trigger timestamp                                  |
 
 #### PUT /api/v1/workflows/:id
 
 Update an existing workflow.
 
 **Request Body:**
+
 ```json
 {
   "name": "Updated Workflow Name",
@@ -904,6 +1046,7 @@ Update an existing workflow.
 **Note:** All fields are optional. Only provided fields will be updated.
 
 **Response:**
+
 ```json
 {
   "workflow": {
@@ -923,6 +1066,7 @@ Update an existing workflow.
 Delete a workflow.
 
 **Response:**
+
 ```json
 {
   "message": "workflow deleted"
@@ -934,6 +1078,7 @@ Delete a workflow.
 List all jobs for a specific workflow.
 
 **Response:**
+
 ```json
 {
   "jobs": [
@@ -984,6 +1129,7 @@ List all jobs for a specific workflow.
 Get details of a specific job.
 
 **Response:**
+
 ```json
 {
   "job": {
@@ -994,7 +1140,9 @@ Get details of a specific job.
     "message": "",
     "queue_name": "rss-processing",
     "target": {
-      "entries": ["/inbox/rss/feed-001"]
+      "entries": [
+        "/inbox/rss/feed-001"
+      ]
     },
     "steps": [
       {
@@ -1021,6 +1169,7 @@ Get details of a specific job.
 Pause a running job.
 
 **Response:**
+
 ```json
 {
   "message": "job paused"
@@ -1032,6 +1181,7 @@ Pause a running job.
 Resume a paused job.
 
 **Response:**
+
 ```json
 {
   "message": "job resumed"
@@ -1043,6 +1193,7 @@ Resume a paused job.
 Cancel a job.
 
 **Response:**
+
 ```json
 {
   "message": "job cancelled"
@@ -1054,6 +1205,7 @@ Cancel a job.
 Manually trigger a workflow.
 
 **Request Body:**
+
 ```json
 {
   "uri": "/inbox/rss/feed-001",
@@ -1064,13 +1216,14 @@ Manually trigger a workflow.
 
 **Fields:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `uri` | string | no | Entry URI to trigger workflow on |
-| `reason` | string | no | Reason for triggering |
-| `timeout` | int64 | no | Timeout in seconds (default: 600) |
+| Field     | Type   | Required | Description                       |
+|-----------|--------|----------|-----------------------------------|
+| `uri`     | string | no       | Entry URI to trigger workflow on  |
+| `reason`  | string | no       | Reason for triggering             |
+| `timeout` | int64  | no       | Timeout in seconds (default: 600) |
 
 **Response:**
+
 ```json
 {
   "job_id": "job-002"
@@ -1088,6 +1241,7 @@ Configs API for managing system configuration.
 Retrieve a specific config value.
 
 **Response:**
+
 ```json
 {
   "group": "workflow",
@@ -1101,6 +1255,7 @@ Retrieve a specific config value.
 Set a config value.
 
 **Request Body:**
+
 ```json
 {
   "value": "5"
@@ -1108,6 +1263,7 @@ Set a config value.
 ```
 
 **Response:**
+
 ```json
 {
   "group": "workflow",
@@ -1121,6 +1277,7 @@ Set a config value.
 List all configs in a group.
 
 **Response:**
+
 ```json
 {
   "items": [
@@ -1145,6 +1302,7 @@ List all configs in a group.
 Delete a config.
 
 **Response:**
+
 ```json
 {
   "group": "workflow",
@@ -1167,31 +1325,32 @@ All errors follow a consistent format:
 
 **Common HTTP Status Codes**
 
-| Code | Description |
-|------|-------------|
-| 200 | OK - Request successful |
-| 201 | Created - Resource created successfully |
-| 400 | Bad Request - Invalid parameters |
-| 401 | Unauthorized - Authentication required |
-| 404 | Not Found - Resource does not exist |
-| 500 | Internal Server Error |
+| Code | Description                             |
+|------|-----------------------------------------|
+| 200  | OK - Request successful                 |
+| 201  | Created - Resource created successfully |
+| 400  | Bad Request - Invalid parameters        |
+| 401  | Unauthorized - Authentication required  |
+| 404  | Not Found - Resource does not exist     |
+| 500  | Internal Server Error                   |
 
 **Error Codes:**
 
-| Code | Description |
-|------|-------------|
-| `INVALID_ARGUMENT` | Invalid request parameters |
-| `NOT_FOUND` | Resource not found |
-| `CONFIG_NOT_FOUND` | Configuration not found |
-| `SET_CONFIG_FAILED` | Failed to set configuration |
-| `LIST_CONFIG_FAILED` | Failed to list configurations |
+| Code                   | Description                    |
+|------------------------|--------------------------------|
+| `INVALID_ARGUMENT`     | Invalid request parameters     |
+| `NOT_FOUND`            | Resource not found             |
+| `CONFIG_NOT_FOUND`     | Configuration not found        |
+| `SET_CONFIG_FAILED`    | Failed to set configuration    |
+| `LIST_CONFIG_FAILED`   | Failed to list configurations  |
 | `DELETE_CONFIG_FAILED` | Failed to delete configuration |
 
 ---
 
 ## Rate Limiting
 
-Currently, no rate limiting is enforced. Production deployments should configure rate limiting at the load balancer level.
+Currently, no rate limiting is enforced. Production deployments should configure rate limiting at the load balancer
+level.
 
 ---
 

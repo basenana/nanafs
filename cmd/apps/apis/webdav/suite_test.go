@@ -60,9 +60,9 @@ var _ = BeforeSuite(func() {
 	testMeta = memMeta
 
 	bootCfg = config.Bootstrap{
-		FS:       &config.FS{Owner: config.FSOwner{Uid: 0, Gid: 0}, Writeback: false},
-		Storages: []config.Storage{{ID: "test-memory-0", Type: storage.MemoryStorage}},
-		CacheDir: workdir,
+		FS:        &config.FS{Owner: config.FSOwner{Uid: 0, Gid: 0}, Writeback: false},
+		Storages:  []config.Storage{{ID: "test-memory-0", Type: storage.MemoryStorage}},
+		CacheDir:  workdir,
 		CacheSize: 0,
 	}
 

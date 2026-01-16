@@ -99,5 +99,87 @@ func NamespaceDefaultsWorkflow(namespace string) []*types.Workflow {
 				},
 			},
 		},
+		{
+			Name:      "Agentic Research",
+			Namespace: namespace,
+			Enable:    true,
+			QueueName: types.WorkflowQueueFile,
+			Trigger: types.WorkflowTrigger{
+				InputParameters: []types.WorkflowInputParameter{
+					{Name: "message", Required: true},
+					{Name: "group_name", Required: true},
+				},
+			},
+			Nodes: []types.WorkflowNode{
+				{
+					Name: "deep_research",
+					Type: "research",
+					Input: map[string]interface{}{
+						"message": "$.trigger.message",
+					},
+					Next: "write_report",
+				},
+				{
+					Name: "write_report",
+					Type: "filewrite",
+					Input: map[string]interface{}{
+						"content":   "$.deep_research.result",
+						"dest_path": "research-report.md",
+					},
+					Next: "process_report",
+				},
+				{
+					Name: "process_report",
+					Type: "docloader",
+					Input: map[string]interface{}{
+						"file_path": "research-report.md",
+					},
+					Next: "save_report",
+				},
+				{
+					Name: "save_report",
+					Type: "save",
+					Input: map[string]interface{}{
+						"subgroup":          "$.trigger.group_name",
+						"subgroup_overview": "research-report.md",
+						"parent_uri":        "$.trigger.parent_uri",
+						"file_path":         "research-report.md",
+						"document":          "$.process_report.document",
+					},
+					Next: "process_citations",
+				},
+				{
+					Name: "process_citations",
+					Type: "docloader",
+					Matrix: &types.WorkflowNodeMatrix{
+						Data: map[string]any{
+							"file_path": "$.deep_research.citations.*.file_path",
+							"url":       "$.deep_research.citations.*.url",
+						},
+					},
+					Input: map[string]interface{}{
+						"file_path": "$.matrix.file_path",
+						"url":       "$.matrix.url",
+					},
+					Next: "save_citations",
+				},
+				{
+					Name: "save_citations",
+					Type: "save",
+					Matrix: &types.WorkflowNodeMatrix{
+						Data: map[string]any{
+							"file_path": "$.process_citations.matrix_results.*.file_path",
+							"document":  "$.process_citations.matrix_results.*.document",
+						},
+					},
+					Input: map[string]interface{}{
+						"subgroup":   "$.trigger.group_name",
+						"parent_uri": "$.trigger.parent_uri",
+						"file_path":  "$.matrix.file_path",
+						"document":   "$.matrix.document",
+					},
+				},
+			},
+		},
 	}
 }

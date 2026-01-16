@@ -37,9 +37,9 @@ var _ = Describe("File Wrapper", func() {
 		uniqueID = strconv.FormatInt(time.Now().UnixNano(), 36)
 		var err error
 		testDir, err = testFs.CreateEntry(ctx, "/", types.EntryAttr{
-			Name:    "testdir-" + uniqueID,
-			Kind:    types.GroupKind,
-			Access:  &types.Access{},
+			Name:   "testdir-" + uniqueID,
+			Kind:   types.GroupKind,
+			Access: &types.Access{},
 		})
 		Expect(err).Should(BeNil())
 	})

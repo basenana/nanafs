@@ -444,13 +444,7 @@ func (s *ServicesV1) EntryProperty(ctx *gin.Context) {
 		return
 	}
 
-	var req UpdatePropertyRequest
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
-		return
-	}
-
-	en, _ := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	en, _ := s.requireEntryWithPermission(ctx, caller, types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead)
 	if en == nil {
 		return
 	}
@@ -462,20 +456,8 @@ func (s *ServicesV1) EntryProperty(ctx *gin.Context) {
 		return
 	}
 
-	properties.Tags = req.Tags
-	properties.Properties = req.Properties
-
-	err = s.meta.UpdateEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeProperty, en.ID, properties)
-	if err != nil {
-		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
-		return
-	}
-
 	apitool.JsonResponse(ctx, http.StatusOK, &PropertyResponse{
-		Property: &Property{
-			Tags:       properties.Tags,
-			Properties: properties.Properties,
-		},
+		Property: toProperty(properties),
 	})
 }
 
@@ -660,10 +642,39 @@ func (s *ServicesV1) UpdateProperty(ctx *gin.Context) {
 	}
 
 	apitool.JsonResponse(ctx, http.StatusOK, &PropertyResponse{
-		Property: &Property{
-			Tags:       properties.Tags,
-			Properties: properties.Properties,
-		},
+		Property: toProperty(properties),
+	})
+}
+
+// @Summary Get entry friday property
+// @Description Get friday processing summary of an entry
+// @Tags Entries
+// @Accept json
+// @Produce json
+// @Param uri query string false "Entry URI"
+// @Param id query string false "Entry ID"
+// @Success 200 {object} FridayPropertyResponse
+// @Router /api/v1/entries/friday [get]
+func (s *ServicesV1) GetFridayProperty(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	en, _ := s.requireEntryWithPermission(ctx, caller, types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead)
+	if en == nil {
+		return
+	}
+
+	properties := &types.FridayProcessProperties{}
+	err := s.meta.GetEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeFriday, en.ID, properties)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, &FridayPropertyResponse{
+		Property: toFridayProperty(properties),
 	})
 }
 

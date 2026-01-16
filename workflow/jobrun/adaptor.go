@@ -235,8 +235,9 @@ func (n *namespacedFS) CreateGroupIfNotExists(ctx context.Context, parentURI, gr
 	}
 
 	_, err = n.core.CreateEntry(ctx, n.namespace, parentURI, types.EntryAttr{
-		Name: group,
-		Kind: types.GroupKind,
+		Name:       group,
+		Kind:       types.GroupKind,
+		Properties: &types.Properties{OverviewFile: properties.GroupOverview},
 	})
 	if err != nil {
 		return fmt.Errorf("create group %s error %w", group, err)

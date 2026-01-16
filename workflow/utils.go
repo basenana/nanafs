@@ -37,6 +37,23 @@ const (
 )
 
 func assembleWorkflowJob(wf *types.Workflow, tgt types.WorkflowTarget, attr JobAttr) (*types.WorkflowJob, error) {
+	requiredParameters := make(map[string]struct{})
+	for _, param := range wf.Trigger.InputParameters {
+		if param.Required {
+			requiredParameters[param.Name] = struct{}{}
+		}
+	}
+
+	if attr.Parameters == nil {
+		attr.Parameters = make(map[string]string)
+	}
+
+	for rk := range requiredParameters {
+		if attr.Parameters[rk] == "" {
+			return nil, fmt.Errorf("required parameter %s not set", rk)
+		}
+	}
+
 	j := &types.WorkflowJob{
 		Id:             uuid.New().String(),
 		Namespace:      wf.Namespace,

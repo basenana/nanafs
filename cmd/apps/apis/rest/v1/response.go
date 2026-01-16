@@ -24,7 +24,6 @@ import (
 	"github.com/basenana/nanafs/utils"
 )
 
-// EntryInfo 条目信息
 type EntryInfo struct {
 	URI        string            `json:"uri"`
 	Entry      int64             `json:"entry"`
@@ -39,7 +38,6 @@ type EntryInfo struct {
 	AccessAt   time.Time         `json:"access_at"`
 }
 
-// EntryDetail 条目详情
 type EntryDetail struct {
 	URI        string            `json:"uri"`
 	Entry      int64             `json:"entry"`
@@ -60,14 +58,12 @@ type EntryDetail struct {
 	AccessAt   time.Time         `json:"access_at"`
 }
 
-// Access 访问权限
 type Access struct {
 	UID         int64    `json:"uid"`
 	GID         int64    `json:"gid"`
 	Permissions []string `json:"permissions"`
 }
 
-// DocumentProperty 文档属性
 type DocumentProperty struct {
 	Title       string     `json:"title,omitempty"`
 	Author      string     `json:"author,omitempty"`
@@ -85,25 +81,34 @@ type DocumentProperty struct {
 	HeaderImage string     `json:"header_image,omitempty"`
 }
 
-// Property 属性
 type Property struct {
-	Tags       []string          `json:"tags,omitempty"`
-	Properties map[string]string `json:"properties,omitempty"`
+	Tags         []string          `json:"tags,omitempty"`
+	IndexVersion string            `json:"index_version,omitempty"`
+	Summarize    string            `json:"summarize,omitempty"`
+	OverviewFile string            `json:"overview_file,omitempty"`
+	URL          string            `json:"url,omitempty"`
+	SiteName     string            `json:"site_name,omitempty"`
+	Properties   map[string]string `json:"properties,omitempty"`
 }
 
-// GroupEntry 组条目
+type FridayProperty struct {
+	Summary string `json:"summary,omitempty"`
+}
+
+type FridayPropertyResponse struct {
+	Property *FridayProperty `json:"property"`
+}
+
 type GroupEntry struct {
 	Name     string        `json:"name"`
 	URI      string        `json:"uri"`
 	Children []*GroupEntry `json:"children"`
 }
 
-// GroupTreeResponse 组树响应
 type GroupTreeResponse struct {
 	Root *GroupEntry `json:"root"`
 }
 
-// Message 消息
 type Message struct {
 	ID      string    `json:"id"`
 	Title   string    `json:"title"`
@@ -115,7 +120,6 @@ type Message struct {
 	Time    time.Time `json:"time"`
 }
 
-// WorkflowInfo 工作流信息 (列表用简化版)
 type WorkflowInfo struct {
 	ID              string    `json:"id"`
 	Name            string    `json:"name"`
@@ -126,33 +130,29 @@ type WorkflowInfo struct {
 	LastTriggeredAt time.Time `json:"last_triggered_at"`
 }
 
-// WorkflowDetail 工作流详情 (完整信息)
 type WorkflowDetail struct {
-	ID              string                   `json:"id"`
-	Namespace       string                   `json:"namespace"`
-	Name            string                   `json:"name"`
-	Trigger         types.WorkflowTrigger    `json:"trigger"`
-	Nodes           []types.WorkflowNode     `json:"nodes"`
-	Enable          bool                     `json:"enable"`
-	QueueName       string                   `json:"queue_name"`
-	CreatedAt       time.Time                `json:"created_at"`
-	UpdatedAt       time.Time                `json:"updated_at"`
-	LastTriggeredAt time.Time                `json:"last_triggered_at"`
+	ID              string                `json:"id"`
+	Namespace       string                `json:"namespace"`
+	Name            string                `json:"name"`
+	Trigger         types.WorkflowTrigger `json:"trigger"`
+	Nodes           []types.WorkflowNode  `json:"nodes"`
+	Enable          bool                  `json:"enable"`
+	QueueName       string                `json:"queue_name"`
+	CreatedAt       time.Time             `json:"created_at"`
+	UpdatedAt       time.Time             `json:"updated_at"`
+	LastTriggeredAt time.Time             `json:"last_triggered_at"`
 }
 
-// WorkflowJobStep 工作流作业步骤
 type WorkflowJobStep struct {
 	Name    string `json:"name"`
 	Status  string `json:"status"`
 	Message string `json:"message"`
 }
 
-// WorkflowJobTarget 工作流作业目标
 type WorkflowJobTarget struct {
 	Entries []string `json:"entries"`
 }
 
-// WorkflowJobDetail 工作流作业详情
 type WorkflowJobDetail struct {
 	ID            string             `json:"id"`
 	Workflow      string             `json:"workflow"`
@@ -168,57 +168,46 @@ type WorkflowJobDetail struct {
 	FinishAt      time.Time          `json:"finish_at"`
 }
 
-// DeleteEntriesResponse 批量删除响应
 type DeleteEntriesResponse struct {
 	Deleted []string `json:"deleted"`
 	Message string   `json:"message"`
 }
 
-// WriteFileResponse 写文件响应
 type WriteFileResponse struct {
 	Len int64 `json:"len"`
 }
 
-// PaginationInfo 分页信息
 type PaginationInfo struct {
 	Page     int64 `json:"page"`
 	PageSize int64 `json:"page_size"`
 }
 
-// ListEntriesResponse 列出条目响应
 type ListEntriesResponse struct {
 	Entries    []*EntryInfo    `json:"entries"`
 	Pagination *PaginationInfo `json:"pagination,omitempty"`
 }
 
-// ListMessagesResponse 列出消息响应
 type ListMessagesResponse struct {
 	Messages []*Message `json:"messages"`
 }
 
-// ReadMessagesResponse 读取消息响应
 type ReadMessagesResponse struct {
 	Success bool `json:"success"`
 }
 
-// ListWorkflowsResponse 列出工作流响应
 type ListWorkflowsResponse struct {
 	Workflows  []*WorkflowInfo `json:"workflows"`
 	Pagination *PaginationInfo `json:"pagination,omitempty"`
 }
 
-// ListWorkflowJobsResponse 列出工作流作业响应
 type ListWorkflowJobsResponse struct {
 	Jobs       []*WorkflowJobDetail `json:"jobs"`
 	Pagination *PaginationInfo      `json:"pagination,omitempty"`
 }
 
-// TriggerWorkflowResponse 触发工作流响应
 type TriggerWorkflowResponse struct {
 	JobID string `json:"job_id"`
 }
-
-// Helpers for converting from types package
 
 func toEntryInfo(parentURI, name string, en *types.Entry, doc *types.DocumentProperties) *EntryInfo {
 	info := &EntryInfo{
@@ -329,80 +318,66 @@ func toWorkflowDetail(w *types.Workflow) *WorkflowDetail {
 	}
 }
 
-// ConfigResponse 配置响应
 type ConfigResponse struct {
 	Group string `json:"group"`
 	Name  string `json:"name"`
 	Value string `json:"value"`
 }
 
-// ListConfigResponse 列出配置响应
 type ListConfigResponse struct {
 	Items []types.ConfigItem `json:"items"`
 }
 
-// DeleteConfigResponse 删除配置响应
 type DeleteConfigResponse struct {
 	Group   string `json:"group"`
 	Name    string `json:"name"`
 	Deleted bool   `json:"deleted"`
 }
 
-// EntryResponse 条目响应
 type EntryResponse struct {
 	Entry *EntryInfo `json:"entry"`
 }
 
-// EntryDetailResponse 条目详情响应
 type EntryDetailResponse struct {
 	Entry *EntryDetail `json:"entry"`
 }
 
-// AppendFileResponse 追加文件响应
 type AppendFileResponse struct {
 	Entry   *EntryInfo   `json:"entry"`
 	Entries []*EntryInfo `json:"entries"`
 }
 
-// UpdateDocumentPropertyResponse 更新文档属性响应
 type UpdateDocumentPropertyResponse struct {
 	Deleted []string     `json:"deleted"`
 	Entries []*EntryInfo `json:"entries"`
 }
 
-// WorkflowResponse 工作流响应
 type WorkflowResponse struct {
 	Workflow *WorkflowDetail `json:"workflow"`
 }
 
-// CreateWorkflowResponse 创建工作流响应
 type CreateWorkflowResponse struct {
 	Workflow *WorkflowInfo `json:"workflow"`
 }
 
-// WorkflowJobResponse 工作流作业响应
 type WorkflowJobResponse struct {
 	Job *WorkflowJobDetail `json:"job"`
 }
 
-// MessageResponse 消息响应
 type MessageResponse struct {
 	Message string `json:"message"`
 }
 
-// SetConfigResponse 设置配置响应
 type SetConfigResponse struct {
 	Group string `json:"group"`
 	Name  string `json:"name"`
 	Value string `json:"value"`
 }
 
-// PropertyResponse 属性响应
 type PropertyResponse struct {
 	Property *Property `json:"properties"`
 }
 
-// DocumentPropertyResponse 文档属性响应
 type DocumentPropertyResponse struct {
 	Property *DocumentProperty `json:"properties"`
 }
@@ -440,4 +415,28 @@ func timestampTime(ts int64) *time.Time {
 		return nil
 	}
 	return utils.ToPtr(time.Unix(ts, 0))
+}
+
+func toProperty(props *types.Properties) *Property {
+	if props == nil {
+		return nil
+	}
+	return &Property{
+		Tags:         props.Tags,
+		IndexVersion: props.IndexVersion,
+		Summarize:    props.Summarize,
+		OverviewFile: props.OverviewFile,
+		URL:          props.URL,
+		SiteName:     props.SiteName,
+		Properties:   props.Properties,
+	}
+}
+
+func toFridayProperty(props *types.FridayProcessProperties) *FridayProperty {
+	if props == nil {
+		return nil
+	}
+	return &FridayProperty{
+		Summary: props.Summary,
+	}
 }

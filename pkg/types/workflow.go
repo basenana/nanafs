@@ -38,9 +38,16 @@ type Workflow struct {
 }
 
 type WorkflowTrigger struct {
-	LocalFileWatch *WorkflowLocalFileWatch `json:"local_file_watch,omitempty"`
-	RSS            *WorkflowRssTrigger     `json:"rss,omitempty"`
-	Interval       *int                    `json:"interval,omitempty"`
+	LocalFileWatch  *WorkflowLocalFileWatch  `json:"local_file_watch,omitempty"`
+	RSS             *WorkflowRssTrigger      `json:"rss,omitempty"`
+	Interval        *int                     `json:"interval,omitempty"`
+	InputParameters []WorkflowInputParameter `json:"input_parameters,omitempty"`
+}
+
+type WorkflowInputParameter struct {
+	Name     string `json:"name"`
+	Describe string `json:"describe"`
+	Required bool   `json:"required"`
 }
 
 type WorkflowNode struct {

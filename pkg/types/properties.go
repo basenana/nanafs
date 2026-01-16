@@ -24,16 +24,18 @@ const (
 	PropertyTypeSymlink   PropertyType = "S"
 	PropertyTypeGroupAttr PropertyType = "G"
 	PropertyTypeDocument  PropertyType = "D"
+	PropertyTypeFriday    PropertyType = "F"
 )
 
 type Properties struct {
-	Tags []string `json:"tags"`
+	Tags []string `json:"tags,omitempty"`
 
 	// Index
-	IndexVersion string `json:"index_version"`
+	IndexVersion string `json:"indexVersion,omitempty"`
 
 	// Agents
-	Summarize string `json:"summarize,omitempty"`
+	Summarize    string `json:"summarize,omitempty"`
+	OverviewFile string `json:"overviewFile,omitempty"`
 
 	// web
 	URL      string `json:"url,omitempty"`
@@ -57,10 +59,11 @@ type GroupProperties struct {
 }
 
 type GroupRSS struct {
-	Feed     string `json:"feed"`
-	SiteName string `json:"siteName"`
-	SiteURL  string `json:"siteUrl"`
-	FileType string `json:"fileType"`
+	Feed           string `json:"feed"`
+	SiteName       string `json:"siteName"`
+	SiteURL        string `json:"siteUrl"`
+	FileType       string `json:"fileType"`
+	LastArchivedAt int64  `json:"lastArchivedAt"`
 }
 
 type DocumentProperties struct {
@@ -85,4 +88,8 @@ type DocumentProperties struct {
 	Unread    bool  `json:"unread"`
 	Marked    bool  `json:"marked"`
 	PublishAt int64 `json:"publishAt,omitempty"`
+}
+
+type FridayProcessProperties struct {
+	Summary string `json:"summary,omitempty"`
 }
