@@ -28,6 +28,18 @@ var ResearchPluginSpec = types.PluginSpec{
 		"friday_pse_engine_id",  // Google PSE Engine ID (required when websearch_type=pse)
 		"friday_pse_api_key",    // Google PSE API Key (required when websearch_type=pse)
 	),
+	Parameters: []types.ParameterSpec{
+		{
+			Name:        "message",
+			Required:    true,
+			Description: "Research topic or question",
+		},
+		{
+			Name:        "system_prompt",
+			Required:    false,
+			Description: "System prompt to override default",
+		},
+	},
 }
 
 type ResearchPlugin struct {

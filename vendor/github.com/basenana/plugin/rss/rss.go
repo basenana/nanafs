@@ -58,6 +58,33 @@ var RssSourcePluginSpec = types.PluginSpec{
 	Name:    RssSourcePluginName,
 	Version: RssSourcePluginVersion,
 	Type:    types.TypeSource,
+	Parameters: []types.ParameterSpec{
+		{
+			Name:        "feed",
+			Required:    true,
+			Description: "RSS/Atom feed URL",
+		},
+		{
+			Name:        "file_type",
+			Required:    false,
+			Default:     "webarchive",
+			Description: "Archive format: url, html, rawhtml, webarchive",
+			Options:     []string{"url", "html", "rawhtml", "webarchive"},
+		},
+		{
+			Name:        "timeout",
+			Required:    false,
+			Default:     "120",
+			Description: "Download timeout (seconds)",
+		},
+		{
+			Name:        "clutter_free",
+			Required:    false,
+			Default:     "true",
+			Description: "Enable clutter-free mode",
+			Options:     []string{"true", "false"},
+		},
+	},
 }
 
 type RssSourcePlugin struct {

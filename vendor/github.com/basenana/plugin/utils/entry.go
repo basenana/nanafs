@@ -38,8 +38,9 @@ func SafetyFilePathJoin(parent, filename string) string {
 
 func SanitizeFilename(name string) string {
 	name = strings.TrimSpace(name)
-	name = strings.ReplaceAll(name, " ", "_")
 	name = fileNameSafety.ReplaceAllString(name, " ")
+	name = strings.ReplaceAll(name, " ", "_")
+	name = strings.ReplaceAll(name, ".", "_")
 	if raw := []rune(name); len(raw) > 100 {
 		name = string(raw[:100])
 	}

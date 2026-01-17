@@ -26,6 +26,18 @@ var SummaryPluginSpec = types.PluginSpec{
 	Version:        summaryPluginVersion,
 	Type:           types.TypeProcess,
 	RequiredConfig: LLMRequiredConfig(),
+	Parameters: []types.ParameterSpec{
+		{
+			Name:        "file_path",
+			Required:    true,
+			Description: "Path to file to summarize",
+		},
+		{
+			Name:        "system_prompt",
+			Required:    false,
+			Description: "System prompt to override default",
+		},
+	},
 }
 
 type SummaryPlugin struct {

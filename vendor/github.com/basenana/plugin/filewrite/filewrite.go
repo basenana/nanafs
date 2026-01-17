@@ -39,6 +39,24 @@ var PluginSpec = types.PluginSpec{
 	Name:    pluginName,
 	Version: pluginVersion,
 	Type:    types.TypeProcess,
+	Parameters: []types.ParameterSpec{
+		{
+			Name:        "content",
+			Required:    true,
+			Description: "File content",
+		},
+		{
+			Name:        "dest_path",
+			Required:    true,
+			Description: "Destination file path",
+		},
+		{
+			Name:        "mode",
+			Required:    false,
+			Default:     "0644",
+			Description: "File permission (octal)",
+		},
+	},
 }
 
 type FileWritePlugin struct {

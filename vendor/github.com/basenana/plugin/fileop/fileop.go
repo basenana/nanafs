@@ -36,6 +36,24 @@ var PluginSpec = types.PluginSpec{
 	Name:    pluginName,
 	Version: pluginVersion,
 	Type:    types.TypeProcess,
+	Parameters: []types.ParameterSpec{
+		{
+			Name:        "action",
+			Required:    true,
+			Description: "Action: cp, mv, rm, rename",
+			Options:     []string{"cp", "mv", "rm", "rename"},
+		},
+		{
+			Name:        "src",
+			Required:    true,
+			Description: "Source path",
+		},
+		{
+			Name:        "dest",
+			Required:    false,
+			Description: "Destination path (required for cp, mv, rename)",
+		},
+	},
 }
 
 type FileOpPlugin struct {

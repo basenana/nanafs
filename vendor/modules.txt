@@ -196,7 +196,7 @@ github.com/basenana/friday/core/types
 # github.com/basenana/go-flow v0.0.0-20250614153542-07184f3ea1e7
 ## explicit; go 1.23
 github.com/basenana/go-flow
-# github.com/basenana/plugin v0.0.0-20260116121311-37a6c7a53e1e
+# github.com/basenana/plugin v0.0.0-20260117061823-3fc900b92502
 ## explicit; go 1.25
 github.com/basenana/plugin
 github.com/basenana/plugin/agentic

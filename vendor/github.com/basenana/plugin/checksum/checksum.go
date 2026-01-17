@@ -40,6 +40,20 @@ var PluginSpec = types.PluginSpec{
 	Name:    pluginName,
 	Version: pluginVersion,
 	Type:    types.TypeProcess,
+	Parameters: []types.ParameterSpec{
+		{
+			Name:        "file_path",
+			Required:    true,
+			Description: "Path to file",
+		},
+		{
+			Name:        "algorithm",
+			Required:    false,
+			Default:     "md5",
+			Description: "Hash algorithm: md5, sha256",
+			Options:     []string{"md5", "sha256"},
+		},
+	},
 }
 
 type ChecksumPlugin struct {

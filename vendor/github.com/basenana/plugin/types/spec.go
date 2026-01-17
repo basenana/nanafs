@@ -29,12 +29,22 @@ type Plugin interface {
 	Version() string
 }
 
+// ParameterSpec describes a plugin parameter
+type ParameterSpec struct {
+	Name        string   `json:"name"`
+	Required    bool     `json:"required"`
+	Default     string   `json:"default,omitempty"`
+	Description string   `json:"description,omitempty"`
+	Options     []string `json:"options,omitempty"`
+}
+
 // PluginSpec is Plugin Config File to load a Plugin
 type PluginSpec struct {
-	Name          string     `json:"name"`
-	Version       string     `json:"version"`
-	Type          PluginType `json:"type"`
-	RequiredConfig []string  `json:"required_config"` // Config keys required by this plugin
+	Name           string          `json:"name"`
+	Version        string          `json:"version"`
+	Type           PluginType      `json:"type"`
+	RequiredConfig []string        `json:"required_config"` // Config keys required by this plugin
+	Parameters     []ParameterSpec `json:"parameters"`
 }
 
 type PluginCall struct {

@@ -1,6 +1,9 @@
 package workflow
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
@@ -9,6 +12,7 @@ import (
 func NamespaceDefaultsWorkflow(namespace string) []*types.Workflow {
 	return []*types.Workflow{
 		{
+			Id:        buildInWorkflowID(namespace, "rss"),
 			Name:      "RSS Collect",
 			Namespace: namespace,
 			Enable:    true,
@@ -70,6 +74,7 @@ func NamespaceDefaultsWorkflow(namespace string) []*types.Workflow {
 			},
 		},
 		{
+			Id:        buildInWorkflowID(namespace, "rss"),
 			Name:      "Document Load",
 			Namespace: namespace,
 			Enable:    true,
@@ -100,6 +105,7 @@ func NamespaceDefaultsWorkflow(namespace string) []*types.Workflow {
 			},
 		},
 		{
+			Id:        buildInWorkflowID(namespace, "rss"),
 			Name:      "Agentic Research",
 			Namespace: namespace,
 			Enable:    true,
@@ -181,4 +187,11 @@ func NamespaceDefaultsWorkflow(namespace string) []*types.Workflow {
 			},
 		},
 	}
+}
+
+const buildInWorkflowPrefix = "build-in-"
+
+func buildInWorkflowID(namespace, wfName string) string {
+	data := map[string]string{"namespace": namespace, "wf_name": wfName}
+	return fmt.Sprintf("%s%s-%s-%s", buildInWorkflowPrefix, strings.ToLower(namespace), strings.ToLower(wfName), utils.ComputeStructHash(data, nil))
 }

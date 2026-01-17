@@ -438,3 +438,22 @@ func toFridayProperty(props *types.FridayProcessProperties) *FridayProperty {
 		Summary: props.Summary,
 	}
 }
+
+type PluginParameter struct {
+	Name        string   `json:"name"`
+	Required    bool     `json:"required"`
+	Default     string   `json:"default,omitempty"`
+	Description string   `json:"description,omitempty"`
+	Options     []string `json:"options,omitempty"`
+}
+
+type PluginInfo struct {
+	Name       string            `json:"name"`
+	Version    string            `json:"version"`
+	Type       string            `json:"type"`
+	Parameters []PluginParameter `json:"parameters"`
+}
+
+type ListPluginsResponse struct {
+	Plugins []*PluginInfo `json:"plugins"`
+}

@@ -27,6 +27,8 @@ import (
 	"github.com/gin-gonic/gin"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	pluginlogger "github.com/basenana/plugin/logger"
+	plugintypes "github.com/basenana/plugin/types"
 
 	"github.com/basenana/nanafs/cmd/apps/apis/rest/common"
 	"github.com/basenana/nanafs/config"
@@ -85,12 +87,14 @@ func NewTestRouter() *TestRouter {
 type MockWorkflow struct {
 	workflows map[string]*types.Workflow
 	jobs      map[string]*types.WorkflowJob
+	plugins   []plugintypes.PluginSpec
 }
 
 func NewMockWorkflow() *MockWorkflow {
 	return &MockWorkflow{
 		workflows: make(map[string]*types.Workflow),
 		jobs:      make(map[string]*types.WorkflowJob),
+		plugins:   make([]plugintypes.PluginSpec, 0),
 	}
 }
 
@@ -245,6 +249,14 @@ func (m *MockWorkflow) CancelWorkflowJob(ctx context.Context, namespace string, 
 	return nil
 }
 
+func (m *MockWorkflow) ListPlugins(ctx context.Context) []plugintypes.PluginSpec {
+	return m.plugins
+}
+
+func (m *MockWorkflow) AddPlugin(plugin plugintypes.PluginSpec) {
+	m.plugins = append(m.plugins, plugin)
+}
+
 func TestRestV1API(t *testing.T) {
 	logger.InitLogger()
 	defer logger.Sync()
@@ -253,6 +265,11 @@ func TestRestV1API(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
+	logger.InitLogger()
+	defer logger.Sync()
+
+	pluginlogger.SetLogger(logger.NewLogger("plugin"))
+
 	memMeta, err := metastore.NewMetaStorage(metastore.MemoryMeta, config.Meta{})
 	Expect(err).Should(BeNil())
 	testMeta = memMeta

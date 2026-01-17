@@ -222,7 +222,7 @@ func (s *ServicesV1) CreateWorkflow(ctx *gin.Context) {
 		return
 	}
 
-	workflow := &types.Workflow{
+	wf := &types.Workflow{
 		Name:      req.Name,
 		Trigger:   req.Trigger,
 		Nodes:     req.Nodes,
@@ -230,7 +230,7 @@ func (s *ServicesV1) CreateWorkflow(ctx *gin.Context) {
 		QueueName: req.QueueName,
 	}
 
-	result, err := s.workflow.CreateWorkflow(ctx.Request.Context(), caller.Namespace, workflow)
+	result, err := s.workflow.CreateWorkflow(ctx.Request.Context(), caller.Namespace, wf)
 	if err != nil {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return

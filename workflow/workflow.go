@@ -23,15 +23,16 @@ import (
 	"time"
 
 	"github.com/basenana/nanafs/pkg/core"
+	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/plugin"
 	pluginlogger "github.com/basenana/plugin/logger"
+	plugintypes "github.com/basenana/plugin/types"
 
 	"go.uber.org/zap"
 
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
-	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/basenana/nanafs/workflow/jobrun"
 )
@@ -51,6 +52,8 @@ type Workflow interface {
 	PauseWorkflowJob(ctx context.Context, namespace string, jobId string) error
 	ResumeWorkflowJob(ctx context.Context, namespace string, jobId string) error
 	CancelWorkflowJob(ctx context.Context, namespace string, jobId string) error
+
+	ListPlugins(ctx context.Context) []plugintypes.PluginSpec
 }
 
 type manager struct {
@@ -240,6 +243,10 @@ func (m *manager) CancelWorkflowJob(ctx context.Context, namespace string, jobId
 		return fmt.Errorf("canceling is not supported in finished state")
 	}
 	return m.ctrl.CancelJob(namespace, jobId)
+}
+
+func (m *manager) ListPlugins(ctx context.Context) []plugintypes.PluginSpec {
+	return m.plugin.ListPlugins()
 }
 
 type JobAttr struct {

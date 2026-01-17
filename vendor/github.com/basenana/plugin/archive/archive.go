@@ -45,6 +45,42 @@ var PluginSpec = types.PluginSpec{
 	Name:    pluginName,
 	Version: pluginVersion,
 	Type:    types.TypeProcess,
+	Parameters: []types.ParameterSpec{
+		{
+			Name:        "action",
+			Required:    false,
+			Default:     "extract",
+			Description: "Action: extract or compress",
+			Options:     []string{"extract", "compress"},
+		},
+		{
+			Name:        "format",
+			Required:    true,
+			Description: "Archive format: zip, tar, gzip",
+			Options:     []string{"zip", "tar", "gzip"},
+		},
+		{
+			Name:        "file_path",
+			Required:    false,
+			Description: "Path to archive file (for extract)",
+		},
+		{
+			Name:        "source_path",
+			Required:    false,
+			Description: "Source path to compress (for compress)",
+		},
+		{
+			Name:        "dest_path",
+			Required:    false,
+			Default:     ".",
+			Description: "Destination directory",
+		},
+		{
+			Name:        "archive_name",
+			Required:    false,
+			Description: "Archive file name (for compress)",
+		},
+	},
 }
 
 type ArchivePlugin struct {

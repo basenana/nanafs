@@ -36,6 +36,13 @@ var PluginSpec = types.PluginSpec{
 	Name:    pluginName,
 	Version: pluginVersion,
 	Type:    types.TypeProcess,
+	Parameters: []types.ParameterSpec{
+		{
+			Name:        "file_path",
+			Required:    true,
+			Description: "Path to file",
+		},
+	},
 }
 
 type MetadataPlugin struct {

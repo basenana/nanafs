@@ -19,6 +19,18 @@ var UpdatePluginSpec = types.PluginSpec{
 	Name:    updatePluginName,
 	Version: updatePluginVersion,
 	Type:    types.TypeProcess,
+	Parameters: []types.ParameterSpec{
+		{
+			Name:        "entry_uri",
+			Required:    true,
+			Description: "Entry URI to update",
+		},
+		{
+			Name:        "properties",
+			Required:    true,
+			Description: "Entry properties to update (JSON object)",
+		},
+	},
 }
 
 type Updater struct {

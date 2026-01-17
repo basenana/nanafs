@@ -25,7 +25,7 @@ import (
 
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/plugin/api"
+	pluginapi "github.com/basenana/plugin/api"
 	plugintypes "github.com/basenana/plugin/types"
 	"go.uber.org/zap"
 
@@ -136,11 +136,11 @@ func (d *DelayProcessPlugin) Version() string {
 	return delayPluginVersion
 }
 
-func (d *DelayProcessPlugin) Run(ctx context.Context, request *api.Request) (*api.Response, error) {
+func (d *DelayProcessPlugin) Run(ctx context.Context, request *pluginapi.Request) (*pluginapi.Response, error) {
 	var (
 		until            time.Time
-		delayDurationStr = api.GetStringParameter("delay", request, "")
-		untilStr         = api.GetStringParameter("until", request, "")
+		delayDurationStr = pluginapi.GetStringParameter("delay", request, "")
+		untilStr         = pluginapi.GetStringParameter("until", request, "")
 	)
 
 	switch {
@@ -162,7 +162,7 @@ func (d *DelayProcessPlugin) Run(ctx context.Context, request *api.Request) (*ap
 		}
 
 	default:
-		return api.NewFailedResponse(fmt.Sprintf("unknown action")), nil
+		return pluginapi.NewFailedResponse(fmt.Sprintf("unknown action")), nil
 	}
 
 	d.logger.Infow("delay started", "until", until)
@@ -174,11 +174,11 @@ func (d *DelayProcessPlugin) Run(ctx context.Context, request *api.Request) (*ap
 		select {
 		case <-timer.C:
 			d.logger.Infow("delay completed")
-			return api.NewResponse(), nil
+			return pluginapi.NewResponse(), nil
 		case <-ctx.Done():
-			return api.NewFailedResponse(ctx.Err().Error()), nil
+			return pluginapi.NewFailedResponse(ctx.Err().Error()), nil
 		}
 	}
 
-	return api.NewResponse(), nil
+	return pluginapi.NewResponse(), nil
 }

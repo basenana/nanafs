@@ -43,6 +43,32 @@ var WebpackPluginSpec = types.PluginSpec{
 	Name:    WebpackPluginName,
 	Version: WebpackPluginVersion,
 	Type:    types.TypeProcess,
+	Parameters: []types.ParameterSpec{
+		{
+			Name:        "file_name",
+			Required:    true,
+			Description: "Output file name",
+		},
+		{
+			Name:        "file_type",
+			Required:    false,
+			Default:     "webarchive",
+			Description: "Output format: html, webarchive",
+			Options:     []string{"html", "webarchive"},
+		},
+		{
+			Name:        "url",
+			Required:    true,
+			Description: "URL to pack",
+		},
+		{
+			Name:        "clutter_free",
+			Required:    false,
+			Default:     "true",
+			Description: "Enable clutter-free mode",
+			Options:     []string{"true", "false"},
+		},
+	},
 }
 
 type WebpackPlugin struct {

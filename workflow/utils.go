@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/basenana/nanafs/pkg/types"
@@ -99,7 +100,9 @@ func initWorkflowJobRootWorkdir(jobWorkdir string) error {
 }
 
 func initWorkflow(namespace string, wf *types.Workflow) *types.Workflow {
-	wf.Id = uuid.New().String()
+	if !strings.HasPrefix(wf.Id, buildInWorkflowPrefix) {
+		wf.Id = uuid.New().String()
+	}
 	wf.Namespace = namespace
 	wf.CreatedAt = time.Now()
 	wf.UpdatedAt = time.Now()

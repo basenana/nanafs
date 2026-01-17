@@ -37,6 +37,25 @@ var PluginSpec = types.PluginSpec{
 	Name:    pluginName,
 	Version: pluginVersion,
 	Type:    types.TypeProcess,
+	Parameters: []types.ParameterSpec{
+		{
+			Name:        "action",
+			Required:    true,
+			Description: "Action: search, replace, regex, split, join",
+			Options:     []string{"search", "replace", "regex", "split", "join"},
+		},
+		{
+			Name:        "content",
+			Required:    false,
+			Description: "Input text (not required for join)",
+		},
+		{
+			Name:        "result_key",
+			Required:    false,
+			Default:     "result",
+			Description: "Result key name",
+		},
+	},
 }
 
 type TextPlugin struct {

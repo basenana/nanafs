@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path"
 	"path/filepath"
 	"sync"
@@ -343,8 +342,7 @@ func (h *triggers) archiveRSSGroupEntries(ctx context.Context, namespace string,
 
 	for year, entryURIs := range entriesByYear {
 		yearDirURI := filepath.Join(groupURI, fmt.Sprintf("%d", year))
-
-		if err = h.ensureYearDir(ctx, namespace, groupURI, year, yearDirURI); err != nil {
+		if err = h.ensureYearDir(ctx, namespace, groupURI, yearDirURI); err != nil {
 			h.logger.Errorw("[ArchiveRSSGroupEntries] failed to ensure year dir", "year", year, "error", err)
 			continue
 		}
@@ -382,7 +380,7 @@ func (h *triggers) extractPublishYear(ctx context.Context, namespace string, ent
 	return entry.CreatedAt.Year()
 }
 
-func (h *triggers) ensureYearDir(ctx context.Context, namespace, groupURI string, year int, yearDirURI string) error {
+func (h *triggers) ensureYearDir(ctx context.Context, namespace, groupURI string, yearDirURI string) error {
 	yearEntry, _, err := h.core.GetEntryByPath(ctx, namespace, yearDirURI)
 	if err == nil && yearEntry != nil {
 		if yearEntry.IsGroup {
@@ -391,12 +389,12 @@ func (h *triggers) ensureYearDir(ctx context.Context, namespace, groupURI string
 		return fmt.Errorf("path exists but is not a directory: %s", yearDirURI)
 	}
 
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err != nil && !errors.Is(err, types.ErrNotFound) {
 		return err
 	}
 
 	_, err = h.core.CreateEntry(ctx, namespace, groupURI, types.EntryAttr{
-		Name: fmt.Sprintf("%d", year),
+		Name: path.Base(yearDirURI),
 		Kind: types.GroupKind,
 	})
 	return err

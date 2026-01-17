@@ -85,6 +85,7 @@ func RegisterRoutes(engine *gin.Engine, s *ServicesV1) {
 			workflows.POST("/:id/jobs/:jobId/resume", s.ResumeJob)
 			workflows.POST("/:id/jobs/:jobId/cancel", s.CancelJob)
 			workflows.POST("/:id/trigger", s.TriggerWorkflow)
+			workflows.GET("/plugins", s.ListPlugins)
 		}
 
 		// Configs - Namespace-level configuration center

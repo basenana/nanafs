@@ -818,13 +818,13 @@ List jobs for a specific workflow.
 
 **Query Parameters**
 
-| Name        | Type   | Description                                                                    |
-|-------------|--------|--------------------------------------------------------------------------------|
-| `status`    | string | Job status filter (comma-separated, e.g., `running,failed`)                    |
-| `page`      | int    | Page number (default: 1)                                                       |
-| `page_size` | int    | Number of items per page (default: all)                                        |
-| `sort`      | string | Sort field: `created_at`, `updated_at` (default: `created_at`)                 |
-| `order`     | string | Sort order: `asc`, `desc` (default: `desc`)                                    |
+| Name        | Type   | Description                                                    |
+|-------------|--------|----------------------------------------------------------------|
+| `status`    | string | Job status filter (comma-separated, e.g., `running,failed`)    |
+| `page`      | int    | Page number (default: 1)                                       |
+| `page_size` | int    | Number of items per page (default: all)                        |
+| `sort`      | string | Sort field: `created_at`, `updated_at` (default: `created_at`) |
+| `order`     | string | Sort order: `asc`, `desc` (default: `desc`)                    |
 
 **Valid Status Values:** `initializing`, `running`, `paused`, `succeed`, `failed`, `error`, `canceled`
 
@@ -918,42 +918,42 @@ Create a new workflow.
 
 **Fields:**
 
-| Field        | Type   | Required | Description                                              |
-|--------------|--------|----------|----------------------------------------------------------|
-| `name`       | string | yes      | Workflow name                                            |
-| `trigger`    | object | yes      | Trigger configuration                                    |
-| `nodes`      | array  | yes      | Workflow nodes/steps                                     |
-| `enable`     | bool   | no       | Enable/disable workflow (default: true)                  |
-| `queue_name` | string | no       | Queue name for job processing                            |
+| Field        | Type   | Required | Description                             |
+|--------------|--------|----------|-----------------------------------------|
+| `name`       | string | yes      | Workflow name                           |
+| `trigger`    | object | yes      | Trigger configuration                   |
+| `nodes`      | array  | yes      | Workflow nodes/steps                    |
+| `enable`     | bool   | no       | Enable/disable workflow (default: true) |
+| `queue_name` | string | no       | Queue name for job processing           |
 
 **Trigger Sub-fields:**
 
-| Field               | Type   | Description                                           |
-|---------------------|--------|-------------------------------------------------------|
-| `local_file_watch`  | object | Local file system watcher (optional)                  |
-| `rss`               | object | RSS feed watcher (optional, empty object `{}`)        |
-| `interval`          | int    | Interval in seconds (optional)                        |
-| `input_parameters`  | array  | Input parameters definition (optional)                |
+| Field              | Type   | Description                                    |
+|--------------------|--------|------------------------------------------------|
+| `local_file_watch` | object | Local file system watcher (optional)           |
+| `rss`              | object | RSS feed watcher (optional, empty object `{}`) |
+| `interval`         | int    | Interval in seconds (optional)                 |
+| `input_parameters` | array  | Input parameters definition (optional)         |
 
 **WorkflowInputParameter:**
 
-| Field     | Type   | Description                        |
-|-----------|--------|------------------------------------|
-| `name`    | string | Parameter name                     |
-| `describe`| string | Parameter description               |
-| `required`| bool   | Whether parameter is required      |
+| Field      | Type   | Description                   |
+|------------|--------|-------------------------------|
+| `name`     | string | Parameter name                |
+| `describe` | string | Parameter description         |
+| `required` | bool   | Whether parameter is required |
 
 **WorkflowLocalFileWatch:**
 
-| Field         | Type   | Description                                  |
-|---------------|--------|----------------------------------------------|
-| `directory`   | string | Directory to watch                           |
-| `event`       | string | Event type (create, modify, delete)          |
-| `file_pattern`| string | File name pattern (optional)                 |
-| `file_types`  | string | File types filter, e.g. `txt,md` (optional)  |
-| `min_file_size`| int   | Minimum file size in bytes (optional)        |
-| `max_file_size`| int   | Maximum file size in bytes (optional)        |
-| `cel_pattern` | string | CEL filter expression (optional)             |
+| Field           | Type   | Description                                 |
+|-----------------|--------|---------------------------------------------|
+| `directory`     | string | Directory to watch                          |
+| `event`         | string | Event type (create, modify, delete)         |
+| `file_pattern`  | string | File name pattern (optional)                |
+| `file_types`    | string | File types filter, e.g. `txt,md` (optional) |
+| `min_file_size` | int    | Minimum file size in bytes (optional)       |
+| `max_file_size` | int    | Maximum file size in bytes (optional)       |
+| `cel_pattern`   | string | CEL filter expression (optional)            |
 
 **Response:**
 
@@ -993,8 +993,16 @@ Retrieve a specific workflow.
       "rss": {},
       "interval": 30,
       "input_parameters": [
-        {"name": "feed_url", "describe": "RSS feed URL", "required": true},
-        {"name": "output_path", "describe": "Output directory path", "required": false}
+        {
+          "name": "feed_url",
+          "describe": "RSS feed URL",
+          "required": true
+        },
+        {
+          "name": "output_path",
+          "describe": "Output directory path",
+          "required": false
+        }
       ]
     },
     "nodes": [
@@ -1102,46 +1110,46 @@ Retrieve a specific workflow.
 
 **Fields:**
 
-| Field               | Type   | Description                                                  |
-|---------------------|--------|--------------------------------------------------------------|
-| `id`                | string | Workflow ID                                                  |
-| `namespace`         | string | Namespace                                                    |
-| `name`              | string | Workflow name                                                |
-| `trigger`           | object | Trigger configuration                                        |
-| `nodes`             | array  | Workflow nodes/steps                                         |
-| `enable`            | bool   | Whether workflow is enabled                                  |
-| `queue_name`        | string | Queue name for job processing                                |
-| `created_at`        | string | Creation timestamp                                           |
-| `updated_at`        | string | Last update timestamp                                        |
-| `last_triggered_at` | string | Last trigger timestamp                                       |
+| Field               | Type   | Description                   |
+|---------------------|--------|-------------------------------|
+| `id`                | string | Workflow ID                   |
+| `namespace`         | string | Namespace                     |
+| `name`              | string | Workflow name                 |
+| `trigger`           | object | Trigger configuration         |
+| `nodes`             | array  | Workflow nodes/steps          |
+| `enable`            | bool   | Whether workflow is enabled   |
+| `queue_name`        | string | Queue name for job processing |
+| `created_at`        | string | Creation timestamp            |
+| `updated_at`        | string | Last update timestamp         |
+| `last_triggered_at` | string | Last trigger timestamp        |
 
 **Node Fields:**
 
-| Field     | Type            | Description                                      |
-|-----------|-----------------|--------------------------------------------------|
-| `name`    | string          | Node name                                        |
-| `type`    | string          | Node type (http, rss-parser, docloader, save...) |
-| `params`  | object          | Node configuration parameters                    |
-| `input`   | object          | Input mapping for data passing between nodes     |
-| `next`    | string          | Next node name (optional)                        |
-| `condition` | string        | Condition for if nodes (CEL expression)          |
-| `branches` | object         | Branch mapping for if nodes                      |
-| `cases`   | array           | Case definitions for switch nodes                |
-| `default` | string          | Default case for switch nodes                    |
-| `matrix`  | object          | Matrix configuration for loop nodes              |
+| Field       | Type   | Description                                      |
+|-------------|--------|--------------------------------------------------|
+| `name`      | string | Node name                                        |
+| `type`      | string | Node type (http, rss-parser, docloader, save...) |
+| `params`    | object | Node configuration parameters                    |
+| `input`     | object | Input mapping for data passing between nodes     |
+| `next`      | string | Next node name (optional)                        |
+| `condition` | string | Condition for if nodes (CEL expression)          |
+| `branches`  | object | Branch mapping for if nodes                      |
+| `cases`     | array  | Case definitions for switch nodes                |
+| `default`   | string | Default case for switch nodes                    |
+| `matrix`    | object | Matrix configuration for loop nodes              |
 
 **WorkflowNodeCase (for switch nodes):**
 
-| Field | Type   | Description              |
-|-------|--------|--------------------------|
-| `value`| string | Case matching value      |
-| `next` | string | Next node name           |
+| Field   | Type   | Description         |
+|---------|--------|---------------------|
+| `value` | string | Case matching value |
+| `next`  | string | Next node name      |
 
 **WorkflowNodeMatrix (for loop nodes):**
 
-| Field | Type   | Description                                                      |
-|-------|--------|------------------------------------------------------------------|
-| `data`| object | Variable mappings, e.g. `{"file_path": "$.fetch.result.paths"}`  |
+| Field  | Type   | Description                                                     |
+|--------|--------|-----------------------------------------------------------------|
+| `data` | object | Variable mappings, e.g. `{"file_path": "$.fetch.result.paths"}` |
 
 #### PUT /api/v1/workflows/:id
 
@@ -1334,16 +1342,17 @@ Manually trigger a workflow.
 
 **Fields:**
 
-| Field       | Type   | Required | Description                                 |
-|-------------|--------|----------|---------------------------------------------|
-| `uri`       | string | no       | Entry URI to trigger workflow on            |
-| `reason`    | string | no       | Reason for triggering                       |
-| `timeout`   | int64  | no       | Timeout in seconds (default: 600)           |
-| `parameters`| object | no       | Input parameters matching workflow's `input_parameters` definition |
+| Field        | Type   | Required | Description                                                        |
+|--------------|--------|----------|--------------------------------------------------------------------|
+| `uri`        | string | no       | Entry URI to trigger workflow on                                   |
+| `reason`     | string | no       | Reason for triggering                                              |
+| `timeout`    | int64  | no       | Timeout in seconds (default: 600)                                  |
+| `parameters` | object | no       | Input parameters matching workflow's `input_parameters` definition |
 
 **About Parameters:**
 
-The `parameters` field provides input values for workflow execution. These values are matched against the workflow's `input_parameters` definition:
+The `parameters` field provides input values for workflow execution. These values are matched against the workflow's
+`input_parameters` definition:
 
 ```json
 // Workflow definition with input_parameters
@@ -1352,11 +1361,21 @@ The `parameters` field provides input values for workflow execution. These value
   "trigger": {
     "rss": {},
     "input_parameters": [
-      {"name": "feed_url", "describe": "RSS feed URL", "required": true},
-      {"name": "output_path", "describe": "Output path", "required": false}
+      {
+        "name": "feed_url",
+        "describe": "RSS feed URL",
+        "required": true
+      },
+      {
+        "name": "output_path",
+        "describe": "Output path",
+        "required": false
+      }
     ]
   },
-  "nodes": [...]
+  "nodes": [
+    ...
+  ]
 }
 
 // Trigger with parameters
@@ -1388,6 +1407,82 @@ In workflow nodes, access these parameters via `$.input.<parameter_name>`:
   "job_id": "job-002"
 }
 ```
+
+#### GET /api/v1/workflows/plugins
+
+List all available workflow plugins with their parameters.
+
+**Response:**
+
+```json
+{
+  "plugins": [
+    {
+      "name": "archive",
+      "version": "1.0",
+      "type": "process",
+      "parameters": [
+        {
+          "name": "action",
+          "required": false,
+          "default": "extract",
+          "description": "Action to perform: extract or compress",
+          "options": [
+            "extract",
+            "compress"
+          ]
+        },
+        {
+          "name": "format",
+          "required": true,
+          "description": "Archive format",
+          "options": [
+            "zip",
+            "tar",
+            "gzip"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "checksum",
+      "version": "1.0",
+      "type": "process",
+      "parameters": [
+        {
+          "name": "algorithm",
+          "required": false,
+          "default": "md5",
+          "description": "Hash algorithm",
+          "options": [
+            "md5",
+            "sha256"
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Fields:**
+
+| Field        | Type   | Description                        |
+|--------------|--------|------------------------------------|
+| `name`       | string | Plugin name                        |
+| `version`    | string | Plugin version                     |
+| `type`       | string | Plugin type: `process` or `source` |
+| `parameters` | array  | Plugin parameters definition       |
+
+**Parameter Fields:**
+
+| Field         | Type    | Description                             |
+|---------------|---------|-----------------------------------------|
+| `name`        | string  | Parameter name                          |
+| `required`    | boolean | Whether parameter is required           |
+| `default`     | string  | Default value (optional)                |
+| `description` | string  | Parameter description (optional)        |
+| `options`     | array   | Valid options (optional, if restricted) |
 
 ---
 

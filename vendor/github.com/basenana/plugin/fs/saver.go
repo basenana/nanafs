@@ -20,6 +20,33 @@ var SavePluginSpec = types.PluginSpec{
 	Name:    savePluginName,
 	Version: savePluginVersion,
 	Type:    types.TypeProcess,
+	Parameters: []types.ParameterSpec{
+		{
+			Name:        "file_path",
+			Required:    true,
+			Description: "Source file path",
+		},
+		{
+			Name:        "parent_uri",
+			Required:    true,
+			Description: "Parent entry URI",
+		},
+		{
+			Name:        "name",
+			Required:    false,
+			Description: "Entry name (defaults to filename)",
+		},
+		{
+			Name:        "subgroup",
+			Required:    false,
+			Description: "Sub group name",
+		},
+		{
+			Name:        "properties",
+			Required:    false,
+			Description: "Entry properties (JSON object)",
+		},
+	},
 }
 
 type Saver struct {

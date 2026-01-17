@@ -38,6 +38,33 @@ var PluginSpec = types.PluginSpec{
 	Name:    PluginName,
 	Version: PluginVersion,
 	Type:    types.TypeProcess,
+	Parameters: []types.ParameterSpec{
+		{
+			Name:        "file_path",
+			Required:    true,
+			Description: "Path to document file",
+		},
+		{
+			Name:        "title",
+			Required:    false,
+			Description: "Document title",
+		},
+		{
+			Name:        "url",
+			Required:    false,
+			Description: "Document URL",
+		},
+		{
+			Name:        "site_name",
+			Required:    false,
+			Description: "Site name",
+		},
+		{
+			Name:        "site_url",
+			Required:    false,
+			Description: "Site URL",
+		},
+	},
 }
 
 type DocLoader struct {
