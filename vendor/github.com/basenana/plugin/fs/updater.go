@@ -27,7 +27,7 @@ var UpdatePluginSpec = types.PluginSpec{
 		},
 		{
 			Name:        "properties",
-			Required:    true,
+			Required:    false,
 			Description: "Entry properties to update (JSON object)",
 		},
 	},
