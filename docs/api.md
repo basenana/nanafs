@@ -1418,9 +1418,34 @@ List all available workflow plugins with their parameters.
 {
   "plugins": [
     {
+      "name": "webpack",
+      "version": "1.0",
+      "type": "process",
+      "init_parameters": [
+        {
+          "name": "file_type",
+          "required": false,
+          "default": "webarchive",
+          "description": "Output file type",
+          "options": [
+            "html",
+            "webarchive"
+          ]
+        }
+      ],
+      "parameters": [
+        {
+          "name": "file_name",
+          "required": true,
+          "description": "Output file name"
+        }
+      ]
+    },
+    {
       "name": "archive",
       "version": "1.0",
       "type": "process",
+      "init_parameters": [],
       "parameters": [
         {
           "name": "action",
@@ -1448,6 +1473,7 @@ List all available workflow plugins with their parameters.
       "name": "checksum",
       "version": "1.0",
       "type": "process",
+      "init_parameters": [],
       "parameters": [
         {
           "name": "algorithm",
@@ -1467,12 +1493,13 @@ List all available workflow plugins with their parameters.
 
 **Fields:**
 
-| Field        | Type   | Description                        |
-|--------------|--------|------------------------------------|
-| `name`       | string | Plugin name                        |
-| `version`    | string | Plugin version                     |
-| `type`       | string | Plugin type: `process` or `source` |
-| `parameters` | array  | Plugin parameters definition       |
+| Field             | Type   | Description                                      |
+|-------------------|--------|--------------------------------------------------|
+| `name`            | string | Plugin name                                      |
+| `version`         | string | Plugin version                                   |
+| `type`            | string | Plugin type: `process` or `source`               |
+| `init_parameters` | array  | Parameters for plugin initialization (via Config)|
+| `parameters`      | array  | Parameters for plugin execution (via Request)    |
 
 **Parameter Fields:**
 

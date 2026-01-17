@@ -44,7 +44,8 @@ type PluginSpec struct {
 	Version        string          `json:"version"`
 	Type           PluginType      `json:"type"`
 	RequiredConfig []string        `json:"required_config"` // Config keys required by this plugin
-	Parameters     []ParameterSpec `json:"parameters"`
+	InitParameters []ParameterSpec `json:"init_parameters"` // Parameters for plugin initialization
+	Parameters     []ParameterSpec `json:"parameters"`      // Parameters for plugin execution
 }
 
 type PluginCall struct {

@@ -448,10 +448,11 @@ type PluginParameter struct {
 }
 
 type PluginInfo struct {
-	Name       string            `json:"name"`
-	Version    string            `json:"version"`
-	Type       string            `json:"type"`
-	Parameters []PluginParameter `json:"parameters"`
+	Name            string            `json:"name"`
+	Version         string            `json:"version"`
+	Type            string            `json:"type"`
+	InitParameters  []PluginParameter `json:"init_parameters"`
+	Parameters      []PluginParameter `json:"parameters"`
 }
 
 type ListPluginsResponse struct {

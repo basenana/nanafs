@@ -194,10 +194,6 @@ func (b *defaultExecutor) callPlugin(ctx context.Context, step *types.WorkflowJo
 		return nil, logOperationError(DefExecName, "call_plugin", err)
 	}
 
-	if err = validatePluginParams(ps, step.Params); err != nil {
-		return nil, logOperationError(DefExecName, "validate_plugin_params", err)
-	}
-
 	for _, configKey := range ps.RequiredConfig {
 		value, err := b.meta.GetConfigValue(ctx, b.job.Namespace, "workflow", configKey)
 		if err != nil && !errors.Is(err, types.ErrNotFound) {
@@ -208,6 +204,14 @@ func (b *defaultExecutor) callPlugin(ctx context.Context, step *types.WorkflowJo
 	}
 
 	req := b.newPluginRequest(step, resultData)
+	if err = validateInitParams(ps, pc.Params); err != nil {
+		return nil, logOperationError(DefExecName, "validate_init_params", err)
+	}
+
+	if err = validateRunParams(ps, req.Parameter); err != nil {
+		return nil, logOperationError(DefExecName, "validate_run_params", err)
+	}
+
 	resp, err := callPlugin(ctx, pc, b.pluginMgr, req)
 	if err != nil {
 		return nil, logOperationError(DefExecName, "call_plugin", err)
@@ -364,30 +368,4 @@ func callPlugin(ctx context.Context, pc plugintypes.PluginCall, mgr plugin.Manag
 		return nil, err
 	}
 	return resp, nil
-}
-
-func validatePluginParams(spec *plugintypes.PluginSpec, params map[string]string) error {
-	for _, paramSpec := range spec.Parameters {
-		value, exists := params[paramSpec.Name]
-		if !exists || value == "" {
-			if paramSpec.Required {
-				return fmt.Errorf("required parameter '%s' is missing", paramSpec.Name)
-			}
-			continue
-		}
-
-		if len(paramSpec.Options) > 0 {
-			valid := false
-			for _, opt := range paramSpec.Options {
-				if opt == value {
-					valid = true
-					break
-				}
-			}
-			if !valid {
-				return fmt.Errorf("parameter '%s' must be one of %v, got '%s'", paramSpec.Name, paramSpec.Options, value)
-			}
-		}
-	}
-	return nil
 }

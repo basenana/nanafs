@@ -91,5 +91,55 @@ var _ = Describe("REST V1 Plugin API", func() {
 			Expect(w.Code).To(Equal(http.StatusOK))
 			Expect(w.Body.Len()).To(BeNumerically(">", 0))
 		})
+
+		It("should return plugins with both init_parameters and parameters", func() {
+			testRouter.MockWorkflow.AddPlugin(plugintypes.PluginSpec{
+				Name:    "webpack",
+				Version: "1.0",
+				Type:    plugintypes.TypeProcess,
+				InitParameters: []plugintypes.ParameterSpec{
+					{
+						Name:        "file_type",
+						Required:    false,
+						Default:     "webarchive",
+						Description: "Output file type",
+						Options:     []string{"html", "webarchive"},
+					},
+					{
+						Name:     "clutter_free",
+						Required: false,
+						Default:  "true",
+						Options:  []string{"true", "false"},
+					},
+				},
+				Parameters: []plugintypes.ParameterSpec{
+					{
+						Name:        "file_name",
+						Required:    true,
+						Description: "Output file name",
+					},
+					{
+						Name:     "url",
+						Required: true,
+					},
+				},
+			})
+
+			req, err := http.NewRequest("GET", "/api/v1/workflows/plugins", nil)
+			Expect(err).Should(BeNil())
+			req.Header.Set("X-Namespace", "default")
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusOK))
+			body := w.Body.String()
+			Expect(body).To(ContainSubstring("init_parameters"))
+			Expect(body).To(ContainSubstring("file_type"))
+			Expect(body).To(ContainSubstring("clutter_free"))
+			Expect(body).To(ContainSubstring("parameters"))
+			Expect(body).To(ContainSubstring("file_name"))
+			Expect(body).To(ContainSubstring("url"))
+		})
 	})
 })

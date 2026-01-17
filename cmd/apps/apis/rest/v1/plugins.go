@@ -39,6 +39,17 @@ func (s *ServicesV1) ListPlugins(ctx *gin.Context) {
 }
 
 func toPluginInfo(spec *plugintypes.PluginSpec) *PluginInfo {
+	initParams := make([]PluginParameter, 0, len(spec.InitParameters))
+	for _, p := range spec.InitParameters {
+		initParams = append(initParams, PluginParameter{
+			Name:        p.Name,
+			Required:    p.Required,
+			Default:     p.Default,
+			Description: p.Description,
+			Options:     p.Options,
+		})
+	}
+
 	params := make([]PluginParameter, 0, len(spec.Parameters))
 	for _, p := range spec.Parameters {
 		params = append(params, PluginParameter{
@@ -51,9 +62,10 @@ func toPluginInfo(spec *plugintypes.PluginSpec) *PluginInfo {
 	}
 
 	return &PluginInfo{
-		Name:       spec.Name,
-		Version:    spec.Version,
-		Type:       string(spec.Type),
-		Parameters: params,
+		Name:           spec.Name,
+		Version:        spec.Version,
+		Type:           string(spec.Type),
+		InitParameters: initParams,
+		Parameters:     params,
 	}
 }

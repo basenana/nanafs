@@ -58,12 +58,7 @@ var RssSourcePluginSpec = types.PluginSpec{
 	Name:    RssSourcePluginName,
 	Version: RssSourcePluginVersion,
 	Type:    types.TypeSource,
-	Parameters: []types.ParameterSpec{
-		{
-			Name:        "feed",
-			Required:    true,
-			Description: "RSS/Atom feed URL",
-		},
+	InitParameters: []types.ParameterSpec{
 		{
 			Name:        "file_type",
 			Required:    false,
@@ -83,6 +78,13 @@ var RssSourcePluginSpec = types.PluginSpec{
 			Default:     "true",
 			Description: "Enable clutter-free mode",
 			Options:     []string{"true", "false"},
+		},
+	},
+	Parameters: []types.ParameterSpec{
+		{
+			Name:        "feed",
+			Required:    true,
+			Description: "RSS/Atom feed URL",
 		},
 	},
 }

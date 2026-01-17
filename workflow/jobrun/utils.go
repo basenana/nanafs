@@ -19,10 +19,12 @@ package jobrun
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/basenana/nanafs/pkg/types"
+	plugintypes "github.com/basenana/plugin/types"
 	"github.com/ohler55/ojg/jp"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -210,4 +212,58 @@ func injectGlobalVars(job *types.WorkflowJob) map[string]interface{} {
 		"timestamp":        time.Now().Unix(),
 		"timestampRFC3339": time.Now().Format(time.RFC3339),
 	}
+}
+
+func validateRunParams(spec *plugintypes.PluginSpec, params map[string]any) error {
+	for _, paramSpec := range spec.Parameters {
+		value, exists := params[paramSpec.Name]
+		if !exists || value == "" {
+			if paramSpec.Required {
+				return fmt.Errorf("required parameter '%s' is missing", paramSpec.Name)
+			}
+			continue
+		}
+
+		if len(paramSpec.Options) > 0 {
+			valid := false
+			for _, opt := range paramSpec.Options {
+				if opt == value {
+					valid = true
+					break
+				}
+			}
+			if !valid {
+				return fmt.Errorf("parameter '%s' must be one of %v, got '%s'", paramSpec.Name, paramSpec.Options, value)
+			}
+		}
+	}
+	return nil
+}
+
+func validateInitParams(spec *plugintypes.PluginSpec, initParams map[string]string) error {
+	for _, paramSpec := range spec.InitParameters {
+		value, exists := initParams[paramSpec.Name]
+		if !exists || value == "" {
+			if paramSpec.Required {
+				return fmt.Errorf("required init parameter '%s' is missing", paramSpec.Name)
+			}
+			if paramSpec.Default != "" {
+				initParams[paramSpec.Name] = paramSpec.Default
+			}
+			continue
+		}
+		if len(paramSpec.Options) > 0 {
+			valid := false
+			for _, opt := range paramSpec.Options {
+				if opt == value {
+					valid = true
+					break
+				}
+			}
+			if !valid {
+				return fmt.Errorf("init parameter '%s' must be one of %v, got '%s'", paramSpec.Name, paramSpec.Options, value)
+			}
+		}
+	}
+	return nil
 }

@@ -23,16 +23,18 @@ var PluginSpec = types.PluginSpec{
 	Version:        pluginVersion,
 	Type:           types.TypeProcess,
 	RequiredConfig: LLMRequiredConfig(),
+	InitParameters: []types.ParameterSpec{
+		{
+			Name:        "system_prompt",
+			Required:    false,
+			Description: "System prompt to override default",
+		},
+	},
 	Parameters: []types.ParameterSpec{
 		{
 			Name:        "message",
 			Required:    true,
 			Description: "User message for the agent",
-		},
-		{
-			Name:        "system_prompt",
-			Required:    false,
-			Description: "System prompt to override default",
 		},
 	},
 }
