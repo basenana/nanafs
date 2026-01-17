@@ -18,7 +18,11 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
+	"path"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -32,6 +36,8 @@ import (
 	"github.com/hyponet/eventbus"
 	"go.uber.org/zap"
 )
+
+const ArchiveIntervalDays = 30 * 24 * 60 * 60
 
 type triggerConfig struct {
 	localFileWatch *types.WorkflowLocalFileWatch
@@ -285,6 +291,115 @@ func (h *triggers) triggerRSSWorkflowForGroup(ctx context.Context, namespace str
 		"feed": gp.RSS.Feed,
 	}
 	h.triggerWorkflow(ctx, namespace, wfID, types.WorkflowTarget{Entries: []string{enURI}}, JobAttr{Parameters: params, Reason: "sync rss group"})
+
+	go func() {
+		archiveCtx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		h.archiveRSSGroupEntries(archiveCtx, namespace, enURI, en, gp)
+	}()
+}
+
+func (h *triggers) archiveRSSGroupEntries(ctx context.Context, namespace string, groupURI string, groupEntry *types.Entry, gp *types.GroupProperties) {
+	if gp.RSS.LastArchivedAt > 0 {
+		elapsed := time.Now().Unix() - gp.RSS.LastArchivedAt
+		if elapsed < ArchiveIntervalDays {
+			h.logger.Debugw("[ArchiveRSSGroupEntries] skip archive: too soon", "group", groupURI, "elapsedDays", elapsed/86400)
+			return
+		}
+	}
+
+	children, err := h.meta.ListChildren(ctx, namespace, groupEntry.ID)
+	if err != nil {
+		h.logger.Errorw("[ArchiveRSSGroupEntries] failed to list children", "group", groupURI, "error", err)
+		return
+	}
+
+	if len(children) == 0 {
+		return
+	}
+
+	currentYear := time.Now().Year()
+	movedCount := 0
+
+	entriesByYear := make(map[int][]string)
+	for _, child := range children {
+		entry, err := h.core.GetEntry(ctx, namespace, child.ChildID)
+		if err != nil {
+			h.logger.Warnw("[ArchiveRSSGroupEntries] failed to get entry", "childID", child.ChildID, "error", err)
+			continue
+		}
+
+		if entry.IsGroup {
+			continue
+		}
+
+		year := h.extractPublishYear(ctx, namespace, entry)
+		if year == 0 || year == currentYear {
+			continue
+		}
+
+		entriesByYear[year] = append(entriesByYear[year], path.Join(groupURI, child.Name))
+	}
+
+	for year, entryURIs := range entriesByYear {
+		yearDirURI := filepath.Join(groupURI, fmt.Sprintf("%d", year))
+
+		if err = h.ensureYearDir(ctx, namespace, groupURI, year, yearDirURI); err != nil {
+			h.logger.Errorw("[ArchiveRSSGroupEntries] failed to ensure year dir", "year", year, "error", err)
+			continue
+		}
+
+		for _, entryURI := range entryURIs {
+			if err := h.core.ChangeEntryParent(ctx, namespace, entryURI, yearDirURI, "", types.ChangeParentAttr{}); err != nil {
+				h.logger.Errorw("[ArchiveRSSGroupEntries] failed to move entry", "entry", entryURI, "to", yearDirURI, "error", err)
+				continue
+			}
+			movedCount++
+		}
+	}
+
+	gp.RSS.LastArchivedAt = time.Now().Unix()
+	if err := h.meta.UpdateEntryProperties(ctx, namespace, types.PropertyTypeGroupAttr, groupEntry.ID, gp); err != nil {
+		h.logger.Errorw("[ArchiveRSSGroupEntries] failed to update last archived at", "error", err)
+		return
+	}
+
+	h.logger.Infow("[ArchiveRSSGroupEntries] archive completed", "group", groupURI, "movedCount", movedCount)
+}
+
+func (h *triggers) extractPublishYear(ctx context.Context, namespace string, entry *types.Entry) int {
+	var docProps types.DocumentProperties
+	err := h.meta.GetEntryProperties(ctx, namespace, types.PropertyTypeDocument, entry.ID, &docProps)
+	if err != nil {
+		h.logger.Warnw("failed to get document properties", "entryID", entry.ID, "error", err)
+		return entry.CreatedAt.Year()
+	}
+
+	if docProps.PublishAt > 0 {
+		return time.Unix(docProps.PublishAt, 0).Year()
+	}
+
+	return entry.CreatedAt.Year()
+}
+
+func (h *triggers) ensureYearDir(ctx context.Context, namespace, groupURI string, year int, yearDirURI string) error {
+	yearEntry, _, err := h.core.GetEntryByPath(ctx, namespace, yearDirURI)
+	if err == nil && yearEntry != nil {
+		if yearEntry.IsGroup {
+			return nil
+		}
+		return fmt.Errorf("path exists but is not a directory: %s", yearDirURI)
+	}
+
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	_, err = h.core.CreateEntry(ctx, namespace, groupURI, types.EntryAttr{
+		Name: fmt.Sprintf("%d", year),
+		Kind: types.GroupKind,
+	})
+	return err
 }
 
 func (h *triggers) runRSSWorkflow(ctx context.Context, namespace, workflowID string, rss *types.WorkflowRssTrigger) {
