@@ -73,6 +73,7 @@ type Child struct {
 	Dynamic   bool   `json:"dynamic"`
 	Namespace string `json:"namespace"`
 	Marker    string `json:"marker"`
+	IsGroup   bool   `json:"is_group"`
 }
 
 func NewEntry(name string, kind Kind) Entry {

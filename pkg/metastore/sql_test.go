@@ -244,6 +244,61 @@ var _ = Describe("TestSqliteGroupOperation", func() {
 	})
 })
 
+var _ = Describe("TestListNamespaceGroups", func() {
+	var sqlite = buildNewSqliteMetaStore("test_namespace_groups.db")
+	rootEn := InitRootEntry()
+	Expect(sqlite.CreateEntry(context.TODO(), namespace, 0, rootEn)).Should(BeNil())
+
+	group1, err := types.InitNewEntry(rootEn, types.EntryAttr{
+		Name: "ns-group-1",
+		Kind: types.GroupKind,
+	})
+	Expect(err).Should(BeNil())
+	Expect(sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, group1)).Should(BeNil())
+
+	group2, err := types.InitNewEntry(rootEn, types.EntryAttr{
+		Name: "ns-group-2",
+		Kind: types.GroupKind,
+	})
+	Expect(err).Should(BeNil())
+	Expect(sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, group2)).Should(BeNil())
+
+	subGroup1, err := types.InitNewEntry(group1, types.EntryAttr{
+		Name: "ns-subgroup-1",
+		Kind: types.GroupKind,
+	})
+	Expect(err).Should(BeNil())
+	Expect(sqlite.CreateEntry(context.TODO(), namespace, group1.ID, subGroup1)).Should(BeNil())
+
+	file1, err := types.InitNewEntry(rootEn, types.EntryAttr{
+		Name: "ns-file-1",
+		Kind: types.RawKind,
+	})
+	Expect(err).Should(BeNil())
+	Expect(sqlite.CreateEntry(context.TODO(), namespace, rootEn.ID, file1)).Should(BeNil())
+
+	Context("list all namespace groups", func() {
+		It("should return all group children in namespace", func() {
+			groups, err := sqlite.ListNamespaceGroups(context.TODO(), namespace)
+			Expect(err).Should(BeNil())
+			Expect(groups).Should(HaveLen(3))
+
+			groupIDs := []int64{group1.ID, group2.ID, subGroup1.ID}
+			for _, g := range groups {
+				Expect(g.IsGroup).Should(BeTrue())
+				Expect(containsInt64(groupIDs, g.ChildID)).Should(BeTrue())
+			}
+		})
+
+		It("should return empty when no groups", func() {
+			// Query a namespace that has no groups
+			groups, err := sqlite.ListNamespaceGroups(context.TODO(), "non-existent-namespace")
+			Expect(err).Should(BeNil())
+			Expect(groups).Should(BeEmpty())
+		})
+	})
+})
+
 func InitRootEntry() *types.Entry {
 	acc := &types.Access{
 		Permissions: []types.Permission{
@@ -268,6 +323,15 @@ func buildNewSqliteMetaStore(dbName string) *sqlMetaStore {
 	})
 	Expect(err).Should(BeNil())
 	return result
+}
+
+func containsInt64(slice []int64, item int64) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }
 
 var _ = Describe("TestSysConfig", func() {

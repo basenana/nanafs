@@ -142,15 +142,6 @@ func (s *ServicesV1) listChildren(ctx context.Context, namespace string, entryID
 	return grp.ListChildren(ctx)
 }
 
-// listGroupChildren lists only group children of a group entry, sorted by name.
-func (s *ServicesV1) listGroupChildren(ctx context.Context, namespace string, entryID int64) ([]*types.Entry, error) {
-	grp, err := s.core.OpenGroup(ctx, namespace, entryID)
-	if err != nil {
-		return nil, err
-	}
-	return grp.ListGroupChildren(ctx)
-}
-
 // getEntryByPath resolves uri to parent and entry IDs.
 func (s *ServicesV1) getEntryByPath(ctx context.Context, namespace, uri string) (int64, int64, error) {
 	if uri == "" {

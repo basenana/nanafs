@@ -17,7 +17,6 @@
 package v1
 
 import (
-	"context"
 	"net/http"
 	"path"
 
@@ -26,31 +25,6 @@ import (
 	"github.com/basenana/nanafs/cmd/apps/apis/apitool"
 	"github.com/basenana/nanafs/pkg/types"
 )
-
-func (s *ServicesV1) listGroupEntry(ctx context.Context, namespace string, name, groupURI string, groupID int64) (*GroupEntry, error) {
-	children, err := s.listGroupChildren(ctx, namespace, groupID)
-	if err != nil {
-		return nil, err
-	}
-
-	result := &GroupEntry{
-		Name:     name,
-		URI:      groupURI,
-		Children: nil,
-	}
-
-	if len(children) > 0 {
-		result.Children = make([]*GroupEntry, 0, len(children))
-		for _, child := range children {
-			grp, err := s.listGroupEntry(ctx, namespace, child.Name, path.Join(groupURI, child.Name), child.ID)
-			if err != nil {
-				return nil, err
-			}
-			result.Children = append(result.Children, grp)
-		}
-	}
-	return result, nil
-}
 
 // @Summary Get group tree
 // @Description Retrieve the complete group tree structure
@@ -72,28 +46,21 @@ func (s *ServicesV1) GroupTree(ctx *gin.Context) {
 		return
 	}
 
-	children, err := s.listGroupChildren(ctx.Request.Context(), caller.Namespace, nsRoot.ID)
+	allGroupChildren, err := s.meta.ListNamespaceGroups(ctx.Request.Context(), caller.Namespace)
 	if err != nil {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
-	root := &GroupEntry{
-		URI:      "/",
-		Name:     "/",
-		Children: make([]*GroupEntry, 0, len(children)),
-	}
+	rootChildren := buildGroupTreeFromChildren(allGroupChildren, nsRoot.ID)
 
-	for _, child := range children {
-		grp, err := s.listGroupEntry(ctx.Request.Context(), caller.Namespace, child.Name, path.Join(root.URI, child.Name), child.ID)
-		if err != nil {
-			apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
-			return
-		}
-		root.Children = append(root.Children, grp)
-	}
-
-	apitool.JsonResponse(ctx, http.StatusOK, &GroupTreeResponse{Root: root})
+	apitool.JsonResponse(ctx, http.StatusOK, &GroupTreeResponse{
+		Root: &GroupEntry{
+			Name:     "/",
+			URI:      "/",
+			Children: rootChildren,
+		},
+	})
 }
 
 // @Summary List group children
@@ -149,4 +116,34 @@ func (s *ServicesV1) ListGroupChildren(ctx *gin.Context) {
 		Entries:    entries,
 		Pagination: &PaginationInfo{Page: page, PageSize: pageSize},
 	})
+}
+
+// buildGroupTreeFromChildren builds group tree from flat children list.
+// allChildren: all group children in namespace (flat list)
+// rootID: root node ID (namespace root entry ID)
+func buildGroupTreeFromChildren(allChildren []*types.Child, rootID int64) []*GroupEntry {
+	childrenByParent := make(map[int64][]*types.Child)
+	for _, child := range allChildren {
+		childrenByParent[child.ParentID] = append(childrenByParent[child.ParentID], child)
+	}
+
+	var build func(parentID int64, parentURI string) []*GroupEntry
+	build = func(parentID int64, parentURI string) []*GroupEntry {
+		children := childrenByParent[parentID]
+		if len(children) == 0 {
+			return nil
+		}
+		result := make([]*GroupEntry, 0, len(children))
+		for _, child := range children {
+			entryURI := path.Join(parentURI, child.Name)
+			result = append(result, &GroupEntry{
+				Name:     child.Name,
+				URI:      entryURI,
+				Children: build(child.ChildID, entryURI),
+			})
+		}
+		return result
+	}
+
+	return build(rootID, "/")
 }

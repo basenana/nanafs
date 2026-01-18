@@ -30,7 +30,6 @@ import (
 type Group interface {
 	FindEntry(ctx context.Context, name string) (*types.Entry, error)
 	ListChildren(ctx context.Context) ([]*types.Entry, error)
-	ListGroupChildren(ctx context.Context) ([]*types.Entry, error)
 }
 
 type emptyGroup struct{}
@@ -42,10 +41,6 @@ func (e emptyGroup) FindEntry(ctx context.Context, name string) (*types.Entry, e
 }
 
 func (e emptyGroup) ListChildren(ctx context.Context) ([]*types.Entry, error) {
-	return make([]*types.Entry, 0), nil
-}
-
-func (e emptyGroup) ListGroupChildren(ctx context.Context) ([]*types.Entry, error) {
 	return make([]*types.Entry, 0), nil
 }
 
@@ -89,11 +84,6 @@ func (g *stdGroup) ListChildren(ctx context.Context) ([]*types.Entry, error) {
 	return result, nil
 }
 
-func (g *stdGroup) ListGroupChildren(ctx context.Context) ([]*types.Entry, error) {
-	defer trace.StartRegion(ctx, "fs.core.stdGroup.ListGroupChildren").End()
-	return g.store.ListGroupChildren(ctx, g.namespace, g.entryID)
-}
-
 type dynamicGroup struct {
 	std       *stdGroup
 	filter    types.Filter
@@ -131,18 +121,4 @@ func (d *dynamicGroup) ListChildren(ctx context.Context) ([]*types.Entry, error)
 	}
 
 	return children, nil
-}
-
-func (d *dynamicGroup) ListGroupChildren(ctx context.Context) ([]*types.Entry, error) {
-	children, err := d.ListChildren(ctx)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]*types.Entry, 0, len(children))
-	for _, child := range children {
-		if child.IsGroup {
-			result = append(result, child)
-		}
-	}
-	return result, nil
 }

@@ -123,6 +123,7 @@ type Children struct {
 	ParentID  int64  `gorm:"column:parent_id;primaryKey"`
 	Name      string `gorm:"column:name;primaryKey"`
 	ChildID   int64  `gorm:"column:child_id;index:child_id"`
+	IsGroup   bool   `gorm:"column:is_group;index:child_isgrp"`
 	Dynamic   bool   `gorm:"column:dynamic"`
 	Marker    string `gorm:"column:marker"`
 }
@@ -132,6 +133,7 @@ func (c *Children) From(child *types.Child) {
 	c.ChildID = child.ChildID
 	c.Name = child.Name
 	c.Namespace = child.Namespace
+	c.IsGroup = child.IsGroup
 	c.Dynamic = child.Dynamic
 	c.Marker = child.Marker
 }
@@ -142,6 +144,7 @@ func (c *Children) To() *types.Child {
 		ChildID:   c.ChildID,
 		Name:      c.Name,
 		Namespace: c.Namespace,
+		IsGroup:   c.IsGroup,
 		Dynamic:   c.Dynamic,
 		Marker:    c.Marker,
 	}

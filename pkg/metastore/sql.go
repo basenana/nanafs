@@ -301,6 +301,7 @@ func (s *sqlMetaStore) CreateEntry(ctx context.Context, namespace string, parent
 				ChildID:   entryMod.ID,
 				Name:      entryMod.Name,
 				Namespace: namespace,
+				IsGroup:   entryMod.IsGroup,
 			})
 			if res.Error != nil {
 				return res.Error
@@ -482,39 +483,24 @@ func (s *sqlMetaStore) ListChildren(ctx context.Context, namespace string, paren
 	return result, nil
 }
 
-func (s *sqlMetaStore) ListGroupChildren(ctx context.Context, namespace string, parentId int64) ([]*types.Entry, error) {
-	defer trace.StartRegion(ctx, "metastore.sql.ListGroupChildren").End()
+func (s *sqlMetaStore) ListNamespaceGroups(ctx context.Context, namespace string) ([]*types.Child, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.ListNamespaceGroups").End()
 	requireLock()
 	defer releaseLock()
-	var models []db.Entry
-	query := s.WithContext(ctx).
-		Table("children").
-		Select("e.*").
-		Joins("JOIN entry e ON children.child_id = e.id").
-		Where("children.parent_id = ? AND children.namespace = ? AND e.is_group = true", parentId, namespace)
-	if page := types.GetPagination(ctx); page != nil {
-		sortField := page.SortField()
-		var orderStr string
-		switch sortField {
-		case "created_at":
-			orderStr = "e.created_at " + page.SortOrder()
-		case "changed_at":
-			orderStr = "e.changed_at " + page.SortOrder()
-		default:
-			orderStr = "children.name " + page.SortOrder()
-		}
-		query = query.Order(orderStr).Offset(page.Offset()).Limit(page.Limit())
-	} else {
-		query = query.Order("children.name")
-	}
-	res := query.Find(&models)
+
+	var models []db.Children
+	res := s.WithContext(ctx).
+		Where("namespace = ? AND is_group = true", namespace).
+		Order("parent_id, name").
+		Find(&models)
+
 	if res.Error != nil {
 		return nil, res.Error
 	}
 
-	result := make([]*types.Entry, len(models))
+	result := make([]*types.Child, len(models))
 	for i, model := range models {
-		result[i] = model.ToEntry()
+		result[i] = model.To()
 	}
 	return result, nil
 }
@@ -652,6 +638,7 @@ func (s *sqlMetaStore) MirrorEntry(ctx context.Context, namespace string, entryI
 		child.ChildID = entryID
 		child.ParentID = newParentID
 		child.Namespace = namespace
+		child.IsGroup = entryModel.IsGroup // support group mirror?
 
 		res = tx.Create(child)
 		if res.Error != nil {

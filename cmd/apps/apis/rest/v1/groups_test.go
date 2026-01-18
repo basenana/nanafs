@@ -101,6 +101,93 @@ var _ = Describe("REST V1 Tree API", func() {
 	})
 })
 
+var _ = Describe("buildGroupTreeFromChildren", func() {
+	It("should build tree from flat children list", func() {
+		children := []*types.Child{
+			{ParentID: 1, ChildID: 2, Name: "group1", IsGroup: true},
+			{ParentID: 2, ChildID: 3, Name: "subgroup1", IsGroup: true},
+			{ParentID: 2, ChildID: 4, Name: "subgroup2", IsGroup: true},
+			{ParentID: 1, ChildID: 5, Name: "group2", IsGroup: true},
+		}
+
+		tree := buildGroupTreeFromChildren(children, 1)
+
+		Expect(tree).Should(HaveLen(2))
+		Expect(tree[0].Name).Should(Equal("group1"))
+		Expect(tree[0].Children).Should(HaveLen(2))
+		Expect(tree[0].Children[0].Name).Should(Equal("subgroup1"))
+		Expect(tree[0].Children[1].Name).Should(Equal("subgroup2"))
+		Expect(tree[1].Name).Should(Equal("group2"))
+	})
+
+	It("should return empty for no children", func() {
+		tree := buildGroupTreeFromChildren([]*types.Child{}, 1)
+		Expect(tree).Should(BeEmpty())
+	})
+
+	It("should handle nested structure", func() {
+		children := []*types.Child{
+			{ParentID: 1, ChildID: 2, Name: "g1", IsGroup: true},
+			{ParentID: 2, ChildID: 3, Name: "g1-1", IsGroup: true},
+			{ParentID: 3, ChildID: 4, Name: "g1-1-1", IsGroup: true},
+		}
+
+		tree := buildGroupTreeFromChildren(children, 1)
+
+		Expect(tree).Should(HaveLen(1))
+		Expect(tree[0].Name).Should(Equal("g1"))
+		Expect(tree[0].Children).Should(HaveLen(1))
+		Expect(tree[0].Children[0].Name).Should(Equal("g1-1"))
+		Expect(tree[0].Children[0].Children).Should(HaveLen(1))
+		Expect(tree[0].Children[0].Children[0].Name).Should(Equal("g1-1-1"))
+	})
+
+	It("should handle single root group", func() {
+		children := []*types.Child{
+			{ParentID: 1, ChildID: 2, Name: "single", IsGroup: true},
+		}
+
+		tree := buildGroupTreeFromChildren(children, 1)
+
+		Expect(tree).Should(HaveLen(1))
+		Expect(tree[0].Name).Should(Equal("single"))
+		Expect(tree[0].Children).Should(BeEmpty())
+	})
+
+	It("should handle multiple levels", func() {
+		children := []*types.Child{
+			{ParentID: 1, ChildID: 2, Name: "a", IsGroup: true},
+			{ParentID: 1, ChildID: 3, Name: "b", IsGroup: true},
+			{ParentID: 2, ChildID: 4, Name: "a1", IsGroup: true},
+			{ParentID: 2, ChildID: 5, Name: "a2", IsGroup: true},
+			{ParentID: 3, ChildID: 6, Name: "b1", IsGroup: true},
+			{ParentID: 4, ChildID: 7, Name: "a1-1", IsGroup: true},
+		}
+
+		tree := buildGroupTreeFromChildren(children, 1)
+
+		Expect(tree).Should(HaveLen(2))
+
+		a := tree[0]
+		Expect(a.Name).Should(Equal("a"))
+		Expect(a.Children).Should(HaveLen(2))
+
+		a1 := a.Children[0]
+		Expect(a1.Name).Should(Equal("a1"))
+		Expect(a1.Children).Should(HaveLen(1))
+		Expect(a1.Children[0].Name).Should(Equal("a1-1"))
+
+		a2 := a.Children[1]
+		Expect(a2.Name).Should(Equal("a2"))
+		Expect(a2.Children).Should(BeEmpty())
+
+		b := tree[1]
+		Expect(b.Name).Should(Equal("b"))
+		Expect(b.Children).Should(HaveLen(1))
+		Expect(b.Children[0].Name).Should(Equal("b1"))
+	})
+})
+
 var _ = Describe("REST V1 Filter API", func() {
 	var router *gin.Engine
 

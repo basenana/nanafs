@@ -45,6 +45,29 @@ func buildMigrations() []*gormigrate.Migration {
 				return nil
 			},
 		},
+		{
+			ID: "2026011800",
+			Migrate: func(db *gorm.DB) error {
+				err := db.AutoMigrate(&Children{})
+				if err != nil {
+					return err
+				}
+				sql := `
+					UPDATE children
+					SET is_group = (
+						SELECT e.is_group
+						FROM entry e
+						WHERE e.id = children.child_id
+						  AND e.namespace = children.namespace
+					)
+					WHERE is_group IS NULL
+				`
+				return db.Exec(sql).Error
+			},
+			Rollback: func(db *gorm.DB) error {
+				return nil
+			},
+		},
 	}
 }
 
