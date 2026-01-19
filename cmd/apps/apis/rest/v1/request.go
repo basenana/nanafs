@@ -18,7 +18,27 @@ package v1
 
 import "github.com/basenana/nanafs/pkg/types"
 
-// CreateEntryRequest 创建条目请求
+type EntrySelector struct {
+	URI string `json:"uri"`
+	ID  int64  `json:"id"`
+}
+
+type EntryDetailRequest struct {
+	EntrySelector
+}
+
+type FileContentRequest struct {
+	EntrySelector
+}
+
+type ListGroupChildrenRequest struct {
+	EntrySelector
+	Page     int64  `json:"page"`
+	PageSize int64  `json:"page_size"`
+	Sort     string `json:"sort"`
+	Order    string `json:"order"`
+}
+
 type CreateEntryRequest struct {
 	URI    string        `json:"uri" binding:"required"`
 	Kind   string        `json:"kind"`
@@ -40,12 +60,11 @@ type FilterConfig struct {
 	CELPattern string `json:"cel_pattern"`
 }
 
-// UpdateEntryRequest 更新条目请求
 type UpdateEntryRequest struct {
+	EntrySelector
 	Aliases string `json:"aliases"`
 }
 
-// ChangeParentRequest 更改父级请求
 type ChangeParentRequest struct {
 	EntryURI    string `json:"entry_uri" binding:"required"`
 	NewEntryURI string `json:"new_entry_uri" binding:"required"`
@@ -53,20 +72,10 @@ type ChangeParentRequest struct {
 	Exchange    bool   `json:"exchange"`
 }
 
-// DeleteEntriesRequest 批量删除请求
 type DeleteEntriesRequest struct {
 	URIList []string `json:"uri_list" binding:"required"`
 }
 
-// ListGroupChildrenRequest 列出组子项请求
-type ListGroupChildrenRequest struct {
-	Page     int64  `form:"page"`
-	PageSize int64  `form:"page_size"`
-	Sort     string `form:"sort"`
-	Order    string `form:"order"`
-}
-
-// PaginationRequest 分页请求
 type PaginationRequest struct {
 	Page     int64  `form:"page"`
 	PageSize int64  `form:"page_size"`
@@ -74,7 +83,6 @@ type PaginationRequest struct {
 	Order    string `form:"order"`
 }
 
-// FilterEntryRequest 过滤条目请求
 type FilterEntryRequest struct {
 	CELPattern string `json:"cel_pattern" binding:"required"` // CEL pattern for filtering
 	Page       int64  `json:"page"`                           // Page number
@@ -83,14 +91,14 @@ type FilterEntryRequest struct {
 	Order      string `json:"order"`                          // Order direction (asc/desc)
 }
 
-// UpdatePropertyRequest 更新属性请求
 type UpdatePropertyRequest struct {
+	EntrySelector
 	Tags       []string          `json:"tags"`
 	Properties map[string]string `json:"properties"`
 }
 
-// UpdateDocumentPropertyRequest 更新文档属性请求
 type UpdateDocumentPropertyRequest struct {
+	EntrySelector
 	Title       *string  `json:"title,omitempty"`
 	Author      *string  `json:"author,omitempty"`
 	Year        *string  `json:"year,omitempty"`
@@ -107,12 +115,10 @@ type UpdateDocumentPropertyRequest struct {
 	PublishAt   *int64   `json:"publish_at,omitempty"`
 }
 
-// ReadMessagesRequest 读取消息请求
 type ReadMessagesRequest struct {
 	MessageIDList []string `json:"message_id_list" binding:"required"`
 }
 
-// TriggerWorkflowRequest 触发工作流请求
 type TriggerWorkflowRequest struct {
 	URI        string            `json:"uri"`
 	Parameters map[string]string `json:"parameters"`
@@ -120,12 +126,10 @@ type TriggerWorkflowRequest struct {
 	Timeout    int64             `json:"timeout"`
 }
 
-// SetConfigRequest 设置配置请求
 type SetConfigRequest struct {
 	Value string `json:"value" binding:"required"`
 }
 
-// CreateWorkflowRequest 创建工作流请求
 type CreateWorkflowRequest struct {
 	Name      string                `json:"name" binding:"required"`
 	Trigger   types.WorkflowTrigger `json:"trigger"`
@@ -134,7 +138,6 @@ type CreateWorkflowRequest struct {
 	QueueName string                `json:"queue_name"`
 }
 
-// UpdateWorkflowRequest 更新工作流请求
 type UpdateWorkflowRequest struct {
 	Name      string                `json:"name"`
 	Trigger   types.WorkflowTrigger `json:"trigger"`

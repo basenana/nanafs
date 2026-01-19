@@ -40,21 +40,32 @@ Health check endpoint for load balancers and monitoring.
 
 Entries are the core resource in NanaFS, representing files, groups, and other entities.
 
-All entry-related endpoints support two access patterns:
+All entry-related endpoints support two access patterns via request body:
 
-- **By URI**: Use `?uri=/path/to/entry` query parameter
-- **By ID**: Use `?id=12345` query parameter
+- **By URI**: Use `{"uri": "/path/to/entry"}` in request body
+- **By ID**: Use `{"id": 12345}` in request body
 
-#### GET /api/v1/entries/details
+The `uri` and `id` fields are mutually exclusive - specify either one, not both.
+
+#### POST /api/v1/entries/details
 
 Retrieve details of a specific entry.
 
-**Query Parameters**
+**Request Body**
 
-| Name  | Type   | Description                                    |
-|-------|--------|------------------------------------------------|
-| `uri` | string | Entry URI path (e.g., `/inbox/tasks/task-001`) |
-| `id`  | int64  | Entry ID                                       |
+```json
+{
+  "uri": "/inbox/tasks/task-001"
+}
+```
+
+Or by ID:
+
+```json
+{
+  "id": 1001
+}
+```
 
 **Response**
 
@@ -312,16 +323,25 @@ Update entry attributes. Supports `?uri=` or `?id=` query parameters.
 }
 ```
 
-#### DELETE /api/v1/entries
+#### POST /api/v1/entries/delete
 
-Delete a single entry. Supports `?uri=` or `?id=` query parameters.
+Delete a single entry.
 
-**Query Parameters**
+**Request Body:**
 
-| Name  | Type   | Description    |
-|-------|--------|----------------|
-| `uri` | string | Entry URI path |
-| `id`  | int64  | Entry ID       |
+```json
+{
+  "uri": "/inbox/tasks/task-001"
+}
+```
+
+Or by ID:
+
+```json
+{
+  "id": 1002
+}
+```
 
 **Response:**
 
@@ -406,16 +426,34 @@ Change an entry's parent group.
 
 #### PUT /api/v1/entries/property
 
-Get or update tags and custom properties. Supports `?uri=` or `?id=` query parameters.
+Update tags and custom properties for an entry.
 
-**Query Parameters**
+**Request Body:**
 
-| Name  | Type   | Description    |
-|-------|--------|----------------|
-| `uri` | string | Entry URI path |
-| `id`  | int64  | Entry ID       |
+```json
+{
+  "uri": "/inbox/tasks/task-001",
+  "tags": ["important", "review"],
+  "properties": {
+    "priority": "high",
+    "due_date": "2024-01-15"
+  }
+}
+```
 
-**GET Response:**
+Or by ID:
+
+```json
+{
+  "id": 1001,
+  "tags": ["important"],
+  "properties": {
+    "priority": "high"
+  }
+}
+```
+
+**Response:**
 
 ```json
 {
@@ -561,16 +599,25 @@ Update document-specific properties. Supports `?uri=` or `?id=` query parameters
 }
 ```
 
-#### GET /api/v1/entries/friday
+#### POST /api/v1/entries/friday
 
-Get Friday processing summary for an entry. Supports `?uri=` or `?id=` query parameters.
+Get Friday processing summary for an entry.
 
-**Query Parameters**
+**Request Body:**
 
-| Name  | Type   | Description    |
-|-------|--------|----------------|
-| `uri` | string | Entry URI path |
-| `id`  | int64  | Entry ID       |
+```json
+{
+  "uri": "/inbox/tasks/task-001"
+}
+```
+
+Or by ID:
+
+```json
+{
+  "id": 1001
+}
+```
 
 **Response:**
 
@@ -592,20 +639,31 @@ Get Friday processing summary for an entry. Supports `?uri=` or `?id=` query par
 
 ### 3. Groups (组管理)
 
-#### GET /api/v1/groups/children
+#### POST /api/v1/groups/children
 
-List all children of a group. Supports `?uri=` or `?id=` query parameters.
+List all children of a group.
 
-**Query Parameters**
+**Request Body:**
 
-| Name        | Type   | Description                                                      |
-|-------------|--------|------------------------------------------------------------------|
-| `uri`       | string | Group URI path                                                   |
-| `id`        | int64  | Group ID                                                         |
-| `page`      | int64  | Page number (default: 1)                                         |
-| `page_size` | int64  | Number of items per page (default: all)                          |
-| `sort`      | string | Sort field: `created_at`, `changed_at`, `name` (default: `name`) |
-| `order`     | string | Sort order: `asc`, `desc` (default: `asc`)                       |
+```json
+{
+  "uri": "/inbox",
+  "page": 1,
+  "page_size": 10,
+  "sort": "name",
+  "order": "asc"
+}
+```
+
+Or by ID:
+
+```json
+{
+  "id": 1001,
+  "page": 1,
+  "page_size": 10
+}
+```
 
 **Response**
 
@@ -681,33 +739,43 @@ Get the complete group tree structure.
 
 ### 4. Files (文件操作)
 
-#### GET /api/v1/files/content
+#### POST /api/v1/files/content
 
-Read file content. Supports `?uri=` or `?id=` query parameters.
+Read file content.
 
-**Query Parameters**
+**Request Body:**
 
-| Name  | Type   | Description   |
-|-------|--------|---------------|
-| `uri` | string | File URI path |
-| `id`  | int64  | File ID       |
+```json
+{
+  "uri": "/inbox/docs/document.pdf"
+}
+```
+
+Or by ID:
+
+```json
+{
+  "id": 2001
+}
+```
 
 **Response:** `application/octet-stream`
 
-#### POST /api/v1/files/content
+#### POST /api/v1/files/content/write
 
-Upload/write file content. Supports `?uri=` or `?id=` query parameters.
+Upload/write file content.
 
 **Content-Type:** `multipart/form-data`
 
-**Form Field:** `file` (the file to upload)
+**Form Fields:**
 
-**Query Parameters**
+| Field  | Type   | Description              |
+|--------|--------|--------------------------|
+| `file` | file   | The file to upload       |
+| `uri`  | string | File URI path (optional) |
+| `id`   | int64  | File ID (optional)       |
 
-| Name  | Type   | Description   |
-|-------|--------|---------------|
-| `uri` | string | File URI path |
-| `id`  | int64  | File ID       |
+Note: Either `uri` or `id` must be provided in the form data to specify the target file entry.
 
 **Response:**
 
@@ -1493,13 +1561,13 @@ List all available workflow plugins with their parameters.
 
 **Fields:**
 
-| Field             | Type   | Description                                      |
-|-------------------|--------|--------------------------------------------------|
-| `name`            | string | Plugin name                                      |
-| `version`         | string | Plugin version                                   |
-| `type`            | string | Plugin type: `process` or `source`               |
-| `init_parameters` | array  | Parameters for plugin initialization (via Config)|
-| `parameters`      | array  | Parameters for plugin execution (via Request)    |
+| Field             | Type   | Description                                       |
+|-------------------|--------|---------------------------------------------------|
+| `name`            | string | Plugin name                                       |
+| `version`         | string | Plugin version                                    |
+| `type`            | string | Plugin type: `process` or `source`                |
+| `init_parameters` | array  | Parameters for plugin initialization (via Config) |
+| `parameters`      | array  | Parameters for plugin execution (via Request)     |
 
 **Parameter Fields:**
 

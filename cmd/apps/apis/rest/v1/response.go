@@ -177,8 +177,8 @@ type WriteFileResponse struct {
 }
 
 type PaginationInfo struct {
-	Page     int64 `json:"page"`
-	PageSize int64 `json:"page_size"`
+	Page     int64 `json:"page,omitempty"`
+	PageSize int64 `json:"page_size,omitempty"`
 }
 
 type ListEntriesResponse struct {
@@ -448,11 +448,11 @@ type PluginParameter struct {
 }
 
 type PluginInfo struct {
-	Name            string            `json:"name"`
-	Version         string            `json:"version"`
-	Type            string            `json:"type"`
-	InitParameters  []PluginParameter `json:"init_parameters"`
-	Parameters      []PluginParameter `json:"parameters"`
+	Name           string            `json:"name"`
+	Version        string            `json:"version"`
+	Type           string            `json:"type"`
+	InitParameters []PluginParameter `json:"init_parameters"`
+	Parameters     []PluginParameter `json:"parameters"`
 }
 
 type ListPluginsResponse struct {

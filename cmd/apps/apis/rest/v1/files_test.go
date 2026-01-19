@@ -34,6 +34,17 @@ var _ = Describe("REST V1 File API", func() {
 
 	BeforeEach(func() {
 		router = testRouter.Router
+		// Clean up entries before each test to ensure isolation
+		cleanupEntries := []string{"/test-file.txt"}
+		for _, uri := range cleanupEntries {
+			reqBody := map[string]string{"uri": uri}
+			jsonBody, _ := json.Marshal(reqBody)
+			req, _ := http.NewRequest("POST", "/api/v1/entries/delete", bytes.NewBuffer(jsonBody))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+		}
 	})
 
 	Describe("WriteFile", func() {
@@ -50,7 +61,9 @@ var _ = Describe("REST V1 File API", func() {
 			router.ServeHTTP(createW, createHttpReq)
 			Expect(createW.Code).To(Equal(http.StatusCreated))
 
-			req, err := http.NewRequest("POST", "/api/v1/files/content?id=99999", bytes.NewBufferString(""))
+			reqBody := map[string]int64{"id": 99999}
+			jsonBody, _ := json.Marshal(reqBody)
+			req, err := http.NewRequest("POST", "/api/v1/files/content/write", bytes.NewBuffer(jsonBody))
 			Expect(err).Should(BeNil())
 			req.Header.Set("Content-Type", "multipart/form-data; boundary=----WebKitFormBoundary")
 			req.Header.Set("X-Namespace", types.DefaultNamespace)
@@ -60,14 +73,19 @@ var _ = Describe("REST V1 File API", func() {
 
 			Expect(w.Code).To(Equal(http.StatusNotFound))
 
-			delReq, _ := http.NewRequest("DELETE", "/api/v1/entries?uri=/test-file.txt", nil)
+			delReqBody := map[string]string{"uri": "/test-file.txt"}
+			delJsonBody, _ := json.Marshal(delReqBody)
+			delReq, _ := http.NewRequest("POST", "/api/v1/entries/delete", bytes.NewBuffer(delJsonBody))
+			delReq.Header.Set("Content-Type", "application/json")
 			delReq.Header.Set("X-Namespace", types.DefaultNamespace)
 			delW := httptest.NewRecorder()
 			router.ServeHTTP(delW, delReq)
 		})
 
 		It("should return 404 for non-existent entry", func() {
-			req, err := http.NewRequest("POST", "/api/v1/files/content?id=99999", bytes.NewBufferString("test"))
+			reqBody := map[string]int64{"id": 99999}
+			jsonBody, _ := json.Marshal(reqBody)
+			req, err := http.NewRequest("POST", "/api/v1/files/content/write", bytes.NewBuffer(jsonBody))
 			Expect(err).Should(BeNil())
 			req.Header.Set("Content-Type", "multipart/form-data; boundary=----WebKitFormBoundary")
 			req.Header.Set("X-Namespace", types.DefaultNamespace)
@@ -81,8 +99,11 @@ var _ = Describe("REST V1 File API", func() {
 
 	Describe("ReadFile", func() {
 		It("should return 404 for non-existent entry", func() {
-			req, err := http.NewRequest("GET", "/api/v1/files/content?id=99999", nil)
+			reqBody := map[string]int64{"id": 99999}
+			jsonBody, _ := json.Marshal(reqBody)
+			req, err := http.NewRequest("POST", "/api/v1/files/content", bytes.NewBuffer(jsonBody))
 			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Namespace", types.DefaultNamespace)
 
 			w := httptest.NewRecorder()

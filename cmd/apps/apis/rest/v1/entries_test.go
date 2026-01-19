@@ -34,12 +34,26 @@ var _ = Describe("REST V1 Entries API - CRUD Operations", func() {
 
 	BeforeEach(func() {
 		router = testRouter.Router
+		// Clean up entries before each test to ensure isolation
+		cleanupEntries := []string{"/test-group", "/test-file", "/test-folder", "/test-folder/subfolder"}
+		for _, uri := range cleanupEntries {
+			reqBody := map[string]string{"uri": uri}
+			jsonBody, _ := json.Marshal(reqBody)
+			req, _ := http.NewRequest("POST", "/api/v1/entries/delete", bytes.NewBuffer(jsonBody))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+		}
 	})
 
 	AfterEach(func() {
 		cleanupEntries := []string{"/test-group", "/test-file", "/test-folder", "/test-folder/subfolder"}
 		for _, uri := range cleanupEntries {
-			req, _ := http.NewRequest("DELETE", "/api/v1/entries?uri="+uri, nil)
+			reqBody := map[string]string{"uri": uri}
+			jsonBody, _ := json.Marshal(reqBody)
+			req, _ := http.NewRequest("POST", "/api/v1/entries/delete", bytes.NewBuffer(jsonBody))
+			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Namespace", types.DefaultNamespace)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
@@ -193,8 +207,11 @@ var _ = Describe("REST V1 Entries API - CRUD Operations", func() {
 			router.ServeHTTP(createW, createHttpReq)
 			Expect(createW.Code).To(Equal(http.StatusCreated))
 
-			req, err := http.NewRequest("GET", "/api/v1/entries/details?uri=/test-group", nil)
+			reqBody := map[string]string{"uri": "/test-group"}
+			jsonBody, _ := json.Marshal(reqBody)
+			req, err := http.NewRequest("POST", "/api/v1/entries/details", bytes.NewBuffer(jsonBody))
 			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Namespace", types.DefaultNamespace)
 
 			w := httptest.NewRecorder()
@@ -204,8 +221,11 @@ var _ = Describe("REST V1 Entries API - CRUD Operations", func() {
 		})
 
 		It("should return error for non-existent entry", func() {
-			req, err := http.NewRequest("GET", "/api/v1/entries/details?uri=/non-existent", nil)
+			reqBody := map[string]string{"uri": "/non-existent"}
+			jsonBody, _ := json.Marshal(reqBody)
+			req, err := http.NewRequest("POST", "/api/v1/entries/details", bytes.NewBuffer(jsonBody))
 			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Namespace", types.DefaultNamespace)
 
 			w := httptest.NewRecorder()
@@ -230,10 +250,11 @@ var _ = Describe("REST V1 Entries API - CRUD Operations", func() {
 			Expect(createW.Code).To(Equal(http.StatusCreated))
 
 			updateReq := UpdateEntryRequest{
-				Aliases: "updated-alias",
+				EntrySelector: EntrySelector{URI: "/test-group"},
+				Aliases:       "updated-alias",
 			}
 			updateJson, _ := json.Marshal(updateReq)
-			updateHttpReq, _ := http.NewRequest("PUT", "/api/v1/entries?uri=/test-group", bytes.NewBuffer(updateJson))
+			updateHttpReq, _ := http.NewRequest("PUT", "/api/v1/entries", bytes.NewBuffer(updateJson))
 			updateHttpReq.Header.Set("Content-Type", "application/json")
 			updateHttpReq.Header.Set("X-Namespace", types.DefaultNamespace)
 			updateW := httptest.NewRecorder()
@@ -257,8 +278,11 @@ var _ = Describe("REST V1 Entries API - CRUD Operations", func() {
 			router.ServeHTTP(createW, createHttpReq)
 			Expect(createW.Code).To(Equal(http.StatusCreated))
 
-			req, err := http.NewRequest("DELETE", "/api/v1/entries?uri=/test-group", nil)
+			reqBody := map[string]string{"uri": "/test-group"}
+			jsonBody, _ := json.Marshal(reqBody)
+			req, err := http.NewRequest("POST", "/api/v1/entries/delete", bytes.NewBuffer(jsonBody))
 			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Namespace", types.DefaultNamespace)
 
 			w := httptest.NewRecorder()
@@ -282,8 +306,11 @@ var _ = Describe("REST V1 Entries API - CRUD Operations", func() {
 			router.ServeHTTP(createW, createHttpReq)
 			Expect(createW.Code).To(Equal(http.StatusCreated))
 
-			req, err := http.NewRequest("GET", "/api/v1/groups/children?uri=/list-children-test", nil)
+			reqBody := map[string]string{"uri": "/list-children-test"}
+			jsonBody, _ := json.Marshal(reqBody)
+			req, err := http.NewRequest("POST", "/api/v1/groups/children", bytes.NewBuffer(jsonBody))
 			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Namespace", types.DefaultNamespace)
 
 			w := httptest.NewRecorder()
@@ -291,7 +318,10 @@ var _ = Describe("REST V1 Entries API - CRUD Operations", func() {
 
 			Expect(w.Code).To(Equal(http.StatusOK))
 
-			delReq, _ := http.NewRequest("DELETE", "/api/v1/entries?uri=/list-children-test", nil)
+			delReqBody := map[string]string{"uri": "/list-children-test"}
+			delJsonBody, _ := json.Marshal(delReqBody)
+			delReq, _ := http.NewRequest("POST", "/api/v1/entries/delete", bytes.NewBuffer(delJsonBody))
+			delReq.Header.Set("Content-Type", "application/json")
 			delReq.Header.Set("X-Namespace", types.DefaultNamespace)
 			delW := httptest.NewRecorder()
 			router.ServeHTTP(delW, delReq)
@@ -358,7 +388,10 @@ var _ = Describe("REST V1 Properties API", func() {
 	})
 
 	AfterEach(func() {
-		req, _ := http.NewRequest("DELETE", "/api/v1/entries?uri=/test-group", nil)
+		reqBody := map[string]string{"uri": "/test-group"}
+		jsonBody, _ := json.Marshal(reqBody)
+		req, _ := http.NewRequest("POST", "/api/v1/entries", bytes.NewBuffer(jsonBody))
+		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-Namespace", types.DefaultNamespace)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
@@ -367,12 +400,13 @@ var _ = Describe("REST V1 Properties API", func() {
 	Describe("UpdateProperty", func() {
 		It("should update entry properties", func() {
 			reqBody := UpdatePropertyRequest{
-				Tags:       []string{"tag1", "tag2"},
-				Properties: map[string]string{"key": "value"},
+				EntrySelector: EntrySelector{URI: "/test-group"},
+				Tags:          []string{"tag1", "tag2"},
+				Properties:    map[string]string{"key": "value"},
 			}
 			jsonBody, _ := json.Marshal(reqBody)
 
-			req, err := http.NewRequest("PUT", "/api/v1/entries/property?uri=/test-group", bytes.NewBuffer(jsonBody))
+			req, err := http.NewRequest("PUT", "/api/v1/entries/property", bytes.NewBuffer(jsonBody))
 			Expect(err).Should(BeNil())
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Namespace", types.DefaultNamespace)
@@ -385,12 +419,13 @@ var _ = Describe("REST V1 Properties API", func() {
 
 		It("should return 404 for non-existent entry", func() {
 			reqBody := UpdatePropertyRequest{
-				Tags:       []string{"tag1"},
-				Properties: map[string]string{"key": "value"},
+				EntrySelector: EntrySelector{URI: "/non-existent"},
+				Tags:          []string{"tag1"},
+				Properties:    map[string]string{"key": "value"},
 			}
 			jsonBody, _ := json.Marshal(reqBody)
 
-			req, err := http.NewRequest("PUT", "/api/v1/entries/property?uri=/non-existent", bytes.NewBuffer(jsonBody))
+			req, err := http.NewRequest("PUT", "/api/v1/entries/property", bytes.NewBuffer(jsonBody))
 			Expect(err).Should(BeNil())
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Namespace", types.DefaultNamespace)
@@ -535,16 +570,22 @@ var _ = Describe("REST V1 Entry Query API", func() {
 	})
 
 	AfterEach(func() {
-		req, _ := http.NewRequest("DELETE", "/api/v1/entries?uri=/query-test-group", nil)
+		reqBody := map[string]string{"uri": "/query-test-group"}
+		jsonBody, _ := json.Marshal(reqBody)
+		req, _ := http.NewRequest("POST", "/api/v1/entries/delete", bytes.NewBuffer(jsonBody))
+		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-Namespace", types.DefaultNamespace)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 	})
 
 	Describe("EntryDetails", func() {
-		It("should return entry details using query parameter", func() {
-			req, err := http.NewRequest("GET", "/api/v1/entries/details?uri=/query-test-group", nil)
+		It("should return entry details using body parameter", func() {
+			reqBody := map[string]string{"uri": "/query-test-group"}
+			jsonBody, _ := json.Marshal(reqBody)
+			req, err := http.NewRequest("POST", "/api/v1/entries/details", bytes.NewBuffer(jsonBody))
 			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Namespace", types.DefaultNamespace)
 
 			w := httptest.NewRecorder()
@@ -554,8 +595,11 @@ var _ = Describe("REST V1 Entry Query API", func() {
 		})
 
 		It("should return 404 when entry not found", func() {
-			req, err := http.NewRequest("GET", "/api/v1/entries/details?uri=/non-existent-entry", nil)
+			reqBody := map[string]string{"uri": "/non-existent-entry"}
+			jsonBody, _ := json.Marshal(reqBody)
+			req, err := http.NewRequest("POST", "/api/v1/entries/details", bytes.NewBuffer(jsonBody))
 			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Namespace", types.DefaultNamespace)
 
 			w := httptest.NewRecorder()
@@ -567,8 +611,11 @@ var _ = Describe("REST V1 Entry Query API", func() {
 
 	Describe("EntryChildren", func() {
 		It("should return entry children", func() {
-			req, err := http.NewRequest("GET", "/api/v1/entries/details?uri=/query-test-group", nil)
+			reqBody := map[string]string{"uri": "/query-test-group"}
+			jsonBody, _ := json.Marshal(reqBody)
+			req, err := http.NewRequest("POST", "/api/v1/entries/details", bytes.NewBuffer(jsonBody))
 			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Namespace", types.DefaultNamespace)
 
 			w := httptest.NewRecorder()
@@ -580,8 +627,11 @@ var _ = Describe("REST V1 Entry Query API", func() {
 
 	Describe("Complex Nested URI Operations", func() {
 		It("should handle non-existent URI gracefully", func() {
-			req, err := http.NewRequest("GET", "/api/v1/entries/details?uri=/non-existent/uri/path", nil)
+			reqBody := map[string]string{"uri": "/non-existent/uri/path"}
+			jsonBody, _ := json.Marshal(reqBody)
+			req, err := http.NewRequest("POST", "/api/v1/entries/details", bytes.NewBuffer(jsonBody))
 			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Namespace", types.DefaultNamespace)
 
 			w := httptest.NewRecorder()

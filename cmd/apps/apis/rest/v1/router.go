@@ -35,36 +35,36 @@ func RegisterRoutes(engine *gin.Engine, s *ServicesV1) {
 			This is a special case; other APIs still need to conform to RESTful API specifications.
 		*/
 
-		// Entries - support ?uri= or ?id= query parameters
+		// Entries - support body with uri or id
 		entries := v1.Group("/entries")
 		{
 			entries.POST("", s.CreateEntry)
 			entries.POST("/search", s.FilterEntry)
 			entries.POST("/batch-delete", s.DeleteEntries)
-			entries.DELETE("", s.DeleteEntry)
+			entries.POST("/delete", s.DeleteEntry)
 
-			// Routes supporting ?uri= or ?id= query parameters
-			entries.GET("/details", s.EntryDetails)
-			entries.GET("/property", s.EntryProperty)
-			entries.GET("/friday", s.GetFridayProperty)
+			entries.POST("/details", s.EntryDetails)
+			entries.POST("/property", s.EntryProperty)
+			entries.POST("/friday", s.GetFridayProperty)
+
 			entries.PUT("", s.UpdateEntry)
 			entries.PUT("/parent", s.ChangeParent)
 			entries.PUT("/property", s.UpdateProperty)
 			entries.PUT("/document", s.UpdateDocumentProperty)
 		}
 
-		// Groups - support ?uri= query parameter
+		// Groups - support body with uri or id
 		groups := v1.Group("/groups")
 		{
-			groups.GET("/children", s.ListGroupChildren)
+			groups.POST("/children", s.ListGroupChildren)
 			groups.GET("/tree", s.GroupTree)
 		}
 
-		// Files - support ?uri= or ?id= query parameters
+		// Files - support body with uri or id
 		files := v1.Group("/files")
 		{
-			files.GET("/content", s.ReadFile)
-			files.POST("/content", s.WriteFile)
+			files.POST("/content", s.ReadFile)
+			files.POST("/content/write", s.WriteFile)
 		}
 
 		// Messages

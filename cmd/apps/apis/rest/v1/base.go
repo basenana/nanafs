@@ -21,8 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -78,23 +76,27 @@ func (s *ServicesV1) requireCaller(ctx *gin.Context) *common.CallerInfo {
 	return caller
 }
 
-// requireEntryWithPermission gets entry by uri or id query parameter and checks permissions.
-func (s *ServicesV1) requireEntryWithPermission(ctx *gin.Context, caller *common.CallerInfo, perms ...types.Permission) (*types.Entry, string) {
-	uri := decodeMagicURI(ctx.Query("uri"))
-	idStr := ctx.Query("id")
+// requireEntryWithPermission gets entry by uri or id in request body and checks permissions.
+// If selector is provided, it will be used instead of binding from body.
+func (s *ServicesV1) requireEntryWithPermission(ctx *gin.Context, caller *common.CallerInfo, selector *EntrySelector, perms ...types.Permission) (*types.Entry, string) {
+	var (
+		req EntrySelector
+		uri string
+		err error
+	)
+	if selector == nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", fmt.Errorf("url and id is empty"))
+		return nil, ""
+	}
+	req = *selector
 
 	var en *types.Entry
-	var err error
 
-	if uri != "" {
-		_, en, err = s.core.GetEntryByPath(ctx.Request.Context(), caller.Namespace, uri)
-	} else if idStr != "" {
-		id, parseErr := strconv.ParseInt(idStr, 10, 64)
-		if parseErr != nil {
-			apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("invalid id format"))
-			return nil, ""
-		}
-		en, err = s.core.GetEntry(ctx.Request.Context(), caller.Namespace, id)
+	if req.URI != "" {
+		uri = req.URI
+		_, en, err = s.core.GetEntryByPath(ctx.Request.Context(), caller.Namespace, req.URI)
+	} else if req.ID != 0 {
+		en, err = s.core.GetEntry(ctx.Request.Context(), caller.Namespace, req.ID)
 	} else {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("missing uri or id parameter"))
 		return nil, ""
@@ -307,10 +309,4 @@ func (s *ServicesV1) Config() config.Config {
 
 func (s *ServicesV1) Logger() *zap.SugaredLogger {
 	return s.logger
-}
-
-func decodeMagicURI(uri string) string {
-	// URLQueryItem does not encode + (it has special meaning in query strings).
-	// We manually encode + to %2B, and let the backend handle other encodings.
-	return strings.ReplaceAll(uri, "%2B", "+")
 }

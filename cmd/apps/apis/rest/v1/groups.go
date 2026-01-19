@@ -17,6 +17,7 @@
 package v1
 
 import (
+	"errors"
 	"net/http"
 	"path"
 
@@ -68,29 +69,36 @@ func (s *ServicesV1) GroupTree(ctx *gin.Context) {
 // @Tags Groups
 // @Accept json
 // @Produce json
-// @Param uri query string false "Group URI"
-// @Param page query int false "Page number"
-// @Param page_size query int false "Page size"
-// @Param order query string false "Order field"
-// @Param desc query bool false "Sort descending"
+// @Param request body ListGroupChildrenRequest true "Group selector with pagination"
 // @Success 200 {object} ListEntriesResponse
-// @Router /api/v1/groups/children [get]
+// @Router /api/v1/groups/children [post]
 func (s *ServicesV1) ListGroupChildren(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
 		return
 	}
 
-	var req ListGroupChildrenRequest
-	if err := ctx.ShouldBindQuery(&req); err != nil {
+	var (
+		req      ListGroupChildrenRequest
+		parentID int64
+		err      error
+		pageInfo *PaginationInfo
+	)
+	if err = ctx.ShouldBindJSON(&req); err != nil {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
-	uri := decodeMagicURI(ctx.Query("uri"))
-	_, parentID, err := s.getEntryByPath(ctx.Request.Context(), caller.Namespace, uri)
-	if err != nil {
-		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+	if req.URI != "" {
+		_, parentID, err = s.getEntryByPath(ctx.Request.Context(), caller.Namespace, req.URI)
+		if err != nil {
+			apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+			return
+		}
+	} else if req.ID != 0 {
+		parentID = req.ID
+	} else {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("missing uri or id parameter"))
 		return
 	}
 
@@ -103,19 +111,16 @@ func (s *ServicesV1) ListGroupChildren(ctx *gin.Context) {
 		return
 	}
 
-	page := pg.Page
-	pageSize := pg.PageSize
-
+	if pg != nil {
+		pageInfo = &PaginationInfo{Page: pg.Page, PageSize: pg.PageSize}
+	}
 	entries := make([]*EntryInfo, 0, len(children))
 	for _, en := range children {
 		doc := s.getDocumentProperty(ctx.Request.Context(), caller.Namespace, en)
-		entries = append(entries, toEntryInfo(uri, en.Name, en, doc))
+		entries = append(entries, toEntryInfo(req.URI, en.Name, en, doc))
 	}
 
-	apitool.JsonResponse(ctx, http.StatusOK, &ListEntriesResponse{
-		Entries:    entries,
-		Pagination: &PaginationInfo{Page: page, PageSize: pageSize},
-	})
+	apitool.JsonResponse(ctx, http.StatusOK, &ListEntriesResponse{Entries: entries, Pagination: pageInfo})
 }
 
 // buildGroupTreeFromChildren builds group tree from flat children list.

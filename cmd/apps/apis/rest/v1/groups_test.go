@@ -72,7 +72,10 @@ var _ = Describe("REST V1 Tree API", func() {
 			Expect(w.Code).To(Equal(http.StatusOK))
 
 			for _, uri := range []string{"/group1", "/group2"} {
-				delReq, _ := http.NewRequest("DELETE", "/api/v1/entries?uri="+uri, nil)
+				delReqBody := map[string]string{"uri": uri}
+				delJsonBody, _ := json.Marshal(delReqBody)
+				delReq, _ := http.NewRequest("POST", "/api/v1/entries/delete", bytes.NewBuffer(delJsonBody))
+				delReq.Header.Set("Content-Type", "application/json")
 				delReq.Header.Set("X-Namespace", types.DefaultNamespace)
 				delW := httptest.NewRecorder()
 				router.ServeHTTP(delW, delReq)
@@ -82,8 +85,15 @@ var _ = Describe("REST V1 Tree API", func() {
 
 	Describe("ListGroupChildren", func() {
 		It("should return pagination info", func() {
-			req, err := http.NewRequest("GET", "/api/v1/groups/children?uri=/&page=1&page_size=10", nil)
+			reqBody := ListGroupChildrenRequest{
+				EntrySelector: EntrySelector{URI: "/"},
+				Page:          1,
+				PageSize:      10,
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+			req, err := http.NewRequest("POST", "/api/v1/groups/children", bytes.NewBuffer(jsonBody))
 			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Namespace", types.DefaultNamespace)
 
 			w := httptest.NewRecorder()

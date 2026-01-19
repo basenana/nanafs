@@ -32,18 +32,23 @@ import (
 // @Tags Files
 // @Accept multipart/form-data
 // @Produce json
-// @Param uri query string false "File URI"
-// @Param id query string false "File ID"
+// @Param request body FileContentRequest true "File selector"
 // @Param file formData file true "File content"
 // @Success 200 {object} WriteFileResponse
-// @Router /api/v1/files/content [post]
+// @Router /api/v1/files/content/write [post]
 func (s *ServicesV1) WriteFile(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
 		return
 	}
 
-	en, _ := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermOwnerWrite, types.PermOwnerWrite)
+	var req FileContentRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	en, _ := s.requireEntryWithPermission(ctx, caller, &req.EntrySelector, types.PermOwnerWrite, types.PermOwnerWrite, types.PermOwnerWrite)
 	if en == nil {
 		return
 	}
@@ -99,17 +104,22 @@ func (s *ServicesV1) WriteFile(ctx *gin.Context) {
 // @Tags Files
 // @Accept json
 // @Produce octet-stream
-// @Param uri query string false "File URI"
-// @Param id query string false "File ID"
+// @Param request body FileContentRequest true "File selector"
 // @Success 200 {string} binary "File content"
-// @Router /api/v1/files/content [get]
+// @Router /api/v1/files/content [post]
 func (s *ServicesV1) ReadFile(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
 		return
 	}
 
-	en, _ := s.requireEntryWithPermission(ctx, caller, types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead)
+	var req FileContentRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	en, _ := s.requireEntryWithPermission(ctx, caller, &req.EntrySelector, types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead)
 	if en == nil {
 		return
 	}

@@ -100,40 +100,6 @@ func (s *ServicesV1) CreateEntry(ctx *gin.Context) {
 	})
 }
 
-// @Summary Get entry detail
-// @Description Retrieve entry details by URI or ID
-// @Tags Entries
-// @Accept json
-// @Produce json
-// @Param uri query string false "Entry URI"
-// @Param id query string false "Entry ID"
-// @Success 200 {object} EntryDetailResponse
-// @Router /api/v1/entries/details [get]
-func (s *ServicesV1) GetEntryDetail(ctx *gin.Context) {
-	caller := s.requireCaller(ctx)
-	if caller == nil {
-		return
-	}
-
-	uri := ctx.Param("uri")
-
-	en, _ := s.requireEntryWithPermission(ctx, caller, types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead)
-	if en == nil {
-		return
-	}
-
-	parentURI, name := path.Split(uri)
-	detail, err := s.getEntryDetails(ctx.Request.Context(), caller.Namespace, parentURI, name, en.ID)
-	if err != nil {
-		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
-		return
-	}
-
-	apitool.JsonResponse(ctx, http.StatusOK, &EntryDetailResponse{
-		Entry: detail,
-	})
-}
-
 // @Summary Update entry
 // @Description Update an existing entry's aliases
 // @Tags Entries
@@ -156,7 +122,7 @@ func (s *ServicesV1) UpdateEntry(ctx *gin.Context) {
 		return
 	}
 
-	en, uri := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	en, uri := s.requireEntryWithPermission(ctx, caller, &req.EntrySelector, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
 	if en == nil {
 		return
 	}
@@ -193,17 +159,22 @@ func (s *ServicesV1) UpdateEntry(ctx *gin.Context) {
 // @Tags Entries
 // @Accept json
 // @Produce json
-// @Param uri query string false "Entry URI"
-// @Param id query string false "Entry ID"
+// @Param request body EntryDetailRequest true "Entry selector"
 // @Success 200 {object} EntryResponse
-// @Router /api/v1/entries [delete]
+// @Router /api/v1/entries/delete [post]
 func (s *ServicesV1) DeleteEntry(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
 		return
 	}
 
-	en, uri := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	var req EntryDetailRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	en, uri := s.requireEntryWithPermission(ctx, caller, &req.EntrySelector, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
 	if en == nil {
 		return
 	}
@@ -404,17 +375,22 @@ func (s *ServicesV1) FilterEntry(ctx *gin.Context) {
 // @Tags Entries
 // @Accept json
 // @Produce json
-// @Param uri query string false "Entry URI"
-// @Param id query string false "Entry ID"
+// @Param request body EntryDetailRequest true "Entry selector"
 // @Success 200 {object} EntryDetailResponse
-// @Router /api/v1/entries/details [get]
+// @Router /api/v1/entries/details [post]
 func (s *ServicesV1) EntryDetails(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
 		return
 	}
 
-	en, uri := s.requireEntryWithPermission(ctx, caller, types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead)
+	var req EntryDetailRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	en, uri := s.requireEntryWithPermission(ctx, caller, &req.EntrySelector, types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead)
 	if en == nil {
 		return
 	}
@@ -434,17 +410,22 @@ func (s *ServicesV1) EntryDetails(ctx *gin.Context) {
 // @Tags Entries
 // @Accept json
 // @Produce json
-// @Param uri query string false "Entry URI"
-// @Param id query string false "Entry ID"
+// @Param request body EntryDetailRequest true "Entry selector"
 // @Success 200 {object} PropertyResponse
-// @Router /api/v1/entries/property [get]
+// @Router /api/v1/entries/property [post]
 func (s *ServicesV1) EntryProperty(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
 		return
 	}
 
-	en, _ := s.requireEntryWithPermission(ctx, caller, types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead)
+	var req EntryDetailRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	en, _ := s.requireEntryWithPermission(ctx, caller, &req.EntrySelector, types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead)
 	if en == nil {
 		return
 	}
@@ -482,7 +463,7 @@ func (s *ServicesV1) EntryDocument(ctx *gin.Context) {
 		return
 	}
 
-	en, _ := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	en, _ := s.requireEntryWithPermission(ctx, caller, &req.EntrySelector, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
 	if en == nil {
 		return
 	}
@@ -566,38 +547,6 @@ func (s *ServicesV1) EntryDocument(ctx *gin.Context) {
 	})
 }
 
-// @Summary Delete entry
-// @Description Delete an entry by URI or ID
-// @Tags Entries
-// @Accept json
-// @Produce json
-// @Param uri query string false "Entry URI"
-// @Param id query string false "Entry ID"
-// @Success 200 {object} EntryResponse
-// @Router /api/v1/entries [delete]
-func (s *ServicesV1) EntryDelete(ctx *gin.Context) {
-	caller := s.requireCaller(ctx)
-	if caller == nil {
-		return
-	}
-
-	en, uri := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
-	if en == nil {
-		return
-	}
-
-	deletedEntry, err := s.deleteEntry(ctx.Request.Context(), caller.Namespace, caller.UID, uri)
-	if err != nil {
-		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
-		return
-	}
-
-	parentURI, name := path.Split(uri)
-	apitool.JsonResponse(ctx, http.StatusOK, &EntryResponse{
-		Entry: toEntryInfo(parentURI, name, deletedEntry, nil),
-	})
-}
-
 // @Summary Update entry property
 // @Description Update properties and tags of an entry
 // @Tags Entries
@@ -620,7 +569,7 @@ func (s *ServicesV1) UpdateProperty(ctx *gin.Context) {
 		return
 	}
 
-	en, _ := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	en, _ := s.requireEntryWithPermission(ctx, caller, &req.EntrySelector, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
 	if en == nil {
 		return
 	}
@@ -651,17 +600,22 @@ func (s *ServicesV1) UpdateProperty(ctx *gin.Context) {
 // @Tags Entries
 // @Accept json
 // @Produce json
-// @Param uri query string false "Entry URI"
-// @Param id query string false "Entry ID"
+// @Param request body EntryDetailRequest true "Entry selector"
 // @Success 200 {object} FridayPropertyResponse
-// @Router /api/v1/entries/friday [get]
+// @Router /api/v1/entries/friday [post]
 func (s *ServicesV1) GetFridayProperty(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
 		return
 	}
 
-	en, _ := s.requireEntryWithPermission(ctx, caller, types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead)
+	var req EntryDetailRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	en, _ := s.requireEntryWithPermission(ctx, caller, &req.EntrySelector, types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead)
 	if en == nil {
 		return
 	}
@@ -700,7 +654,7 @@ func (s *ServicesV1) UpdateDocumentProperty(ctx *gin.Context) {
 		return
 	}
 
-	en, _ := s.requireEntryWithPermission(ctx, caller, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	en, _ := s.requireEntryWithPermission(ctx, caller, &req.EntrySelector, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
 	if en == nil {
 		return
 	}
