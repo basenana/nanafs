@@ -84,6 +84,8 @@ github.com/basenana/plugin v0.0.0-20260117075858-dd3779b8bd09 h1:uKMIqePXk2Y27ig
 github.com/basenana/plugin v0.0.0-20260117075858-dd3779b8bd09/go.mod h1:58WCMVBD2XXMiIvIkuphXTTCVrDQyzI8nWT8vDJZu+4=
 github.com/basenana/plugin v0.0.0-20260117130449-785411d45efe h1:wG1aOmkXBwqCw4Ll+t8yflToV870zO52lq/5H3RZ96Y=
 github.com/basenana/plugin v0.0.0-20260117130449-785411d45efe/go.mod h1:58WCMVBD2XXMiIvIkuphXTTCVrDQyzI8nWT8vDJZu+4=
+github.com/basenana/plugin v0.0.0-20260119121123-efe862fd0c55 h1:/gzdmbqbdBR0bCPVJwicqMMSCo3hwu9FTBjbN39QEUg=
+github.com/basenana/plugin v0.0.0-20260119121123-efe862fd0c55/go.mod h1:dyrhB5TSw+OxEJjxjn4RZ5ptisY6IIVNcUIt+7WiVMo=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/bluele/gcache v0.0.2 h1:WcbfdXICg7G/DGBh1PFfcirkWOQV+v077yF1pSy3DGw=
@@ -239,6 +241,8 @@ github.com/hyponet/webpage-packer v1.1.1-0.20260115110708-cf1034fa3c7d h1:XRJuCa
 github.com/hyponet/webpage-packer v1.1.1-0.20260115110708-cf1034fa3c7d/go.mod h1:kun/dkSzcBXCG3GnZT36fRiFjpD8UFbw1mFygOFUjRo=
 github.com/hyponet/webpage-packer v1.1.1-0.20260116120428-4ed3a1a03f62 h1:In7MeJQTuKOzHv1uKc0hnw3o9hvd70rc2F9A69QmxDY=
 github.com/hyponet/webpage-packer v1.1.1-0.20260116120428-4ed3a1a03f62/go.mod h1:kun/dkSzcBXCG3GnZT36fRiFjpD8UFbw1mFygOFUjRo=
+github.com/hyponet/webpage-packer v1.1.1-0.20260119120926-bf6896a97972 h1:N3n5nZugXsPsEIXrOawLX65pQTnJeK3Rnw9YoVo/9Fc=
+github.com/hyponet/webpage-packer v1.1.1-0.20260119120926-bf6896a97972/go.mod h1:kun/dkSzcBXCG3GnZT36fRiFjpD8UFbw1mFygOFUjRo=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/invopop/jsonschema v0.13.0 h1:KvpoAJWEjR3uD9Kbm2HWJmqsEaHt8lBUpd0qHcIi21E=

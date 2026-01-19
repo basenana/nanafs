@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.36.0
 	github.com/aws/smithy-go v1.13.5
 	github.com/basenana/go-flow v0.0.0-20250614153542-07184f3ea1e7
-	github.com/basenana/plugin v0.0.0-20260117130449-785411d45efe
+	github.com/basenana/plugin v0.0.0-20260119121123-efe862fd0c55
 	github.com/bluele/gcache v0.0.2
 	github.com/davecgh/go-spew v1.1.1
 	github.com/glebarez/sqlite v1.7.0
@@ -104,7 +104,7 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.3.11 // indirect
 	github.com/googleapis/gax-go/v2 v2.16.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
-	github.com/hyponet/webpage-packer v1.1.1-0.20260116120428-4ed3a1a03f62 // indirect
+	github.com/hyponet/webpage-packer v1.1.1-0.20260119120926-bf6896a97972 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20231201235250-de7065d80cb9 // indirect

@@ -86,6 +86,10 @@ func (b *browserlessClient) ReadMain(ctx context.Context, urlStr string) (*WebRe
 		},
 		"url":                 urlStr,
 		"setExtraHTTPHeaders": b.headers,
+		"waitForFunction": map[string]any{
+			"fn":      "async () => { await new Promise(r => setTimeout(r, 1000)); return true; }",
+			"timeout": 5000,
+		},
 	}
 	raw, err := json.Marshal(data)
 	if err != nil {
