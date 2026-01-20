@@ -17,10 +17,11 @@
 package metastore
 
 import (
-	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils/logger"
 	"os"
 	"testing"
+
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils/logger"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -39,7 +40,7 @@ func TestMetaStore(t *testing.T) {
 	logger.SetDebug(true)
 
 	var err error
-	workdir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-storage-")
+	workdir, err = os.MkdirTemp(os.TempDir(), "ut-nanafs-metadata-")
 	Expect(err).Should(BeNil())
 	t.Logf("unit test workdir on: %s", workdir)
 

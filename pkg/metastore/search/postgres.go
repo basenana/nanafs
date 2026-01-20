@@ -28,7 +28,7 @@ import (
 	"gorm.io/gorm"
 )
 
-type PosgtresDocumentModel struct {
+type PostgresDocumentModel struct {
 	ID        int64    `gorm:"column:id;primaryKey"`
 	URI       string   `gorm:"column:uri;index:pgdoc_uri"`
 	Namespace string   `gorm:"column:namespace;index:pgdoc_namespace"`
@@ -39,7 +39,11 @@ type PosgtresDocumentModel struct {
 	ChangedAt int64    `gorm:"column:changed_at"`
 }
 
-func (d *PosgtresDocumentModel) From(document *types.IndexDocument) {
+func (d *PostgresDocumentModel) TableName() string {
+	return "documents"
+}
+
+func (d *PostgresDocumentModel) From(document *types.IndexDocument) {
 	d.ID = document.ID
 	d.URI = document.URI
 	d.Title = document.Title
@@ -56,7 +60,7 @@ func (d *PosgtresDocumentModel) From(document *types.IndexDocument) {
 	}
 }
 
-func (d *PosgtresDocumentModel) To() *types.IndexDocument {
+func (d *PostgresDocumentModel) To() *types.IndexDocument {
 	return &types.IndexDocument{
 		ID:        d.ID,
 		URI:       d.URI,
@@ -67,13 +71,13 @@ func (d *PosgtresDocumentModel) To() *types.IndexDocument {
 	}
 }
 
-func PogstresIndexDocument(ctx context.Context, db *gorm.DB, namespace string, document *types.IndexDocument) error {
+func PostgresIndexDocument(ctx context.Context, db *gorm.DB, namespace string, document *types.IndexDocument) error {
 	if document.ID == 0 || document.URI == "" {
 		// The document ID must be specified at the outside.
 		return fmt.Errorf("document id is empty")
 	}
 
-	model := &PosgtresDocumentModel{}
+	model := &PostgresDocumentModel{}
 	model.From(document)
 	model.Namespace = namespace
 
@@ -83,7 +87,7 @@ func PogstresIndexDocument(ctx context.Context, db *gorm.DB, namespace string, d
 		if err = tx.Create(model).Error; err != nil {
 			return err
 		}
-		res := tx.Model(&PosgtresDocumentModel{}).Where("id = ?", model.ID).Update("token", gorm.Expr(tokenExpr))
+		res := tx.Model(&PostgresDocumentModel{}).Where("id = ?", model.ID).Update("token", gorm.Expr(tokenExpr))
 		if res.Error != nil {
 			return res.Error
 		}
@@ -99,12 +103,12 @@ func PostgresQueryLanguage(ctx context.Context, db *gorm.DB, namespace, query st
 	tsQuery := strings.Join(keywords, " & ")
 
 	var (
-		docModels []PosgtresDocumentModel
+		docModels []PostgresDocumentModel
 		result    []*types.IndexDocument
 	)
 
 	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := tx.Model(&PosgtresDocumentModel{}).
+		res := tx.Model(&PostgresDocumentModel{}).
 			Where("namespace = ?", namespace).
 			Where("token @@ to_tsquery('simple', ?)", tsQuery).
 			Select("*, ts_rank(token, to_tsquery('simple', ?)) as rank", tsQuery)

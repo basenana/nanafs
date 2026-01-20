@@ -27,9 +27,9 @@ import (
 func IndexDocument(ctx context.Context, db *gorm.DB, namespace string, document *types.IndexDocument) error {
 	switch db.Dialector.Name() {
 	case "sqlite":
-		return fmt.Errorf("sqlite dialect not supported")
+		return SqliteIndexDocument(ctx, db, namespace, document)
 	case "postgres":
-		return PogstresIndexDocument(ctx, db, namespace, document)
+		return PostgresIndexDocument(ctx, db, namespace, document)
 	default:
 		return fmt.Errorf("unknown dialector %s", db.Dialector.Name())
 	}
@@ -38,7 +38,7 @@ func IndexDocument(ctx context.Context, db *gorm.DB, namespace string, document 
 func QueryLanguage(ctx context.Context, db *gorm.DB, namespace, query string) ([]*types.IndexDocument, error) {
 	switch db.Dialector.Name() {
 	case "sqlite":
-		return nil, fmt.Errorf("sqlite dialect not supported")
+		return SqliteQueryLanguage(ctx, db, namespace, query)
 	case "postgres":
 		return PostgresQueryLanguage(ctx, db, namespace, query)
 	default:

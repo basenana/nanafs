@@ -24,11 +24,11 @@ import (
 
 type memIndexer struct{}
 
-func (m *memIndexer) Index(ctx context.Context, doc *types.IndexDocument) error {
+func (m *memIndexer) Index(ctx context.Context, namespace string, doc *types.IndexDocument) error {
 	return nil
 }
 
-func (m *memIndexer) QueryLanguage(ctx context.Context, query string) ([]*types.IndexDocument, error) {
+func (m *memIndexer) QueryLanguage(ctx context.Context, namespace, query string) ([]*types.IndexDocument, error) {
 	return []*types.IndexDocument{}, nil
 }
 
