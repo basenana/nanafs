@@ -22,6 +22,7 @@ import (
 
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/core"
+	"github.com/basenana/nanafs/pkg/indexer"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/storage"
@@ -76,6 +77,6 @@ var _ = BeforeEach(func() {
 	Expect(err).Should(BeNil())
 
 	testNotify = notify.NewNotify(testMeta)
-	workflowMgr, err = workflow.New(fsCore, testNotify, memMeta, bootCfg.Workflow)
+	workflowMgr, err = workflow.New(fsCore, testNotify, memMeta, indexer.NewMem(), bootCfg.Workflow)
 	Expect(err).Should(BeNil())
 })

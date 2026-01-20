@@ -46,7 +46,7 @@ func newExecutor(ctrl *Controller, job *types.WorkflowJob) flow.Executor {
 		core:      ctrl.core,
 		meta:      ctrl.store,
 		store:     newPersistentStore(ctrl.store, job.Namespace),
-		nfs:       newNamespacedFS(ctrl.core, ctrl.store, job.Namespace),
+		nfs:       newNamespacedFS(ctrl.core, ctrl.store, ctrl.indexer, job.Namespace),
 		pluginMgr: ctrl.pluginMgr,
 		workdir:   path.Join(ctrl.workdir, fmt.Sprintf("job-%s", job.Id)),
 		logger:    logger.NewLogger("defaultExecutor").With(zap.String("job", job.Id)),

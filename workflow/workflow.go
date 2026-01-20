@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/basenana/nanafs/pkg/core"
+	"github.com/basenana/nanafs/pkg/indexer"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/plugin"
 	pluginlogger "github.com/basenana/plugin/logger"
@@ -69,7 +70,7 @@ type manager struct {
 
 var _ Workflow = &manager{}
 
-func New(fsCore core.Core, notify *notify.Notify, meta metastore.Meta, cfg config.Workflow) (Workflow, error) {
+func New(fsCore core.Core, notify *notify.Notify, meta metastore.Meta, indexer indexer.Indexer, cfg config.Workflow) (Workflow, error) {
 	wfLogger = logger.NewLogger("workflow")
 	pluginlogger.SetLogger(wfLogger.Named("plugin"))
 
@@ -78,7 +79,7 @@ func New(fsCore core.Core, notify *notify.Notify, meta metastore.Meta, cfg confi
 	}
 
 	pluginMgr := plugin.New()
-	flowCtrl := jobrun.NewJobController(pluginMgr, fsCore, meta, notify, cfg.JobWorkdir)
+	flowCtrl := jobrun.NewJobController(pluginMgr, fsCore, meta, indexer, notify, cfg.JobWorkdir)
 	mgr := &manager{ctrl: flowCtrl, core: fsCore, meta: meta, plugin: pluginMgr, config: cfg, logger: wfLogger}
 	mgr.trigger = initTriggers(mgr, fsCore, meta)
 

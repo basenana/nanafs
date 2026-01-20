@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/basenana/nanafs/pkg/core"
+	"github.com/basenana/nanafs/pkg/indexer"
 	"github.com/basenana/nanafs/pkg/types"
 	pluginapi "github.com/basenana/plugin/api"
 	plugintypes "github.com/basenana/plugin/types"
@@ -85,7 +86,7 @@ var _ = BeforeSuite(func() {
 	err = fsCore.CreateNamespace(context.Background(), namespace)
 	Expect(err).Should(BeNil())
 
-	mgr, err = New(fsCore, notify.NewNotify(memMeta), memMeta, bootCfg.Workflow)
+	mgr, err = New(fsCore, notify.NewNotify(memMeta), memMeta, indexer.NewMem(), bootCfg.Workflow)
 	Expect(err).Should(BeNil())
 
 	mgr.(*manager).plugin.Register(DelayProcessPluginSpec, NewDelayProcessPlugin)

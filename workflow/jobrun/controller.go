@@ -26,6 +26,7 @@ import (
 
 	"github.com/basenana/go-flow"
 	"github.com/basenana/nanafs/pkg/core"
+	"github.com/basenana/nanafs/pkg/indexer"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/types"
@@ -48,6 +49,7 @@ type Controller struct {
 	pluginMgr plugin.Manager
 	core      core.Core
 	store     metastore.Meta
+	indexer   indexer.Indexer
 	notify    *notify.Notify
 
 	isStartUp bool
@@ -293,11 +295,12 @@ func (c *Controller) getRunner(namespace, jobiD string) *runner {
 }
 
 func NewJobController(pluginMgr plugin.Manager, fsCore core.Core,
-	store metastore.Meta, notify *notify.Notify, workdir string) *Controller {
+	store metastore.Meta, indexer indexer.Indexer, notify *notify.Notify, workdir string) *Controller {
 	ctrl := &Controller{
 		pluginMgr: pluginMgr,
 		core:      fsCore,
 		store:     store,
+		indexer:   indexer,
 		notify:    notify,
 		workdir:   workdir,
 		runners:   make(map[JobID]*runner),

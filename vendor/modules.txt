@@ -497,6 +497,12 @@ github.com/hanwen/go-fuse/v2/splice
 ## explicit; go 1.23
 github.com/hyponet/eventbus
 github.com/hyponet/eventbus/bus
+# github.com/hyponet/jiebago v0.0.0-20240525141904-e34990856482
+## explicit; go 1.20
+github.com/hyponet/jiebago
+github.com/hyponet/jiebago/dictionary
+github.com/hyponet/jiebago/finalseg
+github.com/hyponet/jiebago/util
 # github.com/hyponet/webpage-packer v1.1.1-0.20260119120926-bf6896a97972
 ## explicit; go 1.24.0
 github.com/hyponet/webpage-packer/packer

@@ -20,6 +20,7 @@ import (
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/dispatch"
+	"github.com/basenana/nanafs/pkg/indexer"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/workflow"
@@ -27,6 +28,7 @@ import (
 
 type Depends struct {
 	Meta       metastore.Meta
+	Indexer    indexer.Indexer
 	Workflow   workflow.Workflow
 	Dispatcher *dispatch.Dispatcher
 	Notify     *notify.Notify
@@ -51,7 +53,7 @@ func InitDepends(cfg config.Config, meta metastore.Meta) (*Depends, error) {
 		return nil, err
 	}
 
-	dep.Workflow, err = workflow.New(dep.Core, dep.Notify, meta, bCfg.Workflow)
+	dep.Workflow, err = workflow.New(dep.Core, dep.Notify, meta, dep.Indexer, bCfg.Workflow)
 	if err != nil {
 		return nil, err
 	}

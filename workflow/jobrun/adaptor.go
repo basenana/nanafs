@@ -26,6 +26,7 @@ import (
 
 	"github.com/basenana/go-flow"
 	"github.com/basenana/nanafs/pkg/core"
+	"github.com/basenana/nanafs/pkg/indexer"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils"
@@ -209,6 +210,7 @@ func (p *namespacedStore) keyHash(key string) string {
 
 type namespacedFS struct {
 	core      core.Core
+	indexer   indexer.Indexer
 	store     metastore.Meta
 	namespace string
 }
@@ -387,8 +389,8 @@ func (n *namespacedFS) UpdateEntryDocumentProperties(ctx context.Context, en *ty
 	return n.store.UpdateEntryProperties(ctx, n.namespace, types.PropertyTypeDocument, en.ID, current)
 }
 
-func newNamespacedFS(c core.Core, store metastore.Meta, namespace string) pluginapi.NanaFS {
-	return &namespacedFS{core: c, store: store, namespace: namespace}
+func newNamespacedFS(c core.Core, store metastore.Meta, indexer indexer.Indexer, namespace string) pluginapi.NanaFS {
+	return &namespacedFS{core: c, indexer: indexer, store: store, namespace: namespace}
 }
 
 func toDocumentProperties(p plugintypes.Properties) types.DocumentProperties {

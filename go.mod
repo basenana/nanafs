@@ -10,6 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.26
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.36.0
 	github.com/aws/smithy-go v1.13.5
+	github.com/basenana/friday/core v0.0.0-20260115125134-20b35d6baae8
 	github.com/basenana/go-flow v0.0.0-20250614153542-07184f3ea1e7
 	github.com/basenana/plugin v0.0.0-20260119121123-efe862fd0c55
 	github.com/bluele/gcache v0.0.2
@@ -21,6 +22,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/hanwen/go-fuse/v2 v2.3.0
 	github.com/hyponet/eventbus v1.1.0
+	github.com/hyponet/jiebago v0.0.0-20240525141904-e34990856482
 	github.com/minio/minio-go/v7 v7.0.52
 	github.com/ohler55/ojg v1.27.0
 	github.com/onsi/ginkgo v1.16.5
@@ -66,7 +68,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.19.2 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
-	github.com/basenana/friday/core v0.0.0-20260115125134-20b35d6baae8 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect

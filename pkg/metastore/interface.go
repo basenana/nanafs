@@ -28,6 +28,9 @@ type Meta interface {
 	EntryStore
 	NotificationRecorder
 	ScheduledTaskRecorder
+
+	// TextSearcher indexer.Indexer
+	TextSearcher
 }
 
 type SysConfig interface {
@@ -93,4 +96,9 @@ type NotificationRecorder interface {
 	ListNotifications(ctx context.Context, namespace string) ([]types.Notification, error)
 	RecordNotification(ctx context.Context, namespace string, nid string, no types.Notification) error
 	UpdateNotificationStatus(ctx context.Context, namespace, nid, status string) error
+}
+
+type TextSearcher interface {
+	Index(ctx context.Context, namespace string, doc *types.IndexDocument) error
+	QueryLanguage(ctx context.Context, namespace, query string) ([]*types.IndexDocument, error)
 }
