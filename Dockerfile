@@ -17,7 +17,7 @@ FROM alpine:latest
 RUN sed -i 's#https\?://dl-cdn.alpinelinux.org/alpine#https://mirrors.tuna.tsinghua.edu.cn/alpine#g' /etc/apk/repositories && apk update && apk add ca-certificates curl
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=builder /workspace/nanafs /usr/bin/
-RUN mkdir -p /var/lib/nanafs
-ADD statics /var/lib/nanafs
+RUN mkdir -p /var/lib/statics
+ADD statics /var/lib/statics
 ENV TZ=Asia/Shanghai
-ENV STATIC_JIEBA_DICT=/var/lib/nanafs/statics/dict.txt
+ENV STATIC_JIEBA_DICT=/var/lib/statics/dict.txt
