@@ -105,15 +105,7 @@ func RunWebdav(fs *core.FileSystem, cfg config.Webdav, stopCh chan struct{}) err
 }
 
 func RunFSAPI(depends *restcommon.Depends, cfg config.Config, stopCh chan struct{}) error {
-	restDepends := &restcommon.Depends{
-		Meta:       depends.Meta,
-		Workflow:   depends.Workflow,
-		Dispatcher: depends.Dispatcher,
-		Notify:     depends.Notify,
-		Config:     depends.Config,
-		Core:       depends.Core,
-	}
-	s, err := rest.New(restDepends, cfg)
+	s, err := rest.New(depends, cfg)
 	if err != nil {
 		return fmt.Errorf("init fsapi server failed: %w", err)
 	}

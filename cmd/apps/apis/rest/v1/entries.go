@@ -410,8 +410,8 @@ func (s *ServicesV1) SearchEntry(ctx *gin.Context) {
 			URI:       d.URI,
 			Title:     d.Title,
 			Content:   d.Content,
-			CreateAt:  timestampToTime(d.CreateAt),
-			ChangedAt: timestampToTime(d.ChangedAt),
+			CreateAt:  nanoTimestampToTime(d.CreateAt),
+			ChangedAt: nanoTimestampToTime(d.ChangedAt),
 		})
 	}
 

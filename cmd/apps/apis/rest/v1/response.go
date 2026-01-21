@@ -430,11 +430,11 @@ func timestampTime(ts int64) *time.Time {
 	return utils.ToPtr(time.Unix(ts, 0))
 }
 
-func timestampToTime(ts int64) time.Time {
+func nanoTimestampToTime(ts int64) time.Time {
 	if ts == 0 {
 		return time.Time{}
 	}
-	return time.Unix(ts, 0)
+	return time.Unix(0, ts)
 }
 
 func timeToTimestamp(ts string) int64 {

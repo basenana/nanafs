@@ -31,7 +31,7 @@ func (s *sqlMetaStore) IndexDocument(ctx context.Context, namespace string, doc 
 
 func (s *sqlMetaStore) QueryDocuments(ctx context.Context, namespace, query string) ([]*types.IndexDocument, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.QueryLanguage").End()
-	s.logger.Info("query language", "namespace", namespace, "query", query)
+	s.logger.Infow("query language", "namespace", namespace, "query", query)
 	return search.QueryLanguage(ctx, s.DB, namespace, query)
 }
 
