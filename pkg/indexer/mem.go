@@ -32,6 +32,10 @@ func (m *memIndexer) QueryLanguage(ctx context.Context, namespace, query string)
 	return []*types.IndexDocument{}, nil
 }
 
+func (m *memIndexer) Delete(ctx context.Context, namespace string, id int64) error {
+	return nil
+}
+
 func NewMem() Indexer {
 	return &memIndexer{}
 }

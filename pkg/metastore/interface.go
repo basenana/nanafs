@@ -28,9 +28,7 @@ type Meta interface {
 	EntryStore
 	NotificationRecorder
 	ScheduledTaskRecorder
-
-	// TextSearcher indexer.Indexer
-	TextSearcher
+	DocumentSearcher
 }
 
 type SysConfig interface {
@@ -98,7 +96,8 @@ type NotificationRecorder interface {
 	UpdateNotificationStatus(ctx context.Context, namespace, nid, status string) error
 }
 
-type TextSearcher interface {
-	Index(ctx context.Context, namespace string, doc *types.IndexDocument) error
-	QueryLanguage(ctx context.Context, namespace, query string) ([]*types.IndexDocument, error)
+type DocumentSearcher interface {
+	IndexDocument(ctx context.Context, namespace string, doc *types.IndexDocument) error
+	QueryDocuments(ctx context.Context, namespace, query string) ([]*types.IndexDocument, error)
+	DeleteDocument(ctx context.Context, namespace string, id int64) error
 }

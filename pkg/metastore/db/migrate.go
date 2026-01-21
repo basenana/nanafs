@@ -91,10 +91,9 @@ func buildMigrations() []*gormigrate.Migration {
 						return err
 					}
 					// Create FTS5 virtual table for full-text search with Unicode tokenization
+					// Use contentless FTS5 for manual index management
 					ftsTable := `CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts5(
 						title, content,
-						content='documents',
-						content_rowid='id',
 						tokenize='unicode61'
 					)`
 					return db.Exec(ftsTable).Error

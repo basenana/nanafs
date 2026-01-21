@@ -18,4 +18,6 @@ RUN sed -i 's#https\?://dl-cdn.alpinelinux.org/alpine#https://mirrors.tuna.tsing
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=builder /workspace/nanafs /usr/bin/
 RUN mkdir -p /var/lib/nanafs
+ADD statics /var/lib/nanafs
 ENV TZ=Asia/Shanghai
+ENV STATIC_JIEBA_DICT=/var/lib/nanafs/statics/dict.txt

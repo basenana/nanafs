@@ -25,6 +25,7 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type SqliteDocument struct {
@@ -50,7 +51,7 @@ func (d *SqliteDocument) From(document *types.IndexDocument) {
 	if d.CreateAt == 0 {
 		d.CreateAt = time.Now().UnixNano()
 	}
-	d.ChangedAt = document.ChangedAt
+	d.ChangedAt = time.Now().UnixNano()
 }
 
 func (d *SqliteDocument) To() *types.IndexDocument {
@@ -74,10 +75,18 @@ func SqliteIndexDocument(ctx context.Context, db *gorm.DB, namespace string, doc
 	model.Namespace = namespace
 
 	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(model).Error; err != nil {
+		// Upsert main table using GORM ON CONFLICT
+		if err := tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"uri", "title", "content", "created_at", "changed_at"}),
+		}).Create(model).Error; err != nil {
 			return err
 		}
-		// Insert into FTS5 virtual table (use rowid for content-linked FTS5)
+		// Delete existing FTS5 entry first (contentless FTS5 requires manual management)
+		if err := tx.Exec(`DELETE FROM documents_fts WHERE rowid = ?`, document.ID).Error; err != nil {
+			return err
+		}
+		// Insert into FTS5 virtual table
 		return tx.Exec(`INSERT INTO documents_fts(rowid, title, content) VALUES (?, ?, ?)`,
 			document.ID, document.Title, document.Content).Error
 	})
@@ -107,4 +116,20 @@ func SqliteQueryLanguage(ctx context.Context, db *gorm.DB, namespace, query stri
 		docs = append(docs, r.To())
 	}
 	return docs, nil
+}
+
+func SqliteDeleteDocument(ctx context.Context, db *gorm.DB, namespace string, id int64) error {
+	// Delete from FTS5 virtual table first (outside transaction as FTS5 doesn't fully support transactions)
+	if err := db.WithContext(ctx).Exec(`DELETE FROM documents_fts WHERE rowid = ?`, id).Error; err != nil {
+		return err
+	}
+	// Delete from main table with namespace check using GORM
+	result := db.WithContext(ctx).Where("id = ? AND namespace = ?", id, namespace).Delete(&SqliteDocument{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("document not found")
+	}
+	return nil
 }

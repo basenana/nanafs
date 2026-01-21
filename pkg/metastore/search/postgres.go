@@ -26,6 +26,7 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type PostgresDocumentModel struct {
@@ -54,10 +55,7 @@ func (d *PostgresDocumentModel) From(document *types.IndexDocument) {
 		d.CreatedAt = time.Now().UnixNano()
 	}
 
-	d.CreatedAt = document.CreateAt
-	if d.CreatedAt == 0 {
-		d.CreatedAt = time.Now().UnixNano()
-	}
+	d.ChangedAt = time.Now().UnixNano()
 }
 
 func (d *PostgresDocumentModel) To() *types.IndexDocument {
@@ -81,17 +79,17 @@ func PostgresIndexDocument(ctx context.Context, db *gorm.DB, namespace string, d
 	model.From(document)
 	model.Namespace = namespace
 
-	var err error
 	tokenExpr := toTsVectorExpr(document)
 	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err = tx.Create(model).Error; err != nil {
+		// Upsert using GORM ON CONFLICT
+		if err := tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"uri", "title", "content", "created_at", "changed_at"}),
+		}).Create(model).Error; err != nil {
 			return err
 		}
-		res := tx.Model(&PostgresDocumentModel{}).Where("id = ?", model.ID).Update("token", gorm.Expr(tokenExpr))
-		if res.Error != nil {
-			return res.Error
-		}
-		return nil
+		// Update token using GORM Expr
+		return tx.Model(&PostgresDocumentModel{}).Where("id = ?", model.ID).Update("token", gorm.Expr(tokenExpr)).Error
 	})
 }
 
@@ -125,6 +123,17 @@ func PostgresQueryLanguage(ctx context.Context, db *gorm.DB, namespace, query st
 		result = append(result, dm.To())
 	}
 	return result, nil
+}
+
+func PostgresDeleteDocument(ctx context.Context, db *gorm.DB, namespace string, id int64) error {
+	result := db.WithContext(ctx).Where("id = ? AND namespace = ?", id, namespace).Delete(&PostgresDocumentModel{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("document not found")
+	}
+	return nil
 }
 
 type TsVector string

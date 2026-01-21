@@ -24,13 +24,18 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 )
 
-func (s *sqlMetaStore) Index(ctx context.Context, namespace string, doc *types.IndexDocument) error {
+func (s *sqlMetaStore) IndexDocument(ctx context.Context, namespace string, doc *types.IndexDocument) error {
 	defer trace.StartRegion(ctx, "metastore.sql.Index").End()
 	return search.IndexDocument(ctx, s.DB, namespace, doc)
 }
 
-func (s *sqlMetaStore) QueryLanguage(ctx context.Context, namespace, query string) ([]*types.IndexDocument, error) {
+func (s *sqlMetaStore) QueryDocuments(ctx context.Context, namespace, query string) ([]*types.IndexDocument, error) {
 	defer trace.StartRegion(ctx, "metastore.sql.QueryLanguage").End()
 	s.logger.Info("query language", "namespace", namespace, "query", query)
 	return search.QueryLanguage(ctx, s.DB, namespace, query)
+}
+
+func (s *sqlMetaStore) DeleteDocument(ctx context.Context, namespace string, id int64) error {
+	defer trace.StartRegion(ctx, "metastore.sql.Delete").End()
+	return search.DeleteDocument(ctx, s.DB, namespace, id)
 }

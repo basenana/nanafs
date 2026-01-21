@@ -45,3 +45,14 @@ func QueryLanguage(ctx context.Context, db *gorm.DB, namespace, query string) ([
 		return nil, fmt.Errorf("unknown dialector %s", db.Dialector.Name())
 	}
 }
+
+func DeleteDocument(ctx context.Context, db *gorm.DB, namespace string, id int64) error {
+	switch db.Dialector.Name() {
+	case "sqlite":
+		return SqliteDeleteDocument(ctx, db, namespace, id)
+	case "postgres":
+		return PostgresDeleteDocument(ctx, db, namespace, id)
+	default:
+		return fmt.Errorf("unknown dialector %s", db.Dialector.Name())
+	}
+}

@@ -44,7 +44,7 @@ var _ = Describe("TestSearchOperation", func() {
 				CreateAt:  0,
 				ChangedAt: 0,
 			}
-			err := sqlite.Index(context.TODO(), namespace, doc)
+			err := sqlite.IndexDocument(context.TODO(), namespace, doc)
 			Expect(err).Should(BeNil())
 		})
 
@@ -68,7 +68,7 @@ var _ = Describe("TestSearchOperation", func() {
 				},
 			}
 			for _, doc := range docs {
-				err := sqlite.Index(context.TODO(), namespace, doc)
+				err := sqlite.IndexDocument(context.TODO(), namespace, doc)
 				Expect(err).Should(BeNil())
 			}
 		})
@@ -82,10 +82,10 @@ var _ = Describe("TestSearchOperation", func() {
 				CreateAt:  0,
 				ChangedAt: 0,
 			}
-			err := sqlite.Index(context.TODO(), namespace, doc)
+			err := sqlite.IndexDocument(context.TODO(), namespace, doc)
 			Expect(err).Should(BeNil())
 
-			results, err := sqlite.QueryLanguage(context.TODO(), namespace, "searchable")
+			results, err := sqlite.QueryDocuments(context.TODO(), namespace, "searchable")
 			Expect(err).Should(BeNil())
 			Expect(len(results)).Should(Equal(1))
 			Expect(results[0].ID).Should(Equal(int64(1010)))
@@ -111,11 +111,11 @@ var _ = Describe("TestSearchOperation", func() {
 				},
 			}
 			for _, doc := range docs {
-				err := sqlite.Index(context.TODO(), namespace, doc)
+				err := sqlite.IndexDocument(context.TODO(), namespace, doc)
 				Expect(err).Should(BeNil())
 			}
 
-			results, err := sqlite.QueryLanguage(context.TODO(), namespace, "Programming")
+			results, err := sqlite.QueryDocuments(context.TODO(), namespace, "Programming")
 			Expect(err).Should(BeNil())
 			Expect(len(results)).Should(Equal(2))
 		})
@@ -129,10 +129,10 @@ var _ = Describe("TestSearchOperation", func() {
 				CreateAt:  0,
 				ChangedAt: 0,
 			}
-			err := sqlite.Index(context.TODO(), namespace, doc)
+			err := sqlite.IndexDocument(context.TODO(), namespace, doc)
 			Expect(err).Should(BeNil())
 
-			results, err := sqlite.QueryLanguage(context.TODO(), namespace, "NonExistentKeyword")
+			results, err := sqlite.QueryDocuments(context.TODO(), namespace, "NonExistentKeyword")
 			Expect(err).Should(BeNil())
 			Expect(len(results)).Should(Equal(0))
 		})
@@ -146,10 +146,10 @@ var _ = Describe("TestSearchOperation", func() {
 				CreateAt:  0,
 				ChangedAt: 0,
 			}
-			err := sqlite.Index(context.TODO(), namespace, doc)
+			err := sqlite.IndexDocument(context.TODO(), namespace, doc)
 			Expect(err).Should(BeNil())
 
-			results, err := sqlite.QueryLanguage(context.TODO(), namespace, "")
+			results, err := sqlite.QueryDocuments(context.TODO(), namespace, "")
 			Expect(err).Should(BeNil())
 			Expect(len(results)).Should(Equal(0))
 		})
@@ -171,12 +171,12 @@ var _ = Describe("TestSearchOperation", func() {
 				CreateAt:  0,
 				ChangedAt: 0,
 			}
-			err := sqlite.Index(context.TODO(), namespace, doc1)
+			err := sqlite.IndexDocument(context.TODO(), namespace, doc1)
 			Expect(err).Should(BeNil())
-			err = sqlite.Index(context.TODO(), "other-namespace", doc2)
+			err = sqlite.IndexDocument(context.TODO(), "other-namespace", doc2)
 			Expect(err).Should(BeNil())
 
-			results, err := sqlite.QueryLanguage(context.TODO(), namespace, "Shared")
+			results, err := sqlite.QueryDocuments(context.TODO(), namespace, "Shared")
 			Expect(err).Should(BeNil())
 			Expect(len(results)).Should(Equal(1))
 			Expect(results[0].ID).Should(Equal(int64(1050)))
@@ -191,14 +191,14 @@ var _ = Describe("TestSearchOperation", func() {
 				CreateAt:  0,
 				ChangedAt: 0,
 			}
-			err := sqlite.Index(context.TODO(), namespace, doc)
+			err := sqlite.IndexDocument(context.TODO(), namespace, doc)
 			Expect(err).Should(BeNil())
 
-			titleResults, err := sqlite.QueryLanguage(context.TODO(), namespace, "Hidden")
+			titleResults, err := sqlite.QueryDocuments(context.TODO(), namespace, "Hidden")
 			Expect(err).Should(BeNil())
 			Expect(len(titleResults)).Should(Equal(1))
 
-			contentResults, err := sqlite.QueryLanguage(context.TODO(), namespace, "secret")
+			contentResults, err := sqlite.QueryDocuments(context.TODO(), namespace, "secret")
 			Expect(err).Should(BeNil())
 			Expect(len(contentResults)).Should(Equal(1))
 		})

@@ -15,15 +15,3 @@
 */
 
 package indexer
-
-import (
-	"context"
-
-	"github.com/basenana/nanafs/pkg/types"
-)
-
-type Indexer interface {
-	Index(ctx context.Context, namespace string, doc *types.IndexDocument) error
-	QueryLanguage(ctx context.Context, namespace, query string) ([]*types.IndexDocument, error)
-	Delete(ctx context.Context, namespace string, id int64) error
-}

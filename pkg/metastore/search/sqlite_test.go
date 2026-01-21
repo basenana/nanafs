@@ -79,10 +79,9 @@ var _ = BeforeSuite(func() {
 	Expect(err).Should(BeNil())
 
 	// Create FTS5 virtual table with Unicode tokenization
+	// Use contentless FTS5 for manual index management
 	ftsTable := `CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts5(
 		title, content,
-		content='documents',
-		content_rowid='id',
 		tokenize='unicode61'
 	)`
 	err = db.Exec(ftsTable).Error
@@ -381,3 +380,108 @@ func newSqliteSearchStore(meta config.Meta) (*sqliteSearchStore, error) {
 type sqliteSearchStore struct {
 	db *gorm.DB
 }
+
+var _ = Describe("SqliteDeleteDocument", func() {
+	BeforeEach(func() {
+		testDB.Exec("DELETE FROM documents")
+	})
+
+	Context("delete documents", func() {
+		It("should delete document successfully", func() {
+			doc := &types.IndexDocument{
+				ID:        200,
+				URI:       "test://doc200",
+				Title:     "Delete Test",
+				Content:   "Content to delete",
+				CreateAt:  0,
+				ChangedAt: 0,
+			}
+			err := SqliteIndexDocument(context.TODO(), testDB, testNs1, doc)
+			Expect(err).Should(BeNil())
+
+			err = SqliteDeleteDocument(context.TODO(), testDB, testNs1, 200)
+			Expect(err).Should(BeNil())
+
+			results, err := SqliteQueryLanguage(context.TODO(), testDB, testNs1, "Delete")
+			Expect(err).Should(BeNil())
+			Expect(len(results)).Should(Equal(0))
+		})
+
+		It("should return error for non-existent document", func() {
+			err := SqliteDeleteDocument(context.TODO(), testDB, testNs1, 9999)
+			Expect(err).ShouldNot(BeNil())
+		})
+
+		It("should not delete document from other namespace", func() {
+			doc := &types.IndexDocument{
+				ID:        210,
+				URI:       "test://doc210",
+				Title:     "Namespace Test",
+				Content:   "Content",
+				CreateAt:  0,
+				ChangedAt: 0,
+			}
+			SqliteIndexDocument(context.TODO(), testDB, testNs1, doc)
+
+			err := SqliteDeleteDocument(context.TODO(), testDB, testNs2, 210)
+			Expect(err).ShouldNot(BeNil())
+		})
+	})
+})
+
+var _ = Describe("SqliteIndexDocument Upsert", func() {
+	BeforeEach(func() {
+		testDB.Exec("DELETE FROM documents")
+		testDB.Exec("DELETE FROM documents_fts")
+	})
+
+	Context("update existing document", func() {
+		It("should update document content", func() {
+			doc := &types.IndexDocument{
+				ID:        300,
+				URI:       "test://doc300",
+				Title:     "Old Document",
+				Content:   "Original Content",
+				CreateAt:  0,
+				ChangedAt: 0,
+			}
+			SqliteIndexDocument(context.TODO(), testDB, testNs1, doc)
+
+			// Update the document
+			doc.Content = "Updated Content"
+			SqliteIndexDocument(context.TODO(), testDB, testNs1, doc)
+
+			results, err := SqliteQueryLanguage(context.TODO(), testDB, testNs1, "Updated")
+			Expect(err).Should(BeNil())
+			Expect(len(results)).Should(Equal(1))
+
+			results2, err := SqliteQueryLanguage(context.TODO(), testDB, testNs1, "Original")
+			Expect(err).Should(BeNil())
+			Expect(len(results2)).Should(Equal(0))
+		})
+
+		It("should update document title", func() {
+			doc := &types.IndexDocument{
+				ID:        310,
+				URI:       "test://doc310",
+				Title:     "Old Title",
+				Content:   "Some content",
+				CreateAt:  0,
+				ChangedAt: 0,
+			}
+			SqliteIndexDocument(context.TODO(), testDB, testNs1, doc)
+
+			// Update the title
+			doc.Title = "New Title"
+			SqliteIndexDocument(context.TODO(), testDB, testNs1, doc)
+
+			results, err := SqliteQueryLanguage(context.TODO(), testDB, testNs1, "New")
+			Expect(err).Should(BeNil())
+			Expect(len(results)).Should(Equal(1))
+
+			results2, err := SqliteQueryLanguage(context.TODO(), testDB, testNs1, "Old")
+			Expect(err).Should(BeNil())
+			Expect(len(results2)).Should(Equal(0))
+		})
+	})
+})
