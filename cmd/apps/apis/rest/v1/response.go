@@ -187,17 +187,17 @@ type ListEntriesResponse struct {
 }
 
 type DocumentInfo struct {
-	ID        int64  `json:"id"`
-	URI       string `json:"uri"`
-	Title     string `json:"title"`
-	Content   string `json:"content"`
-	CreateAt  int64  `json:"create_at"`
-	ChangedAt int64  `json:"changed_at"`
+	ID        int64     `json:"id"`
+	URI       string    `json:"uri"`
+	Title     string    `json:"title"`
+	Content   string    `json:"content"`
+	CreateAt  time.Time `json:"create_at"`
+	ChangedAt time.Time `json:"changed_at"`
 }
 
 type SearchDocumentsResponse struct {
-	Documents  []*DocumentInfo  `json:"documents"`
-	Pagination *PaginationInfo  `json:"pagination,omitempty"`
+	Documents  []*DocumentInfo `json:"documents"`
+	Pagination *PaginationInfo `json:"pagination,omitempty"`
 }
 
 type ListMessagesResponse struct {
@@ -428,6 +428,24 @@ func timestampTime(ts int64) *time.Time {
 		return nil
 	}
 	return utils.ToPtr(time.Unix(ts, 0))
+}
+
+func timestampToTime(ts int64) time.Time {
+	if ts == 0 {
+		return time.Time{}
+	}
+	return time.Unix(ts, 0)
+}
+
+func timeToTimestamp(ts string) int64 {
+	if ts == "" {
+		return 0
+	}
+	t, err := time.Parse(time.RFC3339, ts)
+	if err != nil {
+		return 0
+	}
+	return t.Unix()
 }
 
 func toProperty(props *types.Properties) *Property {

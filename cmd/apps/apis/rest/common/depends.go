@@ -55,11 +55,6 @@ func InitDepends(cfg config.Config, meta metastore.Meta) (*Depends, error) {
 		return nil, err
 	}
 
-	dep.Workflow, err = workflow.New(dep.Core, dep.Notify, meta, dep.Indexer, bCfg.Workflow)
-	if err != nil {
-		return nil, err
-	}
-
 	var tokenizer indexer.Tokenizer
 	if dictPath := os.Getenv("STATIC_JIEBA_DICT"); dictPath != "" {
 		tokenizer, err = indexer.NewJiebaTokenizer(dictPath)
@@ -70,6 +65,11 @@ func InitDepends(cfg config.Config, meta metastore.Meta) (*Depends, error) {
 		tokenizer = indexer.NewSpaceTokenizer()
 	}
 	dep.Indexer, err = indexer.NewMetaDB(meta, tokenizer)
+	if err != nil {
+		return nil, err
+	}
+
+	dep.Workflow, err = workflow.New(dep.Core, dep.Notify, meta, dep.Indexer, bCfg.Workflow)
 	if err != nil {
 		return nil, err
 	}

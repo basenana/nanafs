@@ -85,7 +85,7 @@ func (p *Saver) Run(ctx context.Context, request *api.Request) (*api.Response, e
 	name := api.GetStringParameter("name", request, fileInfo.Name())
 	parentURI := api.GetStringParameter("parent_uri", request, "")
 	subGroup := api.GetStringParameter("subgroup", request, "")
-	properties := buildProperties(request)
+	_, properties := buildUpdateParams(request)
 
 	if parentURI == "" {
 		return api.NewFailedResponse("parent_uri is required"), nil

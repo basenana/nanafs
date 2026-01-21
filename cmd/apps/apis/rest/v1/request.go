@@ -118,7 +118,7 @@ type UpdateDocumentPropertyRequest struct {
 	HeaderImage *string  `json:"headerImage,omitempty"`
 	Unread      *bool    `json:"unread,omitempty"`
 	Marked      *bool    `json:"marked,omitempty"`
-	PublishAt   *int64   `json:"publish_at,omitempty"`
+	PublishAt   *string  `json:"publish_at,omitempty"`
 }
 
 type ReadMessagesRequest struct {

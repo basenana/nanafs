@@ -204,9 +204,9 @@ var _ = Describe("TestSqliteFileFilter", func() {
 
 		It("create workflow and jobs with different statuses should succeed", func() {
 			wf := &types.Workflow{
-				Id:       "test-workflow",
-				Name:     "Test Workflow",
-				Enable:   true,
+				Id:        "test-workflow",
+				Name:      "Test Workflow",
+				Enable:    true,
 				QueueName: "default",
 			}
 			err = sqlite.SaveWorkflow(context.TODO(), namespace, wf)

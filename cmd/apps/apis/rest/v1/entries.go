@@ -410,8 +410,8 @@ func (s *ServicesV1) SearchEntry(ctx *gin.Context) {
 			URI:       d.URI,
 			Title:     d.Title,
 			Content:   d.Content,
-			CreateAt:  d.CreateAt,
-			ChangedAt: d.ChangedAt,
+			CreateAt:  timestampToTime(d.CreateAt),
+			ChangedAt: timestampToTime(d.ChangedAt),
 		})
 	}
 
@@ -571,7 +571,7 @@ func (s *ServicesV1) EntryDocument(ctx *gin.Context) {
 		properties.Marked = *req.Marked
 	}
 	if req.PublishAt != nil {
-		properties.PublishAt = *req.PublishAt
+		properties.PublishAt = timeToTimestamp(*req.PublishAt)
 	}
 
 	err = s.meta.UpdateEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeDocument, en.ID, properties)
@@ -762,7 +762,7 @@ func (s *ServicesV1) UpdateDocumentProperty(ctx *gin.Context) {
 		properties.Marked = *req.Marked
 	}
 	if req.PublishAt != nil {
-		properties.PublishAt = *req.PublishAt
+		properties.PublishAt = timeToTimestamp(*req.PublishAt)
 	}
 
 	err = s.meta.UpdateEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeDocument, en.ID, properties)

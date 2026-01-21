@@ -6,7 +6,8 @@ import (
 	"github.com/basenana/plugin/utils"
 )
 
-func buildProperties(request *api.Request) types.Properties {
+func buildUpdateParams(request *api.Request) (string, types.Properties) {
+	var content string
 	properties := types.Properties{}
 
 	// Safely extract document map
@@ -16,6 +17,7 @@ func buildProperties(request *api.Request) types.Properties {
 			document := &types.Document{}
 			utils.UnmarshalMap(documentMap, document)
 			properties = document.Properties
+			content = document.Content
 		}
 	}
 
@@ -34,5 +36,5 @@ func buildProperties(request *api.Request) types.Properties {
 		}
 	}
 
-	return properties
+	return content, properties
 }

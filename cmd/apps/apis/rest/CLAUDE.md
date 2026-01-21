@@ -9,6 +9,7 @@ This package provides a complete set of RESTFul-style HTTP APIs for NanaFS to of
   exceptions.
 - Newly added APIs must strictly adhere to the RESTFul style.
 - API JSON fields should use the `aaa_bbb` naming convention.
+- If the API needs to return a time value, please refer to existing APIs and return the time string in the standardized RFC3339 format.
 
 ## Code Style
 

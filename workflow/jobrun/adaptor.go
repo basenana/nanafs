@@ -320,13 +320,36 @@ func (n *namespacedFS) SaveEntry(ctx context.Context, parentURI, name string, pr
 	return n.UpdateEntryDocumentProperties(ctx, entry, properties)
 }
 
-func (n *namespacedFS) UpdateEntry(ctx context.Context, entryURI string, properties plugintypes.Properties) error {
+func (n *namespacedFS) UpdateEntry(ctx context.Context, entryURI string, content string, properties plugintypes.Properties) error {
 	_, en, err := n.core.GetEntryByPath(ctx, n.namespace, entryURI)
 	if err != nil {
 		return fmt.Errorf("get entry %s error %w", entryURI, err)
 	}
 	if en == nil {
 		return fmt.Errorf("entry %s not found", entryURI)
+	}
+
+	err = n.indexer.Index(ctx, n.namespace, &types.IndexDocument{
+		ID:       en.ID,
+		URI:      entryURI,
+		Title:    properties.Title,
+		Content:  content,
+		CreateAt: en.CreatedAt.UnixNano(),
+	})
+	if err != nil {
+		return fmt.Errorf("indexing entry %s error %w", entryURI, err)
+	}
+
+	var (
+		prop types.Properties
+	)
+	if err = n.store.GetEntryProperties(ctx, n.namespace, types.PropertyTypeProperty, en.ID, &prop); err != nil {
+		return fmt.Errorf("get current properties error %w", err)
+	}
+	prop.IndexVersion = fmt.Sprintf("v%d", en.ModifiedAt.UnixNano())
+	err = n.store.UpdateEntryProperties(ctx, n.namespace, types.PropertyTypeProperty, en.ID, &prop)
+	if err != nil {
+		return fmt.Errorf("update index version error %w", err)
 	}
 
 	return n.UpdateEntryDocumentProperties(ctx, en, properties)
@@ -338,7 +361,7 @@ func (n *namespacedFS) UpdateEntryDocumentProperties(ctx context.Context, en *ty
 		err     error
 	)
 	if err = n.store.GetEntryProperties(ctx, n.namespace, types.PropertyTypeDocument, en.ID, &current); err != nil {
-		return fmt.Errorf("get current properties error %w", err)
+		return fmt.Errorf("get current document properties error %w", err)
 	}
 
 	updated := toDocumentProperties(properties)

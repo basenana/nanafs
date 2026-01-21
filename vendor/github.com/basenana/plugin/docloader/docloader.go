@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/basenana/plugin/api"
 	"github.com/basenana/plugin/logger"
@@ -108,6 +109,15 @@ func (d *DocLoader) Run(ctx context.Context, request *api.Request) (*api.Respons
 	}
 	if doc.Properties.SiteURL == "" {
 		doc.Properties.SiteURL = api.GetStringParameter("site_url", request, "")
+	}
+
+	// Handle publish time from RSS updated_at parameter
+	if doc.Properties.PublishAt == 0 {
+		if updatedAtStr := api.GetStringParameter("updated_at", request, ""); updatedAtStr != "" {
+			if t, err := time.Parse(time.RFC3339, updatedAtStr); err == nil {
+				doc.Properties.PublishAt = t.Unix()
+			}
+		}
 	}
 
 	d.logger.Infow("docloader completed", "file_path", filePath, "title", doc.Properties.Title)

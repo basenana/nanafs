@@ -16,6 +16,7 @@ ProcessPlugin
 | Parameter | Required | Type | Description |
 |-----------|----------|------|-------------|
 | `file_path` | Yes | string | Path to document file |
+| `updated_at` | No | string | Publish time in RFC3339 format (e.g., "2024-01-01T00:00:00Z") |
 | `title` | No | string | Override document title |
 | `url` | No | string | Document source URL |
 | `site_name` | No | string | Site name (for web content) |
@@ -157,3 +158,4 @@ docloader.go
 - `year` is extracted from filename patterns or document metadata
 - `keywords` is returned as an array, not comma-separated string
 - `publish_at` is Unix timestamp (int64), not string
+- Use `updated_at` parameter to preserve original publish time when document lacks internal metadata (e.g., webarchive from RSS feeds)

@@ -55,14 +55,14 @@ func (p *Updater) Run(ctx context.Context, request *api.Request) (*api.Response,
 		return api.NewFailedResponse("entry_uri is required"), nil
 	}
 
-	props := buildProperties(request)
+	content, props := buildUpdateParams(request)
 
 	p.logger.Infow("update started", "entry_uri", entryURI)
 
 	if request.FS == nil {
 		return api.NewFailedResponse("file system is not available"), nil
 	}
-	if err := request.FS.UpdateEntry(ctx, entryURI, props); err != nil {
+	if err := request.FS.UpdateEntry(ctx, entryURI, content, props); err != nil {
 		p.logger.Warnw("update entry failed", "entry_uri", entryURI, "error", err)
 		return api.NewFailedResponse("failed to update entry: " + err.Error()), nil
 	}

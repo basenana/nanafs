@@ -18,6 +18,12 @@ go build ./...
 go test ./...
 ```
 
+## Basic requirements
+- Do not add comments unless necessary.
+- Comments should be in English. If other languages are found, please translate them into English.
+- The plugin needs to ensure that the basic process is covered by unit tests, and any updates to the plugin need to ensure that the unit tests pass.
+- Any modifications to the request and response structures of the plugin require a simultaneous update to the README.md file in the same directory as the plugin.
+
 ## Architecture
 
 ### Plugin Interface Hierarchy
@@ -180,6 +186,7 @@ Loads and parses documents, extracting metadata and content.
 | Parameter | Required | Default | Description |
 |-----------|----------|---------|-------------|
 | `file_path` | Yes | - | Path to document file |
+| `updated_at` | No | - | Publish time in RFC3339 format (e.g., "2024-01-01T00:00:00Z") |
 
 **Supported formats**:
 - PDF (`.pdf`)
@@ -338,6 +345,7 @@ func (p *MyPlugin) SourceInfo() (string, error) {
 
 - Plugins are created via factory functions that receive `PluginCall` (for JobID and params)
 - All plugin execution uses context for cancellation
+- Each plugin directory contains a README.md file that explains how to use the plugin.
 - Use `api.NewFailedResponse()` for user-facing errors (returns Response, not error)
 - Return actual errors only for exceptional conditions
 - Access working directory via `request.WorkingPath`

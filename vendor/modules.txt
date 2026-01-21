@@ -196,7 +196,7 @@ github.com/basenana/friday/core/types
 # github.com/basenana/go-flow v0.0.0-20250614153542-07184f3ea1e7
 ## explicit; go 1.23
 github.com/basenana/go-flow
-# github.com/basenana/plugin v0.0.0-20260119121123-efe862fd0c55
+# github.com/basenana/plugin v0.0.0-20260120111423-e8bf4116bf54
 ## explicit; go 1.25
 github.com/basenana/plugin
 github.com/basenana/plugin/agentic
@@ -503,7 +503,7 @@ github.com/hyponet/jiebago
 github.com/hyponet/jiebago/dictionary
 github.com/hyponet/jiebago/finalseg
 github.com/hyponet/jiebago/util
-# github.com/hyponet/webpage-packer v1.1.1-0.20260119120926-bf6896a97972
+# github.com/hyponet/webpage-packer v1.1.1-0.20260120110819-ea684f94a892
 ## explicit; go 1.24.0
 github.com/hyponet/webpage-packer/packer
 # github.com/inconshreveable/mousetrap v1.1.0
@@ -1016,7 +1016,7 @@ google.golang.org/api/transport/http
 # google.golang.org/genproto/googleapis/api v0.0.0-20251202230838-ff82c1b0f217
 ## explicit; go 1.24.0
 google.golang.org/genproto/googleapis/api/expr/v1alpha1
-# google.golang.org/genproto/googleapis/rpc v0.0.0-20260114163908-3f89685c29c3
+# google.golang.org/genproto/googleapis/rpc v0.0.0-20260120221211-b8f7ae30c516
 ## explicit; go 1.24.0
 google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/errdetails

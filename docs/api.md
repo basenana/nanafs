@@ -15,6 +15,19 @@ http://localhost:8080/api/v1
 
 Currently, authentication is handled via middleware. Refer to configuration for authentication settings.
 
+### Date Format
+
+All timestamps in API responses use RFC3339 format with timezone (e.g., `2024-01-01T00:00:00Z`).
+
+**Example:**
+
+```json
+{
+  "created_at": "2024-01-01T00:00:00Z",
+  "changed_at": "2024-01-02T00:00:00Z"
+}
+```
+
 ---
 
 ## Endpoints
@@ -301,11 +314,11 @@ Search documents using full-text search.
 
 **Fields:**
 
-| Field      | Type   | Required | Description                          |
-|------------|--------|----------|--------------------------------------|
-| `query`    | string | yes      | Search keywords                      |
-| `page`     | int64  | no       | Page number (default: 1)             |
-| `page_size`| int64  | no       | Number of items per page (default: 20)|
+| Field       | Type   | Required | Description                            |
+|-------------|--------|----------|----------------------------------------|
+| `query`     | string | yes      | Search keywords                        |
+| `page`      | int64  | no       | Page number (default: 1)               |
+| `page_size` | int64  | no       | Number of items per page (default: 20) |
 
 **Response:**
 
@@ -317,8 +330,8 @@ Search documents using full-text search.
       "uri": "/inbox/docs/article-001",
       "title": "Golang Tutorial",
       "content": "This is a tutorial about Go programming language...",
-      "create_at": 1704067200,
-      "changed_at": 1704153600
+      "create_at": "2024-01-01T00:00:00Z",
+      "changed_at": "2024-01-02T00:00:00Z"
     }
   ],
   "pagination": {
@@ -476,7 +489,10 @@ Update tags and custom properties for an entry.
 ```json
 {
   "uri": "/inbox/tasks/task-001",
-  "tags": ["important", "review"],
+  "tags": [
+    "important",
+    "review"
+  ],
   "properties": {
     "priority": "high",
     "due_date": "2024-01-15"
@@ -489,7 +505,9 @@ Or by ID:
 ```json
 {
   "id": 1001,
-  "tags": ["important"],
+  "tags": [
+    "important"
+  ],
   "properties": {
     "priority": "high"
   }
@@ -595,7 +613,7 @@ Update document-specific properties. Supports `?uri=` or `?id=` query parameters
   "header_image": "https://example.com/image.jpg",
   "unread": true,
   "marked": false,
-  "publish_at": 1704067200
+  "publish_at": "2024-01-01T00:00:00Z"
 }
 ```
 
@@ -613,10 +631,10 @@ Update document-specific properties. Supports `?uri=` or `?id=` query parameters
 | `url`          | string | Article URL              |
 | `site_name`    | string | Website name             |
 | `site_url`     | string | Website URL              |
-| `header_image` | string | Header image URL         |
-| `unread`       | bool   | Mark as unread           |
-| `marked`       | bool   | Mark as starred          |
-| `publish_at`   | int64  | Publish timestamp (Unix) |
+| `header_image` | string | Header image URL            |
+| `unread`       | bool   | Mark as unread             |
+| `marked`       | bool   | Mark as starred            |
+| `publish_at`   | string | Publish timestamp (RFC3339) |
 
 **Response:**
 

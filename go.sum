@@ -70,6 +70,8 @@ github.com/basenana/go-flow v0.0.0-20250614153542-07184f3ea1e7 h1:k9g4LV3K72oLlL
 github.com/basenana/go-flow v0.0.0-20250614153542-07184f3ea1e7/go.mod h1:SENkClgNfbCI934RaeeaiAzciaj3HAgr+M982HnG6Fc=
 github.com/basenana/plugin v0.0.0-20260119121123-efe862fd0c55 h1:/gzdmbqbdBR0bCPVJwicqMMSCo3hwu9FTBjbN39QEUg=
 github.com/basenana/plugin v0.0.0-20260119121123-efe862fd0c55/go.mod h1:dyrhB5TSw+OxEJjxjn4RZ5ptisY6IIVNcUIt+7WiVMo=
+github.com/basenana/plugin v0.0.0-20260120111423-e8bf4116bf54 h1:E1nsAzzQTAiosr6AEhN9oYeMMpUV1OpamwfroLm3aPM=
+github.com/basenana/plugin v0.0.0-20260120111423-e8bf4116bf54/go.mod h1:ley9tN7dhbAyWDlQu9snNabsmZiLOcymQ5zk3DCuKtU=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/bluele/gcache v0.0.2 h1:WcbfdXICg7G/DGBh1PFfcirkWOQV+v077yF1pSy3DGw=
@@ -225,6 +227,8 @@ github.com/hyponet/jiebago v0.0.0-20240525141904-e34990856482 h1:6phC4CbKBzBQ7PH
 github.com/hyponet/jiebago v0.0.0-20240525141904-e34990856482/go.mod h1:/QDKR3hYNk0E+DX4XWJHuBsiC1UTGdGynWjps4Kj+T0=
 github.com/hyponet/webpage-packer v1.1.1-0.20260119120926-bf6896a97972 h1:N3n5nZugXsPsEIXrOawLX65pQTnJeK3Rnw9YoVo/9Fc=
 github.com/hyponet/webpage-packer v1.1.1-0.20260119120926-bf6896a97972/go.mod h1:kun/dkSzcBXCG3GnZT36fRiFjpD8UFbw1mFygOFUjRo=
+github.com/hyponet/webpage-packer v1.1.1-0.20260120110819-ea684f94a892 h1:+T3kht7nTo3zKosP4cfsSFeLzbCXBg4O5UXfGQxFne0=
+github.com/hyponet/webpage-packer v1.1.1-0.20260120110819-ea684f94a892/go.mod h1:kun/dkSzcBXCG3GnZT36fRiFjpD8UFbw1mFygOFUjRo=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/invopop/jsonschema v0.13.0 h1:KvpoAJWEjR3uD9Kbm2HWJmqsEaHt8lBUpd0qHcIi21E=
@@ -564,6 +568,8 @@ google.golang.org/genproto/googleapis/api v0.0.0-20251202230838-ff82c1b0f217 h1:
 google.golang.org/genproto/googleapis/api v0.0.0-20251202230838-ff82c1b0f217/go.mod h1:+rXWjjaukWZun3mLfjmVnQi18E1AsFbDN9QdJ5YXLto=
 google.golang.org/genproto/googleapis/rpc v0.0.0-20260114163908-3f89685c29c3 h1:C4WAdL+FbjnGlpp2S+HMVhBeCq2Lcib4xZqfPNF6OoQ=
 google.golang.org/genproto/googleapis/rpc v0.0.0-20260114163908-3f89685c29c3/go.mod h1:j9x/tPzZkyxcgEFkiKEEGxfvyumM01BEtsW8xzOahRQ=
+google.golang.org/genproto/googleapis/rpc v0.0.0-20260120221211-b8f7ae30c516 h1:sNrWoksmOyF5bvJUcnmbeAmQi8baNhqg5IWaI3llQqU=
+google.golang.org/genproto/googleapis/rpc v0.0.0-20260120221211-b8f7ae30c516/go.mod h1:j9x/tPzZkyxcgEFkiKEEGxfvyumM01BEtsW8xzOahRQ=
 google.golang.org/grpc v1.78.0 h1:K1XZG/yGDJnzMdd/uZHAkVqJE+xIDOcmdSFZkBUicNc=
 google.golang.org/grpc v1.78.0/go.mod h1:I47qjTo4OKbMkjA/aOOwxDIiPSBofUtQUI5EfpWvW7U=
 google.golang.org/protobuf v0.0.0-20200109180630-ec00e32a8dfd/go.mod h1:DFci5gLYBciE7Vtevhsrf46CRTquxDuWsQurQQe4oz8=

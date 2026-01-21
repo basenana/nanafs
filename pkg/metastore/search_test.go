@@ -44,7 +44,7 @@ var _ = Describe("TestSearchOperation", func() {
 				CreateAt:  0,
 				ChangedAt: 0,
 			}
-			err := sqlite.IndexDocument(context.TODO(), namespace, doc)
+			err := sqlite.IndexDocument(context.TODO(), namespace, doc, nil)
 			Expect(err).Should(BeNil())
 		})
 
@@ -68,7 +68,7 @@ var _ = Describe("TestSearchOperation", func() {
 				},
 			}
 			for _, doc := range docs {
-				err := sqlite.IndexDocument(context.TODO(), namespace, doc)
+				err := sqlite.IndexDocument(context.TODO(), namespace, doc, nil)
 				Expect(err).Should(BeNil())
 			}
 		})
@@ -82,7 +82,7 @@ var _ = Describe("TestSearchOperation", func() {
 				CreateAt:  0,
 				ChangedAt: 0,
 			}
-			err := sqlite.IndexDocument(context.TODO(), namespace, doc)
+			err := sqlite.IndexDocument(context.TODO(), namespace, doc, nil)
 			Expect(err).Should(BeNil())
 
 			results, err := sqlite.QueryDocuments(context.TODO(), namespace, "searchable")
@@ -111,7 +111,7 @@ var _ = Describe("TestSearchOperation", func() {
 				},
 			}
 			for _, doc := range docs {
-				err := sqlite.IndexDocument(context.TODO(), namespace, doc)
+				err := sqlite.IndexDocument(context.TODO(), namespace, doc, nil)
 				Expect(err).Should(BeNil())
 			}
 
@@ -129,7 +129,7 @@ var _ = Describe("TestSearchOperation", func() {
 				CreateAt:  0,
 				ChangedAt: 0,
 			}
-			err := sqlite.IndexDocument(context.TODO(), namespace, doc)
+			err := sqlite.IndexDocument(context.TODO(), namespace, doc, nil)
 			Expect(err).Should(BeNil())
 
 			results, err := sqlite.QueryDocuments(context.TODO(), namespace, "NonExistentKeyword")
@@ -146,7 +146,7 @@ var _ = Describe("TestSearchOperation", func() {
 				CreateAt:  0,
 				ChangedAt: 0,
 			}
-			err := sqlite.IndexDocument(context.TODO(), namespace, doc)
+			err := sqlite.IndexDocument(context.TODO(), namespace, doc, nil)
 			Expect(err).Should(BeNil())
 
 			results, err := sqlite.QueryDocuments(context.TODO(), namespace, "")
@@ -171,9 +171,9 @@ var _ = Describe("TestSearchOperation", func() {
 				CreateAt:  0,
 				ChangedAt: 0,
 			}
-			err := sqlite.IndexDocument(context.TODO(), namespace, doc1)
+			err := sqlite.IndexDocument(context.TODO(), namespace, doc1, nil)
 			Expect(err).Should(BeNil())
-			err = sqlite.IndexDocument(context.TODO(), "other-namespace", doc2)
+			err = sqlite.IndexDocument(context.TODO(), "other-namespace", doc2, nil)
 			Expect(err).Should(BeNil())
 
 			results, err := sqlite.QueryDocuments(context.TODO(), namespace, "Shared")
@@ -191,7 +191,7 @@ var _ = Describe("TestSearchOperation", func() {
 				CreateAt:  0,
 				ChangedAt: 0,
 			}
-			err := sqlite.IndexDocument(context.TODO(), namespace, doc)
+			err := sqlite.IndexDocument(context.TODO(), namespace, doc, nil)
 			Expect(err).Should(BeNil())
 
 			titleResults, err := sqlite.QueryDocuments(context.TODO(), namespace, "Hidden")
