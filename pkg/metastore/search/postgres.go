@@ -69,7 +69,7 @@ func (d *PostgresDocumentModel) To() *types.IndexDocument {
 	}
 }
 
-func PostgresIndexDocument(ctx context.Context, db *gorm.DB, namespace string, document *types.IndexDocument) error {
+func PostgresIndexDocument(ctx context.Context, db *gorm.DB, namespace string, document *types.IndexDocument, tokenizer func(string) []string) error {
 	if document.ID == 0 || document.URI == "" {
 		// The document ID must be specified at the outside.
 		return fmt.Errorf("document id is empty")
@@ -79,7 +79,7 @@ func PostgresIndexDocument(ctx context.Context, db *gorm.DB, namespace string, d
 	model.From(document)
 	model.Namespace = namespace
 
-	tokenExpr := toTsVectorExpr(document)
+	tokenExpr := toTsVectorExpr(document, tokenizer)
 	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Upsert using GORM ON CONFLICT
 		if err := tx.Clauses(clause.OnConflict{
@@ -111,7 +111,14 @@ func PostgresQueryLanguage(ctx context.Context, db *gorm.DB, namespace, query st
 			Where("token @@ to_tsquery('simple', ?)", tsQuery).
 			Select("*, ts_rank(token, to_tsquery('simple', ?)) as rank", tsQuery)
 
-		res = res.Order("rank DESC").Find(&docModels)
+		res = res.Order("rank DESC")
+
+		// Apply pagination from context
+		if page := types.GetPagination(ctx); page != nil {
+			res = res.Offset(page.Offset()).Limit(page.Limit())
+		}
+
+		res = res.Find(&docModels)
 		return res.Error
 	})
 
@@ -158,9 +165,9 @@ func (t *TsVector) Value() (driver.Value, error) {
 	return string(*t), nil
 }
 
-func toTsVectorExpr(document *types.IndexDocument) string {
-	titleTokens := splitTokens(document.Title)
-	contentTokens := splitTokens(document.Content)
+func toTsVectorExpr(document *types.IndexDocument, tokenizer func(string) []string) string {
+	titleTokens := tokenizer(document.Title)
+	contentTokens := tokenizer(document.Content)
 
 	return fmt.Sprintf("setweight(to_tsvector('simple', '%s'), 'A') || setweight(to_tsvector('simple', '%s'), 'B')",
 		strings.Join(titleTokens, " "),

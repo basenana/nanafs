@@ -212,7 +212,7 @@ var _ = Describe("REST V1 Filter API", func() {
 			}
 			jsonBody, _ := json.Marshal(reqBody)
 
-			req, err := http.NewRequest("POST", "/api/v1/entries/search", bytes.NewBuffer(jsonBody))
+			req, err := http.NewRequest("POST", "/api/v1/entries/filter", bytes.NewBuffer(jsonBody))
 			Expect(err).Should(BeNil())
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Namespace", types.DefaultNamespace)

@@ -18,22 +18,18 @@ package indexer
 
 import (
 	"context"
-	"fmt"
-	"os"
 
 	"github.com/basenana/nanafs/pkg/metastore"
-	"github.com/basenana/nanafs/pkg/metastore/search"
 	"github.com/basenana/nanafs/pkg/types"
 )
 
-var envJieBaDict = os.Getenv("STATIC_JIEBA_DICT")
-
 type metaDB struct {
 	meta metastore.Meta
+	t    Tokenizer
 }
 
 func (m *metaDB) Index(ctx context.Context, namespace string, doc *types.IndexDocument) error {
-	return m.meta.IndexDocument(ctx, namespace, doc)
+	return m.meta.IndexDocument(ctx, namespace, doc, m.t.Tokenize)
 }
 
 func (m *metaDB) QueryLanguage(ctx context.Context, namespace, query string) ([]*types.IndexDocument, error) {
@@ -44,11 +40,6 @@ func (m *metaDB) Delete(ctx context.Context, namespace string, id int64) error {
 	return m.meta.DeleteDocument(ctx, namespace, id)
 }
 
-func NewMetaDB(meta metastore.Meta) (Indexer, error) {
-	_, err := os.Stat(envJieBaDict)
-	if err != nil {
-		return nil, fmt.Errorf("get jieba dict file err: %v", err)
-	}
-	search.SetDictPath(envJieBaDict)
-	return &metaDB{meta: meta}, nil
+func NewMetaDB(meta metastore.Meta, tokenizer Tokenizer) (Indexer, error) {
+	return &metaDB{meta: meta, t: tokenizer}, nil
 }

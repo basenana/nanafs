@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/basenana/nanafs/pkg/indexer"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
@@ -39,6 +40,7 @@ import (
 type ServicesV1 struct {
 	meta     metastore.Meta
 	core     core.Core
+	indexer  indexer.Indexer
 	workflow workflow.Workflow
 	notify   *notify.Notify
 	cfg      config.Config
@@ -49,6 +51,7 @@ func NewServicesV1(engine *gin.Engine, depends *common.Depends) (*ServicesV1, er
 	s := &ServicesV1{
 		meta:     depends.Meta,
 		core:     depends.Core,
+		indexer:  depends.Indexer,
 		workflow: depends.Workflow,
 		notify:   depends.Notify,
 		cfg:      depends.Config,

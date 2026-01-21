@@ -217,7 +217,7 @@ Create a new entry.
 }
 ```
 
-#### POST /api/v1/entries/search
+#### POST /api/v1/entries/filter
 
 Filter entries using CEL (Common Expression Language) patterns.
 
@@ -239,7 +239,7 @@ Filter entries using CEL (Common Expression Language) patterns.
 |---------------|--------|----------|------------------------------------------------------------------|
 | `cel_pattern` | string | yes      | CEL expression to filter entries                                 |
 | `page`        | int64  | no       | Page number (default: 1)                                         |
-| `page_size`   | int64  | no       | Number of items per page (default: all)                          |
+| `page_size`   | int64  | no       | Number of items per page (default: 50)                           |
 | `sort`        | string | no       | Sort field: `created_at`, `changed_at`, `name` (default: `name`) |
 | `order`       | string | no       | Sort order: `asc`, `desc` (default: `asc`)                       |
 
@@ -276,6 +276,49 @@ Filter entries using CEL (Common Expression Language) patterns.
       "changed_at": "2024-01-01T00:00:00Z",
       "modified_at": "2024-01-01T00:00:00Z",
       "access_at": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "page_size": 10
+  }
+}
+```
+
+#### POST /api/v1/entries/search
+
+Search documents using full-text search.
+
+**Request Body:**
+
+```json
+{
+  "query": "golang tutorial",
+  "page": 1,
+  "page_size": 10
+}
+```
+
+**Fields:**
+
+| Field      | Type   | Required | Description                          |
+|------------|--------|----------|--------------------------------------|
+| `query`    | string | yes      | Search keywords                      |
+| `page`     | int64  | no       | Page number (default: 1)             |
+| `page_size`| int64  | no       | Number of items per page (default: 20)|
+
+**Response:**
+
+```json
+{
+  "documents": [
+    {
+      "id": 1001,
+      "uri": "/inbox/docs/article-001",
+      "title": "Golang Tutorial",
+      "content": "This is a tutorial about Go programming language...",
+      "create_at": 1704067200,
+      "changed_at": 1704153600
     }
   ],
   "pagination": {

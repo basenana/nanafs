@@ -91,6 +91,12 @@ type FilterEntryRequest struct {
 	Order      string `json:"order"`                          // Order direction (asc/desc)
 }
 
+type SearchDocumentsRequest struct {
+	Query    string `json:"query" binding:"required"` // Search keywords
+	Page     int64  `json:"page"`                     // Page number
+	PageSize int64  `json:"page_size"`                // Page size
+}
+
 type UpdatePropertyRequest struct {
 	EntrySelector
 	Tags       []string          `json:"tags"`

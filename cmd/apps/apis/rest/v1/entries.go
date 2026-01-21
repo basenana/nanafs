@@ -325,7 +325,7 @@ func (s *ServicesV1) ChangeParent(ctx *gin.Context) {
 // @Produce json
 // @Param request body FilterEntryRequest true "Filter entry request"
 // @Success 200 {object} ListEntriesResponse
-// @Router /api/v1/entries/search [post]
+// @Router /api/v1/entries/filter [post]
 func (s *ServicesV1) FilterEntry(ctx *gin.Context) {
 	caller := s.requireCaller(ctx)
 	if caller == nil {
@@ -366,6 +366,57 @@ func (s *ServicesV1) FilterEntry(ctx *gin.Context) {
 
 	apitool.JsonResponse(ctx, http.StatusOK, &ListEntriesResponse{
 		Entries:    entries,
+		Pagination: &PaginationInfo{Page: req.Page, PageSize: req.PageSize},
+	})
+}
+
+// @Summary Search documents
+// @Description Search documents using full-text search with pagination support
+// @Tags Entries
+// @Accept json
+// @Produce json
+// @Param request body SearchDocumentsRequest true "Search documents request"
+// @Success 200 {object} SearchDocumentsResponse
+// @Router /api/v1/entries/search [post]
+func (s *ServicesV1) SearchEntry(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	var req SearchDocumentsRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	pg := types.NewPagination(req.Page, req.PageSize)
+	pctx := types.WithPagination(ctx.Request.Context(), pg)
+
+	var docs []*types.IndexDocument
+	var err error
+	if s.indexer != nil {
+		docs, err = s.indexer.QueryLanguage(pctx, caller.Namespace, req.Query)
+		if err != nil {
+			apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+			return
+		}
+	}
+
+	documents := make([]*DocumentInfo, 0, len(docs))
+	for _, d := range docs {
+		documents = append(documents, &DocumentInfo{
+			ID:        d.ID,
+			URI:       d.URI,
+			Title:     d.Title,
+			Content:   d.Content,
+			CreateAt:  d.CreateAt,
+			ChangedAt: d.ChangedAt,
+		})
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, &SearchDocumentsResponse{
+		Documents:  documents,
 		Pagination: &PaginationInfo{Page: req.Page, PageSize: req.PageSize},
 	})
 }

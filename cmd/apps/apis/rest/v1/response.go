@@ -186,6 +186,20 @@ type ListEntriesResponse struct {
 	Pagination *PaginationInfo `json:"pagination,omitempty"`
 }
 
+type DocumentInfo struct {
+	ID        int64  `json:"id"`
+	URI       string `json:"uri"`
+	Title     string `json:"title"`
+	Content   string `json:"content"`
+	CreateAt  int64  `json:"create_at"`
+	ChangedAt int64  `json:"changed_at"`
+}
+
+type SearchDocumentsResponse struct {
+	Documents  []*DocumentInfo  `json:"documents"`
+	Pagination *PaginationInfo  `json:"pagination,omitempty"`
+}
+
 type ListMessagesResponse struct {
 	Messages []*Message `json:"messages"`
 }

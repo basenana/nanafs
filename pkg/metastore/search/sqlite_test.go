@@ -328,7 +328,7 @@ var _ = Describe("Search package interface", func() {
 				CreateAt:  0,
 				ChangedAt: 0,
 			}
-			err := IndexDocument(context.TODO(), testDB, testNs1, doc)
+			err := IndexDocument(context.TODO(), testDB, testNs1, doc, nil)
 			Expect(err).Should(BeNil())
 		})
 	})

@@ -17,6 +17,8 @@
 package common
 
 import (
+	"os"
+
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/dispatch"
@@ -58,7 +60,16 @@ func InitDepends(cfg config.Config, meta metastore.Meta) (*Depends, error) {
 		return nil, err
 	}
 
-	dep.Indexer, err = indexer.NewMetaDB(meta)
+	var tokenizer indexer.Tokenizer
+	if dictPath := os.Getenv("STATIC_JIEBA_DICT"); dictPath != "" {
+		tokenizer, err = indexer.NewJiebaTokenizer(dictPath)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		tokenizer = indexer.NewSpaceTokenizer()
+	}
+	dep.Indexer, err = indexer.NewMetaDB(meta, tokenizer)
 	if err != nil {
 		return nil, err
 	}

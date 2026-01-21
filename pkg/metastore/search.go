@@ -24,9 +24,9 @@ import (
 	"github.com/basenana/nanafs/pkg/types"
 )
 
-func (s *sqlMetaStore) IndexDocument(ctx context.Context, namespace string, doc *types.IndexDocument) error {
+func (s *sqlMetaStore) IndexDocument(ctx context.Context, namespace string, doc *types.IndexDocument, tokenizer func(string) []string) error {
 	defer trace.StartRegion(ctx, "metastore.sql.Index").End()
-	return search.IndexDocument(ctx, s.DB, namespace, doc)
+	return search.IndexDocument(ctx, s.DB, namespace, doc, tokenizer)
 }
 
 func (s *sqlMetaStore) QueryDocuments(ctx context.Context, namespace, query string) ([]*types.IndexDocument, error) {

@@ -39,7 +39,8 @@ func RegisterRoutes(engine *gin.Engine, s *ServicesV1) {
 		entries := v1.Group("/entries")
 		{
 			entries.POST("", s.CreateEntry)
-			entries.POST("/search", s.FilterEntry)
+			entries.POST("/filter", s.FilterEntry)
+			entries.POST("/search", s.SearchEntry)
 			entries.POST("/batch-delete", s.DeleteEntries)
 			entries.POST("/delete", s.DeleteEntry)
 

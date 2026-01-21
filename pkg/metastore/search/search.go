@@ -24,12 +24,12 @@ import (
 	"gorm.io/gorm"
 )
 
-func IndexDocument(ctx context.Context, db *gorm.DB, namespace string, document *types.IndexDocument) error {
+func IndexDocument(ctx context.Context, db *gorm.DB, namespace string, document *types.IndexDocument, tokenizer func(string) []string) error {
 	switch db.Dialector.Name() {
 	case "sqlite":
 		return SqliteIndexDocument(ctx, db, namespace, document)
 	case "postgres":
-		return PostgresIndexDocument(ctx, db, namespace, document)
+		return PostgresIndexDocument(ctx, db, namespace, document, tokenizer)
 	default:
 		return fmt.Errorf("unknown dialector %s", db.Dialector.Name())
 	}

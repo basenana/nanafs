@@ -452,7 +452,7 @@ var _ = Describe("REST V1 Filter API", func() {
 			}
 			jsonBody, _ := json.Marshal(reqBody)
 
-			req, err := http.NewRequest("POST", "/api/v1/entries/search", bytes.NewBuffer(jsonBody))
+			req, err := http.NewRequest("POST", "/api/v1/entries/filter", bytes.NewBuffer(jsonBody))
 			Expect(err).Should(BeNil())
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Namespace", types.DefaultNamespace)
@@ -471,7 +471,7 @@ var _ = Describe("REST V1 Filter API", func() {
 			}
 			jsonBody, _ := json.Marshal(reqBody)
 
-			req, err := http.NewRequest("POST", "/api/v1/entries/search", bytes.NewBuffer(jsonBody))
+			req, err := http.NewRequest("POST", "/api/v1/entries/filter", bytes.NewBuffer(jsonBody))
 			Expect(err).Should(BeNil())
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-Namespace", types.DefaultNamespace)
@@ -482,6 +482,59 @@ var _ = Describe("REST V1 Filter API", func() {
 			Expect(w.Code).To(Equal(http.StatusOK))
 
 			var resp ListEntriesResponse
+			err = json.Unmarshal(w.Body.Bytes(), &resp)
+			Expect(err).Should(BeNil())
+			Expect(resp.Pagination).ShouldNot(BeNil())
+			Expect(resp.Pagination.Page).To(Equal(int64(1)))
+			Expect(resp.Pagination.PageSize).To(Equal(int64(10)))
+		})
+	})
+})
+
+var _ = Describe("REST V1 Search API", func() {
+	var router *gin.Engine
+
+	BeforeEach(func() {
+		router = testRouter.Router
+	})
+
+	Describe("SearchEntry", func() {
+		It("should return empty list for search", func() {
+			reqBody := SearchDocumentsRequest{
+				Query: "test",
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+
+			req, err := http.NewRequest("POST", "/api/v1/entries/search", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should return pagination info", func() {
+			reqBody := SearchDocumentsRequest{
+				Query:    "test",
+				Page:     1,
+				PageSize: 10,
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+
+			req, err := http.NewRequest("POST", "/api/v1/entries/search", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusOK))
+
+			var resp SearchDocumentsResponse
 			err = json.Unmarshal(w.Body.Bytes(), &resp)
 			Expect(err).Should(BeNil())
 			Expect(resp.Pagination).ShouldNot(BeNil())

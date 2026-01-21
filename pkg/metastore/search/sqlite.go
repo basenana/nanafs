@@ -101,11 +101,17 @@ func SqliteQueryLanguage(ctx context.Context, db *gorm.DB, namespace, query stri
 	// Use FTS5 MATCH for full-text search
 	var results []SqliteDocument
 
-	err := db.WithContext(ctx).
+	db = db.WithContext(ctx).
 		Table("documents").
 		Where("namespace = ?", namespace).
-		Where("id IN (SELECT rowid FROM documents_fts WHERE documents_fts MATCH ?)", query).
-		Find(&results).Error
+		Where("id IN (SELECT rowid FROM documents_fts WHERE documents_fts MATCH ?)", query)
+
+	// Apply pagination from context
+	if page := types.GetPagination(ctx); page != nil {
+		db = db.Offset(page.Offset()).Limit(page.Limit())
+	}
+
+	err := db.Find(&results).Error
 
 	if err != nil {
 		return nil, err
