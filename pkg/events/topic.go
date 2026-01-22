@@ -16,12 +16,13 @@
 
 package events
 
-var (
+const (
 	TopicNamespaceEntry    = "action.entry."
 	ActionTypeCreate       = "create"
 	ActionTypeRemove       = "remove"
 	ActionTypeMirror       = "mirror"
 	ActionTypeChangeParent = "change_parent"
+	ActionTypeIndex        = "index"
 
 	TopicNamespaceFile = "action.file."
 	ActionTypeTrunc    = "trunc"

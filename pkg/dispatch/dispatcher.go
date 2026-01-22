@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/basenana/nanafs/pkg/core"
+	"github.com/basenana/nanafs/pkg/indexer"
 
 	"go.uber.org/zap"
 
@@ -31,10 +32,11 @@ import (
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
+	"github.com/basenana/nanafs/workflow"
 )
 
 var (
-	taskExecutionInterval = 5 * time.Minute
+	taskExecutionInterval = 5 * time.Second
 	taskAliveTime         = 24 * time.Hour
 )
 
@@ -54,6 +56,8 @@ type Dispatcher struct {
 	core      core.Core
 	notify    *notify.Notify
 	meta      metastore.Meta
+	indexer   indexer.Indexer
+	workflow  workflow.Workflow
 	recorder  metastore.ScheduledTaskRecorder
 	executors map[string]executor
 	routines  [24][]routineTask
@@ -213,11 +217,12 @@ func (d *Dispatcher) registerRoutineTask(periodH int, task routineTask) {
 	}
 }
 
-func Init(fsCore core.Core, notify *notify.Notify, meta metastore.Meta, recorder metastore.ScheduledTaskRecorder) (*Dispatcher, error) {
+func Init(fsCore core.Core, notify *notify.Notify, meta metastore.Meta, recorder metastore.ScheduledTaskRecorder, wf workflow.Workflow) (*Dispatcher, error) {
 	d := &Dispatcher{
 		core:      fsCore,
 		notify:    notify,
 		meta:      meta,
+		workflow:  wf,
 		recorder:  recorder,
 		executors: map[string]executor{},
 		routines:  [24][]routineTask{},
@@ -229,6 +234,10 @@ func Init(fsCore core.Core, notify *notify.Notify, meta metastore.Meta, recorder
 	}
 
 	if err := registerWorkflowExecutor(d, recorder); err != nil {
+		return nil, err
+	}
+
+	if err := registerIndexExecutor(d, recorder, meta, wf); err != nil {
 		return nil, err
 	}
 

@@ -21,9 +21,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path"
 
+	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/indexer"
 	"github.com/gin-gonic/gin"
+	"github.com/hyponet/eventbus"
 	"go.uber.org/zap"
 
 	"github.com/basenana/nanafs/cmd/apps/apis/apitool"
@@ -226,10 +229,24 @@ func (s *ServicesV1) getEntryDetails(ctx context.Context, namespace, uri, name s
 		return nil, err
 	}
 
+	s.checkAndTriggerIndexEvent(ctx, namespace, path.Join(uri, name), en, properties)
+
 	return toEntryDetail(uri, name, en, doc, &Property{
 		Tags:       properties.Tags,
 		Properties: properties.Properties,
 	}), nil
+}
+
+func (s *ServicesV1) checkAndTriggerIndexEvent(ctx context.Context, namespace, uri string, en *types.Entry, prop *types.Properties) {
+	if en.IsGroup {
+		return
+	}
+
+	expectedIndexVersion := fmt.Sprintf("v%d", en.ModifiedAt.UnixNano())
+	if prop.IndexVersion != expectedIndexVersion {
+		evt := events.BuildEntryEvent(events.ActionTypeIndex, "rest", uri, en)
+		eventbus.Publish(events.NamespacedTopic(events.TopicNamespaceEntry, events.ActionTypeIndex), evt)
+	}
 }
 
 // pdKind2EntryKind converts string to entry kind.
