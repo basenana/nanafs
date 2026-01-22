@@ -136,7 +136,8 @@ func (d *DocLoader) loadDocument(ctx context.Context, filePath string) (types.Do
 	}
 
 	var (
-		fileExt     = filepath.Ext(entryPath)
+		baseName    = filepath.Base(filePath)
+		fileExt     = filepath.Ext(baseName)
 		p           Parser
 		parseOption = map[string]string{}
 	)
@@ -162,7 +163,11 @@ func (d *DocLoader) loadDocument(ctx context.Context, filePath string) (types.Do
 	}
 
 	if doc.Properties.Title == "" {
-		doc.Properties.Title = strings.TrimSpace(strings.TrimSuffix(filePath, fileExt))
+		title := strings.TrimSpace(baseName)
+		if fileExt != "" && fileExt != baseName {
+			title = strings.TrimSpace(strings.TrimSuffix(baseName, fileExt))
+		}
+		doc.Properties.Title = title
 	}
 
 	return doc, nil

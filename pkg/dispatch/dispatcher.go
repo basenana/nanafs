@@ -36,7 +36,7 @@ import (
 )
 
 var (
-	taskExecutionInterval = 5 * time.Second
+	taskExecutionInterval = 5 * time.Minute
 	taskAliveTime         = 24 * time.Hour
 )
 

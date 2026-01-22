@@ -12,7 +12,7 @@ require (
 	github.com/aws/smithy-go v1.13.5
 	github.com/basenana/friday/core v0.0.0-20260115125134-20b35d6baae8
 	github.com/basenana/go-flow v0.0.0-20250614153542-07184f3ea1e7
-	github.com/basenana/plugin v0.0.0-20260120111423-e8bf4116bf54
+	github.com/basenana/plugin v0.0.0-20260122112206-e4d43636e6f5
 	github.com/bluele/gcache v0.0.2
 	github.com/davecgh/go-spew v1.1.1
 	github.com/glebarez/sqlite v1.7.0
@@ -43,7 +43,7 @@ require (
 
 require (
 	cel.dev/expr v0.24.0 // indirect
-	cloud.google.com/go/auth v0.18.0 // indirect
+	cloud.google.com/go/auth v0.18.1 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	code.dny.dev/ssrf v0.2.0 // indirect
@@ -163,7 +163,7 @@ require (
 	golang.org/x/text v0.33.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	golang.org/x/tools v0.41.0 // indirect
-	google.golang.org/api v0.260.0 // indirect
+	google.golang.org/api v0.261.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260120221211-b8f7ae30c516 // indirect
 	google.golang.org/grpc v1.78.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect

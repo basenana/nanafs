@@ -18,6 +18,7 @@ package dispatch
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/hyponet/eventbus"
@@ -38,6 +39,7 @@ type indexExecutor struct {
 	recorder  metastore.ScheduledTaskRecorder
 	workflow  workflow.Workflow
 	metastore metastore.Meta
+	mux       sync.Mutex
 	logger    *zap.SugaredLogger
 }
 
@@ -50,6 +52,9 @@ func (i *indexExecutor) handleEvent(evt *types.Event) error {
 		i.logger.Warn("[indexExecutor] event is missing URI")
 		return nil
 	}
+
+	i.mux.Lock()
+	defer i.mux.Unlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
 	defer cancel()

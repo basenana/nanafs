@@ -1,7 +1,7 @@
 # cel.dev/expr v0.24.0
 ## explicit; go 1.22.0
 cel.dev/expr
-# cloud.google.com/go/auth v0.18.0
+# cloud.google.com/go/auth v0.18.1
 ## explicit; go 1.24.0
 cloud.google.com/go/auth
 cloud.google.com/go/auth/credentials
@@ -196,7 +196,7 @@ github.com/basenana/friday/core/types
 # github.com/basenana/go-flow v0.0.0-20250614153542-07184f3ea1e7
 ## explicit; go 1.23
 github.com/basenana/go-flow
-# github.com/basenana/plugin v0.0.0-20260120111423-e8bf4116bf54
+# github.com/basenana/plugin v0.0.0-20260122112206-e4d43636e6f5
 ## explicit; go 1.25
 github.com/basenana/plugin
 github.com/basenana/plugin/agentic
@@ -999,7 +999,7 @@ golang.org/x/tools/internal/gopathwalk
 golang.org/x/tools/internal/imports
 golang.org/x/tools/internal/modindex
 golang.org/x/tools/internal/stdlib
-# google.golang.org/api v0.260.0
+# google.golang.org/api v0.261.0
 ## explicit; go 1.24.0
 google.golang.org/api/customsearch/v1
 google.golang.org/api/googleapi
