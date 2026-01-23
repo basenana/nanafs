@@ -406,12 +406,13 @@ func (s *ServicesV1) SearchEntry(ctx *gin.Context) {
 	documents := make([]*DocumentInfo, 0, len(docs))
 	for _, d := range docs {
 		documents = append(documents, &DocumentInfo{
-			ID:        d.ID,
-			URI:       d.URI,
-			Title:     d.Title,
-			Content:   d.Content,
-			CreateAt:  nanoTimestampToTime(d.CreateAt),
-			ChangedAt: nanoTimestampToTime(d.ChangedAt),
+			ID:               d.ID,
+			URI:              d.URI,
+			Title:            d.Title,
+			HighlightTitle:   d.HighlightTitle,
+			HighlightContent: d.HighlightContent,
+			CreateAt:         nanoTimestampToTime(d.CreateAt),
+			ChangedAt:        nanoTimestampToTime(d.ChangedAt),
 		})
 	}
 

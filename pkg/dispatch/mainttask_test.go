@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/basenana/nanafs/pkg/events"
+	"github.com/basenana/nanafs/pkg/indexer"
 	"github.com/basenana/nanafs/pkg/types"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -289,6 +290,7 @@ var _ = Describe("entryCleanExecutor.execute", func() {
 			core:      fsCore,
 			metastore: testMeta,
 			recorder:  testMeta,
+			indexer:   indexer.NewMem(),
 			logger:    zap.NewNop().Sugar(),
 		}
 		ee := &entryCleanExecutor{maintainExecutor: e}

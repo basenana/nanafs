@@ -329,7 +329,8 @@ Search documents using full-text search.
       "id": 1001,
       "uri": "/inbox/docs/article-001",
       "title": "Golang Tutorial",
-      "content": "This is a tutorial about Go programming language...",
+      "highlight_title": "Golang <mark>Tutorial</mark>",
+      "highlight_content": "...about Go <mark>programming</mark> language...",
       "create_at": "2024-01-01T00:00:00Z",
       "changed_at": "2024-01-02T00:00:00Z"
     }
@@ -340,6 +341,18 @@ Search documents using full-text search.
   }
 }
 ```
+
+**Fields:**
+
+| Field               | Type   | Description                                                              |
+|---------------------|--------|--------------------------------------------------------------------------|
+| `id`                | int64  | Document ID                                                              |
+| `uri`               | string | Document URI                                                             |
+| `title`             | string | Document title                                                           |
+| `highlight_title`   | string | Title with search terms highlighted                                      |
+| `highlight_content` | string | Content snippet with search terms highlighted (wrapped in `<mark>` tags) |
+| `create_at`         | string | Creation timestamp (RFC3339)                                             |
+| `changed_at`        | string | Last modification timestamp (RFC3339)                                    |
 
 #### PUT /api/v1/entries
 
@@ -619,21 +632,21 @@ Update document-specific properties. Supports `?uri=` or `?id=` query parameters
 
 **Fields:**
 
-| Field          | Type   | Description              |
-|----------------|--------|--------------------------|
-| `title`        | string | Document title           |
-| `author`       | string | Author name              |
-| `year`         | string | Publication year         |
-| `source`       | string | Source URL               |
-| `abstract`     | string | Document abstract        |
-| `notes`        | string | Personal notes           |
-| `keywords`     | array  | Keywords/tags            |
-| `url`          | string | Article URL              |
-| `site_name`    | string | Website name             |
-| `site_url`     | string | Website URL              |
+| Field          | Type   | Description                 |
+|----------------|--------|-----------------------------|
+| `title`        | string | Document title              |
+| `author`       | string | Author name                 |
+| `year`         | string | Publication year            |
+| `source`       | string | Source URL                  |
+| `abstract`     | string | Document abstract           |
+| `notes`        | string | Personal notes              |
+| `keywords`     | array  | Keywords/tags               |
+| `url`          | string | Article URL                 |
+| `site_name`    | string | Website name                |
+| `site_url`     | string | Website URL                 |
 | `header_image` | string | Header image URL            |
-| `unread`       | bool   | Mark as unread             |
-| `marked`       | bool   | Mark as starred            |
+| `unread`       | bool   | Mark as unread              |
+| `marked`       | bool   | Mark as starred             |
 | `publish_at`   | string | Publish timestamp (RFC3339) |
 
 **Response:**

@@ -36,6 +36,18 @@ func (m *memIndexer) Delete(ctx context.Context, namespace string, id int64) err
 	return nil
 }
 
+func (m *memIndexer) UpdateURI(ctx context.Context, namespace string, id int64, uri string) error {
+	return nil
+}
+
+func (m *memIndexer) DeleteChildren(ctx context.Context, namespace string, parentID int64) error {
+	return nil
+}
+
+func (m *memIndexer) UpdateChildrenURI(ctx context.Context, namespace string, parentID int64, newParentURI string) error {
+	return nil
+}
+
 func NewMem() Indexer {
 	return &memIndexer{}
 }

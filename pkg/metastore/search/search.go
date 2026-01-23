@@ -56,3 +56,14 @@ func DeleteDocument(ctx context.Context, db *gorm.DB, namespace string, id int64
 		return fmt.Errorf("unknown dialector %s", db.Dialector.Name())
 	}
 }
+
+func UpdateDocumentURI(ctx context.Context, db *gorm.DB, namespace string, id int64, uri string) error {
+	switch db.Dialector.Name() {
+	case "sqlite":
+		return SqliteUpdateDocumentURI(ctx, db, namespace, id, uri)
+	case "postgres":
+		return PostgresUpdateDocumentURI(ctx, db, namespace, id, uri)
+	default:
+		return fmt.Errorf("unknown dialector %s", db.Dialector.Name())
+	}
+}

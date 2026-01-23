@@ -17,10 +17,12 @@
 package types
 
 type IndexDocument struct {
-	ID        int64  `json:"id"`
-	URI       string `json:"uri"`
-	Title     string `json:"title"`
-	Content   string `json:"content"`
-	CreateAt  int64  `json:"create_at"`
-	ChangedAt int64  `json:"changed_at"`
+	ID               int64  `json:"id"`
+	URI              string `json:"uri"`
+	Title            string `json:"title"`
+	Content          string `json:"content"`
+	HighlightTitle   string `json:"highlight_title"`
+	HighlightContent string `json:"highlight_content"`
+	CreateAt         int64  `json:"create_at"`
+	ChangedAt        int64  `json:"changed_at"`
 }

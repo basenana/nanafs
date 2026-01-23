@@ -25,6 +25,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/basenana/nanafs/pkg/events"
+	"github.com/basenana/nanafs/pkg/indexer"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
@@ -32,13 +33,15 @@ import (
 )
 
 const (
-	taskIDIndexReindex = "task.index.reindex"
+	taskIDIndexReindex      = "task.index.reindex"
+	taskIDUpdateDocumentURI = "task.index.update_uri"
 )
 
 type indexExecutor struct {
 	recorder  metastore.ScheduledTaskRecorder
 	workflow  workflow.Workflow
 	metastore metastore.Meta
+	indexer   indexer.Indexer
 	mux       sync.Mutex
 	logger    *zap.SugaredLogger
 }
@@ -102,11 +105,74 @@ func (i *indexExecutor) execute(ctx context.Context, task *types.ScheduledTask) 
 	return nil
 }
 
-func registerIndexExecutor(d *Dispatcher, recorder metastore.ScheduledTaskRecorder, meta metastore.Meta, wf workflow.Workflow) error {
+type documentURIUpdateExecutor struct {
+	recorder  metastore.ScheduledTaskRecorder
+	metastore metastore.Meta
+	indexer   indexer.Indexer
+	logger    *zap.SugaredLogger
+}
+
+func (u *documentURIUpdateExecutor) handleEvent(evt *types.Event) error {
+	if evt.Type != events.ActionTypeChangeParent {
+		return nil
+	}
+
+	ctx, canF := context.WithTimeout(context.Background(), time.Hour)
+	defer canF()
+
+	task, err := getWaitingTask(ctx, u.recorder, taskIDUpdateDocumentURI, evt)
+	if err != nil {
+		u.logger.Errorw("[documentURIUpdateExecutor] list scheduled task error", "entry", evt.RefID, "err", err.Error())
+		return err
+	}
+
+	if task != nil {
+		return nil
+	}
+
+	task = &types.ScheduledTask{
+		Namespace:      evt.Namespace,
+		TaskID:         taskIDUpdateDocumentURI,
+		Status:         types.ScheduledTaskWait,
+		RefType:        evt.RefType,
+		RefID:          evt.RefID,
+		CreatedTime:    time.Now(),
+		ExpirationTime: time.Now().Add(time.Hour),
+		Event:          *evt,
+	}
+	return u.recorder.SaveTask(ctx, task)
+}
+
+func (u *documentURIUpdateExecutor) execute(ctx context.Context, task *types.ScheduledTask) error {
+	newURI := task.Event.Data.URI
+	entryID := task.Event.RefID
+
+	en, err := u.metastore.GetEntry(ctx, task.Namespace, entryID)
+	if err != nil {
+		u.logger.Errorw("[documentURIUpdateExecutor] get entry failed", "entry", entryID, "err", err)
+		return err
+	}
+
+	if en.IsGroup {
+		if err = u.indexer.UpdateChildrenURI(ctx, task.Namespace, entryID, newURI); err != nil {
+			u.logger.Errorw("[documentURIUpdateExecutor] update child documents failed", "group", entryID, "err", err)
+		}
+		return nil
+	}
+
+	if err = u.indexer.UpdateURI(ctx, task.Namespace, entryID, newURI); err != nil {
+		u.logger.Errorw("[documentURIUpdateExecutor] update document uri failed", "entry", entryID, "err", err)
+	}
+
+	return nil
+}
+
+func registerIndexExecutors(d *Dispatcher, recorder metastore.ScheduledTaskRecorder, meta metastore.Meta, wf workflow.Workflow, idx indexer.Indexer) error {
 	e := &indexExecutor{
 		recorder:  recorder,
 		workflow:  wf,
 		metastore: meta,
+		indexer:   idx,
 		logger:    logger.NewLogger("indexExecutor"),
 	}
 	d.registerExecutor(taskIDIndexReindex, e)
@@ -114,5 +180,18 @@ func registerIndexExecutor(d *Dispatcher, recorder metastore.ScheduledTaskRecord
 		events.NamespacedTopic(events.TopicNamespaceEntry, events.ActionTypeIndex),
 		e.handleEvent,
 	)
+
+	ue := &documentURIUpdateExecutor{
+		recorder:  recorder,
+		metastore: meta,
+		indexer:   idx,
+		logger:    logger.NewLogger("documentURIUpdateExecutor"),
+	}
+	d.registerExecutor(taskIDUpdateDocumentURI, ue)
+	eventbus.Subscribe(
+		events.NamespacedTopic(events.TopicNamespaceEntry, events.ActionTypeChangeParent),
+		ue.handleEvent,
+	)
+
 	return nil
 }

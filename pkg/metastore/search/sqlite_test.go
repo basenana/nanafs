@@ -20,6 +20,7 @@ import (
 	"context"
 	"os"
 	"path"
+	"strings"
 	"testing"
 
 	"github.com/basenana/nanafs/config"
@@ -482,6 +483,104 @@ var _ = Describe("SqliteIndexDocument Upsert", func() {
 			results2, err := SqliteQueryLanguage(context.TODO(), testDB, testNs1, "Old")
 			Expect(err).Should(BeNil())
 			Expect(len(results2)).Should(Equal(0))
+		})
+	})
+})
+
+var _ = Describe("SqliteQueryLanguage Highlight", func() {
+	BeforeEach(func() {
+		testDB.Exec("DELETE FROM documents")
+		testDB.Exec("DELETE FROM documents_fts")
+	})
+
+	Context("highlight search results", func() {
+		It("should return highlighted title with mark tags", func() {
+			doc := &types.IndexDocument{
+				ID:        400,
+				URI:       "test://doc400",
+				Title:     "Golang Tutorial",
+				Content:   "Learn Go programming language",
+				CreateAt:  0,
+				ChangedAt: 0,
+			}
+			SqliteIndexDocument(context.TODO(), testDB, testNs1, doc)
+
+			results, err := SqliteQueryLanguage(context.TODO(), testDB, testNs1, "Golang")
+			Expect(err).Should(BeNil())
+			Expect(len(results)).Should(Equal(1))
+			Expect(results[0].HighlightTitle).Should(ContainSubstring("<mark>Golang</mark>"))
+		})
+
+		It("should return highlighted content with mark tags", func() {
+			doc := &types.IndexDocument{
+				ID:        410,
+				URI:       "test://doc410",
+				Title:     "Programming Guide",
+				Content:   "This is a comprehensive programming tutorial",
+				CreateAt:  0,
+				ChangedAt: 0,
+			}
+			SqliteIndexDocument(context.TODO(), testDB, testNs1, doc)
+
+			results, err := SqliteQueryLanguage(context.TODO(), testDB, testNs1, "programming")
+			Expect(err).Should(BeNil())
+			Expect(len(results)).Should(Equal(1))
+			Expect(results[0].HighlightContent).Should(ContainSubstring("<mark>programming</mark>"))
+		})
+
+		It("should highlight multiple keywords in content", func() {
+			doc := &types.IndexDocument{
+				ID:        420,
+				URI:       "test://doc420",
+				Title:     "Database Systems",
+				Content:   "SQL and NoSQL databases are different",
+				CreateAt:  0,
+				ChangedAt: 0,
+			}
+			SqliteIndexDocument(context.TODO(), testDB, testNs1, doc)
+
+			results, err := SqliteQueryLanguage(context.TODO(), testDB, testNs1, "SQL NoSQL")
+			Expect(err).Should(BeNil())
+			Expect(len(results)).Should(Equal(1))
+			Expect(results[0].HighlightContent).Should(ContainSubstring("<mark>SQL</mark>"))
+			Expect(results[0].HighlightContent).Should(ContainSubstring("<mark>NoSQL</mark>"))
+		})
+
+		It("should return empty highlight fields for no matches", func() {
+			doc := &types.IndexDocument{
+				ID:        430,
+				URI:       "test://doc430",
+				Title:     "Test Document",
+				Content:   "Some content here",
+				CreateAt:  0,
+				ChangedAt: 0,
+			}
+			SqliteIndexDocument(context.TODO(), testDB, testNs1, doc)
+
+			results, err := SqliteQueryLanguage(context.TODO(), testDB, testNs1, "NonExistent")
+			Expect(err).Should(BeNil())
+			Expect(len(results)).Should(Equal(0))
+		})
+
+		It("should preserve highlight fields in result", func() {
+			doc := &types.IndexDocument{
+				ID:        440,
+				URI:       "test://doc440",
+				Title:     "Hello World",
+				Content:   "This is a test document about testing",
+				CreateAt:  0,
+				ChangedAt: 0,
+			}
+			SqliteIndexDocument(context.TODO(), testDB, testNs1, doc)
+
+			results, err := SqliteQueryLanguage(context.TODO(), testDB, testNs1, "test")
+			Expect(err).Should(BeNil())
+			Expect(len(results)).Should(Equal(1))
+			Expect(results[0].ID).Should(Equal(int64(440)))
+			Expect(results[0].URI).Should(Equal("test://doc440"))
+			Expect(results[0].Title).Should(Equal("Hello World"))
+			Expect(strings.Contains(results[0].HighlightTitle, "<mark>") ||
+				strings.Contains(results[0].HighlightContent, "<mark>")).Should(BeTrue())
 		})
 	})
 })

@@ -40,6 +40,13 @@ type PostgresDocumentModel struct {
 	ChangedAt int64    `gorm:"column:changed_at"`
 }
 
+type postgresHighlightResult struct {
+	PostgresDocumentModel
+	HighlightTitle   string  `gorm:"column:highlight_title"`
+	HighlightContent string  `gorm:"column:highlight_content"`
+	Rank             float64 `gorm:"column:rank"`
+}
+
 func (d *PostgresDocumentModel) TableName() string {
 	return "documents"
 }
@@ -100,25 +107,35 @@ func PostgresQueryLanguage(ctx context.Context, db *gorm.DB, namespace, query st
 	}
 	tsQuery := strings.Join(keywords, " & ")
 
-	var (
-		docModels []PostgresDocumentModel
-		result    []*types.IndexDocument
+	var results []postgresHighlightResult
+
+	headlineTitleExpr := fmt.Sprintf(
+		"ts_headline('simple', title, to_tsquery('simple', $1), "+
+			"'StartSel=<mark>, StopSel=</mark>, MaxWords=50, MinWords=20')",
+	)
+	headlineContentExpr := fmt.Sprintf(
+		"ts_headline('simple', content, to_tsquery('simple', $1), "+
+			"'StartSel=<mark>, StopSel=</mark>, MaxWords=100, MinWords=50, "+
+			"FragmentDelimiter= ... ')",
 	)
 
 	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		res := tx.Model(&PostgresDocumentModel{}).
 			Where("namespace = ?", namespace).
 			Where("token @@ to_tsquery('simple', ?)", tsQuery).
-			Select("*, ts_rank(token, to_tsquery('simple', ?)) as rank", tsQuery)
+			Select(
+				fmt.Sprintf("*, %s as highlight_title, %s as highlight_content, ts_rank(token, to_tsquery('simple', ?)) as rank",
+					headlineTitleExpr, headlineContentExpr),
+				tsQuery,
+			)
 
 		res = res.Order("rank DESC")
 
-		// Apply pagination from context
 		if page := types.GetPagination(ctx); page != nil {
 			res = res.Offset(page.Offset()).Limit(page.Limit())
 		}
 
-		res = res.Find(&docModels)
+		res = res.Find(&results)
 		return res.Error
 	})
 
@@ -126,14 +143,36 @@ func PostgresQueryLanguage(ctx context.Context, db *gorm.DB, namespace, query st
 		return nil, err
 	}
 
-	for _, dm := range docModels {
-		result = append(result, dm.To())
+	var docs []*types.IndexDocument
+	for _, r := range results {
+		docs = append(docs, &types.IndexDocument{
+			ID:               r.ID,
+			URI:              r.URI,
+			Title:            r.Title,
+			HighlightTitle:   r.HighlightTitle,
+			HighlightContent: r.HighlightContent,
+			CreateAt:         r.CreatedAt,
+			ChangedAt:        r.ChangedAt,
+		})
 	}
-	return result, nil
+	return docs, nil
 }
 
 func PostgresDeleteDocument(ctx context.Context, db *gorm.DB, namespace string, id int64) error {
 	result := db.WithContext(ctx).Where("id = ? AND namespace = ?", id, namespace).Delete(&PostgresDocumentModel{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("document not found")
+	}
+	return nil
+}
+
+func PostgresUpdateDocumentURI(ctx context.Context, db *gorm.DB, namespace string, id int64, uri string) error {
+	result := db.WithContext(ctx).Model(&PostgresDocumentModel{}).
+		Where("id = ? AND namespace = ?", id, namespace).
+		Update("uri", uri)
 	if result.Error != nil {
 		return result.Error
 	}

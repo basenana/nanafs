@@ -26,4 +26,7 @@ type Indexer interface {
 	Index(ctx context.Context, namespace string, doc *types.IndexDocument) error
 	QueryLanguage(ctx context.Context, namespace, query string) ([]*types.IndexDocument, error)
 	Delete(ctx context.Context, namespace string, id int64) error
+	UpdateURI(ctx context.Context, namespace string, id int64, uri string) error
+	DeleteChildren(ctx context.Context, namespace string, parentID int64) error
+	UpdateChildrenURI(ctx context.Context, namespace string, parentID int64, newParentURI string) error
 }

@@ -187,12 +187,13 @@ type ListEntriesResponse struct {
 }
 
 type DocumentInfo struct {
-	ID        int64     `json:"id"`
-	URI       string    `json:"uri"`
-	Title     string    `json:"title"`
-	Content   string    `json:"content"`
-	CreateAt  time.Time `json:"create_at"`
-	ChangedAt time.Time `json:"changed_at"`
+	ID               int64     `json:"id"`
+	URI              string    `json:"uri"`
+	Title            string    `json:"title"`
+	HighlightTitle   string    `json:"highlight_title"`
+	HighlightContent string    `json:"highlight_content"`
+	CreateAt         time.Time `json:"create_at"`
+	ChangedAt        time.Time `json:"changed_at"`
 }
 
 type SearchDocumentsResponse struct {

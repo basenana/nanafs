@@ -39,3 +39,9 @@ func (s *sqlMetaStore) DeleteDocument(ctx context.Context, namespace string, id 
 	defer trace.StartRegion(ctx, "metastore.sql.Delete").End()
 	return search.DeleteDocument(ctx, s.DB, namespace, id)
 }
+
+func (s *sqlMetaStore) UpdateDocumentURI(ctx context.Context, namespace string, id int64, uri string) error {
+	defer trace.StartRegion(ctx, "metastore.sql.UpdateDocumentURI").End()
+	s.logger.Infow("update document uri", "namespace", namespace, "id", id, "uri", uri)
+	return search.UpdateDocumentURI(ctx, s.DB, namespace, id, uri)
+}

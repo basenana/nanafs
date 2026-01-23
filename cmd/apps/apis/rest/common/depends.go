@@ -74,7 +74,7 @@ func InitDepends(cfg config.Config, meta metastore.Meta) (*Depends, error) {
 		return nil, err
 	}
 
-	dep.Dispatcher, err = dispatch.Init(dep.Core, dep.Notify, meta, meta, dep.Workflow)
+	dep.Dispatcher, err = dispatch.Init(dep.Core, dep.Notify, meta, meta, dep.Workflow, dep.Indexer)
 	if err != nil {
 		return nil, err
 	}

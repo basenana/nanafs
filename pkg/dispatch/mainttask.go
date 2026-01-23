@@ -26,6 +26,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/basenana/nanafs/pkg/events"
+	"github.com/basenana/nanafs/pkg/indexer"
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/basenana/nanafs/utils/logger"
@@ -42,6 +43,7 @@ type maintainExecutor struct {
 	core      core.Core
 	recorder  metastore.ScheduledTaskRecorder
 	metastore metastore.Meta
+	indexer   indexer.Indexer
 	logger    *zap.SugaredLogger
 }
 
@@ -230,6 +232,17 @@ func (c *entryCleanExecutor) execute(ctx context.Context, task *types.ScheduledT
 		c.logger.Errorw("[entryCleanExecutor] destroy entry failed", "entry", entry.ID, "task", task.ID, "err", err)
 		return err
 	}
+
+	if en.IsGroup {
+		if err = c.indexer.DeleteChildren(ctx, task.Namespace, en.ID); err != nil {
+			c.logger.Errorw("[entryCleanExecutor] delete child documents failed", "group", en.ID, "err", err)
+		}
+	} else {
+		if err = c.indexer.Delete(ctx, task.Namespace, en.ID); err != nil {
+			c.logger.Errorw("[entryCleanExecutor] delete document failed", "entry", en.ID, "err", err)
+		}
+	}
+
 	return nil
 }
 
@@ -237,8 +250,9 @@ func registerMaintainExecutor(
 	d *Dispatcher,
 	fsCore core.Core,
 	meta metastore.Meta,
-	recorder metastore.ScheduledTaskRecorder) error {
-	e := &maintainExecutor{core: fsCore, recorder: recorder, metastore: meta, logger: logger.NewLogger("maintainExecutor")}
+	recorder metastore.ScheduledTaskRecorder,
+	idx indexer.Indexer) error {
+	e := &maintainExecutor{core: fsCore, recorder: recorder, metastore: meta, indexer: idx, logger: logger.NewLogger("maintainExecutor")}
 	ce := &compactExecutor{maintainExecutor: e}
 	ee := &entryCleanExecutor{maintainExecutor: e, orphanThreshold: orphanEntryTimeout}
 

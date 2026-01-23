@@ -38,6 +38,17 @@ type SqliteDocument struct {
 	ChangedAt int64  `gorm:"column:changed_at"`
 }
 
+type sqliteHighlightResult struct {
+	ID              int64  `gorm:"column:id"`
+	URI             string `gorm:"column:uri"`
+	Title           string `gorm:"column:title"`
+	Content         string `gorm:"column:content"`
+	CreateAt        int64  `gorm:"column:created_at"`
+	ChangedAt       int64  `gorm:"column:changed_at"`
+	HighlightTitle  string `gorm:"column:highlight_title"`
+	HighlightContent string `gorm:"column:highlight_content"`
+}
+
 func (d *SqliteDocument) TableName() string {
 	return "documents"
 }
@@ -98,20 +109,18 @@ func SqliteQueryLanguage(ctx context.Context, db *gorm.DB, namespace, query stri
 		return []*types.IndexDocument{}, nil
 	}
 
-	// Use FTS5 MATCH for full-text search
-	var results []SqliteDocument
+	var results []sqliteHighlightResult
 
-	db = db.WithContext(ctx).
+	err := db.WithContext(ctx).
 		Table("documents").
-		Where("namespace = ?", namespace).
-		Where("id IN (SELECT rowid FROM documents_fts WHERE documents_fts MATCH ?)", query)
-
-	// Apply pagination from context
-	if page := types.GetPagination(ctx); page != nil {
-		db = db.Offset(page.Offset()).Limit(page.Limit())
-	}
-
-	err := db.Find(&results).Error
+		Select(`documents.id, documents.uri, documents.title, documents.content,
+			documents.created_at, documents.changed_at,
+			highlight(documents_fts, 0, '<mark>', '</mark>') as highlight_title,
+			highlight(documents_fts, 1, '<mark>', '</mark>') as highlight_content`).
+		Joins("JOIN documents_fts ON documents.id = documents_fts.rowid").
+		Where("documents.namespace = ?", namespace).
+		Where("documents_fts MATCH ?", query).
+		Scan(&results).Error
 
 	if err != nil {
 		return nil, err
@@ -119,7 +128,15 @@ func SqliteQueryLanguage(ctx context.Context, db *gorm.DB, namespace, query stri
 
 	var docs []*types.IndexDocument
 	for _, r := range results {
-		docs = append(docs, r.To())
+		docs = append(docs, &types.IndexDocument{
+			ID:               r.ID,
+			URI:              r.URI,
+			Title:            r.Title,
+			HighlightTitle:   r.HighlightTitle,
+			HighlightContent: r.HighlightContent,
+			CreateAt:         r.CreateAt,
+			ChangedAt:        r.ChangedAt,
+		})
 	}
 	return docs, nil
 }
@@ -131,6 +148,19 @@ func SqliteDeleteDocument(ctx context.Context, db *gorm.DB, namespace string, id
 	}
 	// Delete from main table with namespace check using GORM
 	result := db.WithContext(ctx).Where("id = ? AND namespace = ?", id, namespace).Delete(&SqliteDocument{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("document not found")
+	}
+	return nil
+}
+
+func SqliteUpdateDocumentURI(ctx context.Context, db *gorm.DB, namespace string, id int64, uri string) error {
+	result := db.WithContext(ctx).Model(&SqliteDocument{}).
+		Where("id = ? AND namespace = ?", id, namespace).
+		Update("uri", uri)
 	if result.Error != nil {
 		return result.Error
 	}

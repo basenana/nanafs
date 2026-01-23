@@ -100,4 +100,5 @@ type DocumentSearcher interface {
 	IndexDocument(ctx context.Context, namespace string, doc *types.IndexDocument, tokenizer func(string) []string) error
 	QueryDocuments(ctx context.Context, namespace, query string) ([]*types.IndexDocument, error)
 	DeleteDocument(ctx context.Context, namespace string, id int64) error
+	UpdateDocumentURI(ctx context.Context, namespace string, id int64, uri string) error
 }

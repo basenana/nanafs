@@ -36,7 +36,7 @@ import (
 )
 
 var (
-	taskExecutionInterval = 5 * time.Minute
+	taskExecutionInterval = 5 * time.Second
 	taskAliveTime         = 24 * time.Hour
 )
 
@@ -217,11 +217,12 @@ func (d *Dispatcher) registerRoutineTask(periodH int, task routineTask) {
 	}
 }
 
-func Init(fsCore core.Core, notify *notify.Notify, meta metastore.Meta, recorder metastore.ScheduledTaskRecorder, wf workflow.Workflow) (*Dispatcher, error) {
+func Init(fsCore core.Core, notify *notify.Notify, meta metastore.Meta, recorder metastore.ScheduledTaskRecorder, wf workflow.Workflow, idx indexer.Indexer) (*Dispatcher, error) {
 	d := &Dispatcher{
 		core:      fsCore,
 		notify:    notify,
 		meta:      meta,
+		indexer:   idx,
 		workflow:  wf,
 		recorder:  recorder,
 		executors: map[string]executor{},
@@ -229,7 +230,7 @@ func Init(fsCore core.Core, notify *notify.Notify, meta metastore.Meta, recorder
 		logger:    logger.NewLogger("dispatcher"),
 	}
 
-	if err := registerMaintainExecutor(d, fsCore, meta, recorder); err != nil {
+	if err := registerMaintainExecutor(d, fsCore, meta, recorder, idx); err != nil {
 		return nil, err
 	}
 
@@ -237,7 +238,7 @@ func Init(fsCore core.Core, notify *notify.Notify, meta metastore.Meta, recorder
 		return nil, err
 	}
 
-	if err := registerIndexExecutor(d, recorder, meta, wf); err != nil {
+	if err := registerIndexExecutors(d, recorder, meta, wf, idx); err != nil {
 		return nil, err
 	}
 
