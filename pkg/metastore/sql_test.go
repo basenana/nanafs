@@ -523,3 +523,47 @@ var _ = Describe("TestScanOrphanEntries", func() {
 		})
 	})
 })
+
+var _ = Describe("TestWorkflowQueue", func() {
+	var sqlite *sqlMetaStore
+
+	BeforeEach(func() {
+		dbFile := fmt.Sprintf("test_queue_%d_%d.db", GinkgoParallelProcess(), time.Now().UnixNano())
+		sqlite = buildNewSqliteMetaStore(dbFile)
+		sqlite.WithContext(context.TODO()).Where("namespace = ?", namespace).Delete(&db.Entry{})
+		rootEn := InitRootEntry()
+		Expect(sqlite.CreateEntry(context.TODO(), namespace, 0, rootEn)).Should(BeNil())
+	})
+
+	AfterEach(func() {
+		sqlite.WithContext(context.TODO()).Where("1=1").Delete(&db.Workflow{})
+		sqlite.WithContext(context.TODO()).Where("1=1").Delete(&db.WorkflowJob{})
+		sqlite.WithContext(context.TODO()).Where("1=1").Delete(&db.Entry{})
+	})
+
+	It("GetPendingNamespaces returns namespaces with initializing jobs", func() {
+		wf := &types.Workflow{Id: "wf-1", QueueName: "default"}
+		Expect(sqlite.SaveWorkflow(context.TODO(), namespace, wf)).Should(BeNil())
+
+		job := &types.WorkflowJob{Id: "job-1", Namespace: namespace, Workflow: "wf-1", Status: "initializing", QueueName: "default"}
+		Expect(sqlite.SaveWorkflowJob(context.TODO(), namespace, job)).Should(BeNil())
+
+		ns, err := sqlite.GetPendingNamespaces(context.TODO(), "default")
+		Expect(err).Should(BeNil())
+		Expect(ns).Should(ContainElement(namespace))
+	})
+
+	It("ClaimNextJob claims job and updates status to running", func() {
+		wf := &types.Workflow{Id: "wf-1", QueueName: "default"}
+		Expect(sqlite.SaveWorkflow(context.TODO(), namespace, wf)).Should(BeNil())
+
+		job := &types.WorkflowJob{Id: "job-1", Namespace: namespace, Workflow: "wf-1", Status: "initializing", QueueName: "default"}
+		Expect(sqlite.SaveWorkflowJob(context.TODO(), namespace, job)).Should(BeNil())
+
+		claimed, err := sqlite.ClaimNextJob(context.TODO(), "default", namespace)
+		Expect(err).Should(BeNil())
+		Expect(claimed).ShouldNot(BeNil())
+		Expect(claimed.Id).Should(Equal("job-1"))
+		Expect(claimed.Status).Should(Equal("running"))
+	})
+})

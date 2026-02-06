@@ -206,10 +206,6 @@ func (m *manager) TriggerWorkflow(ctx context.Context, namespace string, wfId st
 		return nil, err
 	}
 
-	if err = m.ctrl.TriggerJob(ctx, job.Namespace, job.Id); err != nil {
-		m.logger.Errorw("trigger job flow failed", "job", job.Id, "err", err)
-		return nil, err
-	}
 	return job, nil
 }
 

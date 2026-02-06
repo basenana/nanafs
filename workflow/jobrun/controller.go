@@ -19,7 +19,6 @@ package jobrun
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -30,20 +29,13 @@ import (
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/notify"
 	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
 	"github.com/basenana/nanafs/utils/logger"
 	"github.com/basenana/plugin"
 	"go.uber.org/zap"
 )
 
-type Config struct {
-	Enable     bool
-	JobWorkdir string
-}
-
 type Controller struct {
 	runners map[JobID]*runner
-	queue   *GroupJobQueue
 	workdir string
 
 	pluginMgr plugin.Manager
@@ -52,158 +44,18 @@ type Controller struct {
 	indexer   indexer.Indexer
 	notify    *notify.Notify
 
-	isStartUp bool
-	config    Config
+	scheduler *Scheduler
 	mux       sync.Mutex
 	logger    *zap.SugaredLogger
 }
 
-func (c *Controller) TriggerJob(ctx context.Context, namespace, jID string) error {
-	job, err := c.store.GetWorkflowJob(ctx, namespace, jID)
-	if err != nil {
-		return err
-	}
-	c.queue.Put(namespace, job.QueueName, job.Id)
-	return nil
-}
-
 func (c *Controller) Start(ctx context.Context) {
-	if c.isStartUp {
+	if c.scheduler != nil {
 		return
 	}
 
-	go c.jobWorkQueueIterator(ctx, types.WorkflowQueueFile, 10)
-
-	if err := c.rescanRunnableJob(ctx); err != nil {
-		c.logger.Errorw("rescanle runable job failed", "err", err)
-	}
-	c.isStartUp = true
-
-	go func() {
-		timer := time.NewTicker(time.Minute * 10)
-		c.logger.Infof("start job controller, waiting for next job")
-		for {
-			select {
-			case <-ctx.Done():
-				c.logger.Infof("stop find next job")
-				return
-			case <-timer.C:
-				err := c.rescanRunnableJob(ctx)
-				if err != nil {
-					c.logger.Errorw("find next runnable job failed", "err", err)
-				}
-			}
-		}
-	}()
-}
-
-func (c *Controller) jobWorkQueueIterator(ctx context.Context, queue string, parallel int) {
-	var (
-		nextCh     = c.queue.Signal(queue)
-		parallelCh = make(chan struct{}, parallel)
-	)
-
-	var trigger = func(namespace, jid string) {
-		parallelCh <- struct{}{}
-		go func() {
-			defer func() {
-				<-parallelCh
-				nextCh <- struct{}{}
-			}()
-			c.handleNextJob(namespace, jid)
-		}()
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-
-		case <-nextCh:
-			if jid := c.queue.Pop(queue); jid != nil {
-				trigger(jid.namespace, jid.id)
-			}
-		}
-	}
-}
-
-func (c *Controller) handleNextJob(namespace, jobID string) {
-	ctx := context.Background()
-	job, err := c.store.GetWorkflowJob(ctx, namespace, jobID)
-	if err != nil {
-		c.logger.Errorw("handle next job encounter failed: get workflow job error", "job", jobID, "err", err)
-		return
-	}
-
-	f := workflowJob2Flow(c, job)
-	ctx = utils.NewWorkflowJobContext(ctx, job.Id)
-
-	c.mux.Lock()
-	jid := JobID{namespace: namespace, id: jobID}
-	r := &runner{
-		namespace: namespace,
-		workflow:  job.Workflow,
-		job:       jobID,
-		runner:    flow.NewRunner(f),
-	}
-	c.runners[jid] = r
-	c.mux.Unlock()
-	defer func() {
-		c.mux.Lock()
-		delete(c.runners, jid)
-		c.mux.Unlock()
-	}()
-
-	if job.TimeoutSeconds == 0 {
-		job.TimeoutSeconds = 60 * 60 * 3 // 3H
-	}
-
-	jobCtx, canF := context.WithTimeout(ctx, time.Duration(job.TimeoutSeconds)*time.Second)
-	defer canF()
-
-	c.logger.Infof("trigger flow %s %s", namespace, job.Id)
-	err = r.runner.Start(jobCtx)
-	if err != nil {
-		c.logger.Errorw("start runner failed: job failed", "job", jobID, "err", err)
-		_ = c.notify.RecordWarn(jobCtx, job.Namespace, fmt.Sprintf("Workflow %s failed", job.Workflow),
-			fmt.Sprintf("trigger job %s failed: %s", jobID, err), "JobController")
-	}
-}
-
-func (c *Controller) rescanRunnableJob(ctx context.Context) error {
-	if !c.isStartUp {
-		// all running job
-		runningJobs, err := c.store.ListAllNamespaceWorkflowJobs(ctx, types.JobFilter{Status: RunningStatus})
-		if err != nil {
-			return err
-		}
-		sort.Slice(runningJobs, func(i, j int) bool {
-			return runningJobs[i].CreatedAt.Before(runningJobs[j].CreatedAt)
-		})
-
-		for _, j := range runningJobs {
-			existR := c.getRunner(j.Workflow, j.Id)
-			if existR != nil {
-				continue
-			}
-			c.logger.Infow("requeue running job", "job", j.Id, "status", j.Status)
-			c.queue.Put(j.Namespace, j.QueueName, j.Id)
-		}
-	}
-
-	pendingJobs, err := c.store.ListAllNamespaceWorkflowJobs(ctx, types.JobFilter{Status: InitializingStatus})
-	if err != nil {
-		return err
-	}
-	sort.Slice(pendingJobs, func(i, j int) bool {
-		return pendingJobs[i].CreatedAt.Before(pendingJobs[j].CreatedAt)
-	})
-
-	for _, j := range pendingJobs {
-		c.queue.Put(j.Namespace, j.QueueName, j.Id)
-	}
-
-	return nil
+	c.scheduler = NewScheduler(c, defaultWorkers, defaultInterval, types.WorkflowQueueFile)
+	c.scheduler.Run(ctx)
 }
 
 func (c *Controller) PauseJob(namespace, jID string) error {
@@ -232,6 +84,10 @@ func (c *Controller) ResumeJob(namespace, jID string) error {
 }
 
 func (c *Controller) Shutdown() error {
+	if c.scheduler != nil {
+		c.scheduler.Stop()
+	}
+
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
@@ -283,6 +139,13 @@ func (c *Controller) Handle(event flow.UpdateEvent) {
 			"err", err, "job", event.Flow.ID)
 		return
 	}
+
+	if flow.IsFinishedStatus(event.Flow.Status) {
+		c.mux.Lock()
+		delete(c.runners, jid)
+		c.mux.Unlock()
+	}
+
 	c.logger.Infow("update workflow job status",
 		"job", event.Flow.ID, "status", event.Flow.Status, "message", event.Flow.Message)
 }
@@ -292,6 +155,12 @@ func (c *Controller) getRunner(namespace, jobiD string) *runner {
 	r := c.runners[JobID{namespace: namespace, id: jobiD}]
 	c.mux.Unlock()
 	return r
+}
+
+func (c *Controller) addRunner(job *types.WorkflowJob, r *runner) {
+	c.mux.Lock()
+	c.runners[JobID{namespace: job.Namespace, id: job.Id}] = r
+	c.mux.Unlock()
 }
 
 func NewJobController(pluginMgr plugin.Manager, fsCore core.Core,
@@ -304,7 +173,6 @@ func NewJobController(pluginMgr plugin.Manager, fsCore core.Core,
 		notify:    notify,
 		workdir:   workdir,
 		runners:   make(map[JobID]*runner),
-		queue:     newQueue(),
 		logger:    logger.NewLogger("flow"),
 	}
 	return ctrl

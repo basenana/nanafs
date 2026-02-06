@@ -1263,6 +1263,56 @@ func (s *sqlMetaStore) DeleteWorkflowJobs(ctx context.Context, wfJobID ...string
 	return nil
 }
 
+func (s *sqlMetaStore) GetPendingNamespaces(ctx context.Context, queueName string) ([]string, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.GetPendingNamespaces").End()
+	requireLock()
+	defer releaseLock()
+
+	var namespaces []string
+	res := s.WithContext(ctx).
+		Model(&db.WorkflowJob{}).
+		Where("status = ?", "initializing").
+		Where("queue_name = ?", queueName).
+		Distinct("namespace").
+		Scan(&namespaces)
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
+	}
+	return namespaces, nil
+}
+
+func (s *sqlMetaStore) ClaimNextJob(ctx context.Context, queueName, namespace string) (*types.WorkflowJob, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.ClaimNextJob").End()
+	requireLock()
+	defer releaseLock()
+
+	jobMod := &db.WorkflowJob{}
+	res := s.WithContext(ctx).
+		Where("status = ?", "initializing").
+		Where("queue_name = ?", queueName).
+		Where("namespace = ?", namespace).
+		Order("created_at ASC").
+		First(jobMod)
+	if res.Error != nil {
+		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, db.SqlError2Error(res.Error)
+	}
+
+	res = s.WithContext(ctx).Model(jobMod).
+		Where("status = ?", "initializing").
+		Update("status", "running")
+	if res.Error != nil {
+		return nil, db.SqlError2Error(res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return nil, nil
+	}
+
+	return jobMod.To()
+}
+
 func (s *sqlMetaStore) LoadJobData(ctx context.Context, namespace, source, group, key string, data any) error {
 	record := db.WorkflowJobData{}
 	res := s.WithNamespace(ctx, namespace).Where("source = ? AND datagroup = ? AND datakey = ?", source, group, key).First(&record)
