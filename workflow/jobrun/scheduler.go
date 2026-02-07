@@ -103,17 +103,19 @@ func (s *Scheduler) pollAndExecute(ctx context.Context) {
 	}
 
 	ns := namespaces[rand.Intn(len(namespaces))]
+	shoots := rand.Intn(3) + 1 // [1,3]
 
-	job, err := s.ctrl.store.ClaimNextJob(ctx, s.queueName, ns)
-	if err != nil {
-		s.ctrl.logger.Errorw("claim next job failed", "namespace", ns, "err", err)
-		return
+	for i := 0; i < shoots; i++ {
+		job, err := s.ctrl.store.ClaimNextJob(ctx, s.queueName, ns)
+		if err != nil {
+			s.ctrl.logger.Errorw("claim next job failed", "namespace", ns, "err", err)
+			return
+		}
+		if job == nil {
+			return
+		}
+		s.executeJob(ctx, job)
 	}
-	if job == nil {
-		return
-	}
-
-	s.executeJob(ctx, job)
 }
 
 func (s *Scheduler) executeJob(ctx context.Context, job *types.WorkflowJob) {

@@ -54,8 +54,34 @@ func (c *Controller) Start(ctx context.Context) {
 		return
 	}
 
+	if err := c.recoverRunningJobs(ctx); err != nil {
+		c.logger.Errorw("failed to recover running jobs", "err", err)
+	}
+
 	c.scheduler = NewScheduler(c, defaultWorkers, defaultInterval, types.WorkflowQueueFile)
 	c.scheduler.Run(ctx)
+}
+
+func (c *Controller) recoverRunningJobs(ctx context.Context) error {
+	filter := types.JobFilter{
+		Status:    RunningStatus,
+		QueueName: types.WorkflowQueueFile,
+	}
+	jobs, err := c.store.ListAllNamespaceWorkflowJobs(ctx, filter)
+	if err != nil {
+		return fmt.Errorf("list running jobs: %w", err)
+	}
+
+	for _, job := range jobs {
+		c.logger.Infow("recovering running job", "namespace", job.Namespace, "job", job.Id)
+		job.Status = InitializingStatus
+		if err := c.store.SaveWorkflowJob(ctx, job.Namespace, job); err != nil {
+			return fmt.Errorf("save job %s.%s: %w", job.Namespace, job.Id, err)
+		}
+	}
+
+	c.logger.Infof("recovered %d running jobs", len(jobs))
+	return nil
 }
 
 func (c *Controller) PauseJob(namespace, jID string) error {

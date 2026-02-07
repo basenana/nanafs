@@ -19,6 +19,8 @@ package jobrun
 import (
 	"context"
 
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils/logger"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -31,7 +33,10 @@ var _ = Describe("Controller Start", func() {
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		ctrl = &Controller{}
+		ctrl = &Controller{
+			store:  memMeta,
+			logger: logger.NewLogger("flow"),
+		}
 	})
 
 	Context("with scheduler not started", func() {
@@ -53,6 +58,111 @@ var _ = Describe("Controller Start", func() {
 			ctrl.Start(ctx)
 
 			Expect(ctrl.scheduler).To(Equal(firstScheduler))
+		})
+	})
+})
+
+var _ = Describe("Controller recoverRunningJobs", func() {
+	var (
+		ctx  context.Context
+		ctrl *Controller
+	)
+
+	BeforeEach(func() {
+		ctx = context.Background()
+		ctrl = &Controller{
+			store:  memMeta,
+			logger: logger.NewLogger("flow"),
+		}
+	})
+
+	AfterEach(func() {
+		// Cleanup jobs created during test
+		_ = memMeta.DeleteWorkflowJobs(ctx, "test-wf-recover-1", "test-wf-recover-2")
+	})
+
+	Context("with running jobs exist", func() {
+		It("should reset running jobs to initializing status", func() {
+			// Create workflow first (required by SaveWorkflowJob)
+			wf := &types.Workflow{
+				Id:        "test-wf-recover",
+				Namespace: namespace,
+				Name:      "Test Workflow",
+				Nodes: []types.WorkflowNode{
+					{Name: "step1", Type: "test"},
+				},
+				QueueName: types.WorkflowQueueFile,
+			}
+			err := memMeta.SaveWorkflow(ctx, namespace, wf)
+			Expect(err).To(BeNil())
+
+			// Create job with running status
+			job := &types.WorkflowJob{
+				Id:        "test-wf-recover-1",
+				Namespace: namespace,
+				Workflow:  "test-wf-recover",
+				Status:    RunningStatus,
+				QueueName: types.WorkflowQueueFile,
+			}
+			err = memMeta.SaveWorkflowJob(ctx, namespace, job)
+			Expect(err).To(BeNil())
+
+			// Verify job is saved with running status
+			saved, err := memMeta.GetWorkflowJob(ctx, namespace, job.Id)
+			Expect(err).To(BeNil())
+			Expect(saved.Status).To(Equal(RunningStatus))
+
+			// Call recoverRunningJobs
+			err = ctrl.recoverRunningJobs(ctx)
+			Expect(err).To(BeNil())
+
+			// Verify job status is reset to initializing
+			recovered, err := memMeta.GetWorkflowJob(ctx, namespace, job.Id)
+			Expect(err).To(BeNil())
+			Expect(recovered.Status).To(Equal(InitializingStatus))
+		})
+
+		It("should handle multiple running jobs", func() {
+			// Create workflow
+			wf := &types.Workflow{
+				Id:        "test-wf-recover",
+				Namespace: namespace,
+				Name:      "Test Workflow",
+				Nodes: []types.WorkflowNode{
+					{Name: "step1", Type: "test"},
+				},
+				QueueName: types.WorkflowQueueFile,
+			}
+			err := memMeta.SaveWorkflow(ctx, namespace, wf)
+			Expect(err).To(BeNil())
+
+			// Create multiple jobs with running status
+			jobs := []*types.WorkflowJob{
+				{Id: "test-wf-recover-1", Namespace: namespace, Workflow: "test-wf-recover", Status: RunningStatus, QueueName: types.WorkflowQueueFile},
+				{Id: "test-wf-recover-2", Namespace: namespace, Workflow: "test-wf-recover", Status: RunningStatus, QueueName: types.WorkflowQueueFile},
+			}
+			for _, j := range jobs {
+				err = memMeta.SaveWorkflowJob(ctx, namespace, j)
+				Expect(err).To(BeNil())
+			}
+
+			// Verify all jobs have running status
+			for _, j := range jobs {
+				saved, err := memMeta.GetWorkflowJob(ctx, namespace, j.Id)
+				Expect(err).To(BeNil())
+				Expect(saved.Status).To(Equal(RunningStatus))
+			}
+
+			// Recover running jobs
+			err = ctrl.recoverRunningJobs(ctx)
+			Expect(err).To(BeNil())
+
+			// Verify all jobs are reset to initializing
+			for _, j := range jobs {
+				recovered, err := memMeta.GetWorkflowJob(ctx, namespace, j.Id)
+				Expect(err).To(BeNil())
+				Expect(recovered.Status).To(Equal(InitializingStatus))
+			}
 		})
 	})
 })
