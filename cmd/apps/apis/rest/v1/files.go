@@ -18,8 +18,10 @@ package v1
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -43,9 +45,20 @@ func (s *ServicesV1) WriteFile(ctx *gin.Context) {
 	}
 
 	var req FileContentRequest
-	if err := ctx.ShouldBindJSON(&req); err != nil {
+	form, err := ctx.MultipartForm()
+	if err != nil {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
+	}
+	if uriList := form.Value["uri"]; len(uriList) > 0 {
+		req.URI = uriList[0]
+	}
+	if idList := form.Value["id"]; len(idList) > 0 {
+		req.ID, err = strconv.ParseInt(idList[0], 10, 64)
+		if err != nil {
+			apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", fmt.Errorf("invalid id %s", idList[0]))
+			return
+		}
 	}
 
 	en, _ := s.requireEntryWithPermission(ctx, caller, &req.EntrySelector, types.PermOwnerWrite, types.PermOwnerWrite, types.PermOwnerWrite)
@@ -59,12 +72,6 @@ func (s *ServicesV1) WriteFile(ctx *gin.Context) {
 		return
 	}
 	defer file.Close(ctx.Request.Context())
-
-	form, err := ctx.MultipartForm()
-	if err != nil {
-		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
-		return
-	}
 
 	fileHeader, ok := form.File["file"]
 	if !ok || len(fileHeader) == 0 {
