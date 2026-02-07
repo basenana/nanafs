@@ -127,6 +127,17 @@ func buildMigrations() []*gormigrate.Migration {
 				return nil
 			},
 		},
+		{
+			ID: "2026020700",
+			Migrate: func(db *gorm.DB) error {
+				sql := `CREATE INDEX IF NOT EXISTS idx_wf_job_status_queue_ns
+						ON workflow_job(status, queue_name, namespace)`
+				return db.Exec(sql).Error
+			},
+			Rollback: func(db *gorm.DB) error {
+				return db.Exec(`DROP INDEX IF EXISTS idx_wf_job_status_queue_ns`).Error
+			},
+		},
 	}
 }
 

@@ -12,7 +12,7 @@ require (
 	github.com/aws/smithy-go v1.13.5
 	github.com/basenana/friday/core v0.0.0-20260115125134-20b35d6baae8
 	github.com/basenana/go-flow v0.0.0-20250614153542-07184f3ea1e7
-	github.com/basenana/plugin v0.0.0-20260207024620-e0a8f35f7b97
+	github.com/basenana/plugin v0.0.0-20260207032254-da17a5550ad9
 	github.com/bluele/gcache v0.0.2
 	github.com/davecgh/go-spew v1.1.1
 	github.com/glebarez/sqlite v1.7.0

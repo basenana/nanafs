@@ -74,6 +74,8 @@ github.com/basenana/plugin v0.0.0-20260205140258-0b7a064f6d43 h1:zh6cGJ4ULLdzXmI
 github.com/basenana/plugin v0.0.0-20260205140258-0b7a064f6d43/go.mod h1:ley9tN7dhbAyWDlQu9snNabsmZiLOcymQ5zk3DCuKtU=
 github.com/basenana/plugin v0.0.0-20260207024620-e0a8f35f7b97 h1:pvW7HUwsD7ap8pNFcQbRJdBD8KBXIhS1HdcpwPiORmc=
 github.com/basenana/plugin v0.0.0-20260207024620-e0a8f35f7b97/go.mod h1:ley9tN7dhbAyWDlQu9snNabsmZiLOcymQ5zk3DCuKtU=
+github.com/basenana/plugin v0.0.0-20260207032254-da17a5550ad9 h1:BJ3WbHDBLfKz/3BLq3nDRHorlg5dMoq8ebTznywL6fc=
+github.com/basenana/plugin v0.0.0-20260207032254-da17a5550ad9/go.mod h1:ley9tN7dhbAyWDlQu9snNabsmZiLOcymQ5zk3DCuKtU=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/bluele/gcache v0.0.2 h1:WcbfdXICg7G/DGBh1PFfcirkWOQV+v077yF1pSy3DGw=
