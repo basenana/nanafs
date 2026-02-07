@@ -18,6 +18,9 @@ package metastore
 
 import (
 	"context"
+	"fmt"
+	"time"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -267,4 +270,92 @@ var _ = Describe("TestSqliteFileFilter", func() {
 			Expect(len(jobs)).To(Equal(3))
 		})
 	})
+
+	Context("filter unread entries with pagination (DESC sort)", func() {
+		const totalEntries = 600
+
+		It("create 600 entries (odd=unread, even=read) with sequential names", func() {
+			baseTime := time.Now().Add(-30 * 24 * time.Hour)
+			for i := 0; i < totalEntries; i++ {
+				file, err := types.InitNewEntry(rootEn, types.EntryAttr{
+					Name: fmt.Sprintf("mixed-test-%03d", i),
+					Kind: types.RawKind,
+				})
+				Expect(err).Should(BeNil())
+				file.ChangedAt = baseTime.Add(time.Duration(i) * time.Second)
+				Expect(sqlite.CreateEntry(ctx, namespace, rootEn.ID, file)).Should(BeNil())
+				// Odd numbers are unread, even numbers are read
+				Expect(sqlite.UpdateEntryProperties(ctx, namespace, types.PropertyTypeDocument, file.ID, types.DocumentProperties{
+					Title:  fmt.Sprintf("Mixed Doc %03d", i),
+					Unread: i%2 == 1, // odd = unread, even = read
+				})).Should(BeNil())
+			}
+		})
+
+		It("filter unread with pageSize=100, DESC should return first 100 unread entries", func() {
+			pg := types.NewPaginationWithSort(1, 100, "changed_at", "desc")
+			pctx := types.WithPagination(ctx, pg)
+			it, err := sqlite.FilterEntries(pctx, namespace, types.Filter{CELPattern: "unread"})
+			Expect(err).Should(BeNil())
+
+			results := collectEntries(it)
+			// With LIMIT 100, we get first 100 unread entries in DESC order
+			Expect(len(results)).To(Equal(100))
+			// Odd numbers in descending order: 599, 597, 595, ..., 401
+			for i := 0; i < 100; i++ {
+				expectedIdx := 599 - 2*i
+				expectedName := fmt.Sprintf("mixed-test-%03d", expectedIdx)
+				Expect(results[i].Name).To(Equal(expectedName),
+					"Position %d: expected %s but got %s", i, expectedName, results[i].Name)
+			}
+		})
+
+		It("filter unread with pageSize=50, DESC page=2 should return next 50 odd entries (499-401)", func() {
+			pg := types.NewPaginationWithSort(2, 50, "changed_at", "desc")
+			pctx := types.WithPagination(ctx, pg)
+			it, err := sqlite.FilterEntries(pctx, namespace, types.Filter{CELPattern: "unread"})
+			Expect(err).Should(BeNil())
+
+			results := collectEntries(it)
+			// Offset skips 50 entries (100 rows worth), leaving 50 odd entries
+			Expect(len(results)).To(Equal(50))
+			// Odd entries from 499 down to 401
+			for i := 0; i < 50; i++ {
+				expectedIdx := 499 - i*2
+				expectedName := fmt.Sprintf("mixed-test-%03d", expectedIdx)
+				Expect(results[i].Name).To(Equal(expectedName),
+					"Position %d: expected %s but got %s", i, expectedName, results[i].Name)
+			}
+		})
+
+		It("filter unread with pageSize=10, DESC should verify pagination across odd entries", func() {
+			// Test page 1 (entries 599-501)
+			pg := types.NewPaginationWithSort(1, 10, "changed_at", "desc")
+			pctx := types.WithPagination(ctx, pg)
+			it, err := sqlite.FilterEntries(pctx, namespace, types.Filter{CELPattern: "unread"})
+			Expect(err).Should(BeNil())
+
+			results := collectEntries(it)
+			Expect(len(results)).To(Equal(10))
+			// First 10 odd entries: 599, 597, ..., 581
+			for i := 0; i < 10; i++ {
+				expectedIdx := 599 - i*2
+				expectedName := fmt.Sprintf("mixed-test-%03d", expectedIdx)
+				Expect(results[i].Name).To(Equal(expectedName),
+					"Position %d: expected %s", i, expectedName)
+			}
+		})
+	})
 })
+
+func collectEntries(it EntryIterator) []*types.Entry {
+	var results []*types.Entry
+	for it.HasNext() {
+		entry, err := it.Next()
+		if err != nil {
+			break
+		}
+		results = append(results, entry)
+	}
+	return results
+}
