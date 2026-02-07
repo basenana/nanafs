@@ -75,14 +75,14 @@ var SQLTemplates = map[string]SQLTemplate{
 		Boolean
 	*/
 	"json_boolean_compare": {
-		SQLite:     "JSON_EXTRACT(`{table}`.`{column}`, '$.{jsonkey}') %s ?",
+		SQLite:     "COALESCE(JSON_EXTRACT(`{table}`.`{column}`, '$.{jsonkey}'), false) %s ?",
 		MySQL:      "JSON_EXTRACT(`{table}`.`{column}`, '$.{jsonkey}') %s CAST(? AS JSON)",
-		PostgreSQL: "({table}.{column}->>'{jsonkey}')::boolean %s ?",
+		PostgreSQL: "COALESCE(({table}.{column}->>'{jsonkey}')::boolean, FALSE) %s ?",
 	},
 	"json_boolean_check": {
-		SQLite:     "JSON_EXTRACT(`{table}`.`{column}`, '$.{jsonkey}') IS TRUE",
+		SQLite:     "COALESCE(JSON_EXTRACT(`{table}`.`{column}`, '$.{jsonkey}'), false) IS TRUE",
 		MySQL:      "JSON_EXTRACT(`{table}`.`{column}`, '$.{jsonkey}') = CAST('true' AS JSON)",
-		PostgreSQL: "({table}.{column}->>'{jsonkey}')::boolean IS TRUE",
+		PostgreSQL: "COALESCE(({table}.{column}->>'{jsonkey}')::boolean, FALSE) IS TRUE",
 	},
 
 	/*

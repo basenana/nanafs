@@ -112,11 +112,9 @@ func (d *DocLoader) Run(ctx context.Context, request *api.Request) (*api.Respons
 	}
 
 	// Handle publish time from RSS updated_at parameter
-	if doc.Properties.PublishAt == 0 {
-		if updatedAtStr := api.GetStringParameter("updated_at", request, ""); updatedAtStr != "" {
-			if t, err := time.Parse(time.RFC3339, updatedAtStr); err == nil {
-				doc.Properties.PublishAt = t.Unix()
-			}
+	if updatedAtStr := api.GetStringParameter("updated_at", request, ""); updatedAtStr != "" {
+		if t, err := time.Parse(time.RFC3339, updatedAtStr); err == nil {
+			doc.Properties.PublishAt = t.Unix()
 		}
 	}
 

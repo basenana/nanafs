@@ -50,6 +50,7 @@ const (
 	rssParameterFileType    = "file_type"
 	rssParameterTimeout     = "timeout"
 	rssParameterClutterFree = "clutter_free"
+	rssParameterParentURI   = "parent_uri"
 
 	rssPostMaxCollect = 50
 )
@@ -60,20 +61,20 @@ var RssSourcePluginSpec = types.PluginSpec{
 	Type:    types.TypeSource,
 	InitParameters: []types.ParameterSpec{
 		{
-			Name:        "file_type",
+			Name:        rssParameterFileType,
 			Required:    false,
 			Default:     "webarchive",
 			Description: "Archive format: url, html, rawhtml, webarchive",
 			Options:     []string{"url", "html", "rawhtml", "webarchive"},
 		},
 		{
-			Name:        "timeout",
+			Name:        rssParameterTimeout,
 			Required:    false,
 			Default:     "120",
 			Description: "Download timeout (seconds)",
 		},
 		{
-			Name:        "clutter_free",
+			Name:        rssParameterClutterFree,
 			Required:    false,
 			Default:     "true",
 			Description: "Enable clutter-free mode",
@@ -82,9 +83,14 @@ var RssSourcePluginSpec = types.PluginSpec{
 	},
 	Parameters: []types.ParameterSpec{
 		{
-			Name:        "feed",
+			Name:        rssParameterFeed,
 			Required:    true,
 			Description: "RSS/Atom feed URL",
+		},
+		{
+			Name:        rssParameterParentURI,
+			Required:    true,
+			Description: "The Parent URI where RSS from",
 		},
 	},
 }
@@ -197,7 +203,16 @@ func (r *RssSourcePlugin) rssSources(request *api.Request) (src rssSource, err e
 	src.Timeout = r.timeout
 	src.ClutterFree = r.clutterFree
 	src.Headers = r.headers
-	src.Store = request.Store
+	src.ParentURI = api.GetStringParameter(rssParameterParentURI, request, "")
+	if src.ParentURI == "" {
+		err = fmt.Errorf("parent_uri is empty")
+		return
+	}
+	src.FS = request.FS
+	if src.FS == nil {
+		err = fmt.Errorf("fs is empty")
+		return
+	}
 	return
 }
 
@@ -216,12 +231,11 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource) (
 	}
 
 	var (
-		articles = make([]Article, 0)
-		links    []string
+		articles  = make([]Article, 0)
+		collected int
 	)
-
-	for i, item := range feed.Items {
-		if i > rssPostMaxCollect {
+	for _, item := range feed.Items {
+		if collected > rssPostMaxCollect {
 			r.logger.Infow("soo many post need to collect, skip", "collectLimit", rssPostMaxCollect)
 			break
 		}
@@ -231,93 +245,146 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource) (
 			item.Content = item.Description
 		}
 
-		if isNew, err := source.isNew(ctx, item.Link); err != nil || !isNew {
-			if err != nil {
-				r.logger.Errorw("check if feed is new", "feed", source.FeedUrl, "err", err)
-			}
+		article, err := r.processItem(ctx, &source, item, nowTime, feed)
+		if err != nil {
+			r.logger.Errorw("process item failed", "link", item.Link, "err", err)
 			continue
 		}
-
-		r.logger.Infow("parse rss post", "link", item.Link)
-
-		fileName := utils.SanitizeFilename(item.Title)
-		switch source.FileType {
-		case archiveFileTypeUrl:
-			fileName += ".url"
-			buf := bytes.Buffer{}
-			buf.WriteString("[InternetShortcut]")
-			buf.WriteString("\n")
-			buf.WriteString(fmt.Sprintf("URL=%s", item.Link))
-
-			err = r.fileRoot.Write(fileName, buf.Bytes(), 0655)
-			if err != nil {
-				return nil, fmt.Errorf("pack to url file failed: %s", err)
-			}
-
-		case archiveFileTypeHtml:
-			fileName += ".html"
-			htmlContent := readableHtmlContent(item.Link, item.Title, item.Content)
-			err = r.fileRoot.Write(fileName, []byte(htmlContent), 0655)
-			if err != nil {
-				return nil, fmt.Errorf("pack to html file failed: %s", err)
-			}
-
-		case archiveFileTypeRawHtml:
-			filePath, err := web.PackFromURL(logger.IntoContext(ctx, r.logger), fileName, item.Link, "html", r.fileRoot.Workdir(), source.ClutterFree, source.toOption())
-			if err != nil {
-				r.logger.Warnw("pack to raw html file failed", "link", item.Link, "err", err)
-				continue
-			}
-			fileName = path.Base(filePath)
-
-		case archiveFileTypeWebArchive:
-			filePath, err := web.PackFromURL(logger.IntoContext(ctx, r.logger), fileName, item.Link, "webarchive", r.fileRoot.Workdir(), source.ClutterFree, source.toOption())
-			if err != nil {
-				r.logger.Warnw("pack to webarchive failed", "link", item.Link, "err", err)
-				continue
-			}
-			fileName = path.Base(filePath)
-
-		default:
-			return nil, fmt.Errorf("unknown rss archive file type %s", source.FileType)
+		if article == nil {
+			continue // collected
 		}
 
-		fInfo, err := r.fileRoot.Stat(fileName)
-		if err != nil {
-			return nil, fmt.Errorf("stat archive file error: %s", err)
-		}
-
-		updatedAtSelect := []*time.Time{item.UpdatedParsed, item.PublishedParsed}
-		var updatedAt *time.Time
-		for i := range updatedAtSelect {
-			if updatedAt = updatedAtSelect[i]; updatedAt != nil {
-				break
-			}
-		}
-
-		if updatedAt == nil {
-			updatedAt = &nowTime
-		}
-
-		links = append(links, item.Link)
-		articles = append(articles, Article{
-			FilePath:  fileName,
-			Size:      fInfo.Size(),
-			Title:     item.Title,
-			URL:       item.Link,
-			SiteURL:   feed.Link,
-			SiteName:  feed.Title,
-			UpdatedAt: updatedAt.Format(time.RFC3339),
-		})
-	}
-
-	if err = source.record(ctx, links...); err != nil {
-		r.logger.Warnw("record links failed", "err", err)
+		collected++
+		articles = append(articles, *article)
 	}
 
 	r.logger.Infow("sync rss finish", "entries", len(articles))
-
 	return articles, nil
+}
+
+func (r *RssSourcePlugin) processItem(ctx context.Context, source *rssSource, item *gofeed.Item, nowTime time.Time, feed *gofeed.Feed) (*Article, error) {
+	switch source.FileType {
+	case archiveFileTypeUrl:
+		return r.processUrlType(ctx, source, item, nowTime, feed)
+	case archiveFileTypeHtml:
+		return r.processHtmlType(ctx, source, item, nowTime, feed)
+	case archiveFileTypeRawHtml:
+		return r.processRawHtmlType(ctx, source, item, nowTime, feed)
+	case archiveFileTypeWebArchive:
+		return r.processWebArchiveType(ctx, source, item, nowTime, feed)
+	default:
+		return nil, fmt.Errorf("unknown file type: %s", source.FileType)
+	}
+}
+
+func (r *RssSourcePlugin) processUrlType(ctx context.Context, source *rssSource, item *gofeed.Item, nowTime time.Time, feed *gofeed.Feed) (*Article, error) {
+	fileName := utils.SanitizeFilename(item.Title) + ".url"
+	entryURI := path.Join(source.ParentURI, fileName)
+	if isNew, err := source.isNew(ctx, entryURI); err != nil || !isNew {
+		if err != nil {
+			return nil, err
+		}
+		r.logger.Infow("entry already exists, skip", "entryURI", entryURI)
+		return nil, nil
+	}
+
+	buf := bytes.Buffer{}
+	buf.WriteString("[InternetShortcut]")
+	buf.WriteString("\n")
+	buf.WriteString(fmt.Sprintf("URL=%s", item.Link))
+
+	if err := r.fileRoot.Write(fileName, buf.Bytes(), 0655); err != nil {
+		return nil, fmt.Errorf("pack to url file failed: %s", err)
+	}
+
+	return r.buildArticle(item, fileName, nowTime, feed)
+}
+
+func (r *RssSourcePlugin) processHtmlType(ctx context.Context, source *rssSource, item *gofeed.Item, nowTime time.Time, feed *gofeed.Feed) (*Article, error) {
+	fileName := utils.SanitizeFilename(item.Title) + ".html"
+	entryURI := path.Join(source.ParentURI, fileName)
+	if isNew, err := source.isNew(ctx, entryURI); err != nil || !isNew {
+		if err != nil {
+			return nil, err
+		}
+		r.logger.Infow("entry already exists, skip", "entryURI", entryURI)
+		return nil, nil
+	}
+
+	htmlContent := readableHtmlContent(item.Link, item.Title, item.Content)
+	if err := r.fileRoot.Write(fileName, []byte(htmlContent), 0655); err != nil {
+		return nil, fmt.Errorf("pack to html file failed: %s", err)
+	}
+
+	return r.buildArticle(item, fileName, nowTime, feed)
+}
+
+func (r *RssSourcePlugin) processRawHtmlType(ctx context.Context, source *rssSource, item *gofeed.Item, nowTime time.Time, feed *gofeed.Feed) (*Article, error) {
+	fileName := utils.SanitizeFilename(item.Title)
+	entryURI := path.Join(source.ParentURI, fileName+".html")
+	if isNew, err := source.isNew(ctx, entryURI); err != nil || !isNew {
+		if err != nil {
+			return nil, err
+		}
+		r.logger.Infow("entry already exists, skip", "entryURI", entryURI)
+		return nil, nil
+	}
+
+	filePath, err := web.PackFromURL(logger.IntoContext(ctx, r.logger), fileName, item.Link, "html", r.fileRoot.Workdir(), source.ClutterFree, source.toOption())
+	if err != nil {
+		r.logger.Warnw("pack to raw html file failed", "link", item.Link, "err", err)
+		return nil, err
+	}
+
+	return r.buildArticle(item, path.Base(filePath), nowTime, feed)
+}
+
+func (r *RssSourcePlugin) processWebArchiveType(ctx context.Context, source *rssSource, item *gofeed.Item, nowTime time.Time, feed *gofeed.Feed) (*Article, error) {
+	fileName := utils.SanitizeFilename(item.Title)
+	entryURI := path.Join(source.ParentURI, fileName+".webarchive")
+	if isNew, err := source.isNew(ctx, entryURI); err != nil || !isNew {
+		if err != nil {
+			return nil, err
+		}
+		r.logger.Infow("entry already exists, skip", "entryURI", entryURI)
+		return nil, nil
+	}
+
+	filePath, err := web.PackFromURL(logger.IntoContext(ctx, r.logger), fileName, item.Link, "webarchive", r.fileRoot.Workdir(), source.ClutterFree, source.toOption())
+	if err != nil {
+		r.logger.Warnw("pack to webarchive failed", "link", item.Link, "err", err)
+		return nil, err
+	}
+
+	return r.buildArticle(item, path.Base(filePath), nowTime, feed)
+}
+
+func (r *RssSourcePlugin) buildArticle(item *gofeed.Item, fileName string, nowTime time.Time, feed *gofeed.Feed) (*Article, error) {
+	fInfo, err := r.fileRoot.Stat(fileName)
+	if err != nil {
+		return nil, fmt.Errorf("stat archive file error: %s", err)
+	}
+
+	updatedAtSelect := []*time.Time{item.UpdatedParsed, item.PublishedParsed}
+	var updatedAt *time.Time
+	for i := range updatedAtSelect {
+		if updatedAt = updatedAtSelect[i]; updatedAt != nil {
+			break
+		}
+	}
+	if updatedAt == nil {
+		updatedAt = &nowTime
+	}
+
+	return &Article{
+		FilePath:  fileName,
+		Size:      fInfo.Size(),
+		Title:     item.Title,
+		URL:       item.Link,
+		SiteURL:   feed.Link,
+		SiteName:  feed.Title,
+		UpdatedAt: updatedAt.Format(time.RFC3339),
+	}, nil
 }
 
 func parseSiteURL(feed string) (string, error) {
@@ -342,37 +409,24 @@ type rssSource struct {
 	ClutterFree bool
 	Timeout     int
 	Headers     map[string]string
-
-	Store api.PersistentStore
+	ParentURI   string
+	FS          api.NanaFS
 }
 
-func (s *rssSource) isNew(ctx context.Context, linkStr string) (bool, error) {
-	var v = make(map[string]any)
-	err := s.Store.Load(ctx, RssSourcePluginName, "articles", linkStr, &v)
-	if err == nil {
+func (s *rssSource) isNew(ctx context.Context, entryURI string) (bool, error) {
+	props, err := s.FS.GetEntryProperties(ctx, entryURI)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") ||
+			strings.Contains(err.Error(), "no record") ||
+			strings.Contains(err.Error(), "no entry") {
+			return true, nil
+		}
+		return false, err
+	}
+	if props != nil && props.Title != "" {
 		return false, nil
 	}
-
-	if strings.Contains(err.Error(), "no record") {
-		return true, nil
-	}
-
-	if strings.Contains(err.Error(), "not found") {
-		return true, nil
-	}
-
-	return false, err
-}
-
-func (s *rssSource) record(ctx context.Context, linkList ...string) error {
-	for _, linkStr := range linkList {
-		v := map[string]string{"link": linkStr, "time": time.Now().Format(time.RFC3339)}
-		err := s.Store.Save(ctx, RssSourcePluginName, "articles", linkStr, &v)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	return true, nil
 }
 
 func (s *rssSource) toOption() web.Option {

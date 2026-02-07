@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/basenana/go-flow"
@@ -99,7 +100,11 @@ func (b *defaultExecutor) Setup(ctx context.Context) (err error) {
 		return logOperationError(DefExecName, "setup", err)
 	}
 
-	b.results = NewMemBasedResults()
+	b.results, err = NewJSONFileResults(filepath.Join(b.workdir, "results.json"))
+	if err != nil {
+		b.logger.Errorw("init job results file failed", "err", err)
+		return logOperationError(DefExecName, "setup", err)
+	}
 
 	/*
 		Setting trigger vars

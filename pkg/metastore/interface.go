@@ -86,6 +86,9 @@ type ScheduledTaskRecorder interface {
 	SaveWorkflowJob(ctx context.Context, namespace string, wf *types.WorkflowJob) error
 	DeleteWorkflowJobs(ctx context.Context, wfJobID ...string) error
 
+	GetPendingNamespaces(ctx context.Context, queueName string) ([]string, error)
+	ClaimNextJob(ctx context.Context, queueName string, namespace string) (*types.WorkflowJob, error)
+
 	LoadJobData(ctx context.Context, namespace, source, group, key string, data any) error
 	SaveJobData(ctx context.Context, namespace, source, group, key string, data any) error
 }

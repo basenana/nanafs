@@ -17,8 +17,6 @@
 package jobrun
 
 import (
-	"bytes"
-	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -29,32 +27,6 @@ import (
 type Results interface {
 	Set(key string, val any) error
 	Data() map[string]any
-}
-
-func init() {
-	gob.Register(map[string]interface{}{})
-}
-
-type baseMap struct {
-	results map[string]any
-	mux     sync.Mutex
-}
-
-func (b *baseMap) Set(key string, val any) error {
-	buf := bytes.Buffer{}
-	err := gob.NewEncoder(&buf).Encode(val)
-	if err != nil {
-		return err
-	}
-
-	b.mux.Lock()
-	b.results[key] = buf.Bytes()
-	b.mux.Unlock()
-	return nil
-}
-
-func (b *baseMap) Data() map[string]any {
-	return b.results
 }
 
 type memoryBasedResults struct {
@@ -71,11 +43,13 @@ func (m *memoryBasedResults) Set(key string, val any) error {
 
 func (m *memoryBasedResults) Data() map[string]any {
 	m.mux.Lock()
-	data, _ := json.Marshal(m.results)
-	m.mux.Unlock()
-	results := make(map[string]any)
-	_ = json.Unmarshal(data, &results)
-	return results
+	defer m.mux.Unlock()
+	// Return a copy to prevent external mutation
+	data := make(map[string]any)
+	for k, v := range m.results {
+		data[k] = deepCopy(v)
+	}
+	return data
 }
 
 func NewMemBasedResults() Results {
@@ -83,43 +57,75 @@ func NewMemBasedResults() Results {
 }
 
 const (
-	defaultFileBasedFilename = ".workflowcontext.gob"
+	resultsFilename = "results.json"
 )
 
-func ResultFilePath(basePath string) string {
-	return path.Join(basePath, defaultFileBasedFilename)
+func ResultsFilePath(basePath string) string {
+	return path.Join(basePath, resultsFilename)
 }
 
-type fileBasedResults struct {
-	baseMap
+type JSONFileResults struct {
 	filePath string
+	data     map[string]any
+	mux      sync.Mutex
 }
 
-func (f *fileBasedResults) Set(key string, val any) error {
-	err := f.baseMap.Set(key, val)
-	if err != nil {
-		return err
+func (r *JSONFileResults) Set(key string, val any) error {
+	r.mux.Lock()
+	r.data[key] = deepCopy(val)
+	r.mux.Unlock()
+	return r.flush()
+}
+
+func (r *JSONFileResults) Data() map[string]any {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+	result := make(map[string]any)
+	for k, v := range r.data {
+		result[k] = deepCopy(v)
 	}
-	return f.flush()
+	return result
 }
 
-func (f *fileBasedResults) flush() error {
-	file, err := os.OpenFile(f.filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
+func (r *JSONFileResults) flush() error {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+
+	data, err := json.Marshal(r.data)
 	if err != nil {
-		return fmt.Errorf("open result file error %w", err)
+		return fmt.Errorf("marshal results error: %w", err)
 	}
-	return gob.NewEncoder(file).Encode(f.results)
+
+	// Atomic write: write to temp file then rename
+	tmpPath := r.filePath + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0600); err != nil {
+		return fmt.Errorf("write temp results file error: %w", err)
+	}
+	if err := os.Rename(tmpPath, r.filePath); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("rename results file error: %w", err)
+	}
+	return nil
 }
 
-func NewFileBasedResults(filePath string) (Results, error) {
-	r := &fileBasedResults{baseMap: baseMap{results: map[string]any{}}, filePath: filePath}
+func NewJSONFileResults(filePath string) (Results, error) {
+	r := &JSONFileResults{
+		filePath: filePath,
+		data:     make(map[string]any),
+	}
+
+	// Try to load existing results
 	f, err := os.Open(filePath)
 	if err == nil {
 		defer f.Close()
-		err = gob.NewDecoder(f).Decode(&(r.results))
-		if err != nil {
-			return nil, fmt.Errorf("load existed result filed error %w", err)
-		}
+		_ = json.NewDecoder(f).Decode(&r.data)
 	}
 	return r, nil
+}
+
+func deepCopy(val any) any {
+	data, _ := json.Marshal(val)
+	var result any
+	_ = json.Unmarshal(data, &result)
+	return result
 }
