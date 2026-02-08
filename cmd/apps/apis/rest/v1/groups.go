@@ -186,8 +186,10 @@ func (s *ServicesV1) GetGroupConfig(ctx *gin.Context) {
 	groupProps := &types.GroupProperties{}
 	err := s.meta.GetEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeGroupAttr, en.ID, groupProps)
 	if err != nil {
-		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
-		return
+		if !errors.Is(err, types.ErrNotFound) {
+			apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+			return
+		}
 	}
 
 	resp := &GroupConfigResponse{
@@ -243,20 +245,28 @@ func (s *ServicesV1) SetGroupConfig(ctx *gin.Context) {
 		return
 	}
 
-	if en.Kind == types.SmartGroupKind && req.Filter == nil {
-		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("smart group requires filter config"))
+	groupProps := &types.GroupProperties{}
+	err := s.meta.GetEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeGroupAttr, en.ID, groupProps)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
 	}
 
-	groupProps := &types.GroupProperties{}
-
-	if req.Filter != nil {
+	if req.Filter != nil && groupProps.Filter != nil {
 		groupProps.Filter = &types.Filter{
 			CELPattern: req.Filter.CELPattern,
 		}
 	}
+	if req.Rss != nil && groupProps.RSS != nil {
+		groupProps.RSS = &types.GroupRSS{
+			Feed:     req.Rss.Feed,
+			SiteName: req.Rss.SiteName,
+			SiteURL:  req.Rss.SiteURL,
+			FileType: req.Rss.FileType,
+		}
+	}
 
-	err := s.meta.UpdateEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeGroupAttr, en.ID, groupProps)
+	err = s.meta.UpdateEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeGroupAttr, en.ID, groupProps)
 	if err != nil {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
 		return
@@ -265,7 +275,21 @@ func (s *ServicesV1) SetGroupConfig(ctx *gin.Context) {
 	resp := &GroupConfigResponse{
 		Kind:   string(en.Kind),
 		Source: groupProps.Source,
-		Filter: req.Filter,
+	}
+
+	if groupProps.RSS != nil {
+		resp.RSS = &RssConfig{
+			Feed:     groupProps.RSS.Feed,
+			SiteName: groupProps.RSS.SiteName,
+			SiteURL:  groupProps.RSS.SiteURL,
+			FileType: groupProps.RSS.FileType,
+		}
+	}
+
+	if groupProps.Filter != nil {
+		resp.Filter = &FilterConfig{
+			CELPattern: groupProps.Filter.CELPattern,
+		}
 	}
 
 	apitool.JsonResponse(ctx, http.StatusOK, resp)

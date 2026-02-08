@@ -524,34 +524,5 @@ var _ = Describe("REST V1 Group Config API", func() {
 			Expect(resp.Filter).ShouldNot(BeNil())
 			Expect(resp.Filter.CELPattern).To(Equal("kind == 'document'"))
 		})
-
-		It("should return error when smart group lacks filter", func() {
-			createReq := CreateEntryRequest{
-				URI:    "/smart-group-test2",
-				Kind:   types.SmartGroupKind,
-				Filter: &FilterConfig{CELPattern: "kind == 'file'"},
-			}
-			createJson, _ := json.Marshal(createReq)
-			createHttpReq, _ := http.NewRequest("POST", "/api/v1/entries", bytes.NewBuffer(createJson))
-			createHttpReq.Header.Set("Content-Type", "application/json")
-			createHttpReq.Header.Set("X-Namespace", types.DefaultNamespace)
-			createW := httptest.NewRecorder()
-			router.ServeHTTP(createW, createHttpReq)
-			Expect(createW.Code).To(Equal(http.StatusCreated))
-
-			reqBody := SetGroupConfigRequest{
-				EntrySelector: EntrySelector{URI: "/smart-group-test2"},
-			}
-			jsonBody, _ := json.Marshal(reqBody)
-			req, err := http.NewRequest("POST", "/api/v1/groups/configs/update", bytes.NewBuffer(jsonBody))
-			Expect(err).Should(BeNil())
-			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("X-Namespace", types.DefaultNamespace)
-
-			w := httptest.NewRecorder()
-			router.ServeHTTP(w, req)
-
-			Expect(w.Code).To(Equal(http.StatusBadRequest))
-		})
 	})
 })
