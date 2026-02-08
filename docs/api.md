@@ -809,6 +809,112 @@ Get the complete group tree structure.
 }
 ```
 
+#### POST /api/v1/groups/configs
+
+Get configuration of a group (RSS or filter).
+
+**Request Body:**
+
+```json
+{
+  "uri": "/inbox/rss-feeds"
+}
+```
+
+Or by ID:
+
+```json
+{
+  "id": 1001
+}
+```
+
+**Response:**
+
+For Smart Group (smtgroup):
+
+```json
+{
+  "source": "",
+  "filter": {
+    "cel_pattern": "kind == 'file'"
+  }
+}
+```
+
+For RSS Group:
+
+```json
+{
+  "source": "rss",
+  "rss": {
+    "feed": "https://example.com/feed.xml",
+    "site_name": "Example Site",
+    "site_url": "https://example.com",
+    "file_type": "html"
+  }
+}
+```
+
+**Fields:**
+
+| Field    | Type   | Description                       |
+|----------|--------|-----------------------------------|
+| `source` | string | Source type: `rss` for RSS groups |
+| `rss`    | object | RSS configuration                 |
+| `filter` | object | Filter configuration              |
+
+#### POST /api/v1/groups/configs/update
+
+Set configuration of a group (RSS or filter). This is a full replacement operation.
+
+**Request Body:**
+
+For Smart Group:
+
+```json
+{
+  "uri": "/inbox/smart-folder",
+  "filter": {
+    "cel_pattern": "kind == 'document'"
+  }
+}
+```
+
+For RSS Group:
+
+```json
+{
+  "uri": "/inbox/rss-feeds",
+  "rss": {
+    "feed": "https://new-feed.com/feed.xml",
+    "site_name": "New Site",
+    "site_url": "https://new-feed.com",
+    "file_type": "html"
+  }
+}
+```
+
+**Response:**
+
+```json
+{
+  "source": "rss",
+  "rss": {
+    "feed": "https://new-feed.com/feed.xml",
+    "site_name": "New Site",
+    "site_url": "https://new-feed.com",
+    "file_type": "html"
+  }
+}
+```
+
+**Notes:**
+
+- Smart groups require `filter` configuration
+- RSS groups require `rss` configuration
+- Group type cannot be changed after creation
+
 ---
 
 ### 4. Files (文件操作)

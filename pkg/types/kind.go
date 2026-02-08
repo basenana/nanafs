@@ -28,9 +28,8 @@ const (
 	/*
 		system-wide kind
 	*/
-	GroupKind         = "group"
-	SmartGroupKind    = "smtgroup"
-	ExternalGroupKind = "extgroup"
+	GroupKind      = "group"
+	SmartGroupKind = "smtgroup"
 
 	/*
 		text based file kind
@@ -75,7 +74,7 @@ const (
 
 func IsGroup(k Kind) bool {
 	switch k {
-	case GroupKind, SmartGroupKind, ExternalGroupKind:
+	case GroupKind, SmartGroupKind:
 		return true
 	}
 	return false

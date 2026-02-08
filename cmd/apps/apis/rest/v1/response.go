@@ -491,3 +491,10 @@ type PluginInfo struct {
 type ListPluginsResponse struct {
 	Plugins []*PluginInfo `json:"plugins"`
 }
+
+type GroupConfigResponse struct {
+	Kind   string        `json:"kind"`
+	Source string        `json:"source,omitempty"`
+	RSS    *RssConfig    `json:"rss,omitempty"`
+	Filter *FilterConfig `json:"filter,omitempty"`
+}

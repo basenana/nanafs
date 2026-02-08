@@ -70,8 +70,8 @@ var _ = Describe("Utils", func() {
 			Expect(modeFromFileKind(types.GroupKind)).To(Equal(uint32(syscall.S_IFDIR)))
 		})
 
-		It("should return S_IFDIR for ExternalGroupKind", func() {
-			Expect(modeFromFileKind(types.ExternalGroupKind)).To(Equal(uint32(syscall.S_IFDIR)))
+		It("should return S_IFDIR for SmartGroupKind", func() {
+			Expect(modeFromFileKind(types.SmartGroupKind)).To(Equal(uint32(syscall.S_IFDIR)))
 		})
 
 		It("should return S_IFLNK for SymLinkKind", func() {

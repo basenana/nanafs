@@ -33,9 +33,9 @@ import (
 )
 
 var (
-	tempDir string
-	memMeta metastore.Meta
-	testCore core.Core
+	tempDir   string
+	memMeta   metastore.Meta
+	testCore  core.Core
 	namespace = types.DefaultNamespace
 )
 
@@ -130,10 +130,10 @@ func newWorkflowJobNode(name, stepType string) types.WorkflowJobNode {
 func newConditionNode(name, condition string, branches map[string]string) types.WorkflowJobNode {
 	return types.WorkflowJobNode{
 		WorkflowNode: types.WorkflowNode{
-			Name:       name,
-			Type:       "condition",
-			Condition:  condition,
-			Branches:   branches,
+			Name:      name,
+			Type:      "condition",
+			Condition: condition,
+			Branches:  branches,
 		},
 	}
 }

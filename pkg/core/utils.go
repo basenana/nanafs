@@ -76,7 +76,7 @@ func modeFromFileKind(kind types.Kind) uint32 {
 	switch kind {
 	case types.RawKind:
 		return syscall.S_IFREG
-	case types.GroupKind, types.ExternalGroupKind:
+	case types.GroupKind, types.SmartGroupKind:
 		return syscall.S_IFDIR
 	case types.SymLinkKind:
 		return syscall.S_IFLNK

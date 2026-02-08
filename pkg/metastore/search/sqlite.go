@@ -39,13 +39,13 @@ type SqliteDocument struct {
 }
 
 type sqliteHighlightResult struct {
-	ID              int64  `gorm:"column:id"`
-	URI             string `gorm:"column:uri"`
-	Title           string `gorm:"column:title"`
-	Content         string `gorm:"column:content"`
-	CreateAt        int64  `gorm:"column:created_at"`
-	ChangedAt       int64  `gorm:"column:changed_at"`
-	HighlightTitle  string `gorm:"column:highlight_title"`
+	ID               int64  `gorm:"column:id"`
+	URI              string `gorm:"column:uri"`
+	Title            string `gorm:"column:title"`
+	Content          string `gorm:"column:content"`
+	CreateAt         int64  `gorm:"column:created_at"`
+	ChangedAt        int64  `gorm:"column:changed_at"`
+	HighlightTitle   string `gorm:"column:highlight_title"`
 	HighlightContent string `gorm:"column:highlight_content"`
 }
 

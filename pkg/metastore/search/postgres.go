@@ -110,12 +110,12 @@ func PostgresQueryLanguage(ctx context.Context, db *gorm.DB, namespace, query st
 	var results []postgresHighlightResult
 
 	headlineTitleExpr := fmt.Sprintf(
-		"ts_headline('simple', title, to_tsquery('simple', $1), "+
+		"ts_headline('simple', title, to_tsquery('simple', $1), " +
 			"'StartSel=<mark>, StopSel=</mark>, MaxWords=50, MinWords=20')",
 	)
 	headlineContentExpr := fmt.Sprintf(
-		"ts_headline('simple', content, to_tsquery('simple', $1), "+
-			"'StartSel=<mark>, StopSel=</mark>, MaxWords=100, MinWords=50, "+
+		"ts_headline('simple', content, to_tsquery('simple', $1), " +
+			"'StartSel=<mark>, StopSel=</mark>, MaxWords=100, MinWords=50, " +
 			"FragmentDelimiter= ... ')",
 	)
 

@@ -17,13 +17,14 @@
 package fuse
 
 import (
+	"os"
+	"syscall"
+	"time"
+
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sys/unix"
-	"os"
-	"syscall"
-	"time"
 
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
@@ -233,7 +234,7 @@ func modeFromFileKind(kind types.Kind) uint32 {
 	switch kind {
 	case types.RawKind:
 		return syscall.S_IFREG
-	case types.GroupKind, types.ExternalGroupKind:
+	case types.GroupKind, types.SmartGroupKind:
 		return syscall.S_IFDIR
 	case types.SymLinkKind:
 		return syscall.S_IFLNK

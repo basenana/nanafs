@@ -59,6 +59,8 @@ func RegisterRoutes(engine *gin.Engine, s *ServicesV1) {
 		{
 			groups.POST("/children", s.ListGroupChildren)
 			groups.GET("/tree", s.GroupTree)
+			groups.POST("/configs", s.GetGroupConfig)
+			groups.POST("/configs/update", s.SetGroupConfig)
 		}
 
 		// Files - support body with uri or id

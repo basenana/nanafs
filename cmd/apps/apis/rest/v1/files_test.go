@@ -19,6 +19,8 @@ package v1
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 
@@ -61,17 +63,25 @@ var _ = Describe("REST V1 File API", func() {
 			router.ServeHTTP(createW, createHttpReq)
 			Expect(createW.Code).To(Equal(http.StatusCreated))
 
-			reqBody := map[string]int64{"id": 99999}
-			jsonBody, _ := json.Marshal(reqBody)
-			req, err := http.NewRequest("POST", "/api/v1/files/content/write", bytes.NewBuffer(jsonBody))
+			var createResp EntryResponse
+			json.Unmarshal(createW.Body.Bytes(), &createResp)
+			Expect(createResp.Entry).NotTo(BeNil())
+			Expect(createResp.Entry.Entry).NotTo(Equal(int64(0)))
+
+			body := &bytes.Buffer{}
+			writer := multipart.NewWriter(body)
+			writer.WriteField("id", fmt.Sprintf("%d", createResp.Entry.Entry))
+			writer.Close()
+
+			req, err := http.NewRequest("POST", "/api/v1/files/content/write", body)
 			Expect(err).Should(BeNil())
-			req.Header.Set("Content-Type", "multipart/form-data; boundary=----WebKitFormBoundary")
+			req.Header.Set("Content-Type", writer.FormDataContentType())
 			req.Header.Set("X-Namespace", types.DefaultNamespace)
 
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 
-			Expect(w.Code).To(Equal(http.StatusNotFound))
+			Expect(w.Code).To(Equal(http.StatusBadRequest))
 
 			delReqBody := map[string]string{"uri": "/test-file.txt"}
 			delJsonBody, _ := json.Marshal(delReqBody)
@@ -83,11 +93,14 @@ var _ = Describe("REST V1 File API", func() {
 		})
 
 		It("should return 404 for non-existent entry", func() {
-			reqBody := map[string]int64{"id": 99999}
-			jsonBody, _ := json.Marshal(reqBody)
-			req, err := http.NewRequest("POST", "/api/v1/files/content/write", bytes.NewBuffer(jsonBody))
+			body := &bytes.Buffer{}
+			writer := multipart.NewWriter(body)
+			writer.WriteField("id", "99999")
+			writer.Close()
+
+			req, err := http.NewRequest("POST", "/api/v1/files/content/write", body)
 			Expect(err).Should(BeNil())
-			req.Header.Set("Content-Type", "multipart/form-data; boundary=----WebKitFormBoundary")
+			req.Header.Set("Content-Type", writer.FormDataContentType())
 			req.Header.Set("X-Namespace", types.DefaultNamespace)
 
 			w := httptest.NewRecorder()

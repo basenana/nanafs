@@ -18,16 +18,17 @@ package webdav
 
 import (
 	"context"
-	"github.com/basenana/nanafs/config"
-	"github.com/basenana/nanafs/pkg/core"
-	"github.com/basenana/nanafs/pkg/types"
-	"github.com/basenana/nanafs/utils"
 	"io/fs"
 	"net/http"
 	"os"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/basenana/nanafs/config"
+	"github.com/basenana/nanafs/pkg/core"
+	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/nanafs/utils"
 )
 
 type Info struct {
@@ -103,7 +104,7 @@ func modeFromFileKind(kind types.Kind) uint32 {
 	switch kind {
 	case types.RawKind:
 		return syscall.S_IFREG
-	case types.GroupKind, types.ExternalGroupKind:
+	case types.GroupKind, types.SmartGroupKind:
 		return syscall.S_IFDIR
 	case types.SymLinkKind:
 		return syscall.S_IFLNK

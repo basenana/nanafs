@@ -79,6 +79,43 @@ var _ = Describe("REST V1 Entries API - CRUD Operations", func() {
 			Expect(w.Code).To(Equal(http.StatusCreated))
 		})
 
+		It("should create a smart group entry", func() {
+			reqBody := CreateEntryRequest{
+				URI:    "/test-smart-group",
+				Kind:   types.SmartGroupKind,
+				Filter: &FilterConfig{CELPattern: "kind == 'file'"},
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+
+			req, err := http.NewRequest("POST", "/api/v1/entries", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusCreated))
+		})
+
+		It("should fail when creating smart group without filter", func() {
+			reqBody := CreateEntryRequest{
+				URI:  "/test-smart-group-no-filter",
+				Kind: types.SmartGroupKind,
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+
+			req, err := http.NewRequest("POST", "/api/v1/entries", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusBadRequest))
+		})
+
 		It("should create a nested group entry", func() {
 			parentReq := CreateEntryRequest{
 				URI:  "/test-folder",

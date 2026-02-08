@@ -151,3 +151,13 @@ type UpdateWorkflowRequest struct {
 	Enable    *bool                 `json:"enable"`
 	QueueName string                `json:"queue_name"`
 }
+
+type GetGroupConfigRequest struct {
+	EntrySelector
+}
+
+type SetGroupConfigRequest struct {
+	EntrySelector
+	Rss    *RssConfig    `json:"rss,omitempty"`
+	Filter *FilterConfig `json:"filter,omitempty"`
+}

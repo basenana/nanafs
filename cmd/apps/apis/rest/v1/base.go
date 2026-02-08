@@ -252,15 +252,14 @@ func (s *ServicesV1) checkAndTriggerIndexEvent(ctx context.Context, namespace, u
 // pdKind2EntryKind converts string to entry kind.
 func (s *ServicesV1) pdKind2EntryKind(k string) types.Kind {
 	kindMap := map[types.Kind]struct{}{
-		types.RawKind:           {},
-		types.GroupKind:         {},
-		types.SmartGroupKind:    {},
-		types.FIFOKind:          {},
-		types.SocketKind:        {},
-		types.SymLinkKind:       {},
-		types.BlkDevKind:        {},
-		types.CharDevKind:       {},
-		types.ExternalGroupKind: {},
+		types.RawKind:        {},
+		types.GroupKind:      {},
+		types.SmartGroupKind: {},
+		types.FIFOKind:       {},
+		types.SocketKind:     {},
+		types.SymLinkKind:    {},
+		types.BlkDevKind:     {},
+		types.CharDevKind:    {},
 	}
 	_, ok := kindMap[types.Kind(k)]
 	if !ok {
@@ -300,6 +299,7 @@ func (s *ServicesV1) setupRssConfig(config *RssConfig, attr *types.EntryAttr) {
 
 // setupGroupFilterConfig configures filter for a smart group.
 func (s *ServicesV1) setupGroupFilterConfig(config *FilterConfig, attr *types.EntryAttr) {
+	attr.Kind = types.SmartGroupKind
 	attr.GroupProperties = &types.GroupProperties{
 		Filter: &types.Filter{
 			CELPattern: config.CELPattern,

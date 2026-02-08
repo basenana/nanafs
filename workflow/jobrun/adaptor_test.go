@@ -190,9 +190,9 @@ var _ = Describe("Coordinator", func() {
 			}
 			step := &types.WorkflowJobNode{
 				WorkflowNode: types.WorkflowNode{
-					Name:       "condition-step",
-					Next:       "default-next",
-					Branches:   map[string]string{"true": "branch-true"},
+					Name:     "condition-step",
+					Next:     "default-next",
+					Branches: map[string]string{"true": "branch-true"},
 				},
 				BranchNext: "branch-true",
 				Status:     SucceedStatus,

@@ -123,11 +123,11 @@ var _ = Describe("buildGroupTreeFromChildren", func() {
 		tree := buildGroupTreeFromChildren(children, 1)
 
 		Expect(tree).Should(HaveLen(2))
-		Expect(tree[0].Name).Should(Equal("group1"))
+		Expect(tree[0].Name).To(Equal("group1"))
 		Expect(tree[0].Children).Should(HaveLen(2))
-		Expect(tree[0].Children[0].Name).Should(Equal("subgroup1"))
-		Expect(tree[0].Children[1].Name).Should(Equal("subgroup2"))
-		Expect(tree[1].Name).Should(Equal("group2"))
+		Expect(tree[0].Children[0].Name).To(Equal("subgroup1"))
+		Expect(tree[0].Children[1].Name).To(Equal("subgroup2"))
+		Expect(tree[1].Name).To(Equal("group2"))
 	})
 
 	It("should return empty for no children", func() {
@@ -145,11 +145,11 @@ var _ = Describe("buildGroupTreeFromChildren", func() {
 		tree := buildGroupTreeFromChildren(children, 1)
 
 		Expect(tree).Should(HaveLen(1))
-		Expect(tree[0].Name).Should(Equal("g1"))
+		Expect(tree[0].Name).To(Equal("g1"))
 		Expect(tree[0].Children).Should(HaveLen(1))
-		Expect(tree[0].Children[0].Name).Should(Equal("g1-1"))
+		Expect(tree[0].Children[0].Name).To(Equal("g1-1"))
 		Expect(tree[0].Children[0].Children).Should(HaveLen(1))
-		Expect(tree[0].Children[0].Children[0].Name).Should(Equal("g1-1-1"))
+		Expect(tree[0].Children[0].Children[0].Name).To(Equal("g1-1-1"))
 	})
 
 	It("should handle single root group", func() {
@@ -160,7 +160,7 @@ var _ = Describe("buildGroupTreeFromChildren", func() {
 		tree := buildGroupTreeFromChildren(children, 1)
 
 		Expect(tree).Should(HaveLen(1))
-		Expect(tree[0].Name).Should(Equal("single"))
+		Expect(tree[0].Name).To(Equal("single"))
 		Expect(tree[0].Children).Should(BeEmpty())
 	})
 
@@ -179,22 +179,22 @@ var _ = Describe("buildGroupTreeFromChildren", func() {
 		Expect(tree).Should(HaveLen(2))
 
 		a := tree[0]
-		Expect(a.Name).Should(Equal("a"))
+		Expect(a.Name).To(Equal("a"))
 		Expect(a.Children).Should(HaveLen(2))
 
 		a1 := a.Children[0]
-		Expect(a1.Name).Should(Equal("a1"))
+		Expect(a1.Name).To(Equal("a1"))
 		Expect(a1.Children).Should(HaveLen(1))
-		Expect(a1.Children[0].Name).Should(Equal("a1-1"))
+		Expect(a1.Children[0].Name).To(Equal("a1-1"))
 
 		a2 := a.Children[1]
-		Expect(a2.Name).Should(Equal("a2"))
+		Expect(a2.Name).To(Equal("a2"))
 		Expect(a2.Children).Should(BeEmpty())
 
 		b := tree[1]
-		Expect(b.Name).Should(Equal("b"))
+		Expect(b.Name).To(Equal("b"))
 		Expect(b.Children).Should(HaveLen(1))
-		Expect(b.Children[0].Name).Should(Equal("b1"))
+		Expect(b.Children[0].Name).To(Equal("b1"))
 	})
 })
 
@@ -221,6 +221,32 @@ var _ = Describe("REST V1 Filter API", func() {
 			router.ServeHTTP(w, req)
 
 			Expect(w.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should return pagination info", func() {
+			reqBody := FilterEntryRequest{
+				CELPattern: "true",
+				Page:       1,
+				PageSize:   10,
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+
+			req, err := http.NewRequest("POST", "/api/v1/entries/filter", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusOK))
+
+			var resp ListEntriesResponse
+			err = json.Unmarshal(w.Body.Bytes(), &resp)
+			Expect(err).Should(BeNil())
+			Expect(resp.Pagination).ShouldNot(BeNil())
+			Expect(resp.Pagination.Page).To(Equal(int64(1)))
+			Expect(resp.Pagination.PageSize).To(Equal(int64(10)))
 		})
 	})
 })
@@ -280,6 +306,252 @@ var _ = Describe("REST V1 DeleteEntries Batch API", func() {
 			router.ServeHTTP(w, req)
 
 			Expect(w.Code).To(Equal(http.StatusOK))
+		})
+	})
+})
+
+var _ = Describe("REST V1 Entry Query API", func() {
+	var router *gin.Engine
+
+	BeforeEach(func() {
+		router = testRouter.Router
+
+		createReq := CreateEntryRequest{
+			URI:  "/query-test-group",
+			Kind: "group",
+		}
+		createJson, _ := json.Marshal(createReq)
+		createHttpReq, _ := http.NewRequest("POST", "/api/v1/entries", bytes.NewBuffer(createJson))
+		createHttpReq.Header.Set("Content-Type", "application/json")
+		createHttpReq.Header.Set("X-Namespace", types.DefaultNamespace)
+		createW := httptest.NewRecorder()
+		router.ServeHTTP(createW, createHttpReq)
+		Expect(createW.Code).To(Equal(http.StatusCreated))
+	})
+
+	AfterEach(func() {
+		reqBody := map[string]string{"uri": "/query-test-group"}
+		jsonBody, _ := json.Marshal(reqBody)
+		req, _ := http.NewRequest("POST", "/api/v1/entries/delete", bytes.NewBuffer(jsonBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Namespace", types.DefaultNamespace)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+	})
+
+	Describe("EntryDetails", func() {
+		It("should return entry details using body parameter", func() {
+			reqBody := map[string]string{"uri": "/query-test-group"}
+			jsonBody, _ := json.Marshal(reqBody)
+			req, err := http.NewRequest("POST", "/api/v1/entries/details", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusOK))
+		})
+
+		It("should return 404 when entry not found", func() {
+			reqBody := map[string]string{"uri": "/non-existent-entry"}
+			jsonBody, _ := json.Marshal(reqBody)
+			req, err := http.NewRequest("POST", "/api/v1/entries/details", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusNotFound))
+		})
+	})
+
+	Describe("EntryChildren", func() {
+		It("should return entry children", func() {
+			reqBody := map[string]string{"uri": "/query-test-group"}
+			jsonBody, _ := json.Marshal(reqBody)
+			req, err := http.NewRequest("POST", "/api/v1/entries/details", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusOK))
+		})
+	})
+
+	Describe("Complex Nested URI Operations", func() {
+		It("should handle non-existent URI gracefully", func() {
+			reqBody := map[string]string{"uri": "/non-existent/uri/path"}
+			jsonBody, _ := json.Marshal(reqBody)
+			req, err := http.NewRequest("POST", "/api/v1/entries/details", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusNotFound))
+		})
+	})
+})
+
+var _ = Describe("REST V1 Group Config API", func() {
+	var router *gin.Engine
+
+	BeforeEach(func() {
+		router = testRouter.Router
+	})
+
+	AfterEach(func() {
+		for _, uri := range []string{"/smart-group-test", "/smart-group-test2"} {
+			reqBody := map[string]string{"uri": uri}
+			jsonBody, _ := json.Marshal(reqBody)
+			req, _ := http.NewRequest("POST", "/api/v1/entries/delete", bytes.NewBuffer(jsonBody))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+		}
+	})
+
+	Describe("GetGroupConfig", func() {
+		It("should get config for smart group", func() {
+			createReq := CreateEntryRequest{
+				URI:    "/smart-group-test",
+				Kind:   types.SmartGroupKind,
+				Filter: &FilterConfig{CELPattern: "kind == 'file'"},
+			}
+			createJson, _ := json.Marshal(createReq)
+			createHttpReq, _ := http.NewRequest("POST", "/api/v1/entries", bytes.NewBuffer(createJson))
+			createHttpReq.Header.Set("Content-Type", "application/json")
+			createHttpReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			createW := httptest.NewRecorder()
+			router.ServeHTTP(createW, createHttpReq)
+			Expect(createW.Code).To(Equal(http.StatusCreated))
+
+			reqBody := GetGroupConfigRequest{
+				EntrySelector: EntrySelector{URI: "/smart-group-test"},
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+			req, err := http.NewRequest("POST", "/api/v1/groups/configs", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusOK))
+
+			var resp GroupConfigResponse
+			err = json.Unmarshal(w.Body.Bytes(), &resp)
+			Expect(err).Should(BeNil())
+			Expect(resp.Kind).To(Equal(string(types.SmartGroupKind)))
+			Expect(resp.Filter).ShouldNot(BeNil())
+			Expect(resp.Filter.CELPattern).To(Equal("kind == 'file'"))
+		})
+
+		It("should return error for non-group entry", func() {
+			createReq := CreateEntryRequest{
+				URI:  "/smart-group-test",
+				Kind: "file",
+			}
+			createJson, _ := json.Marshal(createReq)
+			createHttpReq, _ := http.NewRequest("POST", "/api/v1/entries", bytes.NewBuffer(createJson))
+			createHttpReq.Header.Set("Content-Type", "application/json")
+			createHttpReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			createW := httptest.NewRecorder()
+			router.ServeHTTP(createW, createHttpReq)
+			Expect(createW.Code).To(Equal(http.StatusCreated))
+
+			reqBody := GetGroupConfigRequest{
+				EntrySelector: EntrySelector{URI: "/smart-group-test"},
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+			req, err := http.NewRequest("POST", "/api/v1/groups/configs", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusBadRequest))
+		})
+	})
+
+	Describe("SetGroupConfig", func() {
+		It("should update filter config for smart group", func() {
+			createReq := CreateEntryRequest{
+				URI:    "/smart-group-test",
+				Kind:   types.SmartGroupKind,
+				Filter: &FilterConfig{CELPattern: "kind == 'file'"},
+			}
+			createJson, _ := json.Marshal(createReq)
+			createHttpReq, _ := http.NewRequest("POST", "/api/v1/entries", bytes.NewBuffer(createJson))
+			createHttpReq.Header.Set("Content-Type", "application/json")
+			createHttpReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			createW := httptest.NewRecorder()
+			router.ServeHTTP(createW, createHttpReq)
+			Expect(createW.Code).To(Equal(http.StatusCreated))
+
+			reqBody := SetGroupConfigRequest{
+				EntrySelector: EntrySelector{URI: "/smart-group-test"},
+				Filter:        &FilterConfig{CELPattern: "kind == 'document'"},
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+			req, err := http.NewRequest("POST", "/api/v1/groups/configs/update", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusOK))
+
+			var resp GroupConfigResponse
+			err = json.Unmarshal(w.Body.Bytes(), &resp)
+			Expect(err).Should(BeNil())
+			Expect(resp.Kind).To(Equal(string(types.SmartGroupKind)))
+			Expect(resp.Filter).ShouldNot(BeNil())
+			Expect(resp.Filter.CELPattern).To(Equal("kind == 'document'"))
+		})
+
+		It("should return error when smart group lacks filter", func() {
+			createReq := CreateEntryRequest{
+				URI:    "/smart-group-test2",
+				Kind:   types.SmartGroupKind,
+				Filter: &FilterConfig{CELPattern: "kind == 'file'"},
+			}
+			createJson, _ := json.Marshal(createReq)
+			createHttpReq, _ := http.NewRequest("POST", "/api/v1/entries", bytes.NewBuffer(createJson))
+			createHttpReq.Header.Set("Content-Type", "application/json")
+			createHttpReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			createW := httptest.NewRecorder()
+			router.ServeHTTP(createW, createHttpReq)
+			Expect(createW.Code).To(Equal(http.StatusCreated))
+
+			reqBody := SetGroupConfigRequest{
+				EntrySelector: EntrySelector{URI: "/smart-group-test2"},
+			}
+			jsonBody, _ := json.Marshal(reqBody)
+			req, err := http.NewRequest("POST", "/api/v1/groups/configs/update", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusBadRequest))
 		})
 	})
 })

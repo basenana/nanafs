@@ -152,3 +152,121 @@ func buildGroupTreeFromChildren(allChildren []*types.Child, rootID int64) []*Gro
 
 	return build(rootID, "/")
 }
+
+// @Summary Get group config
+// @Description Get configuration of a group (RSS or filter)
+// @Tags Groups
+// @Accept json
+// @Produce json
+// @Param request body GetGroupConfigRequest true "Group config request"
+// @Success 200 {object} GroupConfigResponse
+// @Router /api/v1/groups/configs [post]
+func (s *ServicesV1) GetGroupConfig(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	var req GetGroupConfigRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	en, _ := s.requireEntryWithPermission(ctx, caller, &req.EntrySelector, types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead)
+	if en == nil {
+		return
+	}
+
+	if !en.IsGroup {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("entry is not a group"))
+		return
+	}
+
+	groupProps := &types.GroupProperties{}
+	err := s.meta.GetEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeGroupAttr, en.ID, groupProps)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	resp := &GroupConfigResponse{
+		Kind:   string(en.Kind),
+		Source: groupProps.Source,
+	}
+
+	if groupProps.RSS != nil {
+		resp.RSS = &RssConfig{
+			Feed:     groupProps.RSS.Feed,
+			SiteName: groupProps.RSS.SiteName,
+			SiteURL:  groupProps.RSS.SiteURL,
+			FileType: groupProps.RSS.FileType,
+		}
+	}
+
+	if groupProps.Filter != nil {
+		resp.Filter = &FilterConfig{
+			CELPattern: groupProps.Filter.CELPattern,
+		}
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, resp)
+}
+
+// @Summary Set group config
+// @Description Set configuration of a group (filter)
+// @Tags Groups
+// @Accept json
+// @Produce json
+// @Param request body SetGroupConfigRequest true "Group config request"
+// @Success 200 {object} GroupConfigResponse
+// @Router /api/v1/groups/configs/update [post]
+func (s *ServicesV1) SetGroupConfig(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	var req SetGroupConfigRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	en, _ := s.requireEntryWithPermission(ctx, caller, &req.EntrySelector, types.PermOwnerWrite, types.PermGroupWrite, types.PermOthersWrite)
+	if en == nil {
+		return
+	}
+
+	if !en.IsGroup {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("entry is not a group"))
+		return
+	}
+
+	if en.Kind == types.SmartGroupKind && req.Filter == nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", errors.New("smart group requires filter config"))
+		return
+	}
+
+	groupProps := &types.GroupProperties{}
+
+	if req.Filter != nil {
+		groupProps.Filter = &types.Filter{
+			CELPattern: req.Filter.CELPattern,
+		}
+	}
+
+	err := s.meta.UpdateEntryProperties(ctx.Request.Context(), caller.Namespace, types.PropertyTypeGroupAttr, en.ID, groupProps)
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	resp := &GroupConfigResponse{
+		Kind:   string(en.Kind),
+		Source: groupProps.Source,
+		Filter: req.Filter,
+	}
+
+	apitool.JsonResponse(ctx, http.StatusOK, resp)
+}
