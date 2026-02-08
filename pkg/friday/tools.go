@@ -301,6 +301,41 @@ func (f *Friday) newRenameTool() *tools.Tool {
 	)
 }
 
+// search tool - Search files by content using multi-keyword queries
+func (f *Friday) newSearchTool() *tools.Tool {
+	return tools.NewTool(
+		"search",
+		tools.WithDescription("Search files by content using multi-keyword queries"),
+		tools.WithString("query",
+			tools.Required(),
+			tools.Description("Search query with space-separated keywords (AND semantics)"),
+		),
+		tools.WithToolHandler(func(ctx context.Context, request *tools.Request) (*tools.Result, error) {
+			query, ok := request.Arguments["query"].(string)
+			if !ok || query == "" {
+				return tools.NewToolResultError("missing required parameter: query"), nil
+			}
+
+			docs, err := f.indexer.QueryLanguage(ctx, f.namespace, query)
+			if err != nil {
+				return tools.NewToolResultError(err.Error()), nil
+			}
+
+			var results []any
+			for _, doc := range docs {
+				results = append(results, map[string]string{
+					"title":     doc.HighlightTitle,
+					"highlight": doc.HighlightContent,
+					"path":      doc.URI,
+				})
+			}
+
+			data, _ := json.Marshal(results)
+			return tools.NewToolResultText(string(data)), nil
+		}),
+	)
+}
+
 // delete tool - Delete a file or directory
 func (f *Friday) newDeleteTool() *tools.Tool {
 	return tools.NewTool(

@@ -6,17 +6,20 @@ import (
 
 	"github.com/basenana/friday/core/tools"
 	"github.com/basenana/nanafs/pkg/core"
+	"github.com/basenana/nanafs/pkg/indexer"
 	"github.com/basenana/nanafs/pkg/types"
 )
 
 type Friday struct {
 	fs        *core.FileSystem
+	indexer   indexer.Indexer
 	namespace string
 }
 
-func NewFriday(fs *core.FileSystem) *Friday {
+func NewFriday(fs *core.FileSystem, indexer indexer.Indexer) *Friday {
 	return &Friday{
 		fs:        fs,
+		indexer:   indexer,
 		namespace: fs.Namespace(),
 	}
 }
@@ -31,6 +34,7 @@ func (f *Friday) Tools() []*tools.Tool {
 		f.newMkdirTool(),
 		f.newRenameTool(),
 		f.newDeleteTool(),
+		f.newSearchTool(),
 	}
 }
 
