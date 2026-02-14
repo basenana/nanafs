@@ -8,7 +8,6 @@ import (
 
 	"github.com/basenana/friday/core/agents/summarize"
 	fridayapi "github.com/basenana/friday/core/api"
-	"github.com/basenana/friday/core/memory"
 	"github.com/basenana/plugin/api"
 	"github.com/basenana/plugin/logger"
 	"github.com/basenana/plugin/types"
@@ -88,13 +87,9 @@ func (p *SummaryPlugin) Run(ctx context.Context, request *api.Request) (*api.Res
 		return api.NewFailedResponse(err.Error()), nil
 	}
 
-	agent := summarize.New("summary", "Summary Agent", llm, summarize.Option{
-		SystemPrompt: systemPrompt,
-	})
-
+	agent := summarize.New(llm, summarize.Option{SystemPrompt: systemPrompt})
 	resp := agent.Chat(ctx, &fridayapi.Request{
-		Session:     NewSession(p.jobID),
-		Memory:      memory.NewEmpty(p.jobID),
+		Session:     NewSession(p.jobID, llm),
 		UserMessage: message,
 	})
 

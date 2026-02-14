@@ -93,29 +93,15 @@ func GenerateContentHeaderImage(content string) string {
 			srcVal    string
 			isExisted bool
 		)
-		srcVal, isExisted = selection.Attr("src")
-		if isExisted && isValidImageURL(srcVal) {
-			imageURL = srcVal
-			return false
+
+		for _, attrName := range []string{"src", "data-src", "data-src-retina", "data-original"} {
+			srcVal, isExisted = selection.Attr(attrName)
+			if isExisted && isValidImageURL(srcVal) && maybeHeadImageURL(srcVal) {
+				imageURL = srcVal
+				return false
+			}
 		}
 
-		srcVal, isExisted = selection.Attr("data-src")
-		if isExisted && isValidImageURL(srcVal) {
-			imageURL = srcVal
-			return false
-		}
-
-		srcVal, isExisted = selection.Attr("data-src-retina")
-		if isExisted && isValidImageURL(srcVal) {
-			imageURL = srcVal
-			return false
-		}
-
-		srcVal, isExisted = selection.Attr("data-original")
-		if isExisted && isValidImageURL(srcVal) {
-			imageURL = srcVal
-			return false
-		}
 		return true
 	})
 
@@ -131,4 +117,12 @@ func isValidImageURL(urlVal string) bool {
 	}
 	imageExtRegex := regexp.MustCompile(`(?i)\.(jpg|jpeg|png|gif|webp|bmp|tiff|heic|heif|avif)(\?.*)?$`)
 	return imageExtRegex.MatchString(urlVal)
+}
+
+func maybeHeadImageURL(urlVal string) bool {
+	urlVal = strings.ToLower(urlVal)
+	if strings.Contains(urlVal, "logo") {
+		return false
+	}
+	return true
 }

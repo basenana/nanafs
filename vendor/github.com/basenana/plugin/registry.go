@@ -150,7 +150,6 @@ func New() Manager {
 
 	m.Register(archive.PluginSpec, archive.NewArchivePlugin)
 	m.Register(agentic.PluginSpec, agentic.NewReactPlugin)
-	m.Register(agentic.ResearchPluginSpec, agentic.NewResearchPlugin)
 	m.Register(agentic.SummaryPluginSpec, agentic.NewSummaryPlugin)
 	m.Register(checksum.PluginSpec, checksum.NewChecksumPlugin)
 	m.Register(docloader.PluginSpec, docloader.NewDocLoader)

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/basenana/friday/core/providers/openai"
-	"github.com/basenana/friday/core/types"
+	"github.com/basenana/friday/core/session"
 	"github.com/basenana/plugin/docloader"
 )
 
@@ -38,11 +38,8 @@ func NewLLMClient(config map[string]string) (openai.Client, error) {
 	return openai.New(host, apiKey, openai.Model{Name: model}), nil
 }
 
-func NewSession(jobID string) *types.Session {
-	return &types.Session{
-		ID:   jobID,
-		Type: types.SessionTypeAgentic,
-	}
+func NewSession(jobID string, llm openai.Client) *session.Session {
+	return session.New(jobID, llm)
 }
 
 func LLMRequiredConfig() []string {

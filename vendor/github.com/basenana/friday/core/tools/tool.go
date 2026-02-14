@@ -2,8 +2,6 @@ package tools
 
 import (
 	"context"
-
-	"github.com/basenana/friday/core/types"
 )
 
 type ToolSet interface {
@@ -27,6 +25,10 @@ func (t *Tool) JsonSchema() map[string]interface{} {
 	return map[string]interface{}{"type": "object", "properties": t.InputSchema.Properties, "required": t.InputSchema.Required}
 }
 
+func (t *Tool) GetName() string               { return t.Name }
+func (t *Tool) GetDescription() string        { return t.Description }
+func (t *Tool) GetParameters() map[string]any { return t.JsonSchema() }
+
 func NewTool(name string, options ...ToolOption) *Tool {
 	t := &Tool{
 		Name:        name,
@@ -46,15 +48,13 @@ type ToolInputSchema struct {
 }
 
 type Request struct {
-	Arguments  map[string]interface{} `json:"arguments"`
-	Session    *types.Session         `json:"session"`
-	Scratchpad Scratchpad             `json:"-"`
+	Arguments map[string]interface{} `json:"arguments"`
+	SessionID string                 `json:"sessionId"`
 }
 
 type Result struct {
-	Content      []Content `json:"content"`
-	ToolUseTimes int       `json:"toolUsedTimes,omitempty"`
-	IsError      bool      `json:"isError,omitempty"`
+	Content []Content `json:"content"`
+	IsError bool      `json:"isError,omitempty"`
 }
 
 // NewToolResultText creates a new CallToolResult with a text content

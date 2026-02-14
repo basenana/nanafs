@@ -89,8 +89,8 @@ func (c *CompatibleClient) chatCompletionNewParams(request Request) *openai.Chat
 		p.PresencePenalty = param.NewOpt(*c.model.PresencePenalty)
 	}
 
-	history := request.History()
-	for _, msg := range history {
+	messages := request.Messages()
+	for _, msg := range messages {
 		switch {
 		case msg.SystemMessage != "":
 			p.Messages = append(p.Messages,
@@ -153,7 +153,7 @@ func (c *CompatibleClient) chatCompletionNewParams(request Request) *openai.Chat
 		p.Tools = nil
 
 		buf := &bytes.Buffer{}
-		messages := request.History()
+		messages = request.Messages()
 		if len(messages) == 0 || messages[0].SystemMessage == "" {
 			c.logger.Warnw("no system prompt found")
 			return p
@@ -168,10 +168,10 @@ func (c *CompatibleClient) chatCompletionNewParams(request Request) *openai.Chat
 		buf.WriteString("Above example were using notional tools that might not exist for you. You only have access to these tools:\n")
 		toolDefine := &ToolDefinePrompt{}
 		for _, tool := range toolList {
-			argContent, _ := json.Marshal(tool.Parameters)
+			argContent, _ := json.Marshal(tool.GetParameters())
 			toolDefine.Tools = append(toolDefine.Tools, ToolPrompt{
-				Name:        tool.Name,
-				Description: tool.Description,
+				Name:        tool.GetName(),
+				Description: tool.GetDescription(),
 				Arguments:   string(argContent),
 			})
 		}

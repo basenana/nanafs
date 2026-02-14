@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
+	"strings"
 
 	"github.com/basenana/friday/core/types"
 	"github.com/openai/openai-go"
@@ -34,8 +35,18 @@ type Delta struct {
 }
 
 type Request interface {
+	Messages() []types.Message
+
 	History() []types.Message
 	ToolDefines() []ToolDefine
+	SystemPrompt() string
+
+	SetHistory([]types.Message)
+	SetToolDefines([]ToolDefine)
+	SetSystemPrompt(string)
+	AppendHistory(...types.Message)
+	AppendToolDefines(...ToolDefine)
+	AppendSystemPrompt(...string)
 }
 
 type CompatibleChunk struct {
@@ -44,47 +55,27 @@ type CompatibleChunk struct {
 }
 
 func NewSimpleRequest(systemMessage string, history ...types.Message) Request {
-	return &simpleRequest{system: systemMessage, history: history}
+	return &simpleRequest{systemPrompts: []string{systemMessage}, history: history}
 }
 
-func NewToolsRequest(request Request, tools []ToolDefine) Request {
-
-	var (
-		filtered    []ToolDefine
-		existedTool = make(map[string]struct{})
-	)
-
-	for _, t := range tools {
-		_, exists := existedTool[t.Name]
-		if exists {
-			continue
-		}
-		filtered = append(filtered, t)
-		existedTool[t.Name] = struct{}{}
-	}
-
-	tools = filtered
-	req, ok := request.(*simpleRequest)
-	if ok {
-		req.tools = tools
-		return req
-	}
-
-	var (
-		system  string
-		history = request.History()
-	)
-
-	if len(history) > 0 {
-		system = history[0].SystemMessage
-	}
-	return &simpleRequest{system: system, tools: tools, history: history}
+type ToolDefine interface {
+	GetName() string
+	GetDescription() string
+	GetParameters() map[string]any
 }
 
-type ToolDefine struct {
-	Name        string
-	Description string
-	Parameters  map[string]any
+type simpleToolDefine struct {
+	name        string
+	description string
+	parameters  map[string]any
+}
+
+func (s simpleToolDefine) GetName() string               { return s.name }
+func (s simpleToolDefine) GetDescription() string        { return s.description }
+func (s simpleToolDefine) GetParameters() map[string]any { return s.parameters }
+
+func NewToolDefine(name, description string, parameters map[string]any) ToolDefine {
+	return simpleToolDefine{name: name, description: description, parameters: parameters}
 }
 
 type ToolUse struct {
@@ -95,6 +86,13 @@ type ToolUse struct {
 	Error     string   `xml:"error" json:"error"`
 
 	Reasoning string `xml:"-" json:"-"` // tool use in reasoning like deepseek v3.2
+}
+
+type Apply struct {
+	ToolUse []ToolUse
+
+	Continue bool
+	Abort    bool
 }
 
 type Reasoning struct {
@@ -195,20 +193,77 @@ func newCompatibleResponse() *compatibleResponse {
 }
 
 type simpleRequest struct {
-	system  string
-	tools   []ToolDefine
-	history []types.Message
+	systemPrompts []string
+	tools         []ToolDefine
+	history       []types.Message
 }
 
-func (s *simpleRequest) History() []types.Message {
+func (s *simpleRequest) Messages() []types.Message {
 	result := make([]types.Message, 0, len(s.history)+1)
-	result = append(result, types.Message{SystemMessage: s.system})
+	result = append(result, types.Message{SystemMessage: s.SystemPrompt()})
 	result = append(result, s.history...)
 	return result
 }
 
+func (s *simpleRequest) History() []types.Message {
+	return s.history
+}
+
 func (s *simpleRequest) ToolDefines() []ToolDefine {
 	return s.tools
+}
+
+func (s *simpleRequest) SystemPrompt() string {
+	return strings.Join(s.systemPrompts, "\n\n")
+}
+
+func (s *simpleRequest) SetHistory(history []types.Message) {
+	s.history = history
+}
+
+func (s *simpleRequest) SetToolDefines(tools []ToolDefine) {
+	var (
+		filtered    []ToolDefine
+		existedTool = make(map[string]struct{})
+	)
+
+	for _, t := range tools {
+		_, exists := existedTool[t.GetName()]
+		if exists {
+			continue
+		}
+		filtered = append(filtered, t)
+		existedTool[t.GetName()] = struct{}{}
+	}
+	s.tools = filtered
+}
+
+func (s *simpleRequest) SetSystemPrompt(prompt string) {
+	s.systemPrompts = []string{prompt}
+}
+
+func (s *simpleRequest) AppendHistory(messages ...types.Message) {
+	s.history = append(s.history, messages...)
+}
+
+func (s *simpleRequest) AppendToolDefines(tools ...ToolDefine) {
+	for i, t := range tools {
+		var exists bool
+		for _, existing := range s.tools {
+			if existing.GetName() == t.GetName() {
+				exists = true
+				s.tools[i] = t // override
+				break
+			}
+		}
+		if !exists {
+			s.tools = append(s.tools, t)
+		}
+	}
+}
+
+func (s *simpleRequest) AppendSystemPrompt(prompts ...string) {
+	s.systemPrompts = append(s.systemPrompts, prompts...)
 }
 
 type simpleResponse struct {

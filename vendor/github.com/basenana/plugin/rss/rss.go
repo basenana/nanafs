@@ -52,7 +52,8 @@ const (
 	rssParameterClutterFree = "clutter_free"
 	rssParameterParentURI   = "parent_uri"
 
-	rssPostMaxCollect = 50
+	rssPostMaxCollect         = 50
+	rssPublishedTimeThreshold = time.Hour * 24 * 365 // Skip articles published more than 1 year ago.
 )
 
 var RssSourcePluginSpec = types.PluginSpec{
@@ -183,6 +184,7 @@ func (r *RssSourcePlugin) Run(ctx context.Context, request *api.Request) (*api.R
 	}
 
 	resp := api.NewResponseWithResult(map[string]any{"articles": articleMaps})
+	resp.Message = fmt.Sprintf("%d articles retrieved", len(articles))
 	return resp, nil
 }
 
@@ -217,7 +219,6 @@ func (r *RssSourcePlugin) rssSources(request *api.Request) (src rssSource, err e
 }
 
 func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource) ([]Article, error) {
-	var nowTime = time.Now()
 	siteURL, err := parseSiteURL(source.FeedUrl)
 	if err != nil {
 		r.logger.Errorw("parse rss site url failed", "feed", source.FeedUrl, "err", err)
@@ -245,7 +246,7 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource) (
 			item.Content = item.Description
 		}
 
-		article, err := r.processItem(ctx, &source, item, nowTime, feed)
+		article, err := r.processItem(ctx, &source, item, feed)
 		if err != nil {
 			r.logger.Errorw("process item failed", "link", item.Link, "err", err)
 			continue
@@ -262,22 +263,37 @@ func (r *RssSourcePlugin) syncRssSource(ctx context.Context, source rssSource) (
 	return articles, nil
 }
 
-func (r *RssSourcePlugin) processItem(ctx context.Context, source *rssSource, item *gofeed.Item, nowTime time.Time, feed *gofeed.Feed) (*Article, error) {
+func (r *RssSourcePlugin) processItem(ctx context.Context, source *rssSource, item *gofeed.Item, feed *gofeed.Feed) (*Article, error) {
+	updatedAtSelect := []*time.Time{item.UpdatedParsed, item.PublishedParsed}
+	var updatedAt *time.Time
+	for i := range updatedAtSelect {
+		if updatedAt = updatedAtSelect[i]; updatedAt != nil {
+			break
+		}
+	}
+	if updatedAt != nil && time.Since(*updatedAt) > rssPublishedTimeThreshold {
+		return nil, nil
+	}
+	if updatedAt == nil {
+		nowTime := time.Now()
+		updatedAt = &nowTime
+	}
+
 	switch source.FileType {
 	case archiveFileTypeUrl:
-		return r.processUrlType(ctx, source, item, nowTime, feed)
+		return r.processUrlType(ctx, source, item, *updatedAt, feed)
 	case archiveFileTypeHtml:
-		return r.processHtmlType(ctx, source, item, nowTime, feed)
+		return r.processHtmlType(ctx, source, item, *updatedAt, feed)
 	case archiveFileTypeRawHtml:
-		return r.processRawHtmlType(ctx, source, item, nowTime, feed)
+		return r.processRawHtmlType(ctx, source, item, *updatedAt, feed)
 	case archiveFileTypeWebArchive:
-		return r.processWebArchiveType(ctx, source, item, nowTime, feed)
+		return r.processWebArchiveType(ctx, source, item, *updatedAt, feed)
 	default:
 		return nil, fmt.Errorf("unknown file type: %s", source.FileType)
 	}
 }
 
-func (r *RssSourcePlugin) processUrlType(ctx context.Context, source *rssSource, item *gofeed.Item, nowTime time.Time, feed *gofeed.Feed) (*Article, error) {
+func (r *RssSourcePlugin) processUrlType(ctx context.Context, source *rssSource, item *gofeed.Item, updatedAt time.Time, feed *gofeed.Feed) (*Article, error) {
 	fileName := utils.SanitizeFilename(item.Title) + ".url"
 	entryURI := path.Join(source.ParentURI, fileName)
 	if isNew, err := source.isNew(ctx, entryURI); err != nil || !isNew {
@@ -297,10 +313,10 @@ func (r *RssSourcePlugin) processUrlType(ctx context.Context, source *rssSource,
 		return nil, fmt.Errorf("pack to url file failed: %s", err)
 	}
 
-	return r.buildArticle(item, fileName, nowTime, feed)
+	return r.buildArticle(item, fileName, updatedAt, feed)
 }
 
-func (r *RssSourcePlugin) processHtmlType(ctx context.Context, source *rssSource, item *gofeed.Item, nowTime time.Time, feed *gofeed.Feed) (*Article, error) {
+func (r *RssSourcePlugin) processHtmlType(ctx context.Context, source *rssSource, item *gofeed.Item, updatedAt time.Time, feed *gofeed.Feed) (*Article, error) {
 	fileName := utils.SanitizeFilename(item.Title) + ".html"
 	entryURI := path.Join(source.ParentURI, fileName)
 	if isNew, err := source.isNew(ctx, entryURI); err != nil || !isNew {
@@ -316,10 +332,10 @@ func (r *RssSourcePlugin) processHtmlType(ctx context.Context, source *rssSource
 		return nil, fmt.Errorf("pack to html file failed: %s", err)
 	}
 
-	return r.buildArticle(item, fileName, nowTime, feed)
+	return r.buildArticle(item, fileName, updatedAt, feed)
 }
 
-func (r *RssSourcePlugin) processRawHtmlType(ctx context.Context, source *rssSource, item *gofeed.Item, nowTime time.Time, feed *gofeed.Feed) (*Article, error) {
+func (r *RssSourcePlugin) processRawHtmlType(ctx context.Context, source *rssSource, item *gofeed.Item, updatedAt time.Time, feed *gofeed.Feed) (*Article, error) {
 	fileName := utils.SanitizeFilename(item.Title)
 	entryURI := path.Join(source.ParentURI, fileName+".html")
 	if isNew, err := source.isNew(ctx, entryURI); err != nil || !isNew {
@@ -336,10 +352,10 @@ func (r *RssSourcePlugin) processRawHtmlType(ctx context.Context, source *rssSou
 		return nil, err
 	}
 
-	return r.buildArticle(item, path.Base(filePath), nowTime, feed)
+	return r.buildArticle(item, path.Base(filePath), updatedAt, feed)
 }
 
-func (r *RssSourcePlugin) processWebArchiveType(ctx context.Context, source *rssSource, item *gofeed.Item, nowTime time.Time, feed *gofeed.Feed) (*Article, error) {
+func (r *RssSourcePlugin) processWebArchiveType(ctx context.Context, source *rssSource, item *gofeed.Item, updatedAt time.Time, feed *gofeed.Feed) (*Article, error) {
 	fileName := utils.SanitizeFilename(item.Title)
 	entryURI := path.Join(source.ParentURI, fileName+".webarchive")
 	if isNew, err := source.isNew(ctx, entryURI); err != nil || !isNew {
@@ -356,24 +372,13 @@ func (r *RssSourcePlugin) processWebArchiveType(ctx context.Context, source *rss
 		return nil, err
 	}
 
-	return r.buildArticle(item, path.Base(filePath), nowTime, feed)
+	return r.buildArticle(item, path.Base(filePath), updatedAt, feed)
 }
 
-func (r *RssSourcePlugin) buildArticle(item *gofeed.Item, fileName string, nowTime time.Time, feed *gofeed.Feed) (*Article, error) {
+func (r *RssSourcePlugin) buildArticle(item *gofeed.Item, fileName string, updatedAt time.Time, feed *gofeed.Feed) (*Article, error) {
 	fInfo, err := r.fileRoot.Stat(fileName)
 	if err != nil {
 		return nil, fmt.Errorf("stat archive file error: %s", err)
-	}
-
-	updatedAtSelect := []*time.Time{item.UpdatedParsed, item.PublishedParsed}
-	var updatedAt *time.Time
-	for i := range updatedAtSelect {
-		if updatedAt = updatedAtSelect[i]; updatedAt != nil {
-			break
-		}
-	}
-	if updatedAt == nil {
-		updatedAt = &nowTime
 	}
 
 	return &Article{

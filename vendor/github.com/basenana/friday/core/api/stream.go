@@ -8,7 +8,6 @@ import (
 func ReadAllContent(ctx context.Context, resp *Response) (string, error) {
 	var (
 		contentBuf = &bytes.Buffer{}
-		answerBuf  = &bytes.Buffer{}
 		err        error
 	)
 
@@ -22,44 +21,15 @@ Waiting:
 			if err != nil {
 				break Waiting
 			}
-		case evt, ok := <-resp.Events():
+		case delta, ok := <-resp.Deltas():
 			if !ok {
 				break Waiting
 			}
-
-			if evt.Delta != nil && evt.Delta.Content != "" {
-				contentBuf.WriteString(evt.Delta.Content)
-			}
-
-			if evt.Answer != nil && evt.Answer.Report != "" {
-				answerBuf.WriteString(evt.Answer.Report)
+			if delta.Content != "" {
+				contentBuf.WriteString(delta.Content)
 			}
 		}
 	}
 
-	var content = answerBuf.String()
-	if content == "" {
-		content = contentBuf.String()
-	}
-
-	return content, err
-}
-
-func CopyResponse(ctx context.Context, from *Response, to *Response) error {
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case evt, ok := <-from.Events():
-			if !ok {
-				return nil
-			}
-			SendEvent(to, &evt)
-		case err := <-from.Error():
-			if err != nil {
-				to.Fail(err)
-				return err
-			}
-		}
-	}
+	return contentBuf.String(), err
 }

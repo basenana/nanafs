@@ -1,7 +1,7 @@
-# cel.dev/expr v0.24.0
-## explicit; go 1.22.0
+# cel.dev/expr v0.25.1
+## explicit; go 1.23.0
 cel.dev/expr
-# cloud.google.com/go/auth v0.18.1
+# cloud.google.com/go/auth v0.18.2
 ## explicit; go 1.24.0
 cloud.google.com/go/auth
 cloud.google.com/go/auth/credentials
@@ -180,23 +180,21 @@ github.com/aymerick/douceur/parser
 # github.com/bahlo/generic-list-go v0.2.0
 ## explicit; go 1.18
 github.com/bahlo/generic-list-go
-# github.com/basenana/friday/core v0.0.0-20260115125134-20b35d6baae8
+# github.com/basenana/friday/core v0.0.0-20260214101629-2574dae2b170
 ## explicit; go 1.24.7
 github.com/basenana/friday/core/agents
-github.com/basenana/friday/core/agents/planning
-github.com/basenana/friday/core/agents/react
-github.com/basenana/friday/core/agents/research
 github.com/basenana/friday/core/agents/summarize
 github.com/basenana/friday/core/api
+github.com/basenana/friday/core/fs
 github.com/basenana/friday/core/logger
-github.com/basenana/friday/core/memory
 github.com/basenana/friday/core/providers/openai
+github.com/basenana/friday/core/session
 github.com/basenana/friday/core/tools
 github.com/basenana/friday/core/types
 # github.com/basenana/go-flow v0.0.0-20250614153542-07184f3ea1e7
 ## explicit; go 1.23
 github.com/basenana/go-flow
-# github.com/basenana/plugin v0.0.0-20260207032254-da17a5550ad9
+# github.com/basenana/plugin v0.0.0-20260214101430-f862d73e8dee
 ## explicit; go 1.25
 github.com/basenana/plugin
 github.com/basenana/plugin/agentic
@@ -470,8 +468,8 @@ github.com/google/s2a-go/stream
 # github.com/google/uuid v1.6.0
 ## explicit
 github.com/google/uuid
-# github.com/googleapis/enterprise-certificate-proxy v0.3.11
-## explicit; go 1.24.0
+# github.com/googleapis/enterprise-certificate-proxy v0.3.12
+## explicit; go 1.24.11
 github.com/googleapis/enterprise-certificate-proxy/client
 github.com/googleapis/enterprise-certificate-proxy/client/util
 # github.com/googleapis/gax-go/v2 v2.17.0
@@ -563,13 +561,6 @@ github.com/leodido/go-urn/scim/schema
 ## explicit; go 1.20
 github.com/mailru/easyjson/buffer
 github.com/mailru/easyjson/jwriter
-# github.com/mark3labs/mcp-go v0.43.2
-## explicit; go 1.23.0
-github.com/mark3labs/mcp-go/client
-github.com/mark3labs/mcp-go/client/transport
-github.com/mark3labs/mcp-go/mcp
-github.com/mark3labs/mcp-go/server
-github.com/mark3labs/mcp-go/util
 # github.com/mattn/go-isatty v0.0.20
 ## explicit; go 1.15
 github.com/mattn/go-isatty
@@ -762,10 +753,6 @@ github.com/slok/go-http-metrics/metrics
 github.com/slok/go-http-metrics/metrics/prometheus
 github.com/slok/go-http-metrics/middleware
 github.com/slok/go-http-metrics/middleware/std
-# github.com/spf13/cast v1.10.0
-## explicit; go 1.21.0
-github.com/spf13/cast
-github.com/spf13/cast/internal
 # github.com/spf13/cobra v1.8.1
 ## explicit; go 1.15
 github.com/spf13/cobra
@@ -829,9 +816,6 @@ github.com/ugorji/go/codec
 # github.com/wk8/go-ordered-map/v2 v2.1.8
 ## explicit; go 1.18
 github.com/wk8/go-ordered-map/v2
-# github.com/yosida95/uritemplate/v3 v3.0.2
-## explicit; go 1.14
-github.com/yosida95/uritemplate/v3
 # github.com/yosssi/gohtml v0.0.0-20201013000340-ee4748c638f4
 ## explicit
 github.com/yosssi/gohtml
@@ -891,7 +875,7 @@ go.yaml.in/yaml/v3
 # golang.org/x/arch v0.23.0
 ## explicit; go 1.24.0
 golang.org/x/arch/x86/x86asm
-# golang.org/x/crypto v0.47.0
+# golang.org/x/crypto v0.48.0
 ## explicit; go 1.24.0
 golang.org/x/crypto/argon2
 golang.org/x/crypto/blake2b
@@ -904,15 +888,15 @@ golang.org/x/crypto/internal/alias
 golang.org/x/crypto/internal/poly1305
 golang.org/x/crypto/pbkdf2
 golang.org/x/crypto/sha3
-# golang.org/x/exp v0.0.0-20260112195511-716be5621a96
-## explicit; go 1.24.0
+# golang.org/x/exp v0.0.0-20260212183809-81e46e3db34a
+## explicit; go 1.25.0
 golang.org/x/exp/slices
-# golang.org/x/mod v0.32.0
+# golang.org/x/mod v0.33.0
 ## explicit; go 1.24.0
 golang.org/x/mod/internal/lazyregexp
 golang.org/x/mod/module
 golang.org/x/mod/semver
-# golang.org/x/net v0.49.0
+# golang.org/x/net v0.50.0
 ## explicit; go 1.24.0
 golang.org/x/net/bpf
 golang.org/x/net/html
@@ -924,6 +908,7 @@ golang.org/x/net/http2/h2c
 golang.org/x/net/http2/hpack
 golang.org/x/net/idna
 golang.org/x/net/internal/httpcommon
+golang.org/x/net/internal/httpsfv
 golang.org/x/net/internal/iana
 golang.org/x/net/internal/socket
 golang.org/x/net/internal/timeseries
@@ -933,7 +918,7 @@ golang.org/x/net/publicsuffix
 golang.org/x/net/trace
 golang.org/x/net/webdav
 golang.org/x/net/webdav/internal/xml
-# golang.org/x/oauth2 v0.34.0
+# golang.org/x/oauth2 v0.35.0
 ## explicit; go 1.24.0
 golang.org/x/oauth2
 golang.org/x/oauth2/authhandler
@@ -949,13 +934,13 @@ golang.org/x/oauth2/jwt
 ## explicit; go 1.24.0
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
-# golang.org/x/sys v0.40.0
+# golang.org/x/sys v0.41.0
 ## explicit; go 1.24.0
 golang.org/x/sys/cpu
 golang.org/x/sys/unix
 golang.org/x/sys/windows
 golang.org/x/sys/windows/registry
-# golang.org/x/text v0.33.0
+# golang.org/x/text v0.34.0
 ## explicit; go 1.24.0
 golang.org/x/text/cases
 golang.org/x/text/encoding
@@ -984,7 +969,7 @@ golang.org/x/text/width
 # golang.org/x/time v0.14.0
 ## explicit; go 1.24.0
 golang.org/x/time/rate
-# golang.org/x/tools v0.41.0
+# golang.org/x/tools v0.42.0
 ## explicit; go 1.24.0
 golang.org/x/tools/go/ast/astutil
 golang.org/x/tools/go/buildutil
@@ -1000,7 +985,7 @@ golang.org/x/tools/internal/gopathwalk
 golang.org/x/tools/internal/imports
 golang.org/x/tools/internal/modindex
 golang.org/x/tools/internal/stdlib
-# google.golang.org/api v0.265.0
+# google.golang.org/api v0.266.0
 ## explicit; go 1.24.0
 google.golang.org/api/customsearch/v1
 google.golang.org/api/googleapi
@@ -1017,12 +1002,12 @@ google.golang.org/api/transport/http
 # google.golang.org/genproto/googleapis/api v0.0.0-20260128011058-8636f8732409
 ## explicit; go 1.24.0
 google.golang.org/genproto/googleapis/api/expr/v1alpha1
-# google.golang.org/genproto/googleapis/rpc v0.0.0-20260203192932-546029d2fa20
+# google.golang.org/genproto/googleapis/rpc v0.0.0-20260209200024-4cfbd4190f57
 ## explicit; go 1.24.0
 google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/errdetails
 google.golang.org/genproto/googleapis/rpc/status
-# google.golang.org/grpc v1.78.0
+# google.golang.org/grpc v1.79.1
 ## explicit; go 1.24.0
 google.golang.org/grpc
 google.golang.org/grpc/attributes
@@ -1049,6 +1034,7 @@ google.golang.org/grpc/grpclog/internal
 google.golang.org/grpc/internal
 google.golang.org/grpc/internal/backoff
 google.golang.org/grpc/internal/balancer/gracefulswitch
+google.golang.org/grpc/internal/balancer/weight
 google.golang.org/grpc/internal/balancerload
 google.golang.org/grpc/internal/binarylog
 google.golang.org/grpc/internal/buffer

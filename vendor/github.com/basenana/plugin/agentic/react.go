@@ -4,9 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/basenana/friday/core/agents/react"
+	"github.com/basenana/friday/core/agents"
 	fridayapi "github.com/basenana/friday/core/api"
-	"github.com/basenana/friday/core/memory"
 	"github.com/basenana/plugin/api"
 	"github.com/basenana/plugin/logger"
 	"github.com/basenana/plugin/types"
@@ -68,14 +67,10 @@ func (p *ReactPlugin) Run(ctx context.Context, request *api.Request) (*api.Respo
 	}
 
 	tools := FileAccessTools(p.workingPath, p.logger)
-	agent := react.New("react", "ReAct Agent with file access", llm, react.Option{
-		SystemPrompt: systemPrompt,
-		Tools:        tools,
-	})
+	agent := agents.New(llm, agents.Option{SystemPrompt: systemPrompt, Tools: tools})
 
 	resp := agent.Chat(ctx, &fridayapi.Request{
-		Session:     NewSession(p.jobID),
-		Memory:      memory.NewEmpty(p.jobID),
+		Session:     NewSession(p.jobID, llm),
 		UserMessage: message,
 	})
 

@@ -1,6 +1,6 @@
 # Agentic Plugins
 
-Three AI agent plugins powered by Friday core: React, Research, and Summary.
+Three AI agent plugins powered by Friday core: React, and Summary.
 
 ## Type
 
@@ -18,13 +18,7 @@ ReAct (Reasoning + Action) agent with file access tools.
 
 **Name:** `react`
 
-### 2. research
-
-Multi-step research agent with file access and web search tools. Plans, researches, and summarizes.
-
-**Name:** `research`
-
-### 3. summary
+### 2. summary
 
 Summarization agent that reads content from a file and generates a summary.
 
@@ -40,21 +34,13 @@ Summarization agent that reads content from a file and generates a summary.
 | `friday_llm_api_key` | Yes      | LLM API key                                          |
 | `friday_llm_model`   | Yes      | Model name (e.g., `gpt-4o`, `gpt-4o-mini`)           |
 
-### Research Plugin Additional Config
-
-| Config Key              | Required    | Description                                                         |
-|-------------------------|-------------|---------------------------------------------------------------------|
-| `friday_websearch_type` | No          | Web search type (e.g., `pse` for Google Programmable Search Engine) |
-| `friday_pse_engine_id`  | Conditional | Google PSE Engine ID (required when websearch_type=pse)             |
-| `friday_pse_api_key`    | Conditional | Google PSE API Key (required when websearch_type=pse)               |
-
 ## Parameters
 
-| Parameter       | Required | Plugin          | Type   | Description               |
-|-----------------|----------|-----------------|--------|---------------------------|
-| `message`       | Yes      | react, research | string | User message to process   |
-| `file_path`     | Yes      | summary         | string | Path to file to summarize |
-| `system_prompt` | No       | all             | string | Custom system prompt      |
+| Parameter       | Required | Plugin  | Type   | Description               |
+|-----------------|----------|---------|--------|---------------------------|
+| `message`       | Yes      | react   | string | User message to process   |
+| `file_path`     | Yes      | summary | string | Path to file to summarize |
+| `system_prompt` | No       | all     | string | Custom system prompt      |
 
 ## Output
 
@@ -75,23 +61,9 @@ Summarization agent that reads content from a file and generates a summary.
 }
 ```
 
-### research
-
-```json
-{
-  "result": "<agent response content>",
-  "citations": [
-    {
-      "file_path": "path/to/file.html",
-      "url": "https://example.com/..."
-    }
-  ]
-}
-```
-
 ## Tools
 
-### File Access Tools (react, research)
+### File Access Tools
 
 | Tool         | Description                                                 |
 |--------------|-------------------------------------------------------------|
@@ -146,13 +118,6 @@ Summarization agent that reads content from a file and generates a summary.
 
 **Supported formats:** PDF, HTML, Markdown, TXT, EPUB, WebArchive
 
-### Web Search Tools (research only, when websearch_type=pse)
-
-| Tool             | Description                                                 |
-|------------------|-------------------------------------------------------------|
-| `web_search`     | Search the internet using Google Programmable Search Engine |
-| `crawl_webpages` | Fetch and extract content from web pages                    |
-
 #### web_search
 
 | Parameter    | Required | Type   | Description                                           |
@@ -198,18 +163,6 @@ Summarization agent that reads content from a file and generates a summary.
     message: "Read the README.md file and summarize its contents"
     system_prompt: "You are a helpful assistant with file access"
 
-# Research Agent with web search
-- name: research
-  config:
-    friday_llm_host: "https://api.openai.com/v1"
-    friday_llm_api_key: "your-api-key"
-    friday_llm_model: "gpt-4o"
-    friday_websearch_type: "pse"
-    friday_pse_engine_id: "your-engine-id"
-    friday_pse_api_key: "your-api-key"
-  parameters:
-    message: "Research the latest developments in quantum computing"
-
 # Summary Agent
 - name: summary
   config:
@@ -223,8 +176,5 @@ Summarization agent that reads content from a file and generates a summary.
 ## Notes
 
 - File access tools are restricted to the working directory
-- Research plugin requires additional config for web search functionality
 - All plugins use blocking mode (wait for complete response)
 - Custom system prompt is optional, defaults to Friday agent defaults
-- Research agent performs: Planning -> Research -> Summary workflow
-- Web search uses Google Programmable Search Engine (PSE)
