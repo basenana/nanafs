@@ -19,10 +19,12 @@ package dispatch
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/prometheus/client_golang/prometheus"
-	"time"
 )
 
 var (
@@ -87,9 +89,12 @@ func logTaskExecutionLatency(id string, startAt time.Time) {
 	taskExecutionLatency.WithLabelValues(id).Observe(time.Since(startAt).Seconds())
 }
 
-func quickIdleWakeup() {
-	select {
-	case idleWakeup <- struct{}{}:
-	default:
+func isHideEntry(entryPath string) bool {
+	parts := strings.Split(entryPath, "/")
+	for _, part := range parts {
+		if strings.HasPrefix(part, ".") {
+			return true
+		}
 	}
+	return false
 }

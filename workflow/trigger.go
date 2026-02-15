@@ -213,18 +213,22 @@ func (h *triggers) handleEntryCreate(evt *types.Event) {
 		return
 	}
 
+	entryURI := evt.Data.URI
+	if entryURI == "" {
+		h.logger.Errorw("[handleEntryCreate] guss entry uri failed", "entry", evt.RefID, "err", "uri in event is empty")
+		return
+	}
+
+	if isHideEntry(entryURI) {
+		return
+	}
+
 	// only hold lock when accessing h.workflows
 	h.mux.Lock()
 	nsTriggers := h.workflows[evt.Namespace]
 	h.mux.Unlock()
 
 	if len(nsTriggers) == 0 {
-		return
-	}
-
-	entryURI := evt.Data.URI
-	if entryURI == "" {
-		h.logger.Errorw("[handleEntryCreate] guss entry uri failed", "entry", evt.RefID, "err", "uri in event is empty")
 		return
 	}
 
