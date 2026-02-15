@@ -187,8 +187,10 @@ github.com/basenana/friday/core/agents/summarize
 github.com/basenana/friday/core/api
 github.com/basenana/friday/core/fs
 github.com/basenana/friday/core/logger
+github.com/basenana/friday/core/planning
 github.com/basenana/friday/core/providers/openai
 github.com/basenana/friday/core/session
+github.com/basenana/friday/core/subagents
 github.com/basenana/friday/core/tools
 github.com/basenana/friday/core/types
 # github.com/basenana/go-flow v0.0.0-20250614153542-07184f3ea1e7

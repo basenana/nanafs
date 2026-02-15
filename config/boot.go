@@ -31,6 +31,7 @@ type Bootstrap struct {
 	Debug     bool   `json:"debug,omitempty"`
 
 	Workflow Workflow `json:"workflow"`
+	LLM      LLM      `json:"llm"`
 }
 
 type FsApi struct {
@@ -82,4 +83,14 @@ type JWT struct {
 
 type Integration struct {
 	DocumentWebhook string `json:"document_webhook"`
+}
+
+type LLM struct {
+	Enable      bool    `json:"enable"`
+	Host        string  `json:"host"`
+	APIKey      string  `json:"api_key"`
+	Model       string  `json:"model"`
+	QPM         int     `json:"qpm"`
+	Proxy       string  `json:"proxy"`
+	Temperature *float64 `json:"temperature,omitempty"`
 }

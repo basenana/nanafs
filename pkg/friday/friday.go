@@ -4,24 +4,66 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/basenana/friday/core/agents"
+	"github.com/basenana/friday/core/agents/summarize"
+	"github.com/basenana/friday/core/api"
+	"github.com/basenana/friday/core/planning"
+	"github.com/basenana/friday/core/providers/openai"
+	"github.com/basenana/friday/core/session"
+	"github.com/basenana/friday/core/subagents"
 	"github.com/basenana/friday/core/tools"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/indexer"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/google/uuid"
 )
 
 type Friday struct {
 	fs        *core.FileSystem
+	llm       openai.Client
+	agt       agents.Agent
 	indexer   indexer.Indexer
 	namespace string
 }
 
-func NewFriday(fs *core.FileSystem, indexer indexer.Indexer) *Friday {
-	return &Friday{
+func NewFriday(fs *core.FileSystem, llm openai.Client, indexer indexer.Indexer) *Friday {
+	f := &Friday{
 		fs:        fs,
+		llm:       llm,
 		indexer:   indexer,
 		namespace: fs.Namespace(),
 	}
+	agt := agents.New(llm, agents.Option{SystemPrompt: DEFAULT_SYS_PROMPT, MaxLoopTimes: 20, Tools: f.Tools()})
+	f.agt = agt
+	return f
+}
+
+// Chat sends a message to the agent and returns a streaming response
+func (f *Friday) Chat(ctx context.Context, message string) *api.Response {
+	sess := session.New(uuid.New().String(), f.llm, session.WithHooks(
+		planning.New(f.llm, planning.Option{}),
+		subagents.NewHook(f.llm, subagents.Option{
+			SubAgents: []subagents.ExpertAgent{
+				{
+					Name:     "EXPLORER",
+					Describe: EXPLORER_AGENT_DESC,
+					Agent:    f.agt,
+				},
+			},
+		}),
+		summarize.NewCompactHook(f.llm, 65535),
+	))
+	req := &api.Request{
+		UserMessage: message,
+		Session:     sess,
+		Tools:       f.Tools(),
+	}
+	return f.agt.Chat(ctx, req)
+}
+
+// Namespace returns the namespace this Friday instance operates in
+func (f *Friday) Namespace() string {
+	return f.namespace
 }
 
 // Tools returns all available filesystem tools

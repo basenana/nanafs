@@ -19,6 +19,7 @@ package common
 import (
 	"os"
 
+	"github.com/basenana/friday/core/providers/openai"
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/dispatch"
@@ -36,6 +37,7 @@ type Depends struct {
 	Notify     *notify.Notify
 	Config     config.Config
 	Core       core.Core
+	LLM        openai.Client
 }
 
 func InitDepends(cfg config.Config, meta metastore.Meta) (*Depends, error) {
@@ -48,6 +50,16 @@ func InitDepends(cfg config.Config, meta metastore.Meta) (*Depends, error) {
 		Meta:   meta,
 		Notify: notify.NewNotify(meta),
 		Config: cfg,
+	}
+
+	if bCfg.LLM.Enable {
+		model := openai.Model{
+			Name:        bCfg.LLM.Model,
+			QPM:         int64(bCfg.LLM.QPM),
+			Proxy:       bCfg.LLM.Proxy,
+			Temperature: bCfg.LLM.Temperature,
+		}
+		dep.LLM = openai.New(bCfg.LLM.Host, bCfg.LLM.APIKey, model)
 	}
 
 	dep.Core, err = core.New(meta, bCfg)

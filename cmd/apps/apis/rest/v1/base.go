@@ -24,6 +24,7 @@ import (
 	"path"
 
 	"github.com/basenana/nanafs/pkg/events"
+	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/indexer"
 	"github.com/gin-gonic/gin"
 	"github.com/hyponet/eventbus"
@@ -41,13 +42,14 @@ import (
 )
 
 type ServicesV1 struct {
-	meta     metastore.Meta
-	core     core.Core
-	indexer  indexer.Indexer
-	workflow workflow.Workflow
-	notify   *notify.Notify
-	cfg      config.Config
-	logger   *zap.SugaredLogger
+	meta          metastore.Meta
+	core          core.Core
+	indexer       indexer.Indexer
+	workflow      workflow.Workflow
+	fridayManager *friday.Manager
+	notify        *notify.Notify
+	cfg           config.Config
+	logger        *zap.SugaredLogger
 }
 
 func NewServicesV1(engine *gin.Engine, depends *common.Depends) (*ServicesV1, error) {
@@ -59,6 +61,17 @@ func NewServicesV1(engine *gin.Engine, depends *common.Depends) (*ServicesV1, er
 		notify:   depends.Notify,
 		cfg:      depends.Config,
 		logger:   logger.NewLogger("rest"),
+	}
+
+	if depends.LLM != nil {
+		factory := func(namespace string) (*core.FileSystem, indexer.Indexer, error) {
+			fs, err := core.NewFileSystem(depends.Core, depends.Meta, namespace)
+			if err != nil {
+				return nil, nil, err
+			}
+			return fs, depends.Indexer, nil
+		}
+		s.fridayManager = friday.NewFridayManager(depends.LLM, factory)
 	}
 
 	return s, nil

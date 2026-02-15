@@ -99,5 +99,11 @@ func RegisterRoutes(engine *gin.Engine, s *ServicesV1) {
 			configs.GET("/:group", s.ListConfig)
 			configs.DELETE("/:group/:name", s.DeleteConfig)
 		}
+
+		// Friday AI Assistant
+		friday := v1.Group("/friday")
+		{
+			friday.POST("/chat", s.Chat)
+		}
 	}
 }
