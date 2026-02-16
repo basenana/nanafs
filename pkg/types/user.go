@@ -14,17 +14,24 @@
  limitations under the License.
 */
 
-package auth
+package types
 
-import (
-	"github.com/golang-jwt/jwt/v5"
-)
+import "time"
 
-type Claims struct {
-	Namespace string `json:"namespace"`
-	UID       int64  `json:"uid"`
-	GID       int64  `json:"gid"`
-	Email     string `json:"email"`
-	GoogleID  string `json:"google_id"`
-	jwt.RegisteredClaims
+type User struct {
+	ID        int64     `json:"id"`
+	GoogleID  string    `json:"google_id"`
+	Email     string    `json:"email"`
+	Name      string    `json:"name"`
+	AvatarURL string    `json:"avatar_url"`
+	Namespace string    `json:"namespace"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type Namespace struct {
+	ID        int64     `json:"id"`
+	Name      string    `json:"name"`
+	OwnerID   int64     `json:"owner_id"`
+	CreatedAt time.Time `json:"created_at"`
 }

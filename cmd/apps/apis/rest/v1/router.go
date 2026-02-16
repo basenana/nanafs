@@ -105,5 +105,27 @@ func RegisterRoutes(engine *gin.Engine, s *ServicesV1) {
 		{
 			friday.POST("/chat", s.Chat)
 		}
+
+		// Auth (public endpoints)
+		auth := v1.Group("/auth")
+		{
+			auth.GET("/google/url", s.GetGoogleAuthURL)
+			auth.POST("/google", s.GoogleLogin)
+		}
+
+		// Namespace management (requires auth)
+		namespaces := v1.Group("/namespaces")
+		{
+			namespaces.GET("", s.ListMyNamespace)
+			namespaces.POST("", s.CreateNamespace)
+			namespaces.GET("/:name", s.GetNamespace)
+			namespaces.DELETE("/:name", s.DeleteNamespace)
+		}
+
+		// User info (requires auth)
+		users := v1.Group("/users")
+		{
+			users.GET("/me", s.GetCurrentUser)
+		}
 	}
 }

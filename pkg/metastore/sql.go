@@ -1454,3 +1454,121 @@ func updateEntryModelWithVersion(tx *gorm.DB, entryMod *db.Entry) error {
 func namespaceQuery(tx *gorm.DB, namespace string) *gorm.DB {
 	return tx.Where("namespace = ?", namespace)
 }
+
+func (s *sqlMetaStore) CreateUser(ctx context.Context, user *types.User) error {
+	defer trace.StartRegion(ctx, "metastore.sql.CreateUser").End()
+	dbUser := &db.User{}
+	dbUser.From(user)
+	err := s.WithContext(ctx).Create(dbUser).Error
+	if err != nil {
+		return db.SqlError2Error(err)
+	}
+	user.ID = dbUser.ID
+	return nil
+}
+
+func (s *sqlMetaStore) GetUserByGoogleID(ctx context.Context, googleID string) (*types.User, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.GetUserByGoogleID").End()
+	var dbUser db.User
+	err := s.WithContext(ctx).Where("google_id = ?", googleID).First(&dbUser).Error
+	if err != nil {
+		return nil, db.SqlError2Error(err)
+	}
+	return dbUser.To(), nil
+}
+
+func (s *sqlMetaStore) GetUserByEmail(ctx context.Context, email string) (*types.User, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.GetUserByEmail").End()
+	var dbUser db.User
+	err := s.WithContext(ctx).Where("email = ?", email).First(&dbUser).Error
+	if err != nil {
+		return nil, db.SqlError2Error(err)
+	}
+	return dbUser.To(), nil
+}
+
+func (s *sqlMetaStore) GetUserByID(ctx context.Context, id int64) (*types.User, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.GetUserByID").End()
+	var dbUser db.User
+	err := s.WithContext(ctx).First(&dbUser, id).Error
+	if err != nil {
+		return nil, db.SqlError2Error(err)
+	}
+	return dbUser.To(), nil
+}
+
+func (s *sqlMetaStore) GetUserByNamespace(ctx context.Context, namespace string) (*types.User, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.GetUserByNamespace").End()
+	var dbUser db.User
+	err := s.WithContext(ctx).Where("namespace = ?", namespace).First(&dbUser).Error
+	if err != nil {
+		return nil, db.SqlError2Error(err)
+	}
+	return dbUser.To(), nil
+}
+
+func (s *sqlMetaStore) UpdateUser(ctx context.Context, user *types.User) error {
+	defer trace.StartRegion(ctx, "metastore.sql.UpdateUser").End()
+	dbUser := &db.User{}
+	dbUser.From(user)
+	err := s.WithContext(ctx).Model(dbUser).Updates(dbUser).Error
+	if err != nil {
+		return db.SqlError2Error(err)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) CreateNamespace(ctx context.Context, ns *types.Namespace) error {
+	defer trace.StartRegion(ctx, "metastore.sql.CreateNamespace").End()
+	dbNs := &db.Namespace{}
+	dbNs.From(ns)
+	err := s.WithContext(ctx).Create(dbNs).Error
+	if err != nil {
+		return db.SqlError2Error(err)
+	}
+	ns.ID = dbNs.ID
+	return nil
+}
+
+func (s *sqlMetaStore) GetNamespace(ctx context.Context, name string) (*types.Namespace, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.GetNamespace").End()
+	var dbNs db.Namespace
+	err := s.WithContext(ctx).Where("name = ?", name).First(&dbNs).Error
+	if err != nil {
+		return nil, db.SqlError2Error(err)
+	}
+	return dbNs.To(), nil
+}
+
+func (s *sqlMetaStore) ListNamespaces(ctx context.Context) ([]*types.Namespace, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.ListNamespaces").End()
+	var dbNamespaces []db.Namespace
+	err := s.WithContext(ctx).Find(&dbNamespaces).Error
+	if err != nil {
+		return nil, db.SqlError2Error(err)
+	}
+	result := make([]*types.Namespace, 0, len(dbNamespaces))
+	for i := range dbNamespaces {
+		result = append(result, dbNamespaces[i].To())
+	}
+	return result, nil
+}
+
+func (s *sqlMetaStore) DeleteNamespace(ctx context.Context, name string) error {
+	defer trace.StartRegion(ctx, "metastore.sql.DeleteNamespace").End()
+	err := s.WithContext(ctx).Where("name = ?", name).Delete(&db.Namespace{}).Error
+	if err != nil {
+		return db.SqlError2Error(err)
+	}
+	return nil
+}
+
+func (s *sqlMetaStore) NamespaceExists(ctx context.Context, name string) (bool, error) {
+	defer trace.StartRegion(ctx, "metastore.sql.NamespaceExists").End()
+	var count int64
+	err := s.WithContext(ctx).Model(&db.Namespace{}).Where("name = ?", name).Count(&count).Error
+	if err != nil {
+		return false, db.SqlError2Error(err)
+	}
+	return count > 0, nil
+}

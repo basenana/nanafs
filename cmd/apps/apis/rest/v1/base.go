@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"path"
 
+	"github.com/basenana/nanafs/pkg/auth"
 	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/basenana/nanafs/pkg/indexer"
@@ -50,6 +51,7 @@ type ServicesV1 struct {
 	notify        *notify.Notify
 	cfg           config.Config
 	logger        *zap.SugaredLogger
+	googleAuth    *auth.GoogleAuthService
 }
 
 func NewServicesV1(engine *gin.Engine, depends *common.Depends) (*ServicesV1, error) {
@@ -72,6 +74,16 @@ func NewServicesV1(engine *gin.Engine, depends *common.Depends) (*ServicesV1, er
 			return fs, depends.Indexer, nil
 		}
 		s.fridayManager = friday.NewFridayManager(depends.LLM, factory)
+	}
+
+	bCfg := depends.Config.GetBootstrapConfig()
+	if bCfg.API.GoogleOAuth != nil && bCfg.API.GoogleOAuth.Enable {
+		googleAuthCfg := &auth.GoogleOAuthConfig{
+			ClientID:     bCfg.API.GoogleOAuth.ClientID,
+			ClientSecret: bCfg.API.GoogleOAuth.ClientSecret,
+			RedirectURL:  bCfg.API.GoogleOAuth.RedirectURL,
+		}
+		s.googleAuth = auth.NewGoogleAuthService(googleAuthCfg, bCfg.API.JWT.SecretKey, depends.Meta)
 	}
 
 	return s, nil

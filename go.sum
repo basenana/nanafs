@@ -68,8 +68,6 @@ github.com/basenana/friday/core v0.0.0-20260216144613-10317c82a056 h1:d9VljiJ7W6
 github.com/basenana/friday/core v0.0.0-20260216144613-10317c82a056/go.mod h1:wWGS6cwgB5ppU0FVZ/xyMKpN/j7W4Mumedf3tUElYGo=
 github.com/basenana/go-flow v0.0.0-20250614153542-07184f3ea1e7 h1:k9g4LV3K72oLlLxA64hPLQD92BweK69tz8bTsvbUWpA=
 github.com/basenana/go-flow v0.0.0-20250614153542-07184f3ea1e7/go.mod h1:SENkClgNfbCI934RaeeaiAzciaj3HAgr+M982HnG6Fc=
-github.com/basenana/plugin v0.0.0-20260214101430-f862d73e8dee h1:1KKh8VMAjHasI9KVmFGDRj4EDQTtZTCrkoiGhgKYa7E=
-github.com/basenana/plugin v0.0.0-20260214101430-f862d73e8dee/go.mod h1:00jd7nTWiUzQ681oIcG+2BPq1oy1KLrtbzelbM8bgW4=
 github.com/basenana/plugin v0.0.0-20260216145534-c678638b9d42 h1:oJbp5AqGUnjPg7Hhn+dD9i6zfvNC8dKqqUKlmA4WeO8=
 github.com/basenana/plugin v0.0.0-20260216145534-c678638b9d42/go.mod h1:trG9GFmvMLUVtLuJ/D8i9PwG9bORPtG8QMa9x73q2pQ=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
