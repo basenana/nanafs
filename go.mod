@@ -10,9 +10,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.26
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.36.0
 	github.com/aws/smithy-go v1.13.5
-	github.com/basenana/friday/core v0.0.0-20260214101629-2574dae2b170
+	github.com/basenana/friday/core v0.0.0-20260216144613-10317c82a056
 	github.com/basenana/go-flow v0.0.0-20250614153542-07184f3ea1e7
-	github.com/basenana/plugin v0.0.0-20260214101430-f862d73e8dee
+	github.com/basenana/plugin v0.0.0-20260216145534-c678638b9d42
 	github.com/bluele/gcache v0.0.2
 	github.com/davecgh/go-spew v1.1.1
 	github.com/glebarez/sqlite v1.7.0

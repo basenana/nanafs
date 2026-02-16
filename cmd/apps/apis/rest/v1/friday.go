@@ -23,7 +23,7 @@ import (
 	"net/http"
 
 	"github.com/basenana/friday/core/api"
-	"github.com/basenana/friday/core/types"
+	coretypes "github.com/basenana/friday/core/types"
 	"github.com/gin-gonic/gin"
 
 	"github.com/basenana/nanafs/cmd/apps/apis/apitool"
@@ -67,33 +67,31 @@ func (s *ServicesV1) Chat(ctx *gin.Context) {
 		return
 	}
 
-	resp := friday.Chat(ctx.Request.Context(), req.Message)
+	sess, err := friday.NewSession()
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusInternalServerError, "INTERNAL_ERROR", fmt.Errorf("create session: %w", err))
+		return
+	}
+
+	eventCh, finF := sess.SubjectEvents()
+	defer finF()
+
+	resp := friday.Chat(ctx.Request.Context(), sess, req.Message)
 	if resp == nil {
 		apitool.ErrorResponse(ctx, http.StatusInternalServerError, "INTERNAL_ERROR", fmt.Errorf("chat response is nil"))
 		return
 	}
 
-	s.handleSSEStream(ctx, resp)
+	s.handleSSEStream(ctx, resp, eventCh)
 }
 
-type SSEEventType string
-
-const (
-	SSEEventMessage    SSEEventType = "message"
-	SSEEventReasoning  SSEEventType = "reasoning"
-	SSEEventToolCall   SSEEventType = "tool_call"
-	SSEEventToolResult SSEEventType = "tool_result"
-	SSEEventDone       SSEEventType = "done"
-	SSEEventError      SSEEventType = "error"
-)
-
-type SSEEvent struct {
-	Type  SSEEventType   `json:"type"`
-	Data  string         `json:"data"`
-	Extra map[string]any `json:"extra,omitempty"`
+type FridayMessage struct {
+	Reasoning string         `json:"reasoning,omitempty"`
+	Content   string         `json:"content,omitempty"`
+	Extra     map[string]any `json:"extra,omitempty"`
 }
 
-func (s *ServicesV1) handleSSEStream(ctx *gin.Context, resp *api.Response) {
+func (s *ServicesV1) handleSSEStream(ctx *gin.Context, resp *api.Response, eventCh chan *coretypes.Event) {
 	ctx.Header("Content-Type", "text/event-stream")
 	ctx.Header("Cache-Control", "no-cache")
 	ctx.Header("Connection", "keep-alive")
@@ -105,53 +103,35 @@ func (s *ServicesV1) handleSSEStream(ctx *gin.Context, resp *api.Response) {
 		return
 	}
 
-	sendEvent := func(event SSEEvent) {
-		data, err := json.Marshal(event)
+	sendMessage := func(msgType string, obj any) {
+		data, err := json.Marshal(obj)
 		if err != nil {
 			return
 		}
-		if event.Type == "" || event.Type == SSEEventMessage {
-			fmt.Fprintf(ctx.Writer, "data: %s\n\n", data)
-		} else {
-			fmt.Fprintf(ctx.Writer, "event: %s\ndata: %s\n\n", event.Type, data)
-		}
+		fmt.Fprintf(ctx.Writer, "event: %s\ndata: %s\n\n", msgType, data)
 		flusher.Flush()
 	}
 
+Stream:
 	for {
 		select {
-		case delta, ok := <-resp.Deltas():
-			if !ok {
-				sendEvent(SSEEvent{Type: SSEEventDone})
-				return
-			}
-			s.handleDelta(delta, sendEvent)
 		case err := <-resp.Error():
 			if err != nil {
-				sendEvent(SSEEvent{
-					Type: SSEEventError,
-					Data: err.Error(),
-				})
+				sendMessage("MESSAGE-APPEND", FridayMessage{Reasoning: err.Error()})
+				break Stream
 			}
-			sendEvent(SSEEvent{Type: SSEEventDone})
-			return
-		case <-ctx.Request.Context().Done():
-			return
+		case delta, ok := <-resp.Deltas():
+			if !ok {
+				break Stream
+			}
+			sendMessage("MESSAGE-APPEND", FridayMessage{Reasoning: delta.Reasoning, Content: delta.Content})
+		case evt, ok := <-eventCh:
+			if !ok {
+				break Stream
+			}
+			sendMessage("EVENT-UPDATE", evt)
 		}
 	}
-}
 
-func (s *ServicesV1) handleDelta(delta types.Delta, sendEvent func(SSEEvent)) {
-	if delta.Reasoning != "" {
-		sendEvent(SSEEvent{
-			Type: SSEEventReasoning,
-			Data: delta.Reasoning,
-		})
-	}
-	if delta.Content != "" {
-		sendEvent(SSEEvent{
-			Type: SSEEventMessage,
-			Data: delta.Content,
-		})
-	}
+	fmt.Fprintf(ctx.Writer, "event: DONE\ndata: {}\n\n")
 }

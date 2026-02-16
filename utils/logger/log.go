@@ -17,10 +17,12 @@
 package logger
 
 import (
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"os"
 	"time"
+
+	flogger "github.com/basenana/friday/core/logger"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -41,6 +43,8 @@ func InitLogger() {
 		atom,
 	))
 	root = logger.Sugar()
+	flogger.SetRoot(fridayLogger{logger: root.Named("friday")})
+
 }
 
 func Sync() {

@@ -11,7 +11,7 @@ var (
 
 func SetLogger(log *zap.SugaredLogger) {
 	root = log
-	fridaylogger.SetDefault(&fridayLogger{SugaredLogger: root.Named("friday")})
+	fridaylogger.SetRoot(fridayLogger{logger: root.Named("friday")})
 }
 
 func NewLogger(name string) *zap.SugaredLogger {

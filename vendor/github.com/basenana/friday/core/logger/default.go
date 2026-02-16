@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"strings"
-	"sync"
 )
 
 type defaultLogger struct {
@@ -13,28 +12,12 @@ type defaultLogger struct {
 	w    io.Writer
 }
 
-var (
-	defaultLoggerInstance Logger
-	defaultLoggerMu       sync.Mutex
-)
-
-func New(name string) Logger {
+func newDefault(name string) Logger {
 	return &defaultLogger{name: name, w: os.Stdout}
 }
 
-func Default() Logger {
-	defaultLoggerMu.Lock()
-	defer defaultLoggerMu.Unlock()
-	if defaultLoggerInstance == nil {
-		defaultLoggerInstance = &defaultLogger{name: "default", w: os.Stdout}
-	}
-	return defaultLoggerInstance
-}
-
-func SetDefault(l Logger) {
-	defaultLoggerMu.Lock()
-	defer defaultLoggerMu.Unlock()
-	defaultLoggerInstance = l
+func (l *defaultLogger) Named(name string) Logger {
+	return newDefault(name)
 }
 
 func (l *defaultLogger) With(keysAndValues ...interface{}) Logger {

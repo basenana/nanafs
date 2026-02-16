@@ -180,7 +180,7 @@ github.com/aymerick/douceur/parser
 # github.com/bahlo/generic-list-go v0.2.0
 ## explicit; go 1.18
 github.com/bahlo/generic-list-go
-# github.com/basenana/friday/core v0.0.0-20260214101629-2574dae2b170
+# github.com/basenana/friday/core v0.0.0-20260216144613-10317c82a056
 ## explicit; go 1.24.7
 github.com/basenana/friday/core/agents
 github.com/basenana/friday/core/agents/summarize
@@ -196,7 +196,7 @@ github.com/basenana/friday/core/types
 # github.com/basenana/go-flow v0.0.0-20250614153542-07184f3ea1e7
 ## explicit; go 1.23
 github.com/basenana/go-flow
-# github.com/basenana/plugin v0.0.0-20260214101430-f862d73e8dee
+# github.com/basenana/plugin v0.0.0-20260216145534-c678638b9d42
 ## explicit; go 1.25
 github.com/basenana/plugin
 github.com/basenana/plugin/agentic

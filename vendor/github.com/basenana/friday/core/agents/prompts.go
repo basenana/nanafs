@@ -34,7 +34,6 @@ For every user request, rigorously follow this process:
 5. Deliver
    - Upon successful completion of all steps, synthesize the final result and present it to the user in a clear, structured format.
    - Provide a concise summary of the execution process and key findings.
-   - When the goal is completed, actively use the topic_finish_close tool to end the current reply. This tool does not require any parameters.
 </execution_guidelines>
 `
 )

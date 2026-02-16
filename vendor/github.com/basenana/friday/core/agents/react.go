@@ -78,7 +78,7 @@ func (a *react) reactLoop(ctx context.Context, sess *session.Session, resp *api.
 		case <-ctx.Done():
 			return
 		default:
-			keepRun, err = a.doAct(ctx, sess, resp, mergedTools)
+			keepRun, err = a.doAct(ctx, sess, resp, mergedTools, a.option.MaxLoopTimes-loopTimes)
 		}
 		if err != nil {
 			if strings.Contains(strings.ToLower(err.Error()), "exceed max message tokens") {
@@ -104,7 +104,7 @@ func (a *react) reactLoop(ctx context.Context, sess *session.Session, resp *api.
 	}
 }
 
-func (a *react) doAct(ctx context.Context, sess *session.Session, resp *api.Response, toolList []*tools.Tool) (bool, error) {
+func (a *react) doAct(ctx context.Context, sess *session.Session, resp *api.Response, toolList []*tools.Tool, budget int) (bool, error) {
 	var (
 		content      string
 		reasoning    string
@@ -124,6 +124,13 @@ func (a *react) doAct(ctx context.Context, sess *session.Session, resp *api.Resp
 	err = sess.RunHooks(ctx, types.SessionHookBeforeModel, session.HookPayload{ModelRequest: llmReq})
 	if err != nil {
 		return false, err
+	}
+
+	if budget == 0 {
+		llmReq.AppendHistory(types.Message{AgentMessage: "Your execution budget is exhausted. " +
+			"This is your final response. Please provide a comprehensive summary including: " +
+			"1) Task objective, 2) Progress made, 3) Key findings, 4) Remaining issues. " +
+			"After this response, the session will end. From now on, every character you output will become part of the final report:"})
 	}
 	stream := a.llm.Completion(ctx, llmReq)
 
@@ -153,10 +160,6 @@ WaitMessage:
 			case len(msg.ToolUse) > 0:
 				for i := range msg.ToolUse {
 					tool := msg.ToolUse[i]
-					if strings.HasPrefix(tool.Name, "topic_finish_") {
-						keepRun = false
-						continue WaitMessage
-					}
 					toolUse = append(toolUse, tool)
 				}
 
@@ -169,15 +172,12 @@ WaitMessage:
 
 	a.logger.Infow("message finish",
 		"fuzzyTokens", sess.Tokens(), "promptTokens", stream.Tokens().PromptTokens,
-		"completionTokens", stream.Tokens().CompletionTokens, "session", sess.ID)
+		"completionTokens", stream.Tokens().CompletionTokens, "budget", budget, "session", sess.ID)
 
 	content = strings.TrimSpace(content)
 	reasoning = strings.TrimSpace(reasoning)
 
-	if strings.Contains(content, "topic_finish_") {
-		a.logger.Warnw("topic_finish tool use incorrect", "content", content, "session", sess.ID)
-		agentMessage += "If you believe the conversation is complete, use the tool to end the conversation.\n"
-	} else if strings.Contains(content, "<tool_use") {
+	if strings.Contains(content, "<tool_use") {
 		a.logger.Warnw("tool use incorrect", "content", content, "session", sess.ID)
 		agentMessage += "The tool is used in an incorrect format; please try using the tool again.\n"
 	}

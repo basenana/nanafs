@@ -1842,6 +1842,77 @@ Delete a config.
 
 ---
 
+### 8. Friday Chat
+
+Friday is an AI assistant powered by LLM that can help you manage entries and answer questions.
+
+#### POST /api/v1/chat
+
+Chat with Friday AI assistant using Server-Sent Events (SSE) for streaming responses.
+
+**Request Body:**
+
+```json
+{
+  "message": "What files do I have in inbox?"
+}
+```
+
+**Fields:**
+
+| Field     | Type   | Required | Description               |
+|-----------|--------|----------|---------------------------|
+| `message` | string | yes      | Message to send to Friday |
+
+**Response:** `text/event-stream`
+
+The response is a Server-Sent Events stream with the following event types:
+
+**MESSAGE-APPEND** - Stream message content:
+
+```
+event: MESSAGE-APPEND
+data: {"reasoning":"Let me check your inbox files...","content":""}
+
+event: MESSAGE-APPEND
+data: {"reasoning":"","content":"You have the following files in your inbox:\n\n"}
+
+event: MESSAGE-APPEND
+data: {"reasoning":"","content":"1. /inbox/tasks/task-001\n2. /inbox/docs/article-001\n3. /inbox/rss/feed-001"}
+```
+
+| Field       | Type   | Description                   |
+|-------------|--------|-------------------------------|
+| `reasoning` | string | AI reasoning/thinking process |
+| `content`   | string | Message content (streaming)   |
+
+**EVENT-UPDATE** - Event updates during processing:
+
+```
+event: EVENT-UPDATE
+data: {"id":"evt-001","type":"tool_use","source":"friday","specversion":"1.0","datacontenttype":"application/json","data":"{\"name\":\"tool_name\",\"arguments\":\"{}\"}","time":"2024-01-01T00:00:00Z"}
+```
+
+| Field             | Type   | Description                    |
+|-------------------|--------|--------------------------------|
+| `id`              | string | Event ID                       |
+| `type`            | string | Event type                     |
+| `source`          | string | Event source                   |
+| `specversion`     | string | CloudEvents spec version       |
+| `datacontenttype` | string | Data content type              |
+| `data`            | string | Event data (JSON string)       |
+| `extra_value`     | object | Additional metadata (optional) |
+| `time`            | string | Event timestamp (RFC3339)      |
+
+**DONE** - Stream completed:
+
+```
+event: DONE
+data: {}
+```
+
+---
+
 ## Error Responses
 
 All errors follow a consistent format:

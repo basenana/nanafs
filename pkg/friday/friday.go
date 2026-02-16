@@ -38,8 +38,7 @@ func NewFriday(fs *core.FileSystem, llm openai.Client, indexer indexer.Indexer) 
 	return f
 }
 
-// Chat sends a message to the agent and returns a streaming response
-func (f *Friday) Chat(ctx context.Context, message string) *api.Response {
+func (f *Friday) NewSession() (*session.Session, error) {
 	sess := session.New(uuid.New().String(), f.llm, session.WithHooks(
 		planning.New(f.llm, planning.Option{}),
 		subagents.NewHook(f.llm, subagents.Option{
@@ -53,6 +52,11 @@ func (f *Friday) Chat(ctx context.Context, message string) *api.Response {
 		}),
 		summarize.NewCompactHook(f.llm, 65535),
 	))
+	return sess, nil
+}
+
+// Chat sends a message to the agent and returns a streaming response
+func (f *Friday) Chat(ctx context.Context, sess *session.Session, message string) *api.Response {
 	req := &api.Request{
 		UserMessage: message,
 		Session:     sess,
