@@ -74,12 +74,14 @@ func (f *Friday) Namespace() string {
 func (f *Friday) Tools() []*tools.Tool {
 	return []*tools.Tool{
 		f.newFileReadTool(),
-		f.newFileWriteTool(),
 		f.newFileListTool(),
 		f.newFileStatTool(),
-		f.newMkdirTool(),
-		f.newRenameTool(),
-		f.newDeleteTool(),
+
+		//f.newFileWriteTool(),
+		//f.newDeleteTool(),
+		//f.newMkdirTool(),
+		//f.newRenameTool(),
+
 		f.newSearchTool(),
 	}
 }
@@ -87,6 +89,11 @@ func (f *Friday) Tools() []*tools.Tool {
 // resolveEntry resolves a path to an entry, returns (parent, entry, error)
 // Uses the Friday's default namespace since FileSystem embeds the namespace
 func (f *Friday) resolveEntry(ctx context.Context, inputPath string) (*types.Entry, *types.Entry, error) {
+	if inputPath == "/" {
+		root, err := f.fs.Root(ctx)
+		return root, root, err
+	}
+
 	entryPath, err := parsePath(inputPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid path: %w", err)

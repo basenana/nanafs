@@ -65,6 +65,8 @@ func NewServicesV1(engine *gin.Engine, depends *common.Depends) (*ServicesV1, er
 		logger:   logger.NewLogger("rest"),
 	}
 
+	bCfg := depends.Config.GetBootstrapConfig()
+
 	if depends.LLM != nil {
 		factory := func(namespace string) (*core.FileSystem, indexer.Indexer, error) {
 			fs, err := core.NewFileSystem(depends.Core, depends.Meta, namespace)
@@ -73,10 +75,9 @@ func NewServicesV1(engine *gin.Engine, depends *common.Depends) (*ServicesV1, er
 			}
 			return fs, depends.Indexer, nil
 		}
-		s.fridayManager = friday.NewFridayManager(depends.LLM, factory)
+		s.fridayManager = friday.NewFridayManager(depends.LLM, factory, bCfg.Friday)
 	}
 
-	bCfg := depends.Config.GetBootstrapConfig()
 	if bCfg.API.GoogleOAuth != nil && bCfg.API.GoogleOAuth.Enable {
 		googleAuthCfg := &auth.GoogleOAuthConfig{
 			ClientID:     bCfg.API.GoogleOAuth.ClientID,

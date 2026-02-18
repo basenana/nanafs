@@ -43,10 +43,8 @@ func toolCall(ctx context.Context, sess *session.Session, use *ToolUse, td *tool
 		return "", fmt.Errorf("unmarshal json argument failed: %s", err)
 	}
 
-	session.SendEvent(sess.Root.ID, NewToolUseEvent("react", use))
 	result, err := td.Handler(ctx, req)
 	if err != nil {
-		session.SendEvent(sess.Root.ID, NewToolUseResultEvent("react", use, err.Error()))
 		return "", err
 	}
 
@@ -55,7 +53,6 @@ func toolCall(ctx context.Context, sess *session.Session, use *ToolUse, td *tool
 		return "", fmt.Errorf("marshal tool %s result failed: %s", use.Name, err)
 	}
 
-	session.SendEvent(sess.Root.ID, NewToolUseResultEvent("react", use, string(content)))
 	return string(content), nil
 }
 

@@ -4,11 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"path"
 
+	htmltomarkdown "github.com/JohannesKaufmann/html-to-markdown/v2"
 	"github.com/basenana/friday/core/tools"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/hyponet/webpage-packer/packer"
 )
 
 // file_read tool - Read file contents from NanaFS
@@ -40,6 +44,36 @@ func (f *Friday) newFileReadTool() *tools.Tool {
 				return tools.NewToolResultError("open file failed"), nil
 			}
 			defer file.Close()
+
+			var content string
+			switch path.Ext(path.Base(pathVal)) {
+			case ".webarchive":
+				p := packer.NewWebArchivePacker()
+				content, err = p.ReadContent(ctx, packer.Option{
+					Reader:      file,
+					ClutterFree: true,
+				})
+				if err != nil {
+					return nil, fmt.Errorf("read webarchive failed: %w", err)
+				}
+			case ".html", ".htm", ".hts":
+				p := packer.NewHtmlPacker()
+				content, err = p.ReadContent(ctx, packer.Option{
+					Reader:      file,
+					ClutterFree: true,
+				})
+				if err != nil {
+					return nil, fmt.Errorf("read html failed: %w", err)
+				}
+			}
+
+			if content == "" {
+				markdown, err := htmltomarkdown.ConvertString(content)
+				if err != nil {
+					return tools.NewToolResultText(content), nil
+				}
+				return tools.NewToolResultText(markdown), nil
+			}
 
 			data := make([]byte, entry.Size)
 			_, err = file.Read(data)
@@ -131,12 +165,13 @@ func (f *Friday) newFileListTool() *tools.Tool {
 		"file_list",
 		tools.WithDescription("List files and directories in a path"),
 		tools.WithString("path",
+			tools.Required(),
 			tools.Description("Directory path, default is root"),
 		),
 		tools.WithToolHandler(func(ctx context.Context, request *tools.Request) (*tools.Result, error) {
-			pathVal := "."
-			if p, ok := request.Arguments["path"].(string); ok && p != "" {
-				pathVal = p
+			pathVal, ok := request.Arguments["path"].(string)
+			if !ok || pathVal == "" {
+				return tools.NewToolResultError("missing required parameter: path"), nil
 			}
 
 			_, entry, err := f.resolveEntry(ctx, pathVal)
@@ -254,7 +289,7 @@ func (f *Friday) newMkdirTool() *tools.Tool {
 // rename tool - Rename a file or directory
 func (f *Friday) newRenameTool() *tools.Tool {
 	return tools.NewTool(
-		"rename",
+		"rename_file",
 		tools.WithDescription("Rename a file or directory"),
 		tools.WithString("src",
 			tools.Required(),
@@ -301,45 +336,10 @@ func (f *Friday) newRenameTool() *tools.Tool {
 	)
 }
 
-// search tool - Search files by content using multi-keyword queries
-func (f *Friday) newSearchTool() *tools.Tool {
-	return tools.NewTool(
-		"search",
-		tools.WithDescription("Search files by content using multi-keyword queries"),
-		tools.WithString("query",
-			tools.Required(),
-			tools.Description("Search query with space-separated keywords (AND semantics)"),
-		),
-		tools.WithToolHandler(func(ctx context.Context, request *tools.Request) (*tools.Result, error) {
-			query, ok := request.Arguments["query"].(string)
-			if !ok || query == "" {
-				return tools.NewToolResultError("missing required parameter: query"), nil
-			}
-
-			docs, err := f.indexer.QueryLanguage(ctx, f.namespace, query)
-			if err != nil {
-				return tools.NewToolResultError(err.Error()), nil
-			}
-
-			var results []any
-			for _, doc := range docs {
-				results = append(results, map[string]string{
-					"title":     doc.HighlightTitle,
-					"highlight": doc.HighlightContent,
-					"path":      doc.URI,
-				})
-			}
-
-			data, _ := json.Marshal(results)
-			return tools.NewToolResultText(string(data)), nil
-		}),
-	)
-}
-
 // delete tool - Delete a file or directory
 func (f *Friday) newDeleteTool() *tools.Tool {
 	return tools.NewTool(
-		"delete",
+		"delete_file",
 		tools.WithDescription("Delete a file or directory"),
 		tools.WithString("path",
 			tools.Required(),
@@ -371,6 +371,60 @@ func (f *Friday) newDeleteTool() *tools.Tool {
 			}
 
 			return tools.NewToolResultText("deleted successfully"), nil
+		}),
+	)
+}
+
+const (
+	searchToolDesc = `Full-text search tool that finds files by keyword queries across file content.
+Returns matching files with highlighted snippets showing where keywords appear.
+
+Query Syntax:
+- Space-separated keywords: "apple banana" (finds files containing both keywords - AND semantics)
+- Phrase search: "exact phrase" (finds files containing the exact phrase)
+
+Examples:
+- Query: "error exception" - Find files containing both "error" and "exception"
+- Query: "api authentication" - Find files mentioning both api and authentication
+- Query: "golang tutorial" - Find files about golang tutorials
+
+Tips:
+- Use more specific keywords for accurate results
+- Search for technical terms or function names for code files
+- Combine related terms: "database mysql" finds files mentioning both`
+)
+
+// search tool - Search files by content using multi-keyword queries
+func (f *Friday) newSearchTool() *tools.Tool {
+	return tools.NewTool(
+		"full_text_search",
+		tools.WithDescription(searchToolDesc),
+		tools.WithString("query",
+			tools.Required(),
+			tools.Description("Search keywords (space-separated, AND semantics). Example: 'error handling'"),
+		),
+		tools.WithToolHandler(func(ctx context.Context, request *tools.Request) (*tools.Result, error) {
+			query, ok := request.Arguments["query"].(string)
+			if !ok || query == "" {
+				return tools.NewToolResultError("missing required parameter: query"), nil
+			}
+
+			docs, err := f.indexer.QueryLanguage(ctx, f.namespace, query)
+			if err != nil {
+				return tools.NewToolResultError(err.Error()), nil
+			}
+
+			var results []any
+			for _, doc := range docs {
+				results = append(results, map[string]string{
+					"title":     doc.HighlightTitle,
+					"highlight": doc.HighlightContent,
+					"path":      doc.URI,
+				})
+			}
+
+			data, _ := json.Marshal(results)
+			return tools.NewToolResultText(string(data)), nil
 		}),
 	)
 }

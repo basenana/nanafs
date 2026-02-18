@@ -296,7 +296,7 @@ func (r *RssSourcePlugin) processItem(ctx context.Context, source *rssSource, it
 func (r *RssSourcePlugin) processUrlType(ctx context.Context, source *rssSource, item *gofeed.Item, updatedAt time.Time, feed *gofeed.Feed) (*Article, error) {
 	fileName := utils.SanitizeFilename(item.Title) + ".url"
 	entryURI := path.Join(source.ParentURI, fileName)
-	if isNew, err := source.isNew(ctx, entryURI); err != nil || !isNew {
+	if isNew, err := source.isNew(ctx, entryURI, updatedAt); err != nil || !isNew {
 		if err != nil {
 			return nil, err
 		}
@@ -319,7 +319,7 @@ func (r *RssSourcePlugin) processUrlType(ctx context.Context, source *rssSource,
 func (r *RssSourcePlugin) processHtmlType(ctx context.Context, source *rssSource, item *gofeed.Item, updatedAt time.Time, feed *gofeed.Feed) (*Article, error) {
 	fileName := utils.SanitizeFilename(item.Title) + ".html"
 	entryURI := path.Join(source.ParentURI, fileName)
-	if isNew, err := source.isNew(ctx, entryURI); err != nil || !isNew {
+	if isNew, err := source.isNew(ctx, entryURI, updatedAt); err != nil || !isNew {
 		if err != nil {
 			return nil, err
 		}
@@ -338,7 +338,7 @@ func (r *RssSourcePlugin) processHtmlType(ctx context.Context, source *rssSource
 func (r *RssSourcePlugin) processRawHtmlType(ctx context.Context, source *rssSource, item *gofeed.Item, updatedAt time.Time, feed *gofeed.Feed) (*Article, error) {
 	fileName := utils.SanitizeFilename(item.Title)
 	entryURI := path.Join(source.ParentURI, fileName+".html")
-	if isNew, err := source.isNew(ctx, entryURI); err != nil || !isNew {
+	if isNew, err := source.isNew(ctx, entryURI, updatedAt); err != nil || !isNew {
 		if err != nil {
 			return nil, err
 		}
@@ -358,7 +358,7 @@ func (r *RssSourcePlugin) processRawHtmlType(ctx context.Context, source *rssSou
 func (r *RssSourcePlugin) processWebArchiveType(ctx context.Context, source *rssSource, item *gofeed.Item, updatedAt time.Time, feed *gofeed.Feed) (*Article, error) {
 	fileName := utils.SanitizeFilename(item.Title)
 	entryURI := path.Join(source.ParentURI, fileName+".webarchive")
-	if isNew, err := source.isNew(ctx, entryURI); err != nil || !isNew {
+	if isNew, err := source.isNew(ctx, entryURI, updatedAt); err != nil || !isNew {
 		if err != nil {
 			return nil, err
 		}
@@ -418,19 +418,29 @@ type rssSource struct {
 	FS          api.NanaFS
 }
 
-func (s *rssSource) isNew(ctx context.Context, entryURI string) (bool, error) {
-	props, err := s.FS.GetEntryProperties(ctx, entryURI)
-	if err != nil {
-		if strings.Contains(err.Error(), "not found") ||
-			strings.Contains(err.Error(), "no record") ||
-			strings.Contains(err.Error(), "no entry") {
-			return true, nil
+func (s *rssSource) isNew(ctx context.Context, entryURI string, updatedAt time.Time) (bool, error) {
+	checkList := []string{entryURI}
+	if time.Now().Year() != updatedAt.Year() {
+		parentURI, filename := path.Split(entryURI)
+		checkList = append(checkList, path.Join(parentURI, fmt.Sprintf("%d", updatedAt.Year()), filename)) // archived file uri
+	}
+
+	for _, pbUri := range checkList {
+		props, err := s.FS.GetEntryProperties(ctx, pbUri)
+		if err != nil {
+			if strings.Contains(err.Error(), "not found") ||
+				strings.Contains(err.Error(), "no record") ||
+				strings.Contains(err.Error(), "no entry") {
+				continue
+			}
+			return false, err
 		}
-		return false, err
+
+		if props != nil {
+			return false, nil
+		}
 	}
-	if props != nil && props.Title != "" {
-		return false, nil
-	}
+
 	return true, nil
 }
 

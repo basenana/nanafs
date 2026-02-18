@@ -23,7 +23,7 @@ import (
 	"net/http"
 
 	"github.com/basenana/friday/core/api"
-	coretypes "github.com/basenana/friday/core/types"
+	"github.com/basenana/nanafs/pkg/friday"
 	"github.com/gin-gonic/gin"
 
 	"github.com/basenana/nanafs/cmd/apps/apis/apitool"
@@ -61,28 +61,25 @@ func (s *ServicesV1) Chat(ctx *gin.Context) {
 		return
 	}
 
-	friday, err := s.fridayManager.GetFriday(caller.Namespace)
+	fbot, err := s.fridayManager.GetFriday(caller.Namespace)
 	if err != nil {
 		apitool.ErrorResponse(ctx, http.StatusInternalServerError, "INTERNAL_ERROR", fmt.Errorf("get friday: %w", err))
 		return
 	}
 
-	sess, err := friday.NewSession()
+	sess, err := fbot.NewSession()
 	if err != nil {
 		apitool.ErrorResponse(ctx, http.StatusInternalServerError, "INTERNAL_ERROR", fmt.Errorf("create session: %w", err))
 		return
 	}
 
-	eventCh, finF := sess.SubjectEvents()
-	defer finF()
-
-	resp := friday.Chat(ctx.Request.Context(), sess, req.Message)
+	resp := fbot.Chat(ctx.Request.Context(), sess, req.Message)
 	if resp == nil {
 		apitool.ErrorResponse(ctx, http.StatusInternalServerError, "INTERNAL_ERROR", fmt.Errorf("chat response is nil"))
 		return
 	}
 
-	s.handleSSEStream(ctx, resp, eventCh)
+	s.handleSSEStream(ctx, resp, nil)
 }
 
 type FridayMessage struct {
@@ -91,7 +88,7 @@ type FridayMessage struct {
 	Extra     map[string]any `json:"extra,omitempty"`
 }
 
-func (s *ServicesV1) handleSSEStream(ctx *gin.Context, resp *api.Response, eventCh chan *coretypes.Event) {
+func (s *ServicesV1) handleSSEStream(ctx *gin.Context, resp *api.Response, eventCh chan *friday.Event) {
 	ctx.Header("Content-Type", "text/event-stream")
 	ctx.Header("Cache-Control", "no-cache")
 	ctx.Header("Connection", "keep-alive")

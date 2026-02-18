@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	"github.com/basenana/friday/core/providers/openai"
+	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/indexer"
 )
@@ -32,13 +33,15 @@ type Manager struct {
 	fridays map[string]*Friday
 	llm     openai.Client
 	factory Factory
+	config  config.Friday
 }
 
-func NewFridayManager(llm openai.Client, factory Factory) *Manager {
+func NewFridayManager(llm openai.Client, factory Factory, cfg config.Friday) *Manager {
 	return &Manager{
 		fridays: make(map[string]*Friday),
 		llm:     llm,
 		factory: factory,
+		config:  cfg,
 	}
 }
 

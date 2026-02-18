@@ -31,6 +31,7 @@ type Bootstrap struct {
 	Debug     bool   `json:"debug,omitempty"`
 
 	Workflow Workflow `json:"workflow"`
+	Friday   Friday   `json:"friday"`
 	LLM      LLM      `json:"llm"`
 }
 
@@ -91,6 +92,10 @@ type GoogleOAuth struct {
 
 type Integration struct {
 	DocumentWebhook string `json:"document_webhook"`
+}
+
+type Friday struct {
+	JinaAPIKey string `json:"jina_api_key"`
 }
 
 type LLM struct {

@@ -180,9 +180,10 @@ github.com/aymerick/douceur/parser
 # github.com/bahlo/generic-list-go v0.2.0
 ## explicit; go 1.18
 github.com/bahlo/generic-list-go
-# github.com/basenana/friday/core v0.0.0-20260216144613-10317c82a056
+# github.com/basenana/friday/core v0.0.0-20260218090326-98e59fa86102
 ## explicit; go 1.24.7
 github.com/basenana/friday/core/agents
+github.com/basenana/friday/core/agents/research
 github.com/basenana/friday/core/agents/summarize
 github.com/basenana/friday/core/api
 github.com/basenana/friday/core/fs
@@ -196,7 +197,7 @@ github.com/basenana/friday/core/types
 # github.com/basenana/go-flow v0.0.0-20250614153542-07184f3ea1e7
 ## explicit; go 1.23
 github.com/basenana/go-flow
-# github.com/basenana/plugin v0.0.0-20260216145534-c678638b9d42
+# github.com/basenana/plugin v0.0.0-20260218155934-5b41359159dc
 ## explicit; go 1.25
 github.com/basenana/plugin
 github.com/basenana/plugin/agentic
@@ -987,7 +988,7 @@ golang.org/x/tools/internal/gopathwalk
 golang.org/x/tools/internal/imports
 golang.org/x/tools/internal/modindex
 golang.org/x/tools/internal/stdlib
-# google.golang.org/api v0.266.0
+# google.golang.org/api v0.267.0
 ## explicit; go 1.24.0
 google.golang.org/api/customsearch/v1
 google.golang.org/api/googleapi
@@ -998,15 +999,14 @@ google.golang.org/api/internal/credentialstype
 google.golang.org/api/internal/gensupport
 google.golang.org/api/internal/impersonate
 google.golang.org/api/internal/third_party/uritemplates
-google.golang.org/api/oauth2/v2
 google.golang.org/api/option
 google.golang.org/api/option/internaloption
 google.golang.org/api/transport/http
 # google.golang.org/genproto/googleapis/api v0.0.0-20260128011058-8636f8732409
 ## explicit; go 1.24.0
 google.golang.org/genproto/googleapis/api/expr/v1alpha1
-# google.golang.org/genproto/googleapis/rpc v0.0.0-20260209200024-4cfbd4190f57
-## explicit; go 1.24.0
+# google.golang.org/genproto/googleapis/rpc v0.0.0-20260217215200-42d3e9bedb6d
+## explicit; go 1.25.0
 google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/errdetails
 google.golang.org/genproto/googleapis/rpc/status
