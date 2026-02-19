@@ -210,6 +210,7 @@ func (c *core) CreateNamespace(ctx context.Context, namespace string) error {
 
 	buildInGroups := []string{
 		".inbox",
+		".friday",
 	}
 
 	for _, buildInGroupName := range buildInGroups {

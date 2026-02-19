@@ -14,13 +14,29 @@
  limitations under the License.
 */
 
-package friday
+package events
 
-import "time"
+import (
+	"fmt"
 
-type Event struct {
-	Id       string    `json:"id"`
-	Event    string    `json:"event"`
-	EntryURI string    `json:"entry_uri"`
-	Time     time.Time `json:"time"`
+	"github.com/hyponet/eventbus"
+)
+
+func PublishFridayEvent(namespace, session string, event any) {
+	topic := fmt.Sprintf("friday.sessions.%s.events", session)
+	eventbus.Publish(topic, event)
+}
+
+func SubscribeFridayEvents(namespace, session string) (chan any, func()) {
+	result := make(chan any, 10)
+
+	topic := fmt.Sprintf("friday.sessions.%s.events", session)
+	sid := eventbus.Subscribe(topic, func(event any) {
+		result <- event
+	})
+
+	return result, func() {
+		eventbus.Unsubscribe(sid)
+		close(result)
+	}
 }

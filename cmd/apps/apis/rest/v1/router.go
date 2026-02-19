@@ -104,6 +104,11 @@ func RegisterRoutes(engine *gin.Engine, s *ServicesV1) {
 		friday := v1.Group("/friday")
 		{
 			friday.POST("/chat", s.Chat)
+			friday.POST("/sessions", s.CreateSession)
+			friday.GET("/sessions", s.ListSessions)
+			friday.GET("/sessions/:id", s.GetSession)
+			friday.PUT("/sessions/:id", s.RenameSession)
+			friday.DELETE("/sessions/:id", s.DeleteSession)
 		}
 
 		// Auth (public endpoints)

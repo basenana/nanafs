@@ -66,7 +66,8 @@ func (m *Manager) GetFriday(namespace string) (*Friday, error) {
 		return nil, fmt.Errorf("create filesystem for namespace %s: %w", namespace, err)
 	}
 
-	f = NewFriday(fs, m.llm, idx)
+	store := NewFileSessionStore(fs, namespace)
+	f = NewFriday(fs, m.llm, idx, store)
 	m.fridays[namespace] = f
 	return f, nil
 }

@@ -18,20 +18,24 @@ import (
 	"github.com/google/uuid"
 )
 
+type Session = session.Session
+
 type Friday struct {
 	fs        *core.FileSystem
 	llm       openai.Client
 	agt       agents.Agent
 	indexer   indexer.Indexer
 	namespace string
+	store     SessionStore
 }
 
-func NewFriday(fs *core.FileSystem, llm openai.Client, indexer indexer.Indexer) *Friday {
+func NewFriday(fs *core.FileSystem, llm openai.Client, indexer indexer.Indexer, store SessionStore) *Friday {
 	f := &Friday{
 		fs:        fs,
 		llm:       llm,
 		indexer:   indexer,
 		namespace: fs.Namespace(),
+		store:     store,
 	}
 	agt := agents.New(llm, agents.Option{SystemPrompt: DEFAULT_SYS_PROMPT, MaxLoopTimes: 20, Tools: f.Tools()})
 	f.agt = agt
@@ -55,6 +59,37 @@ func (f *Friday) NewSession() (*session.Session, error) {
 	return sess, nil
 }
 
+func (f *Friday) OpenSession(ctx context.Context, sessionID string) (*session.Session, error) {
+	_, err := f.store.GetSession(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	sess := session.New(sessionID, f.llm, session.WithHooks(
+		planning.New(f.llm, planning.Option{}),
+		subagents.NewHook(f.llm, subagents.Option{
+			SubAgents: []subagents.ExpertAgent{
+				{
+					Name:     "EXPLORER",
+					Describe: EXPLORER_AGENT_DESC,
+					Agent:    f.agt,
+				},
+			},
+		}),
+		summarize.NewCompactHook(f.llm, 65535),
+	))
+
+	messages, err := f.store.GetMessages(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	for _, msg := range messages {
+		sess.History = append(sess.History, *SessionMessageToMessage(&msg))
+	}
+
+	return sess, nil
+}
+
 // Chat sends a message to the agent and returns a streaming response
 func (f *Friday) Chat(ctx context.Context, sess *session.Session, message string) *api.Response {
 	req := &api.Request{
@@ -68,6 +103,11 @@ func (f *Friday) Chat(ctx context.Context, sess *session.Session, message string
 // Namespace returns the namespace this Friday instance operates in
 func (f *Friday) Namespace() string {
 	return f.namespace
+}
+
+// GetStore returns the session store
+func (f *Friday) GetStore() SessionStore {
+	return f.store
 }
 
 // Tools returns all available filesystem tools
