@@ -544,6 +544,11 @@ func (c *core) ChangeEntryParent(ctx context.Context, namespace string, targetEn
 		return err
 	}
 
+	// Cycle detection: ensure new parent is not a descendant of target
+	if target.IsGroup && strings.HasPrefix(newParentURI, targetEntryURI+"/") {
+		return errors.New("cannot move entry to its own descendant")
+	}
+
 	// Check if target entry exists at new location (for overwrite logic)
 	var overwriteEntryId *int64
 	existChild, err := c.store.FindEntry(ctx, namespace, newParent.ID, newName)

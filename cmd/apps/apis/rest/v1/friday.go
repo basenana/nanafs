@@ -17,6 +17,7 @@
 package v1
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -123,7 +124,7 @@ func (s *ServicesV1) Chat(ctx *gin.Context) {
 		return
 	}
 
-	s.handleSSEStream(ctx, fbot, caller.Namespace, req.SessionID, sess, req.Message)
+	s.handleSSEStream(ctx, fbot, caller.Namespace, req.SessionID, sess, req.Message, req.ContextEntries)
 }
 
 type FridayMessage struct {
@@ -132,7 +133,7 @@ type FridayMessage struct {
 	Extra     map[string]any `json:"extra,omitempty"`
 }
 
-func (s *ServicesV1) handleSSEStream(ctx *gin.Context, fbot *friday.Friday, namespace, sessionID string, sess *session.Session, userMessage string) {
+func (s *ServicesV1) handleSSEStream(ctx *gin.Context, fbot *friday.Friday, namespace, sessionID string, sess *session.Session, userMessage string, contextEntries []string) {
 	ctx.Header("Content-Type", "text/event-stream")
 	ctx.Header("Cache-Control", "no-cache")
 	ctx.Header("Connection", "keep-alive")
@@ -147,7 +148,18 @@ func (s *ServicesV1) handleSSEStream(ctx *gin.Context, fbot *friday.Friday, name
 	eventCh, closeF := events.SubscribeFridayEvents(namespace, sessionID)
 	defer closeF()
 
-	resp := fbot.Chat(ctx.Request.Context(), sess, userMessage)
+	buf := bytes.NewBuffer(nil)
+	buf.WriteString(fmt.Sprintf("Time: %s\n", time.Now().Format(time.RFC3339)))
+	if len(contextEntries) > 0 {
+		buf.WriteString("The user currently has the following file open:\n")
+		for _, entry := range contextEntries {
+			buf.WriteString(fmt.Sprintf("- %s\n", entry))
+		}
+	}
+	buf.WriteString("Message: \n")
+	buf.WriteString(userMessage)
+
+	resp := fbot.Chat(ctx.Request.Context(), sess, buf.String())
 	if resp == nil {
 		apitool.ErrorResponse(ctx, http.StatusInternalServerError, "INTERNAL_ERROR", fmt.Errorf("chat response is nil"))
 		return

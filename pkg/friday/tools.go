@@ -7,13 +7,26 @@ import (
 	"fmt"
 	"io"
 	"path"
+	"time"
 
 	htmltomarkdown "github.com/JohannesKaufmann/html-to-markdown/v2"
 	"github.com/basenana/friday/core/tools"
 	"github.com/basenana/nanafs/pkg/core"
+	"github.com/basenana/nanafs/pkg/events"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/google/uuid"
 	"github.com/hyponet/webpage-packer/packer"
 )
+
+func (f *Friday) publishToolEvent(sessionID, eventMessage, entryURI string) {
+	event := &Event{
+		Id:       uuid.New().String(),
+		Event:    eventMessage,
+		EntryURI: entryURI,
+		Time:     time.Now(),
+	}
+	events.PublishFridayEvent(f.namespace, sessionID, event)
+}
 
 // file_read tool - Read file contents from NanaFS
 func (f *Friday) newFileReadTool() *tools.Tool {
@@ -67,7 +80,9 @@ func (f *Friday) newFileReadTool() *tools.Tool {
 				}
 			}
 
-			if content == "" {
+			f.publishToolEvent(request.SessionID, "Reading file", pathVal)
+
+			if content != "" {
 				markdown, err := htmltomarkdown.ConvertString(content)
 				if err != nil {
 					return tools.NewToolResultText(content), nil
@@ -143,6 +158,8 @@ func (f *Friday) newFileWriteTool() *tools.Tool {
 				return tools.NewToolResultError("path is a directory"), nil
 			}
 
+			f.publishToolEvent(request.SessionID, "Writing file", pathVal)
+
 			file, err = f.fs.Open(ctx, entry.ID, types.OpenAttr{Write: true, Trunc: true})
 			if err != nil {
 				return tools.NewToolResultError("open file failed"), nil
@@ -182,6 +199,8 @@ func (f *Friday) newFileListTool() *tools.Tool {
 			if !entry.IsGroup {
 				return tools.NewToolResultError("path is not a directory"), nil
 			}
+
+			f.publishToolEvent(request.SessionID, "Listing group", pathVal)
 
 			dir, err := f.fs.OpenDir(ctx, entry.ID)
 			if err != nil {
@@ -276,6 +295,9 @@ func (f *Friday) newMkdirTool() *tools.Tool {
 				Name: name,
 				Kind: types.GroupKind,
 			}
+
+			f.publishToolEvent(request.SessionID, "Creating group", entryPath)
+
 			_, err = f.fs.CreateEntry(ctx, parentURI, attr)
 			if err != nil {
 				return tools.NewToolResultError("create directory failed"), nil
@@ -326,6 +348,8 @@ func (f *Friday) newRenameTool() *tools.Tool {
 				return tools.NewToolResultError("invalid destination name"), nil
 			}
 
+			f.publishToolEvent(request.SessionID, "Moving file", srcEntryPath)
+
 			err = f.fs.Rename(ctx, srcEntryPath, destParentURI, destName, types.ChangeParentAttr{})
 			if err != nil {
 				return tools.NewToolResultError("rename failed"), nil
@@ -360,6 +384,8 @@ func (f *Friday) newDeleteTool() *tools.Tool {
 			if err != nil {
 				return tools.NewToolResultError(err.Error()), nil
 			}
+
+			f.publishToolEvent(request.SessionID, "Deleting file", entryPath)
 
 			if entry.IsGroup {
 				err = f.fs.RmGroup(ctx, entryPath, types.DestroyEntryAttr{})
@@ -408,6 +434,8 @@ func (f *Friday) newSearchTool() *tools.Tool {
 			if !ok || query == "" {
 				return tools.NewToolResultError("missing required parameter: query"), nil
 			}
+
+			f.publishToolEvent(request.SessionID, "Searching: "+query, "")
 
 			docs, err := f.indexer.QueryLanguage(ctx, f.namespace, query)
 			if err != nil {

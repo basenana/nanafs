@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -260,6 +261,11 @@ func (s *ServicesV1) ChangeParent(ctx *gin.Context) {
 
 	if newParentURI == req.EntryURI {
 		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", fmt.Errorf("new entry uri is the same as old"))
+		return
+	}
+
+	if strings.HasPrefix(newParentURI, targetEntryURI+"/") {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", fmt.Errorf("cannot move entry to its own descendant"))
 		return
 	}
 
