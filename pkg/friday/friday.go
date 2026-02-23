@@ -3,6 +3,7 @@ package friday
 import (
 	"context"
 	"fmt"
+	"path"
 
 	"github.com/basenana/friday/core/agents"
 	"github.com/basenana/friday/core/agents/summarize"
@@ -43,19 +44,23 @@ func NewFriday(fs *core.FileSystem, llm openai.Client, indexer indexer.Indexer, 
 }
 
 func (f *Friday) NewSession() (*session.Session, error) {
-	sess := session.New(uuid.New().String(), f.llm, session.WithHooks(
-		planning.New(f.llm, planning.Option{}),
-		subagents.NewHook(f.llm, subagents.Option{
-			SubAgents: []subagents.ExpertAgent{
-				{
-					Name:     "EXPLORER",
-					Describe: EXPLORER_AGENT_DESC,
-					Agent:    f.agt,
+	sessID := uuid.New().String()
+	sess := session.New(sessID, f.llm,
+		session.WithWorkdirFS(newWorkdirFS(f.fs, sessID)),
+		session.WithHooks(
+			planning.New(f.llm, planning.Option{}),
+			subagents.NewHook(f.llm, subagents.Option{
+				SubAgents: []subagents.ExpertAgent{
+					{
+						Name:     "EXPLORER",
+						Describe: EXPLORER_AGENT_DESC,
+						Agent:    f.agt,
+					},
 				},
-			},
-		}),
-		summarize.NewCompactHook(f.llm, 65535),
-	))
+			}),
+			summarize.NewCompactHook(f.llm, 65535),
+		),
+	)
 	return sess, nil
 }
 
@@ -65,19 +70,22 @@ func (f *Friday) OpenSession(ctx context.Context, sessionID string) (*session.Se
 		return nil, err
 	}
 
-	sess := session.New(sessionID, f.llm, session.WithHooks(
-		planning.New(f.llm, planning.Option{}),
-		subagents.NewHook(f.llm, subagents.Option{
-			SubAgents: []subagents.ExpertAgent{
-				{
-					Name:     "EXPLORER",
-					Describe: EXPLORER_AGENT_DESC,
-					Agent:    f.agt,
+	sess := session.New(sessionID, f.llm,
+		session.WithWorkdirFS(newWorkdirFS(f.fs, sessionID)),
+		session.WithHooks(
+			planning.New(f.llm, planning.Option{}),
+			subagents.NewHook(f.llm, subagents.Option{
+				SubAgents: []subagents.ExpertAgent{
+					{
+						Name:     "EXPLORER",
+						Describe: EXPLORER_AGENT_DESC,
+						Agent:    f.agt,
+					},
 				},
-			},
-		}),
-		summarize.NewCompactHook(f.llm, 65535),
-	))
+			}),
+			summarize.NewCompactHook(f.llm, 65535),
+		),
+	)
 
 	messages, err := f.store.GetMessages(ctx, sessionID)
 	if err != nil {
@@ -108,6 +116,11 @@ func (f *Friday) Namespace() string {
 // GetStore returns the session store
 func (f *Friday) GetStore() SessionStore {
 	return f.store
+}
+
+// GetWorkdirPath returns the workdir path for a session
+func (f *Friday) GetWorkdirPath(sessionID string) string {
+	return path.Join("/", SessionsDirName, sessionID, WorkdirName)
 }
 
 // Tools returns all available filesystem tools

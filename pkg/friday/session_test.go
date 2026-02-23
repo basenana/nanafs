@@ -45,7 +45,7 @@ func TestMessageToSessionMessage(t *testing.T) {
 			input: &fridaytypes.Message{
 				AssistantMessage:   "Hi there",
 				AssistantReasoning: "Thinking...",
-				Time:              "2026-02-19T10:00:01Z",
+				Time:               "2026-02-19T10:00:01Z",
 			},
 			expected: &SessionMessage{
 				Type:      "assistant",
@@ -139,7 +139,7 @@ func TestSessionMessageToMessage(t *testing.T) {
 			expected: &fridaytypes.Message{
 				AssistantMessage:   "Hi there",
 				AssistantReasoning: "Thinking...",
-				Time:              "2026-02-19T10:00:01Z",
+				Time:               "2026-02-19T10:00:01Z",
 			},
 		},
 		{

@@ -128,6 +128,14 @@ func (s *fileSessionStore) CreateSession(ctx context.Context, name string) (*Ses
 		return nil, err
 	}
 
+	_, err = s.fs.CreateEntry(ctx, sessionDir, types.EntryAttr{
+		Name: WorkdirName,
+		Kind: types.GroupKind,
+	})
+	if err != nil && !errors.Is(err, types.ErrIsExist) {
+		return nil, err
+	}
+
 	metaPath := path.Join(sessionDir, MetaFileName)
 	metaData, err := json.MarshalIndent(meta, "", "  ")
 	if err != nil {
