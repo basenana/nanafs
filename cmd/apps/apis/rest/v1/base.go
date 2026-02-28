@@ -68,12 +68,12 @@ func NewServicesV1(engine *gin.Engine, depends *common.Depends) (*ServicesV1, er
 	bCfg := depends.Config.GetBootstrapConfig()
 
 	if depends.LLM != nil {
-		factory := func(namespace string) (*core.FileSystem, indexer.Indexer, error) {
+		factory := func(namespace string) (*core.FileSystem, core.Core, metastore.Meta, indexer.Indexer, error) {
 			fs, err := core.NewFileSystem(depends.Core, depends.Meta, namespace)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, nil, err
 			}
-			return fs, depends.Indexer, nil
+			return fs, depends.Core, depends.Meta, depends.Indexer, nil
 		}
 		s.fridayManager = friday.NewFridayManager(depends.LLM, factory, bCfg.Friday)
 	}

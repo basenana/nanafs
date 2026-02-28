@@ -15,6 +15,7 @@ import (
 	"github.com/basenana/friday/core/tools"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/indexer"
+	"github.com/basenana/nanafs/pkg/metastore"
 	"github.com/basenana/nanafs/pkg/types"
 	"github.com/google/uuid"
 )
@@ -23,20 +24,24 @@ type Session = session.Session
 
 type Friday struct {
 	fs        *core.FileSystem
+	core      core.Core
+	store     metastore.Meta
 	llm       openai.Client
 	agt       agents.Agent
 	indexer   indexer.Indexer
 	namespace string
-	store     SessionStore
+	sessStore SessionStore
 }
 
-func NewFriday(fs *core.FileSystem, llm openai.Client, indexer indexer.Indexer, store SessionStore) *Friday {
+func NewFriday(fs *core.FileSystem, core core.Core, metaStore metastore.Meta, llm openai.Client, indexer indexer.Indexer, sessStore SessionStore) *Friday {
 	f := &Friday{
 		fs:        fs,
+		core:      core,
+		store:     metaStore,
 		llm:       llm,
 		indexer:   indexer,
 		namespace: fs.Namespace(),
-		store:     store,
+		sessStore: sessStore,
 	}
 	agt := agents.New(llm, agents.Option{SystemPrompt: DEFAULT_SYS_PROMPT, MaxLoopTimes: 20, Tools: f.Tools()})
 	f.agt = agt
@@ -65,7 +70,7 @@ func (f *Friday) NewSession() (*session.Session, error) {
 }
 
 func (f *Friday) OpenSession(ctx context.Context, sessionID string) (*session.Session, error) {
-	_, err := f.store.GetSession(ctx, sessionID)
+	_, err := f.sessStore.GetSession(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +92,7 @@ func (f *Friday) OpenSession(ctx context.Context, sessionID string) (*session.Se
 		),
 	)
 
-	messages, err := f.store.GetMessages(ctx, sessionID)
+	messages, err := f.sessStore.GetMessages(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +120,7 @@ func (f *Friday) Namespace() string {
 
 // GetStore returns the session store
 func (f *Friday) GetStore() SessionStore {
-	return f.store
+	return f.sessStore
 }
 
 // GetWorkdirPath returns the workdir path for a session
@@ -136,6 +141,7 @@ func (f *Friday) Tools() []*tools.Tool {
 		//f.newRenameTool(),
 
 		f.newSearchTool(),
+		f.newFilterTool(),
 	}
 }
 

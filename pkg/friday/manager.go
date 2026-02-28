@@ -24,9 +24,10 @@ import (
 	"github.com/basenana/nanafs/config"
 	"github.com/basenana/nanafs/pkg/core"
 	"github.com/basenana/nanafs/pkg/indexer"
+	"github.com/basenana/nanafs/pkg/metastore"
 )
 
-type Factory func(namespace string) (*core.FileSystem, indexer.Indexer, error)
+type Factory func(namespace string) (*core.FileSystem, core.Core, metastore.Meta, indexer.Indexer, error)
 
 type Manager struct {
 	mu      sync.RWMutex
@@ -61,13 +62,13 @@ func (m *Manager) GetFriday(namespace string) (*Friday, error) {
 		return f, nil
 	}
 
-	fs, idx, err := m.factory(namespace)
+	fs, c, meta, idx, err := m.factory(namespace)
 	if err != nil {
 		return nil, fmt.Errorf("create filesystem for namespace %s: %w", namespace, err)
 	}
 
-	store := NewFileSessionStore(fs, namespace)
-	f = NewFriday(fs, m.llm, idx, store)
+	sessStore := NewFileSessionStore(fs, namespace)
+	f = NewFriday(fs, c, meta, m.llm, idx, sessStore)
 	m.fridays[namespace] = f
 	return f, nil
 }
