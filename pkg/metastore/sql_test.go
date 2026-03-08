@@ -567,3 +567,232 @@ var _ = Describe("TestWorkflowQueue", func() {
 		Expect(claimed.Status).Should(Equal("running"))
 	})
 })
+
+var _ = Describe("TestUserStore", func() {
+	var sqlite *sqlMetaStore
+
+	BeforeEach(func() {
+		sqlite = buildNewSqliteMetaStore("test_user.db")
+	})
+
+	Context("create a new user", func() {
+		It("should succeed", func() {
+			user := &types.User{
+				GoogleID:  "google-12345",
+				Email:     "test@example.com",
+				Name:      "Test User",
+				AvatarURL: "https://example.com/avatar.png",
+				Namespace: "test-ns",
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+
+			err := sqlite.CreateUser(context.TODO(), user)
+			Expect(err).Should(BeNil())
+			Expect(user.ID).Should(BeNumerically(">", 0))
+		})
+	})
+
+	Context("get user by google id", func() {
+		It("should succeed", func() {
+			user := &types.User{
+				GoogleID:  "google-12345-get",
+				Email:     "test-get@example.com",
+				Name:      "Test User",
+				AvatarURL: "https://example.com/avatar.png",
+				Namespace: "test-ns-get",
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+			err := sqlite.CreateUser(context.TODO(), user)
+			Expect(err).Should(BeNil())
+
+			fetched, err := sqlite.GetUserByGoogleID(context.TODO(), "google-12345-get")
+			Expect(err).Should(BeNil())
+			Expect(fetched.GoogleID).Should(Equal("google-12345-get"))
+			Expect(fetched.Email).Should(Equal("test-get@example.com"))
+		})
+
+		It("should return not found for non-existent google id", func() {
+			_, err := sqlite.GetUserByGoogleID(context.TODO(), "non-existent")
+			Expect(err).Should(Equal(types.ErrNotFound))
+		})
+	})
+
+	Context("get user by email", func() {
+		It("should succeed", func() {
+			user := &types.User{
+				GoogleID:  "google-12345-email",
+				Email:     "test-email@example.com",
+				Name:      "Test User",
+				AvatarURL: "https://example.com/avatar.png",
+				Namespace: "test-ns-email",
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+			err := sqlite.CreateUser(context.TODO(), user)
+			Expect(err).Should(BeNil())
+
+			fetched, err := sqlite.GetUserByEmail(context.TODO(), "test-email@example.com")
+			Expect(err).Should(BeNil())
+			Expect(fetched.Email).Should(Equal("test-email@example.com"))
+		})
+	})
+
+	Context("get user by id", func() {
+		It("should succeed", func() {
+			user := &types.User{
+				GoogleID:  "google-12345-id",
+				Email:     "test-id@example.com",
+				Name:      "Test User",
+				AvatarURL: "https://example.com/avatar.png",
+				Namespace: "test-ns-id",
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+			err := sqlite.CreateUser(context.TODO(), user)
+			Expect(err).Should(BeNil())
+
+			fetched, err := sqlite.GetUserByID(context.TODO(), user.ID)
+			Expect(err).Should(BeNil())
+			Expect(fetched.ID).Should(Equal(user.ID))
+		})
+	})
+
+	Context("get user by namespace", func() {
+		It("should succeed", func() {
+			user := &types.User{
+				GoogleID:  "google-12345-ns",
+				Email:     "test-ns@example.com",
+				Name:      "Test User",
+				AvatarURL: "https://example.com/avatar.png",
+				Namespace: "test-ns-ns",
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+			err := sqlite.CreateUser(context.TODO(), user)
+			Expect(err).Should(BeNil())
+
+			fetched, err := sqlite.GetUserByNamespace(context.TODO(), "test-ns-ns")
+			Expect(err).Should(BeNil())
+			Expect(fetched.Namespace).Should(Equal("test-ns-ns"))
+		})
+	})
+
+	Context("update user", func() {
+		It("should succeed", func() {
+			user := &types.User{
+				GoogleID:  "google-12345-update",
+				Email:     "test-update@example.com",
+				Name:      "Test User",
+				AvatarURL: "https://example.com/avatar.png",
+				Namespace: "test-ns-update",
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+			err := sqlite.CreateUser(context.TODO(), user)
+			Expect(err).Should(BeNil())
+
+			user.Name = "Updated Name"
+			user.AvatarURL = "https://example.com/new-avatar.png"
+			err = sqlite.UpdateUser(context.TODO(), user)
+			Expect(err).Should(BeNil())
+
+			fetched, err := sqlite.GetUserByGoogleID(context.TODO(), "google-12345-update")
+			Expect(err).Should(BeNil())
+			Expect(fetched.Name).Should(Equal("Updated Name"))
+		})
+	})
+})
+
+var _ = Describe("TestNamespaceStore", func() {
+	var sqlite *sqlMetaStore
+
+	BeforeEach(func() {
+		sqlite = buildNewSqliteMetaStore("test_namespace.db")
+	})
+
+	Context("create a new namespace", func() {
+		It("should succeed", func() {
+			ns := &types.Namespace{
+				Name:      "my-namespace",
+				OwnerID:   1,
+				CreatedAt: time.Now(),
+			}
+
+			err := sqlite.CreateNamespace(context.TODO(), ns)
+			Expect(err).Should(BeNil())
+			Expect(ns.ID).Should(BeNumerically(">", 0))
+		})
+	})
+
+	Context("get namespace by name", func() {
+		It("should succeed", func() {
+			ns := &types.Namespace{
+				Name:      "my-namespace-get",
+				OwnerID:   1,
+				CreatedAt: time.Now(),
+			}
+			err := sqlite.CreateNamespace(context.TODO(), ns)
+			Expect(err).Should(BeNil())
+
+			fetched, err := sqlite.GetNamespace(context.TODO(), "my-namespace-get")
+			Expect(err).Should(BeNil())
+			Expect(fetched.Name).Should(Equal("my-namespace-get"))
+			Expect(fetched.OwnerID).Should(Equal(int64(1)))
+		})
+
+		It("should return not found for non-existent namespace", func() {
+			_, err := sqlite.GetNamespace(context.TODO(), "non-existent-ns")
+			Expect(err).Should(Equal(types.ErrNotFound))
+		})
+	})
+
+	Context("list namespaces", func() {
+		It("should return all namespaces", func() {
+			ns1 := &types.Namespace{Name: "ns-1-list", OwnerID: 1, CreatedAt: time.Now()}
+			ns2 := &types.Namespace{Name: "ns-2-list", OwnerID: 2, CreatedAt: time.Now()}
+
+			err := sqlite.CreateNamespace(context.TODO(), ns1)
+			Expect(err).Should(BeNil())
+			err = sqlite.CreateNamespace(context.TODO(), ns2)
+			Expect(err).Should(BeNil())
+
+			list, err := sqlite.ListNamespaces(context.TODO())
+			Expect(err).Should(BeNil())
+			Expect(len(list)).Should(BeNumerically(">=", 2))
+		})
+	})
+
+	Context("check namespace exists", func() {
+		It("should return true for existing namespace", func() {
+			ns := &types.Namespace{Name: "my-namespace-exists", OwnerID: 1, CreatedAt: time.Now()}
+			err := sqlite.CreateNamespace(context.TODO(), ns)
+			Expect(err).Should(BeNil())
+
+			exists, err := sqlite.NamespaceExists(context.TODO(), "my-namespace-exists")
+			Expect(err).Should(BeNil())
+			Expect(exists).Should(BeTrue())
+		})
+
+		It("should return false for non-existing namespace", func() {
+			exists, err := sqlite.NamespaceExists(context.TODO(), "non-existent-ns-check")
+			Expect(err).Should(BeNil())
+			Expect(exists).Should(BeFalse())
+		})
+	})
+
+	Context("delete namespace", func() {
+		It("should succeed", func() {
+			ns := &types.Namespace{Name: "my-namespace-delete", OwnerID: 1, CreatedAt: time.Now()}
+			err := sqlite.CreateNamespace(context.TODO(), ns)
+			Expect(err).Should(BeNil())
+
+			err = sqlite.DeleteNamespace(context.TODO(), "my-namespace-delete")
+			Expect(err).Should(BeNil())
+
+			_, err = sqlite.GetNamespace(context.TODO(), "my-namespace-delete")
+			Expect(err).Should(Equal(types.ErrNotFound))
+		})
+	})
+})

@@ -1,6 +1,7 @@
 package logger
 
 type Logger interface {
+	Named(name string) Logger
 	With(keysAndValues ...interface{}) Logger
 
 	Info(args ...interface{})

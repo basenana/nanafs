@@ -56,6 +56,10 @@ func (i *indexExecutor) handleEvent(evt *types.Event) error {
 		return nil
 	}
 
+	if isHideEntry(evt.Data.URI) {
+		return nil
+	}
+
 	i.mux.Lock()
 	defer i.mux.Unlock()
 

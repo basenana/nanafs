@@ -210,6 +210,7 @@ func (c *core) CreateNamespace(ctx context.Context, namespace string) error {
 
 	buildInGroups := []string{
 		".inbox",
+		".friday",
 	}
 
 	for _, buildInGroupName := range buildInGroups {
@@ -541,6 +542,11 @@ func (c *core) ChangeEntryParent(ctx context.Context, namespace string, targetEn
 	_, newParent, err := c.GetEntryByPath(ctx, namespace, newParentURI)
 	if err != nil {
 		return err
+	}
+
+	// Cycle detection: ensure new parent is not a descendant of target
+	if target.IsGroup && strings.HasPrefix(newParentURI, targetEntryURI+"/") {
+		return errors.New("cannot move entry to its own descendant")
 	}
 
 	// Check if target entry exists at new location (for overwrite logic)

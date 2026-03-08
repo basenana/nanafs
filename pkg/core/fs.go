@@ -185,7 +185,7 @@ func (f *FileSystem) RmGroup(ctx context.Context, entryURI string, attr types.De
 	}
 
 	f.logger.Debugw("delete group", "entry", entryURI)
-	return f.core.RemoveEntry(ctx, f.namespace, entryURI, types.DeleteEntry{})
+	return f.core.RemoveEntry(ctx, f.namespace, entryURI, types.DeleteEntry{DeleteAll: attr.Recursion})
 }
 
 func (f *FileSystem) Rename(ctx context.Context, targetEntryURI, newParentURI string, newName string, opt types.ChangeParentAttr) error {

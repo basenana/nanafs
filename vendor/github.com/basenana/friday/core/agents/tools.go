@@ -6,18 +6,16 @@ import (
 	"encoding/xml"
 	"fmt"
 	"hash/fnv"
+	"time"
 
 	"github.com/basenana/friday/core/providers/openai"
 	"github.com/basenana/friday/core/session"
 	"github.com/basenana/friday/core/tools"
+	"github.com/basenana/friday/core/types"
 )
 
 var (
-	buildInTools = []openai.ToolDefine{
-		openai.NewToolDefine("topic_finish_close", "If you believe the question has been resolved and has an ultimate answer, "+
-			"you must execute the tool to end the topic, otherwise the topic will not end, and the tool does not require input parameters",
-			map[string]any{"properties": map[string]any{}, "type": "object"}),
-	}
+	buildInTools []openai.ToolDefine
 )
 
 type ToolUse struct {
@@ -71,4 +69,34 @@ func newLLMRequest(systemMessage string, sess *session.Session, toolList []*tool
 	req := openai.NewSimpleRequest(systemMessage, sess.History...)
 	req.SetToolDefines(toolDef)
 	return req
+}
+
+func NewToolUseEvent(source string, use *ToolUse) *types.Event {
+	data, _ := json.Marshal(use)
+	return &types.Event{
+		Id:              types.NewID(),
+		Type:            "tool_use",
+		Source:          source,
+		SpecVersion:     "1.0",
+		DataContentType: "application/json",
+		Data:            string(data),
+		Time:            time.Now(),
+	}
+}
+
+func NewToolUseResultEvent(source string, use *ToolUse, result string) *types.Event {
+	data, _ := json.Marshal(map[string]interface{}{
+		"id":     use.ID(),
+		"result": result,
+	})
+
+	return &types.Event{
+		Id:              types.NewID(),
+		Type:            "tool_use_result",
+		Source:          source,
+		SpecVersion:     "1.0",
+		DataContentType: "application/json",
+		Data:            string(data),
+		Time:            time.Now(),
+	}
 }

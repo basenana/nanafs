@@ -142,3 +142,13 @@ func validateWorkflowSpec(spec *types.Workflow) error {
 	}
 	return nil
 }
+
+func isHideEntry(entryPath string) bool {
+	parts := strings.Split(entryPath, "/")
+	for _, part := range parts {
+		if strings.HasPrefix(part, ".") {
+			return true
+		}
+	}
+	return false
+}

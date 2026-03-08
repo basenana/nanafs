@@ -31,13 +31,16 @@ type Bootstrap struct {
 	Debug     bool   `json:"debug,omitempty"`
 
 	Workflow Workflow `json:"workflow"`
+	Friday   Friday   `json:"friday"`
+	LLM      LLM      `json:"llm"`
 }
 
 type FsApi struct {
-	Enable bool   `json:"enable"`
-	Host   string `json:"host"`
-	Port   int    `json:"port"`
-	JWT    *JWT   `json:"jwt,omitempty"`
+	Enable      bool         `json:"enable"`
+	Host        string       `json:"host"`
+	Port        int          `json:"port"`
+	JWT         *JWT         `json:"jwt,omitempty"`
+	GoogleOAuth *GoogleOAuth `json:"google_oauth,omitempty"`
 }
 
 type Webdav struct {
@@ -80,6 +83,27 @@ type JWT struct {
 	SecretKey string `json:"secret_key"`
 }
 
+type GoogleOAuth struct {
+	Enable       bool   `json:"enable"`
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
+	RedirectURL  string `json:"redirect_url"`
+}
+
 type Integration struct {
 	DocumentWebhook string `json:"document_webhook"`
+}
+
+type Friday struct {
+	JinaAPIKey string `json:"jina_api_key"`
+}
+
+type LLM struct {
+	Enable      bool     `json:"enable"`
+	Host        string   `json:"host"`
+	APIKey      string   `json:"api_key"`
+	Model       string   `json:"model"`
+	QPM         int      `json:"qpm"`
+	Proxy       string   `json:"proxy"`
+	Temperature *float64 `json:"temperature,omitempty"`
 }

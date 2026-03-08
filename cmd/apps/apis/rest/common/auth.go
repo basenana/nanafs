@@ -31,6 +31,8 @@ type CallerInfo struct {
 	Namespace string
 	UID       int64
 	GID       int64
+	Email     string
+	GoogleID  string
 }
 
 const (
@@ -95,6 +97,8 @@ func tryParseJWT(gCtx *gin.Context, jwtSecretKey string) *CallerInfo {
 		Namespace: claims.Namespace,
 		UID:       claims.UID,
 		GID:       claims.GID,
+		Email:     claims.Email,
+		GoogleID:  claims.GoogleID,
 	}
 }
 

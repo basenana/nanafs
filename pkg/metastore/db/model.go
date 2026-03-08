@@ -399,3 +399,71 @@ type WorkflowJobData struct {
 func (o *WorkflowJobData) TableName() string {
 	return "job_data"
 }
+
+type User struct {
+	ID        int64     `gorm:"column:id;primaryKey"`
+	GoogleID  string    `gorm:"column:google_id;uniqueIndex"`
+	Email     string    `gorm:"column:email;uniqueIndex"`
+	Name      string    `gorm:"column:name"`
+	AvatarURL string    `gorm:"column:avatar_url"`
+	Namespace string    `gorm:"column:namespace"`
+	CreatedAt time.Time `gorm:"column:created_at"`
+	UpdatedAt time.Time `gorm:"column:updated_at"`
+}
+
+func (u *User) TableName() string {
+	return "user"
+}
+
+func (u *User) From(user *types.User) *User {
+	u.ID = user.ID
+	u.GoogleID = user.GoogleID
+	u.Email = user.Email
+	u.Name = user.Name
+	u.AvatarURL = user.AvatarURL
+	u.Namespace = user.Namespace
+	u.CreatedAt = user.CreatedAt
+	u.UpdatedAt = user.UpdatedAt
+	return u
+}
+
+func (u *User) To() *types.User {
+	return &types.User{
+		ID:        u.ID,
+		GoogleID:  u.GoogleID,
+		Email:     u.Email,
+		Name:      u.Name,
+		AvatarURL: u.AvatarURL,
+		Namespace: u.Namespace,
+		CreatedAt: u.CreatedAt,
+		UpdatedAt: u.UpdatedAt,
+	}
+}
+
+type Namespace struct {
+	ID        int64     `gorm:"column:id;primaryKey"`
+	Name      string    `gorm:"column:name;uniqueIndex"`
+	OwnerID   int64     `gorm:"column:owner_id"`
+	CreatedAt time.Time `gorm:"column:created_at"`
+}
+
+func (n *Namespace) TableName() string {
+	return "namespace"
+}
+
+func (n *Namespace) From(ns *types.Namespace) *Namespace {
+	n.ID = ns.ID
+	n.Name = ns.Name
+	n.OwnerID = ns.OwnerID
+	n.CreatedAt = ns.CreatedAt
+	return n
+}
+
+func (n *Namespace) To() *types.Namespace {
+	return &types.Namespace{
+		ID:        n.ID,
+		Name:      n.Name,
+		OwnerID:   n.OwnerID,
+		CreatedAt: n.CreatedAt,
+	}
+}

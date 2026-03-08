@@ -63,6 +63,7 @@ func DefaultConfig(workdir string) (Bootstrap, error) {
 		Workflow: Workflow{
 			JobWorkdir: "/tmp",
 		},
+		LLM: LLM{Enable: false},
 	}
 
 	err = utils.Mkdir(dataPath)

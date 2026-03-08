@@ -1842,6 +1842,369 @@ Delete a config.
 
 ---
 
+### 8. Authentication (认证)
+
+Google OAuth authentication endpoints. These endpoints are publicly accessible (no authentication required).
+
+#### GET /api/v1/auth/google/url
+
+Get Google OAuth login URL.
+
+**Query Parameters**
+
+| Name    | Type   | Description                                  |
+|---------|--------|----------------------------------------------|
+| `state` | string | Optional state parameter for CSRF protection |
+
+**Response:**
+
+```json
+{
+  "url": "https://accounts.google.com/o/oauth2/auth?..."
+}
+```
+
+#### POST /api/v1/auth/google
+
+Authenticate with Google OAuth code.
+
+**Request Body:**
+
+```json
+{
+  "code": "authorization_code_from_google"
+}
+```
+
+**Fields:**
+
+| Field  | Type   | Required | Description                    |
+|--------|--------|----------|--------------------------------|
+| `code` | string | yes      | Authorization code from Google |
+
+**Response:**
+
+```json
+{
+  "token": "jwt_token_here",
+  "user": {
+    "id": 1001,
+    "email": "user@example.com",
+    "name": "John Doe",
+    "avatar_url": "https://example.com/avatar.jpg",
+    "namespace": "default"
+  },
+  "namespace": {
+    "name": "default",
+    "owner_id": 1001
+  }
+}
+```
+
+**Note:** If the user does not have a namespace, the `namespace` field may be omitted. Use `/api/v1/auth/google` with
+namespace parameter to create one.
+
+---
+
+### 9. Namespaces (命名空间)
+
+Namespace management endpoints for multi-tenant isolation.
+
+#### GET /api/v1/namespaces
+
+Get current user's namespace.
+
+**Response:**
+
+```json
+{
+  "name": "default",
+  "owner_id": 1001
+}
+```
+
+#### POST /api/v1/namespaces
+
+Create a new namespace for the current user.
+
+**Request Body:**
+
+```json
+{
+  "name": "my-workspace"
+}
+```
+
+**Fields:**
+
+| Field  | Type   | Required | Description    |
+|--------|--------|----------|----------------|
+| `name` | string | yes      | Namespace name |
+
+**Response:**
+
+```json
+{
+  "name": "my-workspace",
+  "owner_id": 1001
+}
+```
+
+**Note:** Users can only create one namespace. If a namespace already exists, this will return a 403 error.
+
+#### GET /api/v1/namespaces/:name
+
+Get a specific namespace.
+
+**Response:**
+
+```json
+{
+  "name": "default",
+  "owner_id": 1001
+}
+```
+
+**Note:** Users can only access their own namespace.
+
+#### DELETE /api/v1/namespaces/:name
+
+Delete a namespace.
+
+**Response:**
+
+```json
+{
+  "message": "namespace deleted"
+}
+```
+
+**Note:** Users can only delete their own namespace.
+
+---
+
+### 10. Users (用户)
+
+User management endpoints.
+
+#### GET /api/v1/users/me
+
+Get current authenticated user information.
+
+**Response:**
+
+```json
+{
+  "id": 1001,
+  "email": "user@example.com",
+  "name": "John Doe",
+  "avatar_url": "https://example.com/avatar.jpg",
+  "namespace": "default"
+}
+```
+
+---
+
+### 11. Friday Chat
+
+Friday is an AI assistant powered by LLM that can help you manage entries and answer questions.
+
+#### POST /api/v1/friday/chat
+
+Chat with Friday AI assistant using Server-Sent Events (SSE) for streaming responses.
+
+**Request Body:**
+
+```json
+{
+  "message": "What files do I have in inbox?",
+  "session_id": "uuid-xxxx-xxxx",
+  "name": "My Conversation",
+  "context_entries": [
+    "/inbox",
+    "/documents"
+  ]
+}
+```
+
+**Fields:**
+
+| Field             | Type     | Required | Description                                   |
+|-------------------|----------|----------|-----------------------------------------------|
+| `message`         | string   | yes      | Message to send to Friday                     |
+| `session_id`      | string   | yes      | Session ID for persistent conversation        |
+| `name`            | string   | no       | Session name (used when creating new session) |
+| `context_entries` | string[] | no       | Entry URIs to include as context              |
+
+**Response:** `text/event-stream`
+
+The response is a Server-Sent Events stream with the following event types:
+
+**MESSAGE-APPEND** - Stream message content:
+
+```
+event: MESSAGE-APPEND
+data: {"reasoning":"Let me check your inbox files...","content":""}
+
+event: MESSAGE-APPEND
+data: {"reasoning":"","content":"You have the following files in your inbox:\n\n"}
+
+event: MESSAGE-APPEND
+data: {"reasoning":"","content":"1. /inbox/tasks/task-001\n2. /inbox/docs/article-001\n3. /inbox/rss/feed-001"}
+```
+
+| Field       | Type   | Description                   |
+|-------------|--------|-------------------------------|
+| `reasoning` | string | AI reasoning/thinking process |
+| `content`   | string | Message content (streaming)   |
+
+**EVENT-UPDATE** - Event updates during processing:
+
+```
+event: EVENT-UPDATE
+data: {"id":"evt-001","event":"tool_use","entry_uri":"/inbox/file.txt","time":"2024-01-01T00:00:00Z"}
+```
+
+| Field       | Type   | Description                            |
+|-------------|--------|----------------------------------------|
+| `id`        | string | Event ID                               |
+| `event`     | string | Event type (e.g., tool_use, file_read) |
+| `entry_uri` | string | Entry URI related to the event         |
+| `time`      | string | Event timestamp (RFC3339)              |
+
+**DONE** - Stream completed:
+
+```
+event: DONE
+data: {}
+```
+
+#### POST /api/v1/friday/sessions
+
+Create a new Friday session for persistent conversation history.
+
+**Request Body:**
+
+```json
+{
+  "name": "My Conversation"
+}
+```
+
+**Fields:**
+
+| Field  | Type   | Required | Description  |
+|--------|--------|----------|--------------|
+| `name` | string | yes      | Session name |
+
+**Response:** `200 OK`
+
+```json
+{
+  "id": "uuid-xxxx-xxxx",
+  "name": "My Conversation",
+  "created_at": "2026-02-19T10:00:00Z"
+}
+```
+
+#### GET /api/v1/friday/sessions
+
+List all Friday sessions in the namespace.
+
+**Response:** `200 OK`
+
+```json
+{
+  "sessions": [
+    {
+      "id": "uuid-xxxx-xxxx",
+      "name": "My Conversation",
+      "created_at": "2026-02-19T10:00:00Z",
+      "updated_at": "2026-02-19T10:30:00Z"
+    }
+  ]
+}
+```
+
+#### GET /api/v1/friday/sessions/:id
+
+Get session details including message history.
+
+**Response:** `200 OK`
+
+```json
+{
+  "meta": {
+    "id": "uuid-xxxx-xxxx",
+    "name": "My Conversation",
+    "created_at": "2026-02-19T10:00:00Z",
+    "updated_at": "2026-02-19T10:30:00Z"
+  },
+  "messages": [
+    {
+      "type": "user",
+      "content": "What files do I have?",
+      "time": "2026-02-19T10:00:00Z"
+    },
+    {
+      "type": "assistant",
+      "content": "You have the following files in your inbox:",
+      "reasoning": "Let me check your inbox first...",
+      "time": "2026-02-19T10:00:01Z"
+    },
+    {
+      "type": "assistant",
+      "content": "1. /inbox/tasks/task-001\n2. /inbox/docs/article-001",
+      "time": "2026-02-19T10:00:03Z"
+    }
+  ]
+}
+```
+
+**Message Fields:**
+
+| Field       | Type   | Description                       |
+|-------------|--------|-----------------------------------|
+| `type`      | string | Message type: `user`, `assistant` |
+| `content`   | string | Message content                   |
+| `reasoning` | string | AI reasoning/thinking process     |
+| `tool_name` | string | Tool name (if tool was called)    |
+| `time`      | string | Message timestamp (RFC3339)       |
+
+#### PUT /api/v1/friday/sessions/:id
+
+Rename a Friday session.
+
+**Request Body:**
+
+```json
+{
+  "name": "New Name"
+}
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "message": "renamed"
+}
+```
+
+#### DELETE /api/v1/friday/sessions/:id
+
+Delete a Friday session.
+
+**Response:** `200 OK`
+
+```json
+{
+  "message": "deleted"
+}
+```
+
+---
+
 ## Error Responses
 
 All errors follow a consistent format:

@@ -99,5 +99,38 @@ func RegisterRoutes(engine *gin.Engine, s *ServicesV1) {
 			configs.GET("/:group", s.ListConfig)
 			configs.DELETE("/:group/:name", s.DeleteConfig)
 		}
+
+		// Friday AI Assistant
+		friday := v1.Group("/friday")
+		{
+			friday.POST("/chat", s.Chat)
+			friday.POST("/sessions", s.CreateSession)
+			friday.GET("/sessions", s.ListSessions)
+			friday.GET("/sessions/:id", s.GetSession)
+			friday.PUT("/sessions/:id", s.RenameSession)
+			friday.DELETE("/sessions/:id", s.DeleteSession)
+		}
+
+		// Auth (public endpoints)
+		auth := v1.Group("/auth")
+		{
+			auth.GET("/google/url", s.GetGoogleAuthURL)
+			auth.POST("/google", s.GoogleLogin)
+		}
+
+		// Namespace management (requires auth)
+		namespaces := v1.Group("/namespaces")
+		{
+			namespaces.GET("", s.ListMyNamespace)
+			namespaces.POST("", s.CreateNamespace)
+			namespaces.GET("/:name", s.GetNamespace)
+			namespaces.DELETE("/:name", s.DeleteNamespace)
+		}
+
+		// User info (requires auth)
+		users := v1.Group("/users")
+		{
+			users.GET("/me", s.GetCurrentUser)
+		}
 	}
 }

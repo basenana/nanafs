@@ -138,6 +138,18 @@ func buildMigrations() []*gormigrate.Migration {
 				return db.Exec(`DROP INDEX IF EXISTS idx_wf_job_status_queue_ns`).Error
 			},
 		},
+		{
+			ID: "2026021600",
+			Migrate: func(db *gorm.DB) error {
+				return db.AutoMigrate(
+					&User{},
+					&Namespace{},
+				)
+			},
+			Rollback: func(db *gorm.DB) error {
+				return nil
+			},
+		},
 	}
 }
 

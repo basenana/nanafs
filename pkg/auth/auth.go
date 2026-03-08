@@ -42,6 +42,22 @@ func NewClaims(namespace string, uid, gid int64, duration time.Duration) *Claims
 	}
 }
 
+func NewClaimsWithUser(namespace string, uid, gid int64, email, googleID string, duration time.Duration) *Claims {
+	now := time.Now()
+	return &Claims{
+		Namespace: namespace,
+		UID:       uid,
+		GID:       gid,
+		Email:     email,
+		GoogleID:  googleID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(now.Add(duration)),
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
+		},
+	}
+}
+
 func (c *Claims) GenerateToken(secretKey string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, c)
 	return token.SignedString([]byte(secretKey))

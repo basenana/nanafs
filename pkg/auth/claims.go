@@ -24,5 +24,7 @@ type Claims struct {
 	Namespace string `json:"namespace"`
 	UID       int64  `json:"uid"`
 	GID       int64  `json:"gid"`
+	Email     string `json:"email"`
+	GoogleID  string `json:"google_id"`
 	jwt.RegisteredClaims
 }

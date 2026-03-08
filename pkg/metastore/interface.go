@@ -29,6 +29,8 @@ type Meta interface {
 	NotificationRecorder
 	ScheduledTaskRecorder
 	DocumentSearcher
+	UserStore
+	NamespaceStore
 }
 
 type SysConfig interface {
@@ -104,4 +106,21 @@ type DocumentSearcher interface {
 	QueryDocuments(ctx context.Context, namespace, query string) ([]*types.IndexDocument, error)
 	DeleteDocument(ctx context.Context, namespace string, id int64) error
 	UpdateDocumentURI(ctx context.Context, namespace string, id int64, uri string) error
+}
+
+type UserStore interface {
+	CreateUser(ctx context.Context, user *types.User) error
+	GetUserByGoogleID(ctx context.Context, googleID string) (*types.User, error)
+	GetUserByEmail(ctx context.Context, email string) (*types.User, error)
+	GetUserByID(ctx context.Context, id int64) (*types.User, error)
+	GetUserByNamespace(ctx context.Context, namespace string) (*types.User, error)
+	UpdateUser(ctx context.Context, user *types.User) error
+}
+
+type NamespaceStore interface {
+	CreateNamespace(ctx context.Context, ns *types.Namespace) error
+	GetNamespace(ctx context.Context, name string) (*types.Namespace, error)
+	ListNamespaces(ctx context.Context) ([]*types.Namespace, error)
+	DeleteNamespace(ctx context.Context, name string) error
+	NamespaceExists(ctx context.Context, name string) (bool, error)
 }
