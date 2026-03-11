@@ -125,4 +125,132 @@ var _ = Describe("REST V1 File API", func() {
 			Expect(w.Code).To(Equal(http.StatusNotFound))
 		})
 	})
+
+	Describe("ReadMarkdownFile", func() {
+		It("should return 404 for non-existent entry", func() {
+			reqBody := map[string]int64{"id": 99999}
+			jsonBody, _ := json.Marshal(reqBody)
+			req, err := http.NewRequest("POST", "/api/v1/documents/markdown", bytes.NewBuffer(jsonBody))
+			Expect(err).Should(BeNil())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Namespace", types.DefaultNamespace)
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(http.StatusNotFound))
+		})
+
+		It("should read markdown file and return text/markdown", func() {
+			// Create a markdown file
+			createReq := CreateEntryRequest{
+				URI:  "/test-markdown.md",
+				Kind: "file",
+			}
+			createJson, _ := json.Marshal(createReq)
+			createHttpReq, _ := http.NewRequest("POST", "/api/v1/entries", bytes.NewBuffer(createJson))
+			createHttpReq.Header.Set("Content-Type", "application/json")
+			createHttpReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			createW := httptest.NewRecorder()
+			router.ServeHTTP(createW, createHttpReq)
+			Expect(createW.Code).To(Equal(http.StatusCreated))
+
+			var createResp EntryResponse
+			json.Unmarshal(createW.Body.Bytes(), &createResp)
+			Expect(createResp.Entry).NotTo(BeNil())
+			Expect(createResp.Entry.Entry).NotTo(Equal(int64(0)))
+
+			// Write content to the file
+			body := &bytes.Buffer{}
+			writer := multipart.NewWriter(body)
+			writer.WriteField("id", fmt.Sprintf("%d", createResp.Entry.Entry))
+			fileWriter, _ := writer.CreateFormFile("file", "test-markdown.md")
+			fileWriter.Write([]byte("# Hello World\n\nThis is a test."))
+			writer.Close()
+
+			writeReq, _ := http.NewRequest("POST", "/api/v1/files/content/write", body)
+			writeReq.Header.Set("Content-Type", writer.FormDataContentType())
+			writeReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			writeW := httptest.NewRecorder()
+			router.ServeHTTP(writeW, writeReq)
+			Expect(writeW.Code).To(Equal(http.StatusOK))
+
+			// Read as markdown
+			readReqBody := map[string]int64{"id": createResp.Entry.Entry}
+			readReqJson, _ := json.Marshal(readReqBody)
+			readReq, _ := http.NewRequest("POST", "/api/v1/documents/markdown", bytes.NewBuffer(readReqJson))
+			readReq.Header.Set("Content-Type", "application/json")
+			readReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			readW := httptest.NewRecorder()
+			router.ServeHTTP(readW, readReq)
+
+			Expect(readW.Code).To(Equal(http.StatusOK))
+			Expect(readW.Header().Get("Content-Type")).To(Equal("text/markdown"))
+			Expect(readW.Body.String()).To(ContainSubstring("# Hello World"))
+
+			// Cleanup
+			delReqBody := map[string]string{"uri": "/test-markdown.md"}
+			delJsonBody, _ := json.Marshal(delReqBody)
+			delReq, _ := http.NewRequest("POST", "/api/v1/entries/delete", bytes.NewBuffer(delJsonBody))
+			delReq.Header.Set("Content-Type", "application/json")
+			delReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			delW := httptest.NewRecorder()
+			router.ServeHTTP(delW, delReq)
+		})
+
+		It("should convert HTML to markdown", func() {
+			// Create an HTML file
+			createReq := CreateEntryRequest{
+				URI:  "/test-html.html",
+				Kind: "file",
+			}
+			createJson, _ := json.Marshal(createReq)
+			createHttpReq, _ := http.NewRequest("POST", "/api/v1/entries", bytes.NewBuffer(createJson))
+			createHttpReq.Header.Set("Content-Type", "application/json")
+			createHttpReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			createW := httptest.NewRecorder()
+			router.ServeHTTP(createW, createHttpReq)
+			Expect(createW.Code).To(Equal(http.StatusCreated))
+
+			var createResp EntryResponse
+			json.Unmarshal(createW.Body.Bytes(), &createResp)
+			Expect(createResp.Entry).NotTo(BeNil())
+
+			// Write HTML content
+			body := &bytes.Buffer{}
+			writer := multipart.NewWriter(body)
+			writer.WriteField("id", fmt.Sprintf("%d", createResp.Entry.Entry))
+			fileWriter, _ := writer.CreateFormFile("file", "test-html.html")
+			fileWriter.Write([]byte("<html><head><title>Test</title></head><body><h1>Hello</h1><p>World</p></body></html>"))
+			writer.Close()
+
+			writeReq, _ := http.NewRequest("POST", "/api/v1/files/content/write", body)
+			writeReq.Header.Set("Content-Type", writer.FormDataContentType())
+			writeReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			writeW := httptest.NewRecorder()
+			router.ServeHTTP(writeW, writeReq)
+			Expect(writeW.Code).To(Equal(http.StatusOK))
+
+			// Read as markdown
+			readReqBody := map[string]int64{"id": createResp.Entry.Entry}
+			readReqJson, _ := json.Marshal(readReqBody)
+			readReq, _ := http.NewRequest("POST", "/api/v1/documents/markdown", bytes.NewBuffer(readReqJson))
+			readReq.Header.Set("Content-Type", "application/json")
+			readReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			readW := httptest.NewRecorder()
+			router.ServeHTTP(readW, readReq)
+
+			Expect(readW.Code).To(Equal(http.StatusOK))
+			Expect(readW.Header().Get("Content-Type")).To(Equal("text/markdown"))
+
+			// Cleanup
+			delReqBody := map[string]string{"uri": "/test-html.html"}
+			delJsonBody, _ := json.Marshal(delReqBody)
+			delReq, _ := http.NewRequest("POST", "/api/v1/entries/delete", bytes.NewBuffer(delJsonBody))
+			delReq.Header.Set("Content-Type", "application/json")
+			delReq.Header.Set("X-Namespace", types.DefaultNamespace)
+			delW := httptest.NewRecorder()
+			router.ServeHTTP(delW, delReq)
+		})
+	})
 })

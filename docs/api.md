@@ -967,6 +967,32 @@ Note: Either `uri` or `id` must be provided in the form data to specify the targ
 
 ---
 
+#### POST /api/v1/documents/markdown
+
+Read file content as markdown or plain text. For HTML files, the content will be converted to markdown.
+
+**Request Body**
+
+```json
+{
+  "uri": "/path/to/file.html"
+}
+```
+
+Or by ID:
+
+```json
+{
+  "id": 12345
+}
+```
+
+**Response:** `text/markdown` or `text/plain`
+
+The Content-Type header indicates the format:
+- `text/markdown` - for .md, .markdown, .html, .htm, .webarchive files
+- `text/plain` - for other text files
+
 ### 5. Messages (消息/通知)
 
 #### GET /api/v1/messages

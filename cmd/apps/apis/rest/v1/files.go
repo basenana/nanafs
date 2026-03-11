@@ -21,12 +21,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/basenana/nanafs/cmd/apps/apis/apitool"
 	"github.com/basenana/nanafs/pkg/types"
+	"github.com/basenana/plugin/docloader"
 )
 
 // @Summary Write file
@@ -146,4 +149,62 @@ func (s *ServicesV1) ReadFile(ctx *gin.Context) {
 	}
 
 	ctx.Data(http.StatusOK, "application/octet-stream", data)
+}
+
+// @Summary Read document file
+// @Description Read file content as markdown or plain text
+// @Tags Files
+// @Accept json
+// @Produce text/plain
+// @Param request body FileContentRequest true "File selector"
+// @Success 200 {string} text "File content"
+// @Router /api/v1/documents/markdown [post]
+func (s *ServicesV1) ReadMarkdownFile(ctx *gin.Context) {
+	caller := s.requireCaller(ctx)
+	if caller == nil {
+		return
+	}
+
+	var req FileContentRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	en, _ := s.requireEntryWithPermission(ctx, caller, &req.EntrySelector, types.PermOwnerRead, types.PermGroupRead, types.PermOthersRead)
+	if en == nil {
+		return
+	}
+
+	file, err := s.core.Open(ctx.Request.Context(), caller.Namespace, en.ID, types.OpenAttr{Read: true})
+	if err != nil {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+	defer file.Close(ctx.Request.Context())
+
+	data := make([]byte, en.Size)
+	_, err = file.ReadAt(ctx.Request.Context(), data, 0)
+	if err != nil && err != io.EOF {
+		apitool.ErrorResponse(ctx, http.StatusBadRequest, "INVALID_ARGUMENT", err)
+		return
+	}
+
+	content := string(data)
+	contentType := "text/plain"
+
+	ext := strings.ToLower(path.Ext(en.Name))
+	switch ext {
+	case ".md", ".mkd", ".mk", ".mdown", ".markdown":
+		contentType = "text/markdown"
+	case ".html", ".htm", ".hts", ".webarchive":
+		content = docloader.ReadableHTMLContent(content)
+		contentType = "text/markdown"
+	case ".txt", ".text":
+		contentType = "text/plain"
+	default:
+		contentType = "text/plain"
+	}
+
+	ctx.Data(http.StatusOK, contentType, []byte(content))
 }

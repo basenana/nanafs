@@ -70,6 +70,12 @@ func RegisterRoutes(engine *gin.Engine, s *ServicesV1) {
 			files.POST("/content/write", s.WriteFile)
 		}
 
+		// Documents
+		documents := v1.Group("/documents")
+		{
+			documents.POST("/markdown", s.ReadMarkdownFile)
+		}
+
 		// Messages
 		v1.GET("/messages", s.ListMessages)
 		v1.POST("/messages/read", s.ReadMessages)
